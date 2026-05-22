@@ -3,7 +3,7 @@ export function tripGQL(fromId, toId, n) {
     + 'from:{place:"' + fromId + '"} '
     + 'to:{place:"' + toId + '"} '
     + 'numTripPatterns:' + (n || 8) + ' '
-    + 'transportModes:[{transportMode:metro}]'
+    + 'modes:{transportModes:[{transportMode:metro}]}'
     + ') { tripPatterns { duration legs {'
     + ' fromPlace{name}'
     + ' toPlace{name}'

@@ -10,6 +10,7 @@
 }
 .track-num.urgent{color:#fbbf24;text-shadow:0 0 44px rgba(251,191,36,.65),0 0 100px rgba(251,191,36,.2);animation:throb 1s infinite}
 .track-num.arrived{color:#4ade80;text-shadow:0 0 36px rgba(74,222,128,.55),0 0 80px rgba(74,222,128,.2);font-size:clamp(2.5rem,10vw,4rem)}
+.track-num.transfer{color:#f97316;text-shadow:0 0 36px rgba(249,115,22,.55),0 0 80px rgba(249,115,22,.2);font-size:clamp(2.5rem,10vw,4rem)}
 .track-num-label{font-size:11px;text-transform:uppercase;letter-spacing:.3em;color:#78716c;margin-top:.3rem}
 .track-arr-clock{
   font-family:"Bebas Neue",sans-serif;font-size:2rem;
@@ -36,3 +37,27 @@
 .stop-clock{font-variant-numeric:tabular-nums;margin-left:.75rem;flex-shrink:0}
 .stop-rel{font-variant-numeric:tabular-nums;margin-left:.5rem;min-width:4.5rem;text-align:right;font-size:10px;opacity:.7}
 .stop.next .stop-rel,.stop.dest .stop-rel{opacity:1}
+.stop.transfer{color:#f97316;background:rgba(249,115,22,.06);font-weight:700;font-size:12px}
+.stop.transfer .stop-dot{opacity:1}
+.bytt-tag{color:#f97316}
+
+.connecting-train{
+  display:flex;flex-direction:column;gap:.3rem;
+  padding:.65rem .75rem;
+  background:rgba(245,184,64,.04);
+  border:1px solid rgba(245,184,64,.12);
+  border-radius:6px;
+}
+.ct-label{font-size:8px;text-transform:uppercase;letter-spacing:.2em;color:#57534e}
+.ct-detail{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap}
+.ct-time{font-size:12px;color:#a8a29e}
+.ct-time strong{color:#f5b840}
+.ct-arr{font-size:11px;color:#78716c;margin-left:auto}
+.transfer-boarded{
+  padding:.65rem .75rem;margin:.5rem 0;
+  font-size:12px;color:#78716c;
+  background:rgba(74,222,128,.04);
+  border:1px solid rgba(74,222,128,.12);
+  border-radius:6px;
+  display:flex;align-items:center;gap:.45rem;
+}

@@ -30,6 +30,25 @@ export function doBoard() {
   const sjc = sj && sj.estimatedCalls;
   const arr = findArr(sjc, dir.to);
   const lbg = sj && sj.line && sj.line.presentation && sj.line.presentation.colour;
+
+  let transfer = null;
+  if (c._isTransfer && c._legs && c._legs.length >= 2) {
+    const leg0 = c._legs[0], leg1 = c._legs[1];
+    const arrT = leg0.toEstimatedCall && (leg0.toEstimatedCall.expectedArrivalTime || leg0.toEstimatedCall.aimedArrivalTime);
+    const depT = leg1.fromEstimatedCall && leg1.fromEstimatedCall.expectedDepartureTime;
+    const line1 = leg1.serviceJourney && leg1.serviceJourney.line;
+    transfer = {
+      at: c._transferAt,
+      arrivalAtTransfer: arrT ? { time: arrT, clk: clk(arrT) } : null,
+      connectingDep: depT ? {
+        time: depT,
+        clk: clk(depT),
+        lineCode: (line1 && line1.publicCode) || '?',
+        lineBg: (line1 && line1.presentation && line1.presentation.colour) ? '#' + line1.presentation.colour : '#7c2d12',
+      } : null,
+    };
+  }
+
   const arrTime = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
   state.jny = {
     journeyId: (sj && sj.id) || null,
@@ -40,7 +59,7 @@ export function doBoard() {
     stops: sjc || [],
     boardedAt: Date.now(),
     arrival: arrTime ? { time: arrTime, clk: clk(arrTime) } : null,
-    transfer: c._isTransfer ? { at: c._transferAt, legs: c._legs } : null,
+    transfer,
   };
   saveJny();
   activateTracking();
@@ -66,6 +85,11 @@ export function saveJny() {
       frontText: state.jny.frontText,
       boardedAt: state.jny.boardedAt,
       arrival: state.jny.arrival,
+      transfer: state.jny.transfer ? {
+        at: state.jny.transfer.at,
+        arrivalAtTransfer: state.jny.transfer.arrivalAtTransfer,
+        connectingDep: state.jny.transfer.connectingDep,
+      } : null,
     }));
   } catch {}
 }

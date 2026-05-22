@@ -1,11 +1,35 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr } from '../geo.js';
-import { fetchBoard } from '../api/entur.js';
+import { fetchBoard, fetchTrip } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+
+function adaptTripPattern(tp) {
+  const legs = tp.legs.filter(l => l.mode !== 'foot');
+  if (!legs.length) return null;
+  const first = legs[0], last = legs[legs.length - 1];
+  return {
+    expectedDepartureTime: first.fromEstimatedCall.expectedDepartureTime,
+    aimedDepartureTime:    first.fromEstimatedCall.aimedDepartureTime,
+    realtime:              first.fromEstimatedCall.realtime,
+    cancellation:          false,
+    destinationDisplay:    { frontText: last.toPlace.name },
+    quay:                  { publicCode: first.fromEstimatedCall.quay && first.fromEstimatedCall.quay.publicCode || '?' },
+    serviceJourney: {
+      id:   first.serviceJourney && first.serviceJourney.id,
+      line: first.serviceJourney && first.serviceJourney.line,
+      estimatedCalls: [],
+    },
+    _legs:         legs,
+    _isTransfer:   legs.length > 1,
+    _transferAt:   legs.length > 1 ? legs[0].toPlace.name : null,
+    _finalArrival: last.toEstimatedCall.expectedArrivalTime || last.toEstimatedCall.aimedArrivalTime,
+    _durationMins: Math.round(tp.duration / 60),
+  };
+}
 
 export function renderBoard() {
   const list = document.getElementById('dep-list');
@@ -15,7 +39,7 @@ export function renderBoard() {
     return;
   }
   const now = Date.now();
-  const isOut = dir.key === 'out';
+  const isOut = dir.key !== 'in';
   let html = '';
   state.deps.forEach((c, i) => {
     const depTs = new Date(c.expectedDepartureTime).getTime();
@@ -30,12 +54,25 @@ export function renderBoard() {
     const delayed = c.realtime && depTs - new Date(c.aimedDepartureTime).getTime() > 60000;
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
     const arr = findArr(sjc, dir.to);
-    const arrT = arr && (arr.expectedArrivalTime || arr.aimedArrivalTime);
+    const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
     const mtl = isOut ? mToLeave(depTs) : null;
     const rcls = isOut ? reachCls(mtl) : null;
     const isCancelled = c.cancellation;
     const missed = rcls === 'missed';
     const rowCls = 'dep-row' + (isCancelled ? ' cancelled' : missed ? ' missed' : rcls ? ' ' + rcls : '');
+
+    const lineBadges = c._legs
+      ? c._legs.map(l => {
+          const ll = l.serviceJourney && l.serviceJourney.line;
+          const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
+          const lcode = (ll && ll.publicCode) || '?';
+          return '<span class="line-badge" style="background:' + bg + '">' + lcode + '</span>';
+        }).join('<span class="transfer-arrow">→</span>')
+      : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
+
+    const viaRow = c._transferAt
+      ? '<div class="dep-via">bytt ' + c._transferAt.toLowerCase() + '</div>'
+      : '';
 
     html += '<div class="' + rowCls + '"' + (isCancelled ? '' : ' onclick="window.tap(' + i + ')"') + '>'
       + '<div class="dep-mins' + (urgent ? ' urgent' : '') + (isNow ? ' now' : '') + '">'
@@ -45,12 +82,13 @@ export function renderBoard() {
       + '</div>'
       + '<div class="dep-mid">'
       + '<div class="dep-top">'
-      + '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>'
+      + lineBadges
       + '<span class="dep-dest">' + dest + '</span>'
       + (arrT ? '<span class="dep-arr">ank.' + clk(arrT) + '</span>' : '')
       + (delayed ? '<span class="dep-tag">+forsinkelse</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + '</div>'
+      + viaRow
       + (isOut && rcls && !missed
         ? '<div class="dep-reach ' + rcls + '">'
           + (rcls === 'r-ok' ? 'gå om ' + mtl + ' min'
@@ -78,6 +116,20 @@ export function stopBoard() {
 
 function _fetchBoard() {
   const dir = config.dirs[state.dIdx];
+  if (dir.toGeo) {
+    fetchTrip(dir, (patterns) => {
+      const adapted = patterns.map(adaptTripPattern).filter(Boolean);
+      logMsg('✓ ' + adapted.length + ' trip patterns', 'ok');
+      state.deps = adapted;
+      state.lastFetch = Date.now();
+      document.getElementById('board-error').style.display = 'none';
+    }, (msg) => {
+      const be = document.getElementById('board-error');
+      be.style.display = 'block';
+      be.textContent = msg;
+    });
+    return;
+  }
   fetchBoard(dir, (stop) => {
     if (stop.latitude && stop.longitude) {
       state.statLL[dir.key] = { lat: stop.latitude, lon: stop.longitude };

@@ -30,6 +30,7 @@ export function doBoard() {
   const sjc = sj && sj.estimatedCalls;
   const arr = findArr(sjc, dir.to);
   const lbg = sj && sj.line && sj.line.presentation && sj.line.presentation.colour;
+  const arrTime = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
   state.jny = {
     journeyId: (sj && sj.id) || null,
     dest: dir.to,
@@ -38,9 +39,8 @@ export function doBoard() {
     frontText: (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to,
     stops: sjc || [],
     boardedAt: Date.now(),
-    arrival: arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)
-      ? { time: arr.expectedArrivalTime || arr.aimedArrivalTime, clk: clk(arr.expectedArrivalTime || arr.aimedArrivalTime) }
-      : null,
+    arrival: arrTime ? { time: arrTime, clk: clk(arrTime) } : null,
+    transfer: c._isTransfer ? { at: c._transferAt, legs: c._legs } : null,
   };
   saveJny();
   activateTracking();

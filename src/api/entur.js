@@ -1,8 +1,9 @@
 import config from '../config.js';
-import { boardGQL, trackGQL } from './queries.js';
+import { boardGQL, trackGQL, tripGQL } from './queries.js';
 import { logMsg, setDot } from '../ui/log.js';
 
 let boardController = null;
+let tripController = null;
 
 export function resolveStop(dir) {
   if (dir.stopId) return Promise.resolve(dir.stopId);
@@ -19,6 +20,62 @@ export function resolveStop(dir) {
       dir.stopId = m.properties.id;
       logMsg('stop: ' + dir.from + ' = ' + dir.stopId, 'ok');
       return dir.stopId;
+    });
+}
+
+export function resolveToStop(dir) {
+  if (dir.toStopId) return Promise.resolve(dir.toStopId);
+  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.toGeo) + '&size=10&layers=venue')
+    .then(r => r.json())
+    .then(json => {
+      const ff = (json && json.features) || [];
+      const q = dir.toGeo.toLowerCase();
+      const m = ff.find(f =>
+        (f.properties.category || []).indexOf('metroStation') !== -1
+        && (f.properties.label || '').toLowerCase().indexOf(q) !== -1
+      ) || ff.find(f => (f.properties.label || '').toLowerCase().indexOf(q) !== -1);
+      if (!m) throw new Error('Fant ikke ' + dir.toGeo);
+      dir.toStopId = m.properties.id;
+      logMsg('stop: ' + dir.to + ' = ' + dir.toStopId, 'ok');
+      return dir.toStopId;
+    });
+}
+
+export function fetchTrip(dir, onSuccess, onError) {
+  if (tripController) tripController.abort();
+  tripController = new AbortController();
+  const signal = tripController.signal;
+
+  setDot('loading');
+  Promise.all([resolveStop(dir), resolveToStop(dir)])
+    .then(([fromId, toId]) => {
+      if (signal.aborted) return;
+      logMsg('trip → ' + fromId + ' → ' + toId);
+      return fetch(config.api.journeyPlanner, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: tripGQL(fromId, toId) }),
+        signal,
+      });
+    })
+    .then(r => {
+      if (!r || signal.aborted) return;
+      logMsg('← ' + r.status);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(j => {
+      if (!j || signal.aborted) return;
+      if (j.errors) throw new Error(j.errors[0].message);
+      const patterns = (j.data && j.data.trip && j.data.trip.tripPatterns) || [];
+      setDot('ok');
+      onSuccess(patterns);
+    })
+    .catch(err => {
+      if (err.name === 'AbortError') return;
+      logMsg('✗ trip ' + err.message, 'err');
+      setDot('error');
+      if (onError) onError(err.message);
     });
 }
 

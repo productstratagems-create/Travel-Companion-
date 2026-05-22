@@ -1,3 +1,19 @@
+export function tripGQL(fromId, toId, n) {
+  return '{ trip('
+    + 'from:{place:"' + fromId + '"} '
+    + 'to:{place:"' + toId + '"} '
+    + 'numTripPatterns:' + (n || 8) + ' '
+    + 'transportModes:[{transportMode:metro}]'
+    + ') { tripPatterns { duration legs {'
+    + ' fromPlace{name}'
+    + ' toPlace{name}'
+    + ' mode'
+    + ' serviceJourney{id line{publicCode presentation{colour}}}'
+    + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime quay{publicCode}}'
+    + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime}'
+    + '} } } }';
+}
+
 export function boardGQL(id, n) {
   return '{stopPlace(id:"' + id + '"){id name latitude longitude '
     + 'estimatedCalls(numberOfDepartures:' + (n || 10) + ',whiteListedModes:[metro]){'

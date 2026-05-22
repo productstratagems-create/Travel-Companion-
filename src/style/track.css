@@ -1,0 +1,38 @@
+/* ── SCREEN 3: TRACKING ── */
+.track-center{text-align:center;padding:1.5rem 0 1rem}
+.track-num{
+  font-family:"Bebas Neue",sans-serif;
+  font-size:clamp(5rem,20vw,7.5rem);
+  line-height:1;color:#f5b840;
+  text-shadow:0 0 32px rgba(245,184,64,.45),0 0 80px rgba(245,184,64,.15);
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+  transition:color .3s;
+}
+.track-num.urgent{color:#fbbf24;text-shadow:0 0 44px rgba(251,191,36,.65),0 0 100px rgba(251,191,36,.2);animation:throb 1s infinite}
+.track-num.arrived{color:#4ade80;text-shadow:0 0 36px rgba(74,222,128,.55),0 0 80px rgba(74,222,128,.2);font-size:clamp(2.5rem,10vw,4rem)}
+.track-num-label{font-size:11px;text-transform:uppercase;letter-spacing:.3em;color:#78716c;margin-top:.3rem}
+.track-arr-clock{
+  font-family:"Bebas Neue",sans-serif;font-size:2rem;
+  color:#fbbf24;text-align:center;letter-spacing:.04em;
+  margin-top:.5rem;font-variant-numeric:tabular-nums;
+  text-shadow:0 0 16px rgba(251,191,36,.5);
+}
+.track-arr-label{font-size:9px;text-transform:uppercase;letter-spacing:.25em;color:#57534e;text-align:center;margin-top:.15rem}
+
+/* Stop list */
+.stops{margin-top:1.25rem;border-top:1px solid rgba(245,184,64,.08)}
+.stop{
+  display:flex;align-items:center;
+  padding:.55rem .25rem;
+  border-bottom:1px solid rgba(245,184,64,.04);
+  font-size:11px;color:#57534e;
+}
+.stop.next{color:#f5b840;background:rgba(245,184,64,.03)}
+.stop.dest{color:#fbbf24;font-weight:700;font-size:12px;background:rgba(251,191,36,.05)}
+.stop-dot{width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:.65rem;flex-shrink:0;opacity:.4}
+.stop.next .stop-dot,.stop.dest .stop-dot{opacity:1}
+.stop-name{flex:1}
+.stop-tag{font-size:8px;text-transform:uppercase;letter-spacing:.2em;margin-right:.4rem;opacity:.8}
+.stop-clock{font-variant-numeric:tabular-nums;margin-left:.75rem;flex-shrink:0}
+.stop-rel{font-variant-numeric:tabular-nums;margin-left:.5rem;min-width:4.5rem;text-align:right;font-size:10px;opacity:.7}
+.stop.next .stop-rel,.stop.dest .stop-rel{opacity:1}

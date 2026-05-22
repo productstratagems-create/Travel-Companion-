@@ -1,0 +1,48 @@
+/* ── SHARED COMPONENTS ── */
+.line-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:11px;padding:0.15rem 0.45rem;
+  color:#fff;border-radius:3px;min-width:1.4rem;flex-shrink:0;
+}
+.nav-back{
+  display:inline-flex;align-items:center;gap:.4rem;
+  background:none;border:none;
+  color:#78716c;font-family:inherit;font-size:11px;
+  letter-spacing:.1em;text-transform:uppercase;
+  padding:.5rem 0;cursor:pointer;min-height:44px;
+}
+.nav-back:active{color:#f5b840}
+
+/* Status dot */
+.status-dot{
+  width:5px;height:5px;border-radius:50%;
+  background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,.7);
+  display:inline-block;margin-right:.4rem;vertical-align:middle;
+  animation:blink 3s infinite;cursor:pointer;flex-shrink:0;
+}
+.status-dot.loading{background:#fbbf24;box-shadow:0 0 6px rgba(251,191,36,.7)}
+.status-dot.error{background:#dc2626;box-shadow:0 0 6px rgba(220,38,38,.7);animation:none}
+@keyframes blink{0%,90%,100%{opacity:1}95%{opacity:.3}}
+
+/* Empty / error states */
+.state-msg{
+  padding:3rem 0;text-align:center;
+  font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:#57534e;
+}
+
+/* CTA buttons */
+.cta-btn{
+  width:100%;padding:1.1rem;
+  font-family:"Bebas Neue",sans-serif;font-size:1.5rem;letter-spacing:.1em;
+  color:#0a0806;background:#f5b840;
+  border:none;border-radius:6px;cursor:pointer;
+  transition:background .1s, opacity .1s;
+  display:block;
+}
+.cta-btn:active{background:#fbbf24}
+.cta-btn:disabled{opacity:.3;cursor:default}
+.cta-btn.secondary{
+  background:none;border:1px solid rgba(245,184,64,.25);
+  color:#78716c;margin-top:.6rem;font-size:1.1rem;
+}
+.cta-btn.secondary:active{background:rgba(245,184,64,.06);color:#f5b840}

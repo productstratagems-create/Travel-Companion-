@@ -27,6 +27,7 @@ export default {
       stopId: 'NSR:StopPlace:5687',
       filter: null,
       geo: null,
+      line: '3',
     },
     {
       key: 'in',
@@ -35,6 +36,7 @@ export default {
       stopId: null,
       filter: /mortensrud/i,
       geo: 'Jernbanetorget',
+      line: '3',
     },
   ],
 };

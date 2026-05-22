@@ -50,17 +50,22 @@ export function applyRoute() {
     errEl.style.display = 'block';
     return false;
   }
-  config.dirs[2] = {
+  config.dirs[2] = buildCustomDir(dep, arr);
+  state.dIdx = 2;
+  saveCustomRoute(dep, arr);
+  return true;
+}
+
+function buildCustomDir(dep, arr) {
+  return {
     key: 'custom-out',
     from: dep,
     to: arr,
     stopId: null,
-    filter: new RegExp(arr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
+    filter: null,  // departure stop already scopes to that station; no line or terminus filter
     geo: dep,
+    line: null,
   };
-  state.dIdx = 2;
-  saveCustomRoute(dep, arr);
-  return true;
 }
 
 export function saveCustomRoute(dep, arr) {
@@ -73,14 +78,7 @@ export function loadCustomRoute() {
     if (!raw) return;
     const { dep, arr } = JSON.parse(raw);
     if (dep && arr) {
-      config.dirs[2] = {
-        key: 'custom-out',
-        from: dep,
-        to: arr,
-        stopId: null,
-        filter: new RegExp(arr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
-        geo: dep,
-      };
+      config.dirs[2] = buildCustomDir(dep, arr);
       state.dIdx = 2;
     }
   } catch {}

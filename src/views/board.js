@@ -19,9 +19,9 @@ function adaptTripPattern(tp) {
     destinationDisplay:    { frontText: last.toPlace.name },
     quay:                  { publicCode: first.fromEstimatedCall.quay && first.fromEstimatedCall.quay.publicCode || '?' },
     serviceJourney: {
-      id:             first.serviceJourney && first.serviceJourney.id,
-      line:           first.line,
-      estimatedCalls: first.intermediateEstimatedCalls || [],
+      id:   first.serviceJourney && first.serviceJourney.id,
+      line: first.serviceJourney && first.serviceJourney.line,
+      estimatedCalls: [],
     },
     _legs:         legs,
     _isTransfer:   legs.length > 1,
@@ -63,8 +63,9 @@ export function renderBoard() {
 
     const lineBadges = c._legs
       ? c._legs.map(l => {
-          const bg = l.line && l.line.presentation && l.line.presentation.colour ? '#' + l.line.presentation.colour : '#7c2d12';
-          const lcode = (l.line && l.line.publicCode) || '?';
+          const ll = l.serviceJourney && l.serviceJourney.line;
+          const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
+          const lcode = (ll && ll.publicCode) || '?';
           return '<span class="line-badge" style="background:' + bg + '">' + lcode + '</span>';
         }).join('<span class="transfer-arrow">→</span>')
       : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';

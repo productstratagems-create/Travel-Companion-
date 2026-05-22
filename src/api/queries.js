@@ -5,14 +5,12 @@ export function tripGQL(fromId, toId, n) {
     + 'numTripPatterns:' + (n || 8) + ' '
     + 'transportModes:[{transportMode:metro}]'
     + ') { tripPatterns { duration legs {'
-    + ' fromPlace{name quay{publicCode}}'
+    + ' fromPlace{name}'
     + ' toPlace{name}'
     + ' mode'
-    + ' line{publicCode presentation{colour}}'
-    + ' serviceJourney{id}'
+    + ' serviceJourney{id line{publicCode presentation{colour}}}'
     + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime quay{publicCode}}'
     + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime}'
-    + ' intermediateEstimatedCalls{quay{stopPlace{name}} aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}'
     + '} } } }';
 }
 

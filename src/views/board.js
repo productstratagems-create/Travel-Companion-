@@ -84,12 +84,11 @@ function _fetchBoard() {
       window._updateWalkDbg && window._updateWalkDbg();
     }
     const raw = stop.estimatedCalls || [];
-    const byL = raw.filter(c => {
-      const l = c.serviceJourney && c.serviceJourney.line;
-      return l && l.publicCode === config.line;
-    });
+    const byL = dir.line
+      ? raw.filter(c => { const l = c.serviceJourney && c.serviceJourney.line; return l && l.publicCode === dir.line; })
+      : raw;
     const byD = dir.filter ? byL.filter(c => dir.filter.test((c.destinationDisplay && c.destinationDisplay.frontText) || '')) : byL;
-    logMsg('✓ ' + byD.length + '/' + raw.length + ' L' + config.line, 'ok');
+    logMsg('✓ ' + byD.length + '/' + raw.length + (dir.line ? ' L' + dir.line : ' alle linjer'), 'ok');
     state.deps = byD;
     state.lastFetch = Date.now();
     document.getElementById('board-error').style.display = 'none';

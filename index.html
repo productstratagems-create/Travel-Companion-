@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0806">
+<title>T-bane</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Bebas+Neue&display=swap">
+</head>
+<body>
+<div class="wrap">
+
+<!-- ══ 1: BOARD ══ -->
+<div id="v-board">
+  <div class="board-header">
+    <div style="display:flex;align-items:center;gap:.6rem">
+      <span class="status-dot" id="status-dot" title="trykk for logg"></span>
+      <span class="station-name" id="station-name">MORTENSRUD</span>
+    </div>
+    <button class="dir-btn" id="dir-btn" type="button">
+      ⇄&nbsp;<span class="dir-dest" id="dir-dest">Jernbanetorget</span>
+    </button>
+  </div>
+  <div id="board-error" style="display:none;padding:.6rem;margin:.5rem 0;font-size:11px;color:#fca5a5;background:rgba(220,38,38,.08);border-radius:4px"></div>
+  <div id="onboard-chip" onclick="window.jnyGoTracking&&window.jnyGoTracking()" style="display:none;align-items:center;padding:.6rem .75rem;margin:.5rem 0;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:6px;cursor:pointer;gap:.5rem"></div>
+  <div id="dep-list"></div>
+</div>
+
+<!-- ══ 2a: VELG AVGANG ══ -->
+<div id="v-selected" style="display:none">
+  <div class="screen-header">
+    <button class="nav-back" id="s-back">← avganger</button>
+    <span class="screen-label">velg avgang</span>
+  </div>
+  <div id="s-content"></div>
+</div>
+
+<!-- ══ 2b: GANGE-MODUS ══ -->
+<div id="v-walk" style="display:none">
+  <div class="screen-header">
+    <button class="nav-back" id="w-back">← avgang</button>
+    <span class="screen-label">gange-modus</span>
+  </div>
+  <div class="train-bar" id="w-train-bar"></div>
+  <div class="walk-center" id="w-center"></div>
+  <div id="w-board-btn-wrap" style="display:none">
+    <button class="cta-btn" onclick="window.doBoard&&window.doBoard()">bord →</button>
+  </div>
+</div>
+
+<!-- ══ 3: TRACKING ══ -->
+<div id="v-track" style="display:none">
+  <div class="screen-header">
+    <button class="nav-back" id="alight-btn">← avbord</button>
+    <span class="screen-label">ombord</span>
+  </div>
+  <div class="train-bar" id="t-train-bar"></div>
+  <div class="track-center">
+    <div class="track-num" id="t-num">—</div>
+    <div class="track-num-label" id="t-lbl">min til ankomst</div>
+  </div>
+  <div class="track-arr-clock" id="t-clock"></div>
+  <div class="track-arr-label" id="t-label"></div>
+  <div class="stops" id="t-stops"></div>
+</div>
+
+<!-- ══ DEBUG (hidden) ══ -->
+<div class="debug-panel" id="debug-panel" style="display:none">
+  <div class="debug-label">logg</div>
+  <div class="log-wrap" id="log"></div>
+  <div class="dbg-sec">
+    <div class="debug-label">stop id</div>
+    <div class="dbg-row">
+      <input type="text" id="stop-input" placeholder="NSR:StopPlace:XXXX" autocapitalize="off" spellcheck="false">
+      <button class="sbtn" id="stop-set">bytt</button>
+    </div>
+  </div>
+  <div class="dbg-sec">
+    <div class="debug-label">gangtid (min) — blank = beregn</div>
+    <div class="dbg-row">
+      <input type="text" id="walk-input" placeholder="eks. 8" autocomplete="off">
+      <button class="sbtn" id="walk-set">sett</button>
+    </div>
+    <div id="walk-dbg" style="margin-top:.3rem;font-size:9px;opacity:.5"></div>
+  </div>
+</div>
+
+</div><!-- .wrap -->
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

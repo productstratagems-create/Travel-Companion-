@@ -1,0 +1,36 @@
+/* ── SCREEN 2b: GANGE-MODUS ── */
+.walk-center{text-align:center;padding:1rem 0 1.5rem}
+.walk-num{
+  font-family:"Bebas Neue",sans-serif;
+  font-size:clamp(5.5rem,22vw,8rem);
+  line-height:.95;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em;
+  transition:color .5s, text-shadow .5s;
+}
+.walk-num.calm{color:#f5b840;text-shadow:0 0 28px rgba(245,184,64,.35),0 0 70px rgba(245,184,64,.12)}
+.walk-num.soon{color:#fbbf24;text-shadow:0 0 36px rgba(251,191,36,.5),0 0 80px rgba(251,191,36,.15)}
+.walk-num.urgent{color:#fbbf24;text-shadow:0 0 44px rgba(251,191,36,.65),0 0 90px rgba(251,191,36,.2);animation:throb .9s infinite}
+.walk-num.gonow{color:#f97316;text-shadow:0 0 50px rgba(249,115,22,.75),0 0 100px rgba(249,115,22,.25);animation:throb .5s infinite}
+.walk-num.here{color:#4ade80;text-shadow:0 0 36px rgba(74,222,128,.55),0 0 80px rgba(74,222,128,.18)}
+@keyframes throb{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.88;transform:scale(.975)}}
+
+.walk-label{
+  font-size:11px;text-transform:uppercase;letter-spacing:.3em;
+  margin-top:.5rem;transition:color .3s;
+}
+.walk-label.calm,.walk-label.soon,.walk-label.urgent{color:#78716c}
+.walk-label.gonow{color:rgba(249,115,22,.8)}
+.walk-label.here{color:rgba(74,222,128,.7)}
+
+.walk-context{
+  font-size:12px;color:#78716c;margin-top:.75rem;line-height:1.6;
+}
+.walk-context .wc-hl{color:#f5b840}
+.walk-context .wc-arr{color:#fbbf24}
+
+/* seconds ring when urgent */
+.secs-bar{
+  font-size:11px;color:#57534e;margin-top:.4rem;
+  font-variant-numeric:tabular-nums;
+}

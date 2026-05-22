@@ -18,8 +18,15 @@ export function buildWalkBar() {
   const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
   const arr = findArr(sjc, dir.to);
   const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
+  const badges = c._isTransfer && c._legs
+    ? c._legs.map(l => {
+        const ll = l.serviceJourney && l.serviceJourney.line;
+        const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
+        return '<span class="line-badge" style="background:' + bg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
+      }).join('<span class="transfer-arrow">→</span>')
+    : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
   document.getElementById('w-train-bar').innerHTML =
-    '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>'
+    badges
     + '<span class="tb-dest">' + dest + '</span>'
     + '<span class="tb-dep">avg <span>' + clk(c.expectedDepartureTime) + '</span>'
     + (arrT ? ' · ank <span>' + clk(arrT) + '</span>' : '') + '</span>';

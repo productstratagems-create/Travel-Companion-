@@ -71,11 +71,36 @@ export function renderTrack() {
   let first = false, html = '';
 
   if (tr && past) {
-    const cd = tr.connectingDep;
-    html = '<div class="transfer-boarded">'
-      + (cd ? '<span class="line-badge" style="background:' + cd.lineBg + '">' + cd.lineCode + '</span> ' : '')
-      + 'ombord · ank. ' + (state.jny.arrival ? state.jny.arrival.clk : '—')
-      + '</div>';
+    const stops2 = state.jny.stops2 || [];
+    const dn2 = state.jny.dest.toLowerCase();
+    if (stops2.length) {
+      stops2.forEach(s => {
+        const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
+        const isDest = nm.toLowerCase() === dn2;
+        const depT = s.expectedDepartureTime || s.aimedDepartureTime;
+        const passed = depT && new Date(depT).getTime() < now - 10000;
+        if (passed && !isDest) return;
+        const arrT = s.expectedArrivalTime || s.aimedArrivalTime || depT;
+        const arrTs = arrT ? new Date(arrT).getTime() : null;
+        const isNext = !first && !isDest;
+        if (isNext) first = true;
+        const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
+        const relTxt = ma === null ? '—' : ma <= 0 ? 'nå' : ma === 1 ? '1 min' : 'om ' + ma + ' min';
+        const tag = isDest ? '<span class="stop-tag">stå av</span>' : isNext ? '<span class="stop-tag">neste</span>' : '';
+        html += '<div class="stop' + (isDest ? ' dest' : isNext ? ' next' : '') + '">'
+          + '<div class="stop-dot"></div>'
+          + '<div class="stop-name">' + tag + nm + '</div>'
+          + '<div class="stop-clock">' + (arrT ? clk(arrT) : '—') + '</div>'
+          + '<div class="stop-rel">' + relTxt + '</div>'
+          + '</div>';
+      });
+    } else {
+      const cd = tr.connectingDep;
+      html = '<div class="transfer-boarded">'
+        + (cd ? '<span class="line-badge" style="background:' + cd.lineBg + '">' + cd.lineCode + '</span> ' : '')
+        + 'ombord · ank. ' + (state.jny.arrival ? state.jny.arrival.clk : '—')
+        + '</div>';
+    }
   } else {
     stops.forEach(s => {
       const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
@@ -151,28 +176,42 @@ export function stopTracking() {
 }
 
 function _fetchTrack() {
-  if (!state.jny || !state.jny.journeyId) return;
-  fetchTrack(state.jny.journeyId)
+  if (!state.jny) return;
+  const tr = state.jny.transfer;
+  const past = tr ? pastTransfer() : false;
+  const jid = (tr && past && tr.connectingDep && tr.connectingDep.journeyId)
+    ? tr.connectingDep.journeyId
+    : state.jny.journeyId;
+  if (!jid) return;
+  fetchTrack(jid)
     .then(calls => {
       if (!calls) return;
-      state.jny.stops = calls;
-      const tr = state.jny.transfer;
-      if (tr && !pastTransfer()) {
-        const d = findArr(calls, tr.at);
-        if (d) {
-          const t = d.expectedArrivalTime || d.aimedArrivalTime;
-          if (t) {
-            if (!tr.arrivalAtTransfer) tr.arrivalAtTransfer = {};
-            tr.arrivalAtTransfer.time = t;
-            tr.arrivalAtTransfer.clk = clk(t);
-            logMsg('bytt ank ' + tr.arrivalAtTransfer.clk, 'ok');
-          }
-        }
-      } else {
+      if (tr && past) {
+        state.jny.stops2 = calls;
         const d = findArr(calls, state.jny.dest);
         if (d) {
           const t = d.expectedArrivalTime || d.aimedArrivalTime;
-          if (t) { state.jny.arrival = { time: t, clk: clk(t) }; logMsg('ank ' + state.jny.arrival.clk, 'ok'); }
+          if (t) { state.jny.arrival = { time: t, clk: clk(t) }; logMsg('ank2 ' + state.jny.arrival.clk, 'ok'); }
+        }
+      } else {
+        state.jny.stops = calls;
+        if (tr && !past) {
+          const d = findArr(calls, tr.at);
+          if (d) {
+            const t = d.expectedArrivalTime || d.aimedArrivalTime;
+            if (t) {
+              if (!tr.arrivalAtTransfer) tr.arrivalAtTransfer = {};
+              tr.arrivalAtTransfer.time = t;
+              tr.arrivalAtTransfer.clk = clk(t);
+              logMsg('bytt ank ' + tr.arrivalAtTransfer.clk, 'ok');
+            }
+          }
+        } else {
+          const d = findArr(calls, state.jny.dest);
+          if (d) {
+            const t = d.expectedArrivalTime || d.aimedArrivalTime;
+            if (t) { state.jny.arrival = { time: t, clk: clk(t) }; logMsg('ank ' + state.jny.arrival.clk, 'ok'); }
+          }
         }
       }
     })

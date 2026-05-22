@@ -47,6 +47,19 @@
 .jd-val.arrival{color:#fbbf24}
 .jd-sub{font-size:10px;color:#78716c;margin-top:.2rem}
 
+/* Transfer itinerary layout */
+.itinerary{border:1px solid rgba(245,184,64,.1);border-radius:6px;overflow:hidden;margin-bottom:1.75rem}
+.itin-leg{display:flex;align-items:flex-start;gap:.7rem;padding:.75rem .9rem;background:#0a0806}
+.itin-stops{flex:1}
+.itin-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;padding:.1rem 0}
+.itin-row span:first-child{color:#a8a29e}
+.itin-row.dep span:first-child{color:#d4cfc9}
+.itin-time{font-family:"JetBrains Mono",monospace;font-size:12px;font-variant-numeric:tabular-nums;color:#78716c;flex-shrink:0;margin-left:.75rem}
+.itin-time.dep{color:#f5b840;font-size:13px}
+.itin-time.final{color:#fbbf24}
+.itin-xfer{text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:.2em;color:#78716c;padding:.35rem;background:rgba(245,184,64,.03);border-top:1px solid rgba(245,184,64,.06);border-bottom:1px solid rgba(245,184,64,.06)}
+.itin-total{font-size:9px;color:#57534e;text-transform:uppercase;letter-spacing:.15em;padding:.35rem .9rem;text-align:right;background:#0a0806}
+
 /* Train bar (shared with walk screen) */
 .train-bar{
   display:flex;align-items:center;gap:.6rem;

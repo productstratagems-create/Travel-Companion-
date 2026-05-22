@@ -8,7 +8,7 @@ import './style/debug.css';
 
 import { attachEventListeners, updateHeader } from './ui/nav.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
-import { geocodeHome, updateWalkDbg } from './geo.js';
+import { locateUser, updateWalkDbg } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
@@ -26,7 +26,7 @@ initDebugToggle();
 initSettings();
 loadCustomRoute();
 updateHeader();
-geocodeHome();
+locateUser();
 startRenderLoop();
 
 const restored = loadJny();

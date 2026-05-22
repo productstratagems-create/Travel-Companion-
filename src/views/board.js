@@ -15,7 +15,7 @@ export function renderBoard() {
     return;
   }
   const now = Date.now();
-  const isOut = dir.key === 'out';
+  const isOut = dir.key !== 'in';
   let html = '';
   state.deps.forEach((c, i) => {
     const depTs = new Date(c.expectedDepartureTime).getTime();

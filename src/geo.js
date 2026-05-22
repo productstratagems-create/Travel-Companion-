@@ -1,5 +1,5 @@
-import config from './config.js';
 import { state } from './state.js';
+import config from './config.js';
 import { logMsg } from './ui/log.js';
 
 export function haver(la1, lo1, la2, lo2) {
@@ -42,23 +42,23 @@ export function findArr(calls, name) {
   return null;
 }
 
-export function geocodeHome() {
-  logMsg('geocoding "' + config.home.query + '"');
-  fetch(config.api.geocoder + '?text=' + encodeURIComponent(config.home.query) + '&size=10')
-    .then(r => r.json())
-    .then(j => {
-      const ff = (j && j.features) || [];
-      const f = ff.find(x =>
-        x.properties.layer === 'address'
-        && (x.properties.label || '').toLowerCase().indexOf('stenbr') !== -1
-      ) || ff[0];
-      if (!f) throw new Error('Fant ikke hjemsted');
-      const c = f.geometry.coordinates;
-      state.homeLL = { lat: c[1], lon: c[0] };
-      logMsg('✓ hjemsted ' + state.homeLL.lat.toFixed(4) + ',' + state.homeLL.lon.toFixed(4), 'ok');
+export function locateUser() {
+  if (!navigator.geolocation) {
+    logMsg('geolokasjon ikke tilgjengelig', 'err');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      state.homeLL = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      logMsg('✓ posisjon ' + state.homeLL.lat.toFixed(4) + ',' + state.homeLL.lon.toFixed(4), 'ok');
       updateWalkDbg();
-    })
-    .catch(err => logMsg('hjemsted: ' + err.message, 'err'));
+    },
+    err => {
+      logMsg('posisjon: ' + err.message, 'err');
+      // homeLL stays null → walkInfo() falls back to config.defaultWalkMinutes
+    },
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+  );
 }
 
 export function updateWalkDbg() {

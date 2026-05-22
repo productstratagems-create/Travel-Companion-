@@ -36,7 +36,7 @@ export function renderSelected() {
   else if (mtl === 1) urgMsg = 'Gå om <span class="warn">1 min</span>';
   else urgMsg = 'Gå om <span class="amber">' + mtl + ' min</span>';
 
-  const isOut = dir.key === 'out';
+  const isOut = dir.key !== 'in';
 
   document.getElementById('s-content').innerHTML = ''
     + '<div class="train-chip">'

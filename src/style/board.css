@@ -69,6 +69,9 @@
 .dep-tag{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#fcd34d}
 .dep-cancelled{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#fca5a5}
 
+.dep-via{font-size:10px;color:#57534e;margin-top:.1rem;letter-spacing:.05em}
+.transfer-arrow{font-size:9px;color:#57534e;margin:0 .15rem;vertical-align:middle}
+
 .dep-spor{
   text-align:center;
   border-left:1px solid rgba(245,184,64,.08);

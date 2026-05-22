@@ -17,7 +17,7 @@ export function buildWalkBar() {
   const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
   const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
   const arr = findArr(sjc, dir.to);
-  const arrT = arr && (arr.expectedArrivalTime || arr.aimedArrivalTime);
+  const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
   document.getElementById('w-train-bar').innerHTML =
     '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>'
     + '<span class="tb-dest">' + dest + '</span>'
@@ -62,7 +62,7 @@ export function renderWalk() {
     ctxEl = ''; secsEl = '';
   } else {
     const arrCall = findArr(c.serviceJourney && c.serviceJourney.estimatedCalls, dir.to);
-    const arrT = arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime);
+    const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
     numEl = '<div class="walk-num ' + phase + '">' + mtl + '</div>';
     lblEl = '<div class="walk-label ' + phase + '">min til du bør gå</div>';
     ctxEl = '<div class="walk-context">'

@@ -62,8 +62,10 @@ function buildCustomDir(dep, arr) {
     from: dep,
     to: arr,
     stopId: null,
-    filter: null,  // departure stop already scopes to that station; no line or terminus filter
+    toStopId: null,
+    filter: null,
     geo: dep,
+    toGeo: arr,
     line: null,
   };
 }
@@ -81,5 +83,6 @@ export function loadCustomRoute() {
       config.dirs[2] = buildCustomDir(dep, arr);
       state.dIdx = 2;
     }
+
   } catch {}
 }

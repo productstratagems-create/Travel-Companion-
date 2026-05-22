@@ -22,7 +22,7 @@ export function renderSelected() {
   const depTs = new Date(c.expectedDepartureTime).getTime();
   const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
   const arr = findArr(sjc, dir.to);
-  const arrT = arr && (arr.expectedArrivalTime || arr.aimedArrivalTime);
+  const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
   const tmin = arrT ? Math.round((new Date(arrT).getTime() - depTs) / 60000) : null;
   const delayed = c.realtime && depTs - new Date(c.aimedDepartureTime).getTime() > 60000;
   const wk = walkInfo();
@@ -64,7 +64,15 @@ export function renderSelected() {
         + (tmin ? '<div class="jd-sub">' + tmin + ' min reise</div>' : '')
         + '</div>'
       : '')
-    + '</div>';
+    + '</div>'
+    + (c._isTransfer
+      ? '<div class="journey-detail" style="margin-top:.5rem">'
+        + '<div class="jd-cell">'
+        + '<div class="jd-label">bytt på</div>'
+        + '<div style="font-size:14px;font-weight:700;color:#f5b840">' + c._transferAt + '</div>'
+        + '</div>'
+        + '</div>'
+      : '');
 
   // Rebuild CTAs
   const existingCtas = document.getElementById('s-ctas');

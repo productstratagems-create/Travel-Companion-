@@ -37,10 +37,68 @@ export function renderSelected() {
   else urgMsg = 'Gå om <span class="amber">' + mtl + ' min</span>';
 
   const isOut = dir.key !== 'in';
+  const isTransfer = c._isTransfer && c._legs && c._legs.length >= 2;
+
+  // Build line badge(s) for train chip
+  const chipBadges = isTransfer
+    ? c._legs.map(l => {
+        const ll = l.serviceJourney && l.serviceJourney.line;
+        const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
+        return '<span class="line-badge" style="background:' + bg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
+      }).join('<span class="transfer-arrow" style="color:#57534e;font-size:9px;margin:0 .1rem">→</span>')
+    : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
+
+  // Build journey detail — full itinerary for transfers, 2-cell grid for single-line
+  let journeyDetail;
+  if (isTransfer) {
+    const leg0 = c._legs[0], leg1 = c._legs[1];
+    const ll0 = leg0.serviceJourney && leg0.serviceJourney.line;
+    const ll1 = leg1.serviceJourney && leg1.serviceJourney.line;
+    const bg0 = ll0 && ll0.presentation && ll0.presentation.colour ? '#' + ll0.presentation.colour : '#7c2d12';
+    const bg1 = ll1 && ll1.presentation && ll1.presentation.colour ? '#' + ll1.presentation.colour : '#7c2d12';
+    const dep0T = leg0.fromEstimatedCall && leg0.fromEstimatedCall.expectedDepartureTime;
+    const arr0T = leg0.toEstimatedCall && (leg0.toEstimatedCall.expectedArrivalTime || leg0.toEstimatedCall.aimedArrivalTime);
+    const dep1T = leg1.fromEstimatedCall && leg1.fromEstimatedCall.expectedDepartureTime;
+    const arr1T = leg1.toEstimatedCall && (leg1.toEstimatedCall.expectedArrivalTime || leg1.toEstimatedCall.aimedArrivalTime);
+    const waitMins = arr0T && dep1T
+      ? Math.round((new Date(dep1T).getTime() - new Date(arr0T).getTime()) / 60000)
+      : null;
+    journeyDetail = '<div class="itinerary">'
+      + '<div class="itin-leg">'
+      + '<span class="line-badge" style="background:' + bg0 + '">' + ((ll0 && ll0.publicCode) || '?') + '</span>'
+      + '<div class="itin-stops">'
+      + '<div class="itin-row dep"><span>' + dir.from.toLowerCase() + '</span><span class="itin-time dep">' + (dep0T ? clk(dep0T) : '—') + '</span></div>'
+      + '<div class="itin-row"><span>' + c._transferAt.toLowerCase() + '</span><span class="itin-time">' + (arr0T ? clk(arr0T) : '—') + '</span></div>'
+      + '</div></div>'
+      + '<div class="itin-xfer">bytt' + (waitMins !== null ? ' · ' + waitMins + ' min' : '') + '</div>'
+      + '<div class="itin-leg">'
+      + '<span class="line-badge" style="background:' + bg1 + '">' + ((ll1 && ll1.publicCode) || '?') + '</span>'
+      + '<div class="itin-stops">'
+      + '<div class="itin-row dep"><span>' + c._transferAt.toLowerCase() + '</span><span class="itin-time dep">' + (dep1T ? clk(dep1T) : '—') + '</span></div>'
+      + '<div class="itin-row final"><span>' + dir.to.toLowerCase() + '</span><span class="itin-time final">' + (arr1T ? clk(arr1T) : '—') + '</span></div>'
+      + '</div></div>'
+      + (tmin ? '<div class="itin-total">' + tmin + ' min reise</div>' : '')
+      + '</div>';
+  } else {
+    journeyDetail = '<div class="journey-detail">'
+      + '<div class="jd-cell">'
+      + '<div class="jd-label">avgår fra ' + dir.from.toLowerCase() + '</div>'
+      + '<div class="jd-val departure">' + clk(c.expectedDepartureTime) + '</div>'
+      + (delayed ? '<div class="jd-sub">rute ' + clk(c.aimedDepartureTime) + '</div>' : '')
+      + '</div>'
+      + (arrT
+        ? '<div class="jd-cell">'
+          + '<div class="jd-label">ankommer ' + dir.to.toLowerCase() + '</div>'
+          + '<div class="jd-val arrival">' + clk(arrT) + '</div>'
+          + (tmin ? '<div class="jd-sub">' + tmin + ' min reise</div>' : '')
+          + '</div>'
+        : '')
+      + '</div>';
+  }
 
   document.getElementById('s-content').innerHTML = ''
     + '<div class="train-chip">'
-    + '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>'
+    + chipBadges
     + '<span class="tc-dest">' + dest + '</span>'
     + '<span class="tc-meta">spor <span>' + quay + '</span>' + (delayed ? ' · <span style="color:#fcd34d">forsinket</span>' : '') + '</span>'
     + '</div>'
@@ -51,28 +109,7 @@ export function renderSelected() {
         + '<div class="leaveby-sub soft">' + urgMsg + '</div>'
         + '</div>'
       : '')
-    + '<div class="journey-detail">'
-    + '<div class="jd-cell">'
-    + '<div class="jd-label">avgår fra ' + dir.from.toLowerCase() + '</div>'
-    + '<div class="jd-val departure">' + clk(c.expectedDepartureTime) + '</div>'
-    + (delayed ? '<div class="jd-sub">rute ' + clk(c.aimedDepartureTime) + '</div>' : '')
-    + '</div>'
-    + (arrT
-      ? '<div class="jd-cell">'
-        + '<div class="jd-label">ankommer ' + dir.to.toLowerCase() + '</div>'
-        + '<div class="jd-val arrival">' + clk(arrT) + '</div>'
-        + (tmin ? '<div class="jd-sub">' + tmin + ' min reise</div>' : '')
-        + '</div>'
-      : '')
-    + '</div>'
-    + (c._isTransfer
-      ? '<div class="journey-detail" style="margin-top:.5rem">'
-        + '<div class="jd-cell">'
-        + '<div class="jd-label">bytt på</div>'
-        + '<div style="font-size:14px;font-weight:700;color:#f5b840">' + c._transferAt + '</div>'
-        + '</div>'
-        + '</div>'
-      : '');
+    + journeyDetail;
 
   // Rebuild CTAs
   const existingCtas = document.getElementById('s-ctas');

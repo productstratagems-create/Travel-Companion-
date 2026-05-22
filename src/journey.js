@@ -45,6 +45,7 @@ export function doBoard() {
         clk: clk(depT),
         lineCode: (line1 && line1.publicCode) || '?',
         lineBg: (line1 && line1.presentation && line1.presentation.colour) ? '#' + line1.presentation.colour : '#7c2d12',
+        journeyId: leg1.serviceJourney && leg1.serviceJourney.id,
       } : null,
     };
   }
@@ -88,7 +89,15 @@ export function saveJny() {
       transfer: state.jny.transfer ? {
         at: state.jny.transfer.at,
         arrivalAtTransfer: state.jny.transfer.arrivalAtTransfer,
-        connectingDep: state.jny.transfer.connectingDep,
+        connectingDep: state.jny.transfer.connectingDep
+          ? {
+              time: state.jny.transfer.connectingDep.time,
+              clk: state.jny.transfer.connectingDep.clk,
+              lineCode: state.jny.transfer.connectingDep.lineCode,
+              lineBg: state.jny.transfer.connectingDep.lineBg,
+              journeyId: state.jny.transfer.connectingDep.journeyId,
+            }
+          : null,
       } : null,
     }));
   } catch {}

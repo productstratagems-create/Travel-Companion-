@@ -2,7 +2,7 @@ import config from '../config.js';
 import { state, intervals } from '../state.js';
 
 export function show(id) {
-  ['v-board', 'v-selected', 'v-walk', 'v-track'].forEach(v => {
+  ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings'].forEach(v => {
     document.getElementById(v).style.display = (v === id ? 'block' : 'none');
   });
   state.view = id.replace('v-', '');
@@ -50,6 +50,24 @@ export function attachEventListeners() {
     window._updateOnboardChip && window._updateOnboardChip();
     show('v-board');
     window._startBoard && window._startBoard();
+  });
+
+  document.getElementById('route-btn').addEventListener('click', () => {
+    window._showSettings && window._showSettings();
+    show('v-settings');
+  });
+
+  document.getElementById('set-back').addEventListener('click', () => {
+    show('v-board');
+  });
+
+  document.getElementById('set-apply').addEventListener('click', () => {
+    if (window._applyRoute && window._applyRoute()) {
+      updateHeader();
+      state.deps = [];
+      show('v-board');
+      window._startBoard && window._startBoard();
+    }
   });
 
   document.getElementById('stop-set').addEventListener('click', () => {

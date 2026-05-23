@@ -53,6 +53,9 @@ export function doBoard() {
   }
 
   const arrTime = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
+  const firstLegFrontText = (c._isTransfer && c._legs && c._legs[0]
+    && c._legs[0].fromEstimatedCall && c._legs[0].fromEstimatedCall.destinationDisplay
+    && c._legs[0].fromEstimatedCall.destinationDisplay.frontText) || null;
   state.jny = {
     journeyId: (sj && sj.id) || null,
     dest: dir.to,
@@ -60,6 +63,7 @@ export function doBoard() {
     lineCode: (sj && sj.line && sj.line.publicCode) || config.line,
     lineBg: lbg ? '#' + lbg : '#7c2d12',
     frontText: (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to,
+    firstLegFrontText,
     stops: sjc || [],
     boardedAt: Date.now(),
     arrival: arrTime ? { time: arrTime, clk: clk(arrTime) } : null,
@@ -88,6 +92,7 @@ export function saveJny() {
       lineCode: state.jny.lineCode,
       lineBg: state.jny.lineBg,
       frontText: state.jny.frontText,
+      firstLegFrontText: state.jny.firstLegFrontText || null,
       boardedAt: state.jny.boardedAt,
       arrival: state.jny.arrival,
       transfer: state.jny.transfer ? {

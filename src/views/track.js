@@ -275,9 +275,12 @@ export function renderTrack() {
 
     // Ombord card header
     const mToAction = mLeft !== null ? (mLeft <= 0 ? 'nå' : 'om ' + mLeft + ' min') : null;
+    const leg1FrontText = (tr && state.jny.firstLegFrontText)
+      ? state.jny.firstLegFrontText
+      : (state.jny.frontText || state.jny.dest);
     const leg1Head = '<div class="ct-detail">'
       + '<span class="line-badge" style="background:' + state.jny.lineBg + '">' + state.jny.lineCode + '</span>'
-      + '<span class="ct-dest">' + (state.jny.frontText || state.jny.dest) + '</span>'
+      + '<span class="ct-dest">' + leg1FrontText + '</span>'
       + '</div>'
       + '<div class="ct-detail ct-detail-2">'
       + (tr && tr.arrivalAtTransfer

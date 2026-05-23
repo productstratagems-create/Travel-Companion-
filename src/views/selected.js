@@ -37,6 +37,8 @@ export function renderSelected() {
   else urgMsg = 'Gå om <span class="amber">' + mtl + ' min</span>';
 
   const isOut = dir.key !== 'in';
+  const ns = state.nearestStation;
+  const walkActive = isOut && (!ns || dir.stopId === ns.id);
   const isTransfer = c._isTransfer && c._legs && c._legs.length >= 2;
 
   // Build line badge(s) for train chip
@@ -104,7 +106,7 @@ export function renderSelected() {
     + '<span class="tc-dest">' + dest + '</span>'
     + '<span class="tc-meta">spor <span>' + quay + '</span>' + (delayed ? ' · <span style="color:#fcd34d">forsinket</span>' : '') + '</span>'
     + '</div>'
-    + (isOut
+    + (walkActive
       ? '<div class="leaveby-hero">'
         + '<div class="leaveby-label">gå senest</div>'
         + '<div class="leaveby-time ' + ltCls + '">' + clk(leaveByTs) + '</div>'
@@ -121,7 +123,7 @@ export function renderSelected() {
 
   const primaryBtn = document.createElement('button');
   primaryBtn.className = 'cta-btn';
-  if (isOut) {
+  if (walkActive) {
     primaryBtn.textContent = 'gange-modus →';
     primaryBtn.disabled = depTs < now - 120000;
     primaryBtn.onclick = () => {

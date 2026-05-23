@@ -6,20 +6,24 @@ const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
 
 const METRO_STATIONS = [
-  'Avløs', 'Bergkrystallen', 'Bekkestua', 'Bogerud', 'Bryn', 'Brynseng', 'Bøler',
+  'Ammerud', 'Avløs',
+  'Bergkrystallen', 'Bekkestua', 'Besserud', 'Bogerud', 'Bryn', 'Brynseng', 'Bøler',
+  'Carl Berner',
   'Eiksmarka', 'Ellingsrudåsen', 'Ensjø', 'Etterstad',
-  'Frognerseteren', 'Furuset', 'Gjønnes', 'Godlia', 'Grinilund', 'Grønland', 'Gulleråsen',
+  'Frognerseteren', 'Furuset',
+  'Gjønnes', 'Godlia', 'Grefsen', 'Grinilund', 'Grorud', 'Grønland', 'Gulleråsen',
   'Hauger', 'Haugerud', 'Hellerud', 'Helsfyr', 'Holmenkollen', 'Holmlia',
-  'Jar', 'Jernbanetorget', 'Kolsås',
+  'Jar', 'Jernbanetorget',
+  'Kolsås',
   'Lilleaker', 'Lindeberg', 'Løren',
   'Majorstuen', 'Midtstuen', 'Mortensrud', 'Munkerud',
-  'Nationaltheatret',
+  'Nationaltheatret', 'Nydalen',
   'Oppsal', 'Østerås',
   'Ringstabekkveien', 'Ringen', 'Romsås', 'Røa',
-  'Sinsen', 'Skullerud', 'Skøyen', 'Skøyenåsen', 'Stortinget',
+  'Sinsen', 'Skådalen', 'Skullerud', 'Skøyen', 'Skøyenåsen', 'Slemdal', 'Steinerud', 'Storo', 'Stortinget', 'Stovner',
   'Trosterud', 'Tveita', 'Tøyen',
   'Ullevål stadion', 'Ulsrud',
-  'Vestli', 'Vinderen', 'Voksenlia',
+  'Vestli', 'Vinderen', 'Voksenkollen', 'Voksenlia',
 ];
 
 export function initSettings() {
@@ -48,8 +52,16 @@ export function showSettings() {
       const wk = walkInfo();
       detected.textContent = 'Nærmeste stasjon: ' + ns.name + ' · ' + wk.mins + ' min gange';
       detected.style.display = 'block';
+      detected.style.cursor = 'pointer';
+      detected.style.textDecoration = 'underline';
+      detected.onclick = () => {
+        if (depEl) depEl.value = ns.name;
+        const arrEl = document.getElementById('set-arr');
+        if (arrEl) arrEl.focus();
+      };
     } else {
       detected.style.display = 'none';
+      detected.onclick = null;
     }
   }
 

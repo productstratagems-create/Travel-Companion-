@@ -8,6 +8,21 @@ import { startBoard } from './board.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+
+let stopsExpanded = false;
+
+function renderStopRow(r, isNext) {
+  const tag = r.isTransfer ? '<span class="stop-tag bytt-tag">bytt</span>'
+    : r.isDest ? '<span class="stop-tag">stå av</span>'
+    : isNext ? '<span class="stop-tag">neste</span>' : '';
+  const cls = r.isTransfer ? ' transfer' : r.isDest ? ' dest' : isNext ? ' next' : '';
+  return '<div class="stop' + cls + '">'
+    + '<div class="stop-dot"></div>'
+    + '<div class="stop-name">' + tag + r.nm + '</div>'
+    + '<div class="stop-clock">' + (r.arrT ? clk(r.arrT) : '—') + '</div>'
+    + '<div class="stop-rel">' + r.relTxt + '</div>'
+    + '</div>';
+}
 function normStn(s) { return s.toLowerCase().replace(/\s+t$/i, '').trim(); }
 
 function pastTransfer() {
@@ -92,29 +107,27 @@ export function renderTrack() {
 
   function renderStopRows(rows) {
     const TAIL = 2;
-    const toRender = rows.length > TAIL + 1
-      ? [rows[0], { isCollapse: true, count: rows.length - 1 - TAIL }, ...rows.slice(-TAIL)]
-      : rows;
-    let firstRendered = false;
-    let out = '';
-    toRender.forEach(r => {
-      if (r.isCollapse) {
-        out += '<div class="stop-collapse">· ' + r.count + ' stopp ·</div>';
-        return;
+    let out = '', firstRendered = false;
+    if (!stopsExpanded && rows.length > TAIL + 1) {
+      [rows[0], { isCollapse: true, count: rows.length - 1 - TAIL }, ...rows.slice(-TAIL)].forEach(r => {
+        if (r.isCollapse) {
+          out += '<div class="stop-collapse" onclick="window._expandStops&&window._expandStops()">· ' + r.count + ' stopp ·</div>';
+          return;
+        }
+        const isNext = !firstRendered && !r.isTransfer && !r.isDest;
+        if (isNext) firstRendered = true;
+        out += renderStopRow(r, isNext);
+      });
+    } else {
+      rows.forEach(r => {
+        const isNext = !firstRendered && !r.isTransfer && !r.isDest;
+        if (isNext) firstRendered = true;
+        out += renderStopRow(r, isNext);
+      });
+      if (rows.length > TAIL + 1) {
+        out += '<div class="stop-collapse" onclick="window._expandStops&&window._expandStops()">· vis færre ·</div>';
       }
-      const isNext = !firstRendered && !r.isTransfer && !r.isDest;
-      if (isNext) firstRendered = true;
-      const tag = r.isTransfer ? '<span class="stop-tag bytt-tag">bytt</span>'
-        : r.isDest ? '<span class="stop-tag">stå av</span>'
-        : isNext ? '<span class="stop-tag">neste</span>' : '';
-      const cls = r.isTransfer ? ' transfer' : r.isDest ? ' dest' : isNext ? ' next' : '';
-      out += '<div class="stop' + cls + '">'
-        + '<div class="stop-dot"></div>'
-        + '<div class="stop-name">' + tag + r.nm + '</div>'
-        + '<div class="stop-clock">' + (r.arrT ? clk(r.arrT) : '—') + '</div>'
-        + '<div class="stop-rel">' + r.relTxt + '</div>'
-        + '</div>';
-    });
+    }
     return out;
   }
 
@@ -247,6 +260,7 @@ export function buildTrackBar() {
 }
 
 export function startTracking() {
+  stopsExpanded = false;
   if (intervals.track) clearInterval(intervals.track);
   _fetchTrack();
   intervals.track = setInterval(_fetchTrack, config.trackRefreshMs);
@@ -323,3 +337,5 @@ window._simEtterBytt = function() {
   _fetchTrack();
   renderTrack();
 };
+
+window._expandStops = () => { stopsExpanded = !stopsExpanded; renderTrack(); };

@@ -12,7 +12,7 @@ function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.
 function pastTransfer() {
   const tr = state.jny && state.jny.transfer;
   if (!tr || !tr.arrivalAtTransfer) return false;
-  return Date.now() > new Date(tr.arrivalAtTransfer.time).getTime() + 180000; // 3 min grace
+  return Date.now() >= new Date(tr.arrivalAtTransfer.time).getTime();
 }
 
 export function renderTrack() {
@@ -37,9 +37,7 @@ export function renderTrack() {
   const lEl = document.getElementById('t-lbl');
 
   if (tr && !past) {
-    if (arrived) {
-      nEl.textContent = 'BYTT'; nEl.className = 'track-num transfer'; lEl.textContent = 'gå av nå!';
-    } else if (mLeft !== null) {
+    if (mLeft !== null) {
       nEl.textContent = mLeft; nEl.className = 'track-num' + (mLeft <= 2 ? ' urgent' : ''); lEl.textContent = 'min til bytte';
     } else {
       nEl.textContent = '—'; nEl.className = 'track-num'; lEl.textContent = 'venter på data';
@@ -232,14 +230,16 @@ window._simBytt = function(minsFromNow) {
     time: t.toISOString(),
     clk: pad(t.getHours()) + ':' + pad(t.getMinutes()),
   };
+  if (minsFromNow <= 0) _fetchTrack();
   renderTrack();
 };
 window._simEtterBytt = function() {
   if (!state.jny || !state.jny.transfer) return;
-  const t = new Date(Date.now() - 200000);
+  const t = new Date(Date.now() - 1000);
   state.jny.transfer.arrivalAtTransfer = {
     time: t.toISOString(),
     clk: pad(t.getHours()) + ':' + pad(t.getMinutes()),
   };
+  _fetchTrack();
   renderTrack();
 };

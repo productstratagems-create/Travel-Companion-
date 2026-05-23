@@ -33,6 +33,9 @@ export function resolveToStop(dir) {
       const m = ff.find(f =>
         (f.properties.category || []).indexOf('metroStation') !== -1
         && (f.properties.label || '').toLowerCase().indexOf(q) !== -1
+      ) || ff.find(f =>
+        ['busStation', 'onstreetBus'].some(c => (f.properties.category || []).indexOf(c) !== -1)
+        && (f.properties.label || '').toLowerCase().indexOf(q) !== -1
       ) || ff.find(f => (f.properties.label || '').toLowerCase().indexOf(q) !== -1);
       if (!m) throw new Error('Fant ikke ' + dir.toGeo);
       dir.toStopId = m.properties.id;

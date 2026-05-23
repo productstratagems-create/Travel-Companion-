@@ -102,7 +102,9 @@ export function renderTrack() {
         + '</div>';
     }
   } else {
+    let pastTransferStop = false;
     stops.forEach(s => {
+      if (pastTransferStop) return;
       const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
       const isTransfer = tr && nm.toLowerCase() === dn;
       const isDest = !tr && nm.toLowerCase() === dn;
@@ -125,6 +127,7 @@ export function renderTrack() {
         + '<div class="stop-clock">' + (arrT ? clk(arrT) : '—') + '</div>'
         + '<div class="stop-rel">' + relTxt + '</div>'
         + '</div>';
+      if (isTransfer) pastTransferStop = true;
     });
   }
 

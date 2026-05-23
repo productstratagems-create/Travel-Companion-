@@ -45,6 +45,14 @@
 .stop-collapse{text-align:center;font-size:9px;color:#3a3430;letter-spacing:.2em;text-transform:uppercase;padding:.45rem 0;border-bottom:1px solid rgba(245,184,64,.04);cursor:pointer;user-select:none}
 .stop-collapse:active{color:#78716c}
 
+.tog-card{border:1px solid rgba(245,184,64,.12);border-radius:6px;margin-top:.75rem;overflow:hidden}
+.tc-head{display:flex;flex-direction:column;gap:.3rem;padding:.65rem .75rem;background:rgba(245,184,64,.04)}
+.tc-label{font-size:8px;text-transform:uppercase;letter-spacing:.2em;color:#57534e}
+.tc-stops{border-top:1px solid rgba(245,184,64,.06)}
+.tc-stops .stop{padding:.5rem .75rem}
+.tc-stops .stop-collapse{padding:.4rem .75rem}
+.tc-stops .pre-board-info{padding:.5rem .75rem .25rem;border-bottom:none;margin-bottom:0}
+
 .connecting-train{
   display:flex;flex-direction:column;gap:.3rem;
   padding:.65rem .75rem;

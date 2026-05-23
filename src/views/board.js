@@ -66,7 +66,7 @@ export function renderBoard() {
   const now = Date.now();
   const isOut = dir.key !== 'in';
   const ns = state.nearestStation;
-  const walkActive = isOut && (!ns || dir.stopId === ns.id);
+  const walkActive = isOut && ns !== null && dir.stopId === ns.id;
   let html = '';
   state.deps.forEach((c, i) => {
     const depTs = new Date(c.expectedDepartureTime).getTime();

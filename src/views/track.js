@@ -141,6 +141,10 @@ export function renderTrack() {
         + '<span class="ct-label">byttetog</span>'
         + '<div class="ct-detail">'
         + '<span class="line-badge" style="background:' + tr.connectingDep.lineBg + '">' + tr.connectingDep.lineCode + '</span>'
+        + (tr.connectingDep.frontText ? '<span class="ct-dest">' + tr.connectingDep.frontText + '</span>' : '')
+        + '</div>'
+        + '<div class="ct-detail ct-detail-2">'
+        + (tr.connectingDep.quay ? '<span class="ct-quay">spor ' + tr.connectingDep.quay + '</span>' : '')
         + '<span class="ct-time">avg <strong>' + tr.connectingDep.clk + '</strong> · ' + depStatus + '</span>'
         + (state.jny.arrival ? '<span class="ct-arr">→ ank. ' + state.jny.arrival.clk + '</span>' : '')
         + '</div>'

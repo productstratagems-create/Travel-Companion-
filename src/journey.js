@@ -46,6 +46,8 @@ export function doBoard() {
         lineCode: (line1 && line1.publicCode) || '?',
         lineBg: (line1 && line1.presentation && line1.presentation.colour) ? '#' + line1.presentation.colour : '#7c2d12',
         journeyId: leg1.serviceJourney && leg1.serviceJourney.id,
+        quay: (leg1.fromEstimatedCall && leg1.fromEstimatedCall.quay && leg1.fromEstimatedCall.quay.publicCode) || null,
+        frontText: (leg1.fromEstimatedCall && leg1.fromEstimatedCall.destinationDisplay && leg1.fromEstimatedCall.destinationDisplay.frontText) || null,
       } : null,
     };
   }
@@ -96,6 +98,8 @@ export function saveJny() {
               lineCode: state.jny.transfer.connectingDep.lineCode,
               lineBg: state.jny.transfer.connectingDep.lineBg,
               journeyId: state.jny.transfer.connectingDep.journeyId,
+              quay: state.jny.transfer.connectingDep.quay,
+              frontText: state.jny.transfer.connectingDep.frontText,
             }
           : null,
       } : null,

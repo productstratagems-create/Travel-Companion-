@@ -23,11 +23,13 @@ function adaptTripPattern(tp) {
       line: first.serviceJourney && first.serviceJourney.line,
       estimatedCalls: [],
     },
-    _legs:         legs,
-    _isTransfer:   legs.length > 1,
-    _transferAt:   legs.length > 1 ? legs[0].toPlace.name : null,
-    _finalArrival: last.toEstimatedCall.expectedArrivalTime || last.toEstimatedCall.aimedArrivalTime,
-    _durationMins: Math.round(tp.duration / 60),
+    _legs:             legs,
+    _isTransfer:       legs.length > 1,
+    _transferAt:       legs.length > 1 ? legs[0].toPlace.name : null,
+    _finalArrival:     last.toEstimatedCall.expectedArrivalTime || last.toEstimatedCall.aimedArrivalTime,
+    _durationMins:     Math.round(tp.duration / 60),
+    _transferPlatform: legs.length > 1 ? (legs[1].fromEstimatedCall && legs[1].fromEstimatedCall.quay && legs[1].fromEstimatedCall.quay.publicCode) || null : null,
+    _transferFrontText: legs.length > 1 ? (legs[1].fromEstimatedCall && legs[1].fromEstimatedCall.destinationDisplay && legs[1].fromEstimatedCall.destinationDisplay.frontText) || null : null,
   };
 }
 

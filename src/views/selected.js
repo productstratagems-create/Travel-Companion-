@@ -75,6 +75,7 @@ export function renderSelected() {
       + '<span class="line-badge" style="background:' + bg1 + '">' + ((ll1 && ll1.publicCode) || '?') + '</span>'
       + '<div class="itin-stops">'
       + '<div class="itin-row dep"><span>' + c._transferAt.toLowerCase() + '</span><span class="itin-time dep">' + (dep1T ? clk(dep1T) : '—') + '</span></div>'
+      + (c._transferPlatform ? '<div class="itin-meta">spor ' + c._transferPlatform + (c._transferFrontText ? ' · retning ' + c._transferFrontText.toLowerCase() : '') + '</div>' : '')
       + '<div class="itin-row final"><span>' + dir.to.toLowerCase() + '</span><span class="itin-time final">' + (arr1T ? clk(arr1T) : '—') + '</span></div>'
       + '</div></div>'
       + (tmin ? '<div class="itin-total">' + tmin + ' min reise</div>' : '')

@@ -9,7 +9,7 @@ export function tripGQL(fromId, toId, n) {
     + ' toPlace{name}'
     + ' mode'
     + ' serviceJourney{id line{publicCode presentation{colour}}}'
-    + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime quay{publicCode}}'
+    + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime quay{publicCode} destinationDisplay{frontText}}'
     + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime}'
     + '} } } }';
 }

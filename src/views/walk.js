@@ -75,10 +75,12 @@ export function renderWalk() {
     const leg1Quay = c._isTransfer && c._legs && c._legs.length > 1
       && c._legs[1].fromEstimatedCall && c._legs[1].fromEstimatedCall.quay
       && c._legs[1].fromEstimatedCall.quay.publicCode;
+    const depQuay = c.quay && c.quay.publicCode;
     ctxEl = '<div class="walk-context">'
       + 'Gå senest <span class="wc-hl">' + clk(leaveByTs) + '</span>'
       + (wk.dist ? ' · ~' + wk.dist + ' m' : '')
       + '<br>Toget avgår <span class="wc-hl">' + clk(c.expectedDepartureTime) + '</span>'
+      + (depQuay ? ' · <span class="wc-hl">spor ' + depQuay + '</span>' : '')
       + (arrT ? ', ankommer <span class="wc-arr">' + clk(arrT) + '</span>' : '')
       + (leg1Quay ? '<br>Bytt <span class="wc-hl">' + c._transferAt.toLowerCase() + '</span> → spor ' + leg1Quay : '')
       + '</div>';

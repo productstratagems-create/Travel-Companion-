@@ -42,7 +42,8 @@
 .stop.transfer{color:#f97316;background:rgba(249,115,22,.06);font-weight:700;font-size:12px}
 .stop.transfer .stop-dot{opacity:1}
 .bytt-tag{color:#f97316}
-.stop-collapse{text-align:center;font-size:9px;color:#3a3430;letter-spacing:.2em;text-transform:uppercase;padding:.45rem 0;border-bottom:1px solid rgba(245,184,64,.04)}
+.stop-collapse{text-align:center;font-size:9px;color:#3a3430;letter-spacing:.2em;text-transform:uppercase;padding:.45rem 0;border-bottom:1px solid rgba(245,184,64,.04);cursor:pointer;user-select:none}
+.stop-collapse:active{color:#78716c}
 
 .connecting-train{
   display:flex;flex-direction:column;gap:.3rem;

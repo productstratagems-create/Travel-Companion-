@@ -21,8 +21,12 @@ export function renderTrack() {
   const now = Date.now();
   const tr = state.jny.transfer;
   const past = tr ? pastTransfer() : false;
+  // pastDep: connecting train has departed → user is on the second leg
+  const pastDep = past && tr && tr.connectingDep
+    ? now >= new Date(tr.connectingDep.time).getTime()
+    : past;
 
-  // What we're counting down to
+  // What we're counting down to (for auto-exit)
   const countingTo = (tr && !past && tr.arrivalAtTransfer) ? tr.arrivalAtTransfer : state.jny.arrival;
   const destTs = countingTo ? new Date(countingTo.time).getTime() : null;
   const diffMs = destTs ? destTs - now : null;
@@ -30,7 +34,7 @@ export function renderTrack() {
   const arrived = mLeft !== null && mLeft < 0;
 
   // Auto-exit 5 min after final arrival
-  if (arrived && (!tr || past) && diffMs !== null && diffMs < -300000) {
+  if (arrived && (!tr || pastDep) && diffMs !== null && diffMs < -300000) {
     show('v-board'); startBoard(); return;
   }
 
@@ -38,12 +42,26 @@ export function renderTrack() {
   const lEl = document.getElementById('t-lbl');
 
   if (tr && !past) {
+    // First leg: count down to transfer arrival
     if (mLeft !== null) {
       nEl.textContent = mLeft; nEl.className = 'track-num' + (mLeft <= 2 ? ' urgent' : ''); lEl.textContent = 'min til bytte';
     } else {
       nEl.textContent = '—'; nEl.className = 'track-num'; lEl.textContent = 'venter på data';
     }
+  } else if (tr && past && !pastDep) {
+    // Platform waiting: count down to connecting train departure
+    const mToDep = tr.connectingDep
+      ? Math.round((new Date(tr.connectingDep.time).getTime() - now) / 60000)
+      : null;
+    if (mToDep !== null) {
+      nEl.textContent = Math.max(0, mToDep);
+      nEl.className = 'track-num' + (mToDep <= 1 ? ' urgent' : '');
+      lEl.textContent = 'min til avgang';
+    } else {
+      nEl.textContent = '—'; nEl.className = 'track-num'; lEl.textContent = 'venter på data';
+    }
   } else {
+    // Second leg or single-leg: count down to final arrival
     if (arrived) {
       nEl.textContent = 'ANKOMMET'; nEl.className = 'track-num arrived'; lEl.textContent = state.jny.dest;
     } else if (mLeft !== null) {
@@ -57,9 +75,12 @@ export function renderTrack() {
   if (tr && !past && tr.arrivalAtTransfer) {
     cEl.textContent = tr.arrivalAtTransfer.clk;
     laEl.textContent = 'bytt på ' + tr.at.toLowerCase();
+  } else if (tr && past && !pastDep && tr.connectingDep) {
+    cEl.textContent = tr.connectingDep.clk;
+    laEl.textContent = 'avgang fra ' + tr.at.toLowerCase();
   } else if (state.jny.arrival) {
     cEl.textContent = state.jny.arrival.clk;
-    laEl.textContent = 'ankommer ' + state.jny.dest.toLowerCase();
+    laEl.textContent = 'ankommer ' + normStn(state.jny.dest);
   } else {
     cEl.textContent = ''; laEl.textContent = '';
   }
@@ -69,7 +90,7 @@ export function renderTrack() {
   const dn = tr ? normStn(tr.at) : normStn(state.jny.dest);
   let first = false, html = '';
 
-  if (tr && past) {
+  if (tr && pastDep) {
     const stops2 = state.jny.stops2 || [];
     const dn2 = normStn(state.jny.dest);
     if (stops2.length) {
@@ -108,6 +129,9 @@ export function renderTrack() {
         + 'ombord · ank. ' + (state.jny.arrival ? state.jny.arrival.clk : '—')
         + '</div>';
     }
+  } else if (tr && past && !pastDep) {
+    // Platform waiting: show a placeholder — byttetog panel carries the useful info
+    html = '<div class="state-msg" style="padding:1rem;font-size:11px;color:#57534e">venter på perrongen · ' + tr.at.toLowerCase() + '</div>';
   } else {
     // Indicate current train position before the boarding station
     if (state.jny.from) {
@@ -175,7 +199,7 @@ export function renderTrack() {
   // Connecting train panel
   const tEl = document.getElementById('t-transfer');
   if (tEl) {
-    if (tr && tr.connectingDep && !past) {
+    if (tr && tr.connectingDep && !pastDep) {
       const mToDep = Math.round((new Date(tr.connectingDep.time).getTime() - now) / 60000);
       const depStatus = mToDep > 0 ? 'om ' + mToDep + ' min' : mToDep === 0 ? 'nå' : 'avgått';
       tEl.style.display = 'block';
@@ -277,10 +301,13 @@ window._simBytt = function(minsFromNow) {
 window._simEtterBytt = function() {
   if (!state.jny || !state.jny.transfer) return;
   const t = new Date(Date.now() - 1000);
-  state.jny.transfer.arrivalAtTransfer = {
-    time: t.toISOString(),
-    clk: pad(t.getHours()) + ':' + pad(t.getMinutes()),
-  };
+  const ts = { time: t.toISOString(), clk: pad(t.getHours()) + ':' + pad(t.getMinutes()) };
+  state.jny.transfer.arrivalAtTransfer = ts;
+  // Also set connectingDep to past so we skip platform-waiting and go straight to second leg
+  if (state.jny.transfer.connectingDep) {
+    state.jny.transfer.connectingDep.time = ts.time;
+    state.jny.transfer.connectingDep.clk = ts.clk;
+  }
   _fetchTrack();
   renderTrack();
 };

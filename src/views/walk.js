@@ -72,10 +72,8 @@ export function renderWalk() {
     const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
     numEl = '<div class="walk-num ' + phase + '">' + mtl + '</div>';
     lblEl = '<div class="walk-label ' + phase + '">min til du bør gå</div>';
-    const leg1Quay = c._isTransfer && c._legs && c._legs.length > 1
-      && c._legs[1].fromEstimatedCall && c._legs[1].fromEstimatedCall.quay
-      && c._legs[1].fromEstimatedCall.quay.publicCode || null;
-    // Read dep platform from raw legs (avoids '?' fallback in adaptTripPattern)
+    const firstTransfer = c._transfers && c._transfers[0];
+    const leg1Quay = firstTransfer && firstTransfer.platform;
     const rawDepQuay = c._legs && c._legs[0] && c._legs[0].fromEstimatedCall
       && c._legs[0].fromEstimatedCall.quay && c._legs[0].fromEstimatedCall.quay.publicCode;
     const depQuay = rawDepQuay || (c.quay && c.quay.publicCode !== '?' && c.quay.publicCode) || null;
@@ -85,7 +83,7 @@ export function renderWalk() {
       + '<br>Toget avgår <span class="wc-hl">' + clk(c.expectedDepartureTime) + '</span>'
       + (depQuay ? ' · <span class="wc-hl">spor ' + depQuay + '</span>' : '')
       + (arrT ? ', ankommer <span class="wc-arr">' + clk(arrT) + '</span>' : '')
-      + (leg1Quay ? '<br>Bytt <span class="wc-hl">' + c._transferAt.toLowerCase() + '</span> → spor ' + leg1Quay : '')
+      + (leg1Quay && firstTransfer.at ? '<br>Bytt <span class="wc-hl">' + firstTransfer.at.toLowerCase() + '</span> → spor ' + leg1Quay : '')
       + '</div>';
     secsEl = (phase === 'urgent' && stl > 0)
       ? '<div class="secs-bar">' + stl + ' sek igjen til du bør gå</div>'

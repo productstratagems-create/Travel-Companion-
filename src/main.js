@@ -31,7 +31,6 @@ startRenderLoop();
 const restored = loadJny();
 if (restored) {
   state.jny = restored;
-  state.jny.stops = [];
   activateTracking();
   // GPS runs in background to refresh walk time for next trip
   locateUser(() => {}, () => {});

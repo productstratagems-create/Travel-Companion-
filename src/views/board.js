@@ -11,6 +11,12 @@ function adaptTripPattern(tp) {
   const legs = tp.legs.filter(l => l.mode !== 'foot');
   if (!legs.length) return null;
   const first = legs[0], last = legs[legs.length - 1];
+  const transfers = legs.slice(0, -1).map((leg, i) => ({
+    at:        leg.toPlace.name,
+    platform:  (legs[i+1].fromEstimatedCall && legs[i+1].fromEstimatedCall.quay && legs[i+1].fromEstimatedCall.quay.publicCode) || null,
+    frontText: (legs[i+1].fromEstimatedCall && legs[i+1].fromEstimatedCall.destinationDisplay && legs[i+1].fromEstimatedCall.destinationDisplay.frontText) || null,
+    depTime:   (legs[i+1].fromEstimatedCall && (legs[i+1].fromEstimatedCall.expectedDepartureTime || legs[i+1].fromEstimatedCall.aimedDepartureTime)) || null,
+  }));
   return {
     expectedDepartureTime: first.fromEstimatedCall.expectedDepartureTime,
     aimedDepartureTime:    first.fromEstimatedCall.aimedDepartureTime,
@@ -23,13 +29,14 @@ function adaptTripPattern(tp) {
       line: first.serviceJourney && first.serviceJourney.line,
       estimatedCalls: [],
     },
-    _legs:             legs,
-    _isTransfer:       legs.length > 1,
-    _transferAt:       legs.length > 1 ? legs[0].toPlace.name : null,
-    _finalArrival:     last.toEstimatedCall.expectedArrivalTime || last.toEstimatedCall.aimedArrivalTime,
-    _durationMins:     Math.round(tp.duration / 60),
-    _transferPlatform: legs.length > 1 ? (legs[1].fromEstimatedCall && legs[1].fromEstimatedCall.quay && legs[1].fromEstimatedCall.quay.publicCode) || null : null,
-    _transferFrontText: legs.length > 1 ? (legs[1].fromEstimatedCall && legs[1].fromEstimatedCall.destinationDisplay && legs[1].fromEstimatedCall.destinationDisplay.frontText) || null : null,
+    _legs:          legs,
+    _isTransfer:    legs.length > 1,
+    _transfers:     transfers,
+    _transferAt:       transfers.length ? transfers[0].at : null,
+    _transferPlatform: transfers.length ? transfers[0].platform : null,
+    _transferFrontText: transfers.length ? transfers[0].frontText : null,
+    _finalArrival:  last.toEstimatedCall.expectedArrivalTime || last.toEstimatedCall.aimedArrivalTime,
+    _durationMins:  Math.round(tp.duration / 60),
   };
 }
 
@@ -90,8 +97,8 @@ export function renderBoard() {
         }).join('<span class="transfer-arrow">→</span>')
       : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
 
-    const viaRow = c._transferAt
-      ? '<div class="dep-via">bytt ' + c._transferAt.toLowerCase() + '</div>'
+    const viaRow = c._transfers && c._transfers.length
+      ? '<div class="dep-via">' + c._transfers.map(t => 'bytt ' + t.at.toLowerCase()).join(' → ') + '</div>'
       : '';
 
     html += '<div class="' + rowCls + '"' + (isCancelled ? '' : ' onclick="window.tap(' + i + ')"') + '>'

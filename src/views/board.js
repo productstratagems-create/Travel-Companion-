@@ -38,7 +38,7 @@ function renderWalkSummary() {
   if (!el) return;
   const ns = state.nearestStation;
   const dir = config.dirs[state.dIdx];
-  const walkActive = dir.key !== 'in' && (!ns || dir.stopId === ns.id);
+  const walkActive = dir.key !== 'in' && ns !== null && dir.stopId === ns.id;
   if (ns && walkActive) {
     const wk = walkInfo();
     el.textContent = ns.name + ' · ' + wk.mins + ' min gange';

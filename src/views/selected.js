@@ -38,7 +38,7 @@ export function renderSelected() {
 
   const isOut = dir.key !== 'in';
   const ns = state.nearestStation;
-  const walkActive = isOut && (!ns || dir.stopId === ns.id);
+  const walkActive = isOut && ns !== null && dir.stopId === ns.id;
   const isTransfer = c._isTransfer && c._legs && c._legs.length >= 2;
 
   // Build line badge(s) for train chip

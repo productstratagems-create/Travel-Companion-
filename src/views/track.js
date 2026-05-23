@@ -73,10 +73,15 @@ export function renderTrack() {
     const stops2 = state.jny.stops2 || [];
     const dn2 = normStn(state.jny.dest);
     if (stops2.length) {
+      let pastTransferStop2 = false;
       let pastDestStop = false;
       stops2.forEach(s => {
         if (pastDestStop) return;
         const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
+        if (!pastTransferStop2) {
+          if (normStn(nm) === normStn(tr.at)) pastTransferStop2 = true;
+          else return;
+        }
         const isDest = normStn(nm) === dn2;
         const depT = s.expectedDepartureTime || s.aimedDepartureTime;
         const passed = depT && new Date(depT).getTime() < now - 10000;

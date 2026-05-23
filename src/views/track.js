@@ -244,6 +244,37 @@ export function renderTrack() {
       tEl.style.display = 'none';
     }
   }
+
+  // Second-leg stop preview below byttetog card (first leg only)
+  const s2El = document.getElementById('t-stops2');
+  if (s2El) {
+    if (!past && tr && state.jny.stops2 && state.jny.stops2.length) {
+      const dn2 = normStn(state.jny.dest);
+      const rows2prev = [];
+      let pt2 = false, pd2 = false;
+      state.jny.stops2.forEach(s => {
+        if (pd2) return;
+        const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
+        if (!pt2) { if (normStn(nm) === normStn(tr.at)) pt2 = true; else return; }
+        const isDest = normStn(nm) === dn2;
+        const depT = s.expectedDepartureTime || s.aimedDepartureTime;
+        const arrT = s.expectedArrivalTime || s.aimedArrivalTime || depT;
+        const arrTs = arrT ? new Date(arrT).getTime() : null;
+        const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
+        const relTxt = ma === null ? '—' : ma <= 0 ? 'nå' : ma === 1 ? '1 min' : 'om ' + ma + ' min';
+        rows2prev.push({ nm, arrT, ma, relTxt, isTransfer: false, isDest });
+        if (isDest) pd2 = true;
+      });
+      if (rows2prev.length) {
+        s2El.style.display = 'block';
+        s2El.innerHTML = renderStopRows(rows2prev);
+      } else {
+        s2El.style.display = 'none';
+      }
+    } else {
+      s2El.style.display = 'none';
+    }
+  }
 }
 
 export function buildTrackBar() {
@@ -312,6 +343,13 @@ function _fetchTrack() {
       }
     })
     .catch(err => logMsg('track ✗ ' + err.message, 'err'));
+
+  // Pre-fetch second-leg stops during first leg for preview below byttetog card
+  if (!past && tr && tr.connectingDep && tr.connectingDep.journeyId) {
+    fetchTrack(tr.connectingDep.journeyId)
+      .then(calls => { if (calls && !pastTransfer()) state.jny.stops2 = calls; })
+      .catch(() => {});
+  }
 }
 
 window._simBytt = function(minsFromNow) {

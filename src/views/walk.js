@@ -72,11 +72,15 @@ export function renderWalk() {
     const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
     numEl = '<div class="walk-num ' + phase + '">' + mtl + '</div>';
     lblEl = '<div class="walk-label ' + phase + '">min til du bør gå</div>';
+    const leg1Quay = c._isTransfer && c._legs && c._legs.length > 1
+      && c._legs[1].fromEstimatedCall && c._legs[1].fromEstimatedCall.quay
+      && c._legs[1].fromEstimatedCall.quay.publicCode;
     ctxEl = '<div class="walk-context">'
       + 'Gå senest <span class="wc-hl">' + clk(leaveByTs) + '</span>'
       + (wk.dist ? ' · ~' + wk.dist + ' m' : '')
       + '<br>Toget avgår <span class="wc-hl">' + clk(c.expectedDepartureTime) + '</span>'
       + (arrT ? ', ankommer <span class="wc-arr">' + clk(arrT) + '</span>' : '')
+      + (leg1Quay ? '<br>Bytt <span class="wc-hl">' + c._transferAt.toLowerCase() + '</span> → spor ' + leg1Quay : '')
       + '</div>';
     secsEl = (phase === 'urgent' && stl > 0)
       ? '<div class="secs-bar">' + stl + ' sek igjen til du bør gå</div>'

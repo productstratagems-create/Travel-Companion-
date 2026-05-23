@@ -37,8 +37,10 @@ function renderWalkSummary() {
   const el = document.getElementById('walk-summary');
   if (!el) return;
   const ns = state.nearestStation;
-  const wk = walkInfo();
-  if (ns) {
+  const dir = config.dirs[state.dIdx];
+  const walkActive = dir.key !== 'in' && (!ns || dir.stopId === ns.id);
+  if (ns && walkActive) {
+    const wk = walkInfo();
     el.textContent = ns.name + ' · ' + wk.mins + ' min gange';
     el.style.display = 'block';
   } else {
@@ -56,6 +58,8 @@ export function renderBoard() {
   }
   const now = Date.now();
   const isOut = dir.key !== 'in';
+  const ns = state.nearestStation;
+  const walkActive = isOut && (!ns || dir.stopId === ns.id);
   let html = '';
   state.deps.forEach((c, i) => {
     const depTs = new Date(c.expectedDepartureTime).getTime();
@@ -71,8 +75,8 @@ export function renderBoard() {
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
     const arr = findArr(sjc, dir.to);
     const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
-    const mtl = isOut ? mToLeave(depTs) : null;
-    const rcls = isOut ? reachCls(mtl) : null;
+    const mtl = walkActive ? mToLeave(depTs) : null;
+    const rcls = walkActive ? reachCls(mtl) : null;
     const isCancelled = c.cancellation;
     const missed = rcls === 'missed';
     const rowCls = 'dep-row' + (isCancelled ? ' cancelled' : missed ? ' missed' : rcls ? ' ' + rcls : '');
@@ -105,7 +109,7 @@ export function renderBoard() {
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + '</div>'
       + viaRow
-      + (isOut && rcls && !missed
+      + (walkActive && rcls && !missed
         ? '<div class="dep-reach ' + rcls + '">'
           + (rcls === 'r-ok' ? 'gå om ' + mtl + ' min'
             : rcls === 'r-soon' ? 'gå om ' + mtl + ' min!'

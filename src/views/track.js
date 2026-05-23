@@ -146,7 +146,7 @@ export function renderTrack() {
     state.jny.stops2.forEach(s => {
       if (pd2) return;
       const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
-      if (!pt2) { if (normStn(nm) === normStn(tr.at)) pt2 = true; else return; }
+      if (!pt2) { if (normStn(nm) === normStn(tr.at)) { pt2 = true; return; } else return; }
       const isDest = normStn(nm) === dn2;
       const depT = s.expectedDepartureTime || s.aimedDepartureTime;
       const arrT = s.expectedArrivalTime || s.aimedArrivalTime || depT;
@@ -183,7 +183,7 @@ export function renderTrack() {
       if (pastDestStop) return;
       const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
       if (!pastTransferStop2) {
-        if (normStn(nm) === normStn(tr.at)) pastTransferStop2 = true;
+        if (normStn(nm) === normStn(tr.at)) { pastTransferStop2 = true; return; }
         else return;
       }
       const isDest = normStn(nm) === dn2;
@@ -257,7 +257,7 @@ export function renderTrack() {
       if (pastTransferStop) return;
       const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
       if (!pastBoarding) {
-        if (normStn(nm) === normStn(state.jny.from)) pastBoarding = true;
+        if (normStn(nm) === normStn(state.jny.from)) { pastBoarding = true; return; }
         else return;
       }
       const isTransfer = tr && normStn(nm) === dn;

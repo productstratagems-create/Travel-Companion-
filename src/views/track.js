@@ -270,7 +270,7 @@ export function renderTrack() {
       const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
       const relTxt = ma === null ? '—' : ma <= 0 ? 'nå' : ma === 1 ? '1 min' : 'om ' + ma + ' min';
       rows1.push({ nm, arrT, ma, relTxt, isTransfer, isDest });
-      if (isTransfer) pastTransferStop = true;
+      if (isTransfer || isDest) pastTransferStop = true;
     });
 
     // Ombord card header

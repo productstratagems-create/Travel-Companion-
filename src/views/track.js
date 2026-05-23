@@ -232,6 +232,7 @@ window._simBytt = function(minsFromNow) {
     time: t.toISOString(),
     clk: pad(t.getHours()) + ':' + pad(t.getMinutes()),
   };
+  renderTrack();
 };
 window._simEtterBytt = function() {
   if (!state.jny || !state.jny.transfer) return;
@@ -240,4 +241,5 @@ window._simEtterBytt = function() {
     time: t.toISOString(),
     clk: pad(t.getHours()) + ':' + pad(t.getMinutes()),
   };
+  renderTrack();
 };

@@ -74,8 +74,11 @@ export function renderWalk() {
     lblEl = '<div class="walk-label ' + phase + '">min til du bør gå</div>';
     const leg1Quay = c._isTransfer && c._legs && c._legs.length > 1
       && c._legs[1].fromEstimatedCall && c._legs[1].fromEstimatedCall.quay
-      && c._legs[1].fromEstimatedCall.quay.publicCode;
-    const depQuay = c.quay && c.quay.publicCode;
+      && c._legs[1].fromEstimatedCall.quay.publicCode || null;
+    // Read dep platform from raw legs (avoids '?' fallback in adaptTripPattern)
+    const rawDepQuay = c._legs && c._legs[0] && c._legs[0].fromEstimatedCall
+      && c._legs[0].fromEstimatedCall.quay && c._legs[0].fromEstimatedCall.quay.publicCode;
+    const depQuay = rawDepQuay || (c.quay && c.quay.publicCode !== '?' && c.quay.publicCode) || null;
     ctxEl = '<div class="walk-context">'
       + 'Gå senest <span class="wc-hl">' + clk(leaveByTs) + '</span>'
       + (wk.dist ? ' · ~' + wk.dist + ' m' : '')

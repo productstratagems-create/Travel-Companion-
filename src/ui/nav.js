@@ -18,12 +18,28 @@ export function updateHeader() {
 export function attachEventListeners() {
   // Imported lazily to avoid circular deps
   document.getElementById('dir-btn').addEventListener('click', () => {
-    state.dIdx = (state.dIdx + 1) % config.dirs.length;
+    const dir = config.dirs[state.dIdx];
+    if (dir.key === 'custom-out') {
+      // Reverse the custom route in place; null stopIds so they get re-geocoded
+      config.dirs[state.dIdx] = {
+        key: 'custom-out',
+        from: dir.to,
+        to: dir.from,
+        stopId: null,
+        toStopId: null,
+        filter: null,
+        geo: dir.to,
+        toGeo: dir.from,
+        line: null,
+      };
+    } else {
+      // Hardcoded routes: toggle 0 ↔ 1 only
+      state.dIdx = state.dIdx === 0 ? 1 : 0;
+    }
     try { localStorage.setItem(config.storage.dir, String(state.dIdx)); } catch {}
     updateHeader();
     state.deps = [];
     show('v-board');
-    // start board is triggered from journey via window bridge
     window._startBoard && window._startBoard();
   });
 

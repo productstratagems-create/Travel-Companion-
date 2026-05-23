@@ -31,7 +31,21 @@ function adaptTripPattern(tp) {
   };
 }
 
+function renderWalkSummary() {
+  const el = document.getElementById('walk-summary');
+  if (!el) return;
+  const ns = state.nearestStation;
+  const wk = walkInfo();
+  if (ns) {
+    el.textContent = ns.name + ' · ' + wk.mins + ' min gange';
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 export function renderBoard() {
+  renderWalkSummary();
   const list = document.getElementById('dep-list');
   const dir = config.dirs[state.dIdx];
   if (!state.deps.length) {

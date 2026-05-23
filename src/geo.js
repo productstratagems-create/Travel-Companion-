@@ -42,9 +42,34 @@ export function findArr(calls, name) {
   return null;
 }
 
-export function locateUser() {
+export function findNearestStation(lat, lon, onFound, onFail) {
+  fetch(config.api.geocoderReverse
+    + '?point.lat=' + lat + '&point.lon=' + lon
+    + '&boundary.circle.radius=2000&size=10&layers=venue')
+    .then(r => r.json())
+    .then(j => {
+      const ff = (j && j.features) || [];
+      const m = ff.find(f => (f.properties.category || []).indexOf('metroStation') !== -1);
+      if (!m) { if (onFail) onFail('ingen stasjon i nærheten'); return; }
+      const ns = {
+        name: m.properties.name || m.properties.label,
+        id: m.properties.id,
+        lat: m.geometry.coordinates[1],
+        lon: m.geometry.coordinates[0],
+      };
+      state.nearestStation = ns;
+      state.statLL['custom-out'] = { lat: ns.lat, lon: ns.lon };
+      logMsg('nærmeste: ' + ns.name, 'ok');
+      updateWalkDbg();
+      if (onFound) onFound(ns);
+    })
+    .catch(err => { if (onFail) onFail(err.message); });
+}
+
+export function locateUser(onFound, onFail) {
   if (!navigator.geolocation) {
     logMsg('geolokasjon ikke tilgjengelig', 'err');
+    if (onFail) onFail('geolokasjon ikke tilgjengelig');
     return;
   }
   navigator.geolocation.getCurrentPosition(
@@ -52,10 +77,11 @@ export function locateUser() {
       state.homeLL = { lat: pos.coords.latitude, lon: pos.coords.longitude };
       logMsg('✓ posisjon ' + state.homeLL.lat.toFixed(4) + ',' + state.homeLL.lon.toFixed(4), 'ok');
       updateWalkDbg();
+      findNearestStation(pos.coords.latitude, pos.coords.longitude, onFound, onFail);
     },
     err => {
       logMsg('posisjon: ' + err.message, 'err');
-      // homeLL stays null → walkInfo() falls back to config.defaultWalkMinutes
+      if (onFail) onFail(err.message);
     },
     { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
   );

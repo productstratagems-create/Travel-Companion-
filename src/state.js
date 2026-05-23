@@ -16,6 +16,7 @@ export const state = {
   jny: null,
   lastFetch: null,
   homeLL: null,
+  nearestStation: null,
   statLL: {},
   walkOvr: null,
   debugOpen: false,

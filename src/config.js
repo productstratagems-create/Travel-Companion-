@@ -2,6 +2,7 @@ export default {
   api: {
     journeyPlanner: 'https://api.entur.io/journey-planner/v3/graphql',
     geocoder: 'https://api.entur.io/geocoder/v1/autocomplete',
+    geocoderReverse: 'https://api.entur.io/geocoder/v1/reverse',
   },
   line: '3',
   home: {

@@ -80,19 +80,20 @@ export function renderSelected() {
       + (tmin ? '<div class="itin-total">' + tmin + ' min reise</div>' : '')
       + '</div>';
   } else {
-    journeyDetail = '<div class="journey-detail">'
-      + '<div class="jd-cell">'
+    const arrHero = arrT
+      ? '<div class="arrival-hero">'
+        + '<div class="ah-label">ankommer ' + dir.to.toLowerCase() + '</div>'
+        + '<div class="ah-time">' + clk(arrT) + '</div>'
+        + (tmin ? '<div class="ah-sub">' + tmin + ' min reise</div>' : '')
+        + '</div>'
+      : '';
+    journeyDetail = arrHero
+      + '<div class="journey-detail">'
+      + '<div class="jd-cell" style="grid-column:1/-1">'
       + '<div class="jd-label">avgår fra ' + dir.from.toLowerCase() + '</div>'
       + '<div class="jd-val departure">' + clk(c.expectedDepartureTime) + '</div>'
       + (delayed ? '<div class="jd-sub">rute ' + clk(c.aimedDepartureTime) + '</div>' : '')
       + '</div>'
-      + (arrT
-        ? '<div class="jd-cell">'
-          + '<div class="jd-label">ankommer ' + dir.to.toLowerCase() + '</div>'
-          + '<div class="jd-val arrival">' + clk(arrT) + '</div>'
-          + (tmin ? '<div class="jd-sub">' + tmin + ' min reise</div>' : '')
-          + '</div>'
-        : '')
       + '</div>';
   }
 

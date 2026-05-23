@@ -1,7 +1,8 @@
 import config from '../config.js';
 import { state } from '../state.js';
+import { walkInfo } from '../geo.js';
 
-const STORAGE_KEY = 't.route';
+const DEST_KEY = 't.dest';
 
 const METRO_STATIONS = [
   'Avløs', 'Bergkrystallen', 'Bekkestua', 'Bogerud', 'Bryn', 'Brynseng', 'Bøler',
@@ -30,18 +31,35 @@ export function initSettings() {
 }
 
 export function showSettings() {
-  const dir = config.dirs[state.dIdx];
-  document.getElementById('set-dep').value = dir.from;
-  document.getElementById('set-arr').value = dir.to;
+  const ns = state.nearestStation;
+  const depWrap = document.getElementById('set-dep-wrap');
+  const detected = document.getElementById('set-detected');
+  if (ns) {
+    if (depWrap) depWrap.style.display = 'none';
+    if (detected) {
+      const wk = walkInfo();
+      detected.textContent = 'Nærmeste stasjon: ' + ns.name + ' · ' + wk.mins + ' min gange';
+      detected.style.display = 'block';
+    }
+  } else {
+    if (depWrap) depWrap.style.display = 'block';
+    if (detected) detected.style.display = 'none';
+    const dir = config.dirs[state.dIdx];
+    const depEl = document.getElementById('set-dep');
+    if (depEl) depEl.value = dir ? dir.from : '';
+  }
+  const arrEl = document.getElementById('set-arr');
+  if (arrEl) arrEl.value = loadDest() || '';
   document.getElementById('set-error').style.display = 'none';
 }
 
 export function applyRoute() {
-  const dep = document.getElementById('set-dep').value.trim();
+  const ns = state.nearestStation;
+  const dep = ns ? ns.name : (document.getElementById('set-dep').value.trim());
   const arr = document.getElementById('set-arr').value.trim();
   const errEl = document.getElementById('set-error');
   if (!dep || !arr) {
-    errEl.textContent = 'Fyll inn begge stasjoner.';
+    errEl.textContent = 'Fyll inn destinasjon.';
     errEl.style.display = 'block';
     return false;
   }
@@ -50,39 +68,39 @@ export function applyRoute() {
     errEl.style.display = 'block';
     return false;
   }
-  config.dirs[2] = buildCustomDir(dep, arr);
+  config.dirs[2] = ns
+    ? { key: 'custom-out', from: ns.name, to: arr, stopId: ns.id, toStopId: null, filter: null, geo: null, toGeo: arr, line: null }
+    : { key: 'custom-out', from: dep, to: arr, stopId: null, toStopId: null, filter: null, geo: dep, toGeo: arr, line: null };
   state.dIdx = 2;
-  saveCustomRoute(dep, arr);
+  saveDest(arr);
   return true;
 }
 
-function buildCustomDir(dep, arr) {
-  return {
+export function applyRouteFromState(arr) {
+  const ns = state.nearestStation;
+  if (!ns || !arr) return false;
+  config.dirs[2] = {
     key: 'custom-out',
-    from: dep,
+    from: ns.name,
     to: arr,
-    stopId: null,
+    stopId: ns.id,
     toStopId: null,
     filter: null,
-    geo: dep,
+    geo: null,
     toGeo: arr,
     line: null,
   };
+  state.dIdx = 2;
+  return true;
 }
 
-export function saveCustomRoute(dep, arr) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ dep, arr })); } catch {}
+export function loadDest() {
+  try { return localStorage.getItem(DEST_KEY) || null; } catch { return null; }
 }
 
-export function loadCustomRoute() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const { dep, arr } = JSON.parse(raw);
-    if (dep && arr) {
-      config.dirs[2] = buildCustomDir(dep, arr);
-      state.dIdx = 2;
-    }
-
-  } catch {}
+export function saveDest(arr) {
+  try { localStorage.setItem(DEST_KEY, arr); } catch {}
 }
+
+// Kept for backward compat — no-op; GPS now determines departure
+export function loadCustomRoute() {}

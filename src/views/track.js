@@ -274,12 +274,20 @@ export function renderTrack() {
     });
 
     // Ombord card header
+    const mToAction = mLeft !== null ? (mLeft <= 0 ? 'nå' : 'om ' + mLeft + ' min') : null;
+    const leg1FrontText = (tr && state.jny.firstLegFrontText)
+      ? state.jny.firstLegFrontText
+      : (state.jny.frontText || state.jny.dest);
     const leg1Head = '<div class="ct-detail">'
       + '<span class="line-badge" style="background:' + state.jny.lineBg + '">' + state.jny.lineCode + '</span>'
-      + '<span class="ct-dest">' + (state.jny.frontText || state.jny.dest) + '</span>'
+      + '<span class="ct-dest">' + leg1FrontText + '</span>'
+      + '</div>'
+      + '<div class="ct-detail ct-detail-2">'
       + (tr && tr.arrivalAtTransfer
-        ? '<span class="ct-arr">→ bytt ' + tr.at.toLowerCase() + ' ' + tr.arrivalAtTransfer.clk + '</span>'
-        : (state.jny.arrival ? '<span class="ct-arr">→ ank. ' + state.jny.arrival.clk + '</span>' : ''))
+        ? '<span class="ct-time">bytt <strong>' + tr.at.toLowerCase() + '</strong> ' + tr.arrivalAtTransfer.clk + (mToAction ? ' · ' + mToAction : '') + '</span>'
+        : (state.jny.arrival
+          ? '<span class="ct-time">ank. <strong>' + normStn(state.jny.dest) + '</strong> ' + state.jny.arrival.clk + (mToAction ? ' · ' + mToAction : '') + '</span>'
+          : ''))
       + '</div>';
 
     const leg1Stops = preBoardHtml + (rows1.length

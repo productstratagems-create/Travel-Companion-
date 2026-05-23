@@ -103,10 +103,15 @@ export function renderTrack() {
         + '</div>';
     }
   } else {
+    let pastBoarding = !state.jny.from;
     let pastTransferStop = false;
     stops.forEach(s => {
       if (pastTransferStop) return;
       const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
+      if (!pastBoarding) {
+        if (nm.toLowerCase() === state.jny.from.toLowerCase()) pastBoarding = true;
+        else return;
+      }
       const isTransfer = tr && nm.toLowerCase() === dn;
       const isDest = !tr && nm.toLowerCase() === dn;
       const depT = s.expectedDepartureTime || s.aimedDepartureTime;

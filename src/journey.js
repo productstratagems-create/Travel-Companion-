@@ -56,6 +56,7 @@ export function doBoard() {
   state.jny = {
     journeyId: (sj && sj.id) || null,
     dest: dir.to,
+    from: dir.from,
     lineCode: (sj && sj.line && sj.line.publicCode) || config.line,
     lineBg: lbg ? '#' + lbg : '#7c2d12',
     frontText: (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to,
@@ -83,6 +84,7 @@ export function saveJny() {
     localStorage.setItem(config.storage.journey, JSON.stringify({
       journeyId: state.jny.journeyId,
       dest: state.jny.dest,
+      from: state.jny.from,
       lineCode: state.jny.lineCode,
       lineBg: state.jny.lineBg,
       frontText: state.jny.frontText,

@@ -224,3 +224,20 @@ function _fetchTrack() {
     })
     .catch(err => logMsg('track ✗ ' + err.message, 'err'));
 }
+
+window._simBytt = function(minsFromNow) {
+  if (!state.jny || !state.jny.transfer) return;
+  const t = new Date(Date.now() + minsFromNow * 60000);
+  state.jny.transfer.arrivalAtTransfer = {
+    time: t.toISOString(),
+    clk: pad(t.getHours()) + ':' + pad(t.getMinutes()),
+  };
+};
+window._simEtterBytt = function() {
+  if (!state.jny || !state.jny.transfer) return;
+  const t = new Date(Date.now() - 200000);
+  state.jny.transfer.arrivalAtTransfer = {
+    time: t.toISOString(),
+    clk: pad(t.getHours()) + ':' + pad(t.getMinutes()),
+  };
+};

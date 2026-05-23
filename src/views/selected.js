@@ -53,35 +53,36 @@ export function renderSelected() {
   // Build journey detail — full itinerary for transfers, 2-cell grid for single-line
   let journeyDetail;
   if (isTransfer) {
-    const leg0 = c._legs[0], leg1 = c._legs[1];
-    const ll0 = leg0.serviceJourney && leg0.serviceJourney.line;
-    const ll1 = leg1.serviceJourney && leg1.serviceJourney.line;
-    const bg0 = ll0 && ll0.presentation && ll0.presentation.colour ? '#' + ll0.presentation.colour : '#7c2d12';
-    const bg1 = ll1 && ll1.presentation && ll1.presentation.colour ? '#' + ll1.presentation.colour : '#7c2d12';
-    const dep0T = leg0.fromEstimatedCall && leg0.fromEstimatedCall.expectedDepartureTime;
-    const arr0T = leg0.toEstimatedCall && (leg0.toEstimatedCall.expectedArrivalTime || leg0.toEstimatedCall.aimedArrivalTime);
-    const dep1T = leg1.fromEstimatedCall && leg1.fromEstimatedCall.expectedDepartureTime;
-    const arr1T = leg1.toEstimatedCall && (leg1.toEstimatedCall.expectedArrivalTime || leg1.toEstimatedCall.aimedArrivalTime);
-    const waitMins = arr0T && dep1T
-      ? Math.round((new Date(dep1T).getTime() - new Date(arr0T).getTime()) / 60000)
-      : null;
-    journeyDetail = '<div class="itinerary">'
-      + '<div class="itin-leg">'
-      + '<span class="line-badge" style="background:' + bg0 + '">' + ((ll0 && ll0.publicCode) || '?') + '</span>'
-      + '<div class="itin-stops">'
-      + '<div class="itin-row dep"><span>' + dir.from.toLowerCase() + '</span><span class="itin-time dep">' + (dep0T ? clk(dep0T) : '—') + '</span></div>'
-      + '<div class="itin-row"><span>' + c._transferAt.toLowerCase() + '</span><span class="itin-time">' + (arr0T ? clk(arr0T) : '—') + '</span></div>'
-      + '</div></div>'
-      + '<div class="itin-xfer">bytt' + (waitMins !== null ? ' · ' + waitMins + ' min' : '') + '</div>'
-      + '<div class="itin-leg">'
-      + '<span class="line-badge" style="background:' + bg1 + '">' + ((ll1 && ll1.publicCode) || '?') + '</span>'
-      + '<div class="itin-stops">'
-      + '<div class="itin-row dep"><span>' + c._transferAt.toLowerCase() + '</span><span class="itin-time dep">' + (dep1T ? clk(dep1T) : '—') + '</span></div>'
-      + (c._transferPlatform ? '<div class="itin-meta">spor ' + c._transferPlatform + (c._transferFrontText ? ' · retning ' + c._transferFrontText.toLowerCase() : '') + '</div>' : '')
-      + '<div class="itin-row final"><span>' + dir.to.toLowerCase() + '</span><span class="itin-time final">' + (arr1T ? clk(arr1T) : '—') + '</span></div>'
-      + '</div></div>'
-      + (tmin ? '<div class="itin-total">' + tmin + ' min reise</div>' : '')
-      + '</div>';
+    let itinHtml = '<div class="itinerary">';
+    c._legs.forEach((leg, i) => {
+      const ll = leg.serviceJourney && leg.serviceJourney.line;
+      const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
+      const depT = leg.fromEstimatedCall && leg.fromEstimatedCall.expectedDepartureTime;
+      const arrT2 = leg.toEstimatedCall && (leg.toEstimatedCall.expectedArrivalTime || leg.toEstimatedCall.aimedArrivalTime);
+      const isLastLeg = (i === c._legs.length - 1);
+      const fromName = i === 0 ? dir.from.toLowerCase() : c._transfers[i-1].at.toLowerCase();
+      const toName = isLastLeg ? dir.to.toLowerCase() : c._transfers[i].at.toLowerCase();
+      const prevTr = i > 0 ? c._transfers[i-1] : null;
+      const nextLeg = !isLastLeg ? c._legs[i+1] : null;
+      const nextDepT = nextLeg && nextLeg.fromEstimatedCall && nextLeg.fromEstimatedCall.expectedDepartureTime;
+      const waitMins = !isLastLeg && arrT2 && nextDepT
+        ? Math.round((new Date(nextDepT).getTime() - new Date(arrT2).getTime()) / 60000)
+        : null;
+
+      itinHtml += '<div class="itin-leg">'
+        + '<span class="line-badge" style="background:' + bg + '">' + ((ll && ll.publicCode) || '?') + '</span>'
+        + '<div class="itin-stops">'
+        + '<div class="itin-row dep"><span>' + fromName + '</span><span class="itin-time dep">' + (depT ? clk(depT) : '—') + '</span></div>'
+        + (prevTr && prevTr.platform ? '<div class="itin-meta">spor ' + prevTr.platform + (prevTr.frontText ? ' · retning ' + prevTr.frontText.toLowerCase() : '') + '</div>' : '')
+        + '<div class="itin-row' + (isLastLeg ? ' final' : '') + '"><span>' + toName + '</span><span class="itin-time' + (isLastLeg ? ' final' : '') + '">' + (arrT2 ? clk(arrT2) : '—') + '</span></div>'
+        + '</div></div>';
+
+      if (!isLastLeg) {
+        itinHtml += '<div class="itin-xfer">bytt' + (waitMins !== null ? ' · ' + waitMins + ' min' : '') + '</div>';
+      }
+    });
+    itinHtml += (tmin ? '<div class="itin-total">' + tmin + ' min reise</div>' : '') + '</div>';
+    journeyDetail = itinHtml;
   } else {
     const arrHero = arrT
       ? '<div class="arrival-hero">'

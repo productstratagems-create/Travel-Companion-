@@ -27,47 +27,65 @@ export function doBoard() {
   if (!c) return;
   const dir = config.dirs[state.dIdx];
   const sj = c.serviceJourney;
-  const sjc = sj && sj.estimatedCalls;
-  const arr = findArr(sjc, dir.to);
   const lbg = sj && sj.line && sj.line.presentation && sj.line.presentation.colour;
 
-  let transfer = null;
-  if (c._isTransfer && c._legs && c._legs.length >= 2) {
-    const leg0 = c._legs[0], leg1 = c._legs[1];
-    const arrT = leg0.toEstimatedCall && (leg0.toEstimatedCall.expectedArrivalTime || leg0.toEstimatedCall.aimedArrivalTime);
-    const depT = leg1.fromEstimatedCall && leg1.fromEstimatedCall.expectedDepartureTime;
-    const line1 = leg1.serviceJourney && leg1.serviceJourney.line;
-    transfer = {
-      at: c._transferAt,
-      arrivalAtTransfer: arrT ? { time: arrT, clk: clk(arrT) } : null,
-      connectingDep: depT ? {
-        time: depT,
-        clk: clk(depT),
-        lineCode: (line1 && line1.publicCode) || '?',
-        lineBg: (line1 && line1.presentation && line1.presentation.colour) ? '#' + line1.presentation.colour : '#7c2d12',
-        journeyId: leg1.serviceJourney && leg1.serviceJourney.id,
-        quay: (leg1.fromEstimatedCall && leg1.fromEstimatedCall.quay && leg1.fromEstimatedCall.quay.publicCode) || null,
-        frontText: (leg1.fromEstimatedCall && leg1.fromEstimatedCall.destinationDisplay && leg1.fromEstimatedCall.destinationDisplay.frontText) || null,
-      } : null,
-    };
+  // Build legs[] from trip-planner legs, or fall back to single-leg board data
+  const legs = [];
+  if (c._legs && c._legs.length) {
+    c._legs.forEach((leg, i) => {
+      const legSj = leg.serviceJourney;
+      const legLine = legSj && legSj.line;
+      const legLbg = legLine && legLine.presentation && legLine.presentation.colour;
+      const depT = leg.fromEstimatedCall && (leg.fromEstimatedCall.expectedDepartureTime || leg.fromEstimatedCall.aimedDepartureTime);
+      const arrT = leg.toEstimatedCall && (leg.toEstimatedCall.expectedArrivalTime || leg.toEstimatedCall.aimedArrivalTime);
+      const tr = c._transfers && c._transfers[i];
+      legs.push({
+        lineCode:    (legLine && legLine.publicCode) || '?',
+        lineBg:      legLbg ? '#' + legLbg : '#7c2d12',
+        frontText:   (leg.fromEstimatedCall && leg.fromEstimatedCall.destinationDisplay && leg.fromEstimatedCall.destinationDisplay.frontText) || leg.toPlace.name,
+        journeyId:   legSj && legSj.id,
+        fromStation: i === 0 ? dir.from : (c._transfers[i-1] && c._transfers[i-1].at) || dir.from,
+        toStation:   tr ? tr.at : dir.to,
+        depTime:     depT ? { time: depT, clk: clk(depT) } : null,
+        arrTime:     arrT ? { time: arrT, clk: clk(arrT) } : null,
+        quay:        (leg.fromEstimatedCall && leg.fromEstimatedCall.quay && leg.fromEstimatedCall.quay.publicCode) || null,
+        stops:       [],
+      });
+    });
+  } else {
+    // Board route (single-leg, no trip planner)
+    const sjc = sj && sj.estimatedCalls;
+    const arr = findArr(sjc, dir.to);
+    const arrT = arr && (arr.expectedArrivalTime || arr.aimedArrivalTime);
+    const depT = c.expectedDepartureTime || c.aimedDepartureTime;
+    legs.push({
+      lineCode:    (sj && sj.line && sj.line.publicCode) || config.line,
+      lineBg:      lbg ? '#' + lbg : '#7c2d12',
+      frontText:   (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to,
+      journeyId:   sj && sj.id,
+      fromStation: dir.from,
+      toStation:   dir.to,
+      depTime:     depT ? { time: depT, clk: clk(depT) } : null,
+      arrTime:     arrT ? { time: arrT, clk: clk(arrT) } : null,
+      quay:        (c.quay && c.quay.publicCode !== '?' && c.quay.publicCode) || null,
+      stops:       sjc || [],
+    });
   }
 
-  const arrTime = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
-  const firstLegFrontText = (c._isTransfer && c._legs && c._legs[0]
-    && c._legs[0].fromEstimatedCall && c._legs[0].fromEstimatedCall.destinationDisplay
-    && c._legs[0].fromEstimatedCall.destinationDisplay.frontText) || null;
+  const firstLeg = legs[0];
+  const lastLeg = legs[legs.length - 1];
+  const finalArrival = lastLeg.arrTime || (c._finalArrival ? { time: c._finalArrival, clk: clk(c._finalArrival) } : null);
+
   state.jny = {
-    journeyId: (sj && sj.id) || null,
-    dest: dir.to,
-    from: dir.from,
-    lineCode: (sj && sj.line && sj.line.publicCode) || config.line,
-    lineBg: lbg ? '#' + lbg : '#7c2d12',
-    frontText: (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to,
-    firstLegFrontText,
-    stops: sjc || [],
-    boardedAt: Date.now(),
-    arrival: arrTime ? { time: arrTime, clk: clk(arrTime) } : null,
-    transfer,
+    dest:              dir.to,
+    from:              dir.from,
+    boardedAt:         Date.now(),
+    lineCode:          firstLeg.lineCode,
+    lineBg:            firstLeg.lineBg,
+    frontText:         (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to,
+    firstLegFrontText: firstLeg.frontText,
+    arrival:           finalArrival,
+    legs,
   };
   saveJny();
   activateTracking();
@@ -86,30 +104,25 @@ export function activateTracking() {
 export function saveJny() {
   try {
     localStorage.setItem(config.storage.journey, JSON.stringify({
-      journeyId: state.jny.journeyId,
-      dest: state.jny.dest,
-      from: state.jny.from,
-      lineCode: state.jny.lineCode,
-      lineBg: state.jny.lineBg,
-      frontText: state.jny.frontText,
+      dest:              state.jny.dest,
+      from:              state.jny.from,
+      boardedAt:         state.jny.boardedAt,
+      lineCode:          state.jny.lineCode,
+      lineBg:            state.jny.lineBg,
+      frontText:         state.jny.frontText,
       firstLegFrontText: state.jny.firstLegFrontText || null,
-      boardedAt: state.jny.boardedAt,
-      arrival: state.jny.arrival,
-      transfer: state.jny.transfer ? {
-        at: state.jny.transfer.at,
-        arrivalAtTransfer: state.jny.transfer.arrivalAtTransfer,
-        connectingDep: state.jny.transfer.connectingDep
-          ? {
-              time: state.jny.transfer.connectingDep.time,
-              clk: state.jny.transfer.connectingDep.clk,
-              lineCode: state.jny.transfer.connectingDep.lineCode,
-              lineBg: state.jny.transfer.connectingDep.lineBg,
-              journeyId: state.jny.transfer.connectingDep.journeyId,
-              quay: state.jny.transfer.connectingDep.quay,
-              frontText: state.jny.transfer.connectingDep.frontText,
-            }
-          : null,
-      } : null,
+      arrival:           state.jny.arrival,
+      legs: state.jny.legs.map(leg => ({
+        lineCode:    leg.lineCode,
+        lineBg:      leg.lineBg,
+        frontText:   leg.frontText,
+        journeyId:   leg.journeyId,
+        fromStation: leg.fromStation,
+        toStation:   leg.toStation,
+        depTime:     leg.depTime,
+        arrTime:     leg.arrTime,
+        quay:        leg.quay,
+      })),
     }));
   } catch {}
 }
@@ -123,6 +136,12 @@ export function loadJny() {
       localStorage.removeItem(config.storage.journey);
       return null;
     }
+    // Old journeys without legs[] are incompatible — drop them
+    if (!j.legs || !j.legs.length) {
+      localStorage.removeItem(config.storage.journey);
+      return null;
+    }
+    j.legs = j.legs.map(leg => ({ ...leg, stops: [] }));
     return j;
   } catch { return null; }
 }

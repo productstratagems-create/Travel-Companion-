@@ -103,6 +103,33 @@ export function renderTrack() {
         + '</div>';
     }
   } else {
+    // Indicate current train position before the boarding station
+    if (state.jny.from) {
+      const boardingName = state.jny.from.toLowerCase();
+      let nextPreStop = null, stopsAway = 0;
+      for (const s of stops) {
+        const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
+        if (nm.toLowerCase() === boardingName) break;
+        const depT = s.expectedDepartureTime || s.aimedDepartureTime;
+        const isp = depT && new Date(depT).getTime() < now - 10000;
+        if (!isp) {
+          if (!nextPreStop) nextPreStop = { nm, arrT: s.expectedArrivalTime || s.aimedArrivalTime || depT };
+          stopsAway++;
+        }
+      }
+      if (nextPreStop) {
+        const arrTs = nextPreStop.arrT ? new Date(nextPreStop.arrT).getTime() : null;
+        const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
+        const relTxt = ma !== null ? (ma <= 0 ? ' · nå' : ' · om ' + ma + ' min') : '';
+        html += '<div class="pre-board-info">'
+          + '<span class="pre-board-label">toget er nå ved</span> '
+          + nextPreStop.nm.toLowerCase()
+          + relTxt
+          + ' · ' + stopsAway + ' stopp til avgang'
+          + '</div>';
+      }
+    }
+
     let pastBoarding = !state.jny.from;
     let pastTransferStop = false;
     stops.forEach(s => {

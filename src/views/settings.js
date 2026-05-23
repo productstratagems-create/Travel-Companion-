@@ -3,6 +3,7 @@ import { state } from '../state.js';
 import { walkInfo } from '../geo.js';
 
 const DEST_KEY = 't.dest';
+const DEP_KEY = 't.dep';
 
 const METRO_STATIONS = [
   'Avløs', 'Bergkrystallen', 'Bekkestua', 'Bogerud', 'Bryn', 'Brynseng', 'Bøler',
@@ -32,33 +33,26 @@ export function initSettings() {
 
 export function showSettings() {
   const ns = state.nearestStation;
-  const depWrap = document.getElementById('set-dep-wrap');
+  const depEl = document.getElementById('set-dep');
   const detected = document.getElementById('set-detected');
-  const changeBtn = document.getElementById('set-dep-change');
-  if (ns) {
-    if (depWrap) depWrap.style.display = 'none';
-    if (detected) {
+
+  // Dep input always visible — pre-fill from: saved > GPS station > current dir
+  if (depEl) {
+    const saved = loadDep();
+    depEl.value = saved || (ns ? ns.name : (config.dirs[state.dIdx] ? config.dirs[state.dIdx].from : ''));
+  }
+
+  // GPS hint line below dep input
+  if (detected) {
+    if (ns) {
       const wk = walkInfo();
       detected.textContent = 'Nærmeste stasjon: ' + ns.name + ' · ' + wk.mins + ' min gange';
       detected.style.display = 'block';
+    } else {
+      detected.style.display = 'none';
     }
-    if (changeBtn) {
-      changeBtn.style.display = 'block';
-      changeBtn.onclick = () => {
-        const depEl = document.getElementById('set-dep');
-        if (depEl) depEl.value = ns.name;
-        if (depWrap) depWrap.style.display = 'block';
-        changeBtn.style.display = 'none';
-      };
-    }
-  } else {
-    if (depWrap) depWrap.style.display = 'block';
-    if (detected) detected.style.display = 'none';
-    if (changeBtn) changeBtn.style.display = 'none';
-    const dir = config.dirs[state.dIdx];
-    const depEl = document.getElementById('set-dep');
-    if (depEl) depEl.value = dir ? dir.from : '';
   }
+
   const arrEl = document.getElementById('set-arr');
   if (arrEl) arrEl.value = loadDest() || '';
   document.getElementById('set-error').style.display = 'none';
@@ -66,11 +60,7 @@ export function showSettings() {
 
 export function applyRoute() {
   const ns = state.nearestStation;
-  const depWrap = document.getElementById('set-dep-wrap');
-  const depOverridden = depWrap && depWrap.style.display !== 'none';
-  const dep = depOverridden
-    ? document.getElementById('set-dep').value.trim()
-    : (ns ? ns.name : document.getElementById('set-dep').value.trim());
+  const dep = document.getElementById('set-dep').value.trim();
   const arr = document.getElementById('set-arr').value.trim();
   const errEl = document.getElementById('set-error');
   if (!dep || !arr) {
@@ -83,28 +73,26 @@ export function applyRoute() {
     errEl.style.display = 'block';
     return false;
   }
-  config.dirs[2] = (ns && !depOverridden)
+  const depMatchesGps = ns && ns.name.toLowerCase() === dep.toLowerCase();
+  config.dirs[2] = depMatchesGps
     ? { key: 'custom-out', from: ns.name, to: arr, stopId: ns.id, toStopId: null, filter: null, geo: null, toGeo: arr, line: null }
     : { key: 'custom-out', from: dep, to: arr, stopId: null, toStopId: null, filter: null, geo: dep, toGeo: arr, line: null };
   state.dIdx = 2;
+  saveDep(dep);
   saveDest(arr);
   return true;
 }
 
 export function applyRouteFromState(arr) {
   const ns = state.nearestStation;
-  if (!ns || !arr) return false;
-  config.dirs[2] = {
-    key: 'custom-out',
-    from: ns.name,
-    to: arr,
-    stopId: ns.id,
-    toStopId: null,
-    filter: null,
-    geo: null,
-    toGeo: arr,
-    line: null,
-  };
+  if (!arr) return false;
+  const savedDep = loadDep();
+  const dep = savedDep || (ns ? ns.name : null);
+  if (!dep) return false;
+  const depMatchesGps = ns && ns.name.toLowerCase() === dep.toLowerCase();
+  config.dirs[2] = depMatchesGps
+    ? { key: 'custom-out', from: dep, to: arr, stopId: ns.id, toStopId: null, filter: null, geo: null, toGeo: arr, line: null }
+    : { key: 'custom-out', from: dep, to: arr, stopId: null, toStopId: null, filter: null, geo: dep, toGeo: arr, line: null };
   state.dIdx = 2;
   return true;
 }
@@ -115,6 +103,14 @@ export function loadDest() {
 
 export function saveDest(arr) {
   try { localStorage.setItem(DEST_KEY, arr); } catch {}
+}
+
+export function loadDep() {
+  try { return localStorage.getItem(DEP_KEY) || null; } catch { return null; }
+}
+
+export function saveDep(name) {
+  try { localStorage.setItem(DEP_KEY, name); } catch {}
 }
 
 // Kept for backward compat — no-op; GPS now determines departure

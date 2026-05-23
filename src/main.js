@@ -6,13 +6,13 @@ import './style/walk.css';
 import './style/track.css';
 import './style/debug.css';
 
-import { attachEventListeners, updateHeader } from './ui/nav.js';
+import { attachEventListeners, updateHeader, show } from './ui/nav.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
 import { locateUser, updateWalkDbg } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
-import { initSettings, showSettings, applyRoute, loadCustomRoute } from './views/settings.js';
+import { initSettings, showSettings, applyRoute, applyRouteFromState, loadDest } from './views/settings.js';
 import { state } from './state.js';
 
 // Expose helpers used via window bridges in nav.js and debug controls
@@ -24,17 +24,35 @@ window._applyRoute = applyRoute;
 attachEventListeners();
 initDebugToggle();
 initSettings();
-loadCustomRoute();
 updateHeader();
-locateUser();
 startRenderLoop();
 
+// Journey restore: activate immediately if a journey is in progress
 const restored = loadJny();
 if (restored) {
   state.jny = restored;
   state.jny.stops = [];
-  startBoard();
   activateTracking();
+  // GPS runs in background to refresh walk time for next trip
+  locateUser(() => {}, () => {});
 } else {
-  startBoard();
+  // GPS-first: detect nearest station, then decide what to show
+  locateUser(
+    (station) => {
+      const dest = loadDest();
+      if (dest) {
+        applyRouteFromState(dest);
+        updateHeader();
+        startBoard();
+      } else {
+        showSettings();
+        show('v-settings');
+      }
+    },
+    () => {
+      // GPS denied or failed — show manual route entry
+      showSettings();
+      show('v-settings');
+    }
+  );
 }

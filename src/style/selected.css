@@ -47,6 +47,12 @@
 .jd-val.arrival{color:#fbbf24}
 .jd-sub{font-size:10px;color:#78716c;margin-top:.2rem}
 
+/* Arrival hero — answer to "when will I arrive?" */
+.arrival-hero{text-align:center;margin-bottom:1.5rem}
+.arrival-hero .ah-label{font-size:10px;text-transform:uppercase;letter-spacing:.3em;color:#78716c;margin-bottom:.35rem}
+.arrival-hero .ah-time{font-family:"Bebas Neue",sans-serif;font-size:clamp(3rem,13vw,4.5rem);line-height:1;color:#fbbf24;letter-spacing:.04em;font-variant-numeric:tabular-nums;text-shadow:0 0 20px rgba(251,191,36,.4)}
+.arrival-hero .ah-sub{font-size:11px;color:#78716c;margin-top:.4rem}
+
 /* Transfer itinerary layout */
 .itinerary{border:1px solid rgba(245,184,64,.1);border-radius:6px;overflow:hidden;margin-bottom:1.75rem}
 .itin-leg{display:flex;align-items:flex-start;gap:.7rem;padding:.75rem .9rem;background:#0a0806}

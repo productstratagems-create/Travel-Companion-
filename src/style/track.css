@@ -22,6 +22,8 @@
 
 /* Stop list */
 .stops{margin-top:1.25rem;border-top:1px solid rgba(245,184,64,.08)}
+.pre-board-info{font-size:11px;color:#57534e;padding:.5rem .25rem .75rem;letter-spacing:.03em;border-bottom:1px solid rgba(245,184,64,.06);margin-bottom:.1rem}
+.pre-board-label{font-size:9px;text-transform:uppercase;letter-spacing:.15em;opacity:.7}
 .stop{
   display:flex;align-items:center;
   padding:.55rem .25rem;

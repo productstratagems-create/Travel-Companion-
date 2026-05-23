@@ -34,6 +34,7 @@ export function showSettings() {
   const ns = state.nearestStation;
   const depWrap = document.getElementById('set-dep-wrap');
   const detected = document.getElementById('set-detected');
+  const changeBtn = document.getElementById('set-dep-change');
   if (ns) {
     if (depWrap) depWrap.style.display = 'none';
     if (detected) {
@@ -41,9 +42,19 @@ export function showSettings() {
       detected.textContent = 'Nærmeste stasjon: ' + ns.name + ' · ' + wk.mins + ' min gange';
       detected.style.display = 'block';
     }
+    if (changeBtn) {
+      changeBtn.style.display = 'block';
+      changeBtn.onclick = () => {
+        const depEl = document.getElementById('set-dep');
+        if (depEl) depEl.value = ns.name;
+        if (depWrap) depWrap.style.display = 'block';
+        changeBtn.style.display = 'none';
+      };
+    }
   } else {
     if (depWrap) depWrap.style.display = 'block';
     if (detected) detected.style.display = 'none';
+    if (changeBtn) changeBtn.style.display = 'none';
     const dir = config.dirs[state.dIdx];
     const depEl = document.getElementById('set-dep');
     if (depEl) depEl.value = dir ? dir.from : '';
@@ -55,7 +66,11 @@ export function showSettings() {
 
 export function applyRoute() {
   const ns = state.nearestStation;
-  const dep = ns ? ns.name : (document.getElementById('set-dep').value.trim());
+  const depWrap = document.getElementById('set-dep-wrap');
+  const depOverridden = depWrap && depWrap.style.display !== 'none';
+  const dep = depOverridden
+    ? document.getElementById('set-dep').value.trim()
+    : (ns ? ns.name : document.getElementById('set-dep').value.trim());
   const arr = document.getElementById('set-arr').value.trim();
   const errEl = document.getElementById('set-error');
   if (!dep || !arr) {
@@ -68,7 +83,7 @@ export function applyRoute() {
     errEl.style.display = 'block';
     return false;
   }
-  config.dirs[2] = ns
+  config.dirs[2] = (ns && !depOverridden)
     ? { key: 'custom-out', from: ns.name, to: arr, stopId: ns.id, toStopId: null, filter: null, geo: null, toGeo: arr, line: null }
     : { key: 'custom-out', from: dep, to: arr, stopId: null, toStopId: null, filter: null, geo: dep, toGeo: arr, line: null };
   state.dIdx = 2;

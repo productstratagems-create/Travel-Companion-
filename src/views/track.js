@@ -72,7 +72,9 @@ export function renderTrack() {
     const stops2 = state.jny.stops2 || [];
     const dn2 = state.jny.dest.toLowerCase();
     if (stops2.length) {
+      let pastDestStop = false;
       stops2.forEach(s => {
+        if (pastDestStop) return;
         const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
         const isDest = nm.toLowerCase() === dn2;
         const depT = s.expectedDepartureTime || s.aimedDepartureTime;
@@ -91,6 +93,7 @@ export function renderTrack() {
           + '<div class="stop-clock">' + (arrT ? clk(arrT) : '—') + '</div>'
           + '<div class="stop-rel">' + relTxt + '</div>'
           + '</div>';
+        if (isDest) pastDestStop = true;
       });
     } else {
       const cd = tr.connectingDep;

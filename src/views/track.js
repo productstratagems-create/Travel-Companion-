@@ -88,14 +88,42 @@ export function renderTrack() {
   // Stop list
   const stops = state.jny.stops || [];
   const dn = tr ? normStn(tr.at) : normStn(state.jny.dest);
-  let first = false, html = '';
+  let html = '';
+
+  function renderStopRows(rows) {
+    const TAIL = 2;
+    const toRender = rows.length > TAIL + 1
+      ? [rows[0], { isCollapse: true, count: rows.length - 1 - TAIL }, ...rows.slice(-TAIL)]
+      : rows;
+    let firstRendered = false;
+    let out = '';
+    toRender.forEach(r => {
+      if (r.isCollapse) {
+        out += '<div class="stop-collapse">· ' + r.count + ' stopp ·</div>';
+        return;
+      }
+      const isNext = !firstRendered && !r.isTransfer && !r.isDest;
+      if (isNext) firstRendered = true;
+      const tag = r.isTransfer ? '<span class="stop-tag bytt-tag">bytt</span>'
+        : r.isDest ? '<span class="stop-tag">stå av</span>'
+        : isNext ? '<span class="stop-tag">neste</span>' : '';
+      const cls = r.isTransfer ? ' transfer' : r.isDest ? ' dest' : isNext ? ' next' : '';
+      out += '<div class="stop' + cls + '">'
+        + '<div class="stop-dot"></div>'
+        + '<div class="stop-name">' + tag + r.nm + '</div>'
+        + '<div class="stop-clock">' + (r.arrT ? clk(r.arrT) : '—') + '</div>'
+        + '<div class="stop-rel">' + r.relTxt + '</div>'
+        + '</div>';
+    });
+    return out;
+  }
 
   if (tr && pastDep) {
     const stops2 = state.jny.stops2 || [];
     const dn2 = normStn(state.jny.dest);
     if (stops2.length) {
-      let pastTransferStop2 = false;
-      let pastDestStop = false;
+      const rows2 = [];
+      let pastTransferStop2 = false, pastDestStop = false;
       stops2.forEach(s => {
         if (pastDestStop) return;
         const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
@@ -109,19 +137,12 @@ export function renderTrack() {
         if (passed && !isDest) return;
         const arrT = s.expectedArrivalTime || s.aimedArrivalTime || depT;
         const arrTs = arrT ? new Date(arrT).getTime() : null;
-        const isNext = !first && !isDest;
-        if (isNext) first = true;
         const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
         const relTxt = ma === null ? '—' : ma <= 0 ? 'nå' : ma === 1 ? '1 min' : 'om ' + ma + ' min';
-        const tag = isDest ? '<span class="stop-tag">stå av</span>' : isNext ? '<span class="stop-tag">neste</span>' : '';
-        html += '<div class="stop' + (isDest ? ' dest' : isNext ? ' next' : '') + '">'
-          + '<div class="stop-dot"></div>'
-          + '<div class="stop-name">' + tag + nm + '</div>'
-          + '<div class="stop-clock">' + (arrT ? clk(arrT) : '—') + '</div>'
-          + '<div class="stop-rel">' + relTxt + '</div>'
-          + '</div>';
+        rows2.push({ nm, arrT, ma, relTxt, isTransfer: false, isDest });
         if (isDest) pastDestStop = true;
       });
+      html = renderStopRows(rows2);
     } else {
       const cd = tr.connectingDep;
       html = '<div class="transfer-boarded">'
@@ -160,6 +181,7 @@ export function renderTrack() {
       }
     }
 
+    const rows1 = [];
     let pastBoarding = !state.jny.from;
     let pastTransferStop = false;
     stops.forEach(s => {
@@ -176,22 +198,12 @@ export function renderTrack() {
       if (passed && !isTransfer && !isDest) return;
       const arrT = s.expectedArrivalTime || s.aimedArrivalTime || depT;
       const arrTs = arrT ? new Date(arrT).getTime() : null;
-      const isNext = !first && !isTransfer && !isDest;
-      if (isNext) first = true;
       const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
       const relTxt = ma === null ? '—' : ma <= 0 ? 'nå' : ma === 1 ? '1 min' : 'om ' + ma + ' min';
-      const tag = isTransfer ? '<span class="stop-tag bytt-tag">bytt</span>'
-        : isDest ? '<span class="stop-tag">stå av</span>'
-        : isNext ? '<span class="stop-tag">neste</span>'
-        : '';
-      html += '<div class="stop' + (isTransfer ? ' transfer' : isDest ? ' dest' : isNext ? ' next' : '') + '">'
-        + '<div class="stop-dot"></div>'
-        + '<div class="stop-name">' + tag + nm + '</div>'
-        + '<div class="stop-clock">' + (arrT ? clk(arrT) : '—') + '</div>'
-        + '<div class="stop-rel">' + relTxt + '</div>'
-        + '</div>';
+      rows1.push({ nm, arrT, ma, relTxt, isTransfer, isDest });
       if (isTransfer) pastTransferStop = true;
     });
+    html += renderStopRows(rows1);
   }
 
   document.getElementById('t-stops').innerHTML = html || '<div class="state-msg" style="padding:1rem;font-size:11px">laster…</div>';

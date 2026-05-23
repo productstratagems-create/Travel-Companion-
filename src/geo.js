@@ -33,11 +33,12 @@ export function reachCls(mtl) {
 }
 
 export function findArr(calls, name) {
-  if (!calls) return null;
-  const n = name.toLowerCase();
+  if (!calls || !name) return null;
+  const norm = s => s.toLowerCase().replace(/\s+t$/i, '').trim();
+  const n = norm(name);
   for (let i = 0; i < calls.length; i++) {
     const nm = (calls[i].quay && calls[i].quay.stopPlace && calls[i].quay.stopPlace.name) || '';
-    if (nm.toLowerCase() === n) return calls[i];
+    if (norm(nm) === n) return calls[i];
   }
   return null;
 }

@@ -8,6 +8,7 @@ import { startBoard } from './board.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function normStn(s) { return s.toLowerCase().replace(/\s+t$/i, '').trim(); }
 
 function pastTransfer() {
   const tr = state.jny && state.jny.transfer;
@@ -65,18 +66,18 @@ export function renderTrack() {
 
   // Stop list
   const stops = state.jny.stops || [];
-  const dn = tr ? tr.at.toLowerCase() : state.jny.dest.toLowerCase();
+  const dn = tr ? normStn(tr.at) : normStn(state.jny.dest);
   let first = false, html = '';
 
   if (tr && past) {
     const stops2 = state.jny.stops2 || [];
-    const dn2 = state.jny.dest.toLowerCase();
+    const dn2 = normStn(state.jny.dest);
     if (stops2.length) {
       let pastDestStop = false;
       stops2.forEach(s => {
         if (pastDestStop) return;
         const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
-        const isDest = nm.toLowerCase() === dn2;
+        const isDest = normStn(nm) === dn2;
         const depT = s.expectedDepartureTime || s.aimedDepartureTime;
         const passed = depT && new Date(depT).getTime() < now - 10000;
         if (passed && !isDest) return;
@@ -136,11 +137,11 @@ export function renderTrack() {
       if (pastTransferStop) return;
       const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
       if (!pastBoarding) {
-        if (nm.toLowerCase() === state.jny.from.toLowerCase()) pastBoarding = true;
+        if (normStn(nm) === normStn(state.jny.from)) pastBoarding = true;
         else return;
       }
-      const isTransfer = tr && nm.toLowerCase() === dn;
-      const isDest = !tr && nm.toLowerCase() === dn;
+      const isTransfer = tr && normStn(nm) === dn;
+      const isDest = !tr && normStn(nm) === dn;
       const depT = s.expectedDepartureTime || s.aimedDepartureTime;
       const passed = depT && new Date(depT).getTime() < now - 10000;
       if (passed && !isTransfer && !isDest) return;

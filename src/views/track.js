@@ -71,9 +71,9 @@ export function renderTrack() {
     const arrTs = leg.arrTime ? new Date(leg.arrTime.time).getTime() : null;
     const mLeft = arrTs !== null ? Math.floor((arrTs - now) / 60000) : null;
     if (mLeft !== null) {
-      nEl.textContent = mLeft;
+      nEl.textContent = Math.max(0, mLeft);
       nEl.className = 'track-num' + (mLeft <= 2 ? ' urgent' : '');
-      lEl.textContent = isLastLeg ? 'min til ankomst' : (mLeft === 0 ? 'gå av nå' : 'min til bytte');
+      lEl.textContent = isLastLeg ? 'min til ankomst' : (mLeft <= 0 ? 'gå av nå' : 'min til bytte');
     } else {
       nEl.textContent = '—'; nEl.className = 'track-num'; lEl.textContent = 'venter på data';
     }

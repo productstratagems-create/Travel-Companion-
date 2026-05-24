@@ -8,7 +8,7 @@ import './style/debug.css';
 
 import { attachEventListeners, updateHeader, show } from './ui/nav.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
-import { locateUser, updateWalkDbg } from './geo.js';
+import { locateUser, refreshPosition, updateWalkDbg } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
@@ -47,6 +47,7 @@ if (restored) {
         showSettings();
         show('v-settings');
       }
+      setInterval(refreshPosition, 120000);
     },
     () => {
       // GPS denied or failed — load saved destination if available, else settings

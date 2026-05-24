@@ -5,6 +5,7 @@ import './style/selected.css';
 import './style/walk.css';
 import './style/track.css';
 import './style/debug.css';
+import './style/settings.css';
 
 import { attachEventListeners, updateHeader, show } from './ui/nav.js';
 import { initDebugToggle, logMsg } from './ui/log.js';

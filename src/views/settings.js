@@ -37,6 +37,12 @@ function suggestStops(query, datalistId, getAbort, setAbort, getTimer, setTimer)
   }, 250));
 }
 
+function syncClear(inputId, clearId) {
+  const btn = document.getElementById(clearId);
+  const inp = document.getElementById(inputId);
+  if (btn) btn.style.display = (inp && inp.value) ? 'flex' : 'none';
+}
+
 export function initSettings() {
   const depEl = document.getElementById('set-dep');
   const arrEl = document.getElementById('set-arr');
@@ -48,6 +54,22 @@ export function initSettings() {
     suggestStops(e.target.value.trim(), 'arr-stops',
       () => _arrAbort, v => { _arrAbort = v; },
       () => _arrTimer, v => { _arrTimer = v; }));
+
+  ['dep', 'arr'].forEach(id => {
+    const inp = document.getElementById('set-' + id);
+    const btn = document.getElementById('set-' + id + '-clear');
+    if (!inp || !btn) return;
+    inp.addEventListener('input', () => {
+      btn.style.display = inp.value ? 'flex' : 'none';
+    });
+    btn.addEventListener('click', () => {
+      inp.value = '';
+      btn.style.display = 'none';
+      const dl = document.getElementById(inp.getAttribute('list'));
+      if (dl) dl.innerHTML = '';
+      inp.focus();
+    });
+  });
 }
 
 export function showSettings() {
@@ -59,6 +81,7 @@ export function showSettings() {
   if (depEl) {
     const saved = loadDep();
     depEl.value = saved || (ns ? ns.name : (config.dirs[state.dIdx] ? config.dirs[state.dIdx].from : ''));
+    syncClear('set-dep', 'set-dep-clear');
   }
 
   // GPS hint line below dep input
@@ -70,7 +93,7 @@ export function showSettings() {
       detected.style.cursor = 'pointer';
       detected.style.textDecoration = 'underline';
       detected.onclick = () => {
-        if (depEl) depEl.value = ns.name;
+        if (depEl) { depEl.value = ns.name; syncClear('set-dep', 'set-dep-clear'); }
         const arrEl = document.getElementById('set-arr');
         if (arrEl) arrEl.focus();
       };
@@ -81,7 +104,7 @@ export function showSettings() {
   }
 
   const arrEl = document.getElementById('set-arr');
-  if (arrEl) arrEl.value = loadDest() || '';
+  if (arrEl) { arrEl.value = loadDest() || ''; syncClear('set-arr', 'set-arr-clear'); }
   document.getElementById('set-error').style.display = 'none';
 }
 

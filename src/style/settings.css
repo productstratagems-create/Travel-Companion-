@@ -1,0 +1,64 @@
+#v-settings .set-section {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(245,184,64,.08);
+}
+
+.set-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .2em;
+  color: rgba(245,184,64,.45);
+  margin-bottom: .5rem;
+}
+
+.set-field {
+  position: relative;
+}
+
+/* Override debug.css input[type=text] within settings only */
+#v-settings input[type=text] {
+  width: 100%;
+  padding: .8rem 2.75rem .8rem .75rem;
+  font-size: 1rem;        /* 16px: prevents iOS Safari auto-zoom on focus */
+  min-height: 44px;
+  background: rgba(0,0,0,.45);
+  border: 1px solid rgba(245,184,64,.18);
+  border-radius: 6px;
+  color: #f5b840;
+  font-family: inherit;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+}
+
+#v-settings input[type=text]:focus {
+  outline: none;
+  border-color: rgba(245,184,64,.5);
+  background: rgba(0,0,0,.65);
+}
+
+#v-settings input[type=text]::placeholder {
+  color: rgba(245,184,64,.22);
+}
+
+.set-clear {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: rgba(245,184,64,.35);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.set-clear:active { color: rgba(245,184,64,.8); }

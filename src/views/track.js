@@ -170,11 +170,11 @@ export function renderTrack() {
   function buildPreBoardHtml(legIdx) {
     const leg = legs[legIdx];
     if (!leg || !leg.fromStation || !leg.stops || !leg.stops.length) return '';
-    const fromLower = leg.fromStation.toLowerCase();
+    const fromNorm = normStn(leg.fromStation);
     let nextPreStop = null, stopsAway = 0;
     for (const s of leg.stops) {
       const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
-      if (nm.toLowerCase() === fromLower) break;
+      if (normStn(nm) === fromNorm) break;
       const depT = s.expectedDepartureTime || s.aimedDepartureTime;
       if (depT && new Date(depT).getTime() < now - 10000) continue;
       if (!nextPreStop) nextPreStop = { nm, arrT: s.expectedArrivalTime || s.aimedArrivalTime || depT };
@@ -276,6 +276,7 @@ export function buildTrackBar() {
 export function startTracking() {
   expanded = state.jny && state.jny.legs ? state.jny.legs.map(() => false) : [];
   if (intervals.track) clearInterval(intervals.track);
+  renderTrack();
   _fetchTrack();
   intervals.track = setInterval(_fetchTrack, config.trackRefreshMs);
   if (intervals.board) { clearInterval(intervals.board); intervals.board = null; }

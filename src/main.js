@@ -49,9 +49,10 @@ if (restored) {
       }
     },
     () => {
-      // GPS denied or failed — show manual route entry
-      showSettings();
-      show('v-settings');
+      // GPS denied or failed — load saved destination if available, else settings
+      const dest = loadDest();
+      if (dest) { applyRouteFromState(dest); updateHeader(); startBoard(); }
+      else { showSettings(); show('v-settings'); }
     }
   );
 }

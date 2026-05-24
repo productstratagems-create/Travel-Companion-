@@ -14,11 +14,12 @@ function adaptTripPattern(tp) {
     const first = legs[0], last = legs[legs.length - 1];
     if (!first.fromEstimatedCall) return null;
     const transfers = legs.slice(0, -1).map((leg, i) => ({
-      at:        leg.toPlace.name,
+      at:        (leg.toPlace && leg.toPlace.name) || null,
       platform:  (legs[i+1].fromEstimatedCall && legs[i+1].fromEstimatedCall.quay && legs[i+1].fromEstimatedCall.quay.publicCode) || null,
       frontText: (legs[i+1].fromEstimatedCall && legs[i+1].fromEstimatedCall.destinationDisplay && legs[i+1].fromEstimatedCall.destinationDisplay.frontText) || null,
       depTime:   (legs[i+1].fromEstimatedCall && (legs[i+1].fromEstimatedCall.expectedDepartureTime || legs[i+1].fromEstimatedCall.aimedDepartureTime)) || null,
     }));
+    if (transfers.some(t => !t.at)) return null;
     return {
       expectedDepartureTime: first.fromEstimatedCall.expectedDepartureTime,
       aimedDepartureTime:    first.fromEstimatedCall.aimedDepartureTime,
@@ -121,7 +122,7 @@ export function renderBoard() {
       : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
 
     const viaRow = c._transfers && c._transfers.length
-      ? '<div class="dep-via">' + c._transfers.map(t => 'bytt ' + t.at.toLowerCase()).join(' → ') + '</div>'
+      ? '<div class="dep-via">' + c._transfers.map(t => 'bytt ' + (t.at ? t.at.toLowerCase() : '?')).join(' → ') + '</div>'
       : '';
 
     html += '<div class="' + rowCls + '"' + (isCancelled ? '' : ' onclick="window.tap(' + origIdx + ')"') + '>'

@@ -60,8 +60,8 @@ export function renderSelected() {
       const depT = leg.fromEstimatedCall && leg.fromEstimatedCall.expectedDepartureTime;
       const arrT2 = leg.toEstimatedCall && (leg.toEstimatedCall.expectedArrivalTime || leg.toEstimatedCall.aimedArrivalTime);
       const isLastLeg = (i === c._legs.length - 1);
-      const fromName = i === 0 ? dir.from.toLowerCase() : c._transfers[i-1].at.toLowerCase();
-      const toName = isLastLeg ? dir.to.toLowerCase() : c._transfers[i].at.toLowerCase();
+      const fromName = i === 0 ? dir.from.toLowerCase() : ((c._transfers[i-1] && c._transfers[i-1].at) ? c._transfers[i-1].at.toLowerCase() : '?');
+      const toName = isLastLeg ? dir.to.toLowerCase() : ((c._transfers[i] && c._transfers[i].at) ? c._transfers[i].at.toLowerCase() : dir.to.toLowerCase());
       const prevTr = i > 0 ? c._transfers[i-1] : null;
       const nextLeg = !isLastLeg ? c._legs[i+1] : null;
       const nextDepT = nextLeg && nextLeg.fromEstimatedCall && nextLeg.fromEstimatedCall.expectedDepartureTime;

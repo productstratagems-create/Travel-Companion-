@@ -27,7 +27,7 @@ function suggestStops(query, datalistId, getAbort, setAbort, getTimer, setTimer)
           .filter(f => (f.properties.category || []).some(c => TRANSIT_CATEGORIES.includes(c)))
           .filter(f => {
             const coords = f.geometry && f.geometry.coordinates;
-            return coords && haver(coords[1], coords[0], 59.9139, 10.7522) < 80;
+            return coords && haver(coords[1], coords[0], 59.9139, 10.7522) < 80000;
           });
         dl.innerHTML = '';
         stops.forEach(f => {

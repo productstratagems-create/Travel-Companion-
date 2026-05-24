@@ -73,7 +73,7 @@ export function renderTrack() {
     if (mLeft !== null) {
       nEl.textContent = mLeft;
       nEl.className = 'track-num' + (mLeft <= 2 ? ' urgent' : '');
-      lEl.textContent = isLastLeg ? 'min til ankomst' : 'min til bytte';
+      lEl.textContent = isLastLeg ? 'min til ankomst' : (mLeft === 0 ? 'gå av nå' : 'min til bytte');
     } else {
       nEl.textContent = '—'; nEl.className = 'track-num'; lEl.textContent = 'venter på data';
     }
@@ -96,7 +96,7 @@ export function renderTrack() {
     }
     if (nextLeg && nextLeg.depTime) {
       cEl.textContent = nextLeg.depTime.clk;
-      laEl.textContent = 'avgang fra ' + normStn(nextLeg.fromStation);
+      laEl.textContent = 'avgang fra ' + normStn(nextLeg.fromStation) + (nextLeg.quay ? ' · spor ' + nextLeg.quay : '');
     } else { cEl.textContent = ''; laEl.textContent = ''; }
   }
 

@@ -17,7 +17,7 @@ function suggestStops(query, datalistId, getAbort, setAbort, getTimer, setTimer)
     if (getAbort()) getAbort().abort();
     const ctrl = new AbortController();
     setAbort(ctrl);
-    fetch(config.api.geocoder + '?text=' + encodeURIComponent(query) + '&size=8&layers=venue&sources=gtfs-rut',
+    fetch(config.api.geocoder + '?text=' + encodeURIComponent(query) + '&size=8&layers=venue&boundary.circle.lat=59.9139&boundary.circle.lon=10.7522&boundary.circle.radius=80000',
       { signal: ctrl.signal })
       .then(r => r.json())
       .then(j => {

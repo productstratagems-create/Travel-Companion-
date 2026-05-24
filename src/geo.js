@@ -59,7 +59,6 @@ export function findNearestStation(lat, lon, onFound, onFail) {
         lon: m.geometry.coordinates[0],
       };
       state.nearestStation = ns;
-      state.statLL['custom-out'] = { lat: ns.lat, lon: ns.lon };
       logMsg('nærmeste: ' + ns.name, 'ok');
       updateWalkDbg();
       if (onFound) onFound(ns);
@@ -67,22 +66,31 @@ export function findNearestStation(lat, lon, onFound, onFail) {
     .catch(err => { if (onFail) onFail(err.message); });
 }
 
+let _watchId = null;
+
 export function locateUser(onFound, onFail) {
   if (!navigator.geolocation) {
     logMsg('geolokasjon ikke tilgjengelig', 'err');
     if (onFail) onFail('geolokasjon ikke tilgjengelig');
     return;
   }
-  navigator.geolocation.getCurrentPosition(
+  if (_watchId !== null) navigator.geolocation.clearWatch(_watchId);
+  let initialized = false;
+  _watchId = navigator.geolocation.watchPosition(
     pos => {
+      state.gpsError = null;
       state.homeLL = { lat: pos.coords.latitude, lon: pos.coords.longitude };
       logMsg('✓ posisjon ' + state.homeLL.lat.toFixed(4) + ',' + state.homeLL.lon.toFixed(4), 'ok');
       updateWalkDbg();
-      findNearestStation(pos.coords.latitude, pos.coords.longitude, onFound, onFail);
+      if (!initialized) {
+        initialized = true;
+        findNearestStation(pos.coords.latitude, pos.coords.longitude, onFound, onFail);
+      }
     },
     err => {
+      if (err.code === 1) state.gpsError = 'denied';
       logMsg('posisjon: ' + err.message, 'err');
-      if (onFail) onFail(err.message);
+      if (!initialized) { initialized = true; if (onFail) onFail(err.message); }
     },
     { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
   );

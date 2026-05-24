@@ -50,6 +50,9 @@ function renderWalkSummary() {
     const wk = walkInfo();
     el.textContent = ns.name + ' · ' + wk.mins + ' min gange';
     el.style.display = 'block';
+  } else if (state.gpsError === 'denied' && dir.key === 'out') {
+    el.textContent = 'posisjon: ikke tilgjengelig';
+    el.style.display = 'block';
   } else {
     el.style.display = 'none';
   }

@@ -19,6 +19,7 @@ export const state = {
   nearestStation: null,
   statLL: {},
   walkOvr: null,
+  gpsError: null,
   debugOpen: false,
 };
 

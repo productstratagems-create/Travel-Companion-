@@ -5,34 +5,49 @@ import { walkInfo } from '../geo.js';
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
 
-const METRO_STATIONS = [
-  'Ammerud', 'Avløs',
-  'Bergkrystallen', 'Bekkestua', 'Besserud', 'Bogerud', 'Bryn', 'Brynseng', 'Bøler',
-  'Carl Berner',
-  'Eiksmarka', 'Ellingsrudåsen', 'Ensjø', 'Etterstad',
-  'Frognerseteren', 'Furuset',
-  'Gjønnes', 'Godlia', 'Grefsen', 'Grinilund', 'Grorud', 'Grønland', 'Gulleråsen',
-  'Hauger', 'Haugerud', 'Hellerud', 'Helsfyr', 'Holmenkollen', 'Holmlia',
-  'Jar', 'Jernbanetorget',
-  'Kolsås',
-  'Lilleaker', 'Lindeberg', 'Løren',
-  'Majorstuen', 'Midtstuen', 'Mortensrud', 'Munkerud',
-  'Nationaltheatret', 'Nydalen',
-  'Oppsal', 'Østerås',
-  'Ringstabekkveien', 'Ringen', 'Romsås', 'Røa',
-  'Sinsen', 'Skådalen', 'Skullerud', 'Skøyen', 'Skøyenåsen', 'Slemdal', 'Steinerud', 'Storo', 'Stortinget', 'Stovner',
-  'Trosterud', 'Tveita', 'Tøyen',
-  'Ullevål stadion', 'Ulsrud',
-  'Vestli', 'Vinderen', 'Voksenkollen', 'Voksenlia',
-];
+const TRANSIT_CATEGORIES = ['metroStation', 'busStation', 'onstreetBus', 'tramStation', 'ferryStop'];
+
+let _depAbort = null, _arrAbort = null;
+let _depTimer = null, _arrTimer = null;
+
+function suggestStops(query, datalistId, getAbort, setAbort, getTimer, setTimer) {
+  clearTimeout(getTimer());
+  if (query.length < 2) return;
+  setTimer(setTimeout(() => {
+    if (getAbort()) getAbort().abort();
+    const ctrl = new AbortController();
+    setAbort(ctrl);
+    fetch(config.api.geocoder + '?text=' + encodeURIComponent(query) + '&size=8&layers=venue',
+      { signal: ctrl.signal })
+      .then(r => r.json())
+      .then(j => {
+        const dl = document.getElementById(datalistId);
+        if (!dl) return;
+        const stops = ((j && j.features) || []).filter(f =>
+          (f.properties.category || []).some(c => TRANSIT_CATEGORIES.includes(c))
+        );
+        dl.innerHTML = '';
+        stops.forEach(f => {
+          const opt = document.createElement('option');
+          opt.value = f.properties.name || f.properties.label;
+          dl.appendChild(opt);
+        });
+      })
+      .catch(() => {});
+  }, 250));
+}
 
 export function initSettings() {
-  const dl = document.getElementById('metro-stations');
-  METRO_STATIONS.forEach(name => {
-    const opt = document.createElement('option');
-    opt.value = name;
-    dl.appendChild(opt);
-  });
+  const depEl = document.getElementById('set-dep');
+  const arrEl = document.getElementById('set-arr');
+  if (depEl) depEl.addEventListener('input', e =>
+    suggestStops(e.target.value.trim(), 'dep-stops',
+      () => _depAbort, v => { _depAbort = v; },
+      () => _depTimer, v => { _depTimer = v; }));
+  if (arrEl) arrEl.addEventListener('input', e =>
+    suggestStops(e.target.value.trim(), 'arr-stops',
+      () => _arrAbort, v => { _arrAbort = v; },
+      () => _arrTimer, v => { _arrTimer = v; }));
 }
 
 export function showSettings() {

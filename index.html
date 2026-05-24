@@ -76,14 +76,20 @@
     <button class="nav-back" id="set-back">← tilbake</button>
     <span class="screen-label">din destinasjon</span>
   </div>
-  <div id="set-dep-wrap" class="dbg-sec" style="margin-top:1.5rem">
-    <div class="debug-label">fra stasjon</div>
-    <input type="text" id="set-dep" placeholder="f.eks. Stortinget" list="dep-stops" autocomplete="off" spellcheck="false">
+  <div id="set-dep-wrap" class="set-section">
+    <label class="set-label" for="set-dep">fra stasjon</label>
+    <div class="set-field">
+      <input type="text" id="set-dep" placeholder="f.eks. Stortinget" list="dep-stops" autocomplete="off" spellcheck="false">
+      <button class="set-clear" id="set-dep-clear" aria-label="Tøm felt" style="display:none">×</button>
+    </div>
   </div>
   <div id="set-detected" style="display:none;font-size:11px;color:#78716c;padding:.25rem 0 .75rem;letter-spacing:.03em"></div>
-  <div class="dbg-sec" style="margin-top:1.5rem">
-    <div class="debug-label">til stopp eller stasjon</div>
-    <input type="text" id="set-arr" placeholder="f.eks. Jernbanetorget, Manglerud" list="arr-stops" autocomplete="off" spellcheck="false">
+  <div class="set-section">
+    <label class="set-label" for="set-arr">til stopp eller stasjon</label>
+    <div class="set-field">
+      <input type="text" id="set-arr" placeholder="f.eks. Jernbanetorget, Manglerud" list="arr-stops" autocomplete="off" spellcheck="false">
+      <button class="set-clear" id="set-arr-clear" aria-label="Tøm felt" style="display:none">×</button>
+    </div>
   </div>
   <datalist id="dep-stops"></datalist>
   <datalist id="arr-stops"></datalist>

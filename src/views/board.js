@@ -67,8 +67,21 @@ export function renderBoard() {
   const isOut = dir.key !== 'in';
   const ns = state.nearestStation;
   const walkActive = isOut && ns !== null && dir.stopId === ns.id;
+
+  // Hide strictly dominated alternatives: same dep-minute + same arrival-minute, more legs already sorted last
+  const roundMin = t => Math.floor(new Date(t).getTime() / 60000) * 60000;
+  const shownKeys = new Set();
+  const visibleDeps = state.deps.reduce((acc, c, origIdx) => {
+    const arrT = c._finalArrival || null;
+    if (!arrT) { acc.push({ c, origIdx }); return acc; }
+    const key = roundMin(c.expectedDepartureTime) + '|' + roundMin(arrT);
+    if (!shownKeys.has(key)) { shownKeys.add(key); acc.push({ c, origIdx }); }
+    return acc;
+  }, []);
+
   let html = '';
-  state.deps.forEach((c, i) => {
+  let urgentShown = false;
+  visibleDeps.forEach(({ c, origIdx }) => {
     const depTs = new Date(c.expectedDepartureTime).getTime();
     const diffSec = Math.floor((depTs - now) / 1000);
     const mins = Math.floor(diffSec / 60), secs = diffSec % 60;
@@ -87,6 +100,8 @@ export function renderBoard() {
     const isCancelled = c.cancellation;
     const missed = rcls === 'missed';
     const rowCls = 'dep-row' + (isCancelled ? ' cancelled' : missed ? ' missed' : rcls ? ' ' + rcls : '');
+    const showReach = walkActive && rcls && !missed && (rcls !== 'r-now' || !urgentShown);
+    if (rcls === 'r-now') urgentShown = true;
 
     const lineBadges = c._legs
       ? c._legs.map(l => {
@@ -101,7 +116,7 @@ export function renderBoard() {
       ? '<div class="dep-via">' + c._transfers.map(t => 'bytt ' + t.at.toLowerCase()).join(' → ') + '</div>'
       : '';
 
-    html += '<div class="' + rowCls + '"' + (isCancelled ? '' : ' onclick="window.tap(' + i + ')"') + '>'
+    html += '<div class="' + rowCls + '"' + (isCancelled ? '' : ' onclick="window.tap(' + origIdx + ')"') + '>'
       + '<div class="dep-mins' + (urgent ? ' urgent' : '') + (isNow ? ' now' : '') + '">'
       + (isNow ? 'NÅ' : String(mins))
       + (isNow && secs > 0 ? '<span class="unit">' + secs + 's</span>' : '')
@@ -116,11 +131,11 @@ export function renderBoard() {
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + '</div>'
       + viaRow
-      + (walkActive && rcls && !missed
+      + (showReach
         ? '<div class="dep-reach ' + rcls + '">'
           + (rcls === 'r-ok' ? 'gå om ' + mtl + ' min'
-            : rcls === 'r-soon' ? 'gå om ' + mtl + ' min!'
-            : 'gå nå!')
+            : rcls === 'r-soon' ? 'gå om ' + mtl + ' min'
+            : 'gå nå')
           + '</div>'
         : '')
       + '</div>'

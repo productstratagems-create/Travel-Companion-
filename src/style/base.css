@@ -12,8 +12,8 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 
 /* ── TYPE SCALE ── */
 .num{font-family:"Bebas Neue",sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1}
-.muted{color:#57534e}
-.soft{color:#a8a29e}
+.muted{color:#4a5568}
+.soft{color:#94a3b8}
 .amber{color:#f5b840}
 .warn{color:#fbbf24}
 .go{color:#f97316}

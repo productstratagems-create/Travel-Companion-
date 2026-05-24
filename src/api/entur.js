@@ -7,7 +7,7 @@ let tripController = null;
 
 export function resolveStop(dir) {
   if (dir.stopId) return Promise.resolve(dir.stopId);
-  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo) + '&size=10&layers=venue&sources=gtfs-rut')
+  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo) + '&size=10&layers=venue&boundary.circle.lat=59.9139&boundary.circle.lon=10.7522&boundary.circle.radius=80000')
     .then(r => r.json())
     .then(json => {
       const ff = (json && json.features) || [];
@@ -25,7 +25,7 @@ export function resolveStop(dir) {
 
 export function resolveToStop(dir) {
   if (dir.toStopId) return Promise.resolve(dir.toStopId);
-  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.toGeo) + '&size=10&layers=venue&sources=gtfs-rut')
+  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.toGeo) + '&size=10&layers=venue&boundary.circle.lat=59.9139&boundary.circle.lon=10.7522&boundary.circle.radius=80000')
     .then(r => r.json())
     .then(json => {
       const ff = (json && json.features) || [];

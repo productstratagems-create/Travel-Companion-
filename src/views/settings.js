@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state } from '../state.js';
-import { walkInfo } from '../geo.js';
+import { walkInfo, haver } from '../geo.js';
 
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
@@ -17,15 +17,18 @@ function suggestStops(query, datalistId, getAbort, setAbort, getTimer, setTimer)
     if (getAbort()) getAbort().abort();
     const ctrl = new AbortController();
     setAbort(ctrl);
-    fetch(config.api.geocoder + '?text=' + encodeURIComponent(query) + '&size=8&layers=venue&boundary.circle.lat=59.9139&boundary.circle.lon=10.7522&boundary.circle.radius=80000',
+    fetch(config.api.geocoder + '?text=' + encodeURIComponent(query) + '&size=8&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522',
       { signal: ctrl.signal })
       .then(r => r.json())
       .then(j => {
         const dl = document.getElementById(datalistId);
         if (!dl) return;
-        const stops = ((j && j.features) || []).filter(f =>
-          (f.properties.category || []).some(c => TRANSIT_CATEGORIES.includes(c))
-        );
+        const stops = ((j && j.features) || [])
+          .filter(f => (f.properties.category || []).some(c => TRANSIT_CATEGORIES.includes(c)))
+          .filter(f => {
+            const coords = f.geometry && f.geometry.coordinates;
+            return coords && haver(coords[1], coords[0], 59.9139, 10.7522) < 80;
+          });
         dl.innerHTML = '';
         stops.forEach(f => {
           const opt = document.createElement('option');

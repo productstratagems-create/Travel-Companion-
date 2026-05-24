@@ -324,13 +324,15 @@ function _fetchTrack() {
     })
     .catch(err => logMsg('track ✗ ' + err.message, 'err'));
 
-  // Pre-fetch next leg while riding for card preview
-  if (cs.phase === 'riding' && cs.i + 1 < state.jny.legs.length) {
-    const nxt = state.jny.legs[cs.i + 1];
-    if (nxt && nxt.journeyId && !nxt.stops.length) {
-      fetchTrack(nxt.journeyId)
-        .then(calls => { if (calls) nxt.stops = calls; })
-        .catch(() => {});
+  // Pre-fetch all remaining legs while riding so cards show stops immediately
+  if (cs.phase === 'riding') {
+    for (let j = cs.i + 1; j < state.jny.legs.length; j++) {
+      const nxt = state.jny.legs[j];
+      if (nxt && nxt.journeyId && !nxt.stops.length) {
+        fetchTrack(nxt.journeyId)
+          .then(calls => { if (calls) { nxt.stops = calls; renderTrack(); } })
+          .catch(() => {});
+      }
     }
   }
 }

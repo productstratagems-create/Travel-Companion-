@@ -66,33 +66,38 @@ export function findNearestStation(lat, lon, onFound, onFail) {
     .catch(err => { if (onFail) onFail(err.message); });
 }
 
-let _watchId = null;
-
 export function locateUser(onFound, onFail) {
   if (!navigator.geolocation) {
     logMsg('geolokasjon ikke tilgjengelig', 'err');
     if (onFail) onFail('geolokasjon ikke tilgjengelig');
     return;
   }
-  if (_watchId !== null) navigator.geolocation.clearWatch(_watchId);
-  let initialized = false;
-  _watchId = navigator.geolocation.watchPosition(
+  navigator.geolocation.getCurrentPosition(
     pos => {
       state.gpsError = null;
       state.homeLL = { lat: pos.coords.latitude, lon: pos.coords.longitude };
       logMsg('✓ posisjon ' + state.homeLL.lat.toFixed(4) + ',' + state.homeLL.lon.toFixed(4), 'ok');
       updateWalkDbg();
-      if (!initialized) {
-        initialized = true;
-        findNearestStation(pos.coords.latitude, pos.coords.longitude, onFound, onFail);
-      }
+      findNearestStation(pos.coords.latitude, pos.coords.longitude, onFound, onFail);
     },
     err => {
       if (err.code === 1) state.gpsError = 'denied';
       logMsg('posisjon: ' + err.message, 'err');
-      if (!initialized) { initialized = true; if (onFail) onFail(err.message); }
+      if (onFail) onFail(err.message);
     },
     { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+  );
+}
+
+export function refreshPosition() {
+  if (!navigator.geolocation || !state.homeLL) return;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      state.homeLL = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      updateWalkDbg();
+    },
+    () => {},
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 }
   );
 }
 

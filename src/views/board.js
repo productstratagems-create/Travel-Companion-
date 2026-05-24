@@ -146,6 +146,17 @@ function _fetchBoard() {
   if (dir.toGeo) {
     fetchTrip(dir, (patterns) => {
       const adapted = patterns.map(adaptTripPattern).filter(Boolean);
+      adapted.sort((a, b) => {
+        const depA = new Date(a.expectedDepartureTime).getTime();
+        const depB = new Date(b.expectedDepartureTime).getTime();
+        if (depA !== depB) return depA - depB;
+        const legsA = (a._legs && a._legs.length) || 1;
+        const legsB = (b._legs && b._legs.length) || 1;
+        if (legsA !== legsB) return legsA - legsB;
+        const aMetro = a._legs && a._legs[0] && a._legs[0].mode === 'metro' ? 0 : 1;
+        const bMetro = b._legs && b._legs[0] && b._legs[0].mode === 'metro' ? 0 : 1;
+        return aMetro - bMetro;
+      });
       logMsg('✓ ' + adapted.length + ' trip patterns', 'ok');
       state.deps = adapted;
       state.lastFetch = Date.now();

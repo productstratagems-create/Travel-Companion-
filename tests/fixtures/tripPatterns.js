@@ -202,6 +202,68 @@ export const transferWithUndefinedAt = {
   ],
 };
 
+// Three transit legs (foot + metro + metro + bus) where bus lacks toEstimatedCall.
+// _finalArrival must be computed from dep + duration.
+export const threeLegsMetroBus = {
+  duration: 2400,
+  legs: [
+    {
+      mode: 'foot',
+      fromPlace: { name: 'Mortensrud' },
+      toPlace: { name: 'Mortensrud' },
+      serviceJourney: null, fromEstimatedCall: null, toEstimatedCall: null,
+    },
+    {
+      mode: 'metro',
+      fromPlace: { name: 'Mortensrud' },
+      toPlace: { name: 'Helsfyr' },
+      serviceJourney: { id: 'RUT:ServiceJourney:3-100', line: { publicCode: '3', presentation: { colour: '8B0000' } } },
+      fromEstimatedCall: {
+        expectedDepartureTime: '2026-05-24T09:00:00+02:00',
+        aimedDepartureTime:    '2026-05-24T09:00:00+02:00',
+        realtime: true,
+        quay: { publicCode: '1' },
+        destinationDisplay: { frontText: 'Helsfyr' },
+      },
+      toEstimatedCall: {
+        expectedArrivalTime: '2026-05-24T09:15:00+02:00',
+        aimedArrivalTime:    '2026-05-24T09:15:00+02:00',
+      },
+    },
+    {
+      mode: 'metro',
+      fromPlace: { name: 'Helsfyr' },
+      toPlace: { name: 'Tøyen' },
+      serviceJourney: { id: 'RUT:ServiceJourney:5-200', line: { publicCode: '5', presentation: { colour: '006600' } } },
+      fromEstimatedCall: {
+        expectedDepartureTime: '2026-05-24T09:20:00+02:00',
+        aimedDepartureTime:    '2026-05-24T09:20:00+02:00',
+        realtime: false,
+        quay: { publicCode: '2' },
+        destinationDisplay: { frontText: 'Storo' },
+      },
+      toEstimatedCall: {
+        expectedArrivalTime: '2026-05-24T09:27:00+02:00',
+        aimedArrivalTime:    '2026-05-24T09:27:00+02:00',
+      },
+    },
+    {
+      mode: 'bus',
+      fromPlace: { name: 'Tøyen' },
+      toPlace: { name: 'Manglerud' },
+      serviceJourney: { id: 'RUT:ServiceJourney:23-300', line: { publicCode: '23', presentation: { colour: '004B87' } } },
+      fromEstimatedCall: {
+        expectedDepartureTime: '2026-05-24T09:32:00+02:00',
+        aimedDepartureTime:    '2026-05-24T09:32:00+02:00',
+        realtime: false,
+        quay: { publicCode: null },
+        destinationDisplay: { frontText: 'Manglerud' },
+      },
+      toEstimatedCall: null,
+    },
+  ],
+};
+
 // All foot — must return null
 export const allFoot = {
   duration: 300,

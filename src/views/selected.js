@@ -57,14 +57,24 @@ export function renderSelected() {
     c._legs.forEach((leg, i) => {
       const ll = leg.serviceJourney && leg.serviceJourney.line;
       const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
-      const depT = leg.fromEstimatedCall && leg.fromEstimatedCall.expectedDepartureTime;
-      const arrT2 = leg.toEstimatedCall && (leg.toEstimatedCall.expectedArrivalTime || leg.toEstimatedCall.aimedArrivalTime);
+      const depT = (leg.fromEstimatedCall && leg.fromEstimatedCall.expectedDepartureTime)
+        || leg.expectedStartTime || leg.aimedStartTime || null;
+      const arrT2 = (leg.toEstimatedCall && (leg.toEstimatedCall.expectedArrivalTime || leg.toEstimatedCall.aimedArrivalTime))
+        || leg.expectedEndTime || leg.aimedEndTime || null;
       const isLastLeg = (i === c._legs.length - 1);
-      const fromName = i === 0 ? dir.from.toLowerCase() : ((c._transfers[i-1] && c._transfers[i-1].at) ? c._transfers[i-1].at.toLowerCase() : '?');
-      const toName = isLastLeg ? dir.to.toLowerCase() : ((c._transfers[i] && c._transfers[i].at) ? c._transfers[i].at.toLowerCase() : dir.to.toLowerCase());
+      const fromName = i === 0
+        ? dir.from.toLowerCase()
+        : ((leg.fromPlace && leg.fromPlace.name)
+            ? leg.fromPlace.name.toLowerCase()
+            : (c._transfers[i-1] && c._transfers[i-1].at ? c._transfers[i-1].at.toLowerCase() : '?'));
+      const toName = (leg.toPlace && leg.toPlace.name)
+        ? leg.toPlace.name.toLowerCase()
+        : (isLastLeg ? dir.to.toLowerCase() : (c._transfers[i] && c._transfers[i].at ? c._transfers[i].at.toLowerCase() : dir.to.toLowerCase()));
       const prevTr = i > 0 ? c._transfers[i-1] : null;
       const nextLeg = !isLastLeg ? c._legs[i+1] : null;
-      const nextDepT = nextLeg && nextLeg.fromEstimatedCall && nextLeg.fromEstimatedCall.expectedDepartureTime;
+      const nextDepT = nextLeg
+        && ((nextLeg.fromEstimatedCall && nextLeg.fromEstimatedCall.expectedDepartureTime)
+            || nextLeg.expectedStartTime || nextLeg.aimedStartTime);
       const waitMins = !isLastLeg && arrT2 && nextDepT
         ? Math.round((new Date(nextDepT).getTime() - new Date(arrT2).getTime()) / 60000)
         : null;

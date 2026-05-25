@@ -10,7 +10,10 @@ const TRANSIT_CATEGORIES = ['metroStation', 'busStation', 'onstreetBus', 'tramSt
 let _depAbort = null, _arrAbort = null;
 let _depTimer = null, _arrTimer = null;
 
-function suggestStops(query, datalistId, getAbort, setAbort, getTimer, setTimer) {
+const _depStopIds = new Map();
+const _arrStopIds = new Map();
+
+function suggestStops(query, datalistId, stopMap, getAbort, setAbort, getTimer, setTimer) {
   clearTimeout(getTimer());
   if (query.length < 2) return;
   setTimer(setTimeout(() => {
@@ -29,10 +32,13 @@ function suggestStops(query, datalistId, getAbort, setAbort, getTimer, setTimer)
             const coords = f.geometry && f.geometry.coordinates;
             return coords && haver(coords[1], coords[0], 59.9139, 10.7522) < 80000;
           });
+        stopMap.clear();
         dl.innerHTML = '';
         stops.forEach(f => {
+          const name = f.properties.name || f.properties.label;
+          stopMap.set(name, f.properties.id);
           const opt = document.createElement('option');
-          opt.value = f.properties.name || f.properties.label;
+          opt.value = name;
           dl.appendChild(opt);
         });
       })
@@ -50,11 +56,11 @@ export function initSettings() {
   const depEl = document.getElementById('set-dep');
   const arrEl = document.getElementById('set-arr');
   if (depEl) depEl.addEventListener('input', e =>
-    suggestStops(e.target.value.trim(), 'dep-stops',
+    suggestStops(e.target.value.trim(), 'dep-stops', _depStopIds,
       () => _depAbort, v => { _depAbort = v; },
       () => _depTimer, v => { _depTimer = v; }));
   if (arrEl) arrEl.addEventListener('input', e =>
-    suggestStops(e.target.value.trim(), 'arr-stops',
+    suggestStops(e.target.value.trim(), 'arr-stops', _arrStopIds,
       () => _arrAbort, v => { _arrAbort = v; },
       () => _arrTimer, v => { _arrTimer = v; }));
 
@@ -134,10 +140,28 @@ export function applyRoute() {
     errEl.style.display = 'block';
     return false;
   }
+
+  // Resolve departure stop ID: GPS > nearestStations list > autocomplete map > geocode
   const depMatchesGps = ns && ns.name.toLowerCase() === dep.toLowerCase();
-  config.dirs[2] = depMatchesGps
-    ? { key: 'custom-out', from: ns.name, to: arr, stopId: ns.id, toStopId: null, filter: null, geo: null, toGeo: arr, line: null }
-    : { key: 'custom-out', from: dep, to: arr, stopId: null, toStopId: null, filter: null, geo: dep, toGeo: arr, line: null };
+  const depNearby = !depMatchesGps
+    && state.nearestStations.find(s => s.name.toLowerCase() === dep.toLowerCase());
+  const depId = depMatchesGps ? ns.id
+    : (depNearby ? depNearby.id : (_depStopIds.get(dep) || null));
+
+  // Resolve destination stop ID: autocomplete map > geocode
+  const arrId = _arrStopIds.get(arr) || null;
+
+  config.dirs[2] = {
+    key: 'custom-out',
+    from: dep,
+    to:   arr,
+    stopId:   depId,
+    toStopId: arrId,
+    filter:   null,
+    geo:      depId ? null : dep,
+    toGeo:    arrId ? null : arr,
+    line:     null,
+  };
   state.dIdx = 2;
   saveDep(dep);
   saveDest(arr);
@@ -151,9 +175,20 @@ export function applyRouteFromState(arr) {
   const dep = savedDep || (ns ? ns.name : null);
   if (!dep) return false;
   const depMatchesGps = ns && ns.name.toLowerCase() === dep.toLowerCase();
-  config.dirs[2] = depMatchesGps
-    ? { key: 'custom-out', from: dep, to: arr, stopId: ns.id, toStopId: null, filter: null, geo: null, toGeo: arr, line: null }
-    : { key: 'custom-out', from: dep, to: arr, stopId: null, toStopId: null, filter: null, geo: dep, toGeo: arr, line: null };
+  const depNearby = !depMatchesGps
+    && state.nearestStations.find(s => s.name.toLowerCase() === dep.toLowerCase());
+  const depId = depMatchesGps ? ns.id : (depNearby ? depNearby.id : null);
+  config.dirs[2] = {
+    key: 'custom-out',
+    from: dep,
+    to:   arr,
+    stopId:   depId,
+    toStopId: null,
+    filter:   null,
+    geo:      depId ? null : dep,
+    toGeo:    arr,
+    line:     null,
+  };
   state.dIdx = 2;
   return true;
 }

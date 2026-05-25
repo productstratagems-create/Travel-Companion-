@@ -201,12 +201,14 @@ describe('adaptTripPattern — 3-leg metro+metro+bus', () => {
     expect(result._transferAt).toBe('Helsfyr');
   });
 
-  it('computes _finalArrival from dep + duration when bus toEstimatedCall is null', () => {
-    // dep = 09:00 +02:00, duration = 2400s (40min) → 09:40 local
-    expect(result._finalArrival).not.toBeNull();
-    const arr = new Date(result._finalArrival);
-    expect(arr.getUTCHours()).toBe(7);   // 09:40 CEST = 07:40 UTC
-    expect(arr.getUTCMinutes()).toBe(40);
+  it('_finalArrival comes from bus leg aimedEndTime when toEstimatedCall is null', () => {
+    // bus leg aimedEndTime = '2026-05-24T07:40:00Z' (engine-provided, preferred over duration hack)
+    expect(result._finalArrival).toBe('2026-05-24T07:40:00Z');
+  });
+
+  it('second transfer depTime falls back to bus leg aimedStartTime', () => {
+    // bus leg has fromEstimatedCall:null, so depTime falls back to leg.aimedStartTime
+    expect(result._transfers[1].depTime).toBe('2026-05-24T07:32:00Z');
   });
 
   it('destinationDisplay.frontText is Manglerud (bus final stop)', () => {

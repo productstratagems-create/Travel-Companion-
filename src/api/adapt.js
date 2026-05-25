@@ -4,22 +4,26 @@ export function adaptTripPattern(tp) {
     const legs = tp.legs.filter(l => l.mode !== 'foot');
     if (!legs.length) return null;
     const first = legs[0], last = legs[legs.length - 1];
-    if (!first.fromEstimatedCall) return null;
+    const firstDepTime = first.fromEstimatedCall
+      ? (first.fromEstimatedCall.expectedDepartureTime || first.fromEstimatedCall.aimedDepartureTime)
+      : (first.expectedStartTime || first.aimedStartTime);
+    if (!firstDepTime) return null;
     if (!last.toPlace || !last.toPlace.name) return null;
     const transfers = legs.slice(0, -1).map((leg, i) => ({
       at:        (leg.toPlace && leg.toPlace.name) || null,
       platform:  (legs[i+1].fromEstimatedCall && legs[i+1].fromEstimatedCall.quay && legs[i+1].fromEstimatedCall.quay.publicCode) || null,
       frontText: (legs[i+1].fromEstimatedCall && legs[i+1].fromEstimatedCall.destinationDisplay && legs[i+1].fromEstimatedCall.destinationDisplay.frontText) || null,
-      depTime:   (legs[i+1].fromEstimatedCall && (legs[i+1].fromEstimatedCall.expectedDepartureTime || legs[i+1].fromEstimatedCall.aimedDepartureTime)) || null,
+      depTime:   (legs[i+1].fromEstimatedCall && (legs[i+1].fromEstimatedCall.expectedDepartureTime || legs[i+1].fromEstimatedCall.aimedDepartureTime))
+                 || legs[i+1].expectedStartTime || legs[i+1].aimedStartTime || null,
     }));
     if (transfers.some(t => !t.at)) return null;
     return {
-      expectedDepartureTime: first.fromEstimatedCall.expectedDepartureTime,
-      aimedDepartureTime:    first.fromEstimatedCall.aimedDepartureTime,
-      realtime:              first.fromEstimatedCall.realtime,
+      expectedDepartureTime: firstDepTime,
+      aimedDepartureTime:    first.fromEstimatedCall ? first.fromEstimatedCall.aimedDepartureTime : (first.aimedStartTime || firstDepTime),
+      realtime:              first.fromEstimatedCall ? first.fromEstimatedCall.realtime : false,
       cancellation:          false,
       destinationDisplay:    { frontText: last.toPlace.name },
-      quay:                  { publicCode: (first.fromEstimatedCall.quay && first.fromEstimatedCall.quay.publicCode) || '?' },
+      quay:                  { publicCode: (first.fromEstimatedCall && first.fromEstimatedCall.quay && first.fromEstimatedCall.quay.publicCode) || '?' },
       serviceJourney: {
         id:   first.serviceJourney && first.serviceJourney.id,
         line: first.serviceJourney && first.serviceJourney.line,
@@ -35,8 +39,10 @@ export function adaptTripPattern(tp) {
         if (last.toEstimatedCall) {
           return last.toEstimatedCall.expectedArrivalTime || last.toEstimatedCall.aimedArrivalTime;
         }
-        const dep = first.fromEstimatedCall.expectedDepartureTime || first.fromEstimatedCall.aimedDepartureTime;
-        return dep ? new Date(new Date(dep).getTime() + tp.duration * 1000).toISOString() : null;
+        if (last.expectedEndTime || last.aimedEndTime) {
+          return last.expectedEndTime || last.aimedEndTime;
+        }
+        return firstDepTime ? new Date(new Date(firstDepTime).getTime() + tp.duration * 1000).toISOString() : null;
       })(),
       _durationMins:     Math.round(tp.duration / 60),
     };

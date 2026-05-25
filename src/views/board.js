@@ -39,21 +39,21 @@ export function renderBoard() {
   const ns = state.nearestStation;
   const walkActive = isOut && ns !== null && dir.stopId === ns.id;
 
-  // Pareto-dominance filter: sort by departure time, then keep only patterns whose
-  // arrival time strictly improves on all previously kept patterns.  A route that
-  // departs at the same time but arrives later is strictly dominated and hidden.
+  // For each departure minute keep only the route with the earliest arrival.
+  // This removes the "same departure, slower route" duplicate while
+  // preserving every distinct departure time.
   const indexed = state.deps.map((c, i) => ({ c, origIdx: i }));
   indexed.sort((a, b) =>
     new Date(a.c.expectedDepartureTime).getTime() - new Date(b.c.expectedDepartureTime).getTime()
   );
-  let bestArrivalMs = Infinity;
-  const visibleDeps = indexed.filter(({ c }) => {
-    const arrT = c._finalArrival;
-    if (!arrT) return true;
-    const arrMs = new Date(arrT).getTime();
-    if (arrMs < bestArrivalMs) { bestArrivalMs = arrMs; return true; }
-    return false;
+  const depMinMap = new Map();
+  indexed.forEach(({ c, origIdx }) => {
+    const depMin = Math.floor(new Date(c.expectedDepartureTime).getTime() / 60000);
+    const arrMs  = c._finalArrival ? new Date(c._finalArrival).getTime() : Infinity;
+    const cur    = depMinMap.get(depMin);
+    if (!cur || arrMs < cur.arrMs) depMinMap.set(depMin, { c, origIdx, arrMs });
   });
+  const visibleDeps = Array.from(depMinMap.values());
 
   let html = '';
   let urgentShown = false;

@@ -23,8 +23,8 @@ describe('tripGQL(fromId, toId, n)', () => {
     expect(q).toContain('numTripPatterns:5');
   });
 
-  it('defaults numTripPatterns to 8 when n is omitted', () => {
-    expect(tripGQL('A', 'B')).toContain('numTripPatterns:8');
+  it('defaults numTripPatterns to 12 when n is omitted', () => {
+    expect(tripGQL('A', 'B')).toContain('numTripPatterns:12');
   });
 
   it('includes walkSpeed parameter — defaults to 1.3 m/s', () => {

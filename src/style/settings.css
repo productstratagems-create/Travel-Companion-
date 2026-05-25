@@ -62,3 +62,26 @@
 }
 
 .set-clear:active { color: rgba(245,184,64,.8); }
+
+.nearby-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: .55rem .75rem;
+  background: rgba(245,184,64,.04);
+  border: 1px solid rgba(245,184,64,.1);
+  border-radius: 5px;
+  margin-bottom: .35rem;
+  color: #f5b840;
+  font-family: inherit;
+  font-size: .875rem;
+  cursor: pointer;
+  text-align: left;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.nearby-btn:active { background: rgba(245,184,64,.1); }
+.nearby-name { font-weight: 700; letter-spacing: .03em; }
+.nearby-dist { font-size: .75rem; color: rgba(245,184,64,.5); letter-spacing: .05em; }

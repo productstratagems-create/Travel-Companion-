@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state } from '../state.js';
-import { haver } from '../geo.js';
+import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer } from '../geo.js';
 
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
@@ -52,6 +52,26 @@ function syncClear(inputId, clearId) {
   if (btn) btn.style.display = (inp && inp.value) ? 'flex' : 'none';
 }
 
+function _highlightPrefs() {
+  const spd = loadWalkSpeed();
+  document.querySelectorAll('#pref-speed .pref-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === spd);
+  });
+  const buf = String(loadWalkBuffer());
+  document.querySelectorAll('#pref-buf .pref-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === buf);
+  });
+}
+
+function initPrefs() {
+  document.querySelectorAll('#pref-speed .pref-btn').forEach(btn => {
+    btn.addEventListener('click', () => { saveWalkSpeed(btn.dataset.val); _highlightPrefs(); });
+  });
+  document.querySelectorAll('#pref-buf .pref-btn').forEach(btn => {
+    btn.addEventListener('click', () => { saveWalkBuffer(Number(btn.dataset.val)); _highlightPrefs(); });
+  });
+}
+
 export function initSettings() {
   const depEl = document.getElementById('set-dep');
   const arrEl = document.getElementById('set-arr');
@@ -79,6 +99,7 @@ export function initSettings() {
       inp.focus();
     });
   });
+  initPrefs();
 }
 
 export function showSettings() {
@@ -99,8 +120,9 @@ export function showSettings() {
       ? state.nearestStations : (ns ? [ns] : []);
     if (stations.length) {
       nearbyList.innerHTML = stations.map(s => {
+        const spd = { rolig: 41.67, middels: 83.33, rask: 116.67 }[loadWalkSpeed()] || 83.33;
         const mins = s.distM != null
-          ? Math.max(1, Math.ceil(s.distM * 1.3 / 83.3)) + 1
+          ? Math.max(1, Math.ceil(s.distM * 1.3 / spd)) + loadWalkBuffer()
           : null;
         return '<button class="nearby-btn" data-name="' + s.name + '">'
           + '<span class="nearby-name">' + s.name + '</span>'
@@ -123,6 +145,7 @@ export function showSettings() {
   const arrEl = document.getElementById('set-arr');
   if (arrEl) { arrEl.value = loadDest() || ''; syncClear('set-arr', 'set-arr-clear'); }
   document.getElementById('set-error').style.display = 'none';
+  _highlightPrefs();
 }
 
 export function applyRoute() {

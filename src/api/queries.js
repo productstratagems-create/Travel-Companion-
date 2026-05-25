@@ -8,6 +8,7 @@ export function tripGQL(fromId, toId, n) {
     + ' fromPlace{name}'
     + ' toPlace{name}'
     + ' mode'
+    + ' aimedStartTime expectedStartTime aimedEndTime expectedEndTime'
     + ' serviceJourney{id line{publicCode presentation{colour}}}'
     + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime quay{publicCode} destinationDisplay{frontText}}'
     + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime}'

@@ -4,7 +4,6 @@ export function tripGQL(fromId, toId, n, walkSpeed) {
     + 'to:{place:"' + toId + '"} '
     + 'numTripPatterns:' + (n || 8) + ' '
     + 'walkSpeed:' + (walkSpeed || 1.3) + ' '
-    + 'minimumTransferTime:120 '
     + 'modes:{transportModes:[{transportMode:metro},{transportMode:bus}]}'
     + ') { tripPatterns { duration legs {'
     + ' fromPlace{name}'

@@ -67,6 +67,23 @@
 .itin-total{font-size:9px;color:#57534e;text-transform:uppercase;letter-spacing:.15em;padding:.35rem .9rem;text-align:right;background:#0a0806}
 .itin-meta{font-size:10px;color:#78716c;letter-spacing:.04em;padding:.1rem 0 .2rem}
 
+.foot-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  padding: .15rem .5rem;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  background: rgba(245,184,64,.06);
+  border: 1px solid rgba(245,184,64,.15);
+  color: rgba(245,184,64,.5);
+  flex-shrink: 0;
+}
+
 /* Train bar (shared with walk screen) */
 .train-bar{
   display:flex;align-items:center;gap:.6rem;

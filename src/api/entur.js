@@ -1,6 +1,8 @@
 import config from '../config.js';
 import { boardGQL, trackGQL, tripGQL } from './queries.js';
 import { logMsg, setDot } from '../ui/log.js';
+import { loadWalkSpeed } from '../geo.js';
+const WALK_MPS = { rolig: 41.67 / 60, middels: 83.33 / 60, rask: 116.67 / 60 };
 
 let boardController = null;
 let tripController = null;
@@ -57,11 +59,12 @@ export function fetchTrip(dir, onSuccess, onError) {
   Promise.all([resolveStop(dir), resolveToStop(dir)])
     .then(([fromId, toId]) => {
       if (signal.aborted) return;
+      const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
       logMsg('trip → ' + fromId + ' → ' + toId);
       return fetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: tripGQL(fromId, toId) }),
+        body: JSON.stringify({ query: tripGQL(fromId, toId, 8, walkSpeedMs) }),
         signal,
       });
     })

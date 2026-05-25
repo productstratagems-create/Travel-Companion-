@@ -27,6 +27,14 @@ describe('tripGQL(fromId, toId, n)', () => {
     expect(tripGQL('A', 'B')).toContain('numTripPatterns:8');
   });
 
+  it('includes walkSpeed parameter — defaults to 1.3 m/s', () => {
+    expect(tripGQL('A', 'B')).toContain('walkSpeed:1.3');
+  });
+
+  it('accepts custom walkSpeed', () => {
+    expect(tripGQL('A', 'B', 8, 1.389)).toContain('walkSpeed:1.389');
+  });
+
   // REGRESSION: {transportMode:bus} was accidentally removed, causing zero results
   // for any non-metro destination. This test prevents that regression.
   it('includes metro transport mode', () => {

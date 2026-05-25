@@ -9,6 +9,8 @@ export function adaptTripPattern(tp) {
       : (first.expectedStartTime || first.aimedStartTime);
     if (!firstDepTime) return null;
     if (!last.toPlace || !last.toPlace.name) return null;
+    const lastAny = tp.legs[tp.legs.length - 1];
+    if (!lastAny.toPlace || !lastAny.toPlace.name) return null;
     const transfers = legs.slice(0, -1).map((leg, i) => ({
       at:        (leg.toPlace && leg.toPlace.name) || null,
       platform:  (legs[i+1].fromEstimatedCall && legs[i+1].fromEstimatedCall.quay && legs[i+1].fromEstimatedCall.quay.publicCode) || null,
@@ -22,7 +24,7 @@ export function adaptTripPattern(tp) {
       aimedDepartureTime:    first.fromEstimatedCall ? first.fromEstimatedCall.aimedDepartureTime : (first.aimedStartTime || firstDepTime),
       realtime:              first.fromEstimatedCall ? first.fromEstimatedCall.realtime : false,
       cancellation:          false,
-      destinationDisplay:    { frontText: last.toPlace.name },
+      destinationDisplay:    { frontText: lastAny.toPlace.name },
       quay:                  { publicCode: (first.fromEstimatedCall && first.fromEstimatedCall.quay && first.fromEstimatedCall.quay.publicCode) || '?' },
       serviceJourney: {
         id:   first.serviceJourney && first.serviceJourney.id,
@@ -31,13 +33,12 @@ export function adaptTripPattern(tp) {
       },
       _allLegs:          tp.legs,
       _legs:             legs,
-      _isTransfer:       legs.length > 1,
+      _isTransfer:       legs.length > 1 || lastAny.mode === 'foot',
       _transfers:        transfers,
       _transferAt:       transfers.length ? transfers[0].at : null,
       _transferPlatform: transfers.length ? transfers[0].platform : null,
       _transferFrontText: transfers.length ? transfers[0].frontText : null,
       _finalArrival:     (() => {
-        const lastAny = tp.legs[tp.legs.length - 1];
         if (lastAny.toEstimatedCall) {
           return lastAny.toEstimatedCall.expectedArrivalTime || lastAny.toEstimatedCall.aimedArrivalTime;
         }

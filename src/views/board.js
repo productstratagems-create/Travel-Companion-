@@ -157,7 +157,9 @@ export function stopBoard() {
 function _fetchBoard() {
   const dir = config.dirs[state.dIdx];
   if (dir.toGeo) {
-    fetchTrip(dir, (patterns) => {
+    fetchTrip(dir, (patterns, situations) => {
+      state.serviceAlerts = situations || [];
+      logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);
       const adapted = patterns.map(adaptTripPattern).filter(Boolean);
       logMsg('✓ ' + adapted.length + ' trip patterns', 'ok');
       state.deps = adapted;

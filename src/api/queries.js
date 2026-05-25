@@ -1,5 +1,10 @@
 export function tripGQL(fromId, toId, n, walkSpeed) {
-  return '{ trip('
+  const sits = 'situations{id summary{language value} severity validityPeriod{startTime endTime}}';
+  return '{ stopPlace(id:"' + fromId + '"){'
+    + sits + ' '
+    + 'estimatedCalls(numberOfDepartures:5,whiteListedModes:[metro]){'
+    + sits + ' serviceJourney{' + sits + '}}} '
+    + 'trip('
     + 'from:{place:"' + fromId + '"} '
     + 'to:{place:"' + toId + '"} '
     + 'numTripPatterns:' + (n || 12) + ' '

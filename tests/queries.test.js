@@ -68,6 +68,12 @@ describe('tripGQL(fromId, toId, n)', () => {
     expect(q).toContain('publicCode');
     expect(q).toContain('colour');
   });
+
+  it('includes parallel stopPlace situations query for service alert display', () => {
+    expect(q).toContain('stopPlace(id:"NSR:StopPlace:5687")');
+    expect(q).toContain('situations');
+    expect(q).toContain('validityPeriod');
+  });
 });
 
 // --- boardGQL ---

@@ -76,10 +76,18 @@ export function fetchTrip(dir, onSuccess, onError) {
     })
     .then(j => {
       if (!j || signal.aborted) return;
-      if (j.errors) throw new Error(j.errors[0].message);
-      const patterns = (j.data && j.data.trip && j.data.trip.tripPatterns) || [];
+      if (!j.data) throw new Error((j.errors && j.errors[0] && j.errors[0].message) || 'No data');
+      const patterns = (j.data.trip && j.data.trip.tripPatterns) || [];
+      const sitStop = j.data.stopPlace || {};
+      const sitMap = new Map();
+      const addSits = (arr) => (arr || []).forEach(s => s && s.id && sitMap.set(s.id, s));
+      addSits(sitStop.situations);
+      (sitStop.estimatedCalls || []).forEach(call => {
+        addSits(call.situations);
+        if (call.serviceJourney) addSits(call.serviceJourney.situations);
+      });
       setDot('ok');
-      onSuccess(patterns);
+      onSuccess(patterns, Array.from(sitMap.values()));
     })
     .catch(err => {
       if (err.name === 'AbortError') return;

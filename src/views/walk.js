@@ -45,6 +45,8 @@ export function renderWalk() {
   const mtl = Math.floor(msLeft / 60000);
   const stl = Math.floor((msLeft % 60000) / 1000);
   const dir = config.dirs[state.dIdx];
+  const firstMode = c._legs && c._legs[0] && c._legs[0].mode;
+  const vehicleWord = firstMode === 'bus' ? 'Bussen' : firstMode === 'tram' ? 'Trikken' : 'Toget';
 
   let phase;
   if (depMinLeft <= 2)     phase = 'here';
@@ -65,7 +67,7 @@ export function renderWalk() {
   let numEl, lblEl, ctxEl, secsEl;
   if (phase === 'here') {
     numEl = '<div class="walk-num here">FREMME</div>';
-    lblEl = '<div class="walk-label here">Toget avgår ' + (depMinLeft <= 0 ? 'nå' : 'om ' + depMinLeft + ' min') + '</div>';
+    lblEl = '<div class="walk-label here">' + vehicleWord + ' avgår ' + (depMinLeft <= 0 ? 'nå' : 'om ' + depMinLeft + ' min') + '</div>';
     ctxEl = (depQuay || (firstTransfer && firstTransfer.platform))
       ? '<div class="walk-context">'
         + (depQuay ? 'spor <span class="wc-hl">' + depQuay + '</span>' : '')
@@ -78,7 +80,7 @@ export function renderWalk() {
   } else if (phase === 'gonow') {
     const lateMin = Math.abs(mtl);
     numEl = '<div class="walk-num gonow">GÅ<br>NÅ</div>';
-    lblEl = '<div class="walk-label gonow">Toget avgår om ' + depMinLeft + ' min' + (lateMin > 0 ? ' · ' + lateMin + ' min sen' : '') + '</div>';
+    lblEl = '<div class="walk-label gonow">' + vehicleWord + ' avgår om ' + depMinLeft + ' min' + (lateMin > 0 ? ' · ' + lateMin + ' min sen' : '') + '</div>';
     ctxEl = depQuay
       ? '<div class="walk-context">spor <span class="wc-hl">' + depQuay + '</span></div>'
       : '';
@@ -92,7 +94,7 @@ export function renderWalk() {
     ctxEl = '<div class="walk-context">'
       + 'Gå senest <span class="wc-hl">' + clk(leaveByTs) + '</span>'
       + (wk.dist ? ' · ~' + wk.dist + ' m' : '')
-      + '<br>Toget avgår <span class="wc-hl">' + clk(c.expectedDepartureTime) + '</span>'
+      + '<br>' + vehicleWord + ' avgår <span class="wc-hl">' + clk(c.expectedDepartureTime) + '</span>'
       + (depQuay ? ' · <span class="wc-hl">spor ' + depQuay + '</span>' : '')
       + (arrT ? ', ankommer <span class="wc-arr">' + clk(arrT) + '</span>' : '')
       + (leg1Quay && firstTransfer.at ? '<br>Bytt <span class="wc-hl">' + firstTransfer.at.toLowerCase() + '</span> → spor ' + leg1Quay : '')

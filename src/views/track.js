@@ -186,7 +186,10 @@ export function renderTrack() {
     const arrTs = nextPreStop.arrT ? new Date(nextPreStop.arrT).getTime() : null;
     const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
     const relTxt = ma !== null ? (ma <= 0 ? ' · nå' : ' · om ' + ma + ' min') : '';
-    return '<div class="pre-board-info"><span class="pre-board-label">toget er nå ved</span> '
+    const vehicleLabel = legs[legIdx] && legs[legIdx].mode === 'bus' ? 'bussen er nå ved'
+      : legs[legIdx] && legs[legIdx].mode === 'tram' ? 'trikken er nå ved'
+      : 'toget er nå ved';
+    return '<div class="pre-board-info"><span class="pre-board-label">' + vehicleLabel + '</span> '
       + nextPreStop.nm.toLowerCase() + relTxt + ' · ' + stopsAway + ' stopp til avgang</div>';
   }
 
@@ -246,18 +249,24 @@ export function renderTrack() {
 
   // ── Build cards ───────────────────────────────────────────────────────────
 
+  function cardLabel(mode, isFirst) {
+    if (mode === 'bus')  return isFirst ? 'byttebuss' : 'neste buss';
+    if (mode === 'tram') return isFirst ? 'byttetrikk' : 'neste trikk';
+    return isFirst ? 'byttetog' : 'neste tog';
+  }
+
   let cards = '';
   if (phase === 'arrived') {
     cards = '<div class="state-msg" style="padding:1rem;font-size:11px;color:#57534e">ankommet · ' + state.jny.dest.toLowerCase() + '</div>';
   } else if (phase === 'riding') {
     cards += buildLegCard(i, 'ombord', true);
     for (let j = i + 1; j < legs.length; j++) {
-      cards += buildLegCard(j, j === i + 1 ? 'byttetog' : 'neste tog', false);
+      cards += buildLegCard(j, cardLabel(legs[j].mode, j === i + 1), false);
     }
   } else { // platform
     const nextIdx = cs.next;
     for (let j = nextIdx; j < legs.length; j++) {
-      cards += buildLegCard(j, j === nextIdx ? 'byttetog' : 'neste tog', false);
+      cards += buildLegCard(j, cardLabel(legs[j].mode, j === nextIdx), false);
     }
   }
 

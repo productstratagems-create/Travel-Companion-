@@ -54,41 +54,54 @@ export function renderSelected() {
   let journeyDetail;
   if (isTransfer) {
     let itinHtml = '<div class="itinerary">';
-    c._legs.forEach((leg, i) => {
+    const allLegs = c._allLegs || c._legs;
+    allLegs.forEach((leg, i) => {
+      const isFoot = leg.mode === 'foot';
       const ll = leg.serviceJourney && leg.serviceJourney.line;
       const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
+      const badge = isFoot
+        ? '<span class="foot-badge">gå</span>'
+        : '<span class="line-badge" style="background:' + bg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
       const depT = (leg.fromEstimatedCall && leg.fromEstimatedCall.expectedDepartureTime)
         || leg.expectedStartTime || leg.aimedStartTime || null;
       const arrT2 = (leg.toEstimatedCall && (leg.toEstimatedCall.expectedArrivalTime || leg.toEstimatedCall.aimedArrivalTime))
         || leg.expectedEndTime || leg.aimedEndTime || null;
-      const isLastLeg = (i === c._legs.length - 1);
+      const isLastLeg = (i === allLegs.length - 1);
       const fromName = i === 0
         ? dir.from.toLowerCase()
-        : ((leg.fromPlace && leg.fromPlace.name)
-            ? leg.fromPlace.name.toLowerCase()
-            : (c._transfers[i-1] && c._transfers[i-1].at ? c._transfers[i-1].at.toLowerCase() : '?'));
+        : ((leg.fromPlace && leg.fromPlace.name) ? leg.fromPlace.name.toLowerCase() : '?');
       const toName = (leg.toPlace && leg.toPlace.name)
         ? leg.toPlace.name.toLowerCase()
-        : (isLastLeg ? dir.to.toLowerCase() : (c._transfers[i] && c._transfers[i].at ? c._transfers[i].at.toLowerCase() : dir.to.toLowerCase()));
-      const prevTr = i > 0 ? c._transfers[i-1] : null;
-      const nextLeg = !isLastLeg ? c._legs[i+1] : null;
-      const nextDepT = nextLeg
-        && ((nextLeg.fromEstimatedCall && nextLeg.fromEstimatedCall.expectedDepartureTime)
-            || nextLeg.expectedStartTime || nextLeg.aimedStartTime);
-      const waitMins = !isLastLeg && arrT2 && nextDepT
-        ? Math.round((new Date(nextDepT).getTime() - new Date(arrT2).getTime()) / 60000)
-        : null;
+        : (isLastLeg ? dir.to.toLowerCase() : '?');
+      const platform  = !isFoot && i > 0 && leg.fromEstimatedCall && leg.fromEstimatedCall.quay
+        ? leg.fromEstimatedCall.quay.publicCode : null;
+      const frontText = !isFoot && i > 0 && leg.fromEstimatedCall && leg.fromEstimatedCall.destinationDisplay
+        ? leg.fromEstimatedCall.destinationDisplay.frontText : null;
 
       itinHtml += '<div class="itin-leg">'
-        + '<span class="line-badge" style="background:' + bg + '">' + ((ll && ll.publicCode) || '?') + '</span>'
+        + badge
         + '<div class="itin-stops">'
         + '<div class="itin-row dep"><span>' + fromName + '</span><span class="itin-time dep">' + (depT ? clk(depT) : '—') + '</span></div>'
-        + (prevTr && prevTr.platform ? '<div class="itin-meta">spor ' + prevTr.platform + (prevTr.frontText ? ' · retning ' + prevTr.frontText.toLowerCase() : '') + '</div>' : '')
+        + (platform ? '<div class="itin-meta">spor ' + platform + (frontText ? ' · retning ' + frontText.toLowerCase() : '') + '</div>' : '')
         + '<div class="itin-row' + (isLastLeg ? ' final' : '') + '"><span>' + toName + '</span><span class="itin-time' + (isLastLeg ? ' final' : '') + '">' + (arrT2 ? clk(arrT2) : '—') + '</span></div>'
         + '</div></div>';
 
       if (!isLastLeg) {
-        itinHtml += '<div class="itin-xfer">bytt' + (waitMins !== null ? ' · ' + waitMins + ' min' : '') + '</div>';
+        const nextLeg = allLegs[i + 1];
+        if (isFoot) {
+          // foot row is itself the connector — no divider
+        } else if (nextLeg.mode === 'foot') {
+          const wDep = nextLeg.expectedStartTime || nextLeg.aimedStartTime;
+          const wArr = nextLeg.expectedEndTime   || nextLeg.aimedEndTime;
+          const wMin = wDep && wArr ? Math.round((new Date(wArr).getTime() - new Date(wDep).getTime()) / 60000) : null;
+          itinHtml += '<div class="itin-xfer">gå' + (wMin !== null ? ' · ' + wMin + ' min' : '') + '</div>';
+        } else {
+          const nextDepT = (nextLeg.fromEstimatedCall && (nextLeg.fromEstimatedCall.expectedDepartureTime || nextLeg.fromEstimatedCall.aimedDepartureTime))
+            || nextLeg.expectedStartTime || nextLeg.aimedStartTime;
+          const waitMins = arrT2 && nextDepT
+            ? Math.round((new Date(nextDepT).getTime() - new Date(arrT2).getTime()) / 60000) : null;
+          itinHtml += '<div class="itin-xfer">bytt' + (waitMins !== null ? ' · ' + waitMins + ' min' : '') + '</div>';
+        }
       }
     });
     itinHtml += (tmin ? '<div class="itin-total">' + tmin + ' min reise</div>' : '') + '</div>';

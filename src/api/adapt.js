@@ -29,6 +29,7 @@ export function adaptTripPattern(tp) {
         line: first.serviceJourney && first.serviceJourney.line,
         estimatedCalls: [],
       },
+      _allLegs:          tp.legs,
       _legs:             legs,
       _isTransfer:       legs.length > 1,
       _transfers:        transfers,
@@ -36,11 +37,15 @@ export function adaptTripPattern(tp) {
       _transferPlatform: transfers.length ? transfers[0].platform : null,
       _transferFrontText: transfers.length ? transfers[0].frontText : null,
       _finalArrival:     (() => {
+        const lastAny = tp.legs[tp.legs.length - 1];
+        if (lastAny.toEstimatedCall) {
+          return lastAny.toEstimatedCall.expectedArrivalTime || lastAny.toEstimatedCall.aimedArrivalTime;
+        }
+        if (lastAny.expectedEndTime || lastAny.aimedEndTime) {
+          return lastAny.expectedEndTime || lastAny.aimedEndTime;
+        }
         if (last.toEstimatedCall) {
           return last.toEstimatedCall.expectedArrivalTime || last.toEstimatedCall.aimedArrivalTime;
-        }
-        if (last.expectedEndTime || last.aimedEndTime) {
-          return last.expectedEndTime || last.aimedEndTime;
         }
         return firstDepTime ? new Date(new Date(firstDepTime).getTime() + tp.duration * 1000).toISOString() : null;
       })(),

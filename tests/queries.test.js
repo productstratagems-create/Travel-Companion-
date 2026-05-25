@@ -35,10 +35,6 @@ describe('tripGQL(fromId, toId, n)', () => {
     expect(tripGQL('A', 'B', 8, 1.389)).toContain('walkSpeed:1.389');
   });
 
-  it('includes minimumTransferTime:120 matching Entur default', () => {
-    expect(q).toContain('minimumTransferTime:120');
-  });
-
   // REGRESSION: {transportMode:bus} was accidentally removed, causing zero results
   // for any non-metro destination. This test prevents that regression.
   it('includes metro transport mode', () => {

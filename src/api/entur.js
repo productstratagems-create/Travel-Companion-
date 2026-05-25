@@ -64,7 +64,7 @@ export function fetchTrip(dir, onSuccess, onError) {
       return fetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: tripGQL(fromId, toId, 8, walkSpeedMs) }),
+        body: JSON.stringify({ query: tripGQL(fromId, toId, 12, walkSpeedMs) }),
         signal,
       });
     })

@@ -37,11 +37,13 @@ function renderAlerts() {
     return now >= start && now <= end;
   });
   if (!active.length) { el.style.display = 'none'; return; }
-  el.innerHTML = active.map(s => {
-    const txt = (s.summary || []).find(t => t.language === 'no')?.value
-              || (s.summary || [])[0]?.value || '';
-    return '<div class="service-alert">' + txt + '</div>';
-  }).join('');
+  const items = active.map(s => {
+    const summary = s.summary || [];
+    const txt = (summary.find(t => t.language === 'no' || t.language === 'nb') || summary[0] || {}).value || '';
+    return txt ? '<div class="service-alert">' + txt + '</div>' : '';
+  }).filter(Boolean);
+  if (!items.length) { el.style.display = 'none'; return; }
+  el.innerHTML = items.join('');
   el.style.display = 'block';
 }
 
@@ -169,7 +171,16 @@ function _fetchBoard() {
     return;
   }
   fetchBoard(dir, (stop) => {
-    state.serviceAlerts = stop.situations || [];
+    // Collect situations from stop level, per-call level, and per-journey level
+    const sitMap = new Map();
+    const addSits = (arr) => (arr || []).forEach(s => s && s.id && sitMap.set(s.id, s));
+    addSits(stop.situations);
+    (stop.estimatedCalls || []).forEach(call => {
+      addSits(call.situations);
+      if (call.serviceJourney) addSits(call.serviceJourney.situations);
+    });
+    state.serviceAlerts = Array.from(sitMap.values());
+    logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);
     if (stop.latitude && stop.longitude) {
       state.statLL[dir.key] = { lat: stop.latitude, lon: stop.longitude };
       window._updateWalkDbg && window._updateWalkDbg();

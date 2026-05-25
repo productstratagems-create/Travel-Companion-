@@ -5,11 +5,13 @@ import { fetchSelJourney } from '../api/entur.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
+import { renderAlerts } from '../ui/alerts.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
 export function renderSelected() {
+  renderAlerts();
   const c = state.sel;
   if (!c) return;
   const dir = config.dirs[state.dIdx];

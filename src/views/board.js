@@ -39,16 +39,21 @@ export function renderBoard() {
   const ns = state.nearestStation;
   const walkActive = isOut && ns !== null && dir.stopId === ns.id;
 
-  // Hide strictly dominated alternatives: same dep-minute + same arrival-minute, more legs already sorted last
-  const roundMin = t => Math.floor(new Date(t).getTime() / 60000) * 60000;
-  const shownKeys = new Set();
-  const visibleDeps = state.deps.reduce((acc, c, origIdx) => {
-    const arrT = c._finalArrival || null;
-    if (!arrT) { acc.push({ c, origIdx }); return acc; }
-    const key = roundMin(c.expectedDepartureTime) + '|' + roundMin(arrT);
-    if (!shownKeys.has(key)) { shownKeys.add(key); acc.push({ c, origIdx }); }
-    return acc;
-  }, []);
+  // Pareto-dominance filter: sort by departure time, then keep only patterns whose
+  // arrival time strictly improves on all previously kept patterns.  A route that
+  // departs at the same time but arrives later is strictly dominated and hidden.
+  const indexed = state.deps.map((c, i) => ({ c, origIdx: i }));
+  indexed.sort((a, b) =>
+    new Date(a.c.expectedDepartureTime).getTime() - new Date(b.c.expectedDepartureTime).getTime()
+  );
+  let bestArrivalMs = Infinity;
+  const visibleDeps = indexed.filter(({ c }) => {
+    const arrT = c._finalArrival;
+    if (!arrT) return true;
+    const arrMs = new Date(arrT).getTime();
+    if (arrMs < bestArrivalMs) { bestArrivalMs = arrMs; return true; }
+    return false;
+  });
 
   let html = '';
   let urgentShown = false;

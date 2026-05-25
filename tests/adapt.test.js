@@ -9,6 +9,9 @@ import {
   transferWithUndefinedAt,
   allFoot,
   threeLegsMetroBus,
+  metroThenWalk,
+  metroFootBus,
+  fullJourney,
 } from './fixtures/tripPatterns.js';
 
 // --- Null-guard cases (these are the bugs that have broken the app) ---
@@ -217,5 +220,129 @@ describe('adaptTripPattern — 3-leg metro+metro+bus', () => {
 
   it('_durationMins is 40', () => {
     expect(result._durationMins).toBe(40);
+  });
+});
+
+// --- [metro, foot] — transit then walk to final destination (the Hellerud scenario) ---
+
+describe('adaptTripPattern — metro then walk to destination', () => {
+  let result;
+  beforeEach(() => { result = adaptTripPattern(metroThenWalk); });
+
+  it('returns a non-null object', () => {
+    expect(result).not.toBeNull();
+  });
+
+  it('destinationDisplay.frontText is the foot leg destination, not the metro stop', () => {
+    expect(result.destinationDisplay.frontText).toBe('Tveita T');
+    expect(result.destinationDisplay.frontText).not.toBe('Hellerud');
+  });
+
+  it('_isTransfer is true so itinerary view is rendered with the walk leg', () => {
+    expect(result._isTransfer).toBe(true);
+  });
+
+  it('_legs contains only the transit leg', () => {
+    expect(result._legs).toHaveLength(1);
+    expect(result._legs[0].mode).toBe('metro');
+  });
+
+  it('_allLegs contains both legs including the walk', () => {
+    expect(result._allLegs).toHaveLength(2);
+    expect(result._allLegs[1].mode).toBe('foot');
+  });
+
+  it('_finalArrival comes from the foot legs expectedEndTime', () => {
+    expect(result._finalArrival).toBe('2026-05-25T16:29:00+02:00');
+  });
+
+  it('departure time comes from the metro legs fromEstimatedCall', () => {
+    expect(result.expectedDepartureTime).toBe('2026-05-25T16:03:00+02:00');
+  });
+
+  it('_transfers is empty (no transit-to-transit transfer)', () => {
+    expect(result._transfers).toHaveLength(0);
+  });
+});
+
+// --- [metro, foot, bus] — transit → platform walk → transit ---
+
+describe('adaptTripPattern — metro platform-walk bus', () => {
+  let result;
+  beforeEach(() => { result = adaptTripPattern(metroFootBus); });
+
+  it('returns a non-null object', () => {
+    expect(result).not.toBeNull();
+  });
+
+  it('destinationDisplay.frontText is the bus final stop, not the foot leg intermediate name', () => {
+    expect(result.destinationDisplay.frontText).toBe('Tveita');
+  });
+
+  it('_isTransfer is true', () => {
+    expect(result._isTransfer).toBe(true);
+  });
+
+  it('_legs contains both transit legs (foot stripped)', () => {
+    expect(result._legs).toHaveLength(2);
+    expect(result._legs.map(l => l.mode)).toEqual(['metro', 'bus']);
+  });
+
+  it('_allLegs contains all three legs including the platform walk', () => {
+    expect(result._allLegs).toHaveLength(3);
+    expect(result._allLegs[1].mode).toBe('foot');
+  });
+
+  it('_transfers[0].at is the metro arrival station (Helsfyr)', () => {
+    expect(result._transfers[0].at).toBe('Helsfyr');
+  });
+
+  it('_transfers[0].platform is from the bus legs fromEstimatedCall.quay', () => {
+    expect(result._transfers[0].platform).toBe('1');
+  });
+
+  it('_finalArrival comes from bus legs toEstimatedCall', () => {
+    expect(result._finalArrival).toBe('2026-05-25T16:35:00+02:00');
+  });
+});
+
+// --- [foot, metro, metro, foot] — full journey: walk in, two transit legs, walk to destination ---
+
+describe('adaptTripPattern — full journey with initial and final walks', () => {
+  let result;
+  beforeEach(() => { result = adaptTripPattern(fullJourney); });
+
+  it('returns a non-null object', () => {
+    expect(result).not.toBeNull();
+  });
+
+  it('destinationDisplay.frontText is the final walk destination', () => {
+    expect(result.destinationDisplay.frontText).toBe('Grønland');
+  });
+
+  it('_isTransfer is true', () => {
+    expect(result._isTransfer).toBe(true);
+  });
+
+  it('_legs has 2 transit legs (both foot legs stripped)', () => {
+    expect(result._legs).toHaveLength(2);
+    expect(result._legs.every(l => l.mode !== 'foot')).toBe(true);
+  });
+
+  it('_allLegs has all 4 legs including both walks', () => {
+    expect(result._allLegs).toHaveLength(4);
+  });
+
+  it('_transfers has 1 entry at Helsfyr', () => {
+    expect(result._transfers).toHaveLength(1);
+    expect(result._transfers[0].at).toBe('Helsfyr');
+  });
+
+  it('_finalArrival comes from the final foot legs expectedEndTime', () => {
+    expect(result._finalArrival).toBe('2026-05-25T09:43:00+02:00');
+  });
+
+  it('_durationMins is 43 (2580 / 60)', () => {
+    expect(result._durationMins).toBe(43);
   });
 });

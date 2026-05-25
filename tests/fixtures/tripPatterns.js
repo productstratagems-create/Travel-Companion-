@@ -262,6 +262,173 @@ export const threeLegsMetroBus = {
   ],
 };
 
+// One transit leg followed by a walking leg to the final destination.
+// Real-world example: Line 3 to Hellerud, then walk 12 min to Tveita T.
+export const metroThenWalk = {
+  duration: 1560,
+  legs: [
+    {
+      mode: 'metro',
+      fromPlace: { name: 'Mortensrud' },
+      toPlace: { name: 'Hellerud' },
+      serviceJourney: {
+        id: 'RUT:ServiceJourney:3-300',
+        line: { publicCode: '3', presentation: { colour: '8B0000' } },
+      },
+      fromEstimatedCall: {
+        expectedDepartureTime: '2026-05-25T16:03:00+02:00',
+        aimedDepartureTime:    '2026-05-25T16:03:00+02:00',
+        realtime: true,
+        quay: { publicCode: '1' },
+        destinationDisplay: { frontText: 'Kolsås' },
+      },
+      toEstimatedCall: {
+        expectedArrivalTime: '2026-05-25T16:16:00+02:00',
+        aimedArrivalTime:    '2026-05-25T16:16:00+02:00',
+      },
+    },
+    {
+      mode: 'foot',
+      fromPlace: { name: 'Hellerud' },
+      toPlace: { name: 'Tveita T' },
+      serviceJourney: null,
+      fromEstimatedCall: null,
+      toEstimatedCall: null,
+      aimedStartTime:    '2026-05-25T16:16:00+02:00',
+      expectedStartTime: '2026-05-25T16:16:00+02:00',
+      aimedEndTime:      '2026-05-25T16:29:00+02:00',
+      expectedEndTime:   '2026-05-25T16:29:00+02:00',
+    },
+  ],
+};
+
+// Transit → platform walk → transit.
+// Real-world example: Line 3 to Helsfyr, platform walk, Line 2 to Tveita.
+export const metroFootBus = {
+  duration: 1920,
+  legs: [
+    {
+      mode: 'metro',
+      fromPlace: { name: 'Mortensrud' },
+      toPlace: { name: 'Helsfyr' },
+      serviceJourney: {
+        id: 'RUT:ServiceJourney:3-400',
+        line: { publicCode: '3', presentation: { colour: '8B0000' } },
+      },
+      fromEstimatedCall: {
+        expectedDepartureTime: '2026-05-25T16:03:00+02:00',
+        aimedDepartureTime:    '2026-05-25T16:03:00+02:00',
+        realtime: true,
+        quay: { publicCode: '1' },
+        destinationDisplay: { frontText: 'Kolsås' },
+      },
+      toEstimatedCall: {
+        expectedArrivalTime: '2026-05-25T16:21:00+02:00',
+        aimedArrivalTime:    '2026-05-25T16:21:00+02:00',
+      },
+    },
+    {
+      mode: 'foot',
+      fromPlace: { name: 'Helsfyr' },
+      toPlace: { name: 'Helsfyr' },
+      serviceJourney: null,
+      fromEstimatedCall: null,
+      toEstimatedCall: null,
+      aimedStartTime:    '2026-05-25T16:21:00+02:00',
+      expectedStartTime: '2026-05-25T16:21:00+02:00',
+      aimedEndTime:      '2026-05-25T16:22:00+02:00',
+      expectedEndTime:   '2026-05-25T16:22:00+02:00',
+    },
+    {
+      mode: 'bus',
+      fromPlace: { name: 'Helsfyr' },
+      toPlace: { name: 'Tveita' },
+      serviceJourney: {
+        id: 'RUT:ServiceJourney:2-500',
+        line: { publicCode: '2', presentation: { colour: '00529B' } },
+      },
+      fromEstimatedCall: {
+        expectedDepartureTime: '2026-05-25T16:29:00+02:00',
+        aimedDepartureTime:    '2026-05-25T16:29:00+02:00',
+        realtime: false,
+        quay: { publicCode: '1' },
+        destinationDisplay: { frontText: 'Ellingsrudåsen' },
+      },
+      toEstimatedCall: {
+        expectedArrivalTime: '2026-05-25T16:35:00+02:00',
+        aimedArrivalTime:    '2026-05-25T16:35:00+02:00',
+      },
+    },
+  ],
+};
+
+// Two transit legs with a walk at the end — the most complex realistic shape.
+export const fullJourney = {
+  duration: 2580,
+  legs: [
+    {
+      mode: 'foot',
+      fromPlace: { name: 'Mortensrud' },
+      toPlace: { name: 'Mortensrud' },
+      serviceJourney: null,
+      fromEstimatedCall: null,
+      toEstimatedCall: null,
+    },
+    {
+      mode: 'metro',
+      fromPlace: { name: 'Mortensrud' },
+      toPlace: { name: 'Helsfyr' },
+      serviceJourney: {
+        id: 'RUT:ServiceJourney:3-600',
+        line: { publicCode: '3', presentation: { colour: '8B0000' } },
+      },
+      fromEstimatedCall: {
+        expectedDepartureTime: '2026-05-25T09:00:00+02:00',
+        aimedDepartureTime:    '2026-05-25T09:00:00+02:00',
+        realtime: true,
+        quay: { publicCode: '1' },
+        destinationDisplay: { frontText: 'Kolsås' },
+      },
+      toEstimatedCall: {
+        expectedArrivalTime: '2026-05-25T09:15:00+02:00',
+        aimedArrivalTime:    '2026-05-25T09:15:00+02:00',
+      },
+    },
+    {
+      mode: 'metro',
+      fromPlace: { name: 'Helsfyr' },
+      toPlace: { name: 'Tøyen' },
+      serviceJourney: {
+        id: 'RUT:ServiceJourney:2-700',
+        line: { publicCode: '2', presentation: { colour: '00529B' } },
+      },
+      fromEstimatedCall: {
+        expectedDepartureTime: '2026-05-25T09:20:00+02:00',
+        aimedDepartureTime:    '2026-05-25T09:20:00+02:00',
+        realtime: false,
+        quay: { publicCode: '2' },
+        destinationDisplay: { frontText: 'Ellingsrudåsen' },
+      },
+      toEstimatedCall: {
+        expectedArrivalTime: '2026-05-25T09:30:00+02:00',
+        aimedArrivalTime:    '2026-05-25T09:30:00+02:00',
+      },
+    },
+    {
+      mode: 'foot',
+      fromPlace: { name: 'Tøyen' },
+      toPlace: { name: 'Grønland' },
+      serviceJourney: null,
+      fromEstimatedCall: null,
+      toEstimatedCall: null,
+      aimedStartTime:    '2026-05-25T09:30:00+02:00',
+      expectedStartTime: '2026-05-25T09:30:00+02:00',
+      aimedEndTime:      '2026-05-25T09:43:00+02:00',
+      expectedEndTime:   '2026-05-25T09:43:00+02:00',
+    },
+  ],
+};
+
 // All foot — must return null
 export const allFoot = {
   duration: 300,

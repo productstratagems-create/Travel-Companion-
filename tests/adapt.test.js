@@ -8,6 +8,7 @@ import {
   toPlaceNameUndefined,
   transferWithUndefinedAt,
   allFoot,
+  threeLegsMetroBus,
 } from './fixtures/tripPatterns.js';
 
 // --- Null-guard cases (these are the bugs that have broken the app) ---
@@ -166,5 +167,53 @@ describe('adaptTripPattern — 2-leg metro transfer', () => {
 
   it('calculates _durationMins (1800s = 30min)', () => {
     expect(result._durationMins).toBe(30);
+  });
+});
+
+// --- 3-leg metro+metro+bus (bus has no toEstimatedCall) ---
+
+describe('adaptTripPattern — 3-leg metro+metro+bus', () => {
+  let result;
+  beforeEach(() => { result = adaptTripPattern(threeLegsMetroBus); });
+
+  it('returns non-null (trip not dropped)', () => {
+    expect(result).not.toBeNull();
+  });
+
+  it('strips foot leg — _legs has 3 transit legs', () => {
+    expect(result._legs).toHaveLength(3);
+    expect(result._legs.map(l => l.mode)).toEqual(['metro', 'metro', 'bus']);
+  });
+
+  it('has 2 transfer entries', () => {
+    expect(result._transfers).toHaveLength(2);
+  });
+
+  it('first transfer at Helsfyr', () => {
+    expect(result._transfers[0].at).toBe('Helsfyr');
+  });
+
+  it('second transfer at Tøyen', () => {
+    expect(result._transfers[1].at).toBe('Tøyen');
+  });
+
+  it('_transferAt is first transfer only (Helsfyr)', () => {
+    expect(result._transferAt).toBe('Helsfyr');
+  });
+
+  it('computes _finalArrival from dep + duration when bus toEstimatedCall is null', () => {
+    // dep = 09:00 +02:00, duration = 2400s (40min) → 09:40 local
+    expect(result._finalArrival).not.toBeNull();
+    const arr = new Date(result._finalArrival);
+    expect(arr.getUTCHours()).toBe(7);   // 09:40 CEST = 07:40 UTC
+    expect(arr.getUTCMinutes()).toBe(40);
+  });
+
+  it('destinationDisplay.frontText is Manglerud (bus final stop)', () => {
+    expect(result.destinationDisplay.frontText).toBe('Manglerud');
+  });
+
+  it('_durationMins is 40', () => {
+    expect(result._durationMins).toBe(40);
   });
 });

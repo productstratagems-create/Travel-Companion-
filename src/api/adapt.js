@@ -31,9 +31,13 @@ export function adaptTripPattern(tp) {
       _transferAt:       transfers.length ? transfers[0].at : null,
       _transferPlatform: transfers.length ? transfers[0].platform : null,
       _transferFrontText: transfers.length ? transfers[0].frontText : null,
-      _finalArrival:     last.toEstimatedCall
-        ? (last.toEstimatedCall.expectedArrivalTime || last.toEstimatedCall.aimedArrivalTime)
-        : null,
+      _finalArrival:     (() => {
+        if (last.toEstimatedCall) {
+          return last.toEstimatedCall.expectedArrivalTime || last.toEstimatedCall.aimedArrivalTime;
+        }
+        const dep = first.fromEstimatedCall.expectedDepartureTime || first.fromEstimatedCall.aimedDepartureTime;
+        return dep ? new Date(new Date(dep).getTime() + tp.duration * 1000).toISOString() : null;
+      })(),
       _durationMins:     Math.round(tp.duration / 60),
     };
   } catch { return null; }

@@ -137,7 +137,7 @@ export function stopBoard() {
 
 function _fetchBoard() {
   const dir = config.dirs[state.dIdx];
-  if (dir.toGeo) {
+  if (dir.toGeo || dir.toStopId) {
     fetchTrip(dir, (patterns, situations) => {
       state.serviceAlerts = situations || [];
       logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);

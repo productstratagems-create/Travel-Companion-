@@ -2,6 +2,23 @@ import { state } from './state.js';
 import config from './config.js';
 import { logMsg } from './ui/log.js';
 
+const WALK_SPEED_KEY = 't.walkSpeed';
+const WALK_BUF_KEY   = 't.walkBuf';
+const SPEED_MPN = { rolig: 41.67, middels: 83.33, rask: 116.67 };
+
+export function loadWalkSpeed() {
+  try { return localStorage.getItem(WALK_SPEED_KEY) || 'middels'; } catch { return 'middels'; }
+}
+export function saveWalkSpeed(v) {
+  try { localStorage.setItem(WALK_SPEED_KEY, v); } catch {}
+}
+export function loadWalkBuffer() {
+  try { return parseInt(localStorage.getItem(WALK_BUF_KEY) || '2', 10); } catch { return 2; }
+}
+export function saveWalkBuffer(v) {
+  try { localStorage.setItem(WALK_BUF_KEY, String(v)); } catch {}
+}
+
 export function haver(la1, lo1, la2, lo2) {
   const R = 6371000, r = Math.PI / 180;
   const dL = (la2 - la1) * r, dN = (lo2 - lo1) * r;
@@ -15,7 +32,9 @@ export function walkInfo() {
   const sc = state.statLL[config.dirs[state.dIdx].key];
   if (state.homeLL && sc) {
     const d = haver(state.homeLL.lat, state.homeLL.lon, sc.lat, sc.lon);
-    return { mins: Math.max(1, Math.ceil(d * 1.3 / 83.3)) + 1, dist: Math.round(d), src: 'beregnet' };
+    const spd = SPEED_MPN[loadWalkSpeed()] || 83.33;
+    const buf = loadWalkBuffer();
+    return { mins: Math.max(1, Math.ceil(d * 1.3 / spd)) + buf, dist: Math.round(d), src: 'beregnet' };
   }
   return { mins: config.defaultWalkMinutes, src: 'standard' };
 }

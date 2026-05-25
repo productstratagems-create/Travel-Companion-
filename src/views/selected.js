@@ -22,6 +22,7 @@ export function renderSelected() {
   const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
   const quay = (c.quay && c.quay.publicCode) || '?';
   const depTs = new Date(c.expectedDepartureTime).getTime();
+  const departed = depTs < now;
   const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
   const arr = findArr(sjc, dir.to);
   const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
@@ -130,15 +131,17 @@ export function renderSelected() {
     + '<div class="train-chip">'
     + chipBadges
     + '<span class="tc-dest">' + dest + '</span>'
-    + '<span class="tc-meta">spor <span>' + quay + '</span>' + (delayed ? ' · <span style="color:#fcd34d">forsinket</span>' : '') + '</span>'
+    + (quay !== '?' ? '<span class="tc-meta">spor <span>' + quay + '</span>' + (delayed ? ' · <span style="color:#fcd34d">forsinket</span>' : '') + '</span>' : (delayed ? '<span class="tc-meta"><span style="color:#fcd34d">forsinket</span></span>' : ''))
     + '</div>'
-    + (walkActive
-      ? '<div class="leaveby-hero">'
-        + '<div class="leaveby-label">gå senest</div>'
-        + '<div class="leaveby-time ' + ltCls + '">' + clk(leaveByTs) + '</div>'
-        + '<div class="leaveby-sub soft">' + urgMsg + '</div>'
-        + '</div>'
-      : '')
+    + (departed
+      ? '<div class="departed-banner">avgikk ' + clk(depTs) + ' · reisen er i gang</div>'
+      : walkActive
+        ? '<div class="leaveby-hero">'
+          + '<div class="leaveby-label">gå senest</div>'
+          + '<div class="leaveby-time ' + ltCls + '">' + clk(leaveByTs) + '</div>'
+          + '<div class="leaveby-sub soft">' + urgMsg + '</div>'
+          + '</div>'
+        : '')
     + journeyDetail;
 
   // Rebuild CTAs
@@ -149,7 +152,15 @@ export function renderSelected() {
 
   const primaryBtn = document.createElement('button');
   primaryBtn.className = 'cta-btn';
-  if (walkActive) {
+  if (departed) {
+    primaryBtn.textContent = 'andre avganger';
+    primaryBtn.onclick = () => {
+      stopSelRefresh();
+      state.sel = null;
+      show('v-board');
+      startBoard();
+    };
+  } else if (walkActive) {
     primaryBtn.textContent = 'gange-modus →';
     primaryBtn.disabled = depTs < now - 120000;
     primaryBtn.onclick = () => {
@@ -164,16 +175,18 @@ export function renderSelected() {
   }
   ctaDiv.appendChild(primaryBtn);
 
-  const backBtn = document.createElement('button');
-  backBtn.className = 'cta-btn secondary';
-  backBtn.textContent = 'andre avganger';
-  backBtn.onclick = () => {
-    stopSelRefresh();
-    state.sel = null;
-    show('v-board');
-    startBoard();
-  };
-  ctaDiv.appendChild(backBtn);
+  if (!departed) {
+    const backBtn = document.createElement('button');
+    backBtn.className = 'cta-btn secondary';
+    backBtn.textContent = 'andre avganger';
+    backBtn.onclick = () => {
+      stopSelRefresh();
+      state.sel = null;
+      show('v-board');
+      startBoard();
+    };
+    ctaDiv.appendChild(backBtn);
+  }
   document.getElementById('v-selected').appendChild(ctaDiv);
 }
 

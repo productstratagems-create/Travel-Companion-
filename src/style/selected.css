@@ -18,6 +18,16 @@
 .train-chip .tc-meta{font-size:11px;color:#78716c;white-space:nowrap}
 .train-chip .tc-meta span{color:#a8a29e}
 
+/* Post-departure banner */
+.departed-banner{
+  text-align:center;
+  font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(245,184,64,.55);
+  background:rgba(245,184,64,.05);
+  border:1px solid rgba(245,184,64,.12);
+  border-radius:4px;padding:.6rem 1rem;margin-bottom:1.5rem;
+}
+
 /* Hero: gå senest */
 .leaveby-hero{text-align:center;margin-bottom:2rem}
 .leaveby-label{font-size:10px;text-transform:uppercase;letter-spacing:.3em;color:#78716c;margin-bottom:.35rem}

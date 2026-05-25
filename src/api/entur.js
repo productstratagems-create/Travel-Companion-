@@ -5,12 +5,15 @@ import { logMsg, setDot } from '../ui/log.js';
 let boardController = null;
 let tripController = null;
 
+const TRANSIT_CAT = ['metroStation', 'busStation', 'onstreetBus', 'tramStation', 'ferryStop'];
+
 export function resolveStop(dir) {
   if (dir.stopId) return Promise.resolve(dir.stopId);
   return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522')
     .then(r => r.json())
     .then(json => {
-      const ff = (json && json.features) || [];
+      const ff = ((json && json.features) || [])
+        .filter(f => (f.properties.category || []).some(c => TRANSIT_CAT.includes(c)));
       const q = dir.geo.toLowerCase();
       const m = ff.find(f =>
         (f.properties.category || []).indexOf('metroStation') !== -1
@@ -28,7 +31,8 @@ export function resolveToStop(dir) {
   return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.toGeo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522')
     .then(r => r.json())
     .then(json => {
-      const ff = (json && json.features) || [];
+      const ff = ((json && json.features) || [])
+        .filter(f => (f.properties.category || []).some(c => TRANSIT_CAT.includes(c)));
       const q = dir.toGeo.toLowerCase();
       const m = ff.find(f =>
         (f.properties.category || []).indexOf('metroStation') !== -1

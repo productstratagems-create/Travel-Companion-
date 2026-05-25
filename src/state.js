@@ -17,6 +17,7 @@ export const state = {
   lastFetch: null,
   homeLL: null,
   nearestStation: null,
+  nearestStations: [],
   statLL: {},
   walkOvr: null,
   gpsError: null,

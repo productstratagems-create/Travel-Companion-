@@ -46,22 +46,27 @@ export function findArr(calls, name) {
 export function findNearestStation(lat, lon, onFound, onFail) {
   fetch(config.api.geocoderReverse
     + '?point.lat=' + lat + '&point.lon=' + lon
-    + '&boundary.circle.radius=2000&size=10&layers=venue')
+    + '&boundary.circle.radius=5000&size=10&layers=venue')
     .then(r => r.json())
     .then(j => {
-      const ff = (j && j.features) || [];
-      const m = ff.find(f => (f.properties.category || []).indexOf('metroStation') !== -1);
-      if (!m) { if (onFail) onFail('ingen stasjon i nærheten'); return; }
-      const ns = {
-        name: m.properties.name || m.properties.label,
-        id: m.properties.id,
-        lat: m.geometry.coordinates[1],
-        lon: m.geometry.coordinates[0],
-      };
-      state.nearestStation = ns;
-      logMsg('nærmeste: ' + ns.name, 'ok');
+      const metros = ((j && j.features) || [])
+        .filter(f => (f.properties.category || []).includes('metroStation'))
+        .map(f => ({
+          name: f.properties.name || f.properties.label,
+          id: f.properties.id,
+          lat: f.geometry.coordinates[1],
+          lon: f.geometry.coordinates[0],
+          distM: Math.round(haver(lat, lon, f.geometry.coordinates[1], f.geometry.coordinates[0])),
+        }))
+        .sort((a, b) => a.distM - b.distM)
+        .slice(0, 5);
+      if (!metros.length) { if (onFail) onFail('ingen stasjon i nærheten'); return; }
+      state.nearestStations = metros;
+      state.nearestStation = metros[0];
+      state.statLL['custom-out'] = { lat: metros[0].lat, lon: metros[0].lon };
+      logMsg('nærmeste: ' + metros[0].name, 'ok');
       updateWalkDbg();
-      if (onFound) onFound(ns);
+      if (onFound) onFound(metros[0]);
     })
     .catch(err => { if (onFail) onFail(err.message); });
 }

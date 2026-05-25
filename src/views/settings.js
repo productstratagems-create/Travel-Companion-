@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state } from '../state.js';
-import { walkInfo, haver } from '../geo.js';
+import { haver } from '../geo.js';
 
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
@@ -78,7 +78,6 @@ export function initSettings() {
 export function showSettings() {
   const ns = state.nearestStation;
   const depEl = document.getElementById('set-dep');
-  const detected = document.getElementById('set-detected');
 
   // Dep input always visible — pre-fill from: saved > GPS station > current dir
   if (depEl) {
@@ -87,22 +86,31 @@ export function showSettings() {
     syncClear('set-dep', 'set-dep-clear');
   }
 
-  // GPS hint line below dep input
-  if (detected) {
-    if (ns) {
-      const wk = walkInfo();
-      detected.textContent = 'Nærmeste stasjon: ' + ns.name + ' · ' + wk.mins + ' min gange';
-      detected.style.display = 'block';
-      detected.style.cursor = 'pointer';
-      detected.style.textDecoration = 'underline';
-      detected.onclick = () => {
-        if (depEl) { depEl.value = ns.name; syncClear('set-dep', 'set-dep-clear'); }
-        const arrEl = document.getElementById('set-arr');
-        if (arrEl) arrEl.focus();
-      };
+  // Nearby station list
+  const nearbyList = document.getElementById('set-nearby-list');
+  if (nearbyList) {
+    const stations = (state.nearestStations && state.nearestStations.length)
+      ? state.nearestStations : (ns ? [ns] : []);
+    if (stations.length) {
+      nearbyList.innerHTML = stations.map(s => {
+        const mins = s.distM != null
+          ? Math.max(1, Math.ceil(s.distM * 1.3 / 83.3)) + 1
+          : null;
+        return '<button class="nearby-btn" data-name="' + s.name + '">'
+          + '<span class="nearby-name">' + s.name + '</span>'
+          + (mins != null ? '<span class="nearby-dist">' + mins + ' min</span>' : '')
+          + '</button>';
+      }).join('');
+      nearbyList.style.display = 'block';
+      nearbyList.querySelectorAll('.nearby-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (depEl) { depEl.value = btn.dataset.name; syncClear('set-dep', 'set-dep-clear'); }
+          const arrEl = document.getElementById('set-arr');
+          if (arrEl) arrEl.focus();
+        });
+      });
     } else {
-      detected.style.display = 'none';
-      detected.onclick = null;
+      nearbyList.style.display = 'none';
     }
   }
 

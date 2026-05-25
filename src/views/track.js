@@ -5,6 +5,7 @@ import { fetchTrack } from '../api/entur.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
+import { renderAlerts } from '../ui/alerts.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -42,6 +43,7 @@ function computeState(now) {
 }
 
 export function renderTrack() {
+  renderAlerts();
   if (!state.jny || !state.jny.legs || !state.jny.legs.length) return;
   const now = Date.now();
   const legs = state.jny.legs;

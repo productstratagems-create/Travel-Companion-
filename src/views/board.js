@@ -4,6 +4,7 @@ import { walkInfo, mToLeave, reachCls, findArr } from '../geo.js';
 import { fetchBoard, fetchTrip } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern } from '../api/adapt.js';
+import { renderAlerts } from '../ui/alerts.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -26,26 +27,6 @@ function renderWalkSummary() {
   }
 }
 
-function renderAlerts() {
-  const el = document.getElementById('service-alerts');
-  if (!el) return;
-  const now = Date.now();
-  const active = (state.serviceAlerts || []).filter(s => {
-    const vp = s.validityPeriod || {};
-    const start = vp.startTime ? new Date(vp.startTime).getTime() : 0;
-    const end   = vp.endTime   ? new Date(vp.endTime).getTime()   : Infinity;
-    return now >= start && now <= end;
-  });
-  if (!active.length) { el.style.display = 'none'; return; }
-  const items = active.map(s => {
-    const summary = s.summary || [];
-    const txt = (summary.find(t => t.language === 'no' || t.language === 'nb') || summary[0] || {}).value || '';
-    return txt ? '<div class="service-alert">' + txt + '</div>' : '';
-  }).filter(Boolean);
-  if (!items.length) { el.style.display = 'none'; return; }
-  el.innerHTML = items.join('');
-  el.style.display = 'block';
-}
 
 export function renderBoard() {
   renderAlerts();

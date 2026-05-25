@@ -18,6 +18,7 @@ export function tripGQL(fromId, toId, n, walkSpeed) {
 
 export function boardGQL(id, n) {
   return '{stopPlace(id:"' + id + '"){id name latitude longitude '
+    + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
     + 'estimatedCalls(numberOfDepartures:' + (n || 10) + ',whiteListedModes:[metro]){'
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation '
     + 'destinationDisplay{frontText} quay{id publicCode name} '

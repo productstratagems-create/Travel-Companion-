@@ -22,6 +22,7 @@ export const state = {
   walkOvr: null,
   gpsError: null,
   debugOpen: false,
+  serviceAlerts: [],
 };
 
 export const intervals = {

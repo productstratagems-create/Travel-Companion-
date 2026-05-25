@@ -26,7 +26,27 @@ function renderWalkSummary() {
   }
 }
 
+function renderAlerts() {
+  const el = document.getElementById('service-alerts');
+  if (!el) return;
+  const now = Date.now();
+  const active = (state.serviceAlerts || []).filter(s => {
+    const vp = s.validityPeriod || {};
+    const start = vp.startTime ? new Date(vp.startTime).getTime() : 0;
+    const end   = vp.endTime   ? new Date(vp.endTime).getTime()   : Infinity;
+    return now >= start && now <= end;
+  });
+  if (!active.length) { el.style.display = 'none'; return; }
+  el.innerHTML = active.map(s => {
+    const txt = (s.summary || []).find(t => t.language === 'no')?.value
+              || (s.summary || [])[0]?.value || '';
+    return '<div class="service-alert">' + txt + '</div>';
+  }).join('');
+  el.style.display = 'block';
+}
+
 export function renderBoard() {
+  renderAlerts();
   renderWalkSummary();
   const list = document.getElementById('dep-list');
   const dir = config.dirs[state.dIdx];
@@ -149,6 +169,7 @@ function _fetchBoard() {
     return;
   }
   fetchBoard(dir, (stop) => {
+    state.serviceAlerts = stop.situations || [];
     if (stop.latitude && stop.longitude) {
       state.statLL[dir.key] = { lat: stop.latitude, lon: stop.longitude };
       window._updateWalkDbg && window._updateWalkDbg();

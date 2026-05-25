@@ -106,6 +106,12 @@ describe('boardGQL(id, n)', () => {
     expect(q).toContain('latitude');
     expect(q).toContain('longitude');
   });
+
+  it('requests situations for service disruption notices', () => {
+    expect(q).toContain('situations');
+    expect(q).toContain('summary');
+    expect(q).toContain('validityPeriod');
+  });
 });
 
 // --- trackGQL ---

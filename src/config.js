@@ -25,7 +25,7 @@ export default {
       key: 'out',
       from: 'Mortensrud',
       to: 'Jernbanetorget',
-      stopId: 'NSR:StopPlace:5687',
+      stopId: 'NSR:StopPlace:58228',
       toStopId: null,
       filter: null,
       geo: null,

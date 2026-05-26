@@ -87,6 +87,16 @@
 .dep-star.saved{color:#f5b840;text-shadow:0 0 8px rgba(245,184,64,.5)}
 .dep-star:active{color:#f5b840}
 
+.fav-bar{
+  display:flex;align-items:center;gap:.4rem;width:100%;
+  background:none;border:none;border-bottom:1px solid rgba(245,184,64,.07);
+  font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:#78716c;cursor:pointer;
+  padding:.45rem 0 .45rem .1rem;min-height:36px;
+  transition:color .1s;
+}
+.fav-bar:active{color:#f5b840}
+
 #walk-summary{font-size:12px;color:#64748b;padding:.3rem 0 .6rem;letter-spacing:.04em}
 .dep-via{font-size:9px;color:#4a5568;margin-top:.1rem;letter-spacing:.05em}
 .transfer-arrow{font-size:9px;color:#4a5568;margin:0 .15rem;vertical-align:middle}

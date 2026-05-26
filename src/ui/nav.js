@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
-import { loadFavs, favToDir, addFav } from './favs.js';
+import { loadFavs, favToDir, addFav, removeFav } from './favs.js';
 
 export function show(id) {
   ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings'].forEach(v => {
@@ -37,20 +37,31 @@ function toggleDir() {
   window._startBoard && window._startBoard();
 }
 
+function buildDdHtml(favs, dir) {
+  return [config.dirs[0], config.dirs[1]].map((d, i) => {
+    const active = d.from === dir.from && d.to === dir.to;
+    return '<button class="dd-row' + (active ? ' active' : '') + '"'
+      + ' onclick="window._ddSelect(' + i + ')">'
+      + d.from + ' → ' + d.to + '</button>';
+  }).join('')
+  + favs.map((f, fi) => {
+    const d = favToDir(f);
+    const active = d.from === dir.from && d.to === dir.to;
+    return '<div class="dd-row dd-fav' + (active ? ' active' : '') + '">'
+      + '<button class="dd-sel" onclick="window._ddSelect(' + (fi + 2) + ')">'
+      + f.from + ' → ' + f.to + '</button>'
+      + '<button class="dd-del" onclick="window._delFav(\'' + f.id + '\')" aria-label="slett">×</button>'
+      + '</div>';
+  }).join('');
+}
+
 export function attachEventListeners() {
   document.getElementById('dir-btn').addEventListener('click', () => {
     const dd = document.getElementById('dir-dropdown');
     const favs = loadFavs();
     if (!favs.length) { toggleDir(); return; }
     if (dd.style.display !== 'none') { dd.style.display = 'none'; return; }
-    const dir = config.dirs[state.dIdx];
-    const allDirs = [config.dirs[0], config.dirs[1], ...favs.map(favToDir)];
-    dd.innerHTML = allDirs.map((d, i) => {
-      const active = d.from === dir.from && d.to === dir.to;
-      return '<button class="dd-row' + (active ? ' active' : '') + '"'
-        + ' onclick="window._ddSelect(' + i + ')">'
-        + d.from + ' → ' + d.to + '</button>';
-    }).join('');
+    dd.innerHTML = buildDdHtml(favs, config.dirs[state.dIdx]);
     dd.style.display = 'block';
   });
 
@@ -151,4 +162,16 @@ window._ddSelect = (i) => {
   state.deps = [];
   show('v-board');
   window._startBoard && window._startBoard();
+};
+
+window._delFav = (id) => {
+  removeFav(id);
+  const favs = loadFavs();
+  const dd = document.getElementById('dir-dropdown');
+  if (!favs.length) {
+    if (dd) dd.style.display = 'none';
+  } else {
+    dd.innerHTML = buildDdHtml(favs, config.dirs[state.dIdx]);
+  }
+  window._renderFavChips && window._renderFavChips();
 };

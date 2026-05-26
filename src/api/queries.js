@@ -7,7 +7,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
     + 'trip('
     + 'from:{place:"' + fromId + '"} '
     + 'to:{place:"' + toId + '"} '
-    + (viaId ? 'via:[{place:{place:"' + viaId + '"}}] ' : '')
+    + (viaId ? 'via:[{stopPlaceId:"' + viaId + '"}] ' : '')
     + 'numTripPatterns:' + (n || 12) + ' '
     + 'walkSpeed:' + (walkSpeed || 1.3) + ' '
     + 'modes:{transportModes:[{transportMode:metro},{transportMode:bus}]}'

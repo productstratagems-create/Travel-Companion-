@@ -40,7 +40,7 @@ describe('tripGQL(fromId, toId, viaId, n)', () => {
   });
 
   it('includes via clause when viaId is provided', () => {
-    expect(tripGQL('A', 'B', 'NSR:StopPlace:999')).toContain('via:[{place:{place:"NSR:StopPlace:999"}}]');
+    expect(tripGQL('A', 'B', 'NSR:StopPlace:999')).toContain('via:[{stopPlaceId:"NSR:StopPlace:999"}]');
   });
 
   // REGRESSION: {transportMode:bus} was accidentally removed, causing zero results

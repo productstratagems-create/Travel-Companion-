@@ -12,8 +12,8 @@ export function show(id) {
 export function updateHeader() {
   const dir = config.dirs[state.dIdx];
   document.getElementById('station-name').textContent = dir.from.toUpperCase();
-  document.getElementById('dir-dest').textContent = dir.to;
-  document.title = dir.from + ' → ' + dir.to;
+  document.getElementById('dir-dest').textContent = dir.via ? dir.via + ' → ' + dir.to : dir.to;
+  document.title = dir.from + (dir.via ? ' via ' + dir.via : '') + ' → ' + dir.to;
 }
 
 function toggleDir() {

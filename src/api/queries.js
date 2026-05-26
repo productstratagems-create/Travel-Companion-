@@ -1,4 +1,4 @@
-export function tripGQL(fromId, toId, n, walkSpeed) {
+export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
   const sits = 'situations{id summary{language value} severity validityPeriod{startTime endTime}}';
   return '{ stopPlace(id:"' + fromId + '"){'
     + sits + ' '
@@ -7,6 +7,7 @@ export function tripGQL(fromId, toId, n, walkSpeed) {
     + 'trip('
     + 'from:{place:"' + fromId + '"} '
     + 'to:{place:"' + toId + '"} '
+    + (viaId ? 'via:[{place:{place:"' + viaId + '"}}] ' : '')
     + 'numTripPatterns:' + (n || 12) + ' '
     + 'walkSpeed:' + (walkSpeed || 1.3) + ' '
     + 'modes:{transportModes:[{transportMode:metro},{transportMode:bus}]}'

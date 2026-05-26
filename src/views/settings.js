@@ -4,14 +4,16 @@ import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer } f
 
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
+const VIA_KEY = 't.via';
 
 const TRANSIT_CATEGORIES = ['metroStation', 'busStation', 'onstreetBus', 'tramStation', 'ferryStop'];
 
-let _depAbort = null, _arrAbort = null;
-let _depTimer = null, _arrTimer = null;
+let _depAbort = null, _arrAbort = null, _viaAbort = null;
+let _depTimer = null, _arrTimer = null, _viaTimer = null;
 
 const _depStopIds = new Map();
 const _arrStopIds = new Map();
+const _viaStopIds = new Map();
 
 function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbort, getTimer, setTimer) {
   clearTimeout(getTimer());
@@ -99,7 +101,13 @@ export function initSettings() {
       () => _arrAbort, v => { _arrAbort = v; },
       () => _arrTimer, v => { _arrTimer = v; }));
 
-  ['dep', 'arr'].forEach(id => {
+  const viaEl = document.getElementById('set-via');
+  if (viaEl) viaEl.addEventListener('input', e =>
+    suggestStops(e.target.value.trim(), 'via-sugg', 'set-via', 'set-via-clear', _viaStopIds,
+      () => _viaAbort, v => { _viaAbort = v; },
+      () => _viaTimer, v => { _viaTimer = v; }));
+
+  ['dep', 'arr', 'via'].forEach(id => {
     const inp = document.getElementById('set-' + id);
     const btn = document.getElementById('set-' + id + '-clear');
     const sugg = document.getElementById(id + '-sugg');
@@ -113,13 +121,40 @@ export function initSettings() {
     inp.addEventListener('keydown', e => {
       if (e.key === 'Escape' && sugg) { sugg.hidden = true; sugg.innerHTML = ''; }
     });
-    btn.addEventListener('click', () => {
-      inp.value = '';
-      btn.style.display = 'none';
-      if (sugg) { sugg.hidden = true; sugg.innerHTML = ''; }
-      inp.focus();
-    });
+    if (id === 'via') {
+      btn.addEventListener('click', () => {
+        inp.value = '';
+        btn.style.display = 'none';
+        if (sugg) { sugg.hidden = true; sugg.innerHTML = ''; }
+        _viaStopIds.clear();
+        clearVia();
+        const wrap = document.getElementById('set-via-wrap');
+        const toggle = document.getElementById('set-via-toggle');
+        if (wrap) wrap.style.display = 'none';
+        if (toggle) toggle.style.display = 'block';
+      });
+    } else {
+      btn.addEventListener('click', () => {
+        inp.value = '';
+        btn.style.display = 'none';
+        if (sugg) { sugg.hidden = true; sugg.innerHTML = ''; }
+        inp.focus();
+      });
+    }
   });
+
+  const viaAddBtn = document.getElementById('set-via-add');
+  if (viaAddBtn) {
+    viaAddBtn.addEventListener('click', () => {
+      const wrap = document.getElementById('set-via-wrap');
+      const toggle = document.getElementById('set-via-toggle');
+      if (wrap) wrap.style.display = 'block';
+      if (toggle) toggle.style.display = 'none';
+      const vi = document.getElementById('set-via');
+      if (vi) vi.focus();
+    });
+  }
+
   initPrefs();
 }
 
@@ -165,6 +200,15 @@ export function showSettings() {
 
   const arrEl = document.getElementById('set-arr');
   if (arrEl) { arrEl.value = loadDest() || ''; syncClear('set-arr', 'set-arr-clear'); }
+
+  const savedVia = loadVia();
+  const viaInput = document.getElementById('set-via');
+  const viaWrap = document.getElementById('set-via-wrap');
+  const viaToggle = document.getElementById('set-via-toggle');
+  if (viaInput) { viaInput.value = savedVia || ''; syncClear('set-via', 'set-via-clear'); }
+  if (viaWrap) viaWrap.style.display = savedVia ? 'block' : 'none';
+  if (viaToggle) viaToggle.style.display = savedVia ? 'none' : 'block';
+
   document.getElementById('set-error').style.display = 'none';
   _highlightPrefs();
 }
@@ -195,6 +239,11 @@ export function applyRoute() {
   // Resolve destination stop ID: autocomplete map > geocode
   const arrId = _arrStopIds.get(arr) || null;
 
+  // Resolve optional via stop ID: autocomplete map > geocode
+  const viaRaw = (document.getElementById('set-via') || {}).value;
+  const via = (viaRaw && viaRaw.trim()) || null;
+  const viaId = via ? (_viaStopIds.get(via) || null) : null;
+
   config.dirs[2] = {
     key: 'custom-out',
     from: dep,
@@ -205,10 +254,14 @@ export function applyRoute() {
     geo:      depId ? null : dep,
     toGeo:    arrId ? null : arr,
     line:     null,
+    via:      via || null,
+    viaStopId: viaId || null,
+    viaGeo:   (via && !viaId) ? via : null,
   };
   state.dIdx = 2;
   saveDep(dep);
   saveDest(arr);
+  saveVia(via);
   return true;
 }
 
@@ -251,6 +304,18 @@ export function loadDep() {
 
 export function saveDep(name) {
   try { localStorage.setItem(DEP_KEY, name); } catch {}
+}
+
+export function loadVia() {
+  try { return localStorage.getItem(VIA_KEY) || null; } catch { return null; }
+}
+
+function saveVia(v) {
+  try { if (v) localStorage.setItem(VIA_KEY, v); else localStorage.removeItem(VIA_KEY); } catch {}
+}
+
+function clearVia() {
+  try { localStorage.removeItem(VIA_KEY); } catch {}
 }
 
 // Kept for backward compat — no-op; GPS now determines departure

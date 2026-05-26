@@ -19,7 +19,10 @@
   <div class="board-header">
     <div style="display:flex;align-items:center;gap:.6rem">
       <span class="status-dot" id="status-dot" title="trykk for logg"></span>
-      <span class="station-name" id="station-name">MORTENSRUD</span>
+      <div style="display:flex;flex-direction:column;gap:.15rem">
+        <span class="station-name" id="station-name">MORTENSRUD</span>
+        <span id="via-label" style="display:none"></span>
+      </div>
     </div>
     <div style="display:flex;align-items:center;gap:.5rem">
       <button class="dir-btn" id="route-btn" type="button" style="font-size:11px;letter-spacing:.08em">endre rute</button>

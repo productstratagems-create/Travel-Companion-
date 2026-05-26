@@ -12,7 +12,12 @@ export function show(id) {
 export function updateHeader() {
   const dir = config.dirs[state.dIdx];
   document.getElementById('station-name').textContent = dir.from.toUpperCase();
-  document.getElementById('dir-dest').textContent = dir.via ? dir.via + ' → ' + dir.to : dir.to;
+  document.getElementById('dir-dest').textContent = dir.to;
+  const viaLabel = document.getElementById('via-label');
+  if (viaLabel) {
+    viaLabel.textContent = 'via ' + (dir.via || '');
+    viaLabel.style.display = dir.via ? 'block' : 'none';
+  }
   document.title = dir.from + (dir.via ? ' via ' + dir.via : '') + ' → ' + dir.to;
 }
 
@@ -26,6 +31,9 @@ function toggleDir() {
       filter: null,
       geo: dir.to, toGeo: dir.from,
       line: null,
+      via: dir.via || null,
+      viaStopId: dir.viaStopId || null,
+      viaGeo: dir.viaGeo || null,
     };
   } else {
     state.dIdx = state.dIdx === 0 ? 1 : 0;

@@ -69,6 +69,33 @@
 .dep-tag{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#fcd34d}
 .dep-cancelled{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#fca5a5}
 
+/* Favourite chips */
+#fav-chips{display:flex;gap:.35rem;flex-wrap:wrap;padding:.4rem 0 .2rem;min-height:0}
+.fav-chip{
+  font-family:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  padding:.3rem .65rem;border-radius:20px;cursor:pointer;
+  background:rgba(245,184,64,.06);border:1px solid rgba(245,184,64,.15);
+  color:#78716c;transition:background .1s,color .1s;white-space:nowrap;
+}
+.fav-chip:active{background:rgba(245,184,64,.12);color:#f5b840}
+.fav-chip.active{background:rgba(245,184,64,.14);border-color:rgba(245,184,64,.4);color:#f5b840}
+
+/* Direction dropdown */
+#dir-dropdown{
+  position:absolute;right:0;top:calc(100% + .35rem);z-index:100;
+  background:#141210;border:1px solid rgba(245,184,64,.15);border-radius:6px;
+  min-width:15rem;box-shadow:0 8px 24px rgba(0,0,0,.6);
+}
+.dd-row{
+  display:block;width:100%;text-align:left;
+  font-family:inherit;font-size:12px;padding:.65rem .9rem;
+  background:none;border:none;border-bottom:1px solid rgba(245,184,64,.06);
+  color:#a8a29e;cursor:pointer;
+}
+.dd-row:last-child{border-bottom:none}
+.dd-row.active{color:#f5b840}
+.dd-row:active{background:rgba(245,184,64,.06)}
+
 #walk-summary{font-size:12px;color:#64748b;padding:.3rem 0 .6rem;letter-spacing:.04em}
 .dep-via{font-size:9px;color:#4a5568;margin-top:.1rem;letter-spacing:.05em}
 .transfer-arrow{font-size:9px;color:#4a5568;margin:0 .15rem;vertical-align:middle}

@@ -1,5 +1,6 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
+import { loadFavs, favToDir, addFav } from './favs.js';
 
 export function show(id) {
   ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings'].forEach(v => {
@@ -15,32 +16,42 @@ export function updateHeader() {
   document.title = dir.from + ' → ' + dir.to;
 }
 
+function toggleDir() {
+  const dir = config.dirs[state.dIdx];
+  if (dir.key === 'custom-out') {
+    config.dirs[state.dIdx] = {
+      key: 'custom-out',
+      from: dir.to, to: dir.from,
+      stopId: null, toStopId: null,
+      filter: null,
+      geo: dir.to, toGeo: dir.from,
+      line: null,
+    };
+  } else {
+    state.dIdx = state.dIdx === 0 ? 1 : 0;
+  }
+  try { localStorage.setItem(config.storage.dir, String(state.dIdx)); } catch {}
+  updateHeader();
+  state.deps = [];
+  show('v-board');
+  window._startBoard && window._startBoard();
+}
+
 export function attachEventListeners() {
-  // Imported lazily to avoid circular deps
   document.getElementById('dir-btn').addEventListener('click', () => {
+    const dd = document.getElementById('dir-dropdown');
+    const favs = loadFavs();
+    if (!favs.length) { toggleDir(); return; }
+    if (dd.style.display !== 'none') { dd.style.display = 'none'; return; }
     const dir = config.dirs[state.dIdx];
-    if (dir.key === 'custom-out') {
-      // Reverse the custom route in place; null stopIds so they get re-geocoded
-      config.dirs[state.dIdx] = {
-        key: 'custom-out',
-        from: dir.to,
-        to: dir.from,
-        stopId: null,
-        toStopId: null,
-        filter: null,
-        geo: dir.to,
-        toGeo: dir.from,
-        line: null,
-      };
-    } else {
-      // Hardcoded routes: toggle 0 ↔ 1 only
-      state.dIdx = state.dIdx === 0 ? 1 : 0;
-    }
-    try { localStorage.setItem(config.storage.dir, String(state.dIdx)); } catch {}
-    updateHeader();
-    state.deps = [];
-    show('v-board');
-    window._startBoard && window._startBoard();
+    const allDirs = [config.dirs[0], config.dirs[1], ...favs.map(favToDir)];
+    dd.innerHTML = allDirs.map((d, i) => {
+      const active = d.from === dir.from && d.to === dir.to;
+      return '<button class="dd-row' + (active ? ' active' : '') + '"'
+        + ' onclick="window._ddSelect(' + i + ')">'
+        + d.from + ' → ' + d.to + '</button>';
+    }).join('');
+    dd.style.display = 'block';
   });
 
   document.getElementById('s-back').addEventListener('click', () => {
@@ -86,6 +97,22 @@ export function attachEventListeners() {
     }
   });
 
+  document.getElementById('set-save-fav').addEventListener('click', () => {
+    const dir = config.dirs[state.dIdx];
+    const added = addFav(dir);
+    const msg = document.getElementById('set-fav-msg');
+    msg.textContent = added ? '★ lagret' : 'allerede lagret';
+    msg.style.display = 'block';
+    setTimeout(() => { msg.style.display = 'none'; }, 2000);
+  });
+
+  document.addEventListener('click', (e) => {
+    const dd = document.getElementById('dir-dropdown');
+    if (!dd || dd.style.display === 'none') return;
+    const btn = document.getElementById('dir-btn');
+    if (!btn.contains(e.target) && !dd.contains(e.target)) dd.style.display = 'none';
+  });
+
   document.getElementById('stop-set').addEventListener('click', () => {
     const v = document.getElementById('stop-input').value.trim();
     if (v) {
@@ -106,3 +133,22 @@ export function attachEventListeners() {
 function stopSelRefreshBridge() {
   if (intervals.sel) { clearInterval(intervals.sel); intervals.sel = null; }
 }
+
+window._ddSelect = (i) => {
+  const dd = document.getElementById('dir-dropdown');
+  if (dd) dd.style.display = 'none';
+  const favs = loadFavs();
+  if (i < 2) {
+    state.dIdx = i;
+  } else {
+    const fav = favs[i - 2];
+    if (!fav) return;
+    config.dirs[2] = favToDir(fav);
+    state.dIdx = 2;
+  }
+  try { localStorage.setItem(config.storage.dir, String(state.dIdx)); } catch {}
+  updateHeader();
+  state.deps = [];
+  show('v-board');
+  window._startBoard && window._startBoard();
+};

@@ -18,6 +18,7 @@ export default {
   storage: {
     dir: 't.dir',
     journey: 't.jny',
+    favs: 't.favs',
   },
   // RegExp fields are intentionally JS (not JSON-serializable)
   dirs: [

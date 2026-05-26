@@ -13,9 +13,13 @@ let _depTimer = null, _arrTimer = null;
 const _depStopIds = new Map();
 const _arrStopIds = new Map();
 
-function suggestStops(query, datalistId, stopMap, getAbort, setAbort, getTimer, setTimer) {
+function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbort, getTimer, setTimer) {
   clearTimeout(getTimer());
-  if (query.length < 2) return;
+  const suggEl = document.getElementById(suggId);
+  if (query.length < 2) {
+    if (suggEl) { suggEl.hidden = true; suggEl.innerHTML = ''; }
+    return;
+  }
   setTimer(setTimeout(() => {
     if (getAbort()) getAbort().abort();
     const ctrl = new AbortController();
@@ -24,8 +28,9 @@ function suggestStops(query, datalistId, stopMap, getAbort, setAbort, getTimer, 
       { signal: ctrl.signal })
       .then(r => r.json())
       .then(j => {
-        const dl = document.getElementById(datalistId);
-        if (!dl) return;
+        const sugg = document.getElementById(suggId);
+        const inp = document.getElementById(inputId);
+        if (!sugg || !inp) return;
         const stops = ((j && j.features) || [])
           .filter(f => (f.properties.category || []).some(c => TRANSIT_CATEGORIES.includes(c)))
           .filter(f => {
@@ -33,14 +38,24 @@ function suggestStops(query, datalistId, stopMap, getAbort, setAbort, getTimer, 
             return coords && haver(coords[1], coords[0], 59.9139, 10.7522) < 80000;
           });
         stopMap.clear();
-        dl.innerHTML = '';
+        sugg.innerHTML = '';
+        if (!stops.length) { sugg.hidden = true; return; }
         stops.forEach(f => {
           const name = f.properties.name || f.properties.label;
           stopMap.set(name, f.properties.id);
-          const opt = document.createElement('option');
-          opt.value = name;
-          dl.appendChild(opt);
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = name;
+          btn.addEventListener('mousedown', e => e.preventDefault());
+          btn.addEventListener('click', () => {
+            inp.value = name;
+            sugg.hidden = true;
+            sugg.innerHTML = '';
+            syncClear(inputId, clearId);
+          });
+          sugg.appendChild(btn);
         });
+        sugg.hidden = false;
       })
       .catch(() => {});
   }, 250));
@@ -76,26 +91,32 @@ export function initSettings() {
   const depEl = document.getElementById('set-dep');
   const arrEl = document.getElementById('set-arr');
   if (depEl) depEl.addEventListener('input', e =>
-    suggestStops(e.target.value.trim(), 'dep-stops', _depStopIds,
+    suggestStops(e.target.value.trim(), 'dep-sugg', 'set-dep', 'set-dep-clear', _depStopIds,
       () => _depAbort, v => { _depAbort = v; },
       () => _depTimer, v => { _depTimer = v; }));
   if (arrEl) arrEl.addEventListener('input', e =>
-    suggestStops(e.target.value.trim(), 'arr-stops', _arrStopIds,
+    suggestStops(e.target.value.trim(), 'arr-sugg', 'set-arr', 'set-arr-clear', _arrStopIds,
       () => _arrAbort, v => { _arrAbort = v; },
       () => _arrTimer, v => { _arrTimer = v; }));
 
   ['dep', 'arr'].forEach(id => {
     const inp = document.getElementById('set-' + id);
     const btn = document.getElementById('set-' + id + '-clear');
+    const sugg = document.getElementById(id + '-sugg');
     if (!inp || !btn) return;
     inp.addEventListener('input', () => {
       btn.style.display = inp.value ? 'flex' : 'none';
     });
+    inp.addEventListener('blur', () => {
+      setTimeout(() => { if (sugg) { sugg.hidden = true; } }, 150);
+    });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && sugg) { sugg.hidden = true; sugg.innerHTML = ''; }
+    });
     btn.addEventListener('click', () => {
       inp.value = '';
       btn.style.display = 'none';
-      const dl = document.getElementById(inp.getAttribute('list'));
-      if (dl) dl.innerHTML = '';
+      if (sugg) { sugg.hidden = true; sugg.innerHTML = ''; }
       inp.focus();
     });
   });

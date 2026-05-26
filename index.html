@@ -83,20 +83,20 @@
   <div id="set-dep-wrap" class="set-section">
     <label class="set-label" for="set-dep">fra stasjon</label>
     <div class="set-field">
-      <input type="text" id="set-dep" placeholder="f.eks. Stortinget" list="dep-stops" autocomplete="off" spellcheck="false">
+      <input type="text" id="set-dep" placeholder="f.eks. Stortinget" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <button class="set-clear" id="set-dep-clear" aria-label="Tøm felt" style="display:none">×</button>
     </div>
+    <div id="dep-sugg" class="stop-sugg" hidden></div>
   </div>
   <div id="set-nearby-list" style="display:none;margin:.25rem 0 .75rem"></div>
   <div class="set-section">
     <label class="set-label" for="set-arr">til stopp eller stasjon</label>
     <div class="set-field">
-      <input type="text" id="set-arr" placeholder="f.eks. Jernbanetorget, Manglerud" list="arr-stops" autocomplete="off" spellcheck="false">
+      <input type="text" id="set-arr" placeholder="f.eks. Jernbanetorget, Manglerud" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <button class="set-clear" id="set-arr-clear" aria-label="Tøm felt" style="display:none">×</button>
     </div>
+    <div id="arr-sugg" class="stop-sugg" hidden></div>
   </div>
-  <datalist id="dep-stops"></datalist>
-  <datalist id="arr-stops"></datalist>
   <div style="margin-top:1.5rem">
     <button class="cta-btn" id="set-apply">Bruk rute →</button>
   </div>

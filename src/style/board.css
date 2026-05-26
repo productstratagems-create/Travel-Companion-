@@ -5,6 +5,10 @@
   border-bottom:1px solid rgba(245,184,64,.08);
   margin-bottom:.1rem;
 }
+#via-label{
+  font-size:9px;text-transform:uppercase;letter-spacing:.12em;
+  color:rgba(245,184,64,.4);line-height:1;
+}
 .station-name{
   font-family:"Bebas Neue",sans-serif;
   font-size:clamp(2rem,8vw,2.8rem);

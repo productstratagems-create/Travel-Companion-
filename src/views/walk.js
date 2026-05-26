@@ -55,6 +55,10 @@ export function renderWalk() {
   else if (mtl <= 6)       phase = 'soon';
   else                     phase = 'calm';
 
+  document.getElementById('w-board-btn-wrap').style.display = 'block';
+  const bb = document.getElementById('w-board-btn-wrap').querySelector('button');
+  if (bb) bb.className = 'cta-btn' + (phase === 'calm' || phase === 'soon' ? ' secondary' : '');
+
   const firstTransfer = c._transfers && c._transfers[0];
   const rawDepQuay = c._legs && c._legs[0] && c._legs[0].fromEstimatedCall
     && c._legs[0].fromEstimatedCall.quay && c._legs[0].fromEstimatedCall.quay.publicCode;

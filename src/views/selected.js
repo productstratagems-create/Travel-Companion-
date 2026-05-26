@@ -175,19 +175,60 @@ export function renderSelected() {
   }
   ctaDiv.appendChild(primaryBtn);
 
-  if (!departed) {
-    const backBtn = document.createElement('button');
-    backBtn.className = 'cta-btn secondary';
-    backBtn.textContent = 'andre avganger';
-    backBtn.onclick = () => {
-      stopSelRefresh();
-      state.sel = null;
-      show('v-board');
-      startBoard();
-    };
-    ctaDiv.appendChild(backBtn);
-  }
   document.getElementById('v-selected').appendChild(ctaDiv);
+  renderSelDeps();
+}
+
+function renderSelDeps() {
+  const old = document.getElementById('s-dep-list');
+  if (old) old.remove();
+  if (!state.deps || !state.deps.length) return;
+  const now = Date.now();
+  const selTs = state.sel ? new Date(state.sel.expectedDepartureTime).getTime() : null;
+
+  const indexed = state.deps.map((c, i) => ({ c, i }));
+  indexed.sort((a, b) => new Date(a.c.expectedDepartureTime) - new Date(b.c.expectedDepartureTime));
+  const byMin = new Map();
+  indexed.forEach(({ c, i }) => {
+    const min = Math.floor(new Date(c.expectedDepartureTime) / 60000);
+    const arr = c._finalArrival ? new Date(c._finalArrival).getTime() : Infinity;
+    const cur = byMin.get(min);
+    if (!cur || arr < cur.arr) byMin.set(min, { c, i, arr });
+  });
+
+  const rows = Array.from(byMin.values())
+    .filter(({ c }) => new Date(c.expectedDepartureTime).getTime() > now - 30000)
+    .slice(0, 4);
+
+  if (!rows.length) return;
+
+  let html = '';
+  rows.forEach(({ c, i }) => {
+    const depTs = new Date(c.expectedDepartureTime).getTime();
+    const mins = Math.floor((depTs - now) / 60000);
+    const isSel = selTs !== null && Math.abs(depTs - selTs) < 30000;
+    const ln = c.serviceJourney && c.serviceJourney.line;
+    const bg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
+    const badges = c._legs
+      ? c._legs.map(l => {
+          const ll = l.serviceJourney && l.serviceJourney.line;
+          const lbg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
+          return '<span class="line-badge" style="background:' + lbg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
+        }).join('<span class="transfer-arrow">→</span>')
+      : '<span class="line-badge" style="background:' + bg + '">' + ((ln && ln.publicCode) || '?') + '</span>';
+    const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
+    html += '<div class="w-dep-row' + (isSel ? ' active' : '') + '"'
+      + (isSel ? '' : ' onclick="window.tap(' + i + ')"') + '>'
+      + '<div class="w-dep-mins">' + (mins <= 0 ? 'NÅ' : mins) + (mins > 0 ? '<span>min</span>' : '') + '</div>'
+      + '<div class="w-dep-mid">' + badges + '<span class="w-dep-dest">' + dest + '</span></div>'
+      + '</div>';
+  });
+
+  const el = document.createElement('div');
+  el.id = 's-dep-list';
+  el.style.cssText = 'border-top:1px solid rgba(245,184,64,.08);margin-top:.75rem;padding-top:.25rem';
+  el.innerHTML = html;
+  document.getElementById('v-selected').appendChild(el);
 }
 
 export function startSelRefresh() {

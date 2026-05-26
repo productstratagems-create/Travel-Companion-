@@ -5,6 +5,8 @@ import { fetchBoard, fetchTrip } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern } from '../api/adapt.js';
 import { renderAlerts } from '../ui/alerts.js';
+import { loadFavs, favToDir } from '../ui/favs.js';
+import { show, updateHeader } from '../ui/nav.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -28,8 +30,23 @@ function renderWalkSummary() {
 }
 
 
+function renderFavChips() {
+  const el = document.getElementById('fav-chips');
+  if (!el) return;
+  const favs = loadFavs();
+  if (!favs.length) { el.innerHTML = ''; return; }
+  const dir = config.dirs[state.dIdx];
+  el.innerHTML = favs.map(f => {
+    const active = f.from === dir.from && f.to === dir.to;
+    return '<button class="fav-chip' + (active ? ' active' : '') + '"'
+      + ' onclick="window._loadFav(\'' + f.id + '\')">'
+      + f.label + '</button>';
+  }).join('');
+}
+
 export function renderBoard() {
   renderAlerts();
+  renderFavChips();
   renderWalkSummary();
   const list = document.getElementById('dep-list');
   const dir = config.dirs[state.dIdx];
@@ -188,3 +205,15 @@ function _fetchBoard() {
 // Expose for nav.js window bridges
 window._startBoard = startBoard;
 window._fetchBoard = _fetchBoard;
+
+window._loadFav = (id) => {
+  const fav = loadFavs().find(f => f.id === id);
+  if (!fav) return;
+  config.dirs[2] = favToDir(fav);
+  state.dIdx = 2;
+  try { localStorage.setItem(config.storage.dir, '2'); } catch {}
+  updateHeader();
+  state.deps = [];
+  show('v-board');
+  window._startBoard && window._startBoard();
+};

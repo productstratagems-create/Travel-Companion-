@@ -21,13 +21,15 @@
       <span class="status-dot" id="status-dot" title="trykk for logg"></span>
       <span class="station-name" id="station-name">MORTENSRUD</span>
     </div>
-    <div style="display:flex;align-items:center;gap:.5rem">
+    <div style="display:flex;align-items:center;gap:.5rem;position:relative">
       <button class="dir-btn" id="route-btn" type="button" style="font-size:11px;letter-spacing:.08em">endre rute</button>
       <button class="dir-btn" id="dir-btn" type="button">
         ⇄&nbsp;<span class="dir-dest" id="dir-dest">Jernbanetorget</span>
       </button>
+      <div id="dir-dropdown" style="display:none"></div>
     </div>
   </div>
+  <div id="fav-chips"></div>
   <div id="board-error" style="display:none;padding:.6rem;margin:.5rem 0;font-size:11px;color:#fca5a5;background:rgba(220,38,38,.08);border-radius:4px"></div>
   <div id="onboard-chip" onclick="window.jnyGoTracking&&window.jnyGoTracking()" style="display:none;align-items:center;padding:.6rem .75rem;margin:.5rem 0;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:6px;cursor:pointer;gap:.5rem"></div>
   <div id="walk-summary" style="display:none"></div>
@@ -99,6 +101,10 @@
   <div style="margin-top:1.5rem">
     <button class="cta-btn" id="set-apply">Bruk rute →</button>
   </div>
+  <div style="margin-top:.5rem">
+    <button class="cta-btn secondary" id="set-save-fav">Lagre som favoritt ★</button>
+  </div>
+  <div id="set-fav-msg" style="display:none;margin-top:.4rem;font-size:11px;color:#f5b840;text-align:center"></div>
   <div id="set-error" style="display:none;margin-top:.75rem;font-size:11px;color:#fca5a5"></div>
   <div class="set-section">
     <div class="set-label">tempo</div>

@@ -206,6 +206,8 @@ function _fetchBoard() {
 window._startBoard = startBoard;
 window._fetchBoard = _fetchBoard;
 
+window._renderFavChips = renderFavChips;
+
 window._loadFav = (id) => {
   const fav = loadFavs().find(f => f.id === id);
   if (!fav) return;

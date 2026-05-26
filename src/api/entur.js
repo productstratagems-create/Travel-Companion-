@@ -50,21 +50,40 @@ export function resolveToStop(dir) {
     });
 }
 
+export function resolveViaStop(dir) {
+  if (dir.viaStopId) return Promise.resolve(dir.viaStopId);
+  if (!dir.viaGeo) return Promise.resolve(null);
+  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.viaGeo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522')
+    .then(r => r.json())
+    .then(json => {
+      const ff = ((json && json.features) || [])
+        .filter(f => (f.properties.category || []).some(c => TRANSIT_CAT.includes(c)));
+      const q = dir.viaGeo.toLowerCase();
+      const m = ff.find(f =>
+        (f.properties.category || []).indexOf('metroStation') !== -1
+        && (f.properties.label || '').toLowerCase().indexOf(q) !== -1
+      ) || ff.find(f => (f.properties.label || '').toLowerCase().indexOf(q) !== -1);
+      if (!m) throw new Error('Fant ikke via: ' + dir.viaGeo);
+      dir.viaStopId = m.properties.id;
+      return dir.viaStopId;
+    });
+}
+
 export function fetchTrip(dir, onSuccess, onError) {
   if (tripController) tripController.abort();
   tripController = new AbortController();
   const signal = tripController.signal;
 
   setDot('loading');
-  Promise.all([resolveStop(dir), resolveToStop(dir)])
-    .then(([fromId, toId]) => {
+  Promise.all([resolveStop(dir), resolveToStop(dir), resolveViaStop(dir)])
+    .then(([fromId, toId, viaId]) => {
       if (signal.aborted) return;
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
-      logMsg('trip → ' + fromId + ' → ' + toId);
+      logMsg('trip → ' + fromId + (viaId ? ' via ' + viaId : '') + ' → ' + toId);
       return fetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: tripGQL(fromId, toId, 12, walkSpeedMs) }),
+        body: JSON.stringify({ query: tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs) }),
         signal,
       });
     })

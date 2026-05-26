@@ -3,8 +3,8 @@ import { tripGQL, boardGQL, trackGQL } from '../src/api/queries.js';
 
 // --- tripGQL ---
 
-describe('tripGQL(fromId, toId, n)', () => {
-  const q = tripGQL('NSR:StopPlace:5687', 'NSR:StopPlace:58366', 5);
+describe('tripGQL(fromId, toId, viaId, n)', () => {
+  const q = tripGQL('NSR:StopPlace:5687', 'NSR:StopPlace:58366', null, 5);
 
   it('is a non-empty string', () => {
     expect(typeof q).toBe('string');
@@ -24,15 +24,23 @@ describe('tripGQL(fromId, toId, n)', () => {
   });
 
   it('defaults numTripPatterns to 12 when n is omitted', () => {
-    expect(tripGQL('A', 'B')).toContain('numTripPatterns:12');
+    expect(tripGQL('A', 'B', null)).toContain('numTripPatterns:12');
   });
 
   it('includes walkSpeed parameter — defaults to 1.3 m/s', () => {
-    expect(tripGQL('A', 'B')).toContain('walkSpeed:1.3');
+    expect(tripGQL('A', 'B', null)).toContain('walkSpeed:1.3');
   });
 
   it('accepts custom walkSpeed', () => {
-    expect(tripGQL('A', 'B', 8, 1.389)).toContain('walkSpeed:1.389');
+    expect(tripGQL('A', 'B', null, 8, 1.389)).toContain('walkSpeed:1.389');
+  });
+
+  it('omits via clause when viaId is null', () => {
+    expect(tripGQL('A', 'B', null)).not.toContain('via:');
+  });
+
+  it('includes via clause when viaId is provided', () => {
+    expect(tripGQL('A', 'B', 'NSR:StopPlace:999')).toContain('via:[{place:{place:"NSR:StopPlace:999"}}]');
   });
 
   // REGRESSION: {transportMode:bus} was accidentally removed, causing zero results

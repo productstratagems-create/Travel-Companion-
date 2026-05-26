@@ -46,7 +46,8 @@
 }
 .w-dep-mins span{display:block;font-family:"JetBrains Mono",monospace;font-size:8px;text-transform:uppercase;letter-spacing:.2em;color:#4a5568}
 .w-dep-mid{display:flex;align-items:center;gap:.4rem;min-width:0}
-.w-dep-dest{font-size:13px;font-weight:700;color:#f5b840;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.w-dep-dest{font-size:13px;font-weight:700;color:#f5b840;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.w-dep-arr{font-size:12px;color:#94a3b8;white-space:nowrap;flex-shrink:0;font-variant-numeric:tabular-nums}
 
 /* seconds ring when urgent */
 .secs-bar{

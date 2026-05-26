@@ -29,6 +29,25 @@
 .walk-context .wc-hl{color:#f5b840}
 .walk-context .wc-arr{color:#fbbf24}
 
+/* Walk view mini departure list */
+#w-dep-list{border-top:1px solid rgba(245,184,64,.08);margin-top:.75rem;padding-top:.25rem}
+.w-dep-row{
+  display:grid;grid-template-columns:3rem 1fr;gap:.6rem;align-items:center;
+  padding:.65rem .25rem .65rem .4rem;
+  border-left:2px solid transparent;
+  border-bottom:1px solid rgba(245,184,64,.05);
+  cursor:pointer;
+}
+.w-dep-row.active{border-left-color:#3b82f6;background:rgba(59,130,246,.04);cursor:default}
+.w-dep-row.missed{opacity:.55}
+.w-dep-mins{
+  text-align:right;font-family:"Bebas Neue",sans-serif;
+  font-size:1.8rem;line-height:1;color:#f5b840;font-variant-numeric:tabular-nums;
+}
+.w-dep-mins span{display:block;font-family:"JetBrains Mono",monospace;font-size:8px;text-transform:uppercase;letter-spacing:.2em;color:#4a5568}
+.w-dep-mid{display:flex;align-items:center;gap:.4rem;min-width:0}
+.w-dep-dest{font-size:13px;font-weight:700;color:#f5b840;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 /* seconds ring when urgent */
 .secs-bar{
   font-size:11px;color:#57534e;margin-top:.4rem;

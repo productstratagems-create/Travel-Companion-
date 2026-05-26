@@ -7,6 +7,7 @@ export function show(id) {
     document.getElementById(v).style.display = (v === id ? 'block' : 'none');
   });
   state.view = id.replace('v-', '');
+  window.scrollTo(0, 0);
 }
 
 export function updateHeader() {

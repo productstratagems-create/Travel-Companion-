@@ -184,6 +184,7 @@ function renderSelDeps() {
   if (old) old.remove();
   if (!state.deps || !state.deps.length) return;
   const now = Date.now();
+  const dir = config.dirs[state.dIdx];
   const selTs = state.sel ? new Date(state.sel.expectedDepartureTime).getTime() : null;
 
   const indexed = state.deps.map((c, i) => ({ c, i }));
@@ -217,10 +218,13 @@ function renderSelDeps() {
         }).join('<span class="transfer-arrow">→</span>')
       : '<span class="line-badge" style="background:' + bg + '">' + ((ln && ln.publicCode) || '?') + '</span>';
     const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
+    const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
+    const arrCall = findArr(sjc, dir.to);
+    const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
     html += '<div class="w-dep-row' + (isSel ? ' active' : '') + '"'
       + (isSel ? '' : ' onclick="window.tap(' + i + ')"') + '>'
       + '<div class="w-dep-mins">' + (mins <= 0 ? 'NÅ' : mins) + (mins > 0 ? '<span>min</span>' : '') + '</div>'
-      + '<div class="w-dep-mid">' + badges + '<span class="w-dep-dest">' + dest + '</span></div>'
+      + '<div class="w-dep-mid">' + badges + '<span class="w-dep-dest">' + dest + '</span>' + (arrT ? '<span class="w-dep-arr">ank.' + clk(arrT) + '</span>' : '') + '</div>'
       + '</div>';
   });
 

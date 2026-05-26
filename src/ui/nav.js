@@ -31,6 +31,9 @@ function toggleDir() {
       filter: null,
       geo: dir.to, toGeo: dir.from,
       line: null,
+      via: dir.via || null,
+      viaStopId: dir.viaStopId || null,
+      viaGeo: dir.viaGeo || null,
     };
   } else {
     state.dIdx = state.dIdx === 0 ? 1 : 0;

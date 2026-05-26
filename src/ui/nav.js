@@ -1,9 +1,9 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
-import { loadFavs, favToDir, addFav, removeFav } from './favs.js';
+import { addFav } from './favs.js';
 
 export function show(id) {
-  ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings'].forEach(v => {
+  ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-favs'].forEach(v => {
     document.getElementById(v).style.display = (v === id ? 'block' : 'none');
   });
   state.view = id.replace('v-', '');
@@ -37,32 +37,17 @@ function toggleDir() {
   window._startBoard && window._startBoard();
 }
 
-function buildDdHtml(favs, dir) {
-  return [config.dirs[0], config.dirs[1]].map((d, i) => {
-    const active = d.from === dir.from && d.to === dir.to;
-    return '<button class="dd-row' + (active ? ' active' : '') + '"'
-      + ' onclick="window._ddSelect(' + i + ')">'
-      + d.from + ' → ' + d.to + '</button>';
-  }).join('')
-  + favs.map((f, fi) => {
-    const d = favToDir(f);
-    const active = d.from === dir.from && d.to === dir.to;
-    return '<div class="dd-row dd-fav' + (active ? ' active' : '') + '">'
-      + '<button class="dd-sel" onclick="window._ddSelect(' + (fi + 2) + ')">'
-      + f.from + ' → ' + f.to + '</button>'
-      + '<button class="dd-del" onclick="window._delFav(\'' + f.id + '\')" aria-label="slett">×</button>'
-      + '</div>';
-  }).join('');
-}
-
 export function attachEventListeners() {
-  document.getElementById('dir-btn').addEventListener('click', () => {
-    const dd = document.getElementById('dir-dropdown');
-    const favs = loadFavs();
-    if (!favs.length) { toggleDir(); return; }
-    if (dd.style.display !== 'none') { dd.style.display = 'none'; return; }
-    dd.innerHTML = buildDdHtml(favs, config.dirs[state.dIdx]);
-    dd.style.display = 'block';
+  document.getElementById('dir-btn').addEventListener('click', toggleDir);
+
+  document.getElementById('fav-btn').addEventListener('click', () => {
+    show('v-favs');
+    window._renderFavs && window._renderFavs();
+  });
+
+  document.getElementById('fav-back').addEventListener('click', () => {
+    show('v-board');
+    window._startBoard && window._startBoard();
   });
 
   document.getElementById('s-back').addEventListener('click', () => {
@@ -117,13 +102,6 @@ export function attachEventListeners() {
     setTimeout(() => { msg.style.display = 'none'; }, 2000);
   });
 
-  document.addEventListener('click', (e) => {
-    const dd = document.getElementById('dir-dropdown');
-    if (!dd || dd.style.display === 'none') return;
-    const btn = document.getElementById('dir-btn');
-    if (!btn.contains(e.target) && !dd.contains(e.target)) dd.style.display = 'none';
-  });
-
   document.getElementById('stop-set').addEventListener('click', () => {
     const v = document.getElementById('stop-input').value.trim();
     if (v) {
@@ -144,34 +122,3 @@ export function attachEventListeners() {
 function stopSelRefreshBridge() {
   if (intervals.sel) { clearInterval(intervals.sel); intervals.sel = null; }
 }
-
-window._ddSelect = (i) => {
-  const dd = document.getElementById('dir-dropdown');
-  if (dd) dd.style.display = 'none';
-  const favs = loadFavs();
-  if (i < 2) {
-    state.dIdx = i;
-  } else {
-    const fav = favs[i - 2];
-    if (!fav) return;
-    config.dirs[2] = favToDir(fav);
-    state.dIdx = 2;
-  }
-  try { localStorage.setItem(config.storage.dir, String(state.dIdx)); } catch {}
-  updateHeader();
-  state.deps = [];
-  show('v-board');
-  window._startBoard && window._startBoard();
-};
-
-window._delFav = (id) => {
-  removeFav(id);
-  const favs = loadFavs();
-  const dd = document.getElementById('dir-dropdown');
-  if (!favs.length) {
-    if (dd) dd.style.display = 'none';
-  } else {
-    dd.innerHTML = buildDdHtml(favs, config.dirs[state.dIdx]);
-  }
-  window._renderFavChips && window._renderFavChips();
-};

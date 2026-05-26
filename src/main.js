@@ -6,8 +6,10 @@ import './style/walk.css';
 import './style/track.css';
 import './style/debug.css';
 import './style/settings.css';
+import './style/favs.css';
 
 import { attachEventListeners, updateHeader, show } from './ui/nav.js';
+import './views/favs.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
 import { locateUser, refreshPosition, updateWalkDbg } from './geo.js';
 import { startRenderLoop } from './scheduler.js';

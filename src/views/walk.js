@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state } from '../state.js';
-import { walkInfo, mToLeave, findArr } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr } from '../geo.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 
@@ -55,10 +55,6 @@ export function renderWalk() {
   else if (mtl <= 6)       phase = 'soon';
   else                     phase = 'calm';
 
-  document.getElementById('w-board-btn-wrap').style.display = 'block';
-  const bb = document.getElementById('w-board-btn-wrap').querySelector('button');
-  if (bb) bb.className = 'cta-btn' + (phase === 'calm' || phase === 'soon' ? ' secondary' : '');
-
   const firstTransfer = c._transfers && c._transfers[0];
   const rawDepQuay = c._legs && c._legs[0] && c._legs[0].fromEstimatedCall
     && c._legs[0].fromEstimatedCall.quay && c._legs[0].fromEstimatedCall.quay.publicCode;
@@ -105,6 +101,60 @@ export function renderWalk() {
   }
 
   document.getElementById('w-center').innerHTML = numEl + lblEl + ctxEl + secsEl;
+  renderWalkDeps();
+}
+
+function renderWalkDeps() {
+  const el = document.getElementById('w-dep-list');
+  if (!el || !state.deps || !state.deps.length) { if (el) el.style.display = 'none'; return; }
+  const now = Date.now();
+  const dir = config.dirs[state.dIdx];
+  const ns = state.nearestStation;
+  const walkActive = dir.key !== 'in' && ns !== null && dir.stopId === ns.id;
+  const selTs = state.sel ? new Date(state.sel.expectedDepartureTime).getTime() : null;
+
+  const indexed = state.deps.map((c, i) => ({ c, i }));
+  indexed.sort((a, b) => new Date(a.c.expectedDepartureTime) - new Date(b.c.expectedDepartureTime));
+  const byMin = new Map();
+  indexed.forEach(({ c, i }) => {
+    const min = Math.floor(new Date(c.expectedDepartureTime) / 60000);
+    const arr = c._finalArrival ? new Date(c._finalArrival).getTime() : Infinity;
+    const cur = byMin.get(min);
+    if (!cur || arr < cur.arr) byMin.set(min, { c, i, arr });
+  });
+
+  const rows = Array.from(byMin.values())
+    .filter(({ c }) => new Date(c.expectedDepartureTime).getTime() > now - 30000)
+    .slice(0, 4);
+
+  if (!rows.length) { el.style.display = 'none'; return; }
+
+  let html = '';
+  rows.forEach(({ c, i }) => {
+    const depTs = new Date(c.expectedDepartureTime).getTime();
+    const mins = Math.floor((depTs - now) / 60000);
+    const isSel = selTs !== null && Math.abs(depTs - selTs) < 30000;
+    const mtl = walkActive ? mToLeave(depTs) : null;
+    const missed = walkActive && mtl !== null && reachCls(mtl) === 'missed';
+    const ln = c.serviceJourney && c.serviceJourney.line;
+    const bg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
+    const badges = c._legs
+      ? c._legs.map(l => {
+          const ll = l.serviceJourney && l.serviceJourney.line;
+          const lbg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
+          return '<span class="line-badge" style="background:' + lbg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
+        }).join('<span class="transfer-arrow">→</span>')
+      : '<span class="line-badge" style="background:' + bg + '">' + ((ln && ln.publicCode) || '?') + '</span>';
+    const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
+    html += '<div class="w-dep-row' + (isSel ? ' active' : '') + (missed ? ' missed' : '') + '"'
+      + (isSel ? '' : ' onclick="window.tap(' + i + ')"') + '>'
+      + '<div class="w-dep-mins">' + (mins <= 0 ? 'NÅ' : mins) + (mins > 0 ? '<span>min</span>' : '') + '</div>'
+      + '<div class="w-dep-mid">' + badges + '<span class="w-dep-dest">' + dest + '</span></div>'
+      + '</div>';
+  });
+
+  el.innerHTML = html;
+  el.style.display = 'block';
 }
 
 // Expose for nav bridges

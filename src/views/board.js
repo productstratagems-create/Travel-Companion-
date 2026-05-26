@@ -5,8 +5,7 @@ import { fetchBoard, fetchTrip } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern } from '../api/adapt.js';
 import { renderAlerts } from '../ui/alerts.js';
-import { loadFavs, favToDir } from '../ui/favs.js';
-import { show, updateHeader } from '../ui/nav.js';
+import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -29,24 +28,8 @@ function renderWalkSummary() {
   }
 }
 
-
-function renderFavChips() {
-  const el = document.getElementById('fav-chips');
-  if (!el) return;
-  const favs = loadFavs();
-  if (!favs.length) { el.innerHTML = ''; return; }
-  const dir = config.dirs[state.dIdx];
-  el.innerHTML = favs.map(f => {
-    const active = f.from === dir.from && f.to === dir.to;
-    return '<button class="fav-chip' + (active ? ' active' : '') + '"'
-      + ' onclick="window._loadFav(\'' + f.id + '\')">'
-      + f.label + '</button>';
-  }).join('');
-}
-
 export function renderBoard() {
   renderAlerts();
-  renderFavChips();
   renderWalkSummary();
   const list = document.getElementById('dep-list');
   const dir = config.dirs[state.dIdx];
@@ -58,10 +41,9 @@ export function renderBoard() {
   const isOut = dir.key !== 'in';
   const ns = state.nearestStation;
   const walkActive = isOut && ns !== null && dir.stopId === ns.id;
+  const savedFavs = loadFavs();
 
   // For each departure minute keep only the route with the earliest arrival.
-  // This removes the "same departure, slower route" duplicate while
-  // preserving every distinct departure time.
   const indexed = state.deps.map((c, i) => ({ c, origIdx: i }));
   indexed.sort((a, b) =>
     new Date(a.c.expectedDepartureTime).getTime() - new Date(b.c.expectedDepartureTime).getTime()
@@ -98,6 +80,11 @@ export function renderBoard() {
     const rowCls = 'dep-row' + (isCancelled ? ' cancelled' : missed ? ' missed' : rcls ? ' ' + rcls : '');
     const showReach = walkActive && rcls && !missed && (rcls !== 'r-now' || !urgentShown);
     if (rcls === 'r-now') urgentShown = true;
+
+    const hhmm = clk(depTs);
+    const isSaved = savedFavs.some(f =>
+      f.type === 'timed' && f.from === dir.from && f.to === dir.to
+      && f.line === lc && f.departureHHMM === hhmm);
 
     const lineBadges = c._legs
       ? c._legs.map(l => {
@@ -136,6 +123,8 @@ export function renderBoard() {
         : '')
       + '</div>'
       + '<div class="dep-spor"><div class="sl">spor</div><div class="sn">' + quay + '</div></div>'
+      + '<button class="dep-star' + (isSaved ? ' saved' : '') + '"'
+      + ' onclick="event.stopPropagation();window._toggleTimedFav(' + origIdx + ')" aria-label="lagre avgang">★</button>'
       + '</div>';
   });
   list.innerHTML = html;
@@ -171,7 +160,6 @@ function _fetchBoard() {
     return;
   }
   fetchBoard(dir, (stop) => {
-    // Collect situations from stop level, per-call level, and per-journey level
     const sitMap = new Map();
     const addSits = (arr) => (arr || []).forEach(s => s && s.id && sitMap.set(s.id, s));
     addSits(stop.situations);
@@ -202,20 +190,22 @@ function _fetchBoard() {
   });
 }
 
-// Expose for nav.js window bridges
 window._startBoard = startBoard;
 window._fetchBoard = _fetchBoard;
 
-window._renderFavChips = renderFavChips;
-
-window._loadFav = (id) => {
-  const fav = loadFavs().find(f => f.id === id);
-  if (!fav) return;
-  config.dirs[2] = favToDir(fav);
-  state.dIdx = 2;
-  try { localStorage.setItem(config.storage.dir, '2'); } catch {}
-  updateHeader();
-  state.deps = [];
-  show('v-board');
-  window._startBoard && window._startBoard();
+window._toggleTimedFav = (origIdx) => {
+  const dep = state.deps[origIdx];
+  const dir = config.dirs[state.dIdx];
+  if (!dep || !dir) return;
+  const ln = dep.serviceJourney && dep.serviceJourney.line;
+  const line = (ln && ln.publicCode) || null;
+  const d = new Date(dep.expectedDepartureTime);
+  const hhmm = pad(d.getHours()) + ':' + pad(d.getMinutes());
+  const favs = loadFavs();
+  const existing = favs.find(f =>
+    f.type === 'timed' && f.from === dir.from && f.to === dir.to
+    && f.line === line && f.departureHHMM === hhmm);
+  if (existing) removeFav(existing.id);
+  else addTimedFav(dep, dir);
+  renderBoard();
 };

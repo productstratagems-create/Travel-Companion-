@@ -1,0 +1,37 @@
+/* ── SCREEN: FAVORITTER ── */
+.fav-section-label{
+  font-size:9px;text-transform:uppercase;letter-spacing:.15em;
+  color:#4a5568;padding:.75rem 0 .3rem;
+}
+.fav-card{
+  display:flex;align-items:center;
+  border-bottom:1px solid rgba(245,184,64,.06);
+}
+.fav-card-sel{
+  flex:1;text-align:left;font-family:inherit;font-size:13px;
+  padding:.75rem .5rem .75rem 0;background:none;border:none;
+  color:#a8a29e;cursor:pointer;
+}
+.fav-card-sel:active{color:#f5b840}
+.fav-timed-sel{
+  flex:1;display:flex;align-items:center;gap:.5rem;
+  padding:.65rem .5rem .65rem 0;cursor:pointer;min-width:0;
+}
+.fav-timed-time{
+  font-family:"Bebas Neue",sans-serif;font-size:1.4rem;
+  color:#f5b840;line-height:1;flex-shrink:0;
+}
+.fav-timed-route{
+  font-size:11px;color:#78716c;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.fav-del{
+  flex-shrink:0;background:none;border:none;
+  color:#4a5568;font-size:14px;padding:.5rem .4rem;
+  cursor:pointer;line-height:1;
+}
+.fav-del:active{color:#fca5a5}
+.fav-empty{
+  font-size:12px;color:#4a5568;line-height:1.8;
+  padding:2rem 0;text-align:center;
+}

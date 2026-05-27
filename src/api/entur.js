@@ -69,6 +69,21 @@ export function resolveViaStop(dir) {
     });
 }
 
+export function geocodePlace(query) {
+  return fetch(config.api.geocoder
+    + '?text=' + encodeURIComponent(query)
+    + '&size=8&layers=venue,address&focus.point.lat=59.9139&focus.point.lon=10.7522')
+    .then(r => r.json())
+    .then(json => ((json && json.features) || [])
+      .filter(f => f.geometry && f.geometry.coordinates && f.geometry.coordinates[1])
+      .map(f => ({
+        label: f.properties.label || f.properties.name || '',
+        lat:   f.geometry.coordinates[1],
+        lon:   f.geometry.coordinates[0],
+      }))
+    );
+}
+
 export function fetchTrip(dir, onSuccess, onError) {
   if (tripController) tripController.abort();
   tripController = new AbortController();

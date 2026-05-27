@@ -92,6 +92,18 @@
     <div id="dep-sugg" class="stop-sugg" hidden></div>
   </div>
   <div id="set-nearby-list" style="display:none;margin:.25rem 0 .75rem"></div>
+  <div id="set-walkfrom-toggle" style="padding:.2rem 0 .5rem">
+    <button id="set-walkfrom-add" class="set-via-add-btn" type="button">+ gå fra et annet sted</button>
+  </div>
+  <div id="set-walkfrom-wrap" class="set-section" style="display:none">
+    <label class="set-label" for="set-walkfrom">gå fra</label>
+    <div class="set-field">
+      <input type="text" id="set-walkfrom" placeholder="f.eks. hjemme eller arbeidssted"
+        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <button class="set-clear" id="set-walkfrom-clear" aria-label="Fjern gå-fra sted" style="display:none">×</button>
+    </div>
+    <div id="walkfrom-sugg" class="stop-sugg" hidden></div>
+  </div>
   <div id="set-via-toggle" style="padding:.2rem 0 .5rem">
     <button id="set-via-add" class="set-via-add-btn" type="button">+ legg til via-stopp</button>
   </div>

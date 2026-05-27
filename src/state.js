@@ -20,6 +20,7 @@ export const state = {
   nearestStations: [],
   statLL: {},
   walkOvr: null,
+  walkFromLL: null,
   gpsError: null,
   debugOpen: false,
   serviceAlerts: [],

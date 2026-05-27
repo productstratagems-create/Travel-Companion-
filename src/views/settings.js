@@ -1,6 +1,7 @@
 import config from '../config.js';
 import { state } from '../state.js';
-import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer } from '../geo.js';
+import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
+import { geocodePlace } from '../api/entur.js';
 
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
@@ -8,8 +9,8 @@ const VIA_KEY = 't.via';
 
 const TRANSIT_CATEGORIES = ['metroStation', 'busStation', 'onstreetBus', 'tramStation', 'ferryStop'];
 
-let _depAbort = null, _arrAbort = null, _viaAbort = null;
-let _depTimer = null, _arrTimer = null, _viaTimer = null;
+let _depAbort = null, _arrAbort = null, _viaAbort = null, _wfAbort = null;
+let _depTimer = null, _arrTimer = null, _viaTimer = null, _wfTimer = null;
 
 const _depStopIds = new Map();
 const _arrStopIds = new Map();
@@ -155,6 +156,87 @@ export function initSettings() {
     });
   }
 
+  // Walk-from: show/hide toggle
+  const wfAddBtn = document.getElementById('set-walkfrom-add');
+  if (wfAddBtn) {
+    wfAddBtn.addEventListener('click', () => {
+      const wrap = document.getElementById('set-walkfrom-wrap');
+      const toggle = document.getElementById('set-walkfrom-toggle');
+      if (wrap) wrap.style.display = 'block';
+      if (toggle) toggle.style.display = 'none';
+      const wfi = document.getElementById('set-walkfrom');
+      if (wfi) wfi.focus();
+    });
+  }
+
+  // Walk-from: input → geocode any place
+  const wfEl = document.getElementById('set-walkfrom');
+  if (wfEl) {
+    wfEl.addEventListener('input', () => {
+      const q = wfEl.value.trim();
+      syncClear('set-walkfrom', 'set-walkfrom-clear');
+      if (_wfTimer) clearTimeout(_wfTimer);
+      if (_wfAbort) { _wfAbort.abort(); _wfAbort = null; }
+      const sugg = document.getElementById('walkfrom-sugg');
+      if (!sugg) return;
+      if (q.length < 2) { sugg.hidden = true; sugg.innerHTML = ''; return; }
+      _wfTimer = setTimeout(() => {
+        _wfAbort = new AbortController();
+        geocodePlace(q).then(results => {
+          sugg.innerHTML = '';
+          if (!results.length) { sugg.hidden = true; return; }
+          results.slice(0, 6).forEach(r => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = r.label;
+            btn.addEventListener('mousedown', e => e.preventDefault());
+            btn.addEventListener('click', () => {
+              wfEl.value = r.label;
+              sugg.hidden = true;
+              sugg.innerHTML = '';
+              syncClear('set-walkfrom', 'set-walkfrom-clear');
+              state.walkFromLL = { lat: r.lat, lon: r.lon };
+              saveWalkFrom({ label: r.label, lat: r.lat, lon: r.lon });
+              window._logMsg && window._logMsg('gå fra: ' + r.label);
+            });
+            sugg.appendChild(btn);
+          });
+          sugg.hidden = false;
+        }).catch(() => {});
+      }, 250);
+    });
+    wfEl.addEventListener('blur', () => {
+      setTimeout(() => {
+        const sugg = document.getElementById('walkfrom-sugg');
+        if (sugg) sugg.hidden = true;
+      }, 150);
+    });
+    wfEl.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        const sugg = document.getElementById('walkfrom-sugg');
+        if (sugg) { sugg.hidden = true; sugg.innerHTML = ''; }
+      }
+    });
+  }
+
+  // Walk-from: clear button
+  const wfClearBtn = document.getElementById('set-walkfrom-clear');
+  if (wfClearBtn) {
+    wfClearBtn.addEventListener('click', () => {
+      const inp = document.getElementById('set-walkfrom');
+      const sugg = document.getElementById('walkfrom-sugg');
+      const wrap = document.getElementById('set-walkfrom-wrap');
+      const toggle = document.getElementById('set-walkfrom-toggle');
+      if (inp) inp.value = '';
+      if (sugg) { sugg.hidden = true; sugg.innerHTML = ''; }
+      if (wrap) wrap.style.display = 'none';
+      if (toggle) toggle.style.display = 'block';
+      syncClear('set-walkfrom', 'set-walkfrom-clear');
+      clearWalkFrom();
+      window._logMsg && window._logMsg('gå fra: tilbakestilt til GPS');
+    });
+  }
+
   initPrefs();
 }
 
@@ -208,6 +290,14 @@ export function showSettings() {
   if (viaInput) { viaInput.value = savedVia || ''; syncClear('set-via', 'set-via-clear'); }
   if (viaWrap) viaWrap.style.display = savedVia ? 'block' : 'none';
   if (viaToggle) viaToggle.style.display = savedVia ? 'none' : 'block';
+
+  const savedWf = loadWalkFrom();
+  const wfInput = document.getElementById('set-walkfrom');
+  const wfWrap = document.getElementById('set-walkfrom-wrap');
+  const wfToggle = document.getElementById('set-walkfrom-toggle');
+  if (wfInput) { wfInput.value = savedWf ? savedWf.label : ''; syncClear('set-walkfrom', 'set-walkfrom-clear'); }
+  if (wfWrap) wfWrap.style.display = savedWf ? 'block' : 'none';
+  if (wfToggle) wfToggle.style.display = savedWf ? 'none' : 'block';
 
   document.getElementById('set-error').style.display = 'none';
   _highlightPrefs();

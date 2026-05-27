@@ -45,7 +45,7 @@ function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbo
         if (!stops.length) { sugg.hidden = true; return; }
         stops.forEach(f => {
           const name = f.properties.name || f.properties.label;
-          stopMap.set(name, f.properties.id);
+          stopMap.set(name, { id: f.properties.id, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] });
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.textContent = name;
@@ -319,20 +319,24 @@ export function applyRoute() {
     return false;
   }
 
-  // Resolve departure stop ID: GPS > nearestStations list > autocomplete map > geocode
+  // Resolve departure stop ID + coords: GPS > nearestStations list > autocomplete map > geocode
   const depMatchesGps = ns && ns.name.toLowerCase() === dep.toLowerCase();
   const depNearby = !depMatchesGps
     && state.nearestStations.find(s => s.name.toLowerCase() === dep.toLowerCase());
-  const depId = depMatchesGps ? ns.id
-    : (depNearby ? depNearby.id : (_depStopIds.get(dep) || null));
+  const depEntry = _depStopIds.get(dep);  // { id, lat, lon } | null
+  const depId  = depMatchesGps ? ns.id   : (depNearby ? depNearby.id  : (depEntry ? depEntry.id  : null));
+  const depLat = depMatchesGps ? ns.lat  : (depNearby ? depNearby.lat : (depEntry ? depEntry.lat : null));
+  const depLon = depMatchesGps ? ns.lon  : (depNearby ? depNearby.lon : (depEntry ? depEntry.lon : null));
 
   // Resolve destination stop ID: autocomplete map > geocode
-  const arrId = _arrStopIds.get(arr) || null;
+  const arrEntry = _arrStopIds.get(arr);  // { id, lat, lon } | null
+  const arrId = arrEntry ? arrEntry.id : null;
 
   // Resolve optional via stop ID: autocomplete map > geocode
   const viaRaw = (document.getElementById('set-via') || {}).value;
   const via = (viaRaw && viaRaw.trim()) || null;
-  const viaId = via ? (_viaStopIds.get(via) || null) : null;
+  const viaEntry = via ? _viaStopIds.get(via) : null;
+  const viaId = viaEntry ? viaEntry.id : null;
 
   config.dirs[2] = {
     key: 'custom-out',
@@ -347,6 +351,8 @@ export function applyRoute() {
     via:      via || null,
     viaStopId: viaId || null,
     viaGeo:   (via && !viaId) ? via : null,
+    _fromLat: depLat,
+    _fromLon: depLon,
   };
   state.dIdx = 2;
   saveDep(dep);
@@ -364,7 +370,9 @@ export function applyRouteFromState(arr) {
   const depMatchesGps = ns && ns.name.toLowerCase() === dep.toLowerCase();
   const depNearby = !depMatchesGps
     && state.nearestStations.find(s => s.name.toLowerCase() === dep.toLowerCase());
-  const depId = depMatchesGps ? ns.id : (depNearby ? depNearby.id : null);
+  const depId  = depMatchesGps ? ns.id   : (depNearby ? depNearby.id  : null);
+  const depLat = depMatchesGps ? ns.lat  : (depNearby ? depNearby.lat : null);
+  const depLon = depMatchesGps ? ns.lon  : (depNearby ? depNearby.lon : null);
   config.dirs[2] = {
     key: 'custom-out',
     from: dep,
@@ -375,6 +383,8 @@ export function applyRouteFromState(arr) {
     geo:      depId ? null : dep,
     toGeo:    arr,
     line:     null,
+    _fromLat: depLat,
+    _fromLon: depLon,
   };
   state.dIdx = 2;
   return true;

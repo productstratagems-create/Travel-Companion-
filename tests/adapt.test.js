@@ -12,6 +12,7 @@ import {
   metroThenWalk,
   metroFootBus,
   fullJourney,
+  metroToAddress,
 } from './fixtures/tripPatterns.js';
 
 // --- Null-guard cases (these are the bugs that have broken the app) ---
@@ -303,6 +304,42 @@ describe('adaptTripPattern — metro platform-walk bus', () => {
 
   it('_finalArrival comes from bus legs toEstimatedCall', () => {
     expect(result._finalArrival).toBe('2026-05-25T16:35:00+02:00');
+  });
+});
+
+// --- [metro, foot] to coordinate address (foot toPlace.name is empty) ---
+
+describe('adaptTripPattern — metro to street address (foot leg has empty toPlace.name)', () => {
+  let result;
+  beforeEach(() => { result = adaptTripPattern(metroToAddress); });
+
+  it('returns non-null — was null before the foot-leg name guard fix', () => {
+    expect(result).not.toBeNull();
+  });
+
+  it('destinationDisplay.frontText falls back to last transit stop name', () => {
+    expect(result.destinationDisplay.frontText).toBe('Stortinget');
+  });
+
+  it('_isTransfer is true (foot leg appended)', () => {
+    expect(result._isTransfer).toBe(true);
+  });
+
+  it('_legs contains only the metro leg', () => {
+    expect(result._legs).toHaveLength(1);
+    expect(result._legs[0].mode).toBe('metro');
+  });
+
+  it('_finalArrival comes from foot leg expectedEndTime', () => {
+    expect(result._finalArrival).toBe('2026-05-28T10:31:00+02:00');
+  });
+
+  it('departure time comes from metro leg', () => {
+    expect(result.expectedDepartureTime).toBe('2026-05-28T10:00:00+02:00');
+  });
+
+  it('_transfers is empty', () => {
+    expect(result._transfers).toHaveLength(0);
   });
 });
 

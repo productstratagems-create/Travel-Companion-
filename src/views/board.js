@@ -6,6 +6,7 @@ import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern } from '../api/adapt.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
+import { fmtMins } from '../ui/fmt.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -61,8 +62,9 @@ export function renderBoard() {
   visibleDeps.forEach(({ c, origIdx }) => {
     const depTs = new Date(c.expectedDepartureTime).getTime();
     const diffSec = Math.floor((depTs - now) / 1000);
-    const mins = Math.floor(diffSec / 60), secs = diffSec % 60;
-    const isNow = mins <= 0, urgent = mins <= 2;
+    const mins = Math.floor(Math.max(0, diffSec) / 60);
+    const secs = Math.max(0, diffSec) % 60;
+    const isNow = diffSec <= 0, urgent = diffSec > 0 && mins <= 2;
     const ln = c.serviceJourney && c.serviceJourney.line;
     const lc = (ln && ln.publicCode) || '?';
     const lbg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
@@ -100,9 +102,13 @@ export function renderBoard() {
 
     html += '<div class="' + rowCls + '"' + (isCancelled ? '' : ' onclick="window.tap(' + origIdx + ')"') + '>'
       + '<div class="dep-mins' + (urgent ? ' urgent' : '') + (isNow ? ' now' : '') + '">'
-      + (isNow ? 'NÅ' : String(mins))
-      + (isNow && secs > 0 ? '<span class="unit">' + secs + 's</span>' : '')
-      + (!isNow ? '<span class="unit">min</span>' : '')
+      + (() => {
+          if (isNow) return 'NÅ';
+          if (diffSec < 60) return secs + '<span class="unit">sek</span>';
+          if (mins < 60)    return mins + '<span class="unit">min</span>';
+          const h = Math.floor(mins / 60), rm = mins % 60;
+          return h + '<span class="unit">t</span>' + (rm > 0 ? rm + '<span class="unit">m</span>' : '');
+        })()
       + '</div>'
       + '<div class="dep-mid">'
       + '<div class="dep-top">'
@@ -117,9 +123,7 @@ export function renderBoard() {
       + viaRow
       + (showReach
         ? '<div class="dep-reach ' + rcls + '">'
-          + (rcls === 'r-ok' ? 'gå om ' + mtl + ' min'
-            : rcls === 'r-soon' ? 'gå om ' + mtl + ' min'
-            : 'gå nå')
+          + (rcls === 'r-ok' || rcls === 'r-soon' ? 'gå om ' + fmtMins(mtl) : 'gå nå')
           + '</div>'
         : '')
       + '</div>'

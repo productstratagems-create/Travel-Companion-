@@ -6,6 +6,7 @@ import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
+import { fmtMins } from '../ui/fmt.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -73,9 +74,14 @@ export function renderTrack() {
     const arrTs = leg.arrTime ? new Date(leg.arrTime.time).getTime() : null;
     const mLeft = arrTs !== null ? Math.floor((arrTs - now) / 60000) : null;
     if (mLeft !== null) {
-      nEl.textContent = Math.max(0, mLeft);
+      const ml = Math.max(0, mLeft);
+      nEl.innerHTML = (() => {
+        if (ml < 60) return ml + '<span class="cnt-unit">min</span>';
+        const h = Math.floor(ml / 60), rm = ml % 60;
+        return h + 't<span class="cnt-unit">' + (rm > 0 ? rm + 'm' : '') + '</span>';
+      })();
       nEl.className = 'track-num' + (mLeft <= 2 ? ' urgent' : '');
-      lEl.textContent = isLastLeg ? 'min til ankomst' : (mLeft <= 0 ? 'gå av nå' : 'min til bytte');
+      lEl.textContent = isLastLeg ? 'til ankomst' : (mLeft <= 0 ? 'gå av nå' : 'til bytte');
     } else {
       nEl.textContent = '—'; nEl.className = 'track-num'; lEl.textContent = 'venter på data';
     }
@@ -90,9 +96,14 @@ export function renderTrack() {
     const depTs = nextLeg && nextLeg.depTime ? new Date(nextLeg.depTime.time).getTime() : null;
     const mToDep = depTs !== null ? Math.round((depTs - now) / 60000) : null;
     if (mToDep !== null) {
-      nEl.textContent = Math.max(0, mToDep);
+      const md = Math.max(0, mToDep);
+      nEl.innerHTML = (() => {
+        if (md < 60) return md + '<span class="cnt-unit">min</span>';
+        const h = Math.floor(md / 60), rm = md % 60;
+        return h + 't<span class="cnt-unit">' + (rm > 0 ? rm + 'm' : '') + '</span>';
+      })();
       nEl.className = 'track-num' + (mToDep <= 1 ? ' urgent' : '');
-      lEl.textContent = 'min til avgang';
+      lEl.textContent = 'til avgang';
     } else {
       nEl.textContent = '—'; nEl.className = 'track-num'; lEl.textContent = 'venter på data';
     }
@@ -162,7 +173,7 @@ export function renderTrack() {
       const arrT = s.expectedArrivalTime || s.aimedArrivalTime || depT;
       const arrTs = arrT ? new Date(arrT).getTime() : null;
       const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
-      const relTxt = ma === null ? '—' : ma <= 0 ? 'nå' : ma === 1 ? '1 min' : 'om ' + ma + ' min';
+      const relTxt = ma === null ? '—' : ma <= 0 ? 'nå' : 'om ' + fmtMins(ma);
       rows.push({ nm, arrT, ma, relTxt, isTransfer: !isLastLeg && isEnd, isDest: isLastLeg && isEnd });
       if (isEnd) pastTo = true;
     });
@@ -185,7 +196,7 @@ export function renderTrack() {
     if (!nextPreStop) return '';
     const arrTs = nextPreStop.arrT ? new Date(nextPreStop.arrT).getTime() : null;
     const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
-    const relTxt = ma !== null ? (ma <= 0 ? ' · nå' : ' · om ' + ma + ' min') : '';
+    const relTxt = ma !== null ? (ma <= 0 ? ' · nå' : ' · om ' + fmtMins(ma)) : '';
     const vehicleLabel = legs[legIdx] && legs[legIdx].mode === 'bus' ? 'bussen er nå ved'
       : legs[legIdx] && legs[legIdx].mode === 'tram' ? 'trikken er nå ved'
       : 'toget er nå ved';
@@ -203,7 +214,7 @@ export function renderTrack() {
       const arrT = leg.arrTime;
       const mToAction = arrT ? (() => {
         const m = Math.floor((new Date(arrT.time).getTime() - now) / 60000);
-        return m <= 0 ? 'nå' : 'om ' + m + ' min';
+        return m <= 0 ? 'nå' : 'om ' + fmtMins(m);
       })() : null;
       headerHtml = '<div class="ct-detail">'
         + '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
@@ -219,7 +230,7 @@ export function renderTrack() {
         ? Math.round((new Date(leg.depTime.time).getTime() - now) / 60000)
         : null;
       const depStatus = mToDep === null ? ''
-        : mToDep > 0 ? 'om ' + mToDep + ' min'
+        : mToDep > 0 ? 'om ' + fmtMins(mToDep)
         : mToDep === 0 ? 'nå' : 'avgått';
       headerHtml = '<div class="ct-detail">'
         + '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'

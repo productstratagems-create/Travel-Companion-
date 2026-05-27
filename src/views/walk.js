@@ -1,8 +1,9 @@
 import config from '../config.js';
 import { state } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
+import { fmtMins } from '../ui/fmt.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -42,18 +43,21 @@ export function renderWalk() {
   const wk = walkInfo();
   const leaveByTs = depTs - wk.mins * 60000;
   const msLeft = leaveByTs - now;
-  const mtl = Math.floor(msLeft / 60000);
-  const stl = Math.floor((msLeft % 60000) / 1000);
+  // Use non-negative seconds for display; negative msLeft = late
+  const isLate = msLeft < 0;
+  const secsLeft = isLate ? 0 : Math.floor(msLeft / 1000);
+  const mtl = Math.floor(secsLeft / 60);   // minutes component
+  const stl = secsLeft % 60;               // seconds component (0–59)
   const dir = config.dirs[state.dIdx];
   const firstMode = c._legs && c._legs[0] && c._legs[0].mode;
   const vehicleWord = firstMode === 'bus' ? 'Bussen' : firstMode === 'tram' ? 'Trikken' : 'Toget';
 
   let phase;
-  if (depMinLeft <= 2)     phase = 'here';
-  else if (mtl <= 0)       phase = 'gonow';
-  else if (mtl <= 2)       phase = 'urgent';
-  else if (mtl <= 6)       phase = 'soon';
-  else                     phase = 'calm';
+  if (depMinLeft <= 2)          phase = 'here';
+  else if (isLate)              phase = 'gonow';
+  else if (mtl <= 2)            phase = 'urgent';  // 0–2 min (incl. sub-minute)
+  else if (mtl <= 6)            phase = 'soon';
+  else                          phase = 'calm';
 
   document.getElementById('w-board-btn-wrap').style.display = 'block';
   const bb = document.getElementById('w-board-btn-wrap').querySelector('button');
@@ -67,7 +71,7 @@ export function renderWalk() {
   let numEl, lblEl, ctxEl, secsEl;
   if (phase === 'here') {
     numEl = '<div class="walk-num here">FREMME</div>';
-    lblEl = '<div class="walk-label here">' + vehicleWord + ' avgår ' + (depMinLeft <= 0 ? 'nå' : 'om ' + depMinLeft + ' min') + '</div>';
+    lblEl = '<div class="walk-label here">' + vehicleWord + ' avgår ' + (depMinLeft <= 0 ? 'nå' : 'om ' + fmtMins(depMinLeft)) + '</div>';
     ctxEl = (depQuay || (firstTransfer && firstTransfer.platform))
       ? '<div class="walk-context">'
         + (depQuay ? 'spor <span class="wc-hl">' + depQuay + '</span>' : '')
@@ -78,9 +82,10 @@ export function renderWalk() {
       : '';
     secsEl = '';
   } else if (phase === 'gonow') {
-    const lateMin = Math.abs(mtl);
+    const lateSec = Math.abs(Math.floor(msLeft / 1000));
+    const lateMin = Math.floor(lateSec / 60);
     numEl = '<div class="walk-num gonow">GÅ<br>NÅ</div>';
-    lblEl = '<div class="walk-label gonow">' + vehicleWord + ' avgår om ' + depMinLeft + ' min' + (lateMin > 0 ? ' · ' + lateMin + ' min sen' : '') + '</div>';
+    lblEl = '<div class="walk-label gonow">' + vehicleWord + ' avgår om ' + fmtMins(depMinLeft) + (lateMin > 0 ? ' · ' + lateMin + ' min sen' : '') + '</div>';
     ctxEl = depQuay
       ? '<div class="walk-context">spor <span class="wc-hl">' + depQuay + '</span></div>'
       : '';
@@ -89,8 +94,19 @@ export function renderWalk() {
     const arrCall = findArr(c.serviceJourney && c.serviceJourney.estimatedCalls, dir.to);
     const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
     const leg1Quay = firstTransfer && firstTransfer.platform;
-    numEl = '<div class="walk-num ' + phase + '">' + mtl + '</div>';
-    lblEl = '<div class="walk-label ' + phase + '">min til du bør gå</div>';
+    // Build countdown number: sek < 1 min · min 1–59 · t+m ≥ 1 h
+    let cntNumHtml, cntUnit;
+    if (mtl === 0) {
+      cntNumHtml = stl; cntUnit = 'sek';
+    } else if (mtl < 60) {
+      cntNumHtml = mtl; cntUnit = 'min';
+    } else {
+      const h = Math.floor(mtl / 60), rm = mtl % 60;
+      cntNumHtml = h + 't'; cntUnit = rm > 0 ? rm + 'm' : '';
+    }
+    numEl = '<div class="walk-num ' + phase + '">' + cntNumHtml
+      + '<span class="cnt-unit">' + cntUnit + '</span></div>';
+    lblEl = '<div class="walk-label ' + phase + '">til du bør gå</div>';
     ctxEl = '<div class="walk-context">'
       + 'Gå senest <span class="wc-hl">' + clk(leaveByTs) + '</span>'
       + (wk.dist ? ' · ~' + wk.dist + ' m' : '')
@@ -99,9 +115,7 @@ export function renderWalk() {
       + (arrT ? ', ankommer <span class="wc-arr">' + clk(arrT) + '</span>' : '')
       + (leg1Quay && firstTransfer.at ? '<br>Bytt <span class="wc-hl">' + firstTransfer.at.toLowerCase() + '</span> → spor ' + leg1Quay : '')
       + '</div>';
-    secsEl = (phase === 'urgent' && stl > 0)
-      ? '<div class="secs-bar">' + stl + ' sek igjen til du bør gå</div>'
-      : '';
+    secsEl = '';  // unit is now embedded in the number
   }
 
   document.getElementById('w-center').innerHTML = numEl + lblEl + ctxEl + secsEl;
@@ -113,8 +127,7 @@ function renderWalkDeps() {
   if (!el || !state.deps || !state.deps.length) { if (el) el.style.display = 'none'; return; }
   const now = Date.now();
   const dir = config.dirs[state.dIdx];
-  const ns = state.nearestStation;
-  const walkActive = dir.key !== 'in' && ns !== null && dir.stopId === ns.id;
+  const walkActive = isWalkActive(dir);
   const selTs = state.sel ? new Date(state.sel.expectedDepartureTime).getTime() : null;
 
   const indexed = state.deps.map((c, i) => ({ c, i }));
@@ -136,7 +149,9 @@ function renderWalkDeps() {
   let html = '';
   rows.forEach(({ c, i }) => {
     const depTs = new Date(c.expectedDepartureTime).getTime();
-    const mins = Math.floor((depTs - now) / 60000);
+    const depDiffSec = Math.floor((depTs - now) / 1000);
+    const mins = Math.floor(Math.max(0, depDiffSec) / 60);
+    const depSecs = Math.max(0, depDiffSec) % 60;
     const isSel = selTs !== null && Math.abs(depTs - selTs) < 30000;
     const mtl = walkActive ? mToLeave(depTs) : null;
     const missed = walkActive && mtl !== null && reachCls(mtl) === 'missed';
@@ -155,7 +170,13 @@ function renderWalkDeps() {
     const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
     html += '<div class="w-dep-row' + (isSel ? ' active' : '') + (missed ? ' missed' : '') + '"'
       + (isSel ? '' : ' onclick="window.tap(' + i + ')"') + '>'
-      + '<div class="w-dep-mins">' + (mins <= 0 ? 'NÅ' : mins) + (mins > 0 ? '<span>min</span>' : '') + '</div>'
+      + '<div class="w-dep-mins">' + (() => {
+          if (depDiffSec <= 0) return 'NÅ';
+          if (depDiffSec < 60) return depSecs + '<span>sek</span>';
+          if (mins < 60)       return mins + '<span>min</span>';
+          const h = Math.floor(mins / 60), rm = mins % 60;
+          return h + '<span>t</span>' + (rm > 0 ? rm + '<span>m</span>' : '');
+        })() + '</div>'
       + '<div class="w-dep-mid">' + badges + '<span class="w-dep-dest">' + dest + '</span>' + (arrT ? '<span class="w-dep-arr">ank.' + clk(arrT) + '</span>' : '') + '</div>'
       + '</div>';
   });

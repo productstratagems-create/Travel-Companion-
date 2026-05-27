@@ -12,6 +12,13 @@
 .track-num.arrived{color:#4ade80;text-shadow:0 0 36px rgba(74,222,128,.55),0 0 80px rgba(74,222,128,.2);font-size:clamp(2.5rem,10vw,4rem)}
 .track-num.transfer{color:#f97316;text-shadow:0 0 36px rgba(249,115,22,.55),0 0 80px rgba(249,115,22,.2);font-size:clamp(2.5rem,10vw,4rem)}
 .track-num-label{font-size:11px;text-transform:uppercase;letter-spacing:.3em;color:#78716c;margin-top:.3rem}
+/* Unit label inside the large track countdown number */
+.track-num .cnt-unit{
+  display:block;
+  font-family:"JetBrains Mono",monospace;
+  font-size:.18em;text-transform:uppercase;letter-spacing:.2em;
+  opacity:.55;margin-top:.05em;line-height:1;
+}
 .track-arr-clock{
   font-family:"Bebas Neue",sans-serif;font-size:2rem;
   color:#fbbf24;text-align:center;letter-spacing:.04em;

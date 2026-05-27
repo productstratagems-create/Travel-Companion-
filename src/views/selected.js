@@ -6,6 +6,7 @@ import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
+import { fmtMins } from '../ui/fmt.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -36,8 +37,7 @@ export function renderSelected() {
   let urgMsg;
   if (rcls === 'missed') urgMsg = '<span style="color:#dc2626">Rakker ikke — velg neste avgang</span>';
   else if (rcls === 'r-now') urgMsg = '<span class="go">Gå nå!</span>';
-  else if (mtl === 1) urgMsg = 'Gå om <span class="warn">1 min</span>';
-  else urgMsg = 'Gå om <span class="amber">' + mtl + ' min</span>';
+  else urgMsg = 'Gå om <span class="amber">' + fmtMins(mtl) + '</span>';
 
   const walkActive = isWalkActive(dir);
   const isTransfer = c._isTransfer && c._legs && c._legs.length >= 2;
@@ -204,7 +204,9 @@ function renderSelDeps() {
   let html = '';
   rows.forEach(({ c, i }) => {
     const depTs = new Date(c.expectedDepartureTime).getTime();
-    const mins = Math.floor((depTs - now) / 60000);
+    const depDiffSec = Math.floor((depTs - now) / 1000);
+    const mins = Math.floor(Math.max(0, depDiffSec) / 60);
+    const depSecs = Math.max(0, depDiffSec) % 60;
     const isSel = selTs !== null && Math.abs(depTs - selTs) < 30000;
     const ln = c.serviceJourney && c.serviceJourney.line;
     const bg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
@@ -221,7 +223,13 @@ function renderSelDeps() {
     const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
     html += '<div class="w-dep-row' + (isSel ? ' active' : '') + '"'
       + (isSel ? '' : ' onclick="window.tap(' + i + ')"') + '>'
-      + '<div class="w-dep-mins">' + (mins <= 0 ? 'NÅ' : mins) + (mins > 0 ? '<span>min</span>' : '') + '</div>'
+      + '<div class="w-dep-mins">' + (() => {
+          if (depDiffSec <= 0) return 'NÅ';
+          if (depDiffSec < 60) return depSecs + '<span>sek</span>';
+          if (mins < 60)       return mins + '<span>min</span>';
+          const h = Math.floor(mins / 60), rm = mins % 60;
+          return h + '<span>t</span>' + (rm > 0 ? rm + '<span>m</span>' : '');
+        })() + '</div>'
       + '<div class="w-dep-mid">' + badges + '<span class="w-dep-dest">' + dest + '</span>' + (arrT ? '<span class="w-dep-arr">ank.' + clk(arrT) + '</span>' : '') + '</div>'
       + '</div>';
   });

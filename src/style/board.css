@@ -53,6 +53,7 @@
 }
 .dep-mins.urgent{color:#fbbf24;text-shadow:0 0 18px rgba(251,191,36,.7)}
 .dep-mins.now{font-size:1.8rem}
+.dep-mins.clock{font-size:1.4rem;letter-spacing:.04em;text-shadow:none;color:#a89060}
 .dep-mins .unit{
   display:block;font-family:"JetBrains Mono",monospace;
   font-size:9px;text-transform:uppercase;letter-spacing:.2em;

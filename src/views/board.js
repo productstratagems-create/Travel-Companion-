@@ -81,8 +81,9 @@ export function renderBoard() {
     const showReach = walkActive && rcls && !missed && (rcls !== 'r-now' || !urgentShown);
     if (rcls === 'r-now') urgentShown = true;
 
-    const lineBadges = c._legs
-      ? c._legs.map(l => {
+    const visLegs = c._legs ? c._legs.slice(0, 3) : null;
+    const lineBadges = visLegs
+      ? visLegs.map(l => {
           const ll = l.serviceJourney && l.serviceJourney.line;
           const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
           const lcode = (ll && ll.publicCode) || '?';
@@ -95,6 +96,7 @@ export function renderBoard() {
     const minsLabel = isNow ? 'nå' : mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' t' + (mins % 60 > 0 ? ' ' + mins % 60 + ' m' : '');
     const a11yLabel = lc + ' mot ' + dest + ', avgang om ' + minsLabel + (quay !== '?' ? ', spor ' + quay : '');
 
+    const isClock = mins >= 60;
     html += '<div class="' + rowCls + '"'
       + (isCancelled
         ? ''
@@ -103,13 +105,12 @@ export function renderBoard() {
           + ' aria-label="' + a11yLabel.replace(/"/g, '&quot;') + '"'
           + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.tap(' + origIdx + ')}"'
       ) + '>'
-      + '<div class="dep-mins' + (urgent ? ' urgent' : '') + (isNow ? ' now' : '') + '">'
+      + '<div class="dep-mins' + (urgent ? ' urgent' : '') + (isNow ? ' now' : '') + (isClock ? ' clock' : '') + '">'
       + (() => {
           if (isNow) return 'NÅ';
           if (diffSec < 60) return secs + '<span class="unit">sek</span>';
           if (mins < 60)    return mins + '<span class="unit">min</span>';
-          const h = Math.floor(mins / 60), rm = mins % 60;
-          return h + '<span class="unit">t</span>' + (rm > 0 ? rm + '<span class="unit">m</span>' : '');
+          return clk(depTs);
         })()
       + '</div>'
       + '<div class="dep-mid">'

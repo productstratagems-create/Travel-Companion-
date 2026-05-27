@@ -231,8 +231,9 @@ function renderSelDeps() {
     const isSel = selTs !== null && Math.abs(depTs - selTs) < 30000;
     const ln = c.serviceJourney && c.serviceJourney.line;
     const bg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
-    const badges = c._legs
-      ? c._legs.map(l => {
+    const visLegs = c._legs ? c._legs.slice(0, 3) : null;
+    const badges = visLegs
+      ? visLegs.map(l => {
           const ll = l.serviceJourney && l.serviceJourney.line;
           const lbg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
           return '<span class="line-badge" style="background:' + lbg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
@@ -252,12 +253,11 @@ function renderSelDeps() {
           + ' aria-label="' + sA11y.replace(/"/g, '&quot;') + '"'
           + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.tap(' + i + ')}"'
       ) + '>'
-      + '<div class="w-dep-mins">' + (() => {
+      + '<div class="w-dep-mins' + (mins >= 60 ? ' clock' : '') + '">' + (() => {
           if (depDiffSec <= 0) return 'NÅ';
           if (depDiffSec < 60) return depSecs + '<span>sek</span>';
           if (mins < 60)       return mins + '<span>min</span>';
-          const h = Math.floor(mins / 60), rm = mins % 60;
-          return h + '<span>t</span>' + (rm > 0 ? rm + '<span>m</span>' : '');
+          return clk(depTs);
         })() + '</div>'
       + '<div class="w-dep-mid">' + badges + '<span class="w-dep-dest">' + dest + '</span>' + (arrT ? '<span class="w-dep-arr">ank.' + clk(arrT) + '</span>' : '') + '</div>'
       + '</div>';

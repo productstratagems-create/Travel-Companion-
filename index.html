@@ -37,30 +37,30 @@
   </div>
   <button id="fav-btn" class="fav-bar" type="button">★ favoritter</button>
   <div id="board-error" role="alert" style="display:none;padding:.6rem;margin:.5rem 0;font-size:11px;color:#fca5a5;background:rgba(220,38,38,.08);border-radius:4px"></div>
-  <button id="onboard-chip" onclick="window.jnyGoTracking&&window.jnyGoTracking()" aria-label="gå til sporingsskjerm" style="display:none;width:100%;text-align:left;font-family:inherit;align-items:center;padding:.6rem .75rem;margin:.5rem 0;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:6px;cursor:pointer;gap:.5rem"></button>
+  <button id="onboard-chip" onclick="window.jnyGoTracking&&window.jnyGoTracking()" aria-label="vis reise underveis" style="display:none;width:100%;text-align:left;font-family:inherit;align-items:center;padding:.6rem .75rem;margin:.5rem 0;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:6px;cursor:pointer;gap:.5rem"></button>
   <div id="walk-summary" style="display:none"></div>
   <div id="dep-list"></div>
 </div>
 
-<!-- ══ 2a: VELG AVGANG ══ -->
+<!-- ══ 2a: AVGANGSDETALJER ══ -->
 <div id="v-selected" style="display:none">
   <div class="screen-header">
     <button class="nav-back" id="s-back">← avganger</button>
-    <span class="screen-label" role="heading" aria-level="2">velg avgang</span>
+    <span class="screen-label" role="heading" aria-level="2">avgangsdetaljer</span>
   </div>
   <div id="s-content"></div>
 </div>
 
-<!-- ══ 2b: GANGE-MODUS ══ -->
+<!-- ══ 2b: GANGTID ══ -->
 <div id="v-walk" style="display:none">
   <div class="screen-header">
     <button class="nav-back" id="w-back">← avgang</button>
-    <span class="screen-label" role="heading" aria-level="2">gange-modus</span>
+    <span class="screen-label" role="heading" aria-level="2">gangtid</span>
   </div>
   <div class="train-bar" id="w-train-bar"></div>
   <div class="walk-center" id="w-center" aria-live="polite"></div>
   <div id="w-board-btn-wrap" style="display:none">
-    <button class="cta-btn" onclick="window.doBoard&&window.doBoard()">bord →</button>
+    <button class="cta-btn" onclick="window.doBoard&&window.doBoard()">reis →</button>
   </div>
   <div id="w-dep-list" style="display:none"></div>
 </div>
@@ -68,8 +68,8 @@
 <!-- ══ 3: TRACKING ══ -->
 <div id="v-track" style="display:none">
   <div class="screen-header">
-    <button class="nav-back" id="alight-btn">← avbord</button>
-    <span class="screen-label" role="heading" aria-level="2">ombord</span>
+    <button class="nav-back" id="alight-btn">← avslutt</button>
+    <span class="screen-label" role="heading" aria-level="2">underveis</span>
   </div>
   <div class="train-bar" id="t-train-bar"></div>
   <div class="track-center">
@@ -85,7 +85,7 @@
 <div id="v-settings" style="display:none">
   <div class="screen-header">
     <button class="nav-back" id="set-back">← tilbake</button>
-    <span class="screen-label" role="heading" aria-level="2">din destinasjon</span>
+    <span class="screen-label" role="heading" aria-level="2">velg rute</span>
   </div>
   <div id="set-dep-wrap" class="set-section">
     <label class="set-label" for="set-dep">fra stasjon</label>

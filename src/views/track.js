@@ -270,7 +270,7 @@ export function renderTrack() {
   if (phase === 'arrived') {
     cards = '<div class="state-msg" style="padding:1rem;font-size:11px;color:#57534e">ankommet · ' + state.jny.dest.toLowerCase() + '</div>';
   } else if (phase === 'riding') {
-    cards += buildLegCard(i, 'ombord', true);
+    cards += buildLegCard(i, 'underveis', true);
     for (let j = i + 1; j < legs.length; j++) {
       cards += buildLegCard(j, cardLabel(legs[j].mode, j === i + 1), false);
     }

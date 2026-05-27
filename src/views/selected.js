@@ -159,7 +159,7 @@ export function renderSelected() {
       startBoard();
     };
   } else if (walkActive) {
-    primaryBtn.textContent = 'gange-modus →';
+    primaryBtn.textContent = 'gangtid →';
     primaryBtn.disabled = depTs < now - 120000;
     primaryBtn.onclick = () => {
       show('v-walk');
@@ -167,7 +167,7 @@ export function renderSelected() {
       window._renderWalk && window._renderWalk();
     };
   } else {
-    primaryBtn.textContent = 'bord →';
+    primaryBtn.textContent = 'reis →';
     primaryBtn.disabled = depTs < now - 120000;
     primaryBtn.onclick = () => window.doBoard && window.doBoard();
   }

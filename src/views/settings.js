@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { state } from '../state.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
-import { geocodePlace } from '../api/entur.js';
+import { geocodePlace, geocodeDest } from '../api/entur.js';
 
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
@@ -97,10 +97,39 @@ export function initSettings() {
     suggestStops(e.target.value.trim(), 'dep-sugg', 'set-dep', 'set-dep-clear', _depStopIds,
       () => _depAbort, v => { _depAbort = v; },
       () => _depTimer, v => { _depTimer = v; }));
-  if (arrEl) arrEl.addEventListener('input', e =>
-    suggestStops(e.target.value.trim(), 'arr-sugg', 'set-arr', 'set-arr-clear', _arrStopIds,
-      () => _arrAbort, v => { _arrAbort = v; },
-      () => _arrTimer, v => { _arrTimer = v; }));
+  if (arrEl) arrEl.addEventListener('input', e => {
+    const q = e.target.value.trim();
+    clearTimeout(_arrTimer);
+    const suggEl = document.getElementById('arr-sugg');
+    if (q.length < 2) { if (suggEl) { suggEl.hidden = true; suggEl.innerHTML = ''; } return; }
+    _arrTimer = setTimeout(() => {
+      if (_arrAbort) { _arrAbort.abort(); }
+      _arrAbort = new AbortController();
+      geocodeDest(q).then(results => {
+        const sugg = document.getElementById('arr-sugg');
+        const inp = document.getElementById('set-arr');
+        if (!sugg || !inp) return;
+        _arrStopIds.clear();
+        sugg.innerHTML = '';
+        if (!results.length) { sugg.hidden = true; return; }
+        results.forEach(r => {
+          _arrStopIds.set(r.label, { id: r.id, lat: r.lat, lon: r.lon });
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = r.label;
+          btn.addEventListener('mousedown', ev => ev.preventDefault());
+          btn.addEventListener('click', () => {
+            inp.value = r.label;
+            sugg.hidden = true;
+            sugg.innerHTML = '';
+            syncClear('set-arr', 'set-arr-clear');
+          });
+          sugg.appendChild(btn);
+        });
+        sugg.hidden = false;
+      }).catch(() => {});
+    }, 250);
+  });
 
   const viaEl = document.getElementById('set-via');
   if (viaEl) viaEl.addEventListener('input', e =>
@@ -328,9 +357,11 @@ export function applyRoute() {
   const depLat = depMatchesGps ? ns.lat  : (depNearby ? depNearby.lat : (depEntry ? depEntry.lat : null));
   const depLon = depMatchesGps ? ns.lon  : (depNearby ? depNearby.lon : (depEntry ? depEntry.lon : null));
 
-  // Resolve destination stop ID: autocomplete map > geocode
+  // Resolve destination: autocomplete map gives { id, lat, lon }; id may be null for addresses
   const arrEntry = _arrStopIds.get(arr);  // { id, lat, lon } | null
-  const arrId = arrEntry ? arrEntry.id : null;
+  const arrId  = arrEntry ? arrEntry.id  : null;
+  const arrLat = arrEntry ? arrEntry.lat : null;
+  const arrLon = arrEntry ? arrEntry.lon : null;
 
   // Resolve optional via stop ID: autocomplete map > geocode
   const viaRaw = (document.getElementById('set-via') || {}).value;
@@ -346,13 +377,15 @@ export function applyRoute() {
     toStopId: arrId,
     filter:   null,
     geo:      depId ? null : dep,
-    toGeo:    arrId ? null : arr,
+    toGeo:    (arrId || arrLat) ? null : arr,
     line:     null,
     via:      via || null,
     viaStopId: viaId || null,
     viaGeo:   (via && !viaId) ? via : null,
     _fromLat: depLat,
     _fromLon: depLon,
+    _toLat:   arrLat,
+    _toLon:   arrLon,
   };
   state.dIdx = 2;
   saveDep(dep);

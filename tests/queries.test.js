@@ -45,6 +45,16 @@ describe('tripGQL(fromId, toId, viaId, n)', () => {
 
   // REGRESSION: {transportMode:bus} was accidentally removed, causing zero results
   // for any non-metro destination. This test prevents that regression.
+  it('supports coordinate-based destination', () => {
+    const cq = tripGQL('NSR:StopPlace:5687', { lat: 59.912, lon: 10.744 }, null);
+    expect(cq).toContain('to:{coordinates:{latitude:59.912,longitude:10.744}}');
+    expect(cq).not.toContain('to:{place:');
+  });
+
+  it('uses place-based destination for stop ID strings', () => {
+    expect(q).toContain('to:{place:"NSR:StopPlace:58366"}');
+  });
+
   it('includes metro transport mode', () => {
     expect(q).toContain('{transportMode:metro}');
   });

@@ -6,7 +6,9 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
     + sits + ' serviceJourney{' + sits + '}}} '
     + 'trip('
     + 'from:{place:"' + fromId + '"} '
-    + 'to:{place:"' + toId + '"} '
+    + (toId && typeof toId === 'object'
+      ? 'to:{coordinates:{latitude:' + toId.lat + ',longitude:' + toId.lon + '}} '
+      : 'to:{place:"' + toId + '"} ')
     + (viaId ? 'via:[{visit:{stopLocationIds:["' + viaId + '"]}}] ' : '')
     + 'numTripPatterns:' + (n || 12) + ' '
     + 'walkSpeed:' + (walkSpeed || 1.3) + ' '

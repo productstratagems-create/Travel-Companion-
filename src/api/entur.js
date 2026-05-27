@@ -71,6 +71,25 @@ export function resolveViaStop(dir) {
     });
 }
 
+export function geocodeDest(query) {
+  return fetch(config.api.geocoder
+    + '?text=' + encodeURIComponent(query)
+    + '&size=8&layers=venue,address&focus.point.lat=59.9139&focus.point.lon=10.7522')
+    .then(r => r.json())
+    .then(json => ((json && json.features) || [])
+      .filter(f => f.geometry && f.geometry.coordinates && f.geometry.coordinates[1])
+      .map(f => {
+        const isTransit = (f.properties.category || []).some(c => TRANSIT_CAT.includes(c));
+        return {
+          label: f.properties.name || f.properties.label || '',
+          id:    isTransit ? f.properties.id : null,
+          lat:   f.geometry.coordinates[1],
+          lon:   f.geometry.coordinates[0],
+        };
+      })
+    );
+}
+
 export function geocodePlace(query) {
   return fetch(config.api.geocoder
     + '?text=' + encodeURIComponent(query)
@@ -86,17 +105,32 @@ export function geocodePlace(query) {
     );
 }
 
+export function resolveToPlace(dir) {
+  if (dir.toStopId) return Promise.resolve(dir.toStopId);
+  if (dir._toLat && dir._toLon) return Promise.resolve({ lat: dir._toLat, lon: dir._toLon });
+  if (!dir.toGeo) return Promise.reject(new Error('Ingen destinasjon'));
+  return resolveToStop(dir).catch(() =>
+    geocodePlace(dir.toGeo).then(results => {
+      if (!results.length) throw new Error('Fant ikke ' + dir.toGeo);
+      dir._toLat = results[0].lat;
+      dir._toLon = results[0].lon;
+      return { lat: results[0].lat, lon: results[0].lon };
+    })
+  );
+}
+
 export function fetchTrip(dir, onSuccess, onError) {
   if (tripController) tripController.abort();
   tripController = new AbortController();
   const signal = tripController.signal;
 
   setDot('loading');
-  Promise.all([resolveStop(dir), resolveToStop(dir), resolveViaStop(dir)])
+  Promise.all([resolveStop(dir), resolveToPlace(dir), resolveViaStop(dir)])
     .then(([fromId, toId, viaId]) => {
       if (signal.aborted) return;
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
-      logMsg('trip → ' + fromId + (viaId ? ' via ' + viaId : '') + ' → ' + toId);
+      const toLabel = typeof toId === 'object' ? toId.lat + ',' + toId.lon : toId;
+      logMsg('trip → ' + fromId + (viaId ? ' via ' + viaId : '') + ' → ' + toLabel);
       return fetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -149,7 +149,7 @@ export function stopBoard() {
 
 function _fetchBoard() {
   const dir = config.dirs[state.dIdx];
-  if (dir.toGeo || dir.toStopId) {
+  if (dir.toGeo || dir.toStopId || (dir._toLat && dir._toLon)) {
     fetchTrip(dir, (patterns, situations) => {
       // Populate statLL from geocoded departure coords (covers GPS-unavailable + walkFromLL path)
       if (dir._fromLat && dir._fromLon) {

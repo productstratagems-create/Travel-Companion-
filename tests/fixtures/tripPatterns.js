@@ -429,6 +429,47 @@ export const fullJourney = {
   ],
 };
 
+// Metro → foot to coordinate address (toPlace.name is empty string).
+// This is the shape OTP3 returns when the destination is lat/lon coords.
+// Before the fix, adaptTripPattern returned null for ALL such patterns.
+export const metroToAddress = {
+  duration: 1860,
+  legs: [
+    {
+      mode: 'metro',
+      fromPlace: { name: 'Mortensrud' },
+      toPlace: { name: 'Stortinget' },
+      serviceJourney: {
+        id: 'RUT:ServiceJourney:3-999',
+        line: { publicCode: '3', presentation: { colour: '8B0000' } },
+      },
+      fromEstimatedCall: {
+        expectedDepartureTime: '2026-05-28T10:00:00+02:00',
+        aimedDepartureTime:    '2026-05-28T10:00:00+02:00',
+        realtime: true,
+        quay: { publicCode: '1' },
+        destinationDisplay: { frontText: 'Kolsås' },
+      },
+      toEstimatedCall: {
+        expectedArrivalTime: '2026-05-28T10:20:00+02:00',
+        aimedArrivalTime:    '2026-05-28T10:20:00+02:00',
+      },
+    },
+    {
+      mode: 'foot',
+      fromPlace: { name: 'Stortinget' },
+      toPlace: { name: '' },       // empty — coordinates have no stop name
+      serviceJourney: null,
+      fromEstimatedCall: null,
+      toEstimatedCall: null,
+      aimedStartTime:    '2026-05-28T10:20:00+02:00',
+      expectedStartTime: '2026-05-28T10:20:00+02:00',
+      aimedEndTime:      '2026-05-28T10:31:00+02:00',
+      expectedEndTime:   '2026-05-28T10:31:00+02:00',
+    },
+  ],
+};
+
 // All foot — must return null
 export const allFoot = {
   duration: 300,

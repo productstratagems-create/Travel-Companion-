@@ -23,6 +23,8 @@ export function resolveStop(dir) {
       ) || ff.find(f => (f.properties.label || '').toLowerCase().indexOf(q) !== -1);
       if (!m) throw new Error('Fant ikke ' + dir.geo);
       dir.stopId = m.properties.id;
+      dir._fromLat = m.geometry.coordinates[1];
+      dir._fromLon = m.geometry.coordinates[0];
       logMsg('stop: ' + dir.from + ' = ' + dir.stopId, 'ok');
       return dir.stopId;
     });

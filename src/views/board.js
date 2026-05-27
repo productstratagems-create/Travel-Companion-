@@ -146,6 +146,11 @@ function _fetchBoard() {
   const dir = config.dirs[state.dIdx];
   if (dir.toGeo || dir.toStopId) {
     fetchTrip(dir, (patterns, situations) => {
+      // Populate statLL from geocoded departure coords (covers GPS-unavailable + walkFromLL path)
+      if (dir._fromLat && dir._fromLon) {
+        state.statLL[dir.key] = { lat: dir._fromLat, lon: dir._fromLon };
+        window._updateWalkDbg && window._updateWalkDbg();
+      }
       state.serviceAlerts = situations || [];
       logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);
       const adapted = patterns.map(adaptTripPattern).filter(Boolean);

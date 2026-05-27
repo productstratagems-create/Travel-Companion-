@@ -5,7 +5,7 @@ import { fetchBoard, fetchTrip } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern } from '../api/adapt.js';
 import { renderAlerts } from '../ui/alerts.js';
-import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
+import { loadFavs } from '../ui/favs.js';
 import { fmtMins } from '../ui/fmt.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -41,7 +41,6 @@ export function renderBoard() {
   }
   const now = Date.now();
   const walkActive = isWalkActive(dir);
-  const savedFavs = loadFavs();
 
   // For each departure minute keep only the route with the earliest arrival.
   const indexed = state.deps.map((c, i) => ({ c, origIdx: i }));
@@ -82,11 +81,6 @@ export function renderBoard() {
     const showReach = walkActive && rcls && !missed && (rcls !== 'r-now' || !urgentShown);
     if (rcls === 'r-now') urgentShown = true;
 
-    const hhmm = clk(depTs);
-    const isSaved = savedFavs.some(f =>
-      f.type === 'timed' && f.from === dir.from && f.to === dir.to
-      && f.line === lc && f.departureHHMM === hhmm);
-
     const lineBadges = c._legs
       ? c._legs.map(l => {
           const ll = l.serviceJourney && l.serviceJourney.line;
@@ -96,9 +90,7 @@ export function renderBoard() {
         }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
       : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
 
-    const viaRow = c._transfers && c._transfers.length
-      ? '<div class="dep-via">' + c._transfers.map(t => 'bytt ' + (t.at ? t.at.toLowerCase() : '?')).join(' → ') + '</div>'
-      : '';
+    const xferCount = c._transfers && c._transfers.length;
 
     const minsLabel = isNow ? 'nå' : mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' t' + (mins % 60 > 0 ? ' ' + mins % 60 + ' m' : '');
     const a11yLabel = lc + ' mot ' + dest + ', avgang om ' + minsLabel + (quay !== '?' ? ', spor ' + quay : '');
@@ -127,10 +119,10 @@ export function renderBoard() {
       + '</div>'
       + '<div class="dep-info">'
       + '<span class="dep-dest">' + dest + '</span>'
+      + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
       + (delayed ? '<span class="dep-tag">+for</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + '</div>'
-      + viaRow
       + (showReach
         ? '<div class="dep-reach ' + rcls + '">'
           + (rcls === 'r-ok' || rcls === 'r-soon' ? 'gå om ' + fmtMins(mtl) : 'gå nå')
@@ -138,8 +130,6 @@ export function renderBoard() {
         : '')
       + '</div>'
       + '<div class="dep-spor"><div class="sl">spor</div><div class="sn">' + quay + '</div></div>'
-      + '<button class="dep-star' + (isSaved ? ' saved' : '') + '"'
-      + ' onclick="event.stopPropagation();window._toggleTimedFav(' + origIdx + ')" aria-label="lagre avgang">★</button>'
       + '</div>';
   });
   list.innerHTML = html;
@@ -212,20 +202,3 @@ function _fetchBoard() {
 
 window._startBoard = startBoard;
 window._fetchBoard = _fetchBoard;
-
-window._toggleTimedFav = (origIdx) => {
-  const dep = state.deps[origIdx];
-  const dir = config.dirs[state.dIdx];
-  if (!dep || !dir) return;
-  const ln = dep.serviceJourney && dep.serviceJourney.line;
-  const line = (ln && ln.publicCode) || null;
-  const d = new Date(dep.expectedDepartureTime);
-  const hhmm = pad(d.getHours()) + ':' + pad(d.getMinutes());
-  const favs = loadFavs();
-  const existing = favs.find(f =>
-    f.type === 'timed' && f.from === dir.from && f.to === dir.to
-    && f.line === line && f.departureHHMM === hhmm);
-  if (existing) removeFav(existing.id);
-  else addTimedFav(dep, dir);
-  renderBoard();
-};

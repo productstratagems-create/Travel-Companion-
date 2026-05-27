@@ -30,7 +30,7 @@
 /* Departure rows */
 .dep-row{
   display:grid;
-  grid-template-columns:3.8rem 1fr 2.6rem 2rem;
+  grid-template-columns:3.8rem 1fr 2.6rem;
   gap:.75rem;align-items:center;
   padding:.85rem .25rem .85rem .6rem;
   border-left:2px solid transparent;
@@ -82,15 +82,6 @@
 .dep-spor .sl{font-size:7px;text-transform:uppercase;letter-spacing:.2em;color:#8898aa;margin-bottom:.15rem}
 .dep-spor .sn{font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:#f5b840;line-height:1;text-shadow:0 0 8px rgba(245,184,64,.7);background:rgba(30,58,138,.2);border-radius:3px;padding:0 4px}
 
-/* Star save button */
-.dep-star{
-  align-self:stretch;display:flex;align-items:center;justify-content:center;
-  background:none;border:none;color:#2d2926;
-  font-size:.9rem;cursor:pointer;padding:0 .1rem;
-  transition:color .15s;
-}
-.dep-star.saved{color:#f5b840;text-shadow:0 0 8px rgba(245,184,64,.8)}
-.dep-star:active{color:#f5b840}
 
 .fav-bar{
   display:flex;align-items:center;gap:.4rem;width:100%;
@@ -103,7 +94,6 @@
 .fav-bar:active{color:#f5b840}
 
 #walk-summary{font-size:12px;color:#7485a0;padding:.3rem 0 .6rem;letter-spacing:.04em}
-.dep-via{font-size:9px;color:#8898aa;margin-top:.1rem;letter-spacing:.05em}
 .transfer-arrow{font-size:9px;color:#8898aa;margin:0 .15rem;vertical-align:middle}
 
 #service-alerts{margin:.4rem 0}

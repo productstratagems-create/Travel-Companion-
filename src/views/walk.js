@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
+import { walkInfo, findArr, isWalkActive } from '../geo.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { fmtMins } from '../ui/fmt.js';
@@ -119,78 +119,6 @@ export function renderWalk() {
   }
 
   document.getElementById('w-center').innerHTML = numEl + lblEl + ctxEl + secsEl;
-  renderWalkDeps();
-}
-
-function renderWalkDeps() {
-  const el = document.getElementById('w-dep-list');
-  if (!el || !state.deps || !state.deps.length) { if (el) el.style.display = 'none'; return; }
-  const now = Date.now();
-  const dir = config.dirs[state.dIdx];
-  const walkActive = isWalkActive(dir);
-  const selTs = state.sel ? new Date(state.sel.expectedDepartureTime).getTime() : null;
-
-  const indexed = state.deps.map((c, i) => ({ c, i }));
-  indexed.sort((a, b) => new Date(a.c.expectedDepartureTime) - new Date(b.c.expectedDepartureTime));
-  const byMin = new Map();
-  indexed.forEach(({ c, i }) => {
-    const min = Math.floor(new Date(c.expectedDepartureTime) / 60000);
-    const arr = c._finalArrival ? new Date(c._finalArrival).getTime() : Infinity;
-    const cur = byMin.get(min);
-    if (!cur || arr < cur.arr) byMin.set(min, { c, i, arr });
-  });
-
-  const rows = Array.from(byMin.values())
-    .filter(({ c }) => new Date(c.expectedDepartureTime).getTime() > now - 30000)
-    .slice(0, 4);
-
-  if (!rows.length) { el.style.display = 'none'; return; }
-
-  let html = '';
-  rows.forEach(({ c, i }) => {
-    const depTs = new Date(c.expectedDepartureTime).getTime();
-    const depDiffSec = Math.floor((depTs - now) / 1000);
-    const mins = Math.floor(Math.max(0, depDiffSec) / 60);
-    const depSecs = Math.max(0, depDiffSec) % 60;
-    const isSel = selTs !== null && Math.abs(depTs - selTs) < 30000;
-    const mtl = walkActive ? mToLeave(depTs) : null;
-    const missed = walkActive && mtl !== null && reachCls(mtl) === 'missed';
-    const ln = c.serviceJourney && c.serviceJourney.line;
-    const bg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
-    const badges = c._legs
-      ? c._legs.map(l => {
-          const ll = l.serviceJourney && l.serviceJourney.line;
-          const lbg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
-          return '<span class="line-badge" style="background:' + lbg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
-        }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
-      : '<span class="line-badge" style="background:' + bg + '">' + ((ln && ln.publicCode) || '?') + '</span>';
-    const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
-    const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
-    const arrCall = findArr(sjc, dir.to);
-    const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
-    const wMinsLabel = depDiffSec <= 0 ? 'nå' : mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' t' + (mins % 60 > 0 ? ' ' + mins % 60 + ' m' : '');
-    const wA11y = ((ln && ln.publicCode) ? ln.publicCode + ' ' : '') + dest + ', avgang om ' + wMinsLabel;
-    html += '<div class="w-dep-row' + (isSel ? ' active' : '') + (missed ? ' missed' : '') + '"'
-      + (isSel
-        ? ''
-        : ' onclick="window.tap(' + i + ')"'
-          + ' role="button" tabindex="0"'
-          + ' aria-label="' + wA11y.replace(/"/g, '&quot;') + '"'
-          + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.tap(' + i + ')}"'
-      ) + '>'
-      + '<div class="w-dep-mins">' + (() => {
-          if (depDiffSec <= 0) return 'NÅ';
-          if (depDiffSec < 60) return depSecs + '<span>sek</span>';
-          if (mins < 60)       return mins + '<span>min</span>';
-          const h = Math.floor(mins / 60), rm = mins % 60;
-          return h + '<span>t</span>' + (rm > 0 ? rm + '<span>m</span>' : '');
-        })() + '</div>'
-      + '<div class="w-dep-mid">' + badges + '<span class="w-dep-dest">' + dest + '</span>' + (arrT ? '<span class="w-dep-arr">ank.' + clk(arrT) + '</span>' : '') + '</div>'
-      + '</div>';
-  });
-
-  el.innerHTML = html;
-  el.style.display = 'block';
 }
 
 // Expose for nav bridges

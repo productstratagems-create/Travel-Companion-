@@ -2,6 +2,7 @@ import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
 import { fetchSelJourney } from '../api/entur.js';
+import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
@@ -172,6 +173,26 @@ export function renderSelected() {
     primaryBtn.onclick = () => window.doBoard && window.doBoard();
   }
   ctaDiv.appendChild(primaryBtn);
+
+  if (!departed) {
+    const starBtn = document.createElement('button');
+    const hhmm = clk(depTs);
+    const isSaved = loadFavs().some(f =>
+      f.type === 'timed' && f.from === dir.from && f.to === dir.to
+      && f.line === lc && f.departureHHMM === hhmm);
+    starBtn.className = 'cta-btn secondary';
+    starBtn.textContent = isSaved ? '★ lagret' : '☆ lagre avgang';
+    starBtn.onclick = () => {
+      const favs = loadFavs();
+      const existing = favs.find(f =>
+        f.type === 'timed' && f.from === dir.from && f.to === dir.to
+        && f.line === lc && f.departureHHMM === hhmm);
+      if (existing) removeFav(existing.id);
+      else addTimedFav(c, dir);
+      renderSelected();
+    };
+    ctaDiv.appendChild(starBtn);
+  }
 
   document.getElementById('v-selected').appendChild(ctaDiv);
   renderSelDeps();

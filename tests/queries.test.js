@@ -101,8 +101,8 @@ describe('boardGQL(id, n)', () => {
     expect(boardGQL('X')).toContain('numberOfDepartures:10');
   });
 
-  it('whitelists metro mode only (departure board stays metro-only)', () => {
-    expect(q).toContain('whiteListedModes:[metro]');
+  it('whitelists metro and tram modes (departure board)', () => {
+    expect(q).toContain('whiteListedModes:[metro,tram]');
   });
 
   it('requests estimatedCalls with quay and serviceJourney', () => {

@@ -93,14 +93,24 @@ export function renderBoard() {
           const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
           const lcode = (ll && ll.publicCode) || '?';
           return '<span class="line-badge" style="background:' + bg + '">' + lcode + '</span>';
-        }).join('<span class="transfer-arrow">→</span>')
+        }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
       : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
 
     const viaRow = c._transfers && c._transfers.length
       ? '<div class="dep-via">' + c._transfers.map(t => 'bytt ' + (t.at ? t.at.toLowerCase() : '?')).join(' → ') + '</div>'
       : '';
 
-    html += '<div class="' + rowCls + '"' + (isCancelled ? '' : ' onclick="window.tap(' + origIdx + ')"') + '>'
+    const minsLabel = isNow ? 'nå' : mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' t' + (mins % 60 > 0 ? ' ' + mins % 60 + ' m' : '');
+    const a11yLabel = lc + ' mot ' + dest + ', avgang om ' + minsLabel + (quay !== '?' ? ', spor ' + quay : '');
+
+    html += '<div class="' + rowCls + '"'
+      + (isCancelled
+        ? ''
+        : ' onclick="window.tap(' + origIdx + ')"'
+          + ' role="button" tabindex="0"'
+          + ' aria-label="' + a11yLabel.replace(/"/g, '&quot;') + '"'
+          + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.tap(' + origIdx + ')}"'
+      ) + '>'
       + '<div class="dep-mins' + (urgent ? ' urgent' : '') + (isNow ? ' now' : '') + '">'
       + (() => {
           if (isNow) return 'NÅ';

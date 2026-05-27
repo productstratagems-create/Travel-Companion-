@@ -19,6 +19,8 @@ export function logMsg(msg, kind) {
 export function setDot(s) {
   const d = document.getElementById('status-dot');
   d.className = 'status-dot' + (s === 'error' ? ' error' : s === 'loading' ? ' loading' : '');
+  const label = s === 'error' ? 'systemstatus: feil' : s === 'loading' ? 'systemstatus: laster' : 'systemstatus: tilkoblet';
+  d.setAttribute('aria-label', label);
 }
 
 export function initDebugToggle() {

@@ -12,10 +12,26 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 
 /* ── TYPE SCALE ── */
 .num{font-family:"Bebas Neue",sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1}
-.muted{color:#4a5568}
+.muted{color:#8898aa}
 .soft{color:#94a3b8}
 .amber{color:#f5b840}
 .warn{color:#fbbf24}
 .go{color:#f97316}
 .ok{color:#4ade80}
 .dim{opacity:.3}
+
+/* ── ACCESSIBILITY ── */
+/* Screen-reader only utility */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* Visible focus indicator for keyboard users */
+:focus-visible{
+  outline:2px solid #f5b840;
+  outline-offset:3px;
+  border-radius:2px;
+}
+
+/* Reduced motion — disable all animations when user prefers it */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+}

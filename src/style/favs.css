@@ -1,7 +1,7 @@
 /* ── SCREEN: FAVORITTER ── */
 .fav-section-label{
   font-size:9px;text-transform:uppercase;letter-spacing:.15em;
-  color:#4a5568;padding:.75rem 0 .3rem;
+  color:#8898aa;padding:.75rem 0 .3rem;
 }
 .fav-card{
   display:flex;align-items:center;
@@ -22,16 +22,16 @@
   color:#f5b840;line-height:1;flex-shrink:0;
 }
 .fav-timed-route{
-  font-size:11px;color:#78716c;
+  font-size:11px;color:#8c857f;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .fav-del{
   flex-shrink:0;background:none;border:none;
-  color:#4a5568;font-size:14px;padding:.5rem .4rem;
+  color:#8898aa;font-size:14px;padding:.5rem .4rem;
   cursor:pointer;line-height:1;
 }
 .fav-del:active{color:#fca5a5}
 .fav-empty{
-  font-size:12px;color:#4a5568;line-height:1.8;
+  font-size:12px;color:#8898aa;line-height:1.8;
   padding:2rem 0;text-align:center;
 }

@@ -48,7 +48,7 @@ export function renderSelected() {
         const ll = l.serviceJourney && l.serviceJourney.line;
         const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
         return '<span class="line-badge" style="background:' + bg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
-      }).join('<span class="transfer-arrow" style="color:#57534e;font-size:9px;margin:0 .1rem">→</span>')
+      }).join('<span class="transfer-arrow" aria-hidden="true" style="color:#8a837d;font-size:9px;margin:0 .1rem">→</span>')
     : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
 
   // Build journey detail — full itinerary for transfers, 2-cell grid for single-line
@@ -215,14 +215,22 @@ function renderSelDeps() {
           const ll = l.serviceJourney && l.serviceJourney.line;
           const lbg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
           return '<span class="line-badge" style="background:' + lbg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
-        }).join('<span class="transfer-arrow">→</span>')
+        }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
       : '<span class="line-badge" style="background:' + bg + '">' + ((ln && ln.publicCode) || '?') + '</span>';
     const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
     const arrCall = findArr(sjc, dir.to);
     const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
+    const sMinsLabel = depDiffSec <= 0 ? 'nå' : mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' t' + (mins % 60 > 0 ? ' ' + mins % 60 + ' m' : '');
+    const sA11y = ((ln && ln.publicCode) ? ln.publicCode + ' ' : '') + dest + ', avgang om ' + sMinsLabel;
     html += '<div class="w-dep-row' + (isSel ? ' active' : '') + '"'
-      + (isSel ? '' : ' onclick="window.tap(' + i + ')"') + '>'
+      + (isSel
+        ? ''
+        : ' onclick="window.tap(' + i + ')"'
+          + ' role="button" tabindex="0"'
+          + ' aria-label="' + sA11y.replace(/"/g, '&quot;') + '"'
+          + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.tap(' + i + ')}"'
+      ) + '>'
       + '<div class="w-dep-mins">' + (() => {
           if (depDiffSec <= 0) return 'NÅ';
           if (depDiffSec < 60) return depSecs + '<span>sek</span>';

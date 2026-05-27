@@ -108,9 +108,11 @@ export function renderBoard() {
       + '<div class="dep-mid">'
       + '<div class="dep-top">'
       + lineBadges
-      + '<span class="dep-dest">' + dest + '</span>'
       + (arrT ? '<span class="dep-arr">ank.' + clk(arrT) + '</span>' : '')
-      + (delayed ? '<span class="dep-tag">+forsinkelse</span>' : '')
+      + '</div>'
+      + '<div class="dep-info">'
+      + '<span class="dep-dest">' + dest + '</span>'
+      + (delayed ? '<span class="dep-tag">+for</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + '</div>'
       + viaRow

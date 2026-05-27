@@ -81,7 +81,7 @@ export function geocodeDest(query) {
       .map(f => {
         const isTransit = (f.properties.category || []).some(c => TRANSIT_CAT.includes(c));
         return {
-          label: f.properties.name || f.properties.label || '',
+          label: f.properties.label || f.properties.name || '',
           id:    isTransit ? f.properties.id : null,
           lat:   f.geometry.coordinates[1],
           lon:   f.geometry.coordinates[0],

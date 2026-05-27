@@ -10,7 +10,7 @@ export function adaptTripPattern(tp) {
     if (!firstDepTime) return null;
     if (!last.toPlace || !last.toPlace.name) return null;
     const lastAny = tp.legs[tp.legs.length - 1];
-    if (!lastAny.toPlace || !lastAny.toPlace.name) return null;
+    if (lastAny.mode !== 'foot' && (!lastAny.toPlace || !lastAny.toPlace.name)) return null;
     const transfers = legs.slice(0, -1).map((leg, i) => ({
       at:        (leg.toPlace && leg.toPlace.name) || null,
       platform:  (legs[i+1].fromEstimatedCall && legs[i+1].fromEstimatedCall.quay && legs[i+1].fromEstimatedCall.quay.publicCode) || null,
@@ -24,7 +24,7 @@ export function adaptTripPattern(tp) {
       aimedDepartureTime:    first.fromEstimatedCall ? first.fromEstimatedCall.aimedDepartureTime : (first.aimedStartTime || firstDepTime),
       realtime:              first.fromEstimatedCall ? first.fromEstimatedCall.realtime : false,
       cancellation:          false,
-      destinationDisplay:    { frontText: lastAny.toPlace.name },
+      destinationDisplay:    { frontText: lastAny.toPlace.name || last.toPlace.name },
       quay:                  { publicCode: (first.fromEstimatedCall && first.fromEstimatedCall.quay && first.fromEstimatedCall.quay.publicCode) || '?' },
       serviceJourney: {
         id:   first.serviceJourney && first.serviceJourney.id,

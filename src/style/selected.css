@@ -4,7 +4,7 @@
   padding-bottom:.75rem;margin-bottom:1.5rem;
   border-bottom:1px solid rgba(245,184,64,.08);
 }
-.screen-label{font-size:10px;text-transform:uppercase;letter-spacing:.25em;color:#57534e}
+.screen-label{font-size:10px;text-transform:uppercase;letter-spacing:.25em;color:#8a837d}
 
 /* Train summary chip */
 .train-chip{
@@ -15,14 +15,14 @@
   margin-bottom:1.75rem;
 }
 .train-chip .tc-dest{font-size:14px;font-weight:700;color:#f5b840;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.train-chip .tc-meta{font-size:11px;color:#78716c;white-space:nowrap}
+.train-chip .tc-meta{font-size:11px;color:#8c857f;white-space:nowrap}
 .train-chip .tc-meta span{color:#a8a29e}
 
 /* Post-departure banner */
 .departed-banner{
   text-align:center;
   font-size:11px;letter-spacing:.12em;text-transform:uppercase;
-  color:rgba(245,184,64,.55);
+  color:rgba(245,184,64,.85);
   background:rgba(245,184,64,.05);
   border:1px solid rgba(245,184,64,.12);
   border-radius:4px;padding:.6rem 1rem;margin-bottom:1.5rem;
@@ -30,7 +30,7 @@
 
 /* Hero: gå senest */
 .leaveby-hero{text-align:center;margin-bottom:2rem}
-.leaveby-label{font-size:10px;text-transform:uppercase;letter-spacing:.3em;color:#78716c;margin-bottom:.35rem}
+.leaveby-label{font-size:10px;text-transform:uppercase;letter-spacing:.3em;color:#8c857f;margin-bottom:.35rem}
 .leaveby-time{
   font-family:"Bebas Neue",sans-serif;
   font-size:clamp(3.5rem,16vw,5rem);
@@ -38,7 +38,7 @@
   font-variant-numeric:tabular-nums;
   transition:color .3s;
 }
-.leaveby-time.lt-ok{color:#f5b840;text-shadow:0 0 24px rgba(245,184,64,.45),0 0 60px rgba(245,184,64,.15)}
+.leaveby-time.lt-ok{color:#f5b840;text-shadow:0 0 24px rgba(245,184,64,.75),0 0 60px rgba(245,184,64,.15)}
 .leaveby-time.lt-soon{color:#fbbf24;text-shadow:0 0 28px rgba(251,191,36,.55),0 0 60px rgba(251,191,36,.2)}
 .leaveby-time.lt-now{color:#f97316;text-shadow:0 0 32px rgba(249,115,22,.6),0 0 70px rgba(249,115,22,.2)}
 .leaveby-time.lt-late{color:#dc2626;text-shadow:0 0 20px rgba(220,38,38,.4)}
@@ -51,17 +51,17 @@
   margin-bottom:1.75rem;
 }
 .jd-cell{background:#0a0806;padding:.8rem 1rem}
-.jd-label{font-size:9px;text-transform:uppercase;letter-spacing:.25em;color:#57534e;margin-bottom:.3rem}
+.jd-label{font-size:9px;text-transform:uppercase;letter-spacing:.25em;color:#8a837d;margin-bottom:.3rem}
 .jd-val{font-family:"Bebas Neue",sans-serif;font-size:2rem;line-height:1;font-variant-numeric:tabular-nums}
 .jd-val.departure{color:#f5b840}
 .jd-val.arrival{color:#fbbf24}
-.jd-sub{font-size:10px;color:#78716c;margin-top:.2rem}
+.jd-sub{font-size:10px;color:#8c857f;margin-top:.2rem}
 
 /* Arrival hero — answer to "when will I arrive?" */
 .arrival-hero{text-align:center;margin-bottom:1.5rem}
-.arrival-hero .ah-label{font-size:10px;text-transform:uppercase;letter-spacing:.3em;color:#78716c;margin-bottom:.35rem}
+.arrival-hero .ah-label{font-size:10px;text-transform:uppercase;letter-spacing:.3em;color:#8c857f;margin-bottom:.35rem}
 .arrival-hero .ah-time{font-family:"Bebas Neue",sans-serif;font-size:clamp(3rem,13vw,4.5rem);line-height:1;color:#fbbf24;letter-spacing:.04em;font-variant-numeric:tabular-nums;text-shadow:0 0 20px rgba(251,191,36,.4)}
-.arrival-hero .ah-sub{font-size:11px;color:#78716c;margin-top:.4rem}
+.arrival-hero .ah-sub{font-size:11px;color:#8c857f;margin-top:.4rem}
 
 /* Transfer itinerary layout */
 .itinerary{border:1px solid rgba(245,184,64,.1);border-radius:6px;overflow:hidden;margin-bottom:1.75rem}
@@ -70,12 +70,12 @@
 .itin-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;padding:.1rem 0}
 .itin-row span:first-child{color:#a8a29e}
 .itin-row.dep span:first-child{color:#d4cfc9}
-.itin-time{font-family:"JetBrains Mono",monospace;font-size:12px;font-variant-numeric:tabular-nums;color:#78716c;flex-shrink:0;margin-left:.75rem}
+.itin-time{font-family:"JetBrains Mono",monospace;font-size:12px;font-variant-numeric:tabular-nums;color:#8c857f;flex-shrink:0;margin-left:.75rem}
 .itin-time.dep{color:#f5b840;font-size:13px}
 .itin-time.final{color:#fbbf24}
-.itin-xfer{text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:.2em;color:#78716c;padding:.35rem;background:rgba(245,184,64,.03);border-top:1px solid rgba(245,184,64,.06);border-bottom:1px solid rgba(245,184,64,.06)}
-.itin-total{font-size:9px;color:#57534e;text-transform:uppercase;letter-spacing:.15em;padding:.35rem .9rem;text-align:right;background:#0a0806}
-.itin-meta{font-size:10px;color:#78716c;letter-spacing:.04em;padding:.1rem 0 .2rem}
+.itin-xfer{text-align:center;font-size:9px;text-transform:uppercase;letter-spacing:.2em;color:#8c857f;padding:.35rem;background:rgba(245,184,64,.03);border-top:1px solid rgba(245,184,64,.06);border-bottom:1px solid rgba(245,184,64,.06)}
+.itin-total{font-size:9px;color:#8a837d;text-transform:uppercase;letter-spacing:.15em;padding:.35rem .9rem;text-align:right;background:#0a0806}
+.itin-meta{font-size:10px;color:#8c857f;letter-spacing:.04em;padding:.1rem 0 .2rem}
 
 .foot-badge {
   display: inline-flex;
@@ -90,7 +90,7 @@
   text-transform: uppercase;
   background: rgba(245,184,64,.06);
   border: 1px solid rgba(245,184,64,.15);
-  color: rgba(245,184,64,.5);
+  color: rgba(245,184,64,.8);
   flex-shrink: 0;
 }
 
@@ -102,5 +102,5 @@
   margin-bottom:2rem;
 }
 .train-bar .tb-dest{font-size:12px;color:#a8a29e;flex:1}
-.train-bar .tb-dep{font-size:12px;color:#78716c}
+.train-bar .tb-dep{font-size:12px;color:#8c857f}
 .train-bar .tb-dep span{color:#f5b840}

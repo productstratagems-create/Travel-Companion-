@@ -7,7 +7,7 @@
 .nav-back{
   display:inline-flex;align-items:center;gap:.4rem;
   background:none;border:none;
-  color:#78716c;font-family:inherit;font-size:11px;
+  color:#8c857f;font-family:inherit;font-size:11px;
   letter-spacing:.1em;text-transform:uppercase;
   padding:.5rem 0;cursor:pointer;min-height:44px;
 }
@@ -27,7 +27,7 @@
 /* Empty / error states */
 .state-msg{
   padding:3rem 0;text-align:center;
-  font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:#57534e;
+  font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:#8a837d;
 }
 
 /* CTA buttons */
@@ -43,6 +43,6 @@
 .cta-btn:disabled{opacity:.3;cursor:default}
 .cta-btn.secondary{
   background:none;border:1px solid rgba(245,184,64,.25);
-  color:#78716c;margin-top:.6rem;font-size:1.1rem;
+  color:#8c857f;margin-top:.6rem;font-size:1.1rem;
 }
 .cta-btn.secondary:active{background:rgba(245,184,64,.06);color:#f5b840}

@@ -7,19 +7,19 @@
 }
 #via-label{
   font-size:9px;text-transform:uppercase;letter-spacing:.12em;
-  color:rgba(245,184,64,.4);line-height:1;
+  color:rgba(245,184,64,.8);line-height:1;
 }
 .station-name{
   font-family:"Bebas Neue",sans-serif;
   font-size:clamp(2rem,8vw,2.8rem);
   letter-spacing:.04em;line-height:1;
   color:#f5b840;
-  text-shadow:0 0 20px rgba(245,184,64,.4),0 0 40px rgba(245,184,64,.15);
+  text-shadow:0 0 20px rgba(245,184,64,.8),0 0 40px rgba(245,184,64,.15);
 }
 .dir-btn{
   display:flex;align-items:center;gap:.4rem;
   background:none;border:none;
-  color:#64748b;font-family:inherit;
+  color:#7485a0;font-family:inherit;
   font-size:11px;letter-spacing:.1em;text-transform:uppercase;
   padding:.5rem 0 .5rem .5rem;cursor:pointer;min-height:44px;
   flex-shrink:0;
@@ -48,7 +48,7 @@
 .dep-mins{
   text-align:right;font-family:"Bebas Neue",sans-serif;
   font-size:2.4rem;line-height:1;color:#f5b840;
-  text-shadow:0 0 12px rgba(245,184,64,.45);
+  text-shadow:0 0 12px rgba(245,184,64,.75);
   font-variant-numeric:tabular-nums;letter-spacing:-.02em;
 }
 .dep-mins.urgent{color:#fbbf24;text-shadow:0 0 18px rgba(251,191,36,.7)}
@@ -56,7 +56,7 @@
 .dep-mins .unit{
   display:block;font-family:"JetBrains Mono",monospace;
   font-size:9px;text-transform:uppercase;letter-spacing:.2em;
-  color:#4a5568;margin-top:.1rem;
+  color:#8898aa;margin-top:.1rem;
 }
 
 .dep-mid{min-width:0}
@@ -64,11 +64,11 @@
 .dep-arr{margin-left:auto;flex-shrink:0;font-size:13px;color:#fcd34d;white-space:nowrap;font-variant-numeric:tabular-nums}
 .dep-info{display:flex;align-items:center;gap:.35rem;margin-bottom:.1rem;overflow:hidden}
 .dep-dest{
-  font-size:12px;font-weight:400;color:#78716c;
+  font-size:12px;font-weight:400;color:#8c857f;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;
 }
 .dep-reach{font-size:11px;margin-top:.1rem}
-.dep-reach.r-ok{color:rgba(74,222,128,.7)}
+.dep-reach.r-ok{color:#4ade80}
 .dep-reach.r-soon{color:#fbbf24}
 .dep-reach.r-now{color:#60a5fa}
 .dep-tag{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#fcd34d}
@@ -79,8 +79,8 @@
   border-left:1px solid rgba(245,184,64,.08);
   padding-left:.4rem;
 }
-.dep-spor .sl{font-size:7px;text-transform:uppercase;letter-spacing:.2em;color:#4a5568;margin-bottom:.15rem}
-.dep-spor .sn{font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:#f5b840;line-height:1;text-shadow:0 0 8px rgba(245,184,64,.35);background:rgba(30,58,138,.2);border-radius:3px;padding:0 4px}
+.dep-spor .sl{font-size:7px;text-transform:uppercase;letter-spacing:.2em;color:#8898aa;margin-bottom:.15rem}
+.dep-spor .sn{font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:#f5b840;line-height:1;text-shadow:0 0 8px rgba(245,184,64,.7);background:rgba(30,58,138,.2);border-radius:3px;padding:0 4px}
 
 /* Star save button */
 .dep-star{
@@ -89,22 +89,22 @@
   font-size:.9rem;cursor:pointer;padding:0 .1rem;
   transition:color .15s;
 }
-.dep-star.saved{color:#f5b840;text-shadow:0 0 8px rgba(245,184,64,.5)}
+.dep-star.saved{color:#f5b840;text-shadow:0 0 8px rgba(245,184,64,.8)}
 .dep-star:active{color:#f5b840}
 
 .fav-bar{
   display:flex;align-items:center;gap:.4rem;width:100%;
   background:none;border:none;border-bottom:1px solid rgba(245,184,64,.07);
   font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
-  color:#78716c;cursor:pointer;
-  padding:.45rem 0 .45rem .1rem;min-height:36px;
+  color:#8c857f;cursor:pointer;
+  padding:.45rem 0 .45rem .1rem;min-height:44px;
   transition:color .1s;
 }
 .fav-bar:active{color:#f5b840}
 
-#walk-summary{font-size:12px;color:#64748b;padding:.3rem 0 .6rem;letter-spacing:.04em}
-.dep-via{font-size:9px;color:#4a5568;margin-top:.1rem;letter-spacing:.05em}
-.transfer-arrow{font-size:9px;color:#4a5568;margin:0 .15rem;vertical-align:middle}
+#walk-summary{font-size:12px;color:#7485a0;padding:.3rem 0 .6rem;letter-spacing:.04em}
+.dep-via{font-size:9px;color:#8898aa;margin-top:.1rem;letter-spacing:.05em}
+.transfer-arrow{font-size:9px;color:#8898aa;margin:0 .15rem;vertical-align:middle}
 
 #service-alerts{margin:.4rem 0}
 .service-alert{

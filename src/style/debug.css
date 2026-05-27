@@ -3,7 +3,7 @@
   margin-top:2rem;padding:.85rem;
   background:rgba(245,184,64,.03);
   border:1px solid rgba(245,184,64,.1);
-  border-radius:6px;font-size:10px;color:#78716c;line-height:1.6;
+  border-radius:6px;font-size:10px;color:#8c857f;line-height:1.6;
 }
 .debug-label{font-size:9px;text-transform:uppercase;letter-spacing:.2em;opacity:.6;margin-bottom:.4rem}
 .log-wrap{max-height:10rem;overflow-y:auto}

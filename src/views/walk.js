@@ -24,7 +24,7 @@ export function buildWalkBar() {
         const ll = l.serviceJourney && l.serviceJourney.line;
         const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
         return '<span class="line-badge" style="background:' + bg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
-      }).join('<span class="transfer-arrow">→</span>')
+      }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
     : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
   document.getElementById('w-train-bar').innerHTML =
     badges
@@ -58,10 +58,6 @@ export function renderWalk() {
   else if (mtl <= 2)            phase = 'urgent';  // 0–2 min (incl. sub-minute)
   else if (mtl <= 6)            phase = 'soon';
   else                          phase = 'calm';
-
-  document.getElementById('w-board-btn-wrap').style.display = 'block';
-  const bb = document.getElementById('w-board-btn-wrap').querySelector('button');
-  if (bb) bb.className = 'cta-btn' + (phase === 'calm' || phase === 'soon' ? ' secondary' : '');
 
   const firstTransfer = c._transfers && c._transfers[0];
   const rawDepQuay = c._legs && c._legs[0] && c._legs[0].fromEstimatedCall
@@ -162,14 +158,22 @@ function renderWalkDeps() {
           const ll = l.serviceJourney && l.serviceJourney.line;
           const lbg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
           return '<span class="line-badge" style="background:' + lbg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
-        }).join('<span class="transfer-arrow">→</span>')
+        }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
       : '<span class="line-badge" style="background:' + bg + '">' + ((ln && ln.publicCode) || '?') + '</span>';
     const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
     const arrCall = findArr(sjc, dir.to);
     const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
+    const wMinsLabel = depDiffSec <= 0 ? 'nå' : mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' t' + (mins % 60 > 0 ? ' ' + mins % 60 + ' m' : '');
+    const wA11y = ((ln && ln.publicCode) ? ln.publicCode + ' ' : '') + dest + ', avgang om ' + wMinsLabel;
     html += '<div class="w-dep-row' + (isSel ? ' active' : '') + (missed ? ' missed' : '') + '"'
-      + (isSel ? '' : ' onclick="window.tap(' + i + ')"') + '>'
+      + (isSel
+        ? ''
+        : ' onclick="window.tap(' + i + ')"'
+          + ' role="button" tabindex="0"'
+          + ' aria-label="' + wA11y.replace(/"/g, '&quot;') + '"'
+          + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.tap(' + i + ')}"'
+      ) + '>'
       + '<div class="w-dep-mins">' + (() => {
           if (depDiffSec <= 0) return 'NÅ';
           if (depDiffSec < 60) return depSecs + '<span>sek</span>';

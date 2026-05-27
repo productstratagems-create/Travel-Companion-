@@ -122,7 +122,7 @@ export function renderTrack() {
     if (!exp && rows.length > TAIL + 1) {
       [rows[0], { isCollapse: true, count: rows.length - 1 - TAIL }, ...rows.slice(-TAIL)].forEach(r => {
         if (r.isCollapse) {
-          out += '<div class="stop-collapse" onclick="window._expandStops&&window._expandStops(' + cardIdx + ')">· ' + r.count + ' stopp ·</div>';
+          out += '<button class="stop-collapse" onclick="window._expandStops&&window._expandStops(' + cardIdx + ')">· ' + r.count + ' stopp ·</button>';
           return;
         }
         const isNext = !firstRendered && !r.isTransfer && !r.isDest;
@@ -136,7 +136,7 @@ export function renderTrack() {
         out += renderStopRow(r, isNext);
       });
       if (rows.length > TAIL + 1)
-        out += '<div class="stop-collapse" onclick="window._expandStops&&window._expandStops(' + cardIdx + ')">· vis færre ·</div>';
+        out += '<button class="stop-collapse" onclick="window._expandStops&&window._expandStops(' + cardIdx + ')">· vis færre ·</button>';
     }
     return out;
   }
@@ -288,7 +288,7 @@ export function buildTrackBar() {
   const legs = (state.jny && state.jny.legs) || [];
   const badges = legs.map(leg =>
     '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
-  ).join('<span class="transfer-arrow">→</span>');
+  ).join('<span class="transfer-arrow" aria-hidden="true">→</span>');
   document.getElementById('t-train-bar').innerHTML =
     badges
     + '<span class="tb-dest">' + (state.jny.frontText || state.jny.dest) + '</span>'

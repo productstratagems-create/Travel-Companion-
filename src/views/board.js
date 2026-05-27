@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom } from '../geo.js';
 import { fetchBoard, fetchTrip } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern } from '../api/adapt.js';
@@ -13,12 +13,13 @@ function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.
 function renderWalkSummary() {
   const el = document.getElementById('walk-summary');
   if (!el) return;
-  const ns = state.nearestStation;
   const dir = config.dirs[state.dIdx];
-  const walkActive = dir.key !== 'in' && ns !== null && dir.stopId === ns.id;
-  if (ns && walkActive) {
+  if (isWalkActive(dir)) {
     const wk = walkInfo();
-    el.textContent = ns.name + ' · ' + wk.mins + ' min gange';
+    const wf = state.walkFromLL ? loadWalkFrom() : null;
+    const ns = state.nearestStation;
+    const fromLabel = wf ? wf.label : (ns ? ns.name : null);
+    el.textContent = (fromLabel ? fromLabel + ' · ' : '') + wk.mins + ' min gange';
     el.style.display = 'block';
   } else if (state.gpsError === 'denied' && dir.key === 'out') {
     el.textContent = 'posisjon: ikke tilgjengelig';
@@ -38,9 +39,7 @@ export function renderBoard() {
     return;
   }
   const now = Date.now();
-  const isOut = dir.key !== 'in';
-  const ns = state.nearestStation;
-  const walkActive = isOut && ns !== null && dir.stopId === ns.id;
+  const walkActive = isWalkActive(dir);
   const savedFavs = loadFavs();
 
   // For each departure minute keep only the route with the earliest arrival.

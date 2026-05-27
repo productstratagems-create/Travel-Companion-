@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
 import { fetchSelJourney } from '../api/entur.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
@@ -39,9 +39,7 @@ export function renderSelected() {
   else if (mtl === 1) urgMsg = 'Gå om <span class="warn">1 min</span>';
   else urgMsg = 'Gå om <span class="amber">' + mtl + ' min</span>';
 
-  const isOut = dir.key !== 'in';
-  const ns = state.nearestStation;
-  const walkActive = isOut && ns !== null && dir.stopId === ns.id;
+  const walkActive = isWalkActive(dir);
   const isTransfer = c._isTransfer && c._legs && c._legs.length >= 2;
 
   // Build line badge(s) for train chip

@@ -2,8 +2,9 @@ import { state } from './state.js';
 import config from './config.js';
 import { logMsg } from './ui/log.js';
 
-const WALK_SPEED_KEY = 't.walkSpeed';
-const WALK_BUF_KEY   = 't.walkBuf';
+const WALK_SPEED_KEY  = 't.walkSpeed';
+const WALK_BUF_KEY    = 't.walkBuf';
+const WALK_FROM_KEY   = 't.walkFrom';
 const SPEED_MPN = { rolig: 41.67, middels: 83.33, rask: 116.67 };
 
 export function loadWalkSpeed() {
@@ -19,6 +20,17 @@ export function saveWalkBuffer(v) {
   try { localStorage.setItem(WALK_BUF_KEY, String(v)); } catch {}
 }
 
+export function loadWalkFrom() {
+  try { const v = localStorage.getItem(WALK_FROM_KEY); return v ? JSON.parse(v) : null; } catch { return null; }
+}
+export function saveWalkFrom(v) {
+  try { if (v) localStorage.setItem(WALK_FROM_KEY, JSON.stringify(v)); else localStorage.removeItem(WALK_FROM_KEY); } catch {}
+}
+export function clearWalkFrom() {
+  state.walkFromLL = null;
+  try { localStorage.removeItem(WALK_FROM_KEY); } catch {}
+}
+
 export function haver(la1, lo1, la2, lo2) {
   const R = 6371000, r = Math.PI / 180;
   const dL = (la2 - la1) * r, dN = (lo2 - lo1) * r;
@@ -29,14 +41,22 @@ export function haver(la1, lo1, la2, lo2) {
 
 export function walkInfo() {
   if (state.walkOvr !== null) return { mins: state.walkOvr, src: 'manuelt' };
+  const pos = state.walkFromLL || state.homeLL;
   const sc = state.statLL[config.dirs[state.dIdx].key];
-  if (state.homeLL && sc) {
-    const d = haver(state.homeLL.lat, state.homeLL.lon, sc.lat, sc.lon);
+  if (pos && sc) {
+    const d = haver(pos.lat, pos.lon, sc.lat, sc.lon);
     const spd = SPEED_MPN[loadWalkSpeed()] || 83.33;
     const buf = loadWalkBuffer();
-    return { mins: Math.max(1, Math.ceil(d * 1.3 / spd)) + buf, dist: Math.round(d), src: 'beregnet' };
+    return { mins: Math.max(1, Math.ceil(d * 1.3 / spd)) + buf, dist: Math.round(d), src: state.walkFromLL ? 'sted' : 'beregnet' };
   }
   return { mins: config.defaultWalkMinutes, src: 'standard' };
+}
+
+export function isWalkActive(dir) {
+  if (dir.key === 'in') return false;
+  if (state.walkFromLL !== null) return true;
+  const ns = state.nearestStation;
+  return ns !== null && dir.stopId === ns.id;
 }
 
 export function mToLeave(depTs) {
@@ -130,4 +150,10 @@ export function updateWalkDbg() {
   if (!el) return;
   const w = walkInfo();
   el.textContent = w.src + ': ~' + w.mins + ' min' + (w.dist ? ' (' + w.dist + ' m)' : '');
+}
+
+// Restore persisted walk-from position on module load
+const _wfSaved = loadWalkFrom();
+if (_wfSaved && _wfSaved.lat && _wfSaved.lon) {
+  state.walkFromLL = { lat: _wfSaved.lat, lon: _wfSaved.lon };
 }

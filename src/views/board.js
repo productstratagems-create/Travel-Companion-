@@ -12,11 +12,15 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
 const OCC_LABELS = ['', 'svært lite folk', 'lite folk', 'noen seter', 'travelt', 'fullt'];
-function occBar(level) {
+const _OP  = '<svg class="op" viewBox="0 0 10 14" aria-hidden="true"><circle cx="5" cy="3.5" r="2.5"/><path d="M1 14v-2.5C1 9 2.8 7.5 5 7.5S9 9 9 11.5V14z"/></svg>';
+const _OPG = '<svg class="op gh" viewBox="0 0 10 14" aria-hidden="true"><circle cx="5" cy="3.5" r="2.5"/><path d="M1 14v-2.5C1 9 2.8 7.5 5 7.5S9 9 9 11.5V14z"/></svg>';
+function occIcon(level) {
   if (!level) return '';
-  let segs = '';
-  for (let i = 1; i <= 5; i++) segs += '<span class="ob' + (i <= level ? ' on' : '') + '"></span>';
-  return '<span class="occ-bar l' + level + '" aria-label="' + OCC_LABELS[level] + '">' + segs + '</span>';
+  const nFilled = level === 1 ? 1 : level === 2 ? 2 : 3;
+  const nGhost  = level <= 2 ? 3 - nFilled : 0;
+  return '<span class="occ-icon l' + level + '" aria-label="' + OCC_LABELS[level] + '">'
+    + _OP.repeat(nFilled) + _OPG.repeat(nGhost)
+    + '</span>';
 }
 
 function renderWalkSummary() {
@@ -215,7 +219,7 @@ export function renderBoard() {
       + '<div class="dep-info">'
       + '<span class="dep-dest">' + dest + '</span>'
       + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
-      + occBar(occLevel)
+      + occIcon(occLevel)
       + (delayed ? '<span class="dep-tag">+for</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + '</div>'

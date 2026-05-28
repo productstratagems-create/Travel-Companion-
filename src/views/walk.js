@@ -43,32 +43,31 @@ export function renderWalk() {
   const wk = walkInfo();
   const leaveByTs = depTs - wk.mins * 60000;
   const msLeft = leaveByTs - now;
-  // Use non-negative seconds for display; negative msLeft = late
   const isLate = msLeft < 0;
   const secsLeft = isLate ? 0 : Math.floor(msLeft / 1000);
-  const mtl = Math.floor(secsLeft / 60);   // minutes component
-  const stl = secsLeft % 60;               // seconds component (0–59)
+  const mtl = Math.floor(secsLeft / 60);
+  const stl = secsLeft % 60;
   const dir = config.dirs[state.dIdx];
   const firstMode = c._legs && c._legs[0] && c._legs[0].mode;
   const vehicleWord = firstMode === 'bus' ? 'Bussen' : firstMode === 'tram' ? 'Trikken' : 'Toget';
 
-  let phase;
-  if (depMinLeft <= 2)          phase = 'here';
-  else if (isLate)              phase = 'gonow';
-  else if (mtl <= 2)            phase = 'urgent';  // 0–2 min (incl. sub-minute)
-  else if (mtl <= 6)            phase = 'soon';
-  else                          phase = 'calm';
+  // 3 advisory phases — no urgency commands
+  const phase = depMinLeft <= 2 ? 'here' : isLate ? 'behind' : 'info';
 
   document.getElementById('w-board-btn-wrap').style.display = 'block';
   const bb = document.getElementById('w-board-btn-wrap').querySelector('button');
-  if (bb) bb.className = 'cta-btn' + (phase === 'calm' || phase === 'soon' ? ' secondary' : '');
+  if (bb) bb.className = 'cta-btn secondary';
 
   const firstTransfer = c._transfers && c._transfers[0];
   const rawDepQuay = c._legs && c._legs[0] && c._legs[0].fromEstimatedCall
     && c._legs[0].fromEstimatedCall.quay && c._legs[0].fromEstimatedCall.quay.publicCode;
   const depQuay = rawDepQuay || (c.quay && c.quay.publicCode !== '?' && c.quay.publicCode) || null;
 
-  let numEl, lblEl, ctxEl, secsEl;
+  // Walk time source label for display
+  const wkSrcLabel = { gps: 'GPS', sted: 'sted', manuelt: 'manuelt' }[wk.src] || null;
+
+  let numEl, lblEl, ctxEl;
+
   if (phase === 'here') {
     numEl = '<div class="walk-num here">FREMME</div>';
     lblEl = '<div class="walk-label here">' + vehicleWord + ' avgår ' + (depMinLeft <= 0 ? 'nå' : 'om ' + fmtMins(depMinLeft)) + '</div>';
@@ -80,45 +79,50 @@ export function renderWalk() {
           : '')
         + '</div>'
       : '';
-    secsEl = '';
-  } else if (phase === 'gonow') {
-    const lateSec = Math.abs(Math.floor(msLeft / 1000));
-    const lateMin = Math.floor(lateSec / 60);
-    numEl = '<div class="walk-num gonow">GÅ<br>NÅ</div>';
-    lblEl = '<div class="walk-label gonow">' + vehicleWord + ' avgår om ' + fmtMins(depMinLeft) + (lateMin > 0 ? ' · ' + lateMin + ' min sen' : '') + '</div>';
-    ctxEl = depQuay
-      ? '<div class="walk-context">spor <span class="wc-hl">' + depQuay + '</span></div>'
-      : '';
-    secsEl = '';
   } else {
     const arrCall = findArr(c.serviceJourney && c.serviceJourney.estimatedCalls, dir.to);
     const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
     const leg1Quay = firstTransfer && firstTransfer.platform;
-    // Build countdown number: sek < 1 min · min 1–59 · t+m ≥ 1 h
-    let cntNumHtml, cntUnit;
-    if (mtl === 0) {
-      cntNumHtml = stl; cntUnit = 'sek';
-    } else if (mtl < 60) {
-      cntNumHtml = mtl; cntUnit = 'min';
-    } else {
-      const h = Math.floor(mtl / 60), rm = mtl % 60;
-      cntNumHtml = h + 't'; cntUnit = rm > 0 ? rm + 'm' : '';
+
+    // Advisory context: walk time + source, departure, leave-by, arrival
+    const ctxLines = [
+      'Gangtid: <span class="wc-hl">' + wk.mins + ' min</span>'
+        + (wkSrcLabel ? ' <span class="wc-src">(' + wkSrcLabel + ')</span>' : '')
+        + (wk.dist ? ' · ~' + wk.dist + ' m' : ''),
+      vehicleWord + ' avgår <span class="wc-hl">' + clk(c.expectedDepartureTime) + '</span>'
+        + (depQuay ? ' · spor <span class="wc-hl">' + depQuay + '</span>' : ''),
+    ];
+    if (phase === 'info') {
+      ctxLines.push('Gå senest: <span class="wc-hl">' + clk(leaveByTs) + '</span>');
     }
-    numEl = '<div class="walk-num ' + phase + '">' + cntNumHtml
-      + '<span class="cnt-unit">' + cntUnit + '</span></div>';
-    lblEl = '<div class="walk-label ' + phase + '">til du bør gå</div>';
-    ctxEl = '<div class="walk-context">'
-      + 'Gå senest <span class="wc-hl">' + clk(leaveByTs) + '</span>'
-      + (wk.dist ? ' · ~' + wk.dist + ' m' : '')
-      + '<br>' + vehicleWord + ' avgår <span class="wc-hl">' + clk(c.expectedDepartureTime) + '</span>'
-      + (depQuay ? ' · <span class="wc-hl">spor ' + depQuay + '</span>' : '')
-      + (arrT ? ', ankommer <span class="wc-arr">' + clk(arrT) + '</span>' : '')
-      + (leg1Quay && firstTransfer.at ? '<br>Bytt <span class="wc-hl">' + firstTransfer.at.toLowerCase() + '</span> → spor ' + leg1Quay : '')
-      + '</div>';
-    secsEl = '';  // unit is now embedded in the number
+    if (arrT) ctxLines.push('Ankommer: <span class="wc-arr">' + clk(arrT) + '</span>');
+    if (leg1Quay && firstTransfer.at) {
+      ctxLines.push('Bytt <span class="wc-hl">' + firstTransfer.at.toLowerCase() + '</span> → spor ' + leg1Quay);
+    }
+    ctxEl = '<div class="walk-context">' + ctxLines.join('<br>') + '</div>';
+
+    if (phase === 'behind') {
+      // Past leave-by: show minutes until actual departure
+      const minsLeft = Math.max(0, depMinLeft);
+      numEl = '<div class="walk-num behind">' + minsLeft + '<span class="cnt-unit">min</span></div>';
+      lblEl = '<div class="walk-label behind">til avgang</div>';
+    } else {
+      // Countdown to leave-by time
+      let cntNumHtml, cntUnit;
+      if (mtl === 0) {
+        cntNumHtml = stl; cntUnit = 'sek';
+      } else if (mtl < 60) {
+        cntNumHtml = mtl; cntUnit = 'min';
+      } else {
+        const h = Math.floor(mtl / 60), rm = mtl % 60;
+        cntNumHtml = h + 't'; cntUnit = rm > 0 ? rm + 'm' : '';
+      }
+      numEl = '<div class="walk-num info">' + cntNumHtml + '<span class="cnt-unit">' + cntUnit + '</span></div>';
+      lblEl = '<div class="walk-label info">til du bør gå</div>';
+    }
   }
 
-  document.getElementById('w-center').innerHTML = numEl + lblEl + ctxEl + secsEl;
+  document.getElementById('w-center').innerHTML = numEl + lblEl + ctxEl;
 }
 
 // Expose for nav bridges

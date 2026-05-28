@@ -1,4 +1,4 @@
-/* ── SCREEN 2b: GANGE-MODUS ── */
+/* ── SCREEN 2b: GANGTID ── */
 .walk-center{text-align:center;padding:1rem 0 1.5rem}
 .walk-num{
   font-family:"Bebas Neue",sans-serif;
@@ -6,28 +6,24 @@
   line-height:.95;
   font-variant-numeric:tabular-nums;
   letter-spacing:-.02em;
-  transition:color .5s, text-shadow .5s;
 }
-.walk-num.calm{color:#f5b840;text-shadow:0 0 28px rgba(245,184,64,.7),0 0 70px rgba(245,184,64,.12)}
-.walk-num.soon{color:#fbbf24;text-shadow:0 0 36px rgba(251,191,36,.5),0 0 80px rgba(251,191,36,.15)}
-.walk-num.urgent{color:#fbbf24;text-shadow:0 0 44px rgba(251,191,36,.65),0 0 90px rgba(251,191,36,.2);animation:throb .9s infinite}
-.walk-num.gonow{color:#f97316;text-shadow:0 0 50px rgba(249,115,22,.75),0 0 100px rgba(249,115,22,.25);animation:throb .5s infinite}
+.walk-num.info{color:#f5b840;text-shadow:0 0 28px rgba(245,184,64,.5),0 0 70px rgba(245,184,64,.1)}
+.walk-num.behind{color:#f5b840;text-shadow:0 0 24px rgba(245,184,64,.35)}
 .walk-num.here{color:#4ade80;text-shadow:0 0 36px rgba(74,222,128,.55),0 0 80px rgba(74,222,128,.18)}
-@keyframes throb{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.88;transform:scale(.975)}}
 
 .walk-label{
   font-size:11px;text-transform:uppercase;letter-spacing:.3em;
-  margin-top:.5rem;transition:color .3s;
+  margin-top:.5rem;
 }
-.walk-label.calm,.walk-label.soon,.walk-label.urgent{color:#8c857f}
-.walk-label.gonow{color:rgba(249,115,22,.8)}
+.walk-label.info,.walk-label.behind{color:#8c857f}
 .walk-label.here{color:rgba(74,222,128,.7)}
 
 .walk-context{
-  font-size:12px;color:#8c857f;margin-top:.75rem;line-height:1.6;
+  font-size:12px;color:#8c857f;margin-top:.75rem;line-height:1.8;
 }
 .walk-context .wc-hl{color:#f5b840}
 .walk-context .wc-arr{color:#fbbf24}
+.walk-context .wc-src{color:#57534e;font-size:.9em}
 
 /* Walk view mini departure list */
 #w-dep-list{border-top:1px solid rgba(245,184,64,.08);margin-top:.75rem;padding-top:.25rem}

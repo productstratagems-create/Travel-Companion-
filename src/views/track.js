@@ -289,9 +289,11 @@ export function buildTrackBar() {
   const badges = legs.map(leg =>
     '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
   ).join('<span class="transfer-arrow" aria-hidden="true">→</span>');
+  const firstDep = legs[0] && legs[0].depTime;
   document.getElementById('t-train-bar').innerHTML =
     badges
     + '<span class="tb-dest">' + (state.jny.frontText || state.jny.dest) + '</span>'
+    + (firstDep ? '<span class="tb-dep">avg <span>' + firstDep.clk + '</span></span>' : '')
     + (state.jny.arrival ? '<span class="tb-dep">ank <span>' + state.jny.arrival.clk + '</span></span>' : '');
 }
 

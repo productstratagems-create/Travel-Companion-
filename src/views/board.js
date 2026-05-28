@@ -179,10 +179,10 @@ export function renderBoard() {
         }
       }
 
-      if      (score >= 4)   occLevel = 5;
-      else if (score >= 2)   occLevel = 4;
-      else if (score === -2) occLevel = 2;
-      else if (score <= -3)  occLevel = 1;
+      if      (score >= 4)  occLevel = 5;
+      else if (score >= 1)  occLevel = 4;
+      else if (score <= -3) occLevel = 1;
+      else if (score <= -1) occLevel = 2;
     }
 
     const xferCount = c._transfers && c._transfers.length;

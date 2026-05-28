@@ -11,6 +11,14 @@ import { fmtMins } from '../ui/fmt.js';
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
+const OCC_LABELS = ['', 'svært lite folk', 'lite folk', 'noen seter', 'travelt', 'fullt'];
+function occBar(level) {
+  if (!level) return '';
+  let segs = '';
+  for (let i = 1; i <= 5; i++) segs += '<span class="ob' + (i <= level ? ' on' : '') + '"></span>';
+  return '<span class="occ-bar l' + level + '" aria-label="' + OCC_LABELS[level] + '">' + segs + '</span>';
+}
+
 function renderWalkSummary() {
   const el = document.getElementById('walk-summary');
   if (!el) return;
@@ -112,12 +120,13 @@ export function renderBoard() {
     const occ = c.occupancyStatus;
     const _prev = _linePrev.get(lc);
     _linePrev.set(lc, c);
-    let occClass = null;
-    if (occ === 'manySeatsAvailable' || occ === 'empty') {
-      occClass = 'free';
-    } else if (occ === 'standingRoomOnly' || occ === 'full' || occ === 'crushedStandingRoomOnly') {
-      occClass = 'full';
-    } else {
+    let occLevel = null;
+    if      (occ === 'empty')                                          occLevel = 1;
+    else if (occ === 'manySeatsAvailable')                             occLevel = 2;
+    else if (occ === 'fewSeatsAvailable')                              occLevel = 3;
+    else if (occ === 'standingRoomOnly')                               occLevel = 4;
+    else if (occ === 'full' || occ === 'crushedStandingRoomOnly')      occLevel = 5;
+    else {
       let score = 0;
 
       // Signal: stop sequence + prior-stop delay accumulation
@@ -170,8 +179,10 @@ export function renderBoard() {
         }
       }
 
-      if (score >= 2)       occClass = 'full';
-      else if (score <= -2) occClass = 'free';
+      if      (score >= 4)   occLevel = 5;
+      else if (score >= 2)   occLevel = 4;
+      else if (score === -2) occLevel = 2;
+      else if (score <= -3)  occLevel = 1;
     }
 
     const xferCount = c._transfers && c._transfers.length;
@@ -204,8 +215,7 @@ export function renderBoard() {
       + '<div class="dep-info">'
       + '<span class="dep-dest">' + dest + '</span>'
       + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
-      + (occClass === 'free' ? '<span class="dep-tag occ-free">ledig</span>' : '')
-      + (occClass === 'full' ? '<span class="dep-tag occ-full">fullt</span>' : '')
+      + occBar(occLevel)
       + (delayed ? '<span class="dep-tag">+for</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + '</div>'

@@ -56,6 +56,23 @@ export function renderBoard() {
   });
   const visibleDeps = Array.from(depMinMap.values());
 
+  // Headway computation for occupancy heuristic
+  const _lineLastMs = new Map();
+  const _lineGaps   = new Map();
+  visibleDeps.forEach(({ c }) => {
+    const lcode = (c.serviceJourney && c.serviceJourney.line && c.serviceJourney.line.publicCode) || '?';
+    const ms = new Date(c.expectedDepartureTime).getTime();
+    if (_lineLastMs.has(lcode)) {
+      if (!_lineGaps.has(lcode)) _lineGaps.set(lcode, []);
+      _lineGaps.get(lcode).push(ms - _lineLastMs.get(lcode));
+    }
+    _lineLastMs.set(lcode, ms);
+  });
+  const _median = arr => { const s = [...arr].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+  const _lineMedian = new Map();
+  _lineGaps.forEach((gaps, lcode) => { if (gaps.length >= 2) _lineMedian.set(lcode, _median(gaps)); });
+  const _linePrev = new Map();
+
   let html = '';
   let urgentShown = false;
   visibleDeps.forEach(({ c, origIdx }) => {
@@ -91,6 +108,25 @@ export function renderBoard() {
         }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
       : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
 
+    // Occupancy: API primary, heuristic fallback
+    const occ = c.occupancyStatus;
+    const _prev = _linePrev.get(lc);
+    let occClass = null;
+    if (occ === 'manySeatsAvailable' || occ === 'empty') {
+      occClass = 'free';
+    } else if (occ === 'standingRoomOnly' || occ === 'full' || occ === 'crushedStandingRoomOnly') {
+      occClass = 'full';
+    } else if (_prev) {
+      if (_prev.cancellation) {
+        occClass = 'full';
+      } else {
+        const _gap = new Date(c.expectedDepartureTime) - new Date(_prev.expectedDepartureTime);
+        const _med = _lineMedian.get(lc);
+        if (_med && _gap < _med * 0.45) occClass = 'free';
+      }
+    }
+    _linePrev.set(lc, c);
+
     const xferCount = c._transfers && c._transfers.length;
 
     const minsLabel = isNow ? 'nå' : mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' t' + (mins % 60 > 0 ? ' ' + mins % 60 + ' m' : '');
@@ -121,6 +157,8 @@ export function renderBoard() {
       + '<div class="dep-info">'
       + '<span class="dep-dest">' + dest + '</span>'
       + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
+      + (occClass === 'free' ? '<span class="dep-tag occ-free">ledig</span>' : '')
+      + (occClass === 'full' ? '<span class="dep-tag occ-full">fullt</span>' : '')
       + (delayed ? '<span class="dep-tag">+for</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + '</div>'

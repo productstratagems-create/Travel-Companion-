@@ -73,6 +73,8 @@
 .dep-reach.r-soon{color:#fbbf24}
 .dep-reach.r-now{color:#60a5fa}
 .dep-tag{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#fcd34d}
+.dep-tag.occ-free{color:#4ade80}
+.dep-tag.occ-full{color:#f87171}
 .dep-cancelled{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#fca5a5}
 
 .dep-spor{

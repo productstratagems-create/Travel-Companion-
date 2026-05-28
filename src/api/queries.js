@@ -28,7 +28,7 @@ export function boardGQL(id, n) {
   return '{stopPlace(id:"' + id + '"){id name latitude longitude '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
     + 'estimatedCalls(numberOfDepartures:' + (n || 10) + ',whiteListedModes:[metro,tram]){'
-    + 'realtime aimedDepartureTime expectedDepartureTime cancellation '
+    + 'realtime aimedDepartureTime expectedDepartureTime cancellation occupancyStatus '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
     + 'destinationDisplay{frontText} quay{id publicCode name} '
     + 'serviceJourney{id line{publicCode presentation{colour}} '

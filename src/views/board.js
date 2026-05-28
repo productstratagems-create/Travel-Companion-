@@ -108,24 +108,71 @@ export function renderBoard() {
         }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
       : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
 
-    // Occupancy: API primary, heuristic fallback
+    // Occupancy: API primary, multi-signal heuristic fallback
     const occ = c.occupancyStatus;
     const _prev = _linePrev.get(lc);
+    _linePrev.set(lc, c);
     let occClass = null;
     if (occ === 'manySeatsAvailable' || occ === 'empty') {
       occClass = 'free';
     } else if (occ === 'standingRoomOnly' || occ === 'full' || occ === 'crushedStandingRoomOnly') {
       occClass = 'full';
-    } else if (_prev) {
-      if (_prev.cancellation) {
-        occClass = 'full';
-      } else {
-        const _gap = new Date(c.expectedDepartureTime) - new Date(_prev.expectedDepartureTime);
-        const _med = _lineMedian.get(lc);
-        if (_med && _gap < _med * 0.45) occClass = 'free';
+    } else {
+      let score = 0;
+
+      // Signal: stop sequence + prior-stop delay accumulation
+      if (sjc && sjc.length >= 2) {
+        const fromLow = dir.from.toLowerCase();
+        const idx = sjc.findIndex(ca =>
+          ca.quay && ca.quay.stopPlace &&
+          ca.quay.stopPlace.name.toLowerCase().includes(fromLow)
+        );
+        if (idx === 0) {
+          score -= 2;                           // first stop on route → empty
+        } else if (idx > 0) {
+          if (idx / (sjc.length - 1) > 0.75) score += 1;  // late in route
+          if (c.realtime) {
+            const maxDelMs = sjc.slice(0, idx).reduce((mx, ca) => {
+              if (!ca.aimedDepartureTime || !ca.expectedDepartureTime) return mx;
+              return Math.max(mx, new Date(ca.expectedDepartureTime) - new Date(ca.aimedDepartureTime));
+            }, 0);
+            if (maxDelMs > 90000) score += 2;              // >90s delay → heavy boarding upstream
+            else if (maxDelMs < 20000 && idx >= 3) score -= 1; // on-time through 3+ stops → lighter
+          }
+        }
       }
+
+      // Signal: time-of-day + direction
+      const _d = new Date(c.expectedDepartureTime);
+      const _h = _d.getHours(), _dow = _d.getDay();
+      const _center = ['jernbanetorget', 'nationaltheatret', 'stortinget'];
+      const _toCity = _center.some(s => dir.to.toLowerCase().includes(s));
+      const _fromCity = _center.some(s => dir.from.toLowerCase().includes(s));
+      if (_dow >= 1 && _dow <= 5) {
+        if (_h >= 7 && _h <= 9) {
+          if (_toCity)   score += 2;   // AM peak toward city → packed
+          if (_fromCity) score -= 1;   // AM away from city → light
+        } else if (_h >= 15 && _h <= 17) {
+          if (!_toCity && !_fromCity) score += 1;  // PM outbound
+          if (_toCity)                score -= 1;  // PM toward city → light
+        }
+      } else {
+        score -= 1; // weekend: generally lighter
+      }
+
+      // Signal: headway / cancellation
+      if (_prev) {
+        if (_prev.cancellation) score += 2;
+        else {
+          const _gap = new Date(c.expectedDepartureTime) - new Date(_prev.expectedDepartureTime);
+          const _med = _lineMedian.get(lc);
+          if (_med && _gap < _med * 0.45) score -= 1;
+        }
+      }
+
+      if (score >= 2)       occClass = 'full';
+      else if (score <= -2) occClass = 'free';
     }
-    _linePrev.set(lc, c);
 
     const xferCount = c._transfers && c._transfers.length;
 

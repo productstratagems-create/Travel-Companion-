@@ -63,7 +63,7 @@
 .dep-mid{min-width:0}
 .dep-top{display:flex;align-items:center;gap:.45rem;margin-bottom:.15rem}
 .dep-arr{margin-left:auto;flex-shrink:0;font-size:13px;color:#fcd34d;white-space:nowrap;font-variant-numeric:tabular-nums}
-.dep-info{display:flex;align-items:center;gap:.35rem;margin-bottom:.1rem;overflow:hidden}
+.dep-info{display:flex;align-items:center;gap:.35rem;margin-bottom:.1rem}
 .dep-dest{
   font-size:12px;font-weight:400;color:#8c857f;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;
@@ -76,6 +76,7 @@
 .dep-cancelled{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#fca5a5}
 
 .occ-icon{display:inline-flex;align-items:flex-end;gap:1px;flex-shrink:0;line-height:0}
+.occ-icon.nd{color:rgba(245,184,64,.18)}
 .occ-icon .op{width:9px;height:13px;fill:currentColor}
 .occ-icon .gh{opacity:.13}
 .occ-icon.l1{color:#4ade80}

@@ -15,10 +15,10 @@ const OCC_LABELS = ['', 'svært lite folk', 'lite folk', 'noen seter', 'travelt'
 const _OP  = '<svg class="op" viewBox="0 0 10 14" aria-hidden="true"><circle cx="5" cy="3.5" r="2.5"/><path d="M1 14v-2.5C1 9 2.8 7.5 5 7.5S9 9 9 11.5V14z"/></svg>';
 const _OPG = '<svg class="op gh" viewBox="0 0 10 14" aria-hidden="true"><circle cx="5" cy="3.5" r="2.5"/><path d="M1 14v-2.5C1 9 2.8 7.5 5 7.5S9 9 9 11.5V14z"/></svg>';
 function occIcon(level) {
-  if (!level) return '';
-  const nFilled = level === 1 ? 1 : level === 2 ? 2 : 3;
-  const nGhost  = level <= 2 ? 3 - nFilled : 0;
-  return '<span class="occ-icon l' + level + '" aria-label="' + OCC_LABELS[level] + '">'
+  const nFilled = level === 1 ? 1 : level === 2 ? 2 : level >= 3 ? 3 : 0;
+  const nGhost  = 3 - nFilled;
+  const label   = level ? OCC_LABELS[level] : 'ingen data';
+  return '<span class="occ-icon' + (level ? ' l' + level : ' nd') + '" aria-label="' + label + '">'
     + _OP.repeat(nFilled) + _OPG.repeat(nGhost)
     + '</span>';
 }

@@ -75,15 +75,14 @@
 .dep-tag{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#fcd34d}
 .dep-cancelled{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#fca5a5}
 
-.occ-icon{display:inline-flex;align-items:flex-end;gap:1px;flex-shrink:0;line-height:0}
-.occ-icon.nd{color:rgba(245,184,64,.18)}
-.occ-icon .op{width:9px;height:13px;fill:currentColor}
-.occ-icon .gh{opacity:.13}
-.occ-icon.l1{color:#4ade80}
-.occ-icon.l2{color:#86efac}
-.occ-icon.l3{color:#fbbf24}
-.occ-icon.l4{color:#f97316}
-.occ-icon.l5{color:#f87171}
+.occ-pip{display:inline-flex;align-items:center;line-height:0;flex-shrink:0;margin-left:1px;vertical-align:middle}
+.occ-pip .pp{width:7px;height:10px;fill:currentColor}
+.occ-pip.pnd{color:rgba(245,184,64,.35)}
+.occ-pip.pc1{color:#4ade80}
+.occ-pip.pc2{color:#86efac}
+.occ-pip.pc3{color:#fbbf24}
+.occ-pip.pc4{color:#f97316}
+.occ-pip.pc5{color:#f87171}
 
 .dep-spor{
   text-align:center;

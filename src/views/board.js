@@ -12,15 +12,22 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
 const OCC_LABELS = ['', 'svært lite folk', 'lite folk', 'noen seter', 'travelt', 'fullt'];
-const _OP  = '<svg class="op" viewBox="0 0 10 14" aria-hidden="true"><circle cx="5" cy="3.5" r="2.5"/><path d="M1 14v-2.5C1 9 2.8 7.5 5 7.5S9 9 9 11.5V14z"/></svg>';
-const _OPG = '<svg class="op gh" viewBox="0 0 10 14" aria-hidden="true"><circle cx="5" cy="3.5" r="2.5"/><path d="M1 14v-2.5C1 9 2.8 7.5 5 7.5S9 9 9 11.5V14z"/></svg>';
-function occIcon(level) {
-  const nFilled = level === 1 ? 1 : level === 2 ? 2 : level >= 3 ? 3 : 0;
-  const nGhost  = 3 - nFilled;
-  const label   = level ? OCC_LABELS[level] : 'ingen data';
-  return '<span class="occ-icon' + (level ? ' l' + level : ' nd') + '" aria-label="' + label + '">'
-    + _OP.repeat(nFilled) + _OPG.repeat(nGhost)
-    + '</span>';
+const _PIP = '<svg class="pp" viewBox="0 0 7 10" aria-hidden="true"><circle cx="3.5" cy="2.5" r="1.75"/><path d="M0.5 10v-1C0.5 7 1.8 6 3.5 6S6.5 7 6.5 9V10z"/></svg>';
+function occPip(level) {
+  return '<span class="occ-pip' + (level ? ' pc' + level : ' pnd') + '" aria-label="'
+    + (level ? OCC_LABELS[level] : 'ingen data') + '">' + _PIP + '</span>';
+}
+function legOccLevel(l) {
+  const o = l.fromEstimatedCall && l.fromEstimatedCall.occupancyStatus;
+  if (o === 'empty')                                     return 1;
+  if (o === 'manySeatsAvailable')                        return 2;
+  if (o === 'fewSeatsAvailable')                         return 3;
+  if (o === 'standingRoomOnly')                          return 4;
+  if (o === 'full' || o === 'crushedStandingRoomOnly')   return 5;
+  const fe = l.fromEstimatedCall;
+  if (fe && fe.expectedDepartureTime && fe.aimedDepartureTime &&
+      new Date(fe.expectedDepartureTime) - new Date(fe.aimedDepartureTime) > 90000) return 4;
+  return null;
 }
 
 function renderWalkSummary() {
@@ -116,9 +123,11 @@ export function renderBoard() {
           const ll = l.serviceJourney && l.serviceJourney.line;
           const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
           const lcode = (ll && ll.publicCode) || '?';
-          return '<span class="line-badge" style="background:' + bg + '">' + lcode + '</span>';
+          return '<span class="line-badge" style="background:' + bg + '">' + lcode + '</span>'
+            + occPip(legOccLevel(l));
         }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
-      : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
+      : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>'
+        + occPip(occLevel);
 
     // Occupancy: API primary, multi-signal heuristic fallback
     const occ = c.occupancyStatus;
@@ -219,7 +228,6 @@ export function renderBoard() {
       + '<div class="dep-info">'
       + '<span class="dep-dest">' + dest + '</span>'
       + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
-      + occIcon(occLevel)
       + (delayed ? '<span class="dep-tag">+for</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + '</div>'

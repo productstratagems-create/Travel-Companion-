@@ -19,7 +19,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
     + ' mode'
     + ' aimedStartTime expectedStartTime aimedEndTime expectedEndTime'
     + ' serviceJourney{id line{publicCode presentation{colour}}}'
-    + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime quay{publicCode} destinationDisplay{frontText}}'
+    + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime occupancyStatus quay{publicCode} destinationDisplay{frontText}}'
     + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime}'
     + '} } } }';
 }

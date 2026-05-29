@@ -5,7 +5,7 @@ import { logMsg } from './ui/log.js';
 const WALK_SPEED_KEY  = 't.walkSpeed';
 const WALK_BUF_KEY    = 't.walkBuf';
 const WALK_FROM_KEY   = 't.walkFrom';
-const SPEED_MPN = { rolig: 41.67, middels: 83.33, rask: 116.67 };
+export const SPEED_MPN = { rolig: 41.67, middels: 83.33, rask: 116.67 };
 
 export function loadWalkSpeed() {
   try { return localStorage.getItem(WALK_SPEED_KEY) || 'middels'; } catch { return 'middels'; }

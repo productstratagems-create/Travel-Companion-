@@ -83,3 +83,32 @@
   border-radius:6px;
   display:flex;align-items:center;gap:.45rem;
 }
+
+/* ── "Hva nå?" onward-journey panel ── */
+.hn-panel{margin-top:1.5rem;padding-top:1rem;border-top:1px solid rgba(245,184,64,.1)}
+.hn-title{font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:#f5b840;letter-spacing:.06em;margin-bottom:.75rem;line-height:1}
+.hn-section{margin-bottom:1.25rem}
+.hn-section-label{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#8898aa;margin-bottom:.4rem}
+.hn-input{
+  width:100%;box-sizing:border-box;
+  background:rgba(245,184,64,.05);border:1px solid rgba(245,184,64,.15);border-radius:6px;
+  padding:.5rem .65rem;color:#f5b840;font-family:inherit;font-size:.9rem;outline:none;
+}
+.hn-input:focus{border-color:rgba(245,184,64,.4)}
+#t-walk-result{margin-top:.45rem;font-size:13px;min-height:1.2rem}
+.hn-walk-mins{font-family:"Bebas Neue",sans-serif;font-size:1.4rem;color:#f5b840;line-height:1}
+.hn-walk-to{font-size:11px;color:#8a837d;margin-left:.3rem}
+.hn-bike-row{display:flex;align-items:baseline;gap:.5rem;padding:.3rem 0;border-bottom:1px solid rgba(245,184,64,.05)}
+.hn-bike-row:last-child{border-bottom:none}
+.hn-bike-name{flex:1;font-size:12px;color:#f5b840;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hn-bike-dist{font-size:11px;color:#7485a0;flex-shrink:0}
+.hn-bike-count{font-size:11px;color:#4ade80;flex-shrink:0}
+.hn-bike-count.empty{color:#f87171}
+.hn-loading{font-size:12px;color:#7485a0}
+.hn-new-btn{
+  display:block;width:100%;margin-top:.5rem;padding:.75rem;
+  background:none;border:1px solid rgba(245,184,64,.2);border-radius:6px;
+  font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:#f5b840;cursor:pointer;text-align:left;
+}
+.hn-new-btn:active{background:rgba(245,184,64,.06)}

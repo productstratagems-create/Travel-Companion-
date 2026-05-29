@@ -1,7 +1,8 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
-import { findArr } from '../geo.js';
-import { fetchTrack } from '../api/entur.js';
+import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN } from '../geo.js';
+import { fetchTrack, geocodePlace } from '../api/entur.js';
+import { fetchBysykkel } from '../api/bysykkel.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
@@ -12,6 +13,11 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
 let expanded = [];
+
+let _byStations = null;
+let _walkDestLL = null;
+let _walkTimer  = null;
+let _walkAbort  = null;
 
 function normStn(s) { return s.toLowerCase().replace(/\s+t$/i, '').trim(); }
 
@@ -26,6 +32,107 @@ function renderStopRow(r, isNext) {
     + '<div class="stop-clock">' + (r.arrT ? clk(r.arrT) : '—') + '</div>'
     + '<div class="stop-rel">' + r.relTxt + '</div>'
     + '</div>';
+}
+
+function _walkTime() {
+  if (!_walkDestLL) return '';
+  const pos = state.homeLL || state.walkFromLL;
+  if (!pos) return '<span class="hn-walk-mins">? min</span>';
+  const d = haver(pos.lat, pos.lon, _walkDestLL.lat, _walkDestLL.lon);
+  const spd = SPEED_MPN[loadWalkSpeed()] || 83.33;
+  const mins = Math.max(1, Math.ceil(d * 1.3 / spd)) + loadWalkBuffer();
+  return '<span class="hn-walk-mins">' + mins + ' min</span>'
+       + '<span class="hn-walk-to"> til ' + _walkDestLL.label + '</span>';
+}
+
+function _onWalkInput() {
+  const q = (document.getElementById('t-walk-dest') || {}).value.trim();
+  const sugg = document.getElementById('t-walk-sugg');
+  if (!sugg) return;
+  clearTimeout(_walkTimer);
+  if (_walkAbort) { _walkAbort.abort(); _walkAbort = null; }
+  if (q.length < 2) { sugg.hidden = true; sugg.innerHTML = ''; return; }
+  _walkTimer = setTimeout(() => {
+    _walkAbort = new AbortController();
+    geocodePlace(q).then(results => {
+      sugg.innerHTML = '';
+      if (!results.length) { sugg.hidden = true; return; }
+      results.slice(0, 5).forEach(r => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = r.label;
+        btn.addEventListener('mousedown', e => e.preventDefault());
+        btn.addEventListener('click', () => {
+          _walkDestLL = { lat: r.lat, lon: r.lon, label: r.label };
+          const inp = document.getElementById('t-walk-dest');
+          if (inp) inp.value = r.label;
+          sugg.hidden = true;
+          sugg.innerHTML = '';
+          const res = document.getElementById('t-walk-result');
+          if (res) res.innerHTML = _walkTime();
+        });
+        sugg.appendChild(btn);
+      });
+      sugg.hidden = false;
+    }).catch(() => {});
+  }, 250);
+}
+
+function renderNextPanel() {
+  const el = document.getElementById('t-next');
+  if (!el) return;
+  const last = state.jny && state.jny.legs && state.jny.legs[state.jny.legs.length - 1];
+  const arrStation = last ? last.toStation : '';
+
+  let bikeHtml = '<div class="hn-loading">laster sykler…</div>';
+  if (_byStations) {
+    if (!_byStations.length) {
+      bikeHtml = '<div class="hn-loading">ingen stasjoner funnet</div>';
+    } else {
+      bikeHtml = _byStations.map(s =>
+        '<div class="hn-bike-row">'
+        + '<span class="hn-bike-name">' + s.name + '</span>'
+        + '<span class="hn-bike-dist">' + (s.dist < 1000 ? s.dist + ' m' : (s.dist / 1000).toFixed(1) + ' km') + '</span>'
+        + '<span class="hn-bike-count' + (s.bikes === 0 ? ' empty' : '') + '">'
+        + s.bikes + (s.ebikes ? ' · ' + s.ebikes + ' el' : '') + '</span>'
+        + '</div>'
+      ).join('');
+    }
+  }
+
+  el.innerHTML =
+    '<div class="hn-panel">'
+    + '<div class="hn-title">Hva nå?</div>'
+    + '<div class="hn-section">'
+    + '<div class="hn-section-label">gangavstand</div>'
+    + '<input class="hn-input" id="t-walk-dest" placeholder="hvart videre?" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
+    + (_walkDestLL ? ' value="' + _walkDestLL.label.replace(/"/g, '&quot;') + '"' : '') + '>'
+    + '<div id="t-walk-sugg" class="stop-sugg" hidden></div>'
+    + '<div id="t-walk-result">' + (_walkDestLL ? _walkTime() : '') + '</div>'
+    + '</div>'
+    + '<div class="hn-section">'
+    + '<div class="hn-section-label">bysykkel</div>'
+    + bikeHtml
+    + '</div>'
+    + '<button class="hn-new-btn" id="t-new-btn">ny reise fra ' + arrStation + ' →</button>'
+    + '</div>';
+
+  const inp = document.getElementById('t-walk-dest');
+  if (inp) {
+    inp.addEventListener('input', _onWalkInput);
+    inp.addEventListener('blur', () => {
+      setTimeout(() => {
+        const s = document.getElementById('t-walk-sugg');
+        if (s) s.hidden = true;
+      }, 150);
+    });
+  }
+  const nb = document.getElementById('t-new-btn');
+  if (nb) nb.addEventListener('click', () => {
+    const depEl = document.getElementById('set-dep');
+    if (depEl && arrStation) depEl.value = arrStation;
+    show('v-settings');
+  });
 }
 
 // Returns { phase: 'riding'|'platform'|'arrived', i, next? }
@@ -282,6 +389,19 @@ export function renderTrack() {
   }
 
   document.getElementById('t-cards').innerHTML = cards;
+
+  const nextEl = document.getElementById('t-next');
+  if (phase === 'arrived') {
+    if (nextEl) nextEl.style.display = 'block';
+    renderNextPanel();
+    if (!_byStations && state.homeLL) {
+      fetchBysykkel(state.homeLL.lat, state.homeLL.lon)
+        .then(st => { _byStations = st; renderNextPanel(); })
+        .catch(() => { _byStations = []; renderNextPanel(); });
+    }
+  } else {
+    if (nextEl) nextEl.style.display = 'none';
+  }
 }
 
 export function buildTrackBar() {
@@ -299,6 +419,8 @@ export function buildTrackBar() {
 
 export function startTracking() {
   expanded = state.jny && state.jny.legs ? state.jny.legs.map(() => false) : [];
+  _byStations = null;
+  _walkDestLL = null;
   if (intervals.track) clearInterval(intervals.track);
   renderTrack();
   _fetchTrack();

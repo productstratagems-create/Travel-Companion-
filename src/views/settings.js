@@ -2,20 +2,13 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
 import { geocodePlace, geocodeDest } from '../api/entur.js';
+import { makeSuggBtn } from '../ui/fmt.js';
 
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
 const VIA_KEY = 't.via';
 
 const TRANSIT_CATEGORIES = ['metroStation', 'busStation', 'onstreetBus', 'tramStation', 'ferryStop'];
-
-function placeIcon(cats) {
-  if (cats && cats.includes('metroStation'))                                     return { cls: 'si-metro', txt: 'T' };
-  if (cats && cats.includes('tramStation'))                                      return { cls: 'si-tram',  txt: 'Tr' };
-  if (cats && (cats.includes('busStation') || cats.includes('onstreetBus')))     return { cls: 'si-bus',   txt: 'B' };
-  if (cats && cats.includes('ferryStop'))                                        return { cls: 'si-ferry', txt: 'F' };
-  return { cls: 'si-addr', txt: '◉' };
-}
 
 let _depAbort = null, _arrAbort = null, _viaAbort = null, _wfAbort = null;
 let _depTimer = null, _arrTimer = null, _viaTimer = null, _wfTimer = null;
@@ -54,24 +47,12 @@ function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbo
         stops.forEach(f => {
           const name = f.properties.name || f.properties.label;
           stopMap.set(name, { id: f.properties.id, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] });
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          const pi = placeIcon(f.properties.category || []);
-          const ic = document.createElement('span');
-          ic.className = 'si ' + pi.cls;
-          ic.textContent = pi.txt;
-          const lb = document.createElement('span');
-          lb.textContent = name;
-          btn.appendChild(ic);
-          btn.appendChild(lb);
-          btn.addEventListener('mousedown', e => e.preventDefault());
-          btn.addEventListener('click', () => {
+          sugg.appendChild(makeSuggBtn(name, f.properties.category || [], () => {
             inp.value = name;
             sugg.hidden = true;
             sugg.innerHTML = '';
             syncClear(inputId, clearId);
-          });
-          sugg.appendChild(btn);
+          }));
         });
         sugg.hidden = false;
       })
@@ -129,24 +110,12 @@ export function initSettings() {
         if (!results.length) { sugg.hidden = true; return; }
         results.forEach(r => {
           _arrStopIds.set(r.label, { id: r.id, lat: r.lat, lon: r.lon });
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          const pi = placeIcon(r.category || []);
-          const ic = document.createElement('span');
-          ic.className = 'si ' + pi.cls;
-          ic.textContent = pi.txt;
-          const lb = document.createElement('span');
-          lb.textContent = r.label;
-          btn.appendChild(ic);
-          btn.appendChild(lb);
-          btn.addEventListener('mousedown', ev => ev.preventDefault());
-          btn.addEventListener('click', () => {
+          sugg.appendChild(makeSuggBtn(r.label, r.category || [], () => {
             inp.value = r.label;
             sugg.hidden = true;
             sugg.innerHTML = '';
             syncClear('set-arr', 'set-arr-clear');
-          });
-          sugg.appendChild(btn);
+          }));
         });
         sugg.hidden = false;
       }).catch(() => {});
@@ -237,18 +206,7 @@ export function initSettings() {
           sugg.innerHTML = '';
           if (!results.length) { sugg.hidden = true; return; }
           results.slice(0, 6).forEach(r => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            const pi = placeIcon(r.category || []);
-            const ic = document.createElement('span');
-            ic.className = 'si ' + pi.cls;
-            ic.textContent = pi.txt;
-            const lb = document.createElement('span');
-            lb.textContent = r.label;
-            btn.appendChild(ic);
-            btn.appendChild(lb);
-            btn.addEventListener('mousedown', e => e.preventDefault());
-            btn.addEventListener('click', () => {
+            sugg.appendChild(makeSuggBtn(r.label, r.category || [], () => {
               wfEl.value = r.label;
               sugg.hidden = true;
               sugg.innerHTML = '';
@@ -256,8 +214,7 @@ export function initSettings() {
               state.walkFromLL = { lat: r.lat, lon: r.lon };
               saveWalkFrom({ label: r.label, lat: r.lat, lon: r.lon });
               window._logMsg && window._logMsg('gå fra: ' + r.label);
-            });
-            sugg.appendChild(btn);
+            }));
           });
           sugg.hidden = false;
         }).catch(() => {});

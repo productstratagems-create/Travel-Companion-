@@ -19,7 +19,8 @@ let _walkDestLL = null;
 let _walkTimer  = null;
 let _walkAbort  = null;
 
-function normStn(s) { return s.toLowerCase().replace(/\s+t$/i, '').trim(); }
+function normStn(s) { return s.toLowerCase().replace(/,.*$/, '').replace(/\s+t$/i, '').trim(); }
+function displayStn(s) { return String(s).replace(/,.*$/, '').trim(); }
 
 function renderStopRow(r, isNext) {
   const tag = r.isTransfer ? '<span class="stop-tag bytt-tag">bytt</span>'
@@ -140,7 +141,7 @@ function renderNextPanel() {
     + '<div class="hn-title">Hva nå?</div>'
     + '<div class="hn-section">'
     + '<div class="hn-section-label">gangavstand</div>'
-    + '<input class="hn-input" id="t-walk-dest" placeholder="hvart videre?" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
+    + '<input class="hn-input" id="t-walk-dest" placeholder="hvor videre?" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
     + (_walkDestLL ? ' value="' + esc(_walkDestLL.label) + '"' : '') + '>'
     + '<div id="t-walk-sugg" class="stop-sugg" hidden></div>'
     + '<div id="t-walk-result"></div>'
@@ -149,7 +150,7 @@ function renderNextPanel() {
     + '<div class="hn-section-label">bysykkel</div>'
     + '<div id="hn-bike-content">' + _bikeSectionHtml() + '</div>'
     + '</div>'
-    + '<button class="hn-new-btn" id="t-new-btn">ny reise fra ' + esc(arrStation) + ' →</button>'
+    + '<button class="hn-new-btn" id="t-new-btn">ny reise fra ' + esc(displayStn(arrStation)) + ' →</button>'
     + '</div>';
 
   if (_walkDestLL) _applyWalkResult();
@@ -169,7 +170,7 @@ function renderNextPanel() {
     window._showSettings && window._showSettings();
     const depEl = document.getElementById('set-dep');
     if (depEl && arrStation) {
-      depEl.value = arrStation;
+      depEl.value = displayStn(arrStation);
       const clrEl = document.getElementById('set-dep-clear');
       if (clrEl) clrEl.style.display = 'flex';
     }

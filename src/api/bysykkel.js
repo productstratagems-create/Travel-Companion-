@@ -10,8 +10,8 @@ export function fetchBysykkel(lat, lon) {
   const now = Date.now();
   if (_cache && now - _cache.ts < 60000) return Promise.resolve(_rank(_cache.stations, lat, lon));
   return Promise.all([
-    fetch(INFO_URL, HDR).then(r => r.json()),
-    fetch(STATUS_URL, HDR).then(r => r.json()),
+    fetch(INFO_URL, HDR).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
+    fetch(STATUS_URL, HDR).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
   ]).then(([info, status]) => {
     const sm = {};
     (status.data.stations || []).forEach(s => { sm[s.station_id] = s; });

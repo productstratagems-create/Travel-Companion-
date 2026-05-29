@@ -7,7 +7,7 @@ import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
-import { fmtMins } from '../ui/fmt.js';
+import { fmtMins, makeSuggBtn } from '../ui/fmt.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -34,15 +34,35 @@ function renderStopRow(r, isNext) {
     + '</div>';
 }
 
-function _walkTime() {
-  if (!_walkDestLL) return '';
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// DOM-safe walk result — avoids innerHTML XSS from external label strings
+function _applyWalkResult() {
+  const res = document.getElementById('t-walk-result');
+  if (!res) return;
+  while (res.firstChild) res.removeChild(res.firstChild);
+  if (!_walkDestLL) return;
   const pos = state.homeLL || state.walkFromLL;
-  if (!pos) return '<span class="hn-walk-mins">? min</span>';
+  if (!pos) {
+    const el = document.createElement('span');
+    el.className = 'hn-walk-mins';
+    el.textContent = '? min';
+    res.appendChild(el);
+    return;
+  }
   const d = haver(pos.lat, pos.lon, _walkDestLL.lat, _walkDestLL.lon);
   const spd = SPEED_MPN[loadWalkSpeed()] || 83.33;
   const mins = Math.max(1, Math.ceil(d * 1.3 / spd)) + loadWalkBuffer();
-  return '<span class="hn-walk-mins">' + mins + ' min</span>'
-       + '<span class="hn-walk-to"> til ' + _walkDestLL.label + '</span>';
+  const mEl = document.createElement('span');
+  mEl.className = 'hn-walk-mins';
+  mEl.textContent = mins + ' min';
+  const tEl = document.createElement('span');
+  tEl.className = 'hn-walk-to';
+  tEl.textContent = ' til ' + _walkDestLL.label;
+  res.appendChild(mEl);
+  res.appendChild(tEl);
 }
 
 function _onWalkInput() {
@@ -53,29 +73,60 @@ function _onWalkInput() {
   if (_walkAbort) { _walkAbort.abort(); _walkAbort = null; }
   if (q.length < 2) { sugg.hidden = true; sugg.innerHTML = ''; return; }
   _walkTimer = setTimeout(() => {
-    _walkAbort = new AbortController();
+    const thisAbort = new AbortController();
+    _walkAbort = thisAbort;
     geocodePlace(q).then(results => {
+      if (thisAbort.signal.aborted) return;
       sugg.innerHTML = '';
       if (!results.length) { sugg.hidden = true; return; }
       results.slice(0, 5).forEach(r => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.textContent = r.label;
-        btn.addEventListener('mousedown', e => e.preventDefault());
-        btn.addEventListener('click', () => {
+        sugg.appendChild(makeSuggBtn(r.label, r.category || [], () => {
           _walkDestLL = { lat: r.lat, lon: r.lon, label: r.label };
           const inp = document.getElementById('t-walk-dest');
           if (inp) inp.value = r.label;
           sugg.hidden = true;
           sugg.innerHTML = '';
-          const res = document.getElementById('t-walk-result');
-          if (res) res.innerHTML = _walkTime();
-        });
-        sugg.appendChild(btn);
+          _applyWalkResult();
+        }));
       });
       sugg.hidden = false;
     }).catch(() => {});
   }, 250);
+}
+
+function _bikeSectionHtml() {
+  if (!_byStations) return '<div class="hn-loading">laster sykler…</div>';
+  if (!_byStations.length) return '<div class="hn-loading">ingen stasjoner funnet</div>';
+  return _byStations.map(s =>
+    '<div class="hn-bike-row">'
+    + '<span class="hn-bike-name">' + esc(s.name) + '</span>'
+    + '<span class="hn-bike-dist">' + (s.dist < 1000 ? s.dist + ' m' : (s.dist / 1000).toFixed(1) + ' km') + '</span>'
+    + '<span class="hn-bike-count' + (s.bikes === 0 ? ' empty' : '') + '">'
+    + s.bikes + (s.ebikes ? ' · ' + s.ebikes + ' el' : '') + '</span>'
+    + '</div>'
+  ).join('');
+}
+
+// Update only the bike section after the async GBFS fetch — avoids rebuilding the whole panel
+// (which would destroy the walk-destination input and any text the user is typing)
+function _updateBikeSection() {
+  const el = document.getElementById('hn-bike-content');
+  if (!el) { renderNextPanel(); return; }
+  el.innerHTML = _bikeSectionHtml();
+}
+
+// Resolve arrival coordinates: use stored coords from settings if available, else geocode the
+// destination name, else fall back to homeLL. Needed because homeLL holds the origin GPS position,
+// not the destination.
+function _resolveArrivalLL() {
+  const dir = config.dirs[state.dIdx];
+  if (dir._toLat && dir._toLon) return Promise.resolve({ lat: dir._toLat, lon: dir._toLon });
+  if (dir.to) {
+    return geocodePlace(dir.to)
+      .then(r => r[0] ? { lat: r[0].lat, lon: r[0].lon } : (state.homeLL || null))
+      .catch(() => state.homeLL || null);
+  }
+  return Promise.resolve(state.homeLL || null);
 }
 
 function renderNextPanel() {
@@ -84,38 +135,24 @@ function renderNextPanel() {
   const last = state.jny && state.jny.legs && state.jny.legs[state.jny.legs.length - 1];
   const arrStation = last ? last.toStation : '';
 
-  let bikeHtml = '<div class="hn-loading">laster sykler…</div>';
-  if (_byStations) {
-    if (!_byStations.length) {
-      bikeHtml = '<div class="hn-loading">ingen stasjoner funnet</div>';
-    } else {
-      bikeHtml = _byStations.map(s =>
-        '<div class="hn-bike-row">'
-        + '<span class="hn-bike-name">' + s.name + '</span>'
-        + '<span class="hn-bike-dist">' + (s.dist < 1000 ? s.dist + ' m' : (s.dist / 1000).toFixed(1) + ' km') + '</span>'
-        + '<span class="hn-bike-count' + (s.bikes === 0 ? ' empty' : '') + '">'
-        + s.bikes + (s.ebikes ? ' · ' + s.ebikes + ' el' : '') + '</span>'
-        + '</div>'
-      ).join('');
-    }
-  }
-
   el.innerHTML =
     '<div class="hn-panel">'
     + '<div class="hn-title">Hva nå?</div>'
     + '<div class="hn-section">'
     + '<div class="hn-section-label">gangavstand</div>'
     + '<input class="hn-input" id="t-walk-dest" placeholder="hvart videre?" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
-    + (_walkDestLL ? ' value="' + _walkDestLL.label.replace(/"/g, '&quot;') + '"' : '') + '>'
+    + (_walkDestLL ? ' value="' + esc(_walkDestLL.label) + '"' : '') + '>'
     + '<div id="t-walk-sugg" class="stop-sugg" hidden></div>'
-    + '<div id="t-walk-result">' + (_walkDestLL ? _walkTime() : '') + '</div>'
+    + '<div id="t-walk-result"></div>'
     + '</div>'
     + '<div class="hn-section">'
     + '<div class="hn-section-label">bysykkel</div>'
-    + bikeHtml
+    + '<div id="hn-bike-content">' + _bikeSectionHtml() + '</div>'
     + '</div>'
-    + '<button class="hn-new-btn" id="t-new-btn">ny reise fra ' + arrStation + ' →</button>'
+    + '<button class="hn-new-btn" id="t-new-btn">ny reise fra ' + esc(arrStation) + ' →</button>'
     + '</div>';
+
+  if (_walkDestLL) _applyWalkResult();
 
   const inp = document.getElementById('t-walk-dest');
   if (inp) {
@@ -129,8 +166,13 @@ function renderNextPanel() {
   }
   const nb = document.getElementById('t-new-btn');
   if (nb) nb.addEventListener('click', () => {
+    window._showSettings && window._showSettings();
     const depEl = document.getElementById('set-dep');
-    if (depEl && arrStation) depEl.value = arrStation;
+    if (depEl && arrStation) {
+      depEl.value = arrStation;
+      const clrEl = document.getElementById('set-dep-clear');
+      if (clrEl) clrEl.style.display = 'flex';
+    }
     show('v-settings');
   });
 }
@@ -394,10 +436,13 @@ export function renderTrack() {
   if (phase === 'arrived') {
     if (nextEl) nextEl.style.display = 'block';
     renderNextPanel();
-    if (!_byStations && state.homeLL) {
-      fetchBysykkel(state.homeLL.lat, state.homeLL.lon)
-        .then(st => { _byStations = st; renderNextPanel(); })
-        .catch(() => { _byStations = []; renderNextPanel(); });
+    if (!_byStations) {
+      _resolveArrivalLL().then(ll => {
+        if (!ll) { _byStations = []; _updateBikeSection(); return; }
+        fetchBysykkel(ll.lat, ll.lon)
+          .then(st => { _byStations = st; _updateBikeSection(); })
+          .catch(() => { _byStations = []; _updateBikeSection(); });
+      });
     }
   } else {
     if (nextEl) nextEl.style.display = 'none';

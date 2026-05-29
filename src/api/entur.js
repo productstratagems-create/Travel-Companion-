@@ -81,10 +81,11 @@ export function geocodeDest(query) {
       .map(f => {
         const isTransit = (f.properties.category || []).some(c => TRANSIT_CAT.includes(c));
         return {
-          label: f.properties.label || f.properties.name || '',
-          id:    isTransit ? f.properties.id : null,
-          lat:   f.geometry.coordinates[1],
-          lon:   f.geometry.coordinates[0],
+          label:    f.properties.label || f.properties.name || '',
+          id:       isTransit ? f.properties.id : null,
+          lat:      f.geometry.coordinates[1],
+          lon:      f.geometry.coordinates[0],
+          category: f.properties.category || [],
         };
       })
     );
@@ -98,9 +99,10 @@ export function geocodePlace(query) {
     .then(json => ((json && json.features) || [])
       .filter(f => f.geometry && f.geometry.coordinates && f.geometry.coordinates[1])
       .map(f => ({
-        label: f.properties.label || f.properties.name || '',
-        lat:   f.geometry.coordinates[1],
-        lon:   f.geometry.coordinates[0],
+        label:    f.properties.label || f.properties.name || '',
+        lat:      f.geometry.coordinates[1],
+        lon:      f.geometry.coordinates[0],
+        category: f.properties.category || [],
       }))
     );
 }

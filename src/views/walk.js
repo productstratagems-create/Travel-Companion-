@@ -4,9 +4,40 @@ import { walkInfo, findArr, isWalkActive } from '../geo.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { fmtMins } from '../ui/fmt.js';
+import L from 'leaflet';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+
+const TILE = 'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png';
+const TILE_ATTR = '© Kartverket';
+
+let _wMap = null;
+let _wFromMarker = null;
+
+function _destroyWalkMap() {
+  if (_wMap) { _wMap.remove(); _wMap = null; _wFromMarker = null; }
+}
+
+function _initWalkMap(fromLL, toLL) {
+  const el = document.getElementById('w-map');
+  if (!el || !fromLL || !toLL) return;
+  _destroyWalkMap();
+  _wMap = L.map(el, { zoomControl: false, attributionControl: false });
+  L.tileLayer(TILE, { attribution: TILE_ATTR }).addTo(_wMap);
+  // Station marker (amber)
+  L.circleMarker([toLL.lat, toLL.lon], { radius: 9, color: '#f5b840', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2 }).addTo(_wMap);
+  // User position marker (blue) — stored so GPS updates can move it
+  _wFromMarker = L.circleMarker([fromLL.lat, fromLL.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 }).addTo(_wMap);
+  // Dashed line between the two
+  L.polyline([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], { color: '#f5b840', weight: 2, dashArray: '5 5', opacity: 0.6 }).addTo(_wMap);
+  _wMap.fitBounds([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], { padding: [30, 30] });
+}
+
+function _updateWalkMapOrigin(fromLL) {
+  if (!_wMap || !_wFromMarker || !fromLL) return;
+  _wFromMarker.setLatLng([fromLL.lat, fromLL.lon]);
+}
 
 export function buildWalkBar() {
   const c = state.sel;
@@ -123,8 +154,24 @@ export function renderWalk() {
   }
 
   document.getElementById('w-center').innerHTML = numEl + lblEl + ctxEl;
+
+  // Map: init once per walk session, then only update origin marker as GPS refreshes
+  const fromLL = state.walkFromLL || state.homeLL;
+  const toLL = dir && state.statLL && state.statLL[dir.key];
+  if (fromLL && toLL) {
+    if (!_wMap) {
+      _initWalkMap(fromLL, toLL);
+    } else {
+      _updateWalkMapOrigin(fromLL);
+    }
+  }
+}
+
+export function stopWalk() {
+  _destroyWalkMap();
 }
 
 // Expose for nav bridges
 window._buildWalkBar = buildWalkBar;
 window._renderWalk = renderWalk;
+window._stopWalk = stopWalk;

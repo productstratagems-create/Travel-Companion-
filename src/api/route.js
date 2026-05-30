@@ -24,7 +24,7 @@ export async function fetchWalkRoute(fromLL, toLL) {
   const query = '{ trip('
     + 'from:{coordinates:{latitude:' + fromLL.lat + ',longitude:' + fromLL.lon + '}} '
     + 'to:{coordinates:{latitude:' + toLL.lat + ',longitude:' + toLL.lon + '}} '
-    + 'modes:{directModes:[foot],transportModes:[]} numTripPatterns:1'
+    + 'modes:{directModes:[foot]} numTripPatterns:1'
     + ') { tripPatterns { legs { legGeometry { points } } } } }';
   try {
     const r = await fetch(config.api.journeyPlanner, {

@@ -51,8 +51,13 @@ function _initArrMap(arrLL) {
   _arrLL = arrLL;
   _arrMap = L.map(el, { zoomControl: false, attributionControl: false });
   L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_arrMap);
-  // Arrival station marker (amber)
-  L.circleMarker([arrLL.lat, arrLL.lon], { radius: 9, color: '#f5b840', fillColor: '#f5b840', fillOpacity: 0.85, weight: 2 }).addTo(_arrMap);
+  // Arrival station marker — last transit leg's line badge
+  const jLegs = state.jny && state.jny.legs;
+  const jLast = jLegs && jLegs[jLegs.length - 1];
+  const arrCode = (jLast && jLast.lineCode) || '?';
+  const arrBg   = (jLast && jLast.lineBg)   || '#7c2d12';
+  const arrMode = (jLast && jLast.mode)      || 'metro';
+  L.marker([arrLL.lat, arrLL.lon], { icon: _makeTransitStopIcon(arrCode, arrBg, arrMode) }).addTo(_arrMap);
   // Bike layer (populated later by _addBikeMarkers once fetchBysykkel resolves)
   _bikeLayer = L.layerGroup().addTo(_arrMap);
   _fitArrMap(arrLL);
@@ -92,6 +97,15 @@ function _updateArrMapWalkPin(arrLL) {
     _arrRouteLine = L.polyline(pts, { color: '#60a5fa', weight: 3, opacity: 0.8 }).addTo(_arrMap);
     _arrMap.fitBounds(pts, { padding: [24, 24] });
   }).catch(() => {});
+}
+
+function _makeTransitStopIcon(code, bg, mode) {
+  const modeLabel = mode === 'bus' ? 'BUS' : mode === 'tram' ? 'TRIKK' : 'T-BANE';
+  const html = '<div style="text-align:center;line-height:1;white-space:nowrap;transform:translate(-50%,-50%)">'
+    + '<span class="line-badge" style="background:' + bg + ';font-size:13px;padding:4px 9px">' + code + '</span>'
+    + '<div style="font-size:8px;color:#444;font-family:JetBrains Mono,monospace;letter-spacing:.08em;margin-top:3px">' + modeLabel + '</div>'
+    + '</div>';
+  return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
 function normStn(s) { return s.toLowerCase().replace(/,.*$/, '').replace(/\s+t$/i, '').trim(); }

@@ -10,6 +10,15 @@ import { fetchWalkRoute } from '../api/route.js';
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
+function _makeTransitStopIcon(code, bg, mode) {
+  const modeLabel = mode === 'bus' ? 'BUS' : mode === 'tram' ? 'TRIKK' : 'T-BANE';
+  const html = '<div style="text-align:center;line-height:1;white-space:nowrap;transform:translate(-50%,-50%)">'
+    + '<span class="line-badge" style="background:' + bg + ';font-size:13px;padding:4px 9px">' + code + '</span>'
+    + '<div style="font-size:8px;color:#444;font-family:JetBrains Mono,monospace;letter-spacing:.08em;margin-top:3px">' + modeLabel + '</div>'
+    + '</div>';
+  return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
+}
+
 const TILE = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 const TILE_ATTR = '© CartoDB';
 
@@ -26,8 +35,14 @@ function _initWalkMap(fromLL, toLL) {
   _destroyWalkMap();
   _wMap = L.map(el, { zoomControl: false, attributionControl: false });
   L.tileLayer(TILE, { subdomains: 'abcd', attribution: TILE_ATTR }).addTo(_wMap);
-  // Station marker (amber)
-  L.circleMarker([toLL.lat, toLL.lon], { radius: 9, color: '#f5b840', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2 }).addTo(_wMap);
+  // Station marker — transit line badge
+  const sel = state.sel;
+  const leg0 = sel && sel._legs && sel._legs[0];
+  const ln0 = (leg0 && leg0.serviceJourney && leg0.serviceJourney.line) || (sel && sel.serviceJourney && sel.serviceJourney.line);
+  const stopCode = (ln0 && ln0.publicCode) || '?';
+  const stopBg = (ln0 && ln0.presentation && ln0.presentation.colour) ? '#' + ln0.presentation.colour : '#7c2d12';
+  const stopMode = (leg0 && leg0.mode) || 'metro';
+  L.marker([toLL.lat, toLL.lon], { icon: _makeTransitStopIcon(stopCode, stopBg, stopMode) }).addTo(_wMap);
   // User position marker (blue) — stored so GPS updates can move it
   _wFromMarker = L.circleMarker([fromLL.lat, fromLL.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 }).addTo(_wMap);
   // Straight placeholder line shown immediately; replaced by routed path when OSRM responds

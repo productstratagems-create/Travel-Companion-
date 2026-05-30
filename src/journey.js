@@ -43,6 +43,7 @@ export function doBoard() {
       legs.push({
         lineCode:    (legLine && legLine.publicCode) || '?',
         lineBg:      legLbg ? '#' + legLbg : '#7c2d12',
+        mode:        leg.mode || 'metro',
         frontText:   (leg.fromEstimatedCall && leg.fromEstimatedCall.destinationDisplay && leg.fromEstimatedCall.destinationDisplay.frontText) || leg.toPlace.name,
         journeyId:   legSj && legSj.id,
         fromStation: i === 0 ? dir.from : (c._transfers[i-1] && c._transfers[i-1].at) || dir.from,
@@ -62,6 +63,7 @@ export function doBoard() {
     legs.push({
       lineCode:    (sj && sj.line && sj.line.publicCode) || config.line,
       lineBg:      lbg ? '#' + lbg : '#7c2d12',
+      mode:        'metro',
       frontText:   (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to,
       journeyId:   sj && sj.id,
       fromStation: dir.from,

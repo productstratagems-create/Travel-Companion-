@@ -1,5 +1,6 @@
 /* ── SCREEN 2b: GANGTID ── */
-#w-map{height:160px;border-radius:8px;margin-bottom:1rem;overflow:hidden;background:#0f0d0b}
+#w-map{height:160px;border-radius:8px;overflow:hidden;background:#0f0d0b;transition:height .3s ease,border-radius .3s ease}
+#w-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
 .walk-center{text-align:center;padding:1rem 0 1.5rem}
 .walk-num{
   font-family:"Bebas Neue",sans-serif;

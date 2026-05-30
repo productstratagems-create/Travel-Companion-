@@ -9,6 +9,7 @@ import { startBoard } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn } from '../ui/fmt.js';
 import L from 'leaflet';
+import { fetchWalkRoute } from '../api/route.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -24,15 +25,18 @@ const _TILE = 'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercato
 
 let _arrMap = null;
 let _arrWalkMarker = null;
+let _arrRouteLine = null;
+let _arrLL = null; // cached for expand invalidation
 
 function _destroyArrMap() {
-  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; }
+  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; }
 }
 
 function _initArrMap(arrLL) {
   const el = document.getElementById('hn-map');
   if (!el || !arrLL) return;
   _destroyArrMap();
+  _arrLL = arrLL;
   _arrMap = L.map(el, { zoomControl: false, attributionControl: false });
   L.tileLayer(_TILE, { attribution: '© Kartverket' }).addTo(_arrMap);
   // Arrival station marker (amber)
@@ -44,6 +48,18 @@ function _initArrMap(arrLL) {
     L.marker([s.lat, s.lon], { icon }).addTo(_arrMap);
   });
   _fitArrMap(arrLL);
+
+  // Expand toggle
+  const expandBtn = document.getElementById('hn-map-expand');
+  if (expandBtn) {
+    expandBtn.onclick = () => {
+      const expanded = el.classList.toggle('expanded');
+      expandBtn.textContent = expanded ? '✕' : '⤢';
+      expandBtn.setAttribute('aria-label', expanded ? 'Minimer kart' : 'Utvid kart');
+      expandBtn.title = expanded ? 'Minimer kart' : 'Utvid kart';
+      setTimeout(() => _arrMap && _arrMap.invalidateSize(), 320);
+    };
+  }
 }
 
 function _fitArrMap(arrLL) {
@@ -58,8 +74,16 @@ function _fitArrMap(arrLL) {
 function _updateArrMapWalkPin(arrLL) {
   if (!_arrMap || !_walkDestLL) return;
   if (_arrWalkMarker) _arrWalkMarker.remove();
+  if (_arrRouteLine) { _arrRouteLine.remove(); _arrRouteLine = null; }
   _arrWalkMarker = L.circleMarker([_walkDestLL.lat, _walkDestLL.lon], { radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 }).addTo(_arrMap);
   if (arrLL) _fitArrMap(arrLL);
+  // Fetch routed walking path from arrival station to typed destination
+  fetchWalkRoute(arrLL, _walkDestLL).then(pts => {
+    if (!_arrMap || !pts) return;
+    if (_arrRouteLine) _arrRouteLine.remove();
+    _arrRouteLine = L.polyline(pts, { color: '#60a5fa', weight: 3, opacity: 0.8 }).addTo(_arrMap);
+    _arrMap.fitBounds(pts, { padding: [24, 24] });
+  }).catch(() => {});
 }
 
 function normStn(s) { return s.toLowerCase().replace(/,.*$/, '').replace(/\s+t$/i, '').trim(); }
@@ -184,7 +208,7 @@ function renderNextPanel() {
   el.innerHTML =
     '<div class="hn-panel">'
     + '<div class="hn-title">Hva nå?</div>'
-    + '<div id="hn-map"></div>'
+    + '<div class="map-wrap"><div id="hn-map"></div><button class="map-expand-btn" id="hn-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
     + '<div class="hn-section">'
     + '<div class="hn-section-label">gangavstand</div>'
     + '<input class="hn-input" id="t-walk-dest" placeholder="hvor videre?" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'

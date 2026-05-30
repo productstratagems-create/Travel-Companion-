@@ -5,6 +5,7 @@ import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
+import { fetchWalkRoute } from '../api/route.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -29,9 +30,29 @@ function _initWalkMap(fromLL, toLL) {
   L.circleMarker([toLL.lat, toLL.lon], { radius: 9, color: '#f5b840', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2 }).addTo(_wMap);
   // User position marker (blue) — stored so GPS updates can move it
   _wFromMarker = L.circleMarker([fromLL.lat, fromLL.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 }).addTo(_wMap);
-  // Dashed line between the two
-  L.polyline([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], { color: '#f5b840', weight: 2, dashArray: '5 5', opacity: 0.6 }).addTo(_wMap);
+  // Straight placeholder line shown immediately; replaced by routed path when OSRM responds
+  let _routeLine = L.polyline([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]],
+    { color: '#f5b840', weight: 2, dashArray: '5 5', opacity: 0.4 }).addTo(_wMap);
   _wMap.fitBounds([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], { padding: [30, 30] });
+
+  fetchWalkRoute(fromLL, toLL).then(pts => {
+    if (!_wMap || !pts) return;
+    _routeLine.remove();
+    _routeLine = L.polyline(pts, { color: '#f5b840', weight: 3, opacity: 0.8 }).addTo(_wMap);
+    _wMap.fitBounds(pts, { padding: [30, 30] });
+  }).catch(() => {});
+
+  // Expand toggle
+  const expandBtn = document.getElementById('w-map-expand');
+  if (expandBtn) {
+    expandBtn.onclick = () => {
+      const expanded = el.classList.toggle('expanded');
+      expandBtn.textContent = expanded ? '✕' : '⤢';
+      expandBtn.setAttribute('aria-label', expanded ? 'Minimer kart' : 'Utvid kart');
+      expandBtn.title = expanded ? 'Minimer kart' : 'Utvid kart';
+      setTimeout(() => _wMap && _wMap.invalidateSize(), 320);
+    };
+  }
 }
 
 function _updateWalkMapOrigin(fromLL) {

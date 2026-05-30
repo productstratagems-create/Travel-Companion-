@@ -114,7 +114,8 @@
 .hn-new-btn:active{background:rgba(245,184,64,.06)}
 
 /* Arrival map */
-#hn-map{height:220px;border-radius:8px;margin-bottom:1.25rem;overflow:hidden;background:#0f0d0b}
+#hn-map{height:220px;border-radius:8px;overflow:hidden;background:#0f0d0b;transition:height .3s ease,border-radius .3s ease}
+#hn-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
 .hn-map-bike{
   width:28px;height:28px;border-radius:50%;
   background:#1a2a1a;border:2px solid #4ade80;

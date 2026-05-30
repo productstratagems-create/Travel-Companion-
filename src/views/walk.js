@@ -10,8 +10,8 @@ import { fetchWalkRoute } from '../api/route.js';
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
-const TILE = 'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png';
-const TILE_ATTR = '© Kartverket';
+const TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const TILE_ATTR = '© CartoDB';
 
 let _wMap = null;
 let _wFromMarker = null;
@@ -25,7 +25,7 @@ function _initWalkMap(fromLL, toLL) {
   if (!el || !fromLL || !toLL) return;
   _destroyWalkMap();
   _wMap = L.map(el, { zoomControl: false, attributionControl: false });
-  L.tileLayer(TILE, { attribution: TILE_ATTR }).addTo(_wMap);
+  L.tileLayer(TILE, { subdomains: 'abcd', attribution: TILE_ATTR }).addTo(_wMap);
   // Station marker (amber)
   L.circleMarker([toLL.lat, toLL.lon], { radius: 9, color: '#f5b840', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2 }).addTo(_wMap);
   // User position marker (blue) — stored so GPS updates can move it

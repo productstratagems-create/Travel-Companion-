@@ -21,32 +21,40 @@ let _walkDestLL = null;
 let _walkTimer  = null;
 let _walkAbort  = null;
 
-const _TILE = 'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png';
+const _TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
 let _arrMap = null;
 let _arrWalkMarker = null;
 let _arrRouteLine = null;
 let _arrLL = null; // cached for expand invalidation
+let _bikeLayer = null;
 
 function _destroyArrMap() {
-  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; }
+  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _bikeLayer = null; }
+}
+
+function _addBikeMarkers(arrLL) {
+  if (!_arrMap) return;
+  if (_bikeLayer) { _bikeLayer.clearLayers(); } else { _bikeLayer = L.layerGroup().addTo(_arrMap); }
+  (_byStations || []).forEach(s => {
+    const count = s.bikes + (s.ebikes || 0);
+    const icon = L.divIcon({ className: '', html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '') + '">' + count + '</div>', iconAnchor: [14, 14] });
+    L.marker([s.lat, s.lon], { icon }).addTo(_bikeLayer);
+  });
+  if (arrLL) _fitArrMap(arrLL);
 }
 
 function _initArrMap(arrLL) {
   const el = document.getElementById('hn-map');
   if (!el || !arrLL) return;
-  _destroyArrMap();
+  if (_arrMap) return; // already initialized — use _addBikeMarkers to update
   _arrLL = arrLL;
   _arrMap = L.map(el, { zoomControl: false, attributionControl: false });
-  L.tileLayer(_TILE, { attribution: '© Kartverket' }).addTo(_arrMap);
+  L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_arrMap);
   // Arrival station marker (amber)
   L.circleMarker([arrLL.lat, arrLL.lon], { radius: 9, color: '#f5b840', fillColor: '#f5b840', fillOpacity: 0.85, weight: 2 }).addTo(_arrMap);
-  // Bike station markers
-  (_byStations || []).forEach(s => {
-    const count = s.bikes + (s.ebikes || 0);
-    const icon = L.divIcon({ className: '', html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '') + '">' + count + '</div>', iconAnchor: [14, 14] });
-    L.marker([s.lat, s.lon], { icon }).addTo(_arrMap);
-  });
+  // Bike layer (populated later by _addBikeMarkers once fetchBysykkel resolves)
+  _bikeLayer = L.layerGroup().addTo(_arrMap);
   _fitArrMap(arrLL);
 
   // Expand toggle
@@ -509,15 +517,13 @@ export function renderTrack() {
     renderNextPanel();
     if (!_byStations) {
       _resolveArrivalLL().then(ll => {
-        // Init the map as soon as we know the arrival location
-        if (ll) _initArrMap(ll);
         if (!ll) { _byStations = []; _updateBikeSection(); return; }
+        _initArrMap(ll);
         fetchBysykkel(ll.lat, ll.lon)
           .then(st => {
             _byStations = st;
             _updateBikeSection();
-            // Re-init the map now that bike stations are available
-            _initArrMap(ll);
+            _addBikeMarkers(ll);
           })
           .catch(() => { _byStations = []; _updateBikeSection(); });
       });

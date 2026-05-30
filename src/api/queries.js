@@ -31,7 +31,7 @@ export function boardGQL(id, n) {
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation occupancyStatus '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
     + 'destinationDisplay{frontText} quay{id publicCode name} '
-    + 'serviceJourney{id line{publicCode presentation{colour}} '
+    + 'serviceJourney{id line{publicCode transportMode presentation{colour}} '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
     + 'estimatedCalls{quay{stopPlace{name}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'

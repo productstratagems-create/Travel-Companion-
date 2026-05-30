@@ -104,6 +104,22 @@
 .fav-bar:active{color:#f5b840}
 
 #walk-summary{font-size:12px;color:#7485a0;padding:.3rem 0 .6rem;letter-spacing:.04em}
+
+#mode-filter{display:flex;gap:.35rem;flex-wrap:wrap;padding:.5rem 0 .35rem}
+.mode-pill{
+  padding:.3rem .7rem;border-radius:20px;
+  border:1px solid rgba(245,184,64,.18);background:none;
+  color:#7485a0;font-family:inherit;font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+  transition:background .1s,color .1s,border-color .1s;
+  min-height:32px;
+}
+.mode-pill.active{background:rgba(245,184,64,.12);border-color:rgba(245,184,64,.4);color:#f5b840}
+.mode-pill:active{opacity:.7}
+
+#bike-board{padding-top:.6rem}
+.mode-section-label{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#8898aa;margin-bottom:.5rem}
+#bike-map{height:220px;border-radius:8px;overflow:hidden;margin-bottom:.7rem}
 .transfer-arrow{font-size:9px;color:#8898aa;margin:0 .15rem;vertical-align:middle}
 
 #service-alerts{margin:.4rem 0}

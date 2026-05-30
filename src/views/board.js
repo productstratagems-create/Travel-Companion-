@@ -7,9 +7,110 @@ import { adaptTripPattern } from '../api/adapt.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
 import { fmtMins } from '../ui/fmt.js';
+import L from 'leaflet';
+import { fetchBysykkel } from '../api/bysykkel.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+
+// ── Mode filter ──────────────────────────────────────────────────────────────
+const MODES_KEY = 't.modes';
+const DEFAULT_MODES = { metro: true, tram: true, bus: true, sykkel: false };
+function loadModes() {
+  try { const v = localStorage.getItem(MODES_KEY); return v ? { ...DEFAULT_MODES, ...JSON.parse(v) } : { ...DEFAULT_MODES }; }
+  catch { return { ...DEFAULT_MODES }; }
+}
+function saveModes(m) { try { localStorage.setItem(MODES_KEY, JSON.stringify(m)); } catch {} }
+function _depMode(dep) {
+  if (dep._legs && dep._legs[0]) return dep._legs[0].mode;
+  const ln = dep.serviceJourney && dep.serviceJourney.line;
+  return (ln && ln.transportMode) || 'metro';
+}
+
+// ── Bike board map ───────────────────────────────────────────────────────────
+const _BIKE_TILE = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+let _bikeMap = null;
+let _bikeMarkersLayer = null;
+function _destroyBikeMap() {
+  if (_bikeMap) { _bikeMap.remove(); _bikeMap = null; _bikeMarkersLayer = null; }
+}
+function _makeBikeIcon(bikes, ebikes) {
+  const color = bikes === 0 ? '#f87171' : bikes <= 2 ? '#fbbf24' : '#4ade80';
+  const label = bikes + (ebikes ? '+' : '');
+  const html = '<div style="background:' + color + ';color:#111;border-radius:50%;width:28px;height:28px;'
+    + 'display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;'
+    + 'transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.3)">' + label + '</div>';
+  return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
+}
+function renderBikeBoard() {
+  const el = document.getElementById('bike-board');
+  if (!el) return;
+  const pos = state.homeLL;
+  if (!document.getElementById('bike-map')) {
+    el.innerHTML = '<div class="mode-section-label">bysykkel nærmest</div>'
+      + '<div id="bike-map"></div>'
+      + '<div id="bike-list"><div class="hn-loading">laster sykler…</div></div>';
+  }
+  if (!_bikeMap) {
+    const mapEl = document.getElementById('bike-map');
+    if (!mapEl) return;
+    _bikeMap = L.map(mapEl, { zoomControl: false, attributionControl: false });
+    L.tileLayer(_BIKE_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_bikeMap);
+    _bikeMarkersLayer = L.layerGroup().addTo(_bikeMap);
+    const c = pos || { lat: 59.9139, lon: 10.7522 };
+    _bikeMap.setView([c.lat, c.lon], 15);
+  }
+  if (!pos) {
+    const listEl = document.getElementById('bike-list');
+    if (listEl) listEl.innerHTML = '<div class="hn-loading">posisjon ikke tilgjengelig</div>';
+    return;
+  }
+  fetchBysykkel(pos.lat, pos.lon).then(stations => {
+    if (!_bikeMap || !_bikeMarkersLayer) return;
+    _bikeMarkersLayer.clearLayers();
+    L.circleMarker([pos.lat, pos.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 }).addTo(_bikeMarkersLayer);
+    const bounds = [[pos.lat, pos.lon]];
+    stations.forEach(s => {
+      bounds.push([s.lat, s.lon]);
+      L.marker([s.lat, s.lon], { icon: _makeBikeIcon(s.bikes, s.ebikes) }).addTo(_bikeMarkersLayer);
+    });
+    if (bounds.length > 1) _bikeMap.fitBounds(bounds, { padding: [24, 24] });
+    setTimeout(() => _bikeMap && _bikeMap.invalidateSize(), 60);
+    const listEl = document.getElementById('bike-list');
+    if (!listEl) return;
+    listEl.innerHTML = stations.length === 0
+      ? '<div class="hn-loading">ingen stasjoner funnet</div>'
+      : stations.map(s =>
+          '<div class="hn-bike-row">'
+          + '<span class="hn-bike-name">' + s.name + '</span>'
+          + '<span class="hn-bike-dist">' + (s.dist < 1000 ? s.dist + ' m' : (s.dist / 1000).toFixed(1) + ' km') + '</span>'
+          + '<span class="hn-bike-count' + (s.bikes === 0 ? ' empty' : '') + '">'
+          + s.bikes + (s.ebikes ? ' · ' + s.ebikes + ' el' : '') + '</span>'
+          + '</div>'
+        ).join('');
+  }).catch(() => {});
+}
+
+function renderModeFilter() {
+  const el = document.getElementById('mode-filter');
+  if (!el) return;
+  const modes = loadModes();
+  el.innerHTML = [
+    { key: 'metro', label: 'T-bane' },
+    { key: 'tram',  label: 'Trikk' },
+    { key: 'bus',   label: 'Buss' },
+    { key: 'sykkel', label: 'Sykkel' },
+  ].map(p => '<button class="mode-pill' + (modes[p.key] ? ' active' : '') + '" data-mode="' + p.key + '">'
+    + p.label + '</button>').join('');
+  el.querySelectorAll('.mode-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const m = loadModes();
+      m[btn.dataset.mode] = !m[btn.dataset.mode];
+      saveModes(m);
+      renderBoard();
+    });
+  });
+}
 
 const OCC_LABELS = ['', 'svært lite folk', 'lite folk', 'noen seter', 'travelt', 'fullt'];
 const _PIP = '<svg class="pp" viewBox="0 0 7 10" aria-hidden="true"><circle cx="3.5" cy="2.5" r="1.75"/><path d="M0.5 10v-1C0.5 7 1.8 6 3.5 6S6.5 7 6.5 9V10z"/></svg>';
@@ -52,8 +153,21 @@ function renderWalkSummary() {
 export function renderBoard() {
   renderAlerts();
   renderWalkSummary();
+  renderModeFilter();
+  const modes = loadModes();
+  const bikeEl = document.getElementById('bike-board');
+  if (bikeEl) {
+    bikeEl.style.display = modes.sykkel ? 'block' : 'none';
+    if (modes.sykkel) renderBikeBoard();
+    else _destroyBikeMap();
+  }
+  const activeModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
   const list = document.getElementById('dep-list');
   const dir = config.dirs[state.dIdx];
+  if (!activeModes.length) {
+    list.innerHTML = '';
+    return;
+  }
   if (!state.deps.length) {
     list.innerHTML = '<div class="state-msg">' + (state.view === 'board' ? 'kobler til…' : 'ingen avganger') + '</div>';
     return;
@@ -73,7 +187,14 @@ export function renderBoard() {
     const cur    = depMinMap.get(depMin);
     if (!cur || arrMs < cur.arrMs) depMinMap.set(depMin, { c, origIdx, arrMs });
   });
-  const visibleDeps = Array.from(depMinMap.values());
+  let visibleDeps = Array.from(depMinMap.values());
+  if (activeModes.length < 3) {
+    visibleDeps = visibleDeps.filter(({ c }) => activeModes.includes(_depMode(c)));
+  }
+  if (!visibleDeps.length) {
+    list.innerHTML = '<div class="state-msg">ingen avganger for valgte modi</div>';
+    return;
+  }
 
   // Headway computation for occupancy heuristic
   const _lineLastMs = new Map();
@@ -252,6 +373,7 @@ export function startBoard() {
 
 export function stopBoard() {
   if (intervals.board) { clearInterval(intervals.board); intervals.board = null; }
+  _destroyBikeMap();
 }
 
 function _fetchBoard() {

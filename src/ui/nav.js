@@ -67,6 +67,7 @@ export function attachEventListeners() {
   });
 
   document.getElementById('w-back').addEventListener('click', () => {
+    window._stopWalk && window._stopWalk();
     if (state.sel) {
       show('v-selected');
       window._renderSelected && window._renderSelected();

@@ -8,6 +8,7 @@ import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn } from '../ui/fmt.js';
+import L from 'leaflet';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -18,6 +19,48 @@ let _byStations = null;
 let _walkDestLL = null;
 let _walkTimer  = null;
 let _walkAbort  = null;
+
+const _TILE = 'https://cache.kartverket.no/v1/wmts/1.0.0/topo/default/webmercator/{z}/{y}/{x}.png';
+
+let _arrMap = null;
+let _arrWalkMarker = null;
+
+function _destroyArrMap() {
+  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; }
+}
+
+function _initArrMap(arrLL) {
+  const el = document.getElementById('hn-map');
+  if (!el || !arrLL) return;
+  _destroyArrMap();
+  _arrMap = L.map(el, { zoomControl: false, attributionControl: false });
+  L.tileLayer(_TILE, { attribution: '© Kartverket' }).addTo(_arrMap);
+  // Arrival station marker (amber)
+  L.circleMarker([arrLL.lat, arrLL.lon], { radius: 9, color: '#f5b840', fillColor: '#f5b840', fillOpacity: 0.85, weight: 2 }).addTo(_arrMap);
+  // Bike station markers
+  (_byStations || []).forEach(s => {
+    const count = s.bikes + (s.ebikes || 0);
+    const icon = L.divIcon({ className: '', html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '') + '">' + count + '</div>', iconAnchor: [14, 14] });
+    L.marker([s.lat, s.lon], { icon }).addTo(_arrMap);
+  });
+  _fitArrMap(arrLL);
+}
+
+function _fitArrMap(arrLL) {
+  if (!_arrMap) return;
+  const pts = [[arrLL.lat, arrLL.lon]];
+  (_byStations || []).forEach(s => pts.push([s.lat, s.lon]));
+  if (_walkDestLL) pts.push([_walkDestLL.lat, _walkDestLL.lon]);
+  if (pts.length === 1) { _arrMap.setView(pts[0], 15); return; }
+  _arrMap.fitBounds(pts, { padding: [24, 24] });
+}
+
+function _updateArrMapWalkPin(arrLL) {
+  if (!_arrMap || !_walkDestLL) return;
+  if (_arrWalkMarker) _arrWalkMarker.remove();
+  _arrWalkMarker = L.circleMarker([_walkDestLL.lat, _walkDestLL.lon], { radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 }).addTo(_arrMap);
+  if (arrLL) _fitArrMap(arrLL);
+}
 
 function normStn(s) { return s.toLowerCase().replace(/,.*$/, '').replace(/\s+t$/i, '').trim(); }
 function displayStn(s) { return String(s).replace(/,.*$/, '').trim(); }
@@ -64,6 +107,8 @@ function _applyWalkResult() {
   tEl.textContent = ' til ' + _walkDestLL.label;
   res.appendChild(mEl);
   res.appendChild(tEl);
+  // Update map walk-destination pin after layout settles
+  _resolveArrivalLL().then(arrLL => _updateArrMapWalkPin(arrLL));
 }
 
 function _onWalkInput() {
@@ -139,6 +184,7 @@ function renderNextPanel() {
   el.innerHTML =
     '<div class="hn-panel">'
     + '<div class="hn-title">Hva nå?</div>'
+    + '<div id="hn-map"></div>'
     + '<div class="hn-section">'
     + '<div class="hn-section-label">gangavstand</div>'
     + '<input class="hn-input" id="t-walk-dest" placeholder="hvor videre?" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
@@ -439,9 +485,16 @@ export function renderTrack() {
     renderNextPanel();
     if (!_byStations) {
       _resolveArrivalLL().then(ll => {
+        // Init the map as soon as we know the arrival location
+        if (ll) _initArrMap(ll);
         if (!ll) { _byStations = []; _updateBikeSection(); return; }
         fetchBysykkel(ll.lat, ll.lon)
-          .then(st => { _byStations = st; _updateBikeSection(); })
+          .then(st => {
+            _byStations = st;
+            _updateBikeSection();
+            // Re-init the map now that bike stations are available
+            _initArrMap(ll);
+          })
           .catch(() => { _byStations = []; _updateBikeSection(); });
       });
     }
@@ -466,6 +519,7 @@ export function buildTrackBar() {
 export function startTracking() {
   expanded = state.jny && state.jny.legs ? state.jny.legs.map(() => false) : [];
   _byStations = null;
+  _destroyArrMap();
   _walkDestLL = null;
   if (intervals.track) clearInterval(intervals.track);
   renderTrack();

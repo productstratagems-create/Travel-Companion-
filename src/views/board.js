@@ -48,7 +48,8 @@ function renderBikeBoard() {
   const pos = state.homeLL;
   if (!document.getElementById('bike-map')) {
     el.innerHTML = '<div class="mode-section-label">bysykkel nærmest</div>'
-      + '<div id="bike-map"></div>'
+      + '<div class="map-wrap"><div id="bike-map"></div>'
+      + '<button class="map-expand-btn" id="bike-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
       + '<div id="bike-list"><div class="hn-loading">laster sykler…</div></div>';
   }
   if (!_bikeMap) {
@@ -59,6 +60,16 @@ function renderBikeBoard() {
     _bikeMarkersLayer = L.layerGroup().addTo(_bikeMap);
     const c = pos || { lat: 59.9139, lon: 10.7522 };
     _bikeMap.setView([c.lat, c.lon], 15);
+    const expandBtn = document.getElementById('bike-map-expand');
+    if (expandBtn) {
+      expandBtn.onclick = () => {
+        const exp = mapEl.classList.toggle('expanded');
+        expandBtn.textContent = exp ? '✕' : '⤢';
+        expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
+        expandBtn.title = exp ? 'Minimer kart' : 'Utvid kart';
+        setTimeout(() => _bikeMap && _bikeMap.invalidateSize(), 320);
+      };
+    }
   }
   if (!pos) {
     const listEl = document.getElementById('bike-list');

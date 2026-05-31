@@ -120,6 +120,7 @@
 #bike-board{padding-top:.6rem}
 .mode-section-label{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#8898aa;margin-bottom:.5rem}
 #bike-map{height:220px;border-radius:8px;overflow:hidden;margin-bottom:.7rem}
+#bike-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
 .transfer-arrow{font-size:9px;color:#8898aa;margin:0 .15rem;vertical-align:middle}
 
 #service-alerts{margin:.4rem 0}

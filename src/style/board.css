@@ -123,6 +123,23 @@
 #bike-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
 .transfer-arrow{font-size:9px;color:#8898aa;margin:0 .15rem;vertical-align:middle}
 
+#mob-type-filter{display:flex;gap:.35rem;flex-wrap:wrap;padding:.4rem 0 .5rem}
+.mob-pill{
+  padding:.25rem .6rem;border-radius:20px;
+  border:1px solid rgba(245,184,64,.15);background:none;
+  color:#7485a0;font-family:inherit;font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+  transition:background .1s,color .1s,border-color .1s;
+  min-height:28px;
+}
+.mob-pill.active{background:rgba(245,184,64,.1);border-color:rgba(245,184,64,.35);color:#f5b840}
+.mob-pill:active{opacity:.7}
+.mob-scooter-tag{
+  display:inline-block;margin-left:.35rem;
+  font-size:8px;letter-spacing:.12em;text-transform:uppercase;
+  color:#8898aa;vertical-align:middle;
+}
+
 #service-alerts{margin:.4rem 0}
 .service-alert{
   padding:.5rem .75rem;margin:.25rem 0;

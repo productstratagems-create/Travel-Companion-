@@ -9,6 +9,7 @@ import { loadFavs } from '../ui/favs.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
+import { fetchScooters } from '../api/scooters.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -42,16 +43,46 @@ function _makeBikeIcon(bikes, ebikes) {
     + 'transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.3)">' + label + '</div>';
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
+function _makeScooterIcon(battery) {
+  const color = battery == null ? '#94a3b8' : battery > 50 ? '#4ade80' : battery > 20 ? '#fbbf24' : '#f87171';
+  const label = battery != null ? battery + '%' : '?';
+  const html = '<div style="background:' + color + ';color:#111;border-radius:4px;padding:2px 5px;'
+    + 'font-size:10px;font-weight:700;transform:translate(-50%,-100%);white-space:nowrap;'
+    + 'box-shadow:0 1px 4px rgba(0,0,0,.3)">⚡' + label + '</div>';
+  return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
+}
+
+// ── Mob-type sub-filter (inside bike board) ──────────────────────────────────
+const MOB_TYPE_KEY = 't.mobType';
+function loadMobType() { try { return localStorage.getItem(MOB_TYPE_KEY) || 'all'; } catch { return 'all'; } }
+function saveMobType(t) { try { localStorage.setItem(MOB_TYPE_KEY, t); } catch {} }
+
+function renderMobTypeFilter() {
+  const el = document.getElementById('mob-type-filter');
+  if (!el) return;
+  const cur = loadMobType();
+  el.innerHTML = [
+    { key: 'all',      label: 'Alt' },
+    { key: 'bikes',    label: 'Sykkel' },
+    { key: 'scooters', label: 'Sparkesykkel' },
+  ].map(p => '<button class="mob-pill' + (cur === p.key ? ' active' : '') + '" data-type="' + p.key + '">'
+    + p.label + '</button>').join('');
+  el.querySelectorAll('.mob-pill').forEach(btn => {
+    btn.addEventListener('click', () => { saveMobType(btn.dataset.type); renderBikeBoard(); });
+  });
+}
+
 function renderBikeBoard() {
   const el = document.getElementById('bike-board');
   if (!el) return;
-  const pos = state.homeLL;
+  const pos = state.walkFromLL || state.homeLL;
   if (!document.getElementById('bike-map')) {
-    el.innerHTML = '<div class="mode-section-label">bysykkel nærmest</div>'
+    el.innerHTML = '<div id="mob-type-filter" style="display:flex;gap:.35rem;flex-wrap:wrap;padding:.4rem 0 .5rem"></div>'
       + '<div class="map-wrap"><div id="bike-map"></div>'
       + '<button class="map-expand-btn" id="bike-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
-      + '<div id="bike-list"><div class="hn-loading">laster sykler…</div></div>';
+      + '<div id="bike-list"><div class="hn-loading">laster…</div></div>';
   }
+  renderMobTypeFilter();
   if (!_bikeMap) {
     const mapEl = document.getElementById('bike-map');
     if (!mapEl) return;
@@ -76,7 +107,12 @@ function renderBikeBoard() {
     if (listEl) listEl.innerHTML = '<div class="hn-loading">posisjon ikke tilgjengelig</div>';
     return;
   }
-  fetchBysykkel(pos.lat, pos.lon).then(stations => {
+  const mobType = loadMobType();
+  const wantBikes    = mobType === 'all' || mobType === 'bikes';
+  const wantScooters = mobType === 'all' || mobType === 'scooters';
+  const p1 = wantBikes    ? fetchBysykkel(pos.lat, pos.lon) : Promise.resolve([]);
+  const p2 = wantScooters ? fetchScooters(pos.lat, pos.lon) : Promise.resolve([]);
+  Promise.all([p1, p2]).then(([stations, scooters]) => {
     if (!_bikeMap || !_bikeMarkersLayer) return;
     _bikeMarkersLayer.clearLayers();
     L.circleMarker([pos.lat, pos.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 }).addTo(_bikeMarkersLayer);
@@ -85,20 +121,38 @@ function renderBikeBoard() {
       bounds.push([s.lat, s.lon]);
       L.marker([s.lat, s.lon], { icon: _makeBikeIcon(s.bikes, s.ebikes) }).addTo(_bikeMarkersLayer);
     });
-    if (bounds.length > 1) _bikeMap.fitBounds(bounds, { padding: [24, 24] });
+    scooters.forEach(v => {
+      bounds.push([v.lat, v.lon]);
+      L.marker([v.lat, v.lon], { icon: _makeScooterIcon(v.battery) }).addTo(_bikeMarkersLayer);
+    });
+    if (bounds.length > 1) _bikeMap.fitBounds(bounds, { padding: [32, 32] });
     setTimeout(() => _bikeMap && _bikeMap.invalidateSize(), 60);
     const listEl = document.getElementById('bike-list');
     if (!listEl) return;
-    listEl.innerHTML = stations.length === 0
-      ? '<div class="hn-loading">ingen stasjoner funnet</div>'
-      : stations.map(s =>
-          '<div class="hn-bike-row">'
-          + '<span class="hn-bike-name">' + s.name + '</span>'
-          + '<span class="hn-bike-dist">' + (s.dist < 1000 ? s.dist + ' m' : (s.dist / 1000).toFixed(1) + ' km') + '</span>'
-          + '<span class="hn-bike-count' + (s.bikes === 0 ? ' empty' : '') + '">'
-          + s.bikes + (s.ebikes ? ' · ' + s.ebikes + ' el' : '') + '</span>'
-          + '</div>'
-        ).join('');
+    const distFmt = d => d < 1000 ? d + ' m' : (d / 1000).toFixed(1) + ' km';
+    const bikeRows = stations.map(s =>
+      '<div class="hn-bike-row">'
+      + '<span class="hn-bike-name">' + s.name + '</span>'
+      + '<span class="hn-bike-dist">' + distFmt(s.dist) + '</span>'
+      + '<span class="hn-bike-count' + (s.bikes === 0 ? ' empty' : '') + '">'
+      + s.bikes + (s.ebikes ? ' · ' + s.ebikes + ' el' : '') + ' 🚲</span>'
+      + '</div>'
+    );
+    const scooterRows = scooters.map(v =>
+      '<div class="hn-bike-row">'
+      + '<span class="hn-bike-name">' + v.operator + '<span class="mob-scooter-tag">sparkesykkel</span></span>'
+      + '<span class="hn-bike-dist">' + distFmt(v.dist) + '</span>'
+      + '<span class="hn-bike-count' + (v.battery != null && v.battery < 20 ? ' empty' : '') + '">'
+      + (v.battery != null ? '⚡' + v.battery + '%' : '⚡?') + '</span>'
+      + '</div>'
+    );
+    const combined = [
+      ...stations.map((s, i) => ({ row: bikeRows[i], dist: s.dist })),
+      ...scooters.map((v, i) => ({ row: scooterRows[i], dist: v.dist })),
+    ].sort((a, b) => a.dist - b.dist).map(x => x.row);
+    listEl.innerHTML = combined.length === 0
+      ? '<div class="hn-loading">ingen tilgjengelig i nærheten</div>'
+      : combined.join('');
   }).catch(() => {});
 }
 

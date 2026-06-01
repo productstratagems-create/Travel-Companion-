@@ -463,6 +463,10 @@ export function renderTrack() {
         + '<span class="ct-dest">' + leg.frontText + '</span>'
         + '</div>'
         + '<div class="ct-detail ct-detail-2">'
+        + '<span class="ct-from">fra <strong>' + normStn(leg.fromStation || '') + '</strong>'
+        + (leg.depTime ? ' · avg ' + leg.depTime.clk : '') + '</span>'
+        + '</div>'
+        + '<div class="ct-detail ct-detail-2">'
         + (arrT
           ? '<span class="ct-time">' + (isLastLeg ? 'ank. ' : 'bytt ') + '<strong>' + normStn(leg.toStation) + '</strong> ' + arrT.clk + (mToAction ? ' · ' + mToAction : '') + '</span>'
           : '<span class="ct-time" style="color:#57534e">laster…</span>')

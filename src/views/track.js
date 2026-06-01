@@ -459,7 +459,23 @@ export function renderTrack() {
         const m = Math.floor((new Date(arrT.time).getTime() - now) / 60000);
         return m <= 0 ? 'nå' : 'om ' + fmtMins(m);
       })() : null;
-      const stopsLeft = rows.length;
+      // Count directly from leg.stops using arrival time so we count
+      // stops the train is currently AT (just departed) as already visited.
+      const stopsLeft = (() => {
+        if (!leg.stops) return rows.length;
+        const fromN = normStn(leg.fromStation || '');
+        const toN   = normStn(leg.toStation   || '');
+        let pastFrom = !leg.fromStation, count = 0;
+        for (const s of leg.stops) {
+          const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
+          if (!pastFrom) { if (normStn(nm) === fromN) pastFrom = true; continue; }
+          const isEnd = toN && normStn(nm) === toN;
+          const arrT2 = s.expectedArrivalTime || s.aimedArrivalTime || s.expectedDepartureTime || s.aimedDepartureTime;
+          if (!arrT2 || new Date(arrT2).getTime() > now - 30000 || isEnd) count++;
+          if (isEnd) break;
+        }
+        return count;
+      })();
       headerHtml = '<div class="ct-detail">'
         + '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
         + '<span class="ct-dest">' + leg.frontText + '</span>'

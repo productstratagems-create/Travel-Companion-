@@ -1,56 +1,46 @@
 import { haver } from '../geo.js';
 
-const ENDPOINT = 'https://api.entur.io/mobility/v2/graphql';
-const HDR = { 'Content-Type': 'application/json', 'ET-Client-Name': 'travel-companion-oslo' };
-
-// Case-insensitive: Entur returns uppercase in some schema versions, lowercase in others
-const SCOOTER_FACTORS = new Set(['scooter', 'scooter_standing', 'moped']);
+// Per-operator GBFS free_bike_status endpoints (GET, more browser-friendly than GraphQL POST)
+const SYSTEMS = [
+  { id: 'boltoslo',  name: 'Bolt' },
+  { id: 'voioslo',   name: 'Voi'  },
+  { id: 'tieroslo',  name: 'Tier' },
+];
+const BASE = 'https://api.entur.io/mobility/v2/gbfs';
+const HDR  = { headers: { 'ET-Client-Name': 'travel-companion-oslo' } };
 
 let _cache = null;
-
-// Inline lat/lon avoids GraphQL variable type-annotation issues with some server versions
-function _q(lat, lon) {
-  return `{vehicles(lat:${lat},lon:${lon},range:1000,count:100){`
-    + `id lat lon currentFuelPercent`
-    + ` vehicleType{formFactor propulsionType}`
-    + ` system{operator{name}}`
-    + ` rentalUris{web}}}`;
-}
 
 export function fetchScooters(lat, lon) {
   const now = Date.now();
   if (_cache && now - _cache.ts < 30000) return Promise.resolve(_rank(_cache.data, lat, lon));
-  return fetch(ENDPOINT, {
-    method: 'POST',
-    headers: HDR,
-    body: JSON.stringify({ query: _q(lat, lon) }),
-    signal: AbortSignal.timeout(8000),
-  })
-    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(j => {
-      if (j.errors) console.warn('[scooters]', j.errors[0].message);
-      const vehicles = (j.data && j.data.vehicles) || [];
-      _cache = { ts: Date.now(), data: vehicles };
-      return _rank(vehicles, lat, lon);
-    });
+
+  return Promise.allSettled(
+    SYSTEMS.map(s =>
+      fetch(`${BASE}/${s.id}/free_bike_status`, HDR)
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(j => ((j.data && j.data.bikes) || []).map(v => ({ ...v, _op: s.name })))
+    )
+  ).then(results => {
+    const vehicles = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+    _cache = { ts: Date.now(), data: vehicles };
+    return _rank(vehicles, lat, lon);
+  });
 }
 
 function _rank(vehicles, lat, lon) {
   return vehicles
-    .filter(v => {
-      if (!v.vehicleType) return false;
-      const ff = (v.vehicleType.formFactor || '').toLowerCase();
-      return SCOOTER_FACTORS.has(ff);
-    })
+    .filter(v => !v.is_reserved && !v.is_disabled && v.lat && v.lon
+      && Math.round(haver(lat, lon, v.lat, v.lon)) <= 1000)
     .map(v => ({
-      lat:       v.lat,
-      lon:       v.lon,
-      battery:   v.currentFuelPercent != null ? Math.round(v.currentFuelPercent) : null,
-      operator:  ((v.system && v.system.operator && v.system.operator.name) || 'Sparkesykkel')
-                   .split(/\s+/)[0],
-      rentalUrl: v.rentalUris && v.rentalUris.web,
-      type:      'scooter',
-      dist:      Math.round(haver(lat, lon, v.lat, v.lon)),
+      lat:      v.lat,
+      lon:      v.lon,
+      battery:  v.current_range_meters != null
+        ? Math.min(100, Math.round(v.current_range_meters / 250))  // ~25 km max range
+        : null,
+      operator: v._op || 'Sparkesykkel',
+      type:     'scooter',
+      dist:     Math.round(haver(lat, lon, v.lat, v.lon)),
     }))
     .sort((a, b) => a.dist - b.dist)
     .slice(0, 8);

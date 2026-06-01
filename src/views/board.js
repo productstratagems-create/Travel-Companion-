@@ -32,8 +32,10 @@ function _depMode(dep) {
 const _BIKE_TILE = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 let _bikeMap = null;
 let _bikeMarkersLayer = null;
+let _bikeUserMoved = false;
 function _destroyBikeMap() {
   if (_bikeMap) { _bikeMap.remove(); _bikeMap = null; _bikeMarkersLayer = null; }
+  _bikeUserMoved = false;
 }
 function _makeBikeIcon(bikes, ebikes) {
   const color = bikes === 0 ? '#f87171' : bikes <= 2 ? '#fbbf24' : '#4ade80';
@@ -86,7 +88,9 @@ function renderBikeBoard() {
   if (!_bikeMap) {
     const mapEl = document.getElementById('bike-map');
     if (!mapEl) return;
-    _bikeMap = L.map(mapEl, { zoomControl: false, attributionControl: false });
+    _bikeUserMoved = false;
+    _bikeMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+    _bikeMap.on('dragstart', () => { _bikeUserMoved = true; });
     L.tileLayer(_BIKE_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_bikeMap);
     _bikeMarkersLayer = L.layerGroup().addTo(_bikeMap);
     const c = pos || { lat: 59.9139, lon: 10.7522 };
@@ -129,7 +133,7 @@ function renderBikeBoard() {
       bounds.push([v.lat, v.lon]);
       L.marker([v.lat, v.lon], { icon: _makeScooterIcon(v.battery) }).addTo(_bikeMarkersLayer);
     });
-    if (bounds.length > 1) _bikeMap.fitBounds(bounds, { padding: [32, 32] });
+    if (bounds.length > 1 && !_bikeUserMoved) _bikeMap.fitBounds(bounds, { padding: [32, 32] });
     setTimeout(() => _bikeMap && _bikeMap.invalidateSize(), 60);
     const listEl = document.getElementById('bike-list');
     if (!listEl) return;

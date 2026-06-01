@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver } from '../geo.js';
-import { fetchBoard, fetchTrip } from '../api/entur.js';
+import { fetchBoard, fetchTrip, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern } from '../api/adapt.js';
 import { renderAlerts } from '../ui/alerts.js';
@@ -35,6 +35,8 @@ let _bMap = null;
 let _bLayer = null;
 let _bUserMoved = false;
 let _bFitted = false;
+let _bDestLL = null;   // cached destination coords { lat, lon }
+let _bDestKey = null;  // dir.to string that was geocoded
 
 function _destroyBoardMap() {
   if (_bMap) { _bMap.remove(); _bMap = null; _bLayer = null; }
@@ -102,6 +104,14 @@ function _makeStopIcon(mode, count) {
   return L.divIcon({ className: '', html, iconSize: [w, h], iconAnchor: [Math.round(w / 2), Math.round(h / 2)] });
 }
 
+function _makeDestIcon() {
+  const html = '<svg width="22" height="30" viewBox="0 0 22 30" xmlns="http://www.w3.org/2000/svg">'
+    + '<path d="M11 0C5 0 0 5 0 11c0 8.3 11 19 11 19S22 19.3 22 11C22 5 17 0 11 0z" fill="#f5b840"/>'
+    + '<circle cx="11" cy="11" r="4.5" fill="#b8860b"/>'
+    + '</svg>';
+  return L.divIcon({ className: '', html, iconSize: [22, 30], iconAnchor: [11, 30] });
+}
+
 const VENDOR_COLORS = { Bolt: '#22c55e', Voi: '#f87171', Tier: '#60a5fa' };
 function _makeScooterIcon(operator, battery) {
   const vc = VENDOR_COLORS[operator] || '#94a3b8';
@@ -143,7 +153,31 @@ function renderBoardMap(pos, modes) {
   const p2 = modes.sykkel ? fetchBysykkel(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
   const p3 = modes.sykkel ? fetchScooters(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
 
-  Promise.allSettled([p1, p2, p3]).then(([r1, r2, r3]) => {
+  // Destination station — reset fit + cache when direction changes
+  const dir = config.dirs[state.dIdx];
+  const destName = dir.to || '';
+  if (destName !== _bDestKey) {
+    _bDestLL = null;
+    _bDestKey = destName;
+    _bFitted = false;
+    _bUserMoved = false;
+  }
+  let p4;
+  if (dir._toLat && dir._toLon) {
+    p4 = Promise.resolve({ lat: dir._toLat, lon: dir._toLon });
+  } else if (_bDestLL) {
+    p4 = Promise.resolve(_bDestLL);
+  } else if (destName) {
+    p4 = geocodePlace(destName).then(results => {
+      if (!results.length) return null;
+      _bDestLL = { lat: results[0].lat, lon: results[0].lon };
+      return _bDestLL;
+    }).catch(() => null);
+  } else {
+    p4 = Promise.resolve(null);
+  }
+
+  Promise.allSettled([p1, p2, p3, p4]).then(([r1, r2, r3, r4]) => {
     if (!_bLayer) return;
     _bLayer.clearLayers();
     const pts = [];
@@ -193,6 +227,14 @@ function renderBoardMap(pos, modes) {
         pts.push([v.lat, v.lon]);
         L.marker([v.lat, v.lon], { icon: _makeScooterIcon(v.operator, v.battery) }).addTo(_bLayer);
       });
+    }
+
+    if (r4.status === 'fulfilled' && r4.value) {
+      const { lat, lon } = r4.value;
+      pts.push([lat, lon]);
+      L.marker([lat, lon], { icon: _makeDestIcon() })
+        .bindTooltip(destName, { permanent: true, direction: 'top', offset: [0, -32], className: 'map-label' })
+        .addTo(_bLayer);
     }
 
     if (pts.length > 0 && !_bFitted && !_bUserMoved) {

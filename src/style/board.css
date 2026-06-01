@@ -117,6 +117,10 @@
 .mode-pill.active{background:rgba(245,184,64,.12);border-color:rgba(245,184,64,.4);color:#f5b840}
 .mode-pill:active{opacity:.7}
 
+#transit-board{padding-top:.5rem}
+#transit-map{height:220px;border-radius:8px;overflow:hidden;margin-bottom:.5rem}
+#transit-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
+
 #bike-board{padding-top:.6rem}
 .mode-section-label{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#8898aa;margin-bottom:.5rem}
 #bike-map{height:220px;border-radius:8px;overflow:hidden;margin-bottom:.7rem}

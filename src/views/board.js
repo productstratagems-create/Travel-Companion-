@@ -109,6 +109,78 @@ function renderStopFilter(pos) {
   });
 }
 
+// ── Transit stop map ─────────────────────────────────────────────────────────
+let _transitMap = null;
+let _transitStopLayer = null;
+let _transitUserMoved = false;
+let _transitFitted = false;
+
+function _destroyTransitMap() {
+  if (_transitMap) { _transitMap.remove(); _transitMap = null; _transitStopLayer = null; }
+  _transitUserMoved = false;
+  _transitFitted = false;
+}
+
+function renderTransitBoard(pos, activeModes) {
+  const el = document.getElementById('transit-board');
+  if (!el) return;
+  if (!activeModes.length) {
+    el.style.display = 'none';
+    _destroyTransitMap();
+    return;
+  }
+  el.style.display = 'block';
+  if (!document.getElementById('transit-map')) {
+    el.innerHTML = '<div class="map-wrap"><div id="transit-map"></div>'
+      + '<button class="map-expand-btn" id="transit-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>';
+  }
+  if (!_transitMap) {
+    const mapEl = document.getElementById('transit-map');
+    if (!mapEl) return;
+    _transitUserMoved = false;
+    _transitFitted = false;
+    _transitMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+    _transitMap.on('dragstart', () => { _transitUserMoved = true; });
+    L.tileLayer(_BIKE_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_transitMap);
+    L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_transitMap);
+    _transitStopLayer = L.layerGroup().addTo(_transitMap);
+    const c = pos || { lat: 59.9139, lon: 10.7522 };
+    _transitMap.setView([c.lat, c.lon], 15);
+    const expandBtn = document.getElementById('transit-map-expand');
+    if (expandBtn) {
+      expandBtn.onclick = () => {
+        const exp = mapEl.classList.toggle('expanded');
+        expandBtn.textContent = exp ? '✕' : '⤢';
+        expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
+        expandBtn.title = exp ? 'Minimer kart' : 'Utvid kart';
+        setTimeout(() => _transitMap && _transitMap.invalidateSize(), 320);
+      };
+    }
+  }
+  if (!pos) return;
+  const modeSet = new Set(activeModes);
+  fetchNearbyStops(pos.lat, pos.lon).then(stops => {
+    if (!_transitStopLayer) return;
+    _transitStopLayer.clearLayers();
+    L.circleMarker([pos.lat, pos.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 })
+      .bindTooltip('Din posisjon', { className: 'map-label' })
+      .addTo(_transitStopLayer);
+    const pts = [[pos.lat, pos.lon]];
+    stops.forEach(s => {
+      if (!modeSet.has(s.mode)) return;
+      pts.push([s.lat, s.lon]);
+      L.marker([s.lat, s.lon], { icon: _makeStopIcon(s.mode) })
+        .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -14], className: 'map-label' })
+        .addTo(_transitStopLayer);
+    });
+    if (pts.length > 1 && !_transitFitted && !_transitUserMoved) {
+      _transitMap.fitBounds(pts, { padding: [32, 32], maxZoom: 16 });
+      _transitFitted = true;
+    }
+    setTimeout(() => _transitMap && _transitMap.invalidateSize(), 60);
+  }).catch(e => console.warn('[transit-map]', e));
+}
+
 const VENDOR_COLORS = { Bolt: '#22c55e', Voi: '#f87171', Tier: '#60a5fa' };
 function _makeScooterIcon(operator, battery) {
   const vc = VENDOR_COLORS[operator] || '#94a3b8';
@@ -308,6 +380,7 @@ export function renderBoard() {
     else _destroyBikeMap();
   }
   const activeModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
+  renderTransitBoard(state.walkFromLL || state.homeLL, activeModes);
   const list = document.getElementById('dep-list');
   const dir = config.dirs[state.dIdx];
   if (!activeModes.length) {

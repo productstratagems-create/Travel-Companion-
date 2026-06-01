@@ -18,6 +18,11 @@
 .train-chip .tc-meta{font-size:11px;color:#8c857f;white-space:nowrap}
 .train-chip .tc-meta span{color:#a8a29e}
 
+.sel-route-ctx{
+  font-size:10px;letter-spacing:.06em;color:#7485a0;
+  padding:.3rem .1rem .15rem;
+}
+
 /* Post-departure banner */
 .departed-banner{
   text-align:center;

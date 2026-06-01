@@ -6,6 +6,7 @@ const CAT_MODE = {
   busStation:   'bus',
   onstreetBus:  'bus',
   tramStation:  'tram',
+  onstreetTram: 'tram',
 };
 const TRANSIT_CATS = Object.keys(CAT_MODE);
 

@@ -51,17 +51,45 @@ function _makeBikeIcon(bikes, ebikes) {
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
-const STOP_CFG = {
-  metro: { label: 'T',  bg: '#c0392b', color: '#fff' },
-  bus:   { label: 'B',  bg: '#1d4ed8', color: '#fff' },
-  tram:  { label: 'Tr', bg: '#0f766e', color: '#fff' },
-};
+const _BUS_SVG = '<svg viewBox="0 0 16 16" width="14" height="14" fill="white" xmlns="http://www.w3.org/2000/svg">'
+  + '<rect x="1" y="3" width="14" height="9" rx="2"/>'
+  + '<rect x="3" y="1" width="10" height="3" rx="1" fill="white" opacity=".7"/>'
+  + '<circle cx="4" cy="13" r="1.5"/><circle cx="12" cy="13" r="1.5"/>'
+  + '<rect x="2" y="5" width="5" height="3" rx=".5" fill="#e5006d" opacity=".6"/>'
+  + '<rect x="9" y="5" width="5" height="3" rx=".5" fill="#e5006d" opacity=".6"/>'
+  + '</svg>';
+const _TRAM_SVG = '<svg viewBox="0 0 16 16" width="14" height="14" fill="white" xmlns="http://www.w3.org/2000/svg">'
+  + '<rect x="1" y="4" width="14" height="8" rx="2"/>'
+  + '<rect x="4" y="2" width="8" height="3" rx="1" fill="white" opacity=".7"/>'
+  + '<circle cx="4.5" cy="13" r="1.5"/><circle cx="11.5" cy="13" r="1.5"/>'
+  + '<line x1="1" y1="14.5" x2="15" y2="14.5" stroke="white" stroke-width="1.2" opacity=".5"/>'
+  + '<rect x="2" y="5.5" width="5" height="2.5" rx=".4" fill="#7b3999" opacity=".6"/>'
+  + '<rect x="9" y="5.5" width="5" height="2.5" rx=".4" fill="#7b3999" opacity=".6"/>'
+  + '</svg>';
+
 function _makeStopIcon(mode) {
-  const cfg = STOP_CFG[mode] || { label: '?', bg: '#555', color: '#fff' };
-  const html = '<div style="background:' + cfg.bg + ';color:' + cfg.color + ';border-radius:50%;'
-    + 'width:22px;height:22px;display:flex;align-items:center;justify-content:center;'
-    + 'font-size:10px;font-weight:700;transform:translate(-50%,-50%);'
-    + 'box-shadow:0 1px 3px rgba(0,0,0,.5)">' + cfg.label + '</div>';
+  let html;
+  if (mode === 'metro') {
+    html = '<div style="background:#f5a000;border-radius:50%;'
+      + 'width:28px;height:28px;display:flex;align-items:center;justify-content:center;'
+      + 'font-size:14px;font-weight:900;color:#fff;font-family:Arial,sans-serif;'
+      + 'transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.5)">T</div>';
+  } else if (mode === 'bus') {
+    html = '<div style="background:#e5006d;border-radius:5px;'
+      + 'width:26px;height:22px;display:flex;align-items:center;justify-content:center;'
+      + 'transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.5)">'
+      + _BUS_SVG + '</div>';
+  } else if (mode === 'tram') {
+    html = '<div style="background:#7b3999;border-radius:5px;'
+      + 'width:26px;height:22px;display:flex;align-items:center;justify-content:center;'
+      + 'transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.5)">'
+      + _TRAM_SVG + '</div>';
+  } else {
+    html = '<div style="background:#555;border-radius:50%;'
+      + 'width:22px;height:22px;display:flex;align-items:center;justify-content:center;'
+      + 'font-size:10px;font-weight:700;color:#fff;'
+      + 'transform:translate(-50%,-50%);box-shadow:0 1px 3px rgba(0,0,0,.5)">?</div>';
+  }
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 

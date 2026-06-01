@@ -29,7 +29,7 @@ function _depMode(dep) {
 }
 
 // ── Bike board map ───────────────────────────────────────────────────────────
-const _BIKE_TILE = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+const _BIKE_TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 let _bikeMap = null;
 let _bikeMarkersLayer = null;
 let _bikeUserMoved = false;
@@ -93,6 +93,7 @@ function renderBikeBoard() {
     _bikeMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
     _bikeMap.on('dragstart', () => { _bikeUserMoved = true; });
     L.tileLayer(_BIKE_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_bikeMap);
+    L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_bikeMap);
     _bikeMarkersLayer = L.layerGroup().addTo(_bikeMap);
     const c = pos || { lat: 59.9139, lon: 10.7522 };
     _bikeMap.setView([c.lat, c.lon], 15);
@@ -128,7 +129,9 @@ function renderBikeBoard() {
     const bounds = [[pos.lat, pos.lon]];
     stations.forEach(s => {
       bounds.push([s.lat, s.lon]);
-      L.marker([s.lat, s.lon], { icon: _makeBikeIcon(s.bikes, s.ebikes) }).addTo(_bikeMarkersLayer);
+      L.marker([s.lat, s.lon], { icon: _makeBikeIcon(s.bikes, s.ebikes) })
+        .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -20], className: 'map-label' })
+        .addTo(_bikeMarkersLayer);
     });
     scooters.forEach(v => {
       bounds.push([v.lat, v.lon]);

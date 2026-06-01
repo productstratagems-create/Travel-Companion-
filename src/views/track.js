@@ -21,7 +21,7 @@ let _walkDestLL = null;
 let _walkTimer  = null;
 let _walkAbort  = null;
 
-const _TILE = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+const _TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
 let _arrMap = null;
 let _arrWalkMarker = null;
@@ -41,7 +41,9 @@ function _addBikeMarkers(arrLL) {
   (_byStations || []).forEach(s => {
     const count = s.bikes + (s.ebikes || 0);
     const icon = L.divIcon({ className: '', html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '') + '">' + count + '</div>', iconAnchor: [14, 14] });
-    L.marker([s.lat, s.lon], { icon }).addTo(_bikeLayer);
+    L.marker([s.lat, s.lon], { icon })
+      .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -20], className: 'map-label' })
+      .addTo(_bikeLayer);
   });
   if (arrLL) _fitArrMap(arrLL);
 }
@@ -55,6 +57,7 @@ function _initArrMap(arrLL) {
   _arrMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
   _arrMap.on('dragstart', () => { _arrUserMoved = true; });
   L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_arrMap);
+  L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_arrMap);
   // Arrival station marker — last transit leg's line badge
   const jLegs = state.jny && state.jny.legs;
   const jLast = jLegs && jLegs[jLegs.length - 1];

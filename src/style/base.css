@@ -36,10 +36,10 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 /* ── LEAFLET MAP LABELS & SCALE ── */
 /* Station name tooltip on bike markers */
 .map-label{
-  background:rgba(10,8,6,.82)!important;
-  border:1px solid rgba(245,184,64,.2)!important;
+  background:rgba(255,255,255,.92)!important;
+  border:1px solid rgba(0,0,0,.12)!important;
   border-radius:3px!important;
-  color:#d4cfc9!important;
+  color:#1a1410!important;
   font-family:"JetBrains Mono",monospace!important;
   font-size:9px!important;
   letter-spacing:.04em!important;
@@ -51,9 +51,9 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 
 /* Scale bar */
 .leaflet-control-scale-line{
-  background:rgba(10,8,6,.8)!important;
-  border-color:rgba(245,184,64,.3)!important;
-  color:#a8a29e!important;
+  background:rgba(255,255,255,.85)!important;
+  border-color:rgba(0,0,0,.3)!important;
+  color:#444!important;
   font-family:"JetBrains Mono",monospace!important;
   font-size:9px!important;
   padding:1px 4px!important;

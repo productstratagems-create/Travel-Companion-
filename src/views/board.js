@@ -29,7 +29,7 @@ function _depMode(dep) {
 }
 
 // ── Bike board map ───────────────────────────────────────────────────────────
-const _BIKE_TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const _BIKE_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 let _bikeMap = null;
 let _bikeMarkersLayer = null;
 let _bikeUserMoved = false;

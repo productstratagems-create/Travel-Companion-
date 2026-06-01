@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver } from '../geo.js';
 import { fetchBoard, fetchTrip } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern } from '../api/adapt.js';
@@ -51,46 +51,55 @@ function _makeBikeIcon(bikes, ebikes) {
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
-const _BUS_SVG = '<svg viewBox="0 0 16 16" width="14" height="14" fill="white" xmlns="http://www.w3.org/2000/svg">'
+const _BUS_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" fill="white" xmlns="http://www.w3.org/2000/svg">'
   + '<rect x="1" y="3" width="14" height="9" rx="2"/>'
-  + '<rect x="3" y="1" width="10" height="3" rx="1" fill="white" opacity=".7"/>'
+  + '<rect x="3" y="1" width="10" height="3" rx="1" opacity=".8"/>'
   + '<circle cx="4" cy="13" r="1.5"/><circle cx="12" cy="13" r="1.5"/>'
-  + '<rect x="2" y="5" width="5" height="3" rx=".5" fill="#e5006d" opacity=".6"/>'
-  + '<rect x="9" y="5" width="5" height="3" rx=".5" fill="#e5006d" opacity=".6"/>'
+  + '<rect x="2" y="5" width="5" height="3" rx=".5" fill="#c0005e"/>'
+  + '<rect x="9" y="5" width="5" height="3" rx=".5" fill="#c0005e"/>'
   + '</svg>';
-const _TRAM_SVG = '<svg viewBox="0 0 16 16" width="14" height="14" fill="white" xmlns="http://www.w3.org/2000/svg">'
+const _TRAM_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" fill="white" xmlns="http://www.w3.org/2000/svg">'
   + '<rect x="1" y="4" width="14" height="8" rx="2"/>'
-  + '<rect x="4" y="2" width="8" height="3" rx="1" fill="white" opacity=".7"/>'
+  + '<rect x="4" y="2" width="8" height="3" rx="1" opacity=".8"/>'
   + '<circle cx="4.5" cy="13" r="1.5"/><circle cx="11.5" cy="13" r="1.5"/>'
-  + '<line x1="1" y1="14.5" x2="15" y2="14.5" stroke="white" stroke-width="1.2" opacity=".5"/>'
-  + '<rect x="2" y="5.5" width="5" height="2.5" rx=".4" fill="#7b3999" opacity=".6"/>'
-  + '<rect x="9" y="5.5" width="5" height="2.5" rx=".4" fill="#7b3999" opacity=".6"/>'
+  + '<line x1="1" y1="14.5" x2="15" y2="14.5" stroke="white" stroke-width="1.5" opacity=".4"/>'
+  + '<rect x="2" y="5.5" width="5" height="2.5" rx=".4" fill="#5c2b77"/>'
+  + '<rect x="9" y="5.5" width="5" height="2.5" rx=".4" fill="#5c2b77"/>'
   + '</svg>';
 
-function _makeStopIcon(mode) {
-  let html;
+function _makeStopIcon(mode, count) {
+  const badge = (count > 1)
+    ? '<span style="position:absolute;top:-5px;right:-5px;background:#fff;color:#111;'
+      + 'border-radius:50%;width:14px;height:14px;font-size:8px;font-weight:800;'
+      + 'display:flex;align-items:center;justify-content:center;line-height:1;'
+      + 'box-shadow:0 1px 3px rgba(0,0,0,.4)">' + count + '</span>'
+    : '';
+  let inner, w, h;
   if (mode === 'metro') {
-    html = '<div style="background:#f5a000;border-radius:50%;'
-      + 'width:28px;height:28px;display:flex;align-items:center;justify-content:center;'
-      + 'font-size:14px;font-weight:900;color:#fff;font-family:Arial,sans-serif;'
-      + 'transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.5)">T</div>';
+    w = 28; h = 28;
+    inner = '<div style="background:#f5a000;border-radius:50%;width:28px;height:28px;'
+      + 'display:flex;align-items:center;justify-content:center;'
+      + 'font-size:15px;font-weight:900;color:#fff;font-family:Arial,sans-serif;'
+      + 'box-shadow:0 1px 4px rgba(0,0,0,.5)">T</div>';
   } else if (mode === 'bus') {
-    html = '<div style="background:#e5006d;border-radius:5px;'
-      + 'width:26px;height:22px;display:flex;align-items:center;justify-content:center;'
-      + 'transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.5)">'
-      + _BUS_SVG + '</div>';
+    w = 26; h = 22;
+    inner = '<div style="background:#e5006d;border-radius:5px;width:26px;height:22px;'
+      + 'display:flex;align-items:center;justify-content:center;'
+      + 'box-shadow:0 1px 4px rgba(0,0,0,.5)">' + _BUS_SVG + '</div>';
   } else if (mode === 'tram') {
-    html = '<div style="background:#7b3999;border-radius:5px;'
-      + 'width:26px;height:22px;display:flex;align-items:center;justify-content:center;'
-      + 'transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.5)">'
-      + _TRAM_SVG + '</div>';
+    w = 26; h = 22;
+    inner = '<div style="background:#7b3999;border-radius:5px;width:26px;height:22px;'
+      + 'display:flex;align-items:center;justify-content:center;'
+      + 'box-shadow:0 1px 4px rgba(0,0,0,.5)">' + _TRAM_SVG + '</div>';
   } else {
-    html = '<div style="background:#555;border-radius:50%;'
-      + 'width:22px;height:22px;display:flex;align-items:center;justify-content:center;'
+    w = 22; h = 22;
+    inner = '<div style="background:#555;border-radius:50%;width:22px;height:22px;'
+      + 'display:flex;align-items:center;justify-content:center;'
       + 'font-size:10px;font-weight:700;color:#fff;'
-      + 'transform:translate(-50%,-50%);box-shadow:0 1px 3px rgba(0,0,0,.5)">?</div>';
+      + 'box-shadow:0 1px 3px rgba(0,0,0,.5)">?</div>';
   }
-  return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
+  const html = '<div style="position:relative;display:inline-block">' + inner + badge + '</div>';
+  return L.divIcon({ className: '', html, iconSize: [w, h], iconAnchor: [Math.round(w / 2), Math.round(h / 2)] });
 }
 
 const VENDOR_COLORS = { Bolt: '#22c55e', Voi: '#f87171', Tier: '#60a5fa' };
@@ -148,11 +157,24 @@ function renderBoardMap(pos, modes) {
 
     if (r1.status === 'fulfilled') {
       const modeSet = new Set(transitModes);
-      r1.value.forEach(s => {
-        if (!modeSet.has(s.mode)) return;
-        pts.push([s.lat, s.lon]);
-        L.marker([s.lat, s.lon], { icon: _makeStopIcon(s.mode) })
-          .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -15], className: 'map-label' })
+      const filtered = r1.value.filter(s => modeSet.has(s.mode));
+      // Cluster stops of the same mode within 80 m — big stations have many bus quays
+      const used = new Set();
+      filtered.forEach((s, i) => {
+        if (used.has(i)) return;
+        used.add(i);
+        const cluster = [s];
+        filtered.forEach((t, j) => {
+          if (used.has(j) || t.mode !== s.mode) return;
+          if (haver(s.lat, s.lon, t.lat, t.lon) < 80) { cluster.push(t); used.add(j); }
+        });
+        const lat = cluster.reduce((a, c) => a + c.lat, 0) / cluster.length;
+        const lon = cluster.reduce((a, c) => a + c.lon, 0) / cluster.length;
+        // Pick shortest name (station name rather than platform name)
+        const name = cluster.slice().sort((a, b) => a.name.length - b.name.length)[0].name;
+        pts.push([lat, lon]);
+        L.marker([lat, lon], { icon: _makeStopIcon(s.mode, cluster.length) })
+          .bindTooltip(name, { permanent: true, direction: 'top', offset: [0, -15], className: 'map-label' })
           .addTo(_bLayer);
       });
     }

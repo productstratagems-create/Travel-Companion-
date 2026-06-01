@@ -451,6 +451,7 @@ export function renderTrack() {
     if (!leg) return '';
     const isLastLeg = legIdx === legs.length - 1;
 
+    const rows = collectLegStopRows(legIdx);
     let headerHtml;
     if (rideMode) {
       const arrT = leg.arrTime;
@@ -458,6 +459,7 @@ export function renderTrack() {
         const m = Math.floor((new Date(arrT.time).getTime() - now) / 60000);
         return m <= 0 ? 'nå' : 'om ' + fmtMins(m);
       })() : null;
+      const stopsLeft = rows.length;
       headerHtml = '<div class="ct-detail">'
         + '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
         + '<span class="ct-dest">' + leg.frontText + '</span>'
@@ -470,6 +472,7 @@ export function renderTrack() {
         + (arrT
           ? '<span class="ct-time">' + (isLastLeg ? 'ank. ' : 'bytt ') + '<strong>' + normStn(leg.toStation) + '</strong> ' + arrT.clk + (mToAction ? ' · ' + mToAction : '') + '</span>'
           : '<span class="ct-time" style="color:#57534e">laster…</span>')
+        + (stopsLeft > 0 ? '<span class="ct-stops">' + stopsLeft + (stopsLeft === 1 ? ' stopp' : ' stopp') + '</span>' : '')
         + '</div>';
     } else {
       const mToDep = leg.depTime
@@ -489,7 +492,6 @@ export function renderTrack() {
         + '</div>';
     }
 
-    const rows = collectLegStopRows(legIdx);
     let stopsContent;
     if (rideMode) {
       const preBoardHtml = buildPreBoardHtml(legIdx);

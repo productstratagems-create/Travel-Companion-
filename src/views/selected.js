@@ -11,6 +11,7 @@ import { fmtMins } from '../ui/fmt.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function cleanName(s) { return (s || '').replace(/,\s*\S.*$/, '').replace(/\s+T$/i, '').trim(); }
 
 export function renderSelected() {
   renderAlerts();
@@ -70,11 +71,11 @@ export function renderSelected() {
         || leg.expectedEndTime || leg.aimedEndTime || null;
       const isLastLeg = (i === allLegs.length - 1);
       const fromName = i === 0
-        ? dir.from.toLowerCase()
-        : ((leg.fromPlace && leg.fromPlace.name) ? leg.fromPlace.name.toLowerCase() : '?');
-      const toName = (leg.toPlace && leg.toPlace.name)
-        ? leg.toPlace.name.toLowerCase()
-        : (isLastLeg ? dir.to.toLowerCase() : '?');
+        ? cleanName(dir.from).toLowerCase()
+        : cleanName((leg.fromPlace && leg.fromPlace.name) || '?').toLowerCase() || '?';
+      const toName = cleanName(
+        (leg.toPlace && leg.toPlace.name) || (isLastLeg ? dir.to : '?')
+      ).toLowerCase() || '?';
       const platform  = !isFoot && i > 0 && leg.fromEstimatedCall && leg.fromEstimatedCall.quay
         ? leg.fromEstimatedCall.quay.publicCode : null;
       const frontText = !isFoot && i > 0 && leg.fromEstimatedCall && leg.fromEstimatedCall.destinationDisplay
@@ -111,7 +112,7 @@ export function renderSelected() {
   } else {
     const arrHero = arrT
       ? '<div class="arrival-hero">'
-        + '<div class="ah-label">ankommer ' + dir.to.toLowerCase() + '</div>'
+        + '<div class="ah-label">ankommer ' + cleanName(dir.to).toLowerCase() + '</div>'
         + '<div class="ah-time">' + clk(arrT) + '</div>'
         + (tmin ? '<div class="ah-sub">' + tmin + ' min reise</div>' : '')
         + '</div>'

@@ -156,16 +156,19 @@ function renderTransitBoard(pos, activeModes) {
         setTimeout(() => _transitMap && _transitMap.invalidateSize(), 320);
       };
     }
+    setTimeout(() => _transitMap && _transitMap.invalidateSize(), 100);
   }
-  if (!pos) return;
+  const fetchPos = pos || { lat: 59.9139, lon: 10.7522 };
   const modeSet = new Set(activeModes);
-  fetchNearbyStops(pos.lat, pos.lon).then(stops => {
+  fetchNearbyStops(fetchPos.lat, fetchPos.lon).then(stops => {
     if (!_transitStopLayer) return;
     _transitStopLayer.clearLayers();
-    L.circleMarker([pos.lat, pos.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 })
-      .bindTooltip('Din posisjon', { className: 'map-label' })
-      .addTo(_transitStopLayer);
-    const pts = [[pos.lat, pos.lon]];
+    if (pos) {
+      L.circleMarker([pos.lat, pos.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 })
+        .bindTooltip('Din posisjon', { className: 'map-label' })
+        .addTo(_transitStopLayer);
+    }
+    const pts = pos ? [[pos.lat, pos.lon]] : [];
     stops.forEach(s => {
       if (!modeSet.has(s.mode)) return;
       pts.push([s.lat, s.lon]);
@@ -173,8 +176,9 @@ function renderTransitBoard(pos, activeModes) {
         .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -14], className: 'map-label' })
         .addTo(_transitStopLayer);
     });
-    if (pts.length > 1 && !_transitFitted && !_transitUserMoved) {
-      _transitMap.fitBounds(pts, { padding: [32, 32], maxZoom: 16 });
+    if (pts.length > 0 && !_transitFitted && !_transitUserMoved) {
+      if (pts.length === 1) _transitMap.setView(pts[0], 15);
+      else _transitMap.fitBounds(pts, { padding: [32, 32], maxZoom: 16 });
       _transitFitted = true;
     }
     setTimeout(() => _transitMap && _transitMap.invalidateSize(), 60);
@@ -380,9 +384,10 @@ export function renderBoard() {
     else _destroyBikeMap();
   }
   const activeModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
-  renderTransitBoard(state.walkFromLL || state.homeLL, activeModes);
-  const list = document.getElementById('dep-list');
   const dir = config.dirs[state.dIdx];
+  const _statPos = state.statLL && state.statLL[dir.key];
+  renderTransitBoard(state.walkFromLL || state.homeLL || _statPos, activeModes);
+  const list = document.getElementById('dep-list');
   if (!activeModes.length) {
     list.innerHTML = '';
     return;

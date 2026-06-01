@@ -177,7 +177,12 @@ function renderBoardMap(pos, modes) {
     p4 = Promise.resolve(null);
   }
 
-  Promise.allSettled([p1, p2, p3, p4]).then(([r1, r2, r3, r4]) => {
+  // Fetch stops near destination too — chains off p4 so geocode completes first
+  const p5 = transitModes.length
+    ? p4.then(destLL => destLL ? fetchNearbyStops(destLL.lat, destLL.lon) : []).catch(() => [])
+    : Promise.resolve([]);
+
+  Promise.allSettled([p1, p2, p3, p4, p5]).then(([r1, r2, r3, r4, r5]) => {
     if (!_bLayer) return;
     _bLayer.clearLayers();
     const pts = [];
@@ -189,9 +194,17 @@ function renderBoardMap(pos, modes) {
       pts.push([pos.lat, pos.lon]);
     }
 
-    if (r1.status === 'fulfilled') {
+    // Merge stops from both ends, deduplicate by uid
+    const allStops = [
+      ...(r1.status === 'fulfilled' ? r1.value : []),
+      ...(r5.status === 'fulfilled' ? r5.value : []),
+    ];
+    const seenUids = new Set();
+    const uniqueStops = allStops.filter(s => { if (seenUids.has(s.id)) return false; seenUids.add(s.id); return true; });
+
+    if (uniqueStops.length) {
       const modeSet = new Set(transitModes);
-      const filtered = r1.value.filter(s => modeSet.has(s.mode));
+      const filtered = uniqueStops.filter(s => modeSet.has(s.mode));
       // Cluster stops of the same mode within 80 m — big stations have many bus quays
       const used = new Set();
       filtered.forEach((s, i) => {

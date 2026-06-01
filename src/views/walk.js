@@ -19,7 +19,7 @@ function _makeTransitStopIcon(code, bg, mode) {
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
-const TILE = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+const TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 const TILE_ATTR = '© CartoDB';
 
 let _wMap = null;
@@ -39,6 +39,7 @@ function _initWalkMap(fromLL, toLL) {
   _wMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
   _wMap.on('dragstart', () => { _wUserMoved = true; });
   L.tileLayer(TILE, { subdomains: 'abcd', attribution: TILE_ATTR }).addTo(_wMap);
+  L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_wMap);
   // Station marker — transit line badge
   const sel = state.sel;
   const leg0 = sel && sel._legs && sel._legs[0];

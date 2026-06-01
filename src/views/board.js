@@ -112,7 +112,11 @@ function renderBikeBoard() {
   const wantScooters = mobType === 'all' || mobType === 'scooters';
   const p1 = wantBikes    ? fetchBysykkel(pos.lat, pos.lon) : Promise.resolve([]);
   const p2 = wantScooters ? fetchScooters(pos.lat, pos.lon) : Promise.resolve([]);
-  Promise.all([p1, p2]).then(([stations, scooters]) => {
+  Promise.allSettled([p1, p2]).then(([r1, r2]) => {
+    if (r1.status === 'rejected') console.warn('[bysykkel]', r1.reason);
+    if (r2.status === 'rejected') console.warn('[scooters]', r2.reason);
+    const stations = r1.status === 'fulfilled' ? r1.value : [];
+    const scooters = r2.status === 'fulfilled' ? r2.value : [];
     if (!_bikeMap || !_bikeMarkersLayer) return;
     _bikeMarkersLayer.clearLayers();
     L.circleMarker([pos.lat, pos.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 }).addTo(_bikeMarkersLayer);
@@ -150,11 +154,12 @@ function renderBikeBoard() {
       ...stations.map((s, i) => ({ row: bikeRows[i], dist: s.dist })),
       ...scooters.map((v, i) => ({ row: scooterRows[i], dist: v.dist })),
     ].sort((a, b) => a.dist - b.dist).map(x => x.row);
-    listEl.innerHTML = combined.length === 0
+    const scooterErr = wantScooters && r2.status === 'rejected';
+    listEl.innerHTML = (combined.length === 0 && !scooterErr)
       ? '<div class="hn-loading">ingen tilgjengelig i nærheten</div>'
-      : combined.join('');
-  }).catch(() => {});
-}
+      : combined.join('')
+        + (scooterErr ? '<div class="hn-loading" style="margin-top:.5rem">sparkesykkel utilgjengelig</div>' : '');
+  });
 
 function renderModeFilter() {
   const el = document.getElementById('mode-filter');

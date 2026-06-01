@@ -117,36 +117,9 @@
 .mode-pill.active{background:rgba(245,184,64,.12);border-color:rgba(245,184,64,.4);color:#f5b840}
 .mode-pill:active{opacity:.7}
 
-#transit-board{padding-top:.5rem}
-#transit-map{height:220px;border-radius:8px;overflow:hidden;margin-bottom:.5rem}
-#transit-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
-
-#bike-board{padding-top:.6rem}
-.mode-section-label{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#8898aa;margin-bottom:.5rem}
-#bike-map{height:220px;border-radius:8px;overflow:hidden;margin-bottom:.7rem}
-#bike-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
+#board-map{height:220px;border-radius:8px;overflow:hidden;margin-bottom:.5rem}
+#board-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
 .transfer-arrow{font-size:9px;color:#8898aa;margin:0 .15rem;vertical-align:middle}
-
-#mob-type-filter{display:flex;gap:.35rem;flex-wrap:wrap;padding:.4rem 0 .5rem}
-.mob-pill{
-  padding:.25rem .6rem;border-radius:20px;
-  border:1px solid rgba(245,184,64,.15);background:none;
-  color:#7485a0;font-family:inherit;font-size:10px;
-  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
-  transition:background .1s,color .1s,border-color .1s;
-  min-height:28px;
-}
-.mob-pill.active{background:rgba(245,184,64,.1);border-color:rgba(245,184,64,.35);color:#f5b840}
-.mob-pill:active{opacity:.7}
-/* Stop-layer toggle pills — active state uses the mode's own colour */
-.stop-pill.active[data-mode="metro"]{background:rgba(192,57,43,.12);border-color:rgba(192,57,43,.4);color:#e05a4a}
-.stop-pill.active[data-mode="bus"]  {background:rgba(29,78,216,.12); border-color:rgba(29,78,216,.4); color:#60a5fa}
-.stop-pill.active[data-mode="tram"] {background:rgba(15,118,110,.12);border-color:rgba(15,118,110,.4);color:#2dd4bf}
-.mob-scooter-tag{
-  display:inline-block;margin-left:.35rem;
-  font-size:8px;letter-spacing:.12em;text-transform:uppercase;
-  color:#8898aa;vertical-align:middle;
-}
 
 /* Vendor identity badges */
 .vnd-badge{

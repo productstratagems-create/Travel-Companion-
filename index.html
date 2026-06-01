@@ -40,9 +40,11 @@
   <button id="onboard-chip" onclick="window.jnyGoTracking&&window.jnyGoTracking()" aria-label="vis reise underveis" style="display:none;width:100%;text-align:left;font-family:inherit;align-items:center;padding:.6rem .75rem;margin:.5rem 0;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:6px;cursor:pointer;gap:.5rem"></button>
   <div id="walk-summary" style="display:none"></div>
   <div id="mode-filter"></div>
-  <div id="transit-board" style="display:none"></div>
+  <div class="map-wrap">
+    <div id="board-map"></div>
+    <button class="map-expand-btn" id="board-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
+  </div>
   <div id="dep-list"></div>
-  <div id="bike-board" style="display:none"></div>
 </div>
 
 <!-- ══ 2a: AVGANGSDETALJER ══ -->

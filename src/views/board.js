@@ -29,25 +29,19 @@ function _depMode(dep) {
   return (ln && ln.transportMode) || 'metro';
 }
 
-// ── Bike board map ───────────────────────────────────────────────────────────
-const _BIKE_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-let _bikeMap = null;
-let _bikeMarkersLayer = null;
-let _bikeUserMoved = false;
-let _stopLayer = null;
+// ── Board map (single universal map for all modes) ──────────────────────────
+const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+let _bMap = null;
+let _bLayer = null;
+let _bUserMoved = false;
+let _bFitted = false;
 
-const STOP_MODES_KEY = 't.stopModes';
-function loadStopModes() {
-  try { return new Set(JSON.parse(localStorage.getItem(STOP_MODES_KEY) || '[]')); } catch { return new Set(); }
-}
-function saveStopModes(set) {
-  try { localStorage.setItem(STOP_MODES_KEY, JSON.stringify([...set])); } catch {}
+function _destroyBoardMap() {
+  if (_bMap) { _bMap.remove(); _bMap = null; _bLayer = null; }
+  _bUserMoved = false;
+  _bFitted = false;
 }
 
-function _destroyBikeMap() {
-  if (_bikeMap) { _bikeMap.remove(); _bikeMap = null; _bikeMarkersLayer = null; _stopLayer = null; }
-  _bikeUserMoved = false;
-}
 function _makeBikeIcon(bikes, ebikes) {
   const color = bikes === 0 ? '#f87171' : bikes <= 2 ? '#fbbf24' : '#4ade80';
   const label = bikes + (ebikes ? '+' : '');
@@ -56,6 +50,7 @@ function _makeBikeIcon(bikes, ebikes) {
     + 'transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.3)">' + label + '</div>';
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
+
 const STOP_CFG = {
   metro: { label: 'T',  bg: '#c0392b', color: '#fff' },
   bus:   { label: 'B',  bg: '#1d4ed8', color: '#fff' },
@@ -64,125 +59,10 @@ const STOP_CFG = {
 function _makeStopIcon(mode) {
   const cfg = STOP_CFG[mode] || { label: '?', bg: '#555', color: '#fff' };
   const html = '<div style="background:' + cfg.bg + ';color:' + cfg.color + ';border-radius:50%;'
-    + 'width:20px;height:20px;display:flex;align-items:center;justify-content:center;'
-    + 'font-size:9px;font-weight:700;transform:translate(-50%,-50%);'
-    + 'box-shadow:0 1px 3px rgba(0,0,0,.4)">' + cfg.label + '</div>';
+    + 'width:22px;height:22px;display:flex;align-items:center;justify-content:center;'
+    + 'font-size:10px;font-weight:700;transform:translate(-50%,-50%);'
+    + 'box-shadow:0 1px 3px rgba(0,0,0,.5)">' + cfg.label + '</div>';
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
-}
-
-function _refreshStopLayer(pos) {
-  if (!_bikeMap) return;
-  if (!_stopLayer) { _stopLayer = L.layerGroup().addTo(_bikeMap); }
-  const modes = loadStopModes();
-  _stopLayer.clearLayers();
-  if (!modes.size || !pos) return;
-  fetchNearbyStops(pos.lat, pos.lon).then(stops => {
-    if (!_stopLayer) return;
-    _stopLayer.clearLayers();
-    stops.forEach(s => {
-      if (!modes.has(s.mode)) return;
-      L.marker([s.lat, s.lon], { icon: _makeStopIcon(s.mode) })
-        .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -14], className: 'map-label' })
-        .addTo(_stopLayer);
-    });
-  }).catch(e => console.warn('[stops]', e));
-}
-
-function renderStopFilter(pos) {
-  const el = document.getElementById('stop-mode-filter');
-  if (!el) return;
-  const modes = loadStopModes();
-  el.innerHTML = [
-    { key: 'metro', label: 'T-bane' },
-    { key: 'bus',   label: 'Buss' },
-    { key: 'tram',  label: 'Trikk' },
-  ].map(p => '<button class="mob-pill stop-pill' + (modes.has(p.key) ? ' active' : '') + '" data-mode="' + p.key + '">'
-    + p.label + '</button>').join('');
-  el.querySelectorAll('.stop-pill').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const m = loadStopModes();
-      if (m.has(btn.dataset.mode)) m.delete(btn.dataset.mode); else m.add(btn.dataset.mode);
-      saveStopModes(m);
-      renderStopFilter(pos);
-      _refreshStopLayer(pos);
-    });
-  });
-}
-
-// ── Transit stop map ─────────────────────────────────────────────────────────
-let _transitMap = null;
-let _transitStopLayer = null;
-let _transitUserMoved = false;
-let _transitFitted = false;
-
-function _destroyTransitMap() {
-  if (_transitMap) { _transitMap.remove(); _transitMap = null; _transitStopLayer = null; }
-  _transitUserMoved = false;
-  _transitFitted = false;
-}
-
-function renderTransitBoard(pos, activeModes) {
-  const el = document.getElementById('transit-board');
-  if (!el) return;
-  if (!activeModes.length) {
-    el.style.display = 'none';
-    _destroyTransitMap();
-    return;
-  }
-  el.style.display = 'block';
-  if (!document.getElementById('transit-map')) {
-    el.innerHTML = '<div class="map-wrap"><div id="transit-map"></div>'
-      + '<button class="map-expand-btn" id="transit-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>';
-  }
-  if (!_transitMap) {
-    const mapEl = document.getElementById('transit-map');
-    if (!mapEl) return;
-    _transitUserMoved = false;
-    _transitFitted = false;
-    _transitMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
-    _transitMap.on('dragstart', () => { _transitUserMoved = true; });
-    L.tileLayer(_BIKE_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_transitMap);
-    L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_transitMap);
-    _transitStopLayer = L.layerGroup().addTo(_transitMap);
-    const c = pos || { lat: 59.9139, lon: 10.7522 };
-    _transitMap.setView([c.lat, c.lon], 15);
-    const expandBtn = document.getElementById('transit-map-expand');
-    if (expandBtn) {
-      expandBtn.onclick = () => {
-        const exp = mapEl.classList.toggle('expanded');
-        expandBtn.textContent = exp ? '✕' : '⤢';
-        expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
-        expandBtn.title = exp ? 'Minimer kart' : 'Utvid kart';
-        setTimeout(() => _transitMap && _transitMap.invalidateSize(), 320);
-      };
-    }
-    setTimeout(() => _transitMap && _transitMap.invalidateSize(), 100);
-  }
-  const fetchPos = pos || { lat: 59.9139, lon: 10.7522 };
-  const modeSet = new Set(activeModes);
-  fetchNearbyStops(fetchPos.lat, fetchPos.lon).then(stops => {
-    if (!_transitStopLayer) return;
-    _transitStopLayer.clearLayers();
-    if (pos) {
-      L.circleMarker([pos.lat, pos.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 })
-        .bindTooltip('Din posisjon', { className: 'map-label' })
-        .addTo(_transitStopLayer);
-    }
-    const pts = pos ? [[pos.lat, pos.lon]] : [];
-    stops.forEach(s => {
-      if (!modeSet.has(s.mode)) return;
-      pts.push([s.lat, s.lon]);
-      L.marker([s.lat, s.lon], { icon: _makeStopIcon(s.mode) })
-        .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -14], className: 'map-label' })
-        .addTo(_transitStopLayer);
-    });
-    if (pts.length > 0 && !_transitFitted && !_transitUserMoved) {
-      if (pts.length === 1) _transitMap.setView(pts[0], 15);
-      else _transitMap.fitBounds(pts, { padding: [32, 32], maxZoom: 16 });
-      _transitFitted = true;
-    }
-    setTimeout(() => _transitMap && _transitMap.invalidateSize(), 60);
-  }).catch(e => console.warn('[transit-map]', e));
 }
 
 const VENDOR_COLORS = { Bolt: '#22c55e', Voi: '#f87171', Tier: '#60a5fa' };
@@ -195,121 +75,82 @@ function _makeScooterIcon(operator, battery) {
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
-// ── Mob-type sub-filter (inside bike board) ──────────────────────────────────
-const MOB_TYPE_KEY = 't.mobType';
-function loadMobType() { try { return localStorage.getItem(MOB_TYPE_KEY) || 'all'; } catch { return 'all'; } }
-function saveMobType(t) { try { localStorage.setItem(MOB_TYPE_KEY, t); } catch {} }
+function renderBoardMap(pos, modes) {
+  const mapEl = document.getElementById('board-map');
+  if (!mapEl) return;
 
-function renderMobTypeFilter() {
-  const el = document.getElementById('mob-type-filter');
-  if (!el) return;
-  const cur = loadMobType();
-  el.innerHTML = [
-    { key: 'all',      label: 'Alt' },
-    { key: 'bikes',    label: 'Sykkel' },
-    { key: 'scooters', label: 'Sparkesykkel' },
-  ].map(p => '<button class="mob-pill' + (cur === p.key ? ' active' : '') + '" data-type="' + p.key + '">'
-    + p.label + '</button>').join('');
-  el.querySelectorAll('.mob-pill').forEach(btn => {
-    btn.addEventListener('click', () => { saveMobType(btn.dataset.type); renderBikeBoard(); });
-  });
-}
-
-function renderBikeBoard() {
-  const el = document.getElementById('bike-board');
-  if (!el) return;
-  const pos = state.walkFromLL || state.homeLL;
-  if (!document.getElementById('bike-map')) {
-    el.innerHTML = '<div id="mob-type-filter" style="display:flex;gap:.35rem;flex-wrap:wrap;padding:.4rem 0 .5rem"></div>'
-      + '<div class="map-wrap"><div id="bike-map"></div>'
-      + '<button class="map-expand-btn" id="bike-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
-      + '<div id="bike-list"><div class="hn-loading">laster…</div></div>'
-      + '<div id="stop-mode-filter" style="display:flex;gap:.35rem;flex-wrap:wrap;padding:0 0 .5rem"></div>';
-  }
-  renderMobTypeFilter();
-  renderStopFilter(pos);
-  if (!_bikeMap) {
-    const mapEl = document.getElementById('bike-map');
-    if (!mapEl) return;
-    _bikeUserMoved = false;
-    _bikeMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
-    _bikeMap.on('dragstart', () => { _bikeUserMoved = true; });
-    L.tileLayer(_BIKE_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_bikeMap);
-    L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_bikeMap);
-    _bikeMarkersLayer = L.layerGroup().addTo(_bikeMap);
+  if (!_bMap) {
+    _bMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+    _bMap.on('dragstart', () => { _bUserMoved = true; });
+    L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_bMap);
+    L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_bMap);
+    _bLayer = L.layerGroup().addTo(_bMap);
     const c = pos || { lat: 59.9139, lon: 10.7522 };
-    _bikeMap.setView([c.lat, c.lon], 15);
-    const expandBtn = document.getElementById('bike-map-expand');
+    _bMap.setView([c.lat, c.lon], 14);
+    setTimeout(() => _bMap && _bMap.invalidateSize(), 100);
+    const expandBtn = document.getElementById('board-map-expand');
     if (expandBtn) {
       expandBtn.onclick = () => {
         const exp = mapEl.classList.toggle('expanded');
         expandBtn.textContent = exp ? '✕' : '⤢';
         expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
         expandBtn.title = exp ? 'Minimer kart' : 'Utvid kart';
-        setTimeout(() => _bikeMap && _bikeMap.invalidateSize(), 320);
+        setTimeout(() => _bMap && _bMap.invalidateSize(), 320);
       };
     }
   }
-  _refreshStopLayer(pos);
-  if (!pos) {
-    const listEl = document.getElementById('bike-list');
-    if (listEl) listEl.innerHTML = '<div class="hn-loading">posisjon ikke tilgjengelig</div>';
-    return;
-  }
-  const mobType = loadMobType();
-  const wantBikes    = mobType === 'all' || mobType === 'bikes';
-  const wantScooters = mobType === 'all' || mobType === 'scooters';
-  const p1 = wantBikes    ? fetchBysykkel(pos.lat, pos.lon) : Promise.resolve([]);
-  const p2 = wantScooters ? fetchScooters(pos.lat, pos.lon) : Promise.resolve([]);
-  Promise.allSettled([p1, p2]).then(([r1, r2]) => {
-    if (r1.status === 'rejected') console.warn('[bysykkel]', r1.reason);
-    if (r2.status === 'rejected') console.warn('[scooters]', r2.reason);
-    const stations = r1.status === 'fulfilled' ? r1.value : [];
-    const scooters = r2.status === 'fulfilled' ? r2.value : [];
-    if (!_bikeMap || !_bikeMarkersLayer) return;
-    _bikeMarkersLayer.clearLayers();
-    L.circleMarker([pos.lat, pos.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 }).addTo(_bikeMarkersLayer);
-    const bounds = [[pos.lat, pos.lon]];
-    stations.forEach(s => {
-      bounds.push([s.lat, s.lon]);
-      L.marker([s.lat, s.lon], { icon: _makeBikeIcon(s.bikes, s.ebikes) })
-        .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -20], className: 'map-label' })
-        .addTo(_bikeMarkersLayer);
-    });
-    scooters.forEach(v => {
-      bounds.push([v.lat, v.lon]);
-      L.marker([v.lat, v.lon], { icon: _makeScooterIcon(v.operator, v.battery) }).addTo(_bikeMarkersLayer);
-    });
-    if (bounds.length > 1 && !_bikeUserMoved) _bikeMap.fitBounds(bounds, { padding: [32, 32] });
-    setTimeout(() => _bikeMap && _bikeMap.invalidateSize(), 60);
-    const listEl = document.getElementById('bike-list');
-    if (!listEl) return;
-    const distFmt = d => d < 1000 ? d + ' m' : (d / 1000).toFixed(1) + ' km';
-    const bikeRows = stations.map(s =>
-      '<div class="hn-bike-row">'
-      + '<span class="hn-bike-name"><span class="vnd-badge vnd-bysykkel">Bysykkel</span>' + s.name + '</span>'
-      + '<span class="hn-bike-dist">' + distFmt(s.dist) + '</span>'
-      + '<span class="hn-bike-count' + (s.bikes === 0 ? ' empty' : '') + '">'
-      + s.bikes + (s.ebikes ? ' · ' + s.ebikes + ' el' : '') + ' 🚲</span>'
-      + '</div>'
-    );
-    const scooterRows = scooters.map(v =>
-      '<div class="hn-bike-row">'
-      + '<span class="hn-bike-name"><span class="vnd-badge vnd-' + v.operator.toLowerCase() + '">' + v.operator + '</span><span class="mob-scooter-tag">sparkesykkel</span></span>'
-      + '<span class="hn-bike-dist">' + distFmt(v.dist) + '</span>'
-      + '<span class="hn-bike-count' + (v.battery != null && v.battery < 20 ? ' empty' : '') + '">'
-      + (v.battery != null ? '⚡' + v.battery + '%' : '⚡?') + '</span>'
-      + '</div>'
-    );
-    const combined = [
-      ...stations.map((s, i) => ({ row: bikeRows[i], dist: s.dist })),
-      ...scooters.map((v, i) => ({ row: scooterRows[i], dist: v.dist })),
-    ].sort((a, b) => a.dist - b.dist).map(x => x.row);
-    const scooterErr = wantScooters && r2.status === 'rejected';
-    listEl.innerHTML = (combined.length === 0 && !scooterErr)
-      ? '<div class="hn-loading">ingen tilgjengelig i nærheten</div>'
-      : combined.join('')
-        + (scooterErr ? '<div class="hn-loading" style="margin-top:.5rem">sparkesykkel utilgjengelig</div>' : '');
+
+  const fetchPos = pos || { lat: 59.9139, lon: 10.7522 };
+  const transitModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
+  const p1 = transitModes.length ? fetchNearbyStops(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
+  const p2 = modes.sykkel ? fetchBysykkel(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
+  const p3 = modes.sykkel ? fetchScooters(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
+
+  Promise.allSettled([p1, p2, p3]).then(([r1, r2, r3]) => {
+    if (!_bLayer) return;
+    _bLayer.clearLayers();
+    const pts = [];
+
+    if (pos) {
+      L.circleMarker([pos.lat, pos.lon], { radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2 })
+        .bindTooltip('Din posisjon', { className: 'map-label' })
+        .addTo(_bLayer);
+      pts.push([pos.lat, pos.lon]);
+    }
+
+    if (r1.status === 'fulfilled') {
+      const modeSet = new Set(transitModes);
+      r1.value.forEach(s => {
+        if (!modeSet.has(s.mode)) return;
+        pts.push([s.lat, s.lon]);
+        L.marker([s.lat, s.lon], { icon: _makeStopIcon(s.mode) })
+          .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -15], className: 'map-label' })
+          .addTo(_bLayer);
+      });
+    }
+
+    if (r2.status === 'fulfilled') {
+      r2.value.forEach(s => {
+        pts.push([s.lat, s.lon]);
+        L.marker([s.lat, s.lon], { icon: _makeBikeIcon(s.bikes, s.ebikes) })
+          .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -18], className: 'map-label' })
+          .addTo(_bLayer);
+      });
+    }
+
+    if (r3.status === 'fulfilled') {
+      r3.value.forEach(v => {
+        pts.push([v.lat, v.lon]);
+        L.marker([v.lat, v.lon], { icon: _makeScooterIcon(v.operator, v.battery) }).addTo(_bLayer);
+      });
+    }
+
+    if (pts.length > 0 && !_bFitted && !_bUserMoved) {
+      if (pts.length === 1) _bMap.setView(pts[0], 15);
+      else _bMap.fitBounds(pts, { padding: [36, 36], maxZoom: 16 });
+      _bFitted = true;
+    }
+    setTimeout(() => _bMap && _bMap.invalidateSize(), 60);
   });
 }
 
@@ -377,16 +218,10 @@ export function renderBoard() {
   renderWalkSummary();
   renderModeFilter();
   const modes = loadModes();
-  const bikeEl = document.getElementById('bike-board');
-  if (bikeEl) {
-    bikeEl.style.display = modes.sykkel ? 'block' : 'none';
-    if (modes.sykkel) renderBikeBoard();
-    else _destroyBikeMap();
-  }
-  const activeModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
   const dir = config.dirs[state.dIdx];
-  const _statPos = state.statLL && state.statLL[dir.key];
-  renderTransitBoard(state.walkFromLL || state.homeLL || _statPos, activeModes);
+  const pos = state.walkFromLL || state.homeLL || (state.statLL && state.statLL[dir.key]);
+  renderBoardMap(pos, modes);
+  const activeModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
   const list = document.getElementById('dep-list');
   if (!activeModes.length) {
     list.innerHTML = '';
@@ -597,7 +432,7 @@ export function startBoard() {
 
 export function stopBoard() {
   if (intervals.board) { clearInterval(intervals.board); intervals.board = null; }
-  _destroyBikeMap();
+  _destroyBoardMap();
 }
 
 function _fetchBoard() {

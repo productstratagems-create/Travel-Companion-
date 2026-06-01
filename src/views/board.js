@@ -9,7 +9,8 @@ import { loadFavs } from '../ui/favs.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
-import { fetchScooters } from '../api/scooters.js';
+import { fetchScooters }    from '../api/scooters.js';
+import { fetchNearbyStops } from '../api/stops.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -33,8 +34,18 @@ const _BIKE_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x
 let _bikeMap = null;
 let _bikeMarkersLayer = null;
 let _bikeUserMoved = false;
+let _stopLayer = null;
+
+const STOP_MODES_KEY = 't.stopModes';
+function loadStopModes() {
+  try { return new Set(JSON.parse(localStorage.getItem(STOP_MODES_KEY) || '[]')); } catch { return new Set(); }
+}
+function saveStopModes(set) {
+  try { localStorage.setItem(STOP_MODES_KEY, JSON.stringify([...set])); } catch {}
+}
+
 function _destroyBikeMap() {
-  if (_bikeMap) { _bikeMap.remove(); _bikeMap = null; _bikeMarkersLayer = null; }
+  if (_bikeMap) { _bikeMap.remove(); _bikeMap = null; _bikeMarkersLayer = null; _stopLayer = null; }
   _bikeUserMoved = false;
 }
 function _makeBikeIcon(bikes, ebikes) {
@@ -45,6 +56,59 @@ function _makeBikeIcon(bikes, ebikes) {
     + 'transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.3)">' + label + '</div>';
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
+const STOP_CFG = {
+  metro: { label: 'T',  bg: '#c0392b', color: '#fff' },
+  bus:   { label: 'B',  bg: '#1d4ed8', color: '#fff' },
+  tram:  { label: 'Tr', bg: '#0f766e', color: '#fff' },
+};
+function _makeStopIcon(mode) {
+  const cfg = STOP_CFG[mode] || { label: '?', bg: '#555', color: '#fff' };
+  const html = '<div style="background:' + cfg.bg + ';color:' + cfg.color + ';border-radius:50%;'
+    + 'width:20px;height:20px;display:flex;align-items:center;justify-content:center;'
+    + 'font-size:9px;font-weight:700;transform:translate(-50%,-50%);'
+    + 'box-shadow:0 1px 3px rgba(0,0,0,.4)">' + cfg.label + '</div>';
+  return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
+}
+
+function _refreshStopLayer(pos) {
+  if (!_bikeMap) return;
+  if (!_stopLayer) { _stopLayer = L.layerGroup().addTo(_bikeMap); }
+  const modes = loadStopModes();
+  _stopLayer.clearLayers();
+  if (!modes.size || !pos) return;
+  fetchNearbyStops(pos.lat, pos.lon).then(stops => {
+    if (!_stopLayer) return;
+    _stopLayer.clearLayers();
+    stops.forEach(s => {
+      if (!modes.has(s.mode)) return;
+      L.marker([s.lat, s.lon], { icon: _makeStopIcon(s.mode) })
+        .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -14], className: 'map-label' })
+        .addTo(_stopLayer);
+    });
+  }).catch(e => console.warn('[stops]', e));
+}
+
+function renderStopFilter(pos) {
+  const el = document.getElementById('stop-mode-filter');
+  if (!el) return;
+  const modes = loadStopModes();
+  el.innerHTML = [
+    { key: 'metro', label: 'T-bane' },
+    { key: 'bus',   label: 'Buss' },
+    { key: 'tram',  label: 'Trikk' },
+  ].map(p => '<button class="mob-pill stop-pill' + (modes.has(p.key) ? ' active' : '') + '" data-mode="' + p.key + '">'
+    + p.label + '</button>').join('');
+  el.querySelectorAll('.stop-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const m = loadStopModes();
+      if (m.has(btn.dataset.mode)) m.delete(btn.dataset.mode); else m.add(btn.dataset.mode);
+      saveStopModes(m);
+      renderStopFilter(pos);
+      _refreshStopLayer(pos);
+    });
+  });
+}
+
 const VENDOR_COLORS = { Bolt: '#22c55e', Voi: '#f87171', Tier: '#60a5fa' };
 function _makeScooterIcon(operator, battery) {
   const vc = VENDOR_COLORS[operator] || '#94a3b8';
@@ -83,9 +147,11 @@ function renderBikeBoard() {
     el.innerHTML = '<div id="mob-type-filter" style="display:flex;gap:.35rem;flex-wrap:wrap;padding:.4rem 0 .5rem"></div>'
       + '<div class="map-wrap"><div id="bike-map"></div>'
       + '<button class="map-expand-btn" id="bike-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
-      + '<div id="bike-list"><div class="hn-loading">laster…</div></div>';
+      + '<div id="bike-list"><div class="hn-loading">laster…</div></div>'
+      + '<div id="stop-mode-filter" style="display:flex;gap:.35rem;flex-wrap:wrap;padding:0 0 .5rem"></div>';
   }
   renderMobTypeFilter();
+  renderStopFilter(pos);
   if (!_bikeMap) {
     const mapEl = document.getElementById('bike-map');
     if (!mapEl) return;
@@ -108,6 +174,7 @@ function renderBikeBoard() {
       };
     }
   }
+  _refreshStopLayer(pos);
   if (!pos) {
     const listEl = document.getElementById('bike-list');
     if (listEl) listEl.innerHTML = '<div class="hn-loading">posisjon ikke tilgjengelig</div>';

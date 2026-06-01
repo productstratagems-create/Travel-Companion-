@@ -134,6 +134,10 @@
 }
 .mob-pill.active{background:rgba(245,184,64,.1);border-color:rgba(245,184,64,.35);color:#f5b840}
 .mob-pill:active{opacity:.7}
+/* Stop-layer toggle pills — active state uses the mode's own colour */
+.stop-pill.active[data-mode="metro"]{background:rgba(192,57,43,.12);border-color:rgba(192,57,43,.4);color:#e05a4a}
+.stop-pill.active[data-mode="bus"]  {background:rgba(29,78,216,.12); border-color:rgba(29,78,216,.4); color:#60a5fa}
+.stop-pill.active[data-mode="tram"] {background:rgba(15,118,110,.12);border-color:rgba(15,118,110,.4);color:#2dd4bf}
 .mob-scooter-tag{
   display:inline-block;margin-left:.35rem;
   font-size:8px;letter-spacing:.12em;text-transform:uppercase;

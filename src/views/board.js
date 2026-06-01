@@ -160,6 +160,7 @@ function renderBikeBoard() {
       : combined.join('')
         + (scooterErr ? '<div class="hn-loading" style="margin-top:.5rem">sparkesykkel utilgjengelig</div>' : '');
   });
+}
 
 function renderModeFilter() {
   const el = document.getElementById('mode-filter');

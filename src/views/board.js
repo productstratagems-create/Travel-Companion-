@@ -45,12 +45,13 @@ function _makeBikeIcon(bikes, ebikes) {
     + 'transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.3)">' + label + '</div>';
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
-function _makeScooterIcon(battery) {
-  const color = battery == null ? '#94a3b8' : battery > 50 ? '#4ade80' : battery > 20 ? '#fbbf24' : '#f87171';
+const VENDOR_COLORS = { Bolt: '#22c55e', Voi: '#f87171', Tier: '#60a5fa' };
+function _makeScooterIcon(operator, battery) {
+  const vc = VENDOR_COLORS[operator] || '#94a3b8';
   const label = battery != null ? battery + '%' : '?';
-  const html = '<div style="background:' + color + ';color:#111;border-radius:4px;padding:2px 5px;'
+  const html = '<div style="background:rgba(10,8,6,.85);border:2px solid ' + vc + ';border-radius:4px;padding:2px 5px;'
     + 'font-size:10px;font-weight:700;transform:translate(-50%,-100%);white-space:nowrap;'
-    + 'box-shadow:0 1px 4px rgba(0,0,0,.3)">⚡' + label + '</div>';
+    + 'box-shadow:0 1px 4px rgba(0,0,0,.4);color:' + vc + '">⚡' + label + '</div>';
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
@@ -131,7 +132,7 @@ function renderBikeBoard() {
     });
     scooters.forEach(v => {
       bounds.push([v.lat, v.lon]);
-      L.marker([v.lat, v.lon], { icon: _makeScooterIcon(v.battery) }).addTo(_bikeMarkersLayer);
+      L.marker([v.lat, v.lon], { icon: _makeScooterIcon(v.operator, v.battery) }).addTo(_bikeMarkersLayer);
     });
     if (bounds.length > 1 && !_bikeUserMoved) _bikeMap.fitBounds(bounds, { padding: [32, 32] });
     setTimeout(() => _bikeMap && _bikeMap.invalidateSize(), 60);
@@ -140,7 +141,7 @@ function renderBikeBoard() {
     const distFmt = d => d < 1000 ? d + ' m' : (d / 1000).toFixed(1) + ' km';
     const bikeRows = stations.map(s =>
       '<div class="hn-bike-row">'
-      + '<span class="hn-bike-name">' + s.name + '</span>'
+      + '<span class="hn-bike-name"><span class="vnd-badge vnd-bysykkel">Bysykkel</span>' + s.name + '</span>'
       + '<span class="hn-bike-dist">' + distFmt(s.dist) + '</span>'
       + '<span class="hn-bike-count' + (s.bikes === 0 ? ' empty' : '') + '">'
       + s.bikes + (s.ebikes ? ' · ' + s.ebikes + ' el' : '') + ' 🚲</span>'
@@ -148,7 +149,7 @@ function renderBikeBoard() {
     );
     const scooterRows = scooters.map(v =>
       '<div class="hn-bike-row">'
-      + '<span class="hn-bike-name">' + v.operator + '<span class="mob-scooter-tag">sparkesykkel</span></span>'
+      + '<span class="hn-bike-name"><span class="vnd-badge vnd-' + v.operator.toLowerCase() + '">' + v.operator + '</span><span class="mob-scooter-tag">sparkesykkel</span></span>'
       + '<span class="hn-bike-dist">' + distFmt(v.dist) + '</span>'
       + '<span class="hn-bike-count' + (v.battery != null && v.battery < 20 ? ' empty' : '') + '">'
       + (v.battery != null ? '⚡' + v.battery + '%' : '⚡?') + '</span>'

@@ -451,6 +451,7 @@ export function renderTrack() {
     if (!leg) return '';
     const isLastLeg = legIdx === legs.length - 1;
 
+    const rows = collectLegStopRows(legIdx);
     let headerHtml;
     if (rideMode) {
       const arrT = leg.arrTime;
@@ -458,14 +459,36 @@ export function renderTrack() {
         const m = Math.floor((new Date(arrT.time).getTime() - now) / 60000);
         return m <= 0 ? 'nå' : 'om ' + fmtMins(m);
       })() : null;
+      // Count directly from leg.stops using arrival time so we count
+      // stops the train is currently AT (just departed) as already visited.
+      const stopsLeft = (() => {
+        if (!leg.stops) return rows.length;
+        const fromN = normStn(leg.fromStation || '');
+        const toN   = normStn(leg.toStation   || '');
+        let pastFrom = !leg.fromStation, count = 0;
+        for (const s of leg.stops) {
+          const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
+          if (!pastFrom) { if (normStn(nm) === fromN) pastFrom = true; continue; }
+          const isEnd = toN && normStn(nm) === toN;
+          const arrT2 = s.expectedArrivalTime || s.aimedArrivalTime || s.expectedDepartureTime || s.aimedDepartureTime;
+          if (!arrT2 || new Date(arrT2).getTime() > now - 30000 || isEnd) count++;
+          if (isEnd) break;
+        }
+        return count;
+      })();
       headerHtml = '<div class="ct-detail">'
         + '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
         + '<span class="ct-dest">' + leg.frontText + '</span>'
         + '</div>'
         + '<div class="ct-detail ct-detail-2">'
+        + '<span class="ct-from">fra <strong>' + normStn(leg.fromStation || '') + '</strong>'
+        + (leg.depTime ? ' · avg ' + leg.depTime.clk : '') + '</span>'
+        + '</div>'
+        + '<div class="ct-detail ct-detail-2">'
         + (arrT
           ? '<span class="ct-time">' + (isLastLeg ? 'ank. ' : 'bytt ') + '<strong>' + normStn(leg.toStation) + '</strong> ' + arrT.clk + (mToAction ? ' · ' + mToAction : '') + '</span>'
           : '<span class="ct-time" style="color:#57534e">laster…</span>')
+        + (stopsLeft > 0 ? '<span class="ct-stops">' + stopsLeft + (stopsLeft === 1 ? ' stopp' : ' stopp') + '</span>' : '')
         + '</div>';
     } else {
       const mToDep = leg.depTime
@@ -485,7 +508,6 @@ export function renderTrack() {
         + '</div>';
     }
 
-    const rows = collectLegStopRows(legIdx);
     let stopsContent;
     if (rideMode) {
       const preBoardHtml = buildPreBoardHtml(legIdx);

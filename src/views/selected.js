@@ -132,6 +132,7 @@ export function renderSelected() {
     + '<span class="tc-dest">' + dest + '</span>'
     + (quay !== '?' ? '<span class="tc-meta">spor <span>' + quay + '</span>' + (delayed ? ' · <span style="color:#fcd34d">forsinket</span>' : '') + '</span>' : (delayed ? '<span class="tc-meta"><span style="color:#fcd34d">forsinket</span></span>' : ''))
     + '</div>'
+    + '<div class="sel-route-ctx">' + dir.from.toLowerCase() + ' → ' + dir.to.toLowerCase() + '</div>'
     + (departed
       ? '<div class="departed-banner">avgikk ' + clk(depTs) + ' · reisen er i gang</div>'
       : walkActive

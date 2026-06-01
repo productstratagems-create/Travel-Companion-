@@ -28,9 +28,11 @@ let _arrWalkMarker = null;
 let _arrRouteLine = null;
 let _arrLL = null; // cached for expand invalidation
 let _bikeLayer = null;
+let _arrUserMoved = false;
 
 function _destroyArrMap() {
   if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _bikeLayer = null; }
+  _arrUserMoved = false;
 }
 
 function _addBikeMarkers(arrLL) {
@@ -49,7 +51,9 @@ function _initArrMap(arrLL) {
   if (!el || !arrLL) return;
   if (_arrMap) return; // already initialized — use _addBikeMarkers to update
   _arrLL = arrLL;
-  _arrMap = L.map(el, { zoomControl: false, attributionControl: false });
+  _arrUserMoved = false;
+  _arrMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+  _arrMap.on('dragstart', () => { _arrUserMoved = true; });
   L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_arrMap);
   // Arrival station marker — last transit leg's line badge
   const jLegs = state.jny && state.jny.legs;
@@ -76,7 +80,7 @@ function _initArrMap(arrLL) {
 }
 
 function _fitArrMap(arrLL) {
-  if (!_arrMap) return;
+  if (!_arrMap || _arrUserMoved) return;
   const pts = [[arrLL.lat, arrLL.lon]];
   (_byStations || []).forEach(s => pts.push([s.lat, s.lon]));
   if (_walkDestLL) pts.push([_walkDestLL.lat, _walkDestLL.lon]);
@@ -95,7 +99,7 @@ function _updateArrMapWalkPin(arrLL) {
     if (!_arrMap || !pts) return;
     if (_arrRouteLine) _arrRouteLine.remove();
     _arrRouteLine = L.polyline(pts, { color: '#60a5fa', weight: 3, opacity: 0.8 }).addTo(_arrMap);
-    _arrMap.fitBounds(pts, { padding: [24, 24] });
+    if (!_arrUserMoved) _arrMap.fitBounds(pts, { padding: [24, 24] });
   }).catch(() => {});
 }
 

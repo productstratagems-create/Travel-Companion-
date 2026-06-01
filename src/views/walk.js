@@ -24,16 +24,20 @@ const TILE_ATTR = '© CartoDB';
 
 let _wMap = null;
 let _wFromMarker = null;
+let _wUserMoved = false;
 
 function _destroyWalkMap() {
   if (_wMap) { _wMap.remove(); _wMap = null; _wFromMarker = null; }
+  _wUserMoved = false;
 }
 
 function _initWalkMap(fromLL, toLL) {
   const el = document.getElementById('w-map');
   if (!el || !fromLL || !toLL) return;
   _destroyWalkMap();
-  _wMap = L.map(el, { zoomControl: false, attributionControl: false });
+  _wUserMoved = false;
+  _wMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+  _wMap.on('dragstart', () => { _wUserMoved = true; });
   L.tileLayer(TILE, { subdomains: 'abcd', attribution: TILE_ATTR }).addTo(_wMap);
   // Station marker — transit line badge
   const sel = state.sel;
@@ -54,7 +58,7 @@ function _initWalkMap(fromLL, toLL) {
     if (!_wMap || !pts) return;
     _routeLine.remove();
     _routeLine = L.polyline(pts, { color: '#f5b840', weight: 3, opacity: 0.8 }).addTo(_wMap);
-    _wMap.fitBounds(pts, { padding: [30, 30] });
+    if (!_wUserMoved) _wMap.fitBounds(pts, { padding: [30, 30] });
   }).catch(() => {});
 
   // Expand toggle

@@ -33,6 +33,22 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 }
 .map-expand-btn:active{background:rgba(245,184,64,.15)}
 
+/* ── LEAFLET ZOOM CONTROLS — dark theme ── */
+.leaflet-bar{border:none!important;box-shadow:none!important}
+.leaflet-bar a,.leaflet-bar a:hover{
+  background:rgba(10,8,6,.78)!important;
+  color:#f5b840!important;
+  border-color:rgba(245,184,64,.22)!important;
+  width:28px!important;height:28px!important;line-height:26px!important;
+  font-size:16px!important;font-weight:400!important;
+  backdrop-filter:blur(4px);
+}
+.leaflet-bar a:first-child{border-radius:4px 4px 0 0!important}
+.leaflet-bar a:last-child{border-radius:0 0 4px 4px!important;border-top:1px solid rgba(245,184,64,.1)!important}
+.leaflet-bar a:only-child{border-radius:4px!important}
+.leaflet-bar a:hover{background:rgba(245,184,64,.12)!important}
+.leaflet-bar a.leaflet-disabled{color:rgba(245,184,64,.2)!important;cursor:default}
+
 /* ── ACCESSIBILITY ── */
 /* Screen-reader only utility */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}

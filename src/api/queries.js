@@ -18,7 +18,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
     + ' toPlace{name}'
     + ' mode'
     + ' aimedStartTime expectedStartTime aimedEndTime expectedEndTime'
-    + ' serviceJourney{id line{publicCode presentation{colour}}}'
+    + ' serviceJourney{id line{publicCode presentation{colour}} estimatedCalls{quay{stopPlace{name latitude longitude}}}}'
     + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime occupancyStatus quay{publicCode} destinationDisplay{frontText}}'
     + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime}'
     + '} } } }';
@@ -33,7 +33,7 @@ export function boardGQL(id, n) {
     + 'destinationDisplay{frontText} quay{id publicCode name} '
     + 'serviceJourney{id line{publicCode transportMode presentation{colour}} '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
-    + 'estimatedCalls{quay{stopPlace{name}} '
+    + 'estimatedCalls{quay{stopPlace{name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + '}'
     + '}}';

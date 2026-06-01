@@ -21,7 +21,7 @@ let _walkDestLL = null;
 let _walkTimer  = null;
 let _walkAbort  = null;
 
-const _TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
 let _arrMap = null;
 let _arrWalkMarker = null;

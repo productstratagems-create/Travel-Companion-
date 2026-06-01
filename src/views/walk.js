@@ -19,7 +19,7 @@ function _makeTransitStopIcon(code, bg, mode) {
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
-const TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const TILE_ATTR = '© CartoDB';
 
 let _wMap = null;

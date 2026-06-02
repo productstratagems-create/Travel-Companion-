@@ -198,3 +198,6 @@
 .dest-prev-emoji{font-size:13px;flex-shrink:0;width:1.4rem;text-align:center}
 .dest-prev-name{flex:1;font-size:12px;color:#f5b840;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dest-prev-dist{font-size:10px;color:#7485a0;flex-shrink:0;min-width:3rem;text-align:right}
+.dest-prev-hours{font-size:10px;flex-shrink:0;white-space:nowrap}
+.dest-prev-hours.open{color:#4ade80}
+.dest-prev-hours.closed{color:#7485a0}

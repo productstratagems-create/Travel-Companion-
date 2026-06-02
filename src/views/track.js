@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN } from '../geo.js';
-import { fetchTrack, geocodePlace } from '../api/entur.js';
+import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { fetchNearbyStops } from '../api/stops.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
@@ -22,6 +22,11 @@ let _walkTimer  = null;
 let _walkAbort  = null;
 
 const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const RECENT_KEY = 't.recentDests';
+
+let _arrBoard = null;
+let _arrBoardStopId = null;
+let _arrBoardInterval = null;
 
 let _arrMap = null;
 let _arrWalkMarker = null;
@@ -32,8 +37,66 @@ let _userMarker = null;
 let _arrUserMoved = false;
 
 function _destroyArrMap() {
+  if (_arrBoardInterval) { clearInterval(_arrBoardInterval); _arrBoardInterval = null; }
+  _arrBoard = null; _arrBoardStopId = null;
   if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _nearbyLayer = null; _userMarker = null; }
   _arrUserMoved = false;
+}
+
+function loadRecentDests() {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
+}
+
+function saveRecentDest(dest) {
+  const list = loadRecentDests().filter(d => d.label !== dest.label);
+  list.unshift(dest);
+  if (list.length > 5) list.pop();
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch {}
+}
+
+function _fetchArrBoardData() {
+  if (!_arrBoardStopId) return;
+  fetchArrBoard(_arrBoardStopId).then(deps => {
+    _arrBoard = deps;
+    _updateArrBoardSection();
+  }).catch(() => {});
+}
+
+function _renderArrBoardHtml() {
+  if (!_arrBoard) return '<div class="hn-loading">laster avganger…</div>';
+  if (!_arrBoard.length) return '<div class="hn-loading">ingen avganger</div>';
+  const now = Date.now();
+  return _arrBoard.slice(0, 8).map(c => {
+    const mins = Math.floor((c.depTs - now) / 60000);
+    if (mins > 90) return '';
+    const lc = (c.ln && c.ln.publicCode) || '?';
+    const bg = (c.ln && c.ln.presentation && c.ln.presentation.colour) ? '#' + c.ln.presentation.colour : '#7c2d12';
+    const minsHtml = mins <= 0 ? 'NÅ' : mins + '<span>min</span>';
+    return '<div class="hn-arr-row">'
+      + '<div class="hn-arr-mins">' + minsHtml + '</div>'
+      + '<div class="hn-arr-mid">'
+      + '<span class="line-badge" style="background:' + bg + '">' + lc + '</span>'
+      + '<span class="hn-arr-dest">' + esc(c.dest) + '</span>'
+      + '</div>'
+      + (c.quay && c.quay !== '?' ? '<div class="hn-arr-spor">spor ' + c.quay + '</div>' : '<div></div>')
+      + '</div>';
+  }).join('');
+}
+
+function _updateArrBoardSection() {
+  const el = document.getElementById('hn-arr-board');
+  if (el) el.innerHTML = _renderArrBoardHtml();
+}
+
+function _addArrBoardSection(arrStation) {
+  if (document.getElementById('hn-arr-board')) return;
+  const nb = document.getElementById('t-new-btn');
+  if (!nb || !nb.parentNode) return;
+  const div = document.createElement('div');
+  div.className = 'hn-section';
+  div.innerHTML = '<div class="hn-section-label">avganger fra ' + esc(displayStn(arrStation)) + '</div>'
+    + '<div id="hn-arr-board">' + _renderArrBoardHtml() + '</div>';
+  nb.parentNode.insertBefore(div, nb);
 }
 
 function _updateUserMarker() {
@@ -200,6 +263,7 @@ function _onWalkInput() {
       results.slice(0, 5).forEach(r => {
         sugg.appendChild(makeSuggBtn(r.label, r.category || [], () => {
           _walkDestLL = { lat: r.lat, lon: r.lon, label: r.label };
+          saveRecentDest(_walkDestLL);
           const inp = document.getElementById('t-walk-dest');
           if (inp) inp.value = r.label;
           sugg.hidden = true;
@@ -232,12 +296,20 @@ function renderNextPanel() {
   const last = state.jny && state.jny.legs && state.jny.legs[state.jny.legs.length - 1];
   const arrStation = last ? last.toStation : '';
 
+  const recents = loadRecentDests();
+  const recentsHtml = recents.length
+    ? '<div class="hn-recent-chips">'
+      + recents.map(d => '<button class="hn-recent-chip" data-label="' + esc(d.label) + '">' + esc(d.label) + '</button>').join('')
+      + '</div>'
+    : '';
+
   el.innerHTML =
     '<div class="hn-panel">'
     + '<div class="hn-title">Hva nå?</div>'
     + '<div class="map-wrap"><div id="hn-map"></div><button class="map-expand-btn" id="hn-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
     + '<div class="hn-section">'
     + '<div class="hn-section-label">gangavstand</div>'
+    + recentsHtml
     + '<input class="hn-input" id="t-walk-dest" placeholder="hvor videre?" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
     + (_walkDestLL ? ' value="' + esc(_walkDestLL.label) + '"' : '') + '>'
     + '<div id="t-walk-sugg" class="stop-sugg" hidden></div>'
@@ -258,6 +330,19 @@ function renderNextPanel() {
       }, 150);
     });
   }
+  document.querySelectorAll('.hn-recent-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const d = loadRecentDests().find(r => r.label === btn.dataset.label);
+      if (!d) return;
+      _walkDestLL = d;
+      const inp2 = document.getElementById('t-walk-dest');
+      if (inp2) inp2.value = d.label;
+      const sugg2 = document.getElementById('t-walk-sugg');
+      if (sugg2) { sugg2.hidden = true; sugg2.innerHTML = ''; }
+      _applyWalkResult();
+    });
+  });
+
   const nb = document.getElementById('t-new-btn');
   if (nb) nb.addEventListener('click', () => {
     window._showSettings && window._showSettings();
@@ -577,6 +662,20 @@ export function startTracking() {
   const nextEl = document.getElementById('t-next');
   if (nextEl) nextEl.style.display = 'block';
   renderNextPanel();
+
+  // Resolve arrival stop ID and start the live departure board
+  const _dir = config.dirs[state.dIdx];
+  if (_dir.toStopId || _dir.toGeo) {
+    resolveToStop(_dir)
+      .then(id => {
+        _arrBoardStopId = id;
+        const _last = state.jny && state.jny.legs && state.jny.legs[state.jny.legs.length - 1];
+        _addArrBoardSection(_last ? _last.toStation : '');
+        _fetchArrBoardData();
+      }).catch(() => {});
+  }
+  _arrBoardInterval = setInterval(_fetchArrBoardData, 30000);
+
   _resolveArrivalLL().then(ll => {
     if (!ll) return;
     _initArrMap(ll);

@@ -208,6 +208,33 @@ export function fetchBoard(dir, onSuccess, onError) {
     });
 }
 
+export function fetchArrBoard(stopId, n) {
+  const q = '{stopPlace(id:"' + stopId + '"){estimatedCalls(numberOfDepartures:' + (n || 8) + '){'
+    + 'realtime aimedDepartureTime expectedDepartureTime cancellation '
+    + 'destinationDisplay{frontText} quay{publicCode} '
+    + 'serviceJourney{id line{publicCode transportMode presentation{colour}}}}}}';
+  return fetch(config.api.journeyPlanner, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: q }),
+  })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(j => {
+      const calls = (j && j.data && j.data.stopPlace && j.data.stopPlace.estimatedCalls) || [];
+      const now = Date.now();
+      return calls
+        .filter(c => !c.cancellation)
+        .map(c => ({
+          ln:      c.serviceJourney && c.serviceJourney.line,
+          dest:    (c.destinationDisplay && c.destinationDisplay.frontText) || '',
+          depTs:   new Date(c.expectedDepartureTime || c.aimedDepartureTime).getTime(),
+          realtime: c.realtime || false,
+          quay:    c.quay && c.quay.publicCode,
+        }))
+        .filter(c => c.depTs > now - 30000);
+    });
+}
+
 export function fetchTrack(journeyId) {
   return fetch(config.api.journeyPlanner, {
     method: 'POST',

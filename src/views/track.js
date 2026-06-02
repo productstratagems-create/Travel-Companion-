@@ -2,7 +2,6 @@ import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN } from '../geo.js';
 import { fetchTrack, geocodePlace } from '../api/entur.js';
-import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchNearbyStops } from '../api/stops.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
@@ -18,7 +17,6 @@ function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.
 
 let expanded = [];
 
-let _byStations = null;
 let _walkDestLL = null;
 let _walkTimer  = null;
 let _walkAbort  = null;
@@ -29,13 +27,12 @@ let _arrMap = null;
 let _arrWalkMarker = null;
 let _arrRouteLine = null;
 let _arrLL = null;
-let _bikeLayer = null;
 let _nearbyLayer = null;
 let _userMarker = null;
 let _arrUserMoved = false;
 
 function _destroyArrMap() {
-  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _bikeLayer = null; _nearbyLayer = null; _userMarker = null; }
+  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _nearbyLayer = null; _userMarker = null; }
   _arrUserMoved = false;
 }
 
@@ -48,19 +45,6 @@ function _updateUserMarker() {
       radius: 7, color: '#fff', fillColor: '#60a5fa', fillOpacity: 0.95, weight: 2,
     }).bindTooltip('Din posisjon', { className: 'map-label' }).addTo(_arrMap);
   }
-}
-
-function _addBikeMarkers(arrLL) {
-  if (!_arrMap) return;
-  if (_bikeLayer) { _bikeLayer.clearLayers(); } else { _bikeLayer = L.layerGroup().addTo(_arrMap); }
-  (_byStations || []).forEach(s => {
-    const count = s.bikes + (s.ebikes || 0);
-    const icon = L.divIcon({ className: '', html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '') + '">' + count + '</div>', iconAnchor: [14, 14] });
-    L.marker([s.lat, s.lon], { icon })
-      .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -20], className: 'map-label' })
-      .addTo(_bikeLayer);
-  });
-  if (arrLL) _fitArrMap(arrLL);
 }
 
 function _initArrMap(arrLL) {
@@ -80,8 +64,6 @@ function _initArrMap(arrLL) {
   const arrBg   = (jLast && jLast.lineBg)   || '#7c2d12';
   const arrMode = (jLast && jLast.mode)      || 'metro';
   L.marker([arrLL.lat, arrLL.lon], { icon: _makeTransitStopIcon(arrCode, arrBg, arrMode) }).addTo(_arrMap);
-  // Bike layer (populated later by _addBikeMarkers once fetchBysykkel resolves)
-  _bikeLayer = L.layerGroup().addTo(_arrMap);
   _fitArrMap(arrLL);
 
   // Expand toggle
@@ -100,7 +82,6 @@ function _initArrMap(arrLL) {
 function _fitArrMap(arrLL) {
   if (!_arrMap || _arrUserMoved) return;
   const pts = [[arrLL.lat, arrLL.lon]];
-  (_byStations || []).forEach(s => pts.push([s.lat, s.lon]));
   if (_walkDestLL) pts.push([_walkDestLL.lat, _walkDestLL.lon]);
   if (pts.length === 1) { _arrMap.setView(pts[0], 15); return; }
   _arrMap.fitBounds(pts, { padding: [24, 24], maxZoom: 16 });
@@ -231,27 +212,6 @@ function _onWalkInput() {
   }, 250);
 }
 
-function _bikeSectionHtml() {
-  if (!_byStations) return '<div class="hn-loading">laster sykler…</div>';
-  if (!_byStations.length) return '<div class="hn-loading">ingen stasjoner funnet</div>';
-  return _byStations.map(s =>
-    '<div class="hn-bike-row">'
-    + '<span class="hn-bike-name">' + esc(s.name) + '</span>'
-    + '<span class="hn-bike-dist">' + (s.dist < 1000 ? s.dist + ' m' : (s.dist / 1000).toFixed(1) + ' km') + '</span>'
-    + '<span class="hn-bike-count' + (s.bikes === 0 ? ' empty' : '') + '">'
-    + s.bikes + (s.ebikes ? ' · ' + s.ebikes + ' el' : '') + '</span>'
-    + '</div>'
-  ).join('');
-}
-
-// Update only the bike section after the async GBFS fetch — avoids rebuilding the whole panel
-// (which would destroy the walk-destination input and any text the user is typing)
-function _updateBikeSection() {
-  const el = document.getElementById('hn-bike-content');
-  if (!el) { renderNextPanel(); return; }
-  el.innerHTML = _bikeSectionHtml();
-}
-
 // Resolve arrival coordinates: use stored coords from settings if available, else geocode the
 // destination name, else fall back to homeLL. Needed because homeLL holds the origin GPS position,
 // not the destination.
@@ -282,10 +242,6 @@ function renderNextPanel() {
     + (_walkDestLL ? ' value="' + esc(_walkDestLL.label) + '"' : '') + '>'
     + '<div id="t-walk-sugg" class="stop-sugg" hidden></div>'
     + '<div id="t-walk-result"></div>'
-    + '</div>'
-    + '<div class="hn-section">'
-    + '<div class="hn-section-label">bysykkel</div>'
-    + '<div id="hn-bike-content">' + _bikeSectionHtml() + '</div>'
     + '</div>'
     + '<button class="hn-new-btn" id="t-new-btn">ny reise fra ' + esc(displayStn(arrStation)) + ' →</button>'
     + '</div>';
@@ -609,7 +565,6 @@ export function buildTrackBar() {
 
 export function startTracking() {
   expanded = state.jny && state.jny.legs ? state.jny.legs.map(() => false) : [];
-  _byStations = null;
   _destroyArrMap();
   _walkDestLL = null;
   if (intervals.track) clearInterval(intervals.track);
@@ -623,24 +578,11 @@ export function startTracking() {
   if (nextEl) nextEl.style.display = 'block';
   renderNextPanel();
   _resolveArrivalLL().then(ll => {
-    if (!ll) { _byStations = []; _updateBikeSection(); return; }
+    if (!ll) return;
     _initArrMap(ll);
-    Promise.allSettled([
-      fetchBysykkel(ll.lat, ll.lon),
-      fetchNearbyStops(ll.lat, ll.lon),
-    ]).then(([rBike, rStops]) => {
-      if (rBike.status === 'fulfilled') {
-        _byStations = rBike.value;
-        _updateBikeSection();
-        _addBikeMarkers(ll);
-      } else {
-        _byStations = [];
-        _updateBikeSection();
-      }
-      if (rStops.status === 'fulfilled' && rStops.value.length) {
-        _addNearbyStopMarkers(rStops.value, ll);
-      }
-    });
+    fetchNearbyStops(ll.lat, ll.lon)
+      .then(stops => { if (stops.length) _addNearbyStopMarkers(stops, ll); })
+      .catch(() => {});
   });
 }
 

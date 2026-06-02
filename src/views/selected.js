@@ -8,10 +8,123 @@ import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
+import L from 'leaflet';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 function cleanName(s) { return (s || '').replace(/,\s*\S.*$/, '').replace(/\s+T$/i, '').trim(); }
+
+// ── Route map ────────────────────────────────────────────────
+const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+let _selMap = null, _selLayer = null;
+
+function _ns(s) { return (s || '').toLowerCase().replace(/,.*$/, '').replace(/\s+t$/i, '').trim(); }
+
+function _depToRouteLegs(dep, fromName, toName) {
+  if (!dep) return null;
+  if (dep._legs && dep._legs.length) {
+    const legs = [];
+    for (const leg of dep._legs) {
+      const calls = (leg.serviceJourney && leg.serviceJourney.estimatedCalls) || [];
+      if (!calls.length) continue;
+      const fLow = _ns((leg.fromPlace && leg.fromPlace.name) || fromName);
+      const tLow = _ns((leg.toPlace   && leg.toPlace.name)   || toName);
+      let fi = 0, ti = calls.length - 1;
+      calls.forEach((ca, i) => {
+        const nm = _ns(ca.quay && ca.quay.stopPlace && ca.quay.stopPlace.name);
+        if (nm && (nm.includes(fLow) || fLow.includes(nm))) fi = i;
+        if (nm && (nm.includes(tLow) || tLow.includes(nm)) && i >= fi) ti = i;
+      });
+      const stops = calls.slice(fi, ti + 1).map(ca => {
+        const sp = ca.quay && ca.quay.stopPlace;
+        return sp && sp.latitude ? { name: cleanName(sp.name), lat: sp.latitude, lon: sp.longitude } : null;
+      }).filter(Boolean);
+      if (stops.length < 2) continue;
+      const ll = leg.serviceJourney && leg.serviceJourney.line;
+      legs.push({ stops, color: ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : null });
+    }
+    return legs.length ? legs : null;
+  }
+  const calls = dep.serviceJourney && dep.serviceJourney.estimatedCalls;
+  if (!calls || !calls.length) return null;
+  const fLow = _ns(fromName), tLow = _ns(toName);
+  let fi = 0, ti = calls.length - 1;
+  calls.forEach((ca, i) => {
+    const nm = _ns(ca.quay && ca.quay.stopPlace && ca.quay.stopPlace.name);
+    if (nm && (nm.includes(fLow) || fLow.includes(nm))) fi = i;
+    if (nm && (nm.includes(tLow) || tLow.includes(nm)) && i >= fi) ti = i;
+  });
+  const stops = calls.slice(fi, ti + 1).map(ca => {
+    const sp = ca.quay && ca.quay.stopPlace;
+    return sp && sp.latitude ? { name: cleanName(sp.name), lat: sp.latitude, lon: sp.longitude } : null;
+  }).filter(Boolean);
+  if (stops.length < 2) return null;
+  const sj = dep.serviceJourney;
+  const color = sj && sj.line && sj.line.presentation && sj.line.presentation.colour ? '#' + sj.line.presentation.colour : null;
+  return [{ stops, color }];
+}
+
+export function destroySelMap() {
+  if (_selMap) { _selMap.remove(); _selMap = null; _selLayer = null; }
+}
+
+function _renderSelMap(dep, fromName, toName) {
+  const wrap = document.getElementById('sel-map-wrap');
+  const mapEl = document.getElementById('sel-map');
+  if (!wrap || !mapEl) return;
+
+  const legs = _depToRouteLegs(dep, fromName, toName);
+  if (!legs) { wrap.style.display = 'none'; destroySelMap(); return; }
+
+  wrap.style.display = 'block';
+  destroySelMap();
+  _selMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+  L.tileLayer(_TILE, { subdomains: 'abcd' }).addTo(_selMap);
+  _selLayer = L.layerGroup().addTo(_selMap);
+
+  const pts = [];
+  legs.forEach(({ stops, color }, li) => {
+    const lc = color || '#f5b840';
+    L.polyline(stops.map(s => [s.lat, s.lon]), { color: lc, weight: 4, opacity: 0.8 }).addTo(_selLayer);
+    stops.forEach((s, i) => {
+      pts.push([s.lat, s.lon]);
+      const isFirst = li === 0 && i === 0;
+      const isLast  = li === legs.length - 1 && i === stops.length - 1;
+      if (isFirst || isLast) {
+        const html = '<div style="background:' + (isLast ? '#f5b840' : lc) + ';border:2px solid #fff;border-radius:50%;'
+          + 'width:14px;height:14px;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>';
+        L.marker([s.lat, s.lon], { icon: L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] }) })
+          .bindTooltip(s.name, { permanent: true, direction: isFirst ? 'bottom' : 'top', offset: [0, isFirst ? 8 : -10], className: 'sel-stop-label' })
+          .addTo(_selLayer);
+      } else {
+        L.circleMarker([s.lat, s.lon], { radius: 4, color: '#fff', fillColor: lc, fillOpacity: 0.9, weight: 1.5 })
+          .bindTooltip(s.name, { className: 'sel-stop-label', direction: 'top' })
+          .addTo(_selLayer);
+      }
+    });
+  });
+
+  // User position
+  const userPos = state.walkFromLL || state.homeLL;
+  if (userPos) {
+    L.circleMarker([userPos.lat, userPos.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2 })
+      .bindTooltip('Din posisjon', { className: 'sel-stop-label' })
+      .addTo(_selLayer);
+  }
+
+  if (pts.length) _selMap.fitBounds(pts, { padding: [32, 32], maxZoom: 15 });
+  setTimeout(() => _selMap && _selMap.invalidateSize(), 100);
+
+  const expandBtn = document.getElementById('sel-map-expand');
+  if (expandBtn) {
+    expandBtn.onclick = () => {
+      const exp = mapEl.classList.toggle('expanded');
+      expandBtn.textContent = exp ? '✕' : '⤢';
+      expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
+      setTimeout(() => _selMap && _selMap.invalidateSize(), 320);
+    };
+  }
+}
 
 export function renderSelected() {
   renderAlerts();
@@ -198,6 +311,7 @@ export function renderSelected() {
 
   document.getElementById('v-selected').appendChild(ctaDiv);
   renderSelDeps();
+  _renderSelMap(state.sel, dir.from, dir.to);
 }
 
 function renderSelDeps() {
@@ -295,3 +409,4 @@ function _fetchSel() {
 
 // Expose for nav bridges
 window._renderSelected = renderSelected;
+window._destroySelMap  = destroySelMap;

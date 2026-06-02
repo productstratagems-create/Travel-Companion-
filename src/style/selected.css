@@ -109,3 +109,7 @@
 .train-bar .tb-dest{font-size:12px;color:#a8a29e;flex:1}
 .train-bar .tb-dep{font-size:12px;color:#8c857f}
 .train-bar .tb-dep span{color:#f5b840}
+
+#sel-map{height:200px;border-radius:8px;overflow:hidden}
+#sel-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
+.sel-stop-label{font-size:10px;background:#1a1410;border:1px solid rgba(245,184,64,.25);color:#f5b840;padding:1px 4px;border-radius:3px;white-space:nowrap}

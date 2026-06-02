@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver } from '../geo.js';
-import { fetchBoard, fetchTrip } from '../api/entur.js';
+import { fetchBoard, fetchTrip, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern } from '../api/adapt.js';
 import { renderAlerts } from '../ui/alerts.js';
@@ -35,70 +35,13 @@ let _bMap = null;
 let _bLayer = null;
 let _bUserMoved = false;
 let _bFitted = false;
-let _bDirKey = null;   // tracks direction changes
-let _bHasRoute = false;
+let _bDestLL = null;
+let _bDestKey = null;
 
 function _destroyBoardMap() {
   if (_bMap) { _bMap.remove(); _bMap = null; _bLayer = null; }
   _bUserMoved = false;
   _bFitted = false;
-  _bHasRoute = false;
-}
-
-function _normStn(s) {
-  return (s || '').toLowerCase().replace(/,.*$/, '').replace(/\s+t$/i, '').trim();
-}
-
-function _getRouteLegs(dir) {
-  if (!state.deps || !state.deps.length) return null;
-  for (const dep of state.deps) {
-    // Trip path — each leg has serviceJourney.estimatedCalls
-    if (dep._legs && dep._legs.length) {
-      const legs = [];
-      for (const leg of dep._legs) {
-        const calls = (leg.serviceJourney && leg.serviceJourney.estimatedCalls) || [];
-        if (!calls.length) continue;
-        const fromLow = _normStn((leg.fromPlace && leg.fromPlace.name) || dir.from);
-        const toLow   = _normStn((leg.toPlace   && leg.toPlace.name)   || dir.to);
-        let fromIdx = 0, toIdx = calls.length - 1;
-        calls.forEach((ca, i) => {
-          const nm = _normStn(ca.quay && ca.quay.stopPlace && ca.quay.stopPlace.name);
-          if (nm && (nm.includes(fromLow) || fromLow.includes(nm))) fromIdx = i;
-          if (nm && (nm.includes(toLow)   || toLow.includes(nm))   && i >= fromIdx) toIdx = i;
-        });
-        const stops = calls.slice(fromIdx, toIdx + 1).map(ca => {
-          const sp = ca.quay && ca.quay.stopPlace;
-          return sp && sp.latitude ? { name: sp.name, lat: sp.latitude, lon: sp.longitude } : null;
-        }).filter(Boolean);
-        if (stops.length < 2) continue;
-        const ll = leg.serviceJourney && leg.serviceJourney.line;
-        const color = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : null;
-        legs.push({ stops, color });
-      }
-      if (legs.length) return legs;
-    }
-    // Board path — single serviceJourney.estimatedCalls
-    const calls = dep.serviceJourney && dep.serviceJourney.estimatedCalls;
-    if (!calls || !calls.length) continue;
-    const fromLow = _normStn(dir.from);
-    const toLow   = _normStn(dir.to);
-    let fromIdx = 0, toIdx = calls.length - 1;
-    calls.forEach((ca, i) => {
-      const nm = _normStn(ca.quay && ca.quay.stopPlace && ca.quay.stopPlace.name);
-      if (nm && (nm.includes(fromLow) || fromLow.includes(nm))) fromIdx = i;
-      if (nm && (nm.includes(toLow)   || toLow.includes(nm))   && i >= fromIdx) toIdx = i;
-    });
-    const stops = calls.slice(fromIdx, toIdx + 1).map(ca => {
-      const sp = ca.quay && ca.quay.stopPlace;
-      return sp && sp.latitude ? { name: sp.name, lat: sp.latitude, lon: sp.longitude } : null;
-    }).filter(Boolean);
-    if (stops.length < 2) continue;
-    const sj = dep.serviceJourney;
-    const color = sj && sj.line && sj.line.presentation && sj.line.presentation.colour
-      ? '#' + sj.line.presentation.colour : null;
-    return [{ stops, color }];
-  }
-  return null;
 }
 
 function _makeBikeIcon(bikes, ebikes) {
@@ -204,37 +147,41 @@ function renderBoardMap(pos, modes) {
     }
   }
 
-  const dir = config.dirs[state.dIdx];
-  const dirKey = dir.from + '|' + dir.to;
-
-  // Reset fit when direction changes
-  if (dirKey !== _bDirKey) {
-    _bDirKey = dirKey;
-    _bFitted = false;
-    _bUserMoved = false;
-    _bHasRoute = false;
-  }
-
   const fetchPos = pos || { lat: 59.9139, lon: 10.7522 };
-  const routeLegs = _getRouteLegs(dir);
-  const hasRoute = !!(routeLegs && routeLegs.length);
-
-  // Allow one refit when route data first arrives
-  if (hasRoute && !_bHasRoute && !_bUserMoved) _bFitted = false;
-  _bHasRoute = hasRoute;
-
-  // Only fetch geocoder nearby stops as fallback while route data is loading
   const transitModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
-  const p1 = (!hasRoute && transitModes.length) ? fetchNearbyStops(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
+  const p1 = transitModes.length ? fetchNearbyStops(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
   const p2 = modes.sykkel ? fetchBysykkel(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
   const p3 = modes.sykkel ? fetchScooters(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
 
-  Promise.allSettled([p1, p2, p3]).then(([r1, r2, r3]) => {
+  // Destination coords — reset cache on direction change
+  const dir = config.dirs[state.dIdx];
+  const destName = dir.to || '';
+  if (destName !== _bDestKey) {
+    _bDestLL = null; _bDestKey = destName; _bFitted = false; _bUserMoved = false;
+  }
+  let p4;
+  if (dir._toLat && dir._toLon) {
+    p4 = Promise.resolve({ lat: dir._toLat, lon: dir._toLon });
+  } else if (_bDestLL) {
+    p4 = Promise.resolve(_bDestLL);
+  } else if (destName) {
+    p4 = geocodePlace(destName).then(r => {
+      if (!r.length) return null;
+      _bDestLL = { lat: r[0].lat, lon: r[0].lon };
+      return _bDestLL;
+    }).catch(() => null);
+  } else {
+    p4 = Promise.resolve(null);
+  }
+  const p5 = transitModes.length
+    ? p4.then(d => d ? fetchNearbyStops(d.lat, d.lon) : []).catch(() => [])
+    : Promise.resolve([]);
+
+  Promise.allSettled([p1, p2, p3, p4, p5]).then(([r1, r2, r3, r4, r5]) => {
     if (!_bLayer) return;
     _bLayer.clearLayers();
     const pts = [];
 
-    // User position
     if (pos) {
       L.circleMarker([pos.lat, pos.lon], { radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2 })
         .bindTooltip('Din posisjon', { className: 'map-label' })
@@ -242,37 +189,16 @@ function renderBoardMap(pos, modes) {
       pts.push([pos.lat, pos.lon]);
     }
 
-    if (hasRoute) {
-      // Draw each leg as a colored polyline + intermediate stop dots
-      routeLegs.forEach(({ stops, color }) => {
-        const lc = color || '#f5b840';
-        L.polyline(stops.map(s => [s.lat, s.lon]), { color: lc, weight: 3, opacity: 0.75 }).addTo(_bLayer);
-        stops.forEach((s, i) => {
-          pts.push([s.lat, s.lon]);
-          if (i === 0 || i === stops.length - 1) return; // endpoints drawn separately
-          L.circleMarker([s.lat, s.lon], { radius: 4, color: '#fff', fillColor: lc, fillOpacity: 0.85, weight: 1.5 })
-            .bindTooltip(_normStn(s.name).replace(/^\w/, c => c.toUpperCase()), { className: 'map-label', direction: 'top' })
-            .addTo(_bLayer);
-        });
-      });
-
-      // Departure station — first stop of first leg
-      const { stops: fStops, color: fColor } = routeLegs[0];
-      L.circleMarker([fStops[0].lat, fStops[0].lon], { radius: 9, color: '#fff', fillColor: fColor || '#f5b840', fillOpacity: 1, weight: 2.5 })
-        .bindTooltip(dir.from, { permanent: true, direction: 'top', offset: [0, -11], className: 'map-label' })
-        .addTo(_bLayer);
-
-      // Destination station — last stop of last leg
-      const lastLeg = routeLegs[routeLegs.length - 1];
-      const lastStop = lastLeg.stops[lastLeg.stops.length - 1];
-      L.marker([lastStop.lat, lastStop.lon], { icon: _makeDestIcon() })
-        .bindTooltip(dir.to, { permanent: true, direction: 'top', offset: [0, -32], className: 'map-label' })
-        .addTo(_bLayer);
-
-    } else if (r1.status === 'fulfilled' && r1.value.length) {
-      // Fallback while route data loads: show nearby stops via geocoder
+    // Merge stops from both ends, dedup by uid
+    const allStops = [
+      ...(r1.status === 'fulfilled' ? r1.value : []),
+      ...(r5.status === 'fulfilled' ? r5.value : []),
+    ];
+    const seen = new Set();
+    const uniqueStops = allStops.filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
+    if (uniqueStops.length) {
       const modeSet = new Set(transitModes);
-      const filtered = r1.value.filter(s => modeSet.has(s.mode));
+      const filtered = uniqueStops.filter(s => modeSet.has(s.mode));
       const used = new Set();
       filtered.forEach((s, i) => {
         if (used.has(i)) return;
@@ -292,7 +218,6 @@ function renderBoardMap(pos, modes) {
       });
     }
 
-    // Bike stations (sykkel mode)
     if (r2.status === 'fulfilled') {
       r2.value.forEach(s => {
         pts.push([s.lat, s.lon]);
@@ -302,12 +227,19 @@ function renderBoardMap(pos, modes) {
       });
     }
 
-    // Scooters (sykkel mode)
     if (r3.status === 'fulfilled') {
       r3.value.forEach(v => {
         pts.push([v.lat, v.lon]);
         L.marker([v.lat, v.lon], { icon: _makeScooterIcon(v.operator, v.battery) }).addTo(_bLayer);
       });
+    }
+
+    if (r4.status === 'fulfilled' && r4.value) {
+      const { lat, lon } = r4.value;
+      pts.push([lat, lon]);
+      L.marker([lat, lon], { icon: _makeDestIcon() })
+        .bindTooltip(destName, { permanent: true, direction: 'top', offset: [0, -32], className: 'map-label' })
+        .addTo(_bLayer);
     }
 
     if (pts.length > 0 && !_bFitted && !_bUserMoved) {

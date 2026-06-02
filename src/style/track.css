@@ -87,6 +87,13 @@
   display:flex;align-items:center;gap:.45rem;
 }
 
+/* ── Places section in «Hva nå?» (weekend/holiday mode) ── */
+.hn-place-row{display:flex;align-items:baseline;gap:.5rem;padding:.3rem 0;border-bottom:1px solid rgba(245,184,64,.05)}
+.hn-place-row:last-child{border-bottom:none}
+.hn-place-dist{font-size:10px;color:#7485a0;flex-shrink:0;min-width:3.5rem;text-align:right}
+.hn-place-name{flex:1;font-size:12px;color:#f5b840;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hn-place-type{font-size:10px;color:#8a837d;flex-shrink:0}
+
 /* ── Weather section in «Hva nå?» ── */
 .hn-weather-main{font-size:13px;color:#f5b840;margin-bottom:.25rem;line-height:1.5}
 .hn-weather-adv{font-size:11px;color:#8a837d;letter-spacing:.04em}

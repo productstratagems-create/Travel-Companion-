@@ -1,0 +1,33 @@
+#v-leisure{padding:0 1rem 3rem}
+
+.lei-header{display:flex;justify-content:space-between;align-items:center;padding:1rem 0 .6rem}
+.lei-title{font-family:"Bebas Neue",sans-serif;font-size:1.8rem;color:#f5b840;letter-spacing:.06em;line-height:1}
+.lei-mode-btn{background:none;border:none;font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#8898aa;cursor:pointer;padding:.25rem 0}
+.lei-mode-btn:active{color:#f5b840}
+
+.lei-weather{font-size:12px;color:#8a837d;margin-bottom:.75rem;min-height:1rem}
+
+.lei-cats{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
+.lei-cat-btn{background:rgba(245,184,64,.06);border:1px solid rgba(245,184,64,.12);border-radius:20px;padding:.3rem .7rem;font-family:inherit;font-size:11px;color:#8a837d;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.lei-cat-btn.active{background:rgba(245,184,64,.15);border-color:rgba(245,184,64,.4);color:#f5b840}
+.lei-cat-btn:active{background:rgba(245,184,64,.1)}
+
+.lei-venue-card{border-bottom:1px solid rgba(245,184,64,.07);padding:.65rem 0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.lei-venue-card:last-child{border-bottom:none}
+.lei-venue-row{display:flex;align-items:baseline;gap:.45rem}
+.lei-venue-emoji{font-size:1rem;flex-shrink:0;line-height:1.4}
+.lei-venue-name{flex:1;font-size:13px;color:#f5b840;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lei-venue-dist{font-size:11px;color:#7485a0;flex-shrink:0}
+.lei-venue-hours{font-size:10px;flex-shrink:0;margin-left:.15rem}
+.lei-venue-hours.open{color:#4ade80}
+.lei-venue-hours.closed{color:#f87171}
+
+.lei-venue-expanded{padding:.5rem 0 .15rem .1rem}
+.lei-venue-type{font-size:10px;color:#8a837d;margin-bottom:.45rem}
+.lei-reis-btn{display:block;width:100%;padding:.6rem .75rem;background:none;border:1px solid rgba(245,184,64,.2);border-radius:6px;font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#f5b840;cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent}
+.lei-reis-btn:active{background:rgba(245,184,64,.06)}
+
+.lei-loading{font-size:12px;color:#7485a0;padding:1.25rem 0}
+.lei-no-gps{padding:.5rem 0}
+#lei-loc-input{width:100%;box-sizing:border-box;background:rgba(245,184,64,.05);border:1px solid rgba(245,184,64,.15);border-radius:6px;padding:.5rem .65rem;color:#f5b840;font-family:inherit;font-size:.9rem;outline:none;margin-top:.5rem}
+#lei-loc-input:focus{border-color:rgba(245,184,64,.4)}

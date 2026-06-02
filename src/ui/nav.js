@@ -1,10 +1,11 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { addFav } from './favs.js';
+import { saveWeekendMode } from '../geo.js';
 
 export function show(id) {
   if (id !== 'v-selected') window._destroySelMap && window._destroySelMap();
-  ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-favs'].forEach(v => {
+  ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-favs', 'v-leisure'].forEach(v => {
     document.getElementById(v).style.display = (v === id ? 'block' : 'none');
   });
   state.view = id.replace('v-', '');
@@ -53,6 +54,12 @@ export function attachEventListeners() {
   document.getElementById('fav-btn').addEventListener('click', () => {
     show('v-favs');
     window._renderFavs && window._renderFavs();
+  });
+
+  document.getElementById('leisure-btn').addEventListener('click', () => {
+    saveWeekendMode(true);
+    show('v-leisure');
+    window._renderLeisure && window._renderLeisure();
   });
 
   document.getElementById('fav-back').addEventListener('click', () => {

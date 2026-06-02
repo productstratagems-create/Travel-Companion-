@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state } from '../state.js';
-import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, loadWeekendMode, saveWeekendMode } from '../geo.js';
+import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
 import { geocodePlace, geocodeDest } from '../api/entur.js';
 import { makeSuggBtn } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
@@ -86,10 +86,7 @@ function _highlightPrefs() {
   document.querySelectorAll('#pref-buf .pref-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.val === buf);
   });
-  const mode = loadWeekendMode() ? 'weekend' : 'commute';
-  document.querySelectorAll('#pref-mode .pref-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.val === mode);
-  });
+
 }
 
 function initPrefs() {
@@ -99,9 +96,7 @@ function initPrefs() {
   document.querySelectorAll('#pref-buf .pref-btn').forEach(btn => {
     btn.addEventListener('click', () => { saveWalkBuffer(Number(btn.dataset.val)); _highlightPrefs(); });
   });
-  document.querySelectorAll('#pref-mode .pref-btn').forEach(btn => {
-    btn.addEventListener('click', () => { saveWeekendMode(btn.dataset.val === 'weekend'); _highlightPrefs(); });
-  });
+
 }
 
 function _showDestPreview(lat, lon) {

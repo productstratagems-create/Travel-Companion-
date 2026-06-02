@@ -28,14 +28,26 @@ const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}
 let _arrMap = null;
 let _arrWalkMarker = null;
 let _arrRouteLine = null;
-let _arrLL = null; // cached for expand invalidation
+let _arrLL = null;
 let _bikeLayer = null;
 let _nearbyLayer = null;
+let _userMarker = null;
 let _arrUserMoved = false;
 
 function _destroyArrMap() {
-  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _bikeLayer = null; _nearbyLayer = null; }
+  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _bikeLayer = null; _nearbyLayer = null; _userMarker = null; }
   _arrUserMoved = false;
+}
+
+function _updateUserMarker() {
+  if (!_arrMap || !state.homeLL) return;
+  if (_userMarker) {
+    _userMarker.setLatLng([state.homeLL.lat, state.homeLL.lon]);
+  } else {
+    _userMarker = L.circleMarker([state.homeLL.lat, state.homeLL.lon], {
+      radius: 7, color: '#fff', fillColor: '#60a5fa', fillOpacity: 0.95, weight: 2,
+    }).bindTooltip('Din posisjon', { className: 'map-label' }).addTo(_arrMap);
+  }
 }
 
 function _addBikeMarkers(arrLL) {
@@ -579,36 +591,7 @@ export function renderTrack() {
   }
 
   document.getElementById('t-cards').innerHTML = cards;
-
-  const nextEl = document.getElementById('t-next');
-  if (phase === 'arrived') {
-    if (nextEl) nextEl.style.display = 'block';
-    renderNextPanel();
-    if (!_byStations) {
-      _resolveArrivalLL().then(ll => {
-        if (!ll) { _byStations = []; _updateBikeSection(); return; }
-        _initArrMap(ll);
-        Promise.allSettled([
-          fetchBysykkel(ll.lat, ll.lon),
-          fetchNearbyStops(ll.lat, ll.lon),
-        ]).then(([rBike, rStops]) => {
-          if (rBike.status === 'fulfilled') {
-            _byStations = rBike.value;
-            _updateBikeSection();
-            _addBikeMarkers(ll);
-          } else {
-            _byStations = [];
-            _updateBikeSection();
-          }
-          if (rStops.status === 'fulfilled' && rStops.value.length) {
-            _addNearbyStopMarkers(rStops.value, ll);
-          }
-        });
-      });
-    }
-  } else {
-    if (nextEl) nextEl.style.display = 'none';
-  }
+  _updateUserMarker();
 }
 
 export function buildTrackBar() {
@@ -634,6 +617,31 @@ export function startTracking() {
   _fetchTrack();
   intervals.track = setInterval(_fetchTrack, config.trackRefreshMs);
   if (intervals.board) { clearInterval(intervals.board); intervals.board = null; }
+
+  // Show "Hva nå?" panel immediately so the user can plan ahead during the journey
+  const nextEl = document.getElementById('t-next');
+  if (nextEl) nextEl.style.display = 'block';
+  renderNextPanel();
+  _resolveArrivalLL().then(ll => {
+    if (!ll) { _byStations = []; _updateBikeSection(); return; }
+    _initArrMap(ll);
+    Promise.allSettled([
+      fetchBysykkel(ll.lat, ll.lon),
+      fetchNearbyStops(ll.lat, ll.lon),
+    ]).then(([rBike, rStops]) => {
+      if (rBike.status === 'fulfilled') {
+        _byStations = rBike.value;
+        _updateBikeSection();
+        _addBikeMarkers(ll);
+      } else {
+        _byStations = [];
+        _updateBikeSection();
+      }
+      if (rStops.status === 'fulfilled' && rStops.value.length) {
+        _addNearbyStopMarkers(rStops.value, ll);
+      }
+    });
+  });
 }
 
 export function stopTracking() {

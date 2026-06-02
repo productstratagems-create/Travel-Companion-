@@ -79,6 +79,16 @@ export function doBoard() {
   const lastLeg = legs[legs.length - 1];
   const finalArrival = lastLeg.arrTime || (c._finalArrival ? { time: c._finalArrival, clk: clk(c._finalArrival) } : null);
 
+  // Resolve destination coordinates — try OTP3 trip coords first, then board estimated-call coords
+  let _toLat = c._toLat || null;
+  let _toLon = c._toLon || null;
+  if (!_toLat || !_toLon) {
+    const sjc2 = c.serviceJourney && c.serviceJourney.estimatedCalls;
+    const arrCall = findArr(sjc2, dir.to);
+    _toLat = (arrCall && arrCall.quay && arrCall.quay.stopPlace && arrCall.quay.stopPlace.latitude) || null;
+    _toLon = (arrCall && arrCall.quay && arrCall.quay.stopPlace && arrCall.quay.stopPlace.longitude) || null;
+  }
+
   state.jny = {
     dest:              dir.to,
     from:              dir.from,
@@ -88,8 +98,8 @@ export function doBoard() {
     frontText:         (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to,
     firstLegFrontText: firstLeg.frontText,
     arrival:           finalArrival,
-    _toLat:            c._toLat || null,
-    _toLon:            c._toLon || null,
+    _toLat,
+    _toLon,
     legs,
   };
   saveJny();

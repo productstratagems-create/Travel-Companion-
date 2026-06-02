@@ -8,13 +8,15 @@ import { show } from '../ui/nav.js';
 
 const HANDEL = { label: 'handel', emoji: '🛍', amenities: ['clothes','shoes','sports','books','electronics','mall','department_store','gift','jewelry'] };
 const LEISURE_CATS = [...PLACE_CATS, HANDEL];
+const RADII = [500, 1000, 2000, 5000];
 
 let _catIdx    = null;   // null = auto via timeCategory()
 let _venues    = null;
 let _loading   = false;
 let _weather   = null;
 let _expanded  = null;   // expanded venue card index
-let _locOvr    = null;   // { lat, lon, label } override when GPS is unavailable
+let _locOvr    = null;   // { lat, lon, label } — user-set position override
+let _radius    = 1000;   // metres
 
 export function renderLeisure() {
   const el = document.getElementById('v-leisure');
@@ -22,11 +24,9 @@ export function renderLeisure() {
 
   const pos = _locOvr || state.homeLL;
   el.innerHTML = _buildHtml(pos);
-  _attachListeners(el);
+  _attachListeners(el, pos);
 
-  if (pos && !_venues && !_loading) {
-    _loadVenues(_activeCat(), pos);
-  }
+  if (pos && !_venues && !_loading) _loadVenues(_activeCat(), pos);
   if (pos && !_weather) {
     fetchWeather(pos.lat, pos.lon)
       .then(w => { _weather = w; _updateWeatherEl(); })
@@ -40,13 +40,41 @@ function _activeCat() {
   return LEISURE_CATS.find(c => c.label === tc.label) || LEISURE_CATS[1];
 }
 
+function _locLabel(pos) {
+  if (_locOvr) return _locOvr.label;
+  if (pos) return (state.nearestStation && state.nearestStation.name) || 'GPS posisjon';
+  return 'søk etter sted';
+}
+
 function _buildHtml(pos) {
   const act = _activeCat();
+  const label = _locLabel(pos);
+
   const wHtml = _weather
     ? '<div class="lei-weather" id="lei-weather">'
       + _weather.icon + ' ' + _weather.temp + '°'
       + (_weather.advice ? ' · ' + _weather.advice : '') + '</div>'
     : '<div class="lei-weather" id="lei-weather"></div>';
+
+  // Location bar — always visible; search panel starts open when no position set
+  const searchOpen = !pos;
+  const locHtml = '<div class="lei-loc-bar">'
+    + '<span class="lei-loc-dot">📍</span>'
+    + '<span class="lei-loc-label" id="lei-loc-label">' + label + '</span>'
+    + '<button class="lei-loc-edit-btn" id="lei-loc-edit-btn">endre</button>'
+    + '</div>'
+    + '<div class="lei-loc-search" id="lei-loc-search"' + (searchOpen ? '' : ' style="display:none"') + '>'
+    + '<input id="lei-loc-input" type="text" placeholder="f.eks. Grünerløkka, Oslo"'
+    + ' autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">'
+    + '<div id="lei-loc-sugg" class="stop-sugg" hidden></div>'
+    + '</div>';
+
+  const radiusHtml = '<div class="lei-radius-row">'
+    + RADII.map(r => {
+        const lbl = r >= 1000 ? (r / 1000) + ' km' : r + ' m';
+        return '<button class="lei-radius-btn' + (r === _radius ? ' active' : '') + '" data-r="' + r + '">' + lbl + '</button>';
+      }).join('')
+    + '</div>';
 
   const pills = LEISURE_CATS.map((c, i) => {
     const on = _catIdx !== null ? i === _catIdx : c.label === act.label;
@@ -56,7 +84,7 @@ function _buildHtml(pos) {
 
   let venuesHtml;
   if (!pos) {
-    venuesHtml = _locInputHtml();
+    venuesHtml = '<div class="lei-loading">Velg et sted for å se steder i nærheten.</div>';
   } else if (_loading) {
     venuesHtml = '<div class="lei-loading">laster steder…</div>';
   } else if (_venues !== null) {
@@ -72,11 +100,50 @@ function _buildHtml(pos) {
     + '<button class="lei-mode-btn" id="lei-commute-btn">← pendler</button>'
     + '</div>'
     + wHtml
+    + locHtml
+    + radiusHtml
     + '<div class="lei-cats">' + pills + '</div>'
     + '<div id="lei-venues">' + venuesHtml + '</div>';
 }
 
-function _attachListeners(el) {
+function _attachListeners(el, pos) {
+  // Mode toggle
+  document.getElementById('lei-commute-btn').addEventListener('click', () => {
+    saveWeekendMode(false);
+    show('v-board');
+    window._startBoard && window._startBoard();
+  });
+
+  // Location bar — "endre" toggles the search panel
+  document.getElementById('lei-loc-edit-btn').addEventListener('click', () => {
+    const search = document.getElementById('lei-loc-search');
+    if (!search) return;
+    const open = search.style.display !== 'none';
+    search.style.display = open ? 'none' : 'block';
+    if (!open) {
+      const inp = document.getElementById('lei-loc-input');
+      if (inp) { inp.value = ''; inp.focus(); }
+    }
+  });
+
+  // Location input + suggestions
+  _attachLocInput(el);
+
+  // Radius pills
+  el.querySelectorAll('.lei-radius-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = Number(btn.dataset.r);
+      if (r === _radius) return;
+      _radius = r;
+      el.querySelectorAll('.lei-radius-btn').forEach(b =>
+        b.classList.toggle('active', Number(b.dataset.r) === r));
+      _venues = null;
+      _expanded = null;
+      const p = _locOvr || state.homeLL;
+      if (p) _loadVenues(_activeCat(), p);
+    });
+  });
+
   // Category pills
   el.querySelectorAll('.lei-cat-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -89,23 +156,54 @@ function _attachListeners(el) {
         b.classList.toggle('active', Number(b.dataset.idx) === idx));
       const venEl = document.getElementById('lei-venues');
       if (venEl) venEl.innerHTML = '<div class="lei-loading">laster steder…</div>';
-      const pos = _locOvr || state.homeLL;
-      if (pos) _loadVenues(LEISURE_CATS[idx], pos);
+      const p = _locOvr || state.homeLL;
+      if (p) _loadVenues(LEISURE_CATS[idx], p);
     });
   });
 
-  // Mode toggle
-  const commuteBtn = document.getElementById('lei-commute-btn');
-  if (commuteBtn) {
-    commuteBtn.addEventListener('click', () => {
-      saveWeekendMode(false);
-      show('v-board');
-      window._startBoard && window._startBoard();
-    });
-  }
-
   _attachVenueListeners(el);
-  _attachLocInput(el);
+}
+
+function _attachLocInput(el) {
+  const inp = document.getElementById('lei-loc-input');
+  if (!inp) return;
+  let _timer = null;
+
+  inp.addEventListener('input', () => {
+    const q = inp.value.trim();
+    const sugg = document.getElementById('lei-loc-sugg');
+    clearTimeout(_timer);
+    if (!sugg || q.length < 2) { if (sugg) { sugg.hidden = true; sugg.innerHTML = ''; } return; }
+    _timer = setTimeout(() => {
+      geocodePlace(q).then(results => {
+        const s = document.getElementById('lei-loc-sugg');
+        if (!s) return;
+        s.innerHTML = '';
+        if (!results.length) { s.hidden = true; return; }
+        results.slice(0, 5).forEach(r => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = r.label;
+          btn.addEventListener('mousedown', ev => ev.preventDefault());
+          btn.addEventListener('click', () => {
+            _locOvr = { lat: r.lat, lon: r.lon, label: r.label };
+            _venues = null;
+            _weather = null;
+            renderLeisure();  // full re-render: new pos, new weather, new venues
+          });
+          s.appendChild(btn);
+        });
+        s.hidden = false;
+      }).catch(() => {});
+    }, 250);
+  });
+
+  inp.addEventListener('blur', () => {
+    setTimeout(() => {
+      const s = document.getElementById('lei-loc-sugg');
+      if (s) s.hidden = true;
+    }, 150);
+  });
 }
 
 function _attachVenueListeners(el) {
@@ -177,57 +275,6 @@ function _reisDit(venue) {
   window._startBoard && window._startBoard();
 }
 
-function _locInputHtml() {
-  return '<div class="lei-no-gps">'
-    + '<div class="lei-loading">GPS ikke tilgjengelig. Søk etter et sted:</div>'
-    + '<input id="lei-loc-input" type="text" placeholder="f.eks. Grünerløkka"'
-    + ' autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">'
-    + '<div id="lei-loc-sugg" class="stop-sugg" hidden></div>'
-    + '</div>';
-}
-
-function _attachLocInput(el) {
-  const inp = document.getElementById('lei-loc-input');
-  if (!inp) return;
-  let _timer = null;
-
-  inp.addEventListener('input', () => {
-    const q = inp.value.trim();
-    const sugg = document.getElementById('lei-loc-sugg');
-    clearTimeout(_timer);
-    if (!sugg || q.length < 2) { if (sugg) { sugg.hidden = true; sugg.innerHTML = ''; } return; }
-    _timer = setTimeout(() => {
-      geocodePlace(q).then(results => {
-        const s = document.getElementById('lei-loc-sugg');
-        if (!s) return;
-        s.innerHTML = '';
-        if (!results.length) { s.hidden = true; return; }
-        results.slice(0, 5).forEach(r => {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.textContent = r.label;
-          btn.addEventListener('mousedown', ev => ev.preventDefault());
-          btn.addEventListener('click', () => {
-            _locOvr = { lat: r.lat, lon: r.lon, label: r.label };
-            _venues = null;
-            _weather = null;
-            renderLeisure();
-          });
-          s.appendChild(btn);
-        });
-        s.hidden = false;
-      }).catch(() => {});
-    }, 250);
-  });
-
-  inp.addEventListener('blur', () => {
-    setTimeout(() => {
-      const s = document.getElementById('lei-loc-sugg');
-      if (s) s.hidden = true;
-    }, 150);
-  });
-}
-
 function _updateWeatherEl() {
   const el = document.getElementById('lei-weather');
   if (!el || !_weather) return;
@@ -240,7 +287,7 @@ function _loadVenues(cat, pos) {
   const venEl = document.getElementById('lei-venues');
   if (venEl) venEl.innerHTML = '<div class="lei-loading">laster steder…</div>';
 
-  fetchNearbyPlaces(pos.lat, pos.lon, cat.amenities, 8)
+  fetchNearbyPlaces(pos.lat, pos.lon, cat.amenities, 8, _radius)
     .then(places => {
       _venues = places;
       _loading = false;

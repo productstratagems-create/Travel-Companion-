@@ -28,14 +28,26 @@ const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}
 let _arrMap = null;
 let _arrWalkMarker = null;
 let _arrRouteLine = null;
-let _arrLL = null; // cached for expand invalidation
+let _arrLL = null;
 let _bikeLayer = null;
 let _nearbyLayer = null;
+let _userMarker = null;
 let _arrUserMoved = false;
 
 function _destroyArrMap() {
-  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _bikeLayer = null; _nearbyLayer = null; }
+  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _bikeLayer = null; _nearbyLayer = null; _userMarker = null; }
   _arrUserMoved = false;
+}
+
+function _updateUserMarker() {
+  if (!_arrMap || !state.homeLL) return;
+  if (_userMarker) {
+    _userMarker.setLatLng([state.homeLL.lat, state.homeLL.lon]);
+  } else {
+    _userMarker = L.circleMarker([state.homeLL.lat, state.homeLL.lon], {
+      radius: 7, color: '#fff', fillColor: '#60a5fa', fillOpacity: 0.95, weight: 2,
+    }).bindTooltip('Din posisjon', { className: 'map-label' }).addTo(_arrMap);
+  }
 }
 
 function _addBikeMarkers(arrLL) {
@@ -579,6 +591,7 @@ export function renderTrack() {
   }
 
   document.getElementById('t-cards').innerHTML = cards;
+  _updateUserMarker();
 }
 
 export function buildTrackBar() {

@@ -88,11 +88,28 @@
 }
 
 /* ── Places section in «Hva nå?» (weekend/holiday mode) ── */
-.hn-place-row{display:flex;align-items:baseline;gap:.5rem;padding:.3rem 0;border-bottom:1px solid rgba(245,184,64,.05)}
+.hn-place-cats{display:flex;gap:.3rem;flex-wrap:wrap;margin:.4rem 0 .6rem}
+.hn-place-cat{
+  font-family:inherit;font-size:10px;padding:.25rem .6rem;border-radius:12px;
+  background:rgba(245,184,64,.06);border:1px solid rgba(245,184,64,.14);
+  color:#8a837d;cursor:pointer;white-space:nowrap;
+}
+.hn-place-cat.active{background:rgba(245,184,64,.18);border-color:rgba(245,184,64,.45);color:#f5b840}
+.hn-place-cat:active{background:rgba(245,184,64,.14)}
+
+.hn-place-row{display:flex;align-items:center;gap:.5rem;padding:.35rem 0;border-bottom:1px solid rgba(245,184,64,.05)}
 .hn-place-row:last-child{border-bottom:none}
-.hn-place-dist{font-size:10px;color:#7485a0;flex-shrink:0;min-width:3.5rem;text-align:right}
+.hn-place-emoji{font-size:13px;flex-shrink:0;width:1.4rem;text-align:center}
 .hn-place-name{flex:1;font-size:12px;color:#f5b840;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hn-place-type{font-size:10px;color:#8a837d;flex-shrink:0}
+.hn-place-dist{font-size:10px;color:#7485a0;flex-shrink:0}
+
+/* Place markers on the arrival map */
+.hn-map-place{
+  width:28px;height:28px;border-radius:50%;
+  background:#1a1208;border:2px solid #f97316;
+  font-size:14px;display:flex;align-items:center;justify-content:center;
+  line-height:1;
+}
 
 /* ── Weather section in «Hva nå?» ── */
 .hn-weather-main{font-size:13px;color:#f5b840;margin-bottom:.25rem;line-height:1.5}

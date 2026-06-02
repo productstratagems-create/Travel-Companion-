@@ -129,12 +129,13 @@ export function renderWalk() {
   // 3 advisory phases — no urgency commands
   const phase = depMinLeft <= 2 ? 'here' : isLate ? 'behind' : 'info';
 
-  // Fetch weather once per walk session
-  if (!_walkWeather && !_walkWeatherFetching && state.homeLL) {
+  // Fetch weather once per walk session — use walkFromLL (named origin) or homeLL (GPS)
+  const _weatherPos = state.walkFromLL || state.homeLL;
+  if (!_walkWeather && !_walkWeatherFetching && _weatherPos) {
     _walkWeatherFetching = true;
-    fetchWeather(state.homeLL.lat, state.homeLL.lon).then(w => {
+    fetchWeather(_weatherPos.lat, _weatherPos.lon).then(w => {
       _walkWeather = w; _walkWeatherFetching = false;
-    }).catch(() => { _walkWeatherFetching = false; });
+    }).catch(() => { _walkWeather = { _err: true }; _walkWeatherFetching = false; });
   }
 
   document.getElementById('w-board-btn-wrap').style.display = 'block';
@@ -182,7 +183,7 @@ export function renderWalk() {
     if (leg1Quay && firstTransfer.at) {
       ctxLines.push('Bytt <span class="wc-hl">' + firstTransfer.at.toLowerCase() + '</span> → spor ' + leg1Quay);
     }
-    if (_walkWeather) {
+    if (_walkWeather && !_walkWeather._err) {
       const w = _walkWeather;
       let wLine = (w.icon ? w.icon + ' ' : '') + w.temp + '°';
       if (w.wind >= 12) wLine += ' · ' + w.wind + ' m/s';

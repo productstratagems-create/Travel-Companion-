@@ -64,7 +64,7 @@ describe('tripGQL(fromId, toId, viaId, n)', () => {
   });
 
   it('requests toPlace{name} on legs (needed for transfer station name)', () => {
-    expect(q).toContain('toPlace{name}');
+    expect(q).toContain('toPlace{name latitude longitude}');
   });
 
   it('requests fromEstimatedCall with expectedDepartureTime', () => {

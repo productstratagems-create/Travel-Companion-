@@ -88,6 +88,8 @@ export function doBoard() {
     frontText:         (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to,
     firstLegFrontText: firstLeg.frontText,
     arrival:           finalArrival,
+    _toLat:            c._toLat || null,
+    _toLon:            c._toLon || null,
     legs,
   };
   saveJny();
@@ -115,6 +117,8 @@ export function saveJny() {
       frontText:         state.jny.frontText,
       firstLegFrontText: state.jny.firstLegFrontText || null,
       arrival:           state.jny.arrival,
+      _toLat:            state.jny._toLat || null,
+      _toLon:            state.jny._toLon || null,
       legs: state.jny.legs.map(leg => ({
         lineCode:    leg.lineCode,
         lineBg:      leg.lineBg,

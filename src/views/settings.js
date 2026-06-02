@@ -3,6 +3,7 @@ import { state } from '../state.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, loadWeekendMode, saveWeekendMode } from '../geo.js';
 import { geocodePlace, geocodeDest } from '../api/entur.js';
 import { makeSuggBtn } from '../ui/fmt.js';
+import { fetchNearbyPlaces } from '../api/places.js';
 
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
@@ -10,8 +11,17 @@ const VIA_KEY = 't.via';
 
 const TRANSIT_CATEGORIES = ['metroStation', 'busStation', 'onstreetBus', 'tramStation', 'ferryStop'];
 
+const EXPLORE_CATS = [
+  { label: 'spise',  emoji: '🍽', amenities: ['restaurant', 'fast_food'] },
+  { label: 'kaffe',  emoji: '☕', amenities: ['cafe', 'bakery'] },
+  { label: 'kultur', emoji: '🏛', amenities: ['museum', 'cinema', 'theatre', 'arts_centre', 'library'] },
+  { label: 'drikke', emoji: '🍺', amenities: ['bar', 'pub'] },
+];
+
 let _depAbort = null, _arrAbort = null, _viaAbort = null, _wfAbort = null;
 let _depTimer = null, _arrTimer = null, _viaTimer = null, _wfTimer = null;
+let _destPreviewLL = null;
+let _destPreviewCatIdx = 0;
 
 const _depStopIds = new Map();
 const _arrStopIds = new Map();
@@ -93,6 +103,58 @@ function initPrefs() {
   });
 }
 
+function _showDestPreview(lat, lon) {
+  _destPreviewLL = { lat, lon };
+  const panel = document.getElementById('dest-preview');
+  if (!panel) return;
+  panel.style.display = 'block';
+  _renderDestPills();
+  _fetchDestVenues();
+}
+
+function _renderDestPills() {
+  const el = document.getElementById('dest-prev-cats');
+  if (!el) return;
+  el.innerHTML = EXPLORE_CATS.map((c, i) =>
+    '<button class="dest-prev-cat' + (i === _destPreviewCatIdx ? ' active' : '') + '" data-idx="' + i + '">'
+    + c.emoji + ' ' + c.label + '</button>'
+  ).join('');
+  el.querySelectorAll('.dest-prev-cat').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _destPreviewCatIdx = Number(btn.dataset.idx);
+      _renderDestPills();
+      _fetchDestVenues();
+    });
+  });
+}
+
+function _fetchDestVenues() {
+  if (!_destPreviewLL) return;
+  const res = document.getElementById('dest-prev-results');
+  if (!res) return;
+  res.innerHTML = '<div class="dest-prev-loading">laster steder…</div>';
+  const cat = EXPLORE_CATS[_destPreviewCatIdx];
+  fetchNearbyPlaces(_destPreviewLL.lat, _destPreviewLL.lon, cat.amenities, 5)
+    .then(places => {
+      if (!places.length) {
+        res.innerHTML = '<div class="dest-prev-empty">Ingen ' + cat.label + 'steder funnet i nærheten.</div>';
+        return;
+      }
+      res.innerHTML = places.map(p =>
+        '<div class="dest-prev-row">'
+        + '<span class="dest-prev-emoji">' + p.emoji + '</span>'
+        + '<span class="dest-prev-name">' + p.name + '</span>'
+        + '<span class="dest-prev-dist">'
+        + (p.dist < 1000 ? p.dist + ' m' : (p.dist / 1000).toFixed(1) + ' km')
+        + '</span>'
+        + '</div>'
+      ).join('');
+    })
+    .catch(() => {
+      res.innerHTML = '<div class="dest-prev-empty">Kunne ikke laste steder.</div>';
+    });
+}
+
 export function initSettings() {
   const depEl = document.getElementById('set-dep');
   const arrEl = document.getElementById('set-arr');
@@ -122,6 +184,7 @@ export function initSettings() {
             sugg.hidden = true;
             sugg.innerHTML = '';
             syncClear('set-arr', 'set-arr-clear');
+            if (r.lat && r.lon) _showDestPreview(r.lat, r.lon);
           }));
         });
         sugg.hidden = false;
@@ -166,6 +229,11 @@ export function initSettings() {
         inp.value = '';
         btn.style.display = 'none';
         if (sugg) { sugg.hidden = true; sugg.innerHTML = ''; }
+        if (id === 'arr') {
+          _destPreviewLL = null;
+          const preview = document.getElementById('dest-preview');
+          if (preview) preview.style.display = 'none';
+        }
         inp.focus();
       });
     }
@@ -323,6 +391,15 @@ export function showSettings() {
 
   document.getElementById('set-error').style.display = 'none';
   _highlightPrefs();
+
+  // Restore destination preview if we already have resolved coords from a prior apply
+  const prevDir = config.dirs[2];
+  if (prevDir && prevDir._toLat && prevDir._toLon && loadDest()) {
+    _showDestPreview(prevDir._toLat, prevDir._toLon);
+  } else if (!_destPreviewLL) {
+    const preview = document.getElementById('dest-preview');
+    if (preview) preview.style.display = 'none';
+  }
 }
 
 export function applyRoute() {

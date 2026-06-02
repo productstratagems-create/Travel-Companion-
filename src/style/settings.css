@@ -169,3 +169,32 @@
   color:rgba(245,184,64,.7);cursor:pointer;
 }
 .set-via-add-btn:active{color:rgba(245,184,64,.7)}
+
+/* Destination preview — "Hva er det der?" */
+.dest-prev-title{
+  font-size:9px;text-transform:uppercase;letter-spacing:.18em;color:#7485a0;
+}
+.dest-prev-cats{
+  display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.65rem;
+}
+.dest-prev-cat{
+  padding:.3rem .7rem;border-radius:20px;
+  background:rgba(245,184,64,.05);border:1px solid rgba(245,184,64,.12);
+  font-family:inherit;font-size:11px;color:#7485a0;
+  cursor:pointer;white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.dest-prev-cat.active{
+  background:rgba(245,184,64,.12);border-color:rgba(245,184,64,.35);color:#f5b840;
+}
+.dest-prev-cat:active{background:rgba(245,184,64,.18)}
+.dest-prev-results{min-height:2rem}
+.dest-prev-loading,.dest-prev-empty{font-size:12px;color:#7485a0;padding:.5rem 0}
+.dest-prev-row{
+  display:flex;align-items:baseline;gap:.5rem;
+  padding:.35rem 0;border-bottom:1px solid rgba(245,184,64,.05);
+}
+.dest-prev-row:last-child{border-bottom:none}
+.dest-prev-emoji{font-size:13px;flex-shrink:0;width:1.4rem;text-align:center}
+.dest-prev-name{flex:1;font-size:12px;color:#f5b840;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dest-prev-dist{font-size:10px;color:#7485a0;flex-shrink:0;min-width:3rem;text-align:right}

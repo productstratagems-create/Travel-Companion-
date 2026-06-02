@@ -1,11 +1,12 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
-import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN } from '../geo.js';
+import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, loadWeekendMode } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { fetchNearbyStops } from '../api/stops.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters } from '../api/scooters.js';
 import { fetchWeather } from '../api/weather.js';
+import { fetchNearbyPlaces, timeCategory } from '../api/places.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
@@ -32,6 +33,7 @@ let _arrBoardStopId = null;
 let _arrBoardInterval = null;
 
 let _arrWeather = null;
+let _nearbyPlaces = null;
 let _arrMap = null;
 let _arrWalkMarker = null;
 let _arrRouteLine = null;
@@ -46,6 +48,7 @@ function _destroyArrMap() {
   if (_arrBoardInterval) { clearInterval(_arrBoardInterval); _arrBoardInterval = null; }
   _arrBoard = null; _arrBoardStopId = null;
   _arrWeather = null;
+  _nearbyPlaces = null;
   if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _nearbyLayer = null; _bikeLayer = null; _scooterLayer = null; _userMarker = null; }
   _arrUserMoved = false;
 }
@@ -345,6 +348,23 @@ function _resolveArrivalLL() {
   return Promise.resolve(state.homeLL || null);
 }
 
+function _placesSectionHtml() {
+  if (!_nearbyPlaces) return '<div class="hn-loading">laster steder…</div>';
+  if (!_nearbyPlaces.length) return '<div class="hn-loading">ingen steder funnet</div>';
+  return _nearbyPlaces.map(p =>
+    '<div class="hn-place-row">'
+    + '<span class="hn-place-dist">' + (p.dist < 1000 ? p.dist + ' m' : (p.dist / 1000).toFixed(1) + ' km') + '</span>'
+    + '<span class="hn-place-name">' + esc(p.name) + '</span>'
+    + '<span class="hn-place-type">' + esc(p.type) + '</span>'
+    + '</div>'
+  ).join('');
+}
+
+function _updatePlacesSection() {
+  const el = document.getElementById('hn-places-content');
+  if (el) el.innerHTML = _placesSectionHtml();
+}
+
 function _weatherSectionHtml() {
   if (!_arrWeather) return '<div class="hn-loading">laster vær…</div>';
   const w = _arrWeather;
@@ -373,6 +393,9 @@ function renderNextPanel() {
       + '</div>'
     : '';
 
+  const weekendMode = loadWeekendMode();
+  const _cat = weekendMode ? timeCategory() : null;
+
   el.innerHTML =
     '<div class="hn-panel">'
     + '<div class="hn-title">Hva nå?</div>'
@@ -381,6 +404,12 @@ function renderNextPanel() {
     + '<div class="hn-section-label">vær</div>'
     + '<div id="hn-weather-content">' + _weatherSectionHtml() + '</div>'
     + '</div>'
+    + (weekendMode
+      ? '<div class="hn-section">'
+        + '<div class="hn-section-label">' + (_cat ? _cat.emoji + ' ' + _cat.label : 'steder i nærheten') + '</div>'
+        + '<div id="hn-places-content">' + _placesSectionHtml() + '</div>'
+        + '</div>'
+      : '')
     + '<div class="hn-section">'
     + '<div class="hn-section-label">gangavstand</div>'
     + recentsHtml
@@ -759,6 +788,12 @@ export function startTracking() {
     _addScooterMarkers(ll);
     _addBikeMarkers(ll);
     fetchWeather(ll.lat, ll.lon).then(w => { _arrWeather = w; _updateWeatherSection(); }).catch(() => {});
+    if (loadWeekendMode()) {
+      const cat = timeCategory();
+      fetchNearbyPlaces(ll.lat, ll.lon, cat.amenities)
+        .then(p => { _nearbyPlaces = p; _updatePlacesSection(); })
+        .catch(() => {});
+    }
   });
 }
 

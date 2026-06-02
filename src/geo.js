@@ -31,6 +31,14 @@ export function clearWalkFrom() {
   try { localStorage.removeItem(WALK_FROM_KEY); } catch {}
 }
 
+const WEEKEND_MODE_KEY = 't.weekendMode';
+export function loadWeekendMode() {
+  try { return localStorage.getItem(WEEKEND_MODE_KEY) === '1'; } catch { return false; }
+}
+export function saveWeekendMode(v) {
+  try { if (v) localStorage.setItem(WEEKEND_MODE_KEY, '1'); else localStorage.removeItem(WEEKEND_MODE_KEY); } catch {}
+}
+
 export function haver(la1, lo1, la2, lo2) {
   const R = 6371000, r = Math.PI / 180;
   const dL = (la2 - la1) * r, dN = (lo2 - lo1) * r;

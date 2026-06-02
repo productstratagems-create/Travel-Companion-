@@ -319,9 +319,10 @@ function renderSelDeps() {
   if (old) old.remove();
   if (!state.deps || !state.deps.length) return;
   const now = Date.now();
-  const dir = config.dirs[state.dIdx];
   const selTs = state.sel ? new Date(state.sel.expectedDepartureTime).getTime() : null;
 
+  // Deduplicate by departure minute, then find the first upcoming departure
+  // that is clearly after the selected one (> 90 s gap)
   const indexed = state.deps.map((c, i) => ({ c, i }));
   indexed.sort((a, b) => new Date(a.c.expectedDepartureTime) - new Date(b.c.expectedDepartureTime));
   const byMin = new Map();
@@ -332,57 +333,46 @@ function renderSelDeps() {
     if (!cur || arr < cur.arr) byMin.set(min, { c, i, arr });
   });
 
-  const rows = Array.from(byMin.values())
-    .filter(({ c }) => new Date(c.expectedDepartureTime).getTime() > now - 30000)
-    .slice(0, 4);
+  const upcoming = Array.from(byMin.values())
+    .filter(({ c }) => new Date(c.expectedDepartureTime).getTime() > now - 30000);
 
-  if (!rows.length) return;
-
-  let html = '';
-  rows.forEach(({ c, i }) => {
-    const depTs = new Date(c.expectedDepartureTime).getTime();
-    const depDiffSec = Math.floor((depTs - now) / 1000);
-    const mins = Math.floor(Math.max(0, depDiffSec) / 60);
-    const depSecs = Math.max(0, depDiffSec) % 60;
-    const isSel = selTs !== null && Math.abs(depTs - selTs) < 30000;
-    const ln = c.serviceJourney && c.serviceJourney.line;
-    const bg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
-    const visLegs = c._legs ? c._legs.slice(0, 3) : null;
-    const badges = visLegs
-      ? visLegs.map(l => {
-          const ll = l.serviceJourney && l.serviceJourney.line;
-          const lbg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
-          return '<span class="line-badge" style="background:' + lbg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
-        }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
-      : '<span class="line-badge" style="background:' + bg + '">' + ((ln && ln.publicCode) || '?') + '</span>';
-    const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
-    const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
-    const arrCall = findArr(sjc, dir.to);
-    const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
-    const sMinsLabel = depDiffSec <= 0 ? 'nå' : mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' t' + (mins % 60 > 0 ? ' ' + mins % 60 + ' m' : '');
-    const sA11y = ((ln && ln.publicCode) ? ln.publicCode + ' ' : '') + dest + ', avgang om ' + sMinsLabel;
-    html += '<div class="w-dep-row' + (isSel ? ' active' : '') + '"'
-      + (isSel
-        ? ''
-        : ' onclick="window.tap(' + i + ')"'
-          + ' role="button" tabindex="0"'
-          + ' aria-label="' + sA11y.replace(/"/g, '&quot;') + '"'
-          + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.tap(' + i + ')}"'
-      ) + '>'
-      + '<div class="w-dep-mins' + (mins >= 60 ? ' clock' : '') + '">' + (() => {
-          if (depDiffSec <= 0) return 'NÅ';
-          if (depDiffSec < 60) return depSecs + '<span>sek</span>';
-          if (mins < 60)       return mins + '<span>min</span>';
-          return clk(depTs);
-        })() + '</div>'
-      + '<div class="w-dep-mid">' + badges + '<span class="w-dep-dest">' + dest + '</span>' + (arrT ? '<span class="w-dep-arr">ank.' + clk(arrT) + '</span>' : '') + '</div>'
-      + '</div>';
+  // Pick the first departure that isn't the selected one
+  const next = upcoming.find(({ c }) => {
+    const ts = new Date(c.expectedDepartureTime).getTime();
+    return !selTs || ts > selTs + 90000;
   });
+  if (!next) return;
+
+  const { c, i } = next;
+  const depTs = new Date(c.expectedDepartureTime).getTime();
+  const mins = Math.max(0, Math.floor((depTs - now) / 60000));
+  const ln = c.serviceJourney && c.serviceJourney.line;
+  const bg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
+  const visLegs = c._legs ? c._legs.slice(0, 3) : null;
+  const badges = visLegs
+    ? visLegs.map(l => {
+        const ll = l.serviceJourney && l.serviceJourney.line;
+        const lbg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
+        return '<span class="line-badge" style="background:' + lbg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
+      }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
+    : '<span class="line-badge" style="background:' + bg + '">' + ((ln && ln.publicCode) || '?') + '</span>';
+  const minsLabel = mins <= 0 ? 'nå' : mins < 60 ? mins + ' min' : clk(depTs);
+  const a11y = 'Neste avgang: ' + ((ln && ln.publicCode) || '') + ' om ' + minsLabel;
 
   const el = document.createElement('div');
   el.id = 's-dep-list';
-  el.style.cssText = 'border-top:1px solid rgba(245,184,64,.08);margin-top:.75rem;padding-top:.25rem';
-  el.innerHTML = html;
+  el.innerHTML = '<div class="s-next-dep">'
+    + '<span class="s-next-label">neste</span>'
+    + badges
+    + '<span class="s-next-mins">' + minsLabel + '</span>'
+    + '</div>';
+  el.querySelector('.s-next-dep').setAttribute('role', 'button');
+  el.querySelector('.s-next-dep').setAttribute('tabindex', '0');
+  el.querySelector('.s-next-dep').setAttribute('aria-label', a11y);
+  el.querySelector('.s-next-dep').addEventListener('click', () => window.tap(i));
+  el.querySelector('.s-next-dep').addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.tap(i); }
+  });
   document.getElementById('v-selected').appendChild(el);
 }
 

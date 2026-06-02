@@ -113,3 +113,16 @@
 #sel-map{height:200px;border-radius:8px;overflow:hidden}
 #sel-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
 .sel-stop-label{font-size:10px;background:#1a1410;border:1px solid rgba(245,184,64,.25);color:#f5b840;padding:1px 4px;border-radius:3px;white-space:nowrap}
+
+/* Next departure nudge */
+.s-next-dep{
+  display:flex;align-items:center;gap:.5rem;
+  padding:.65rem .75rem;margin-top:.5rem;
+  background:rgba(245,184,64,.04);
+  border:1px solid rgba(245,184,64,.1);border-radius:6px;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.s-next-dep:active{background:rgba(245,184,64,.08)}
+.s-next-label{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#7485a0;flex-shrink:0;min-width:2.8rem}
+.s-next-mins{margin-left:auto;font-family:"Bebas Neue",sans-serif;font-size:1.3rem;line-height:1;color:#a89060;flex-shrink:0;font-variant-numeric:tabular-nums}

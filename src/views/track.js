@@ -3,6 +3,8 @@ import { state, intervals } from '../state.js';
 import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { fetchNearbyStops } from '../api/stops.js';
+import { fetchBysykkel } from '../api/bysykkel.js';
+import { fetchScooters } from '../api/scooters.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
@@ -33,13 +35,15 @@ let _arrWalkMarker = null;
 let _arrRouteLine = null;
 let _arrLL = null;
 let _nearbyLayer = null;
+let _bikeLayer = null;
+let _scooterLayer = null;
 let _userMarker = null;
 let _arrUserMoved = false;
 
 function _destroyArrMap() {
   if (_arrBoardInterval) { clearInterval(_arrBoardInterval); _arrBoardInterval = null; }
   _arrBoard = null; _arrBoardStopId = null;
-  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _nearbyLayer = null; _userMarker = null; }
+  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _nearbyLayer = null; _bikeLayer = null; _scooterLayer = null; _userMarker = null; }
   _arrUserMoved = false;
 }
 
@@ -171,6 +175,54 @@ function _addNearbyStopMarkers(stops, arrLL) {
       .addTo(_nearbyLayer);
   });
   if (arrLL) _fitArrMap(arrLL);
+}
+
+function _addBikeMarkers(arrLL) {
+  fetchBysykkel(arrLL.lat, arrLL.lon).then(stations => {
+    if (!_arrMap || !stations.length) return;
+    if (_bikeLayer) { _bikeLayer.clearLayers(); } else { _bikeLayer = L.layerGroup().addTo(_arrMap); }
+    stations.forEach(s => {
+      const count = s.bikes + (s.ebikes || 0);
+      const icon = L.divIcon({
+        className: '',
+        html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '') + '">' + count + '</div>',
+        iconAnchor: [14, 14],
+      });
+      L.marker([s.lat, s.lon], { icon })
+        .bindTooltip(s.name + ' · ' + count + ' sykler · ' + s.dist + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
+        .addTo(_bikeLayer);
+    });
+  }).catch(() => {});
+}
+
+function _addScooterMarkers(arrLL) {
+  fetchScooters(arrLL.lat, arrLL.lon).then(vehicles => {
+    if (!_arrMap || !vehicles.length) return;
+    if (_scooterLayer) { _scooterLayer.clearLayers(); } else { _scooterLayer = L.layerGroup().addTo(_arrMap); }
+    const used = new Set();
+    vehicles.forEach((v, i) => {
+      if (used.has(i)) return;
+      used.add(i);
+      const cluster = [v];
+      vehicles.forEach((w, j) => {
+        if (used.has(j)) return;
+        if (haver(v.lat, v.lon, w.lat, w.lon) < 30) { cluster.push(w); used.add(j); }
+      });
+      const clat = cluster.reduce((a, c) => a + c.lat, 0) / cluster.length;
+      const clon = cluster.reduce((a, c) => a + c.lon, 0) / cluster.length;
+      const cnt = cluster.length;
+      const ops = [...new Set(cluster.map(c => c.operator))].join(', ');
+      const distM = Math.round(haver(arrLL.lat, arrLL.lon, clat, clon));
+      const icon = L.divIcon({
+        className: '',
+        html: '<div class="hn-map-scooter">' + cnt + '</div>',
+        iconAnchor: [14, 14],
+      });
+      L.marker([clat, clon], { icon })
+        .bindTooltip(ops + ' · ' + cnt + ' stk · ' + distM + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
+        .addTo(_scooterLayer);
+    });
+  }).catch(() => {});
 }
 
 function _updateArrMapWalkPin(arrLL) {
@@ -682,6 +734,8 @@ export function startTracking() {
     fetchNearbyStops(ll.lat, ll.lon)
       .then(stops => { if (stops.length) _addNearbyStopMarkers(stops, ll); })
       .catch(() => {});
+    _addScooterMarkers(ll);
+    _addBikeMarkers(ll);
   });
 }
 

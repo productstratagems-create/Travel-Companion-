@@ -28,6 +28,19 @@
 .lei-reis-btn:active{background:rgba(245,184,64,.06)}
 
 .lei-loading{font-size:12px;color:#7485a0;padding:1.25rem 0}
-.lei-no-gps{padding:.5rem 0}
-#lei-loc-input{width:100%;box-sizing:border-box;background:rgba(245,184,64,.05);border:1px solid rgba(245,184,64,.15);border-radius:6px;padding:.5rem .65rem;color:#f5b840;font-family:inherit;font-size:.9rem;outline:none;margin-top:.5rem}
+
+/* Location bar */
+.lei-loc-bar{display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem}
+.lei-loc-dot{font-size:.85rem;flex-shrink:0;line-height:1}
+.lei-loc-label{flex:1;font-size:11px;color:#8a837d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lei-loc-edit-btn{background:none;border:none;font-family:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(245,184,64,.45);cursor:pointer;flex-shrink:0;padding:0}
+.lei-loc-edit-btn:active{color:#f5b840}
+.lei-loc-search{margin-bottom:.5rem}
+#lei-loc-input{width:100%;box-sizing:border-box;background:rgba(245,184,64,.05);border:1px solid rgba(245,184,64,.15);border-radius:6px;padding:.5rem .65rem;color:#f5b840;font-family:inherit;font-size:.9rem;outline:none}
 #lei-loc-input:focus{border-color:rgba(245,184,64,.4)}
+
+/* Radius pills */
+.lei-radius-row{display:flex;gap:.35rem;margin-bottom:.85rem}
+.lei-radius-btn{background:rgba(245,184,64,.04);border:1px solid rgba(245,184,64,.1);border-radius:20px;padding:.25rem .6rem;font-family:inherit;font-size:10px;color:#7485a0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.lei-radius-btn.active{background:rgba(245,184,64,.12);border-color:rgba(245,184,64,.35);color:#f5b840}
+.lei-radius-btn:active{background:rgba(245,184,64,.09)}

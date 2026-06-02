@@ -116,16 +116,16 @@ export function timeCategory() {
   return PLACE_CATS[1]; // lunsj as default fallback
 }
 
-export function fetchNearbyPlaces(lat, lon, amenities, limit = 6) {
-  const key = lat.toFixed(3) + ',' + lon.toFixed(3) + ',' + amenities.join(',');
+export function fetchNearbyPlaces(lat, lon, amenities, limit = 6, radius = 600) {
+  const key = lat.toFixed(3) + ',' + lon.toFixed(3) + ',' + amenities.join(',') + ',' + radius;
   const hit = _cache.get(key);
   if (hit && Date.now() - hit.ts < CACHE_MS) return Promise.resolve(hit.data);
 
   // Shops (ways/relations for malls etc) need nwr + out center; amenities are nodes only
   const tagParts = amenities
     .map(a => SHOP_TYPES.has(a)
-      ? `nwr["shop"="${a}"](around:1200,${lat.toFixed(5)},${lon.toFixed(5)});`
-      : `node["amenity"="${a}"](around:600,${lat.toFixed(5)},${lon.toFixed(5)});`)
+      ? `nwr["shop"="${a}"](around:${radius},${lat.toFixed(5)},${lon.toFixed(5)});`
+      : `node["amenity"="${a}"](around:${radius},${lat.toFixed(5)},${lon.toFixed(5)});`)
     .join('');
   const query = `[out:json][timeout:10];(${tagParts});out center ${limit * 4};`;
 

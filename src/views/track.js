@@ -6,7 +6,7 @@ import { fetchNearbyStops } from '../api/stops.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters } from '../api/scooters.js';
 import { fetchWeather } from '../api/weather.js';
-import { fetchNearbyPlaces, timeCategory } from '../api/places.js';
+import { fetchNearbyPlaces, timeCategory, PLACE_CATS, placeEmoji } from '../api/places.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
@@ -34,6 +34,8 @@ let _arrBoardInterval = null;
 
 let _arrWeather = null;
 let _nearbyPlaces = null;
+let _placesCat = null;   // currently active PLACE_CATS entry
+let _placesLL = null;    // coords used for last places fetch
 let _arrMap = null;
 let _arrWalkMarker = null;
 let _arrRouteLine = null;
@@ -41,6 +43,7 @@ let _arrLL = null;
 let _nearbyLayer = null;
 let _bikeLayer = null;
 let _scooterLayer = null;
+let _placesLayer = null;
 let _userMarker = null;
 let _arrUserMoved = false;
 
@@ -49,7 +52,9 @@ function _destroyArrMap() {
   _arrBoard = null; _arrBoardStopId = null;
   _arrWeather = null;
   _nearbyPlaces = null;
-  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _nearbyLayer = null; _bikeLayer = null; _scooterLayer = null; _userMarker = null; }
+  _placesCat = null;
+  _placesLL = null;
+  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _nearbyLayer = null; _bikeLayer = null; _scooterLayer = null; _placesLayer = null; _userMarker = null; }
   _arrUserMoved = false;
 }
 
@@ -350,23 +355,52 @@ function _resolveArrivalLL() {
 
 function _placesSectionHtml() {
   if (!_nearbyPlaces) return '<div class="hn-loading">laster steder…</div>';
-  if (!_nearbyPlaces.length) return '<div class="hn-loading">ingen steder funnet</div>';
+  if (!_nearbyPlaces.length) return '<div class="hn-loading">ingen steder funnet i nærheten</div>';
   return _nearbyPlaces.map(p =>
     '<div class="hn-place-row">'
-    + '<span class="hn-place-dist">' + (p.dist < 1000 ? p.dist + ' m' : (p.dist / 1000).toFixed(1) + ' km') + '</span>'
+    + '<span class="hn-place-emoji">' + p.emoji + '</span>'
     + '<span class="hn-place-name">' + esc(p.name) + '</span>'
-    + '<span class="hn-place-type">' + esc(p.type) + '</span>'
+    + '<span class="hn-place-dist">' + (p.dist < 1000 ? p.dist + ' m' : (p.dist / 1000).toFixed(1) + ' km') + '</span>'
     + '</div>'
   ).join('');
+}
+
+function _catPillsHtml(activeCatIdx) {
+  return '<div class="hn-place-cats">'
+    + PLACE_CATS.map((c, i) =>
+        '<button class="hn-place-cat' + (i === activeCatIdx ? ' active' : '') + '"'
+        + ' onclick="window._switchPlacesCat(' + i + ')">'
+        + c.emoji + ' ' + c.label + '</button>'
+      ).join('')
+    + '</div>';
+}
+
+function _addPlacesMarkers(places) {
+  if (!_arrMap) return;
+  if (_placesLayer) { _placesLayer.clearLayers(); } else { _placesLayer = L.layerGroup().addTo(_arrMap); }
+  if (!places || !places.length) return;
+  places.forEach(p => {
+    const icon = L.divIcon({
+      className: '',
+      html: '<div class="hn-map-place">' + p.emoji + '</div>',
+      iconAnchor: [14, 14],
+    });
+    L.marker([p.lat, p.lon], { icon })
+      .bindTooltip(p.name + ' · ' + (p.dist < 1000 ? p.dist + ' m' : (p.dist / 1000).toFixed(1) + ' km'),
+        { direction: 'top', offset: [0, -20], className: 'map-label' })
+      .addTo(_placesLayer);
+  });
 }
 
 function _updatePlacesSection() {
   const el = document.getElementById('hn-places-content');
   if (el) el.innerHTML = _placesSectionHtml();
+  _addPlacesMarkers(_nearbyPlaces);
 }
 
 function _weatherSectionHtml() {
   if (!_arrWeather) return '<div class="hn-loading">laster vær…</div>';
+  if (_arrWeather._err) return '<div class="hn-loading">vær utilgjengelig</div>';
   const w = _arrWeather;
   const main = (w.icon ? w.icon + ' ' : '') + w.temp + '°'
     + (w.wind >= 12 ? ' · ' + w.wind + ' m/s vind' : '')
@@ -374,6 +408,24 @@ function _weatherSectionHtml() {
   return '<div class="hn-weather-main">' + main + '</div>'
     + (w.advice ? '<div class="hn-weather-adv">' + w.advice + '</div>' : '');
 }
+
+// Called when user taps a category pill
+window._switchPlacesCat = (catIdx) => {
+  _placesCat = PLACE_CATS[catIdx];
+  // Update pill highlights
+  document.querySelectorAll('.hn-place-cat').forEach((b, i) => b.classList.toggle('active', i === catIdx));
+  // Update section label
+  const lbl = document.getElementById('hn-places-label');
+  if (lbl) lbl.textContent = _placesCat.emoji + ' ' + _placesCat.label;
+  // Re-fetch (cache handles deduplication)
+  if (!_placesLL) return;
+  _nearbyPlaces = null;
+  const el = document.getElementById('hn-places-content');
+  if (el) el.innerHTML = '<div class="hn-loading">laster steder…</div>';
+  fetchNearbyPlaces(_placesLL.lat, _placesLL.lon, _placesCat.amenities)
+    .then(p => { _nearbyPlaces = p; _updatePlacesSection(); })
+    .catch(() => {});
+};
 
 function _updateWeatherSection() {
   const el = document.getElementById('hn-weather-content');
@@ -394,7 +446,8 @@ function renderNextPanel() {
     : '';
 
   const weekendMode = loadWeekendMode();
-  const _cat = weekendMode ? timeCategory() : null;
+  const activeCatIdx = _placesCat ? PLACE_CATS.indexOf(_placesCat) : -1;
+  const _cat = _placesCat || (weekendMode ? timeCategory() : null);
 
   el.innerHTML =
     '<div class="hn-panel">'
@@ -406,7 +459,8 @@ function renderNextPanel() {
     + '</div>'
     + (weekendMode
       ? '<div class="hn-section">'
-        + '<div class="hn-section-label">' + (_cat ? _cat.emoji + ' ' + _cat.label : 'steder i nærheten') + '</div>'
+        + '<div class="hn-section-label" id="hn-places-label">' + (_cat ? _cat.emoji + ' ' + _cat.label : 'steder i nærheten') + '</div>'
+        + _catPillsHtml(activeCatIdx >= 0 ? activeCatIdx : PLACE_CATS.indexOf(_cat))
         + '<div id="hn-places-content">' + _placesSectionHtml() + '</div>'
         + '</div>'
       : '')
@@ -787,10 +841,15 @@ export function startTracking() {
       .catch(() => {});
     _addScooterMarkers(ll);
     _addBikeMarkers(ll);
-    fetchWeather(ll.lat, ll.lon).then(w => { _arrWeather = w; _updateWeatherSection(); }).catch(() => {});
+    fetchWeather(ll.lat, ll.lon)
+      .then(w => { _arrWeather = w; _updateWeatherSection(); })
+      .catch(() => { _arrWeather = { _err: true }; _updateWeatherSection(); });
     if (loadWeekendMode()) {
-      const cat = timeCategory();
-      fetchNearbyPlaces(ll.lat, ll.lon, cat.amenities)
+      _placesLL = ll;
+      if (!_placesCat) _placesCat = timeCategory();
+      // Re-render panel to show correct active pill now that _placesCat is set
+      renderNextPanel();
+      fetchNearbyPlaces(ll.lat, ll.lon, _placesCat.amenities)
         .then(p => { _nearbyPlaces = p; _updatePlacesSection(); })
         .catch(() => {});
     }

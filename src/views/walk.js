@@ -155,19 +155,12 @@ export function renderWalk() {
   if (phase === 'here') {
     numEl = '<div class="walk-num here">FREMME</div>';
     lblEl = '<div class="walk-label here">' + vehicleWord + ' avgår ' + (depMinLeft <= 0 ? 'nå' : 'om ' + fmtMins(depMinLeft)) + '</div>';
-    ctxEl = (depQuay || (firstTransfer && firstTransfer.platform))
-      ? '<div class="walk-context">'
-        + (depQuay ? 'spor <span class="wc-hl">' + depQuay + '</span>' : '')
-        + (firstTransfer && firstTransfer.platform && firstTransfer.at
-          ? (depQuay ? '<br>' : '') + 'bytt <span class="wc-hl">' + firstTransfer.at.toLowerCase() + '</span> → spor ' + firstTransfer.platform
-          : '')
-        + '</div>'
+    ctxEl = depQuay
+      ? '<div class="walk-context">spor <span class="wc-hl">' + depQuay + '</span></div>'
       : '';
   } else {
     const arrCall = findArr(c.serviceJourney && c.serviceJourney.estimatedCalls, dir.to);
     const arrT = (arrCall && (arrCall.expectedArrivalTime || arrCall.aimedArrivalTime)) || c._finalArrival || null;
-    const leg1Quay = firstTransfer && firstTransfer.platform;
-
     // Advisory context: walk time + source, departure, leave-by, arrival
     const ctxLines = [
       'Gangtid: <span class="wc-hl">' + wk.mins + ' min</span>'
@@ -180,9 +173,6 @@ export function renderWalk() {
       ctxLines.push('Gå senest: <span class="wc-hl">' + clk(leaveByTs) + '</span>');
     }
     if (arrT) ctxLines.push('Ankommer: <span class="wc-arr">' + clk(arrT) + '</span>');
-    if (leg1Quay && firstTransfer.at) {
-      ctxLines.push('Bytt <span class="wc-hl">' + firstTransfer.at.toLowerCase() + '</span> → spor ' + leg1Quay);
-    }
     if (_walkWeather && !_walkWeather._err) {
       const w = _walkWeather;
       let wLine = (w.icon ? w.icon + ' ' : '') + w.temp + '°';

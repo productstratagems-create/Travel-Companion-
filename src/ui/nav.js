@@ -3,6 +3,7 @@ import { state, intervals } from '../state.js';
 import { addFav } from './favs.js';
 
 export function show(id) {
+  if (id !== 'v-selected') window._destroySelMap && window._destroySelMap();
   ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-favs'].forEach(v => {
     document.getElementById(v).style.display = (v === id ? 'block' : 'none');
   });

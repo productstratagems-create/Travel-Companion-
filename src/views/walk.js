@@ -6,6 +6,7 @@ import { startBoard } from './board.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchWalkRoute } from '../api/route.js';
+import { fetchWeather } from '../api/weather.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -25,6 +26,8 @@ const TILE_ATTR = '© CartoDB';
 let _wMap = null;
 let _wFromMarker = null;
 let _wUserMoved = false;
+let _walkWeather = null;
+let _walkWeatherFetching = false;
 
 function _destroyWalkMap() {
   if (_wMap) { _wMap.remove(); _wMap = null; _wFromMarker = null; }
@@ -126,6 +129,14 @@ export function renderWalk() {
   // 3 advisory phases — no urgency commands
   const phase = depMinLeft <= 2 ? 'here' : isLate ? 'behind' : 'info';
 
+  // Fetch weather once per walk session
+  if (!_walkWeather && !_walkWeatherFetching && state.homeLL) {
+    _walkWeatherFetching = true;
+    fetchWeather(state.homeLL.lat, state.homeLL.lon).then(w => {
+      _walkWeather = w; _walkWeatherFetching = false;
+    }).catch(() => { _walkWeatherFetching = false; });
+  }
+
   document.getElementById('w-board-btn-wrap').style.display = 'block';
   const bb = document.getElementById('w-board-btn-wrap').querySelector('button');
   if (bb) bb.className = 'cta-btn secondary';
@@ -171,6 +182,13 @@ export function renderWalk() {
     if (leg1Quay && firstTransfer.at) {
       ctxLines.push('Bytt <span class="wc-hl">' + firstTransfer.at.toLowerCase() + '</span> → spor ' + leg1Quay);
     }
+    if (_walkWeather) {
+      const w = _walkWeather;
+      let wLine = (w.icon ? w.icon + ' ' : '') + w.temp + '°';
+      if (w.wind >= 12) wLine += ' · ' + w.wind + ' m/s';
+      if (w.advice) wLine += ' · <span class="wc-src">' + w.advice + '</span>';
+      ctxLines.push(wLine);
+    }
     ctxEl = '<div class="walk-context">' + ctxLines.join('<br>') + '</div>';
 
     if (phase === 'behind') {
@@ -210,6 +228,8 @@ export function renderWalk() {
 
 export function stopWalk() {
   _destroyWalkMap();
+  _walkWeather = null;
+  _walkWeatherFetching = false;
 }
 
 // Expose for nav bridges

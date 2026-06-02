@@ -101,12 +101,6 @@
 #t-walk-result{margin-top:.45rem;font-size:13px;min-height:1.2rem}
 .hn-walk-mins{font-family:"Bebas Neue",sans-serif;font-size:1.4rem;color:#f5b840;line-height:1}
 .hn-walk-to{font-size:11px;color:#8a837d;margin-left:.3rem}
-.hn-bike-row{display:flex;align-items:baseline;gap:.5rem;padding:.3rem 0;border-bottom:1px solid rgba(245,184,64,.05)}
-.hn-bike-row:last-child{border-bottom:none}
-.hn-bike-name{flex:1;font-size:12px;color:#f5b840;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hn-bike-dist{font-size:11px;color:#7485a0;flex-shrink:0}
-.hn-bike-count{font-size:11px;color:#4ade80;flex-shrink:0}
-.hn-bike-count.empty{color:#f87171}
 .hn-loading{font-size:12px;color:#7485a0}
 .hn-new-btn{
   display:block;width:100%;margin-top:.5rem;padding:.75rem;

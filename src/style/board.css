@@ -102,6 +102,8 @@
   transition:color .1s;
 }
 .fav-bar:active{color:#f5b840}
+.lei-board-btn{color:rgba(245,184,64,.55)}
+.lei-board-btn:active{color:#f5b840}
 
 #walk-summary{font-size:12px;color:#7485a0;padding:.3rem 0 .6rem;letter-spacing:.04em}
 

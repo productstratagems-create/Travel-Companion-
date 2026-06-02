@@ -8,11 +8,13 @@ import './style/track.css';
 import './style/debug.css';
 import './style/settings.css';
 import './style/favs.css';
+import './style/leisure.css';
 
 import { attachEventListeners, updateHeader, show } from './ui/nav.js';
 import './views/favs.js';
+import { renderLeisure } from './views/leisure.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
-import { locateUser, updateWalkDbg } from './geo.js';
+import { locateUser, updateWalkDbg, loadWeekendMode } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
@@ -24,6 +26,7 @@ window._logMsg = logMsg;
 window._updateWalkDbg = updateWalkDbg;
 window._showSettings = showSettings;
 window._applyRoute = applyRoute;
+window._renderLeisure = renderLeisure;
 
 attachEventListeners();
 initDebugToggle();
@@ -42,21 +45,31 @@ if (restored) {
   // GPS-first: detect nearest station, then decide what to show
   locateUser(
     (station) => {
-      const dest = loadDest();
-      if (dest) {
-        applyRouteFromState(dest);
-        updateHeader();
-        startBoard();
+      if (loadWeekendMode()) {
+        renderLeisure();
+        show('v-leisure');
       } else {
-        showSettings();
-        show('v-settings');
+        const dest = loadDest();
+        if (dest) {
+          applyRouteFromState(dest);
+          updateHeader();
+          startBoard();
+        } else {
+          showSettings();
+          show('v-settings');
+        }
       }
     },
     () => {
-      // GPS denied or failed — load saved destination if available, else settings
-      const dest = loadDest();
-      if (dest) { applyRouteFromState(dest); updateHeader(); startBoard(); }
-      else { showSettings(); show('v-settings'); }
+      // GPS denied or failed
+      if (loadWeekendMode()) {
+        renderLeisure();
+        show('v-leisure');
+      } else {
+        const dest = loadDest();
+        if (dest) { applyRouteFromState(dest); updateHeader(); startBoard(); }
+        else { showSettings(); show('v-settings'); }
+      }
     }
   );
 }

@@ -36,6 +36,7 @@
     </div>
   </div>
   <button id="fav-btn" class="fav-bar" type="button">★ favoritter</button>
+  <button id="leisure-btn" class="fav-bar lei-board-btn" type="button">🌟 utforsk</button>
   <div id="board-error" role="alert" style="display:none;padding:.6rem;margin:.5rem 0;font-size:11px;color:#fca5a5;background:rgba(220,38,38,.08);border-radius:4px"></div>
   <button id="onboard-chip" onclick="window.jnyGoTracking&&window.jnyGoTracking()" aria-label="vis reise underveis" style="display:none;width:100%;text-align:left;font-family:inherit;align-items:center;padding:.6rem .75rem;margin:.5rem 0;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:6px;cursor:pointer;gap:.5rem"></button>
   <div id="walk-summary" style="display:none"></div>
@@ -157,13 +158,6 @@
   <div id="set-fav-msg" role="status" style="display:none;margin-top:.4rem;font-size:11px;color:#f5b840;text-align:center"></div>
   <div id="set-error" role="alert" style="display:none;margin-top:.75rem;font-size:11px;color:#fca5a5"></div>
   <div class="set-section">
-    <div class="set-label">modus</div>
-    <div class="pref-group" id="pref-mode">
-      <button class="pref-btn" data-val="commute">Pendler</button>
-      <button class="pref-btn" data-val="weekend">Helg / ferie<span class="pref-sub">steder i nærheten</span></button>
-    </div>
-  </div>
-  <div class="set-section">
     <div class="set-label">tempo</div>
     <div class="pref-group" id="pref-speed">
       <button class="pref-btn" data-val="rolig">Rolig<span class="pref-sub">2.5 km/t</span></button>
@@ -190,6 +184,9 @@
   </div>
   <div id="fav-content"></div>
 </div>
+
+<!-- ══ 7: FRITID ══ -->
+<div id="v-leisure" style="display:none"></div>
 
 <!-- ══ DEBUG (hidden) ══ -->
 <div class="debug-panel" id="debug-panel" style="display:none">

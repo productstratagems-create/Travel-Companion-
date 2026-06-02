@@ -110,40 +110,55 @@ export function findNearestStation(lat, lon, onFound, onFail) {
     .catch(err => { if (onFail) onFail(err.message); });
 }
 
+// ── GPS: watchPosition with high-accuracy + EMA smoothing ────────────────────
+
+const EMA_α   = 0.3;  // weight for incoming reading (0 = frozen, 1 = raw)
+const ACC_GATE = 40;  // metres — skip updates noisier than this once we have a fix
+
+let _watchId = null;
+
+function _ema(prev, next) {
+  if (!prev) return { lat: next.lat, lon: next.lon };
+  return {
+    lat: EMA_α * next.lat + (1 - EMA_α) * prev.lat,
+    lon: EMA_α * next.lon + (1 - EMA_α) * prev.lon,
+  };
+}
+
 export function locateUser(onFound, onFail) {
   if (!navigator.geolocation) {
     logMsg('geolokasjon ikke tilgjengelig', 'err');
     if (onFail) onFail('geolokasjon ikke tilgjengelig');
     return;
   }
-  navigator.geolocation.getCurrentPosition(
+  if (_watchId !== null) return; // single watch for the session lifetime
+
+  _watchId = navigator.geolocation.watchPosition(
     pos => {
+      const { latitude, longitude, accuracy } = pos.coords;
       state.gpsError = null;
-      state.homeLL = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      logMsg('✓ posisjon ' + state.homeLL.lat.toFixed(4) + ',' + state.homeLL.lon.toFixed(4), 'ok');
-      updateWalkDbg();
-      findNearestStation(pos.coords.latitude, pos.coords.longitude, onFound, onFail);
+      const firstFix = !state.homeLL;
+      // Accept the first fix unconditionally; subsequent ones only if precise enough
+      if (firstFix || accuracy <= ACC_GATE) {
+        state.homeLL = _ema(state.homeLL, { lat: latitude, lon: longitude });
+        updateWalkDbg();
+      }
+      if (firstFix) {
+        logMsg('✓ posisjon ±' + Math.round(accuracy) + 'm', 'ok');
+        findNearestStation(latitude, longitude, onFound, onFail);
+      }
     },
     err => {
       if (err.code === 1) state.gpsError = 'denied';
       logMsg('posisjon: ' + err.message, 'err');
-      if (onFail) onFail(err.message);
+      if (!state.homeLL && onFail) onFail(err.message);
     },
-    { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
   );
 }
 
-export function refreshPosition() {
-  if (!navigator.geolocation || !state.homeLL) return;
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      state.homeLL = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      updateWalkDbg();
-    },
-    () => {},
-    { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 }
-  );
-}
+// watchPosition keeps homeLL current — no periodic poll needed
+export function refreshPosition() {}
 
 export function updateWalkDbg() {
   const el = document.getElementById('walk-dbg');
@@ -157,3 +172,4 @@ const _wfSaved = loadWalkFrom();
 if (_wfSaved && _wfSaved.lat && _wfSaved.lon) {
   state.walkFromLL = { lat: _wfSaved.lat, lon: _wfSaved.lon };
 }
+

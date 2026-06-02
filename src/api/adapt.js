@@ -31,6 +31,8 @@ export function adaptTripPattern(tp) {
         line: first.serviceJourney && first.serviceJourney.line,
         estimatedCalls: [],
       },
+      _toLat:            last.toPlace && last.toPlace.latitude,
+      _toLon:            last.toPlace && last.toPlace.longitude,
       _allLegs:          tp.legs,
       _legs:             legs,
       _isTransfer:       legs.length > 1 || lastAny.mode === 'foot',

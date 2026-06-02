@@ -345,6 +345,9 @@ function _onWalkInput() {
 function _resolveArrivalLL() {
   const dir = config.dirs[state.dIdx];
   if (dir._toLat && dir._toLon) return Promise.resolve({ lat: dir._toLat, lon: dir._toLon });
+  if (state.jny && state.jny._toLat && state.jny._toLon) {
+    return Promise.resolve({ lat: state.jny._toLat, lon: state.jny._toLon });
+  }
   if (dir.to) {
     return geocodePlace(dir.to)
       .then(r => r[0] ? { lat: r[0].lat, lon: r[0].lon } : (state.homeLL || null))
@@ -847,8 +850,11 @@ export function startTracking() {
     if (loadWeekendMode()) {
       _placesLL = ll;
       if (!_placesCat) _placesCat = timeCategory();
-      // Re-render panel to show correct active pill now that _placesCat is set
-      renderNextPanel();
+      // Update pill highlights in place — avoids destroying the already-initialized map
+      const activeCatIdx = PLACE_CATS.indexOf(_placesCat);
+      document.querySelectorAll('.hn-place-cat').forEach((b, i) => b.classList.toggle('active', i === activeCatIdx));
+      const lbl = document.getElementById('hn-places-label');
+      if (lbl) lbl.textContent = _placesCat.emoji + ' ' + _placesCat.label;
       fetchNearbyPlaces(ll.lat, ll.lon, _placesCat.amenities)
         .then(p => { _nearbyPlaces = p; _updatePlacesSection(); })
         .catch(() => {});

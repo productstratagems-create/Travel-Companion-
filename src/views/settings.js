@@ -15,6 +15,7 @@ const EXPLORE_CATS = [
   { label: 'spise',  emoji: '🍽', amenities: ['restaurant', 'fast_food'] },
   { label: 'kaffe',  emoji: '☕', amenities: ['cafe', 'bakery'] },
   { label: 'kultur', emoji: '🏛', amenities: ['museum', 'cinema', 'theatre', 'arts_centre', 'library'] },
+  { label: 'handel', emoji: '🛍', amenities: ['clothes', 'shoes', 'sports', 'books', 'electronics', 'mall'] },
   { label: 'drikke', emoji: '🍺', amenities: ['bar', 'pub'] },
 ];
 
@@ -140,15 +141,19 @@ function _fetchDestVenues() {
         res.innerHTML = '<div class="dest-prev-empty">Ingen ' + cat.label + 'steder funnet i nærheten.</div>';
         return;
       }
-      res.innerHTML = places.map(p =>
-        '<div class="dest-prev-row">'
-        + '<span class="dest-prev-emoji">' + p.emoji + '</span>'
-        + '<span class="dest-prev-name">' + p.name + '</span>'
-        + '<span class="dest-prev-dist">'
-        + (p.dist < 1000 ? p.dist + ' m' : (p.dist / 1000).toFixed(1) + ' km')
-        + '</span>'
-        + '</div>'
-      ).join('');
+      res.innerHTML = places.map(p => {
+        const distTxt = p.dist < 1000 ? p.dist + ' m' : (p.dist / 1000).toFixed(1) + ' km';
+        const hoursTxt = p.hours
+          ? '<span class="dest-prev-hours' + (p.hours.isOpen ? ' open' : ' closed') + '">'
+            + p.hours.label + '</span>'
+          : '';
+        return '<div class="dest-prev-row">'
+          + '<span class="dest-prev-emoji">' + p.emoji + '</span>'
+          + '<span class="dest-prev-name">' + p.name + '</span>'
+          + hoursTxt
+          + '<span class="dest-prev-dist">' + distTxt + '</span>'
+          + '</div>';
+      }).join('');
     })
     .catch(() => {
       res.innerHTML = '<div class="dest-prev-empty">Kunne ikke laste steder.</div>';

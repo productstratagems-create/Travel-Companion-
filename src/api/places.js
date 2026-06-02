@@ -17,8 +17,85 @@ const AMENITY_EMOJI = {
   museum: '🏛', theatre: '🎭', cinema: '🎬', arts_centre: '🎭', library: '📚',
 };
 
-export function placeEmoji(amenity) {
-  return AMENITY_EMOJI[amenity] || '📍';
+// Shop types — queried via shop=* instead of amenity=*
+const SHOP_TYPES = new Set(['clothes', 'shoes', 'sports', 'books', 'electronics', 'mall', 'department_store', 'gift', 'jewelry']);
+const SHOP_LABELS = {
+  clothes: 'klær', shoes: 'sko', sports: 'sport', books: 'bøker',
+  electronics: 'elektronikk', mall: 'kjøpesenter', department_store: 'stormagasin',
+  gift: 'gavebutikk', jewelry: 'smykker',
+};
+const SHOP_EMOJI = {
+  clothes: '👗', shoes: '👟', sports: '⛹️', books: '📖',
+  electronics: '📱', mall: '🏬', department_store: '🏬',
+  gift: '🎁', jewelry: '💍',
+};
+
+export function placeEmoji(type) {
+  return AMENITY_EMOJI[type] || SHOP_EMOJI[type] || '🛍';
+}
+
+// Minimal opening-hours parser — handles the most common OSM patterns
+// Returns { isOpen: bool, label: string } or null if unparseable
+function _timeToMins(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+const _DAY_IDX = { Mo: 1, Tu: 2, We: 3, Th: 4, Fr: 5, Sa: 6, Su: 0 };
+const _DAY_NAMES = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']; // Sun=0 → index 6
+
+function _dayInRange(daySpec, jsDay) {
+  // jsDay: 0=Sun..6=Sat
+  // daySpec: "Mo-Fr" or "Mo,We,Fr" or "Mo" etc.
+  const mapped = jsDay === 0 ? 6 : jsDay - 1; // convert to Mo=0..Su=6
+  const parts = daySpec.split(',');
+  for (const part of parts) {
+    const range = part.trim().split('-');
+    if (range.length === 2) {
+      const a = _DAY_NAMES.indexOf(range[0].trim());
+      const b = _DAY_NAMES.indexOf(range[1].trim());
+      if (a !== -1 && b !== -1 && mapped >= a && mapped <= b) return true;
+    } else {
+      const a = _DAY_NAMES.indexOf(range[0].trim());
+      if (a !== -1 && mapped === a) return true;
+    }
+  }
+  return false;
+}
+
+export function parseOpeningHours(spec, now = new Date()) {
+  if (!spec) return null;
+  const s = spec.trim();
+  if (s === '24/7') return { isOpen: true, label: 'åpent 24/7' };
+
+  const jsDay = now.getDay();
+  const hm = now.getHours() * 60 + now.getMinutes();
+
+  // Split into semicolon-separated rules
+  const rules = s.split(';').map(r => r.trim()).filter(Boolean);
+
+  for (const rule of rules) {
+    // Pattern: [day-spec ]HH:MM-HH:MM
+    const m = rule.match(/^((?:[A-Z][a-z][-,A-Za-z]*)\s+)?(\d{2}:\d{2})-(\d{2}:\d{2})$/);
+    if (!m) continue;
+    const [, dayPart, openStr, closeStr] = m;
+
+    // If no day spec, applies every day
+    if (dayPart && !_dayInRange(dayPart.trim(), jsDay)) continue;
+
+    const openMins  = _timeToMins(openStr);
+    const closeMins = _timeToMins(closeStr);
+
+    if (hm >= openMins && hm < closeMins) {
+      const minsLeft = closeMins - hm;
+      return { isOpen: true, label: minsLeft <= 60 ? 'stenger ' + closeStr : 'til ' + closeStr };
+    } else if (hm < openMins) {
+      return { isOpen: false, label: 'åpner ' + openStr };
+    } else {
+      return { isOpen: false, label: 'stengt' };
+    }
+  }
+  return null; // couldn't parse
 }
 
 // All browseable categories — used for toggle pills
@@ -45,7 +122,9 @@ export function fetchNearbyPlaces(lat, lon, amenities, limit = 6) {
   if (hit && Date.now() - hit.ts < CACHE_MS) return Promise.resolve(hit.data);
 
   const tagParts = amenities
-    .map(a => `node["amenity"="${a}"](around:600,${lat.toFixed(5)},${lon.toFixed(5)});`)
+    .map(a => SHOP_TYPES.has(a)
+      ? `node["shop"="${a}"](around:600,${lat.toFixed(5)},${lon.toFixed(5)});`
+      : `node["amenity"="${a}"](around:600,${lat.toFixed(5)},${lon.toFixed(5)});`)
     .join('');
   const query = `[out:json][timeout:8];(${tagParts});out ${limit * 4};`;
 
@@ -58,14 +137,19 @@ export function fetchNearbyPlaces(lat, lon, amenities, limit = 6) {
     .then(j => {
       const data = (j.elements || [])
         .filter(e => e.tags && e.tags.name)
-        .map(e => ({
-          name: e.tags.name,
-          amenity: e.tags.amenity,
-          type: AMENITY_LABELS[e.tags.amenity] || e.tags.amenity,
-          emoji: placeEmoji(e.tags.amenity),
-          lat: e.lat, lon: e.lon,
-          dist: Math.round(haver(lat, lon, e.lat, e.lon)),
-        }))
+        .map(e => {
+          const typeKey = e.tags.amenity || e.tags.shop;
+          const label = AMENITY_LABELS[typeKey] || SHOP_LABELS[typeKey] || typeKey;
+          return {
+            name: e.tags.name,
+            amenity: typeKey,
+            type: label,
+            emoji: placeEmoji(typeKey),
+            lat: e.lat, lon: e.lon,
+            dist: Math.round(haver(lat, lon, e.lat, e.lon)),
+            hours: parseOpeningHours(e.tags.opening_hours || null),
+          };
+        })
         .sort((a, b) => a.dist - b.dist)
         .slice(0, limit);
       _cache.set(key, { ts: Date.now(), data });

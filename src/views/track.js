@@ -3,6 +3,7 @@ import { state, intervals } from '../state.js';
 import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN } from '../geo.js';
 import { fetchTrack, geocodePlace } from '../api/entur.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
+import { fetchNearbyStops } from '../api/stops.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
@@ -10,6 +11,7 @@ import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchWalkRoute } from '../api/route.js';
+import { makeStopIcon } from '../ui/mapIcons.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -28,10 +30,11 @@ let _arrWalkMarker = null;
 let _arrRouteLine = null;
 let _arrLL = null; // cached for expand invalidation
 let _bikeLayer = null;
+let _nearbyLayer = null;
 let _arrUserMoved = false;
 
 function _destroyArrMap() {
-  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _bikeLayer = null; }
+  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _bikeLayer = null; _nearbyLayer = null; }
   _arrUserMoved = false;
 }
 
@@ -88,7 +91,30 @@ function _fitArrMap(arrLL) {
   (_byStations || []).forEach(s => pts.push([s.lat, s.lon]));
   if (_walkDestLL) pts.push([_walkDestLL.lat, _walkDestLL.lon]);
   if (pts.length === 1) { _arrMap.setView(pts[0], 15); return; }
-  _arrMap.fitBounds(pts, { padding: [24, 24] });
+  _arrMap.fitBounds(pts, { padding: [24, 24], maxZoom: 16 });
+}
+
+// Place nearby transit stop icons (bus/metro/tram) on the arrival map
+function _addNearbyStopMarkers(stops, arrLL) {
+  if (!_arrMap) return;
+  if (_nearbyLayer) { _nearbyLayer.clearLayers(); } else { _nearbyLayer = L.layerGroup().addTo(_arrMap); }
+  const used = new Set();
+  stops.forEach((s, i) => {
+    if (used.has(i)) return;
+    used.add(i);
+    const cluster = [s];
+    stops.forEach((t, j) => {
+      if (used.has(j) || t.mode !== s.mode) return;
+      if (haver(s.lat, s.lon, t.lat, t.lon) < 80) { cluster.push(t); used.add(j); }
+    });
+    const lat = cluster.reduce((a, c) => a + c.lat, 0) / cluster.length;
+    const lon = cluster.reduce((a, c) => a + c.lon, 0) / cluster.length;
+    const name = cluster.slice().sort((a, b) => a.name.length - b.name.length)[0].name;
+    L.marker([lat, lon], { icon: makeStopIcon(s.mode, cluster.length) })
+      .bindTooltip(name, { permanent: true, direction: 'top', offset: [0, -15], className: 'map-label' })
+      .addTo(_nearbyLayer);
+  });
+  if (arrLL) _fitArrMap(arrLL);
 }
 
 function _updateArrMapWalkPin(arrLL) {
@@ -562,13 +588,22 @@ export function renderTrack() {
       _resolveArrivalLL().then(ll => {
         if (!ll) { _byStations = []; _updateBikeSection(); return; }
         _initArrMap(ll);
-        fetchBysykkel(ll.lat, ll.lon)
-          .then(st => {
-            _byStations = st;
+        Promise.allSettled([
+          fetchBysykkel(ll.lat, ll.lon),
+          fetchNearbyStops(ll.lat, ll.lon),
+        ]).then(([rBike, rStops]) => {
+          if (rBike.status === 'fulfilled') {
+            _byStations = rBike.value;
             _updateBikeSection();
             _addBikeMarkers(ll);
-          })
-          .catch(() => { _byStations = []; _updateBikeSection(); });
+          } else {
+            _byStations = [];
+            _updateBikeSection();
+          }
+          if (rStops.status === 'fulfilled' && rStops.value.length) {
+            _addNearbyStopMarkers(rStops.value, ll);
+          }
+        });
       });
     }
   } else {

@@ -87,6 +87,10 @@
   display:flex;align-items:center;gap:.45rem;
 }
 
+/* ── Weather section in «Hva nå?» ── */
+.hn-weather-main{font-size:13px;color:#f5b840;margin-bottom:.25rem;line-height:1.5}
+.hn-weather-adv{font-size:11px;color:#8a837d;letter-spacing:.04em}
+
 /* ── "Hva nå?" onward-journey panel ── */
 .hn-panel{margin-top:1.5rem;padding-top:1rem;border-top:1px solid rgba(245,184,64,.1)}
 .hn-title{font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:#f5b840;letter-spacing:.06em;margin-bottom:.75rem;line-height:1}

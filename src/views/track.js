@@ -5,6 +5,7 @@ import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/e
 import { fetchNearbyStops } from '../api/stops.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters } from '../api/scooters.js';
+import { fetchWeather } from '../api/weather.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
@@ -30,6 +31,7 @@ let _arrBoard = null;
 let _arrBoardStopId = null;
 let _arrBoardInterval = null;
 
+let _arrWeather = null;
 let _arrMap = null;
 let _arrWalkMarker = null;
 let _arrRouteLine = null;
@@ -43,6 +45,7 @@ let _arrUserMoved = false;
 function _destroyArrMap() {
   if (_arrBoardInterval) { clearInterval(_arrBoardInterval); _arrBoardInterval = null; }
   _arrBoard = null; _arrBoardStopId = null;
+  _arrWeather = null;
   if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _nearbyLayer = null; _bikeLayer = null; _scooterLayer = null; _userMarker = null; }
   _arrUserMoved = false;
 }
@@ -342,6 +345,21 @@ function _resolveArrivalLL() {
   return Promise.resolve(state.homeLL || null);
 }
 
+function _weatherSectionHtml() {
+  if (!_arrWeather) return '<div class="hn-loading">laster vær…</div>';
+  const w = _arrWeather;
+  const main = (w.icon ? w.icon + ' ' : '') + w.temp + '°'
+    + (w.wind >= 12 ? ' · ' + w.wind + ' m/s vind' : '')
+    + (w.precip >= 0.3 ? ' · ' + w.precip.toFixed(1) + ' mm' : '');
+  return '<div class="hn-weather-main">' + main + '</div>'
+    + (w.advice ? '<div class="hn-weather-adv">' + w.advice + '</div>' : '');
+}
+
+function _updateWeatherSection() {
+  const el = document.getElementById('hn-weather-content');
+  if (el) el.innerHTML = _weatherSectionHtml();
+}
+
 function renderNextPanel() {
   const el = document.getElementById('t-next');
   if (!el) return;
@@ -359,6 +377,10 @@ function renderNextPanel() {
     '<div class="hn-panel">'
     + '<div class="hn-title">Hva nå?</div>'
     + '<div class="map-wrap"><div id="hn-map"></div><button class="map-expand-btn" id="hn-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
+    + '<div class="hn-section">'
+    + '<div class="hn-section-label">vær</div>'
+    + '<div id="hn-weather-content">' + _weatherSectionHtml() + '</div>'
+    + '</div>'
     + '<div class="hn-section">'
     + '<div class="hn-section-label">gangavstand</div>'
     + recentsHtml
@@ -736,6 +758,7 @@ export function startTracking() {
       .catch(() => {});
     _addScooterMarkers(ll);
     _addBikeMarkers(ll);
+    fetchWeather(ll.lat, ll.lon).then(w => { _arrWeather = w; _updateWeatherSection(); }).catch(() => {});
   });
 }
 

@@ -121,13 +121,17 @@ export function fetchNearbyPlaces(lat, lon, amenities, limit = 6, radius = 600) 
   const hit = _cache.get(key);
   if (hit && Date.now() - hit.ts < CACHE_MS) return Promise.resolve(hit.data);
 
-  // Shops (ways/relations for malls etc) need nwr + out center; amenities are nodes only
+  // Candidate pool scales with area (radius²) so we always get enough to sort by distance.
+  // Capped at 500 to keep Overpass queries reasonable; timeout raised for large areas.
+  const scale = (radius / 600) ** 2;
+  const outLimit = Math.min(Math.round(limit * 4 * scale), 500);
+  const timeout = radius > 1500 ? 20 : 10;
   const tagParts = amenities
     .map(a => SHOP_TYPES.has(a)
       ? `nwr["shop"="${a}"](around:${radius},${lat.toFixed(5)},${lon.toFixed(5)});`
       : `node["amenity"="${a}"](around:${radius},${lat.toFixed(5)},${lon.toFixed(5)});`)
     .join('');
-  const query = `[out:json][timeout:10];(${tagParts});out center ${limit * 4};`;
+  const query = `[out:json][timeout:${timeout}];(${tagParts});out center ${outLimit};`;
 
   return fetch(OVERPASS, {
     method: 'POST',

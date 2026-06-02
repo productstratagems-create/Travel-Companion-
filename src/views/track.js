@@ -579,36 +579,6 @@ export function renderTrack() {
   }
 
   document.getElementById('t-cards').innerHTML = cards;
-
-  const nextEl = document.getElementById('t-next');
-  if (phase === 'arrived') {
-    if (nextEl) nextEl.style.display = 'block';
-    renderNextPanel();
-    if (!_byStations) {
-      _resolveArrivalLL().then(ll => {
-        if (!ll) { _byStations = []; _updateBikeSection(); return; }
-        _initArrMap(ll);
-        Promise.allSettled([
-          fetchBysykkel(ll.lat, ll.lon),
-          fetchNearbyStops(ll.lat, ll.lon),
-        ]).then(([rBike, rStops]) => {
-          if (rBike.status === 'fulfilled') {
-            _byStations = rBike.value;
-            _updateBikeSection();
-            _addBikeMarkers(ll);
-          } else {
-            _byStations = [];
-            _updateBikeSection();
-          }
-          if (rStops.status === 'fulfilled' && rStops.value.length) {
-            _addNearbyStopMarkers(rStops.value, ll);
-          }
-        });
-      });
-    }
-  } else {
-    if (nextEl) nextEl.style.display = 'none';
-  }
 }
 
 export function buildTrackBar() {
@@ -634,6 +604,31 @@ export function startTracking() {
   _fetchTrack();
   intervals.track = setInterval(_fetchTrack, config.trackRefreshMs);
   if (intervals.board) { clearInterval(intervals.board); intervals.board = null; }
+
+  // Show "Hva nå?" panel immediately so the user can plan ahead during the journey
+  const nextEl = document.getElementById('t-next');
+  if (nextEl) nextEl.style.display = 'block';
+  renderNextPanel();
+  _resolveArrivalLL().then(ll => {
+    if (!ll) { _byStations = []; _updateBikeSection(); return; }
+    _initArrMap(ll);
+    Promise.allSettled([
+      fetchBysykkel(ll.lat, ll.lon),
+      fetchNearbyStops(ll.lat, ll.lon),
+    ]).then(([rBike, rStops]) => {
+      if (rBike.status === 'fulfilled') {
+        _byStations = rBike.value;
+        _updateBikeSection();
+        _addBikeMarkers(ll);
+      } else {
+        _byStations = [];
+        _updateBikeSection();
+      }
+      if (rStops.status === 'fulfilled' && rStops.value.length) {
+        _addNearbyStopMarkers(rStops.value, ll);
+      }
+    });
+  });
 }
 
 export function stopTracking() {

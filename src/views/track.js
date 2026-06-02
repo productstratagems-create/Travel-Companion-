@@ -2,9 +2,7 @@ import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, loadWeekendMode } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
-import { fetchNearbyStops } from '../api/stops.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
-import { fetchScooters } from '../api/scooters.js';
 import { fetchWeather } from '../api/weather.js';
 import { fetchNearbyPlaces, timeCategory, PLACE_CATS, placeEmoji } from '../api/places.js';
 import { logMsg } from '../ui/log.js';
@@ -14,7 +12,6 @@ import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchWalkRoute } from '../api/route.js';
-import { makeStopIcon } from '../ui/mapIcons.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -40,9 +37,7 @@ let _arrMap = null;
 let _arrWalkMarker = null;
 let _arrRouteLine = null;
 let _arrLL = null;
-let _nearbyLayer = null;
 let _bikeLayer = null;
-let _scooterLayer = null;
 let _placesLayer = null;
 let _userMarker = null;
 let _arrUserMoved = false;
@@ -54,7 +49,7 @@ function _destroyArrMap() {
   _nearbyPlaces = null;
   _placesCat = null;
   _placesLL = null;
-  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _nearbyLayer = null; _bikeLayer = null; _scooterLayer = null; _placesLayer = null; _userMarker = null; }
+  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _bikeLayer = null; _placesLayer = null; _userMarker = null; }
   _arrUserMoved = false;
 }
 
@@ -165,29 +160,6 @@ function _fitArrMap(arrLL) {
   _arrMap.fitBounds(pts, { padding: [24, 24], maxZoom: 16 });
 }
 
-// Place nearby transit stop icons (bus/metro/tram) on the arrival map
-function _addNearbyStopMarkers(stops, arrLL) {
-  if (!_arrMap) return;
-  if (_nearbyLayer) { _nearbyLayer.clearLayers(); } else { _nearbyLayer = L.layerGroup().addTo(_arrMap); }
-  const used = new Set();
-  stops.forEach((s, i) => {
-    if (used.has(i)) return;
-    used.add(i);
-    const cluster = [s];
-    stops.forEach((t, j) => {
-      if (used.has(j) || t.mode !== s.mode) return;
-      if (haver(s.lat, s.lon, t.lat, t.lon) < 80) { cluster.push(t); used.add(j); }
-    });
-    const lat = cluster.reduce((a, c) => a + c.lat, 0) / cluster.length;
-    const lon = cluster.reduce((a, c) => a + c.lon, 0) / cluster.length;
-    const name = cluster.slice().sort((a, b) => a.name.length - b.name.length)[0].name;
-    L.marker([lat, lon], { icon: makeStopIcon(s.mode, cluster.length) })
-      .bindTooltip(name, { permanent: true, direction: 'top', offset: [0, -15], className: 'map-label' })
-      .addTo(_nearbyLayer);
-  });
-  if (arrLL) _fitArrMap(arrLL);
-}
-
 function _addBikeMarkers(arrLL) {
   fetchBysykkel(arrLL.lat, arrLL.lon).then(stations => {
     if (!_arrMap || !stations.length) return;
@@ -202,36 +174,6 @@ function _addBikeMarkers(arrLL) {
       L.marker([s.lat, s.lon], { icon })
         .bindTooltip(s.name + ' · ' + count + ' sykler · ' + s.dist + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
         .addTo(_bikeLayer);
-    });
-  }).catch(() => {});
-}
-
-function _addScooterMarkers(arrLL) {
-  fetchScooters(arrLL.lat, arrLL.lon).then(vehicles => {
-    if (!_arrMap || !vehicles.length) return;
-    if (_scooterLayer) { _scooterLayer.clearLayers(); } else { _scooterLayer = L.layerGroup().addTo(_arrMap); }
-    const used = new Set();
-    vehicles.forEach((v, i) => {
-      if (used.has(i)) return;
-      used.add(i);
-      const cluster = [v];
-      vehicles.forEach((w, j) => {
-        if (used.has(j)) return;
-        if (haver(v.lat, v.lon, w.lat, w.lon) < 30) { cluster.push(w); used.add(j); }
-      });
-      const clat = cluster.reduce((a, c) => a + c.lat, 0) / cluster.length;
-      const clon = cluster.reduce((a, c) => a + c.lon, 0) / cluster.length;
-      const cnt = cluster.length;
-      const ops = [...new Set(cluster.map(c => c.operator))].join(', ');
-      const distM = Math.round(haver(arrLL.lat, arrLL.lon, clat, clon));
-      const icon = L.divIcon({
-        className: '',
-        html: '<div class="hn-map-scooter">' + cnt + '</div>',
-        iconAnchor: [14, 14],
-      });
-      L.marker([clat, clon], { icon })
-        .bindTooltip(ops + ' · ' + cnt + ' stk · ' + distM + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
-        .addTo(_scooterLayer);
     });
   }).catch(() => {});
 }
@@ -839,10 +781,6 @@ export function startTracking() {
   _resolveArrivalLL().then(ll => {
     if (!ll) return;
     _initArrMap(ll);
-    fetchNearbyStops(ll.lat, ll.lon)
-      .then(stops => { if (stops.length) _addNearbyStopMarkers(stops, ll); })
-      .catch(() => {});
-    _addScooterMarkers(ll);
     _addBikeMarkers(ll);
     fetchWeather(ll.lat, ll.lon)
       .then(w => { _arrWeather = w; _updateWeatherSection(); })

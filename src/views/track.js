@@ -779,7 +779,11 @@ export function startTracking() {
   _arrBoardInterval = setInterval(_fetchArrBoardData, 30000);
 
   _resolveArrivalLL().then(ll => {
-    if (!ll) return;
+    if (!ll) {
+      _arrWeather = { _err: true };
+      _updateWeatherSection();
+      return;
+    }
     _initArrMap(ll);
     _addBikeMarkers(ll);
     fetchWeather(ll.lat, ll.lon)

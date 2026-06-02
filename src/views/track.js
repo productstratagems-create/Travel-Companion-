@@ -1,8 +1,10 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN } from '../geo.js';
-import { fetchTrack, geocodePlace } from '../api/entur.js';
+import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { fetchNearbyStops } from '../api/stops.js';
+import { fetchBysykkel } from '../api/bysykkel.js';
+import { fetchScooters } from '../api/scooters.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
@@ -22,18 +24,83 @@ let _walkTimer  = null;
 let _walkAbort  = null;
 
 const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const RECENT_KEY = 't.recentDests';
+
+let _arrBoard = null;
+let _arrBoardStopId = null;
+let _arrBoardInterval = null;
 
 let _arrMap = null;
 let _arrWalkMarker = null;
 let _arrRouteLine = null;
 let _arrLL = null;
 let _nearbyLayer = null;
+let _bikeLayer = null;
+let _scooterLayer = null;
 let _userMarker = null;
 let _arrUserMoved = false;
 
 function _destroyArrMap() {
-  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _nearbyLayer = null; _userMarker = null; }
+  if (_arrBoardInterval) { clearInterval(_arrBoardInterval); _arrBoardInterval = null; }
+  _arrBoard = null; _arrBoardStopId = null;
+  if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _nearbyLayer = null; _bikeLayer = null; _scooterLayer = null; _userMarker = null; }
   _arrUserMoved = false;
+}
+
+function loadRecentDests() {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
+}
+
+function saveRecentDest(dest) {
+  const list = loadRecentDests().filter(d => d.label !== dest.label);
+  list.unshift(dest);
+  if (list.length > 5) list.pop();
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch {}
+}
+
+function _fetchArrBoardData() {
+  if (!_arrBoardStopId) return;
+  fetchArrBoard(_arrBoardStopId).then(deps => {
+    _arrBoard = deps;
+    _updateArrBoardSection();
+  }).catch(() => {});
+}
+
+function _renderArrBoardHtml() {
+  if (!_arrBoard) return '<div class="hn-loading">laster avganger…</div>';
+  if (!_arrBoard.length) return '<div class="hn-loading">ingen avganger</div>';
+  const now = Date.now();
+  return _arrBoard.slice(0, 8).map(c => {
+    const mins = Math.floor((c.depTs - now) / 60000);
+    if (mins > 90) return '';
+    const lc = (c.ln && c.ln.publicCode) || '?';
+    const bg = (c.ln && c.ln.presentation && c.ln.presentation.colour) ? '#' + c.ln.presentation.colour : '#7c2d12';
+    const minsHtml = mins <= 0 ? 'NÅ' : mins + '<span>min</span>';
+    return '<div class="hn-arr-row">'
+      + '<div class="hn-arr-mins">' + minsHtml + '</div>'
+      + '<div class="hn-arr-mid">'
+      + '<span class="line-badge" style="background:' + bg + '">' + lc + '</span>'
+      + '<span class="hn-arr-dest">' + esc(c.dest) + '</span>'
+      + '</div>'
+      + (c.quay && c.quay !== '?' ? '<div class="hn-arr-spor">spor ' + c.quay + '</div>' : '<div></div>')
+      + '</div>';
+  }).join('');
+}
+
+function _updateArrBoardSection() {
+  const el = document.getElementById('hn-arr-board');
+  if (el) el.innerHTML = _renderArrBoardHtml();
+}
+
+function _addArrBoardSection(arrStation) {
+  if (document.getElementById('hn-arr-board')) return;
+  const nb = document.getElementById('t-new-btn');
+  if (!nb || !nb.parentNode) return;
+  const div = document.createElement('div');
+  div.className = 'hn-section';
+  div.innerHTML = '<div class="hn-section-label">avganger fra ' + esc(displayStn(arrStation)) + '</div>'
+    + '<div id="hn-arr-board">' + _renderArrBoardHtml() + '</div>';
+  nb.parentNode.insertBefore(div, nb);
 }
 
 function _updateUserMarker() {
@@ -108,6 +175,54 @@ function _addNearbyStopMarkers(stops, arrLL) {
       .addTo(_nearbyLayer);
   });
   if (arrLL) _fitArrMap(arrLL);
+}
+
+function _addBikeMarkers(arrLL) {
+  fetchBysykkel(arrLL.lat, arrLL.lon).then(stations => {
+    if (!_arrMap || !stations.length) return;
+    if (_bikeLayer) { _bikeLayer.clearLayers(); } else { _bikeLayer = L.layerGroup().addTo(_arrMap); }
+    stations.forEach(s => {
+      const count = s.bikes + (s.ebikes || 0);
+      const icon = L.divIcon({
+        className: '',
+        html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '') + '">' + count + '</div>',
+        iconAnchor: [14, 14],
+      });
+      L.marker([s.lat, s.lon], { icon })
+        .bindTooltip(s.name + ' · ' + count + ' sykler · ' + s.dist + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
+        .addTo(_bikeLayer);
+    });
+  }).catch(() => {});
+}
+
+function _addScooterMarkers(arrLL) {
+  fetchScooters(arrLL.lat, arrLL.lon).then(vehicles => {
+    if (!_arrMap || !vehicles.length) return;
+    if (_scooterLayer) { _scooterLayer.clearLayers(); } else { _scooterLayer = L.layerGroup().addTo(_arrMap); }
+    const used = new Set();
+    vehicles.forEach((v, i) => {
+      if (used.has(i)) return;
+      used.add(i);
+      const cluster = [v];
+      vehicles.forEach((w, j) => {
+        if (used.has(j)) return;
+        if (haver(v.lat, v.lon, w.lat, w.lon) < 30) { cluster.push(w); used.add(j); }
+      });
+      const clat = cluster.reduce((a, c) => a + c.lat, 0) / cluster.length;
+      const clon = cluster.reduce((a, c) => a + c.lon, 0) / cluster.length;
+      const cnt = cluster.length;
+      const ops = [...new Set(cluster.map(c => c.operator))].join(', ');
+      const distM = Math.round(haver(arrLL.lat, arrLL.lon, clat, clon));
+      const icon = L.divIcon({
+        className: '',
+        html: '<div class="hn-map-scooter">' + cnt + '</div>',
+        iconAnchor: [14, 14],
+      });
+      L.marker([clat, clon], { icon })
+        .bindTooltip(ops + ' · ' + cnt + ' stk · ' + distM + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
+        .addTo(_scooterLayer);
+    });
+  }).catch(() => {});
 }
 
 function _updateArrMapWalkPin(arrLL) {
@@ -200,6 +315,7 @@ function _onWalkInput() {
       results.slice(0, 5).forEach(r => {
         sugg.appendChild(makeSuggBtn(r.label, r.category || [], () => {
           _walkDestLL = { lat: r.lat, lon: r.lon, label: r.label };
+          saveRecentDest(_walkDestLL);
           const inp = document.getElementById('t-walk-dest');
           if (inp) inp.value = r.label;
           sugg.hidden = true;
@@ -232,12 +348,20 @@ function renderNextPanel() {
   const last = state.jny && state.jny.legs && state.jny.legs[state.jny.legs.length - 1];
   const arrStation = last ? last.toStation : '';
 
+  const recents = loadRecentDests();
+  const recentsHtml = recents.length
+    ? '<div class="hn-recent-chips">'
+      + recents.map(d => '<button class="hn-recent-chip" data-label="' + esc(d.label) + '">' + esc(d.label) + '</button>').join('')
+      + '</div>'
+    : '';
+
   el.innerHTML =
     '<div class="hn-panel">'
     + '<div class="hn-title">Hva nå?</div>'
     + '<div class="map-wrap"><div id="hn-map"></div><button class="map-expand-btn" id="hn-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
     + '<div class="hn-section">'
     + '<div class="hn-section-label">gangavstand</div>'
+    + recentsHtml
     + '<input class="hn-input" id="t-walk-dest" placeholder="hvor videre?" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
     + (_walkDestLL ? ' value="' + esc(_walkDestLL.label) + '"' : '') + '>'
     + '<div id="t-walk-sugg" class="stop-sugg" hidden></div>'
@@ -258,6 +382,19 @@ function renderNextPanel() {
       }, 150);
     });
   }
+  document.querySelectorAll('.hn-recent-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const d = loadRecentDests().find(r => r.label === btn.dataset.label);
+      if (!d) return;
+      _walkDestLL = d;
+      const inp2 = document.getElementById('t-walk-dest');
+      if (inp2) inp2.value = d.label;
+      const sugg2 = document.getElementById('t-walk-sugg');
+      if (sugg2) { sugg2.hidden = true; sugg2.innerHTML = ''; }
+      _applyWalkResult();
+    });
+  });
+
   const nb = document.getElementById('t-new-btn');
   if (nb) nb.addEventListener('click', () => {
     window._showSettings && window._showSettings();
@@ -577,12 +714,28 @@ export function startTracking() {
   const nextEl = document.getElementById('t-next');
   if (nextEl) nextEl.style.display = 'block';
   renderNextPanel();
+
+  // Resolve arrival stop ID and start the live departure board
+  const _dir = config.dirs[state.dIdx];
+  if (_dir.toStopId || _dir.toGeo) {
+    resolveToStop(_dir)
+      .then(id => {
+        _arrBoardStopId = id;
+        const _last = state.jny && state.jny.legs && state.jny.legs[state.jny.legs.length - 1];
+        _addArrBoardSection(_last ? _last.toStation : '');
+        _fetchArrBoardData();
+      }).catch(() => {});
+  }
+  _arrBoardInterval = setInterval(_fetchArrBoardData, 30000);
+
   _resolveArrivalLL().then(ll => {
     if (!ll) return;
     _initArrMap(ll);
     fetchNearbyStops(ll.lat, ll.lon)
       .then(stops => { if (stops.length) _addNearbyStopMarkers(stops, ll); })
       .catch(() => {});
+    _addScooterMarkers(ll);
+    _addBikeMarkers(ll);
   });
 }
 

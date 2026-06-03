@@ -228,7 +228,7 @@ function _applyWalkResult() {
   if (!res) return;
   while (res.firstChild) res.removeChild(res.firstChild);
   if (!_walkDestLL) return;
-  const pos = state.homeLL || state.walkFromLL;
+  const pos = _arrLL || state.homeLL || state.walkFromLL;
   if (!pos) {
     const el = document.createElement('span');
     el.className = 'hn-walk-mins';

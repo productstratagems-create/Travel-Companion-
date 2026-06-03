@@ -228,27 +228,10 @@ function _drawWalkRoute(fromLL, toLL, destName) {
     _bFitted = true;
   }
 
-  const url = 'https://router.project-osrm.org/route/v1/foot/'
-    + fromLL.lon.toFixed(6) + ',' + fromLL.lat.toFixed(6) + ';'
-    + toLL.lon.toFixed(6) + ',' + toLL.lat.toFixed(6)
-    + '?geometries=geojson&overview=full';
-
-  fetch(url)
-    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(data => {
-      if (!_bLayer) return;
-      const coords = data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates;
-      if (!coords) return;
-      const latlngs = coords.map(c => [c[1], c[0]]);
-      L.polyline(latlngs, { color: '#f5b840', weight: 3, opacity: 0.85, dashArray: '7 6' }).addTo(_bLayer);
-      if (!_bUserMoved) _bMap.fitBounds(latlngs, { padding: [44, 44], maxZoom: 17 });
-    })
-    .catch(() => {
-      if (!_bLayer) return;
-      L.polyline([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], {
-        color: '#f5b840', weight: 3, opacity: 0.55, dashArray: '7 6',
-      }).addTo(_bLayer);
-    });
+  // Straight line shows approximate direction only (no external routing to avoid wrong paths)
+  L.polyline([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], {
+    color: '#f5b840', weight: 2, opacity: 0.45, dashArray: '6 7',
+  }).addTo(_bLayer);
 }
 
 function renderModeFilter() {

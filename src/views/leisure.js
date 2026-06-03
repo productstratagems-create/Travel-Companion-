@@ -1,3 +1,4 @@
+import L from 'leaflet';
 import { state } from '../state.js';
 import { fetchNearbyPlaces, timeCategory, PLACE_CATS } from '../api/places.js';
 import { fetchWeather } from '../api/weather.js';
@@ -9,6 +10,7 @@ import { show, updateHeader } from '../ui/nav.js';
 const HANDEL = { label: 'handel', emoji: '🛍', amenities: ['clothes','shoes','sports','books','electronics','mall','department_store','gift','jewelry'] };
 const LEISURE_CATS = [...PLACE_CATS, HANDEL];
 const RADII = [500, 1000, 2000, 5000];
+const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
 let _catIdx    = null;   // null = auto via timeCategory()
 let _venues    = null;
@@ -18,13 +20,21 @@ let _expanded  = null;   // expanded venue card index
 let _locOvr    = null;   // { lat, lon, label } — user-set position override
 let _radius    = 1000;   // metres
 
+// Map state
+let _lMap         = null;
+let _venueMarkers = [];
+let _userMarker   = null;
+
 export function renderLeisure() {
   const el = document.getElementById('v-leisure');
   if (!el) return;
 
+  _destroyLeisureMap();
+
   const pos = _locOvr || state.homeLL;
   el.innerHTML = _buildHtml(pos);
   _attachListeners(el, pos);
+  _initLeisureMap(pos);
 
   if (pos && !_venues && !_loading) _loadVenues(_activeCat(), pos);
   if (pos && !_weather) {
@@ -56,7 +66,6 @@ function _buildHtml(pos) {
       + (_weather.advice ? ' · ' + _weather.advice : '') + '</div>'
     : '<div class="lei-weather" id="lei-weather"></div>';
 
-  // Location bar — always visible; search panel starts open when no position set
   const searchOpen = !pos;
   const locHtml = '<div class="lei-loc-bar">'
     + '<span class="lei-loc-dot">📍</span>'
@@ -102,19 +111,19 @@ function _buildHtml(pos) {
     + wHtml
     + locHtml
     + radiusHtml
+    + '<div class="lei-map-wrap"><div id="lei-map"></div></div>'
     + '<div class="lei-cats">' + pills + '</div>'
     + '<div id="lei-venues">' + venuesHtml + '</div>';
 }
 
 function _attachListeners(el, pos) {
-  // Mode toggle
   document.getElementById('lei-commute-btn').addEventListener('click', () => {
+    _destroyLeisureMap();
     saveWeekendMode(false);
     show('v-board');
     window._startBoard && window._startBoard();
   });
 
-  // Location bar — "endre" toggles the search panel
   document.getElementById('lei-loc-edit-btn').addEventListener('click', () => {
     const search = document.getElementById('lei-loc-search');
     if (!search) return;
@@ -126,10 +135,8 @@ function _attachListeners(el, pos) {
     }
   });
 
-  // Location input + suggestions
   _attachLocInput(el);
 
-  // Radius pills
   el.querySelectorAll('.lei-radius-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const r = Number(btn.dataset.r);
@@ -144,7 +151,6 @@ function _attachListeners(el, pos) {
     });
   });
 
-  // Category pills
   el.querySelectorAll('.lei-cat-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const idx = Number(btn.dataset.idx);
@@ -156,6 +162,7 @@ function _attachListeners(el, pos) {
         b.classList.toggle('active', Number(b.dataset.idx) === idx));
       const venEl = document.getElementById('lei-venues');
       if (venEl) venEl.innerHTML = '<div class="lei-loading">laster steder…</div>';
+      _clearVenueMarkers();
       const p = _locOvr || state.homeLL;
       if (p) _loadVenues(LEISURE_CATS[idx], p);
     });
@@ -215,8 +222,13 @@ function _attachVenueListeners(el) {
       if (e.target.closest('.lei-reis-btn')) return;
       const idx = Number(card.dataset.idx);
       _expanded = (_expanded === idx) ? null : idx;
-      venEl.innerHTML = _venues.map((v, i) => _cardHtml(v, i)).join('');
-      _attachVenueListeners(el);
+      _reRenderVenues(el);
+      const pos = _locOvr || state.homeLL;
+      _updateLeisureMarkers(pos);
+      if (_expanded !== null && _lMap && _venues && _venues[_expanded]) {
+        const v = _venues[_expanded];
+        _lMap.panTo([v.lat, v.lon]);
+      }
     });
   });
 
@@ -227,6 +239,16 @@ function _attachVenueListeners(el) {
       if (v) _reisDit(v);
     });
   });
+}
+
+function _reRenderVenues(el) {
+  const venEl = document.getElementById('lei-venues');
+  if (!venEl || !_venues) return;
+  venEl.innerHTML = _venues.length
+    ? _venues.map((v, i) => _cardHtml(v, i)).join('')
+    : '<div class="lei-loading">Ingen steder funnet i nærheten.</div>';
+  const root = el || document.getElementById('v-leisure');
+  if (root) _attachVenueListeners(root);
 }
 
 function _cardHtml(v, i) {
@@ -241,7 +263,8 @@ function _cardHtml(v, i) {
       + '<button class="lei-reis-btn" data-idx="' + i + '">Reis dit →</button>'
       + '</div>'
     : '';
-  return '<div class="lei-venue-card" data-idx="' + i + '">'
+  const isActive = _expanded === i;
+  return '<div class="lei-venue-card' + (isActive ? ' active' : '') + '" data-idx="' + i + '">'
     + '<div class="lei-venue-row">'
     + '<span class="lei-venue-emoji">' + v.emoji + '</span>'
     + '<span class="lei-venue-name">' + v.name + '</span>'
@@ -272,6 +295,7 @@ function _reisDit(venue) {
   };
   state.dIdx = 2;
   updateHeader();
+  _destroyLeisureMap();
   saveWeekendMode(false);
   show('v-board');
   window._startBoard && window._startBoard();
@@ -300,12 +324,104 @@ function _loadVenues(cat, pos) {
         ? places.map((v, i) => _cardHtml(v, i)).join('')
         : '<div class="lei-loading">Ingen steder funnet i nærheten.</div>';
       _attachVenueListeners(el);
+      _updateLeisureMarkers(pos);
     })
     .catch(() => {
       _loading = false;
       const vEl = document.getElementById('lei-venues');
       if (vEl) vEl.innerHTML = '<div class="lei-loading">Kunne ikke laste steder.</div>';
     });
+}
+
+// ── Map helpers ──────────────────────────────────────────────────────────────
+
+function _initLeisureMap(pos) {
+  const el = document.getElementById('lei-map');
+  if (!el) return;
+
+  _lMap = L.map(el, { zoomControl: false, attributionControl: false });
+  L.tileLayer(_TILE, { subdomains: 'abcd' }).addTo(_lMap);
+
+  if (pos) {
+    _lMap.setView([pos.lat, pos.lon], 15);
+    _userMarker = L.circleMarker([pos.lat, pos.lon], {
+      radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2,
+    }).addTo(_lMap);
+  }
+
+  if (_venues && _venues.length) _updateLeisureMarkers(pos);
+}
+
+function _clearVenueMarkers() {
+  _venueMarkers.forEach(m => { try { m.remove(); } catch (_) {} });
+  _venueMarkers = [];
+}
+
+function _updateLeisureMarkers(pos) {
+  if (!_lMap) return;
+  _clearVenueMarkers();
+
+  if (pos) {
+    if (_userMarker) {
+      _userMarker.setLatLng([pos.lat, pos.lon]);
+    } else {
+      _userMarker = L.circleMarker([pos.lat, pos.lon], {
+        radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2,
+      }).addTo(_lMap);
+    }
+  }
+
+  if (!_venues || !_venues.length) return;
+
+  const bounds = pos ? [[pos.lat, pos.lon]] : [];
+
+  _venues.forEach((v, i) => {
+    const isExpanded = _expanded === i;
+    const isOpen = v.hours ? v.hours.isOpen : null;
+    const color = isOpen === false ? '#9ca3af' : '#f5b840';
+    const marker = L.circleMarker([v.lat, v.lon], {
+      radius: isExpanded ? 10 : 7,
+      color,
+      fillColor: color,
+      fillOpacity: isExpanded ? 1 : 0.7,
+      weight: isExpanded ? 3 : 2,
+    }).addTo(_lMap);
+
+    marker.bindTooltip(v.name, {
+      permanent: false,
+      direction: 'top',
+      className: 'lei-map-tip',
+    });
+
+    marker.on('click', () => {
+      _expanded = (_expanded === i) ? null : i;
+      const root = document.getElementById('v-leisure');
+      _reRenderVenues(root);
+      _updateLeisureMarkers(pos);
+      if (_expanded !== null) {
+        // Scroll the expanded card into view
+        setTimeout(() => {
+          const card = document.querySelector('#lei-venues [data-idx="' + i + '"]');
+          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 50);
+      }
+    });
+
+    _venueMarkers.push(marker);
+    bounds.push([v.lat, v.lon]);
+  });
+
+  if (bounds.length > 1) {
+    _lMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 });
+  } else if (pos) {
+    _lMap.setView([pos.lat, pos.lon], 15);
+  }
+}
+
+function _destroyLeisureMap() {
+  _clearVenueMarkers();
+  _userMarker = null;
+  if (_lMap) { _lMap.remove(); _lMap = null; }
 }
 
 window._renderLeisure = renderLeisure;

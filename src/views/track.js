@@ -759,6 +759,9 @@ export function renderTrack() {
     for (let j = i + 1; j < legs.length; j++) {
       cards += buildLegCard(j, cardLabel(legs[j].mode, j === i + 1), false);
     }
+    if (state.jny._toLat && state.jny._toLon) {
+      cards += '<button class="t-explore-link" id="t-explore-btn">🌟 utforsk ' + state.jny.dest.toLowerCase() + ' →</button>';
+    }
   } else { // platform
     const nextIdx = cs.next;
     for (let j = nextIdx; j < legs.length; j++) {
@@ -767,6 +770,12 @@ export function renderTrack() {
   }
 
   document.getElementById('t-cards').innerHTML = cards;
+  const explBtn = document.getElementById('t-explore-btn');
+  if (explBtn) explBtn.addEventListener('click', () => {
+    window._exploreDestination && window._exploreDestination(
+      state.jny._toLat, state.jny._toLon, state.jny.dest
+    );
+  });
   const tw = document.getElementById('t-weather');
   if (tw) tw.innerHTML = _trackWeatherHtml();
   _updateUserMarker();

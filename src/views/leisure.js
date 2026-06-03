@@ -104,9 +104,10 @@ function _buildHtml(pos) {
     venuesHtml = '<div class="lei-loading">laster steder…</div>';
   }
 
+  const backLabel = state.jny ? '← reise' : '← pendler';
   return '<div class="lei-header">'
     + '<div class="lei-title">Utforsk</div>'
-    + '<button class="lei-mode-btn" id="lei-commute-btn">← pendler</button>'
+    + '<button class="lei-mode-btn" id="lei-commute-btn">' + backLabel + '</button>'
     + '</div>'
     + wHtml
     + locHtml
@@ -119,9 +120,13 @@ function _buildHtml(pos) {
 function _attachListeners(el, pos) {
   document.getElementById('lei-commute-btn').addEventListener('click', () => {
     _destroyLeisureMap();
-    saveWeekendMode(false);
-    show('v-board');
-    window._startBoard && window._startBoard();
+    if (state.jny) {
+      show('v-track');
+    } else {
+      saveWeekendMode(false);
+      show('v-board');
+      window._startBoard && window._startBoard();
+    }
   });
 
   document.getElementById('lei-loc-edit-btn').addEventListener('click', () => {
@@ -425,3 +430,13 @@ function _destroyLeisureMap() {
 }
 
 window._renderLeisure = renderLeisure;
+
+window._exploreDestination = function(lat, lon, label) {
+  _locOvr = { lat, lon, label: label || 'destinasjon' };
+  _venues = null;
+  _weather = null;
+  _expanded = null;
+  saveWeekendMode(true);
+  show('v-leisure');
+  renderLeisure();
+};

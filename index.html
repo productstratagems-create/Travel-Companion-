@@ -38,7 +38,6 @@
   <button id="fav-btn" class="fav-bar" type="button">★ favoritter</button>
   <button id="leisure-btn" class="fav-bar lei-board-btn" type="button">🌟 utforsk</button>
   <div id="board-error" role="alert" style="display:none;padding:.6rem;margin:.5rem 0;font-size:11px;color:#fca5a5;background:rgba(220,38,38,.08);border-radius:4px"></div>
-  <button id="onboard-chip" onclick="window.jnyGoTracking&&window.jnyGoTracking()" aria-label="vis reise underveis" style="display:none;width:100%;text-align:left;font-family:inherit;align-items:center;padding:.6rem .75rem;margin:.5rem 0;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:6px;cursor:pointer;gap:.5rem"></button>
   <div id="walk-summary" style="display:none"></div>
   <div id="mode-filter"></div>
   <div class="map-wrap">
@@ -217,6 +216,12 @@
     </div>
   </div>
 </div>
+
+<!-- ══ GLOBAL: Sticky journey chip — shown on all screens during active journey ══ -->
+<button id="onboard-chip"
+  onclick="window.jnyGoTracking&&window.jnyGoTracking()"
+  aria-label="Vis reise underveis"
+  class="onboard-chip-bar"></button>
 
 </main><!-- .wrap -->
 

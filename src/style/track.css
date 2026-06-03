@@ -111,6 +111,19 @@
   line-height:1;
 }
 
+/* ── Weather strip on main track screen ── */
+#t-weather{min-height:0}
+.t-weather-strip{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .45rem;
+  padding:.3rem 0 .5rem;
+  font-size:12px;
+  border-bottom:1px solid rgba(245,184,64,.07);
+  margin-bottom:.5rem;
+}
+.t-wx-now{color:#f5b840}
+.t-wx-arr{color:#8a837d}
+.t-wx-adv{display:block;width:100%;font-size:11px;color:#8a837d;letter-spacing:.03em;margin-top:.1rem}
+
 /* ── Weather section in «Hva nå?» ── */
 .hn-weather-main{font-size:13px;color:#f5b840;margin-bottom:.25rem;line-height:1.5}
 .hn-weather-adv{font-size:11px;color:#8a837d;letter-spacing:.04em}

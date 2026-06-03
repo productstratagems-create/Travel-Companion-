@@ -12,6 +12,8 @@ export function fetchWeather(lat, lon) {
     + '?latitude=' + lat.toFixed(4)
     + '&longitude=' + lon.toFixed(4)
     + '&current=temperature_2m,precipitation,wind_speed_10m,weather_code'
+    + '&hourly=temperature_2m,precipitation,weather_code,wind_speed_10m'
+    + '&forecast_hours=12'
     + '&wind_speed_unit=ms&timezone=auto';
 
   return fetch(url)
@@ -23,10 +25,33 @@ export function fetchWeather(lat, lon) {
       const wind   = Math.round(c.wind_speed_10m);
       const precip = c.precipitation || 0;
       const code   = c.weather_code || 0;
-      const data   = { temp, wind, precip, code, icon: weatherIcon(code), advice: weatherAdvice(temp, precip, wind) };
+
+      // Parse hourly forecast
+      const h = j.hourly || {};
+      const times = h.time || [];
+      const forecast = times.map((t, i) => {
+        const fc = Math.round((h.temperature_2m || [])[i] ?? temp);
+        const fp = (h.precipitation || [])[i] ?? 0;
+        const fcode = (h.weather_code || [])[i] ?? code;
+        const fw = Math.round((h.wind_speed_10m || [])[i] ?? wind);
+        return { isoTime: t, temp: fc, precip: fp, code: fcode, wind: fw, icon: weatherIcon(fcode) };
+      });
+
+      const data = { temp, wind, precip, code, icon: weatherIcon(code), advice: weatherAdvice(temp, precip, wind), forecast };
       _cache.set(key, { ts: Date.now(), data });
       return data;
     });
+}
+
+// Returns the forecast entry closest in time to isoTime
+export function forecastAt(forecast, isoTime) {
+  if (!forecast || !forecast.length || !isoTime) return null;
+  const target = new Date(isoTime).getTime();
+  return forecast.reduce((best, entry) => {
+    const d = Math.abs(new Date(entry.isoTime).getTime() - target);
+    const bd = Math.abs(new Date(best.isoTime).getTime() - target);
+    return d < bd ? entry : best;
+  });
 }
 
 export function weatherIcon(code) {

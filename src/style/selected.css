@@ -23,6 +23,19 @@
   padding:.3rem .1rem .15rem;
 }
 
+/* Weather strip */
+.sel-weather{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .45rem;
+  padding:.4rem .1rem .5rem;
+  font-size:12px;
+  border-bottom:1px solid rgba(245,184,64,.07);
+  margin-bottom:.75rem;
+}
+.sel-wx-now{color:#f5b840}
+.sel-wx-arr{color:#8a837d}
+.sel-wx-adv{display:block;width:100%;font-size:11px;color:#8a837d;letter-spacing:.03em;margin-top:.1rem}
+.sel-wx-loading{font-size:11px;color:#7485a0}
+
 /* Post-departure banner */
 .departed-banner{
   text-align:center;

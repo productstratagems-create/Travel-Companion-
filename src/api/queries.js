@@ -1,11 +1,16 @@
 export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
   const sits = 'situations{id summary{language value} severity validityPeriod{startTime endTime}}';
-  return '{ stopPlace(id:"' + fromId + '"){'
+  const fromIsCoord = fromId && typeof fromId === 'object';
+  const stopPlaceQuery = fromIsCoord ? '' : ('stopPlace(id:"' + fromId + '"){'
     + sits + ' '
     + 'estimatedCalls(numberOfDepartures:5,whiteListedModes:[metro]){'
-    + sits + ' serviceJourney{' + sits + '}}} '
+    + sits + ' serviceJourney{' + sits + '}}} ');
+  const fromField = fromIsCoord
+    ? 'from:{coordinates:{latitude:' + fromId.lat + ',longitude:' + fromId.lon + '}} '
+    : 'from:{place:"' + fromId + '"} ';
+  return '{ ' + stopPlaceQuery
     + 'trip('
-    + 'from:{place:"' + fromId + '"} '
+    + fromField
     + (toId && typeof toId === 'object'
       ? 'to:{coordinates:{latitude:' + toId.lat + ',longitude:' + toId.lon + '}} '
       : 'to:{place:"' + toId + '"} ')

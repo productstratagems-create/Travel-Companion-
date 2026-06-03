@@ -4,7 +4,7 @@ import { fetchWeather } from '../api/weather.js';
 import { saveWeekendMode } from '../geo.js';
 import { geocodePlace } from '../api/entur.js';
 import config from '../config.js';
-import { show } from '../ui/nav.js';
+import { show, updateHeader } from '../ui/nav.js';
 
 const HANDEL = { label: 'handel', emoji: '🛍', amenities: ['clothes','shoes','sports','books','electronics','mall','department_store','gift','jewelry'] };
 const LEISURE_CATS = [...PLACE_CATS, HANDEL];
@@ -254,22 +254,25 @@ function _cardHtml(v, i) {
 
 function _reisDit(venue) {
   const ns = state.nearestStation;
+  // Fall back to manual location or GPS coords when no nearest-station is resolved
+  const pos = _locOvr || state.homeLL;
   config.dirs[2] = {
     key: 'custom-out',
-    from: ns ? ns.name : '',
+    from: ns ? ns.name : (_locOvr ? _locOvr.label : 'Min posisjon'),
     to: venue.name,
     stopId: ns ? ns.id : null,
     toStopId: null,
     filter: null,
-    geo: (ns && ns.id) ? null : (ns ? ns.name : ''),
+    geo: (ns && ns.id) ? null : (ns ? ns.name : null),
     toGeo: null,
     line: null,
-    _fromLat: ns ? ns.lat : null,
-    _fromLon: ns ? ns.lon : null,
+    _fromLat: ns ? ns.lat : (pos ? pos.lat : null),
+    _fromLon: ns ? ns.lon : (pos ? pos.lon : null),
     _toLat: venue.lat,
     _toLon: venue.lon,
   };
   state.dIdx = 2;
+  updateHeader();
   saveWeekendMode(false);
   show('v-board');
   window._startBoard && window._startBoard();

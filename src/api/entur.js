@@ -11,7 +11,8 @@ const TRANSIT_CAT = ['metroStation', 'busStation', 'onstreetBus', 'tramStation',
 
 export function resolveStop(dir) {
   if (dir.stopId) return Promise.resolve(dir.stopId);
-  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522')
+  if (!dir.geo && dir._fromLat && dir._fromLon) return Promise.resolve({ lat: dir._fromLat, lon: dir._fromLon });
+  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo || '') + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522')
     .then(r => r.json())
     .then(json => {
       const ff = ((json && json.features) || [])
@@ -123,6 +124,7 @@ export function resolveToPlace(dir) {
 
 export function fetchTrip(dir, onSuccess, onError) {
   if (tripController) tripController.abort();
+  if (boardController) boardController.abort();
   tripController = new AbortController();
   const signal = tripController.signal;
 

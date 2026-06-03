@@ -43,6 +43,7 @@ function _destroyBoardMap() {
   if (_bMap) { _bMap.remove(); _bMap = null; _bLayer = null; }
   _bUserMoved = false;
   _bFitted = false;
+  _walkRouteKey = null;
 }
 
 function _makeBikeIcon(bikes, ebikes) {
@@ -110,6 +111,7 @@ function renderBoardMap(pos, modes) {
   const destName = dir.to || '';
   if (destName !== _bDestKey) {
     _bDestLL = null; _bDestKey = destName; _bFitted = false; _bUserMoved = false;
+    _walkRouteKey = null;
   }
   let p4;
   if (dir._toLat && dir._toLon) {
@@ -203,7 +205,53 @@ function renderBoardMap(pos, modes) {
   });
 }
 
-function renderModeFilter() {
+let _walkRouteKey = null;
+
+function _drawWalkRoute(fromLL, toLL, destName) {
+  if (!_bMap) return;
+  const key = fromLL.lat + ',' + fromLL.lon + '→' + toLL.lat + ',' + toLL.lon;
+  if (_walkRouteKey === key) return;
+  _walkRouteKey = key;
+
+  if (_bLayer) _bLayer.clearLayers();
+
+  L.circleMarker([fromLL.lat, fromLL.lon], {
+    radius: 8, color: '#f5b840', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2,
+  }).bindTooltip('Avreisested', { className: 'map-label' }).addTo(_bLayer);
+
+  L.marker([toLL.lat, toLL.lon], { icon: _makeDestIcon() })
+    .bindTooltip(destName, { permanent: true, direction: 'top', offset: [0, -32], className: 'map-label' })
+    .addTo(_bLayer);
+
+  if (!_bUserMoved) {
+    _bMap.fitBounds([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], { padding: [44, 44], maxZoom: 17 });
+    _bFitted = true;
+  }
+
+  const url = 'https://router.project-osrm.org/route/v1/foot/'
+    + fromLL.lon.toFixed(6) + ',' + fromLL.lat.toFixed(6) + ';'
+    + toLL.lon.toFixed(6) + ',' + toLL.lat.toFixed(6)
+    + '?geometries=geojson&overview=full';
+
+  fetch(url)
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(data => {
+      if (!_bLayer) return;
+      const coords = data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates;
+      if (!coords) return;
+      const latlngs = coords.map(c => [c[1], c[0]]);
+      L.polyline(latlngs, { color: '#f5b840', weight: 3, opacity: 0.85, dashArray: '7 6' }).addTo(_bLayer);
+      if (!_bUserMoved) _bMap.fitBounds(latlngs, { padding: [44, 44], maxZoom: 17 });
+    })
+    .catch(() => {
+      if (!_bLayer) return;
+      L.polyline([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], {
+        color: '#f5b840', weight: 3, opacity: 0.55, dashArray: '7 6',
+      }).addTo(_bLayer);
+    });
+}
+
+
   const el = document.getElementById('mode-filter');
   if (!el) return;
   const modes = loadModes();
@@ -269,7 +317,21 @@ export function renderBoard() {
   const modes = loadModes();
   const dir = config.dirs[state.dIdx];
   const pos = state.walkFromLL || state.homeLL || (state.statLL && state.statLL[dir.key]);
-  renderBoardMap(pos, modes);
+  const walkFrom = (state.statLL && state.statLL[dir.key]) || pos;
+
+  // Walk-only check before map render to avoid async race with transit map
+  const walkOnlyDist = (state.lastFetch !== null && !state.deps.length && dir._toLat && dir._toLon && walkFrom)
+    ? haver(walkFrom.lat, walkFrom.lon, dir._toLat, dir._toLon)
+    : null;
+  const isWalkOnly = walkOnlyDist !== null && walkOnlyDist <= 3000;
+
+  if (isWalkOnly) {
+    _drawWalkRoute(walkFrom, { lat: dir._toLat, lon: dir._toLon }, dir.to);
+  } else {
+    _walkRouteKey = null;
+    renderBoardMap(pos, modes);
+  }
+
   const activeModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
   const list = document.getElementById('dep-list');
   if (!activeModes.length) {
@@ -277,29 +339,20 @@ export function renderBoard() {
     return;
   }
   if (!state.deps.length) {
-    if (state.lastFetch !== null && dir._toLat && dir._toLon) {
-      // Use departure station as walk origin — that's where the user boards,
-      // and "no transit routes" typically means the destination is near the station.
-      // Fall back to GPS/walkFrom position only if station coords aren't known.
-      const walkFrom = (state.statLL && state.statLL[dir.key]) || pos;
-      if (walkFrom) {
-        const dist = haver(walkFrom.lat, walkFrom.lon, dir._toLat, dir._toLon);
-        if (dist <= 3000) {
-          const spd  = SPEED_MPN[loadWalkSpeed()] || SPEED_MPN.middels;
-          const mins = Math.max(1, Math.ceil(dist * 1.3 / spd)) + loadWalkBuffer();
-          const distLbl = dist < 1000 ? Math.round(dist) + ' m' : (dist / 1000).toFixed(1) + ' km';
-          list.innerHTML =
-            '<div class="walk-only-card">'
-            + '<div class="woc-mins">' + mins + '<span>min</span></div>'
-            + '<div class="woc-info">'
-            + '<span class="woc-label">til fots fra stasjonen</span>'
-            + '<span class="woc-dist">' + distLbl + ' · ' + dir.to + '</span>'
-            + '</div>'
-            + '<span class="woc-icon">🚶</span>'
-            + '</div>';
-          return;
-        }
-      }
+    if (isWalkOnly) {
+      const spd  = SPEED_MPN[loadWalkSpeed()] || SPEED_MPN.middels;
+      const mins = Math.max(1, Math.ceil(walkOnlyDist * 1.3 / spd)) + loadWalkBuffer();
+      const distLbl = walkOnlyDist < 1000 ? Math.round(walkOnlyDist) + ' m' : (walkOnlyDist / 1000).toFixed(1) + ' km';
+      list.innerHTML =
+        '<div class="walk-only-card">'
+        + '<div class="woc-mins">' + mins + '<span>min</span></div>'
+        + '<div class="woc-info">'
+        + '<span class="woc-label">til fots fra stasjonen</span>'
+        + '<span class="woc-dist">' + distLbl + ' · ' + dir.to + '</span>'
+        + '</div>'
+        + '<span class="woc-icon">🚶</span>'
+        + '</div>';
+      return;
     }
     const msg = state.lastFetch !== null ? 'ingen ruter funnet' : 'kobler til…';
     list.innerHTML = '<div class="state-msg">' + msg + '</div>';

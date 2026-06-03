@@ -7,7 +7,7 @@ import { geocodePlace } from '../api/entur.js';
 import config from '../config.js';
 import { show, updateHeader } from '../ui/nav.js';
 
-const HANDEL = { label: 'handel', emoji: '🛍', amenities: ['clothes','shoes','sports','books','electronics','mall','department_store','gift','jewelry'] };
+const HANDEL = { label: 'handel', emoji: '🛍', amenities: 'commercial.clothing,commercial.shoes,commercial.sport,commercial.books,commercial.electronics,commercial.shopping_mall,commercial.department_store,commercial.gift,commercial.jewelry' };
 const LEISURE_CATS = [...PLACE_CATS, HANDEL];
 const RADII = [500, 1000, 2000, 5000];
 const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';

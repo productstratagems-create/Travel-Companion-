@@ -3,6 +3,8 @@ export default {
     journeyPlanner: 'https://api.entur.io/journey-planner/v3/graphql',
     geocoder: 'https://api.entur.io/geocoder/v1/autocomplete',
     geocoderReverse: 'https://api.entur.io/geocoder/v1/reverse',
+    // Free Geoapify key — sign up at geoapify.com (no credit card, 3 000 req/day)
+    geoapifyKey: '',
   },
   line: '3',
   home: {

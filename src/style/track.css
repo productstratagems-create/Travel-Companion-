@@ -1,4 +1,13 @@
 /* ── SCREEN 3: TRACKING ── */
+.t-explore-link{
+  display:block;width:100%;margin-top:.9rem;padding:.55rem 0 0;
+  background:none;border:none;border-top:1px solid rgba(245,184,64,.07);
+  font-family:inherit;font-size:11px;letter-spacing:.08em;
+  color:rgba(245,184,64,.45);cursor:pointer;text-align:left;
+  -webkit-tap-highlight-color:transparent;
+}
+.t-explore-link:active{color:#f5b840}
+
 .track-center{text-align:center;padding:1.5rem 0 1rem}
 .track-num{
   font-family:"Bebas Neue",sans-serif;

@@ -3,7 +3,7 @@ import { state, intervals } from '../state.js';
 import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, loadWeekendMode } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
-import { fetchWeather } from '../api/weather.js';
+import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { fetchNearbyPlaces, timeCategory, PLACE_CATS, placeEmoji } from '../api/places.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
@@ -372,9 +372,42 @@ window._switchPlacesCat = (catIdx) => {
     .catch(() => {});
 };
 
+function _trackWeatherHtml() {
+  if (!_arrWeather || _arrWeather._err) return '';
+  const w = _arrWeather;
+  const nowParts = [w.icon + ' ' + w.temp + '°'];
+  if (w.wind >= 12) nowParts.push(w.wind + ' m/s');
+  if (w.precip >= 0.3) nowParts.push(w.precip.toFixed(1) + ' mm');
+  let html = '<span class="t-wx-now">' + nowParts.join(' · ') + '</span>';
+
+  const arr = state.jny && state.jny.arrival;
+  if (arr && w.forecast) {
+    const arrTs = new Date(arr.time).getTime();
+    if (arrTs > Date.now() + 15 * 60000) {
+      const fc = forecastAt(w.forecast, arr.time);
+      if (fc) {
+        const fcAdv = weatherAdvice(fc.temp, fc.precip, fc.wind);
+        const fcParts = [fc.icon + ' ' + fc.temp + '°'];
+        if (fc.wind >= 12) fcParts.push(fc.wind + ' m/s');
+        if (fc.precip >= 0.3) fcParts.push(fc.precip.toFixed(1) + ' mm');
+        html += '<span class="t-wx-arr"> → ank. ' + fcParts.join(' · ') + '</span>';
+        if (fcAdv && fcAdv !== w.advice) {
+          html += '<span class="t-wx-adv">' + fcAdv + '</span>';
+        }
+      }
+    }
+  }
+
+  if (w.advice) html += '<span class="t-wx-adv">' + w.advice + '</span>';
+
+  return '<div class="t-weather-strip">' + html + '</div>';
+}
+
 function _updateWeatherSection() {
   const el = document.getElementById('hn-weather-content');
   if (el) el.innerHTML = _weatherSectionHtml();
+  const tw = document.getElementById('t-weather');
+  if (tw) tw.innerHTML = _trackWeatherHtml();
 }
 
 function renderNextPanel() {
@@ -734,6 +767,8 @@ export function renderTrack() {
   }
 
   document.getElementById('t-cards').innerHTML = cards;
+  const tw = document.getElementById('t-weather');
+  if (tw) tw.innerHTML = _trackWeatherHtml();
   _updateUserMarker();
 }
 

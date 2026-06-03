@@ -2,6 +2,7 @@ import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
 import { fetchSelJourney } from '../api/entur.js';
+import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
@@ -13,6 +14,41 @@ import L from 'leaflet';
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 function cleanName(s) { return (s || '').replace(/,\s*\S.*$/, '').replace(/\s+T$/i, '').trim(); }
+
+let _selWeather = null;
+
+function _selWeatherHtml(arrT) {
+  if (!_selWeather) return '<span class="sel-wx-loading">laster vær…</span>';
+  if (_selWeather._err) return '';
+  const w = _selWeather;
+  const nowParts = [w.icon + ' ' + w.temp + '°'];
+  if (w.wind >= 12) nowParts.push(w.wind + ' m/s');
+  if (w.precip >= 0.3) nowParts.push(w.precip.toFixed(1) + ' mm');
+  let html = '<span class="sel-wx-now">' + nowParts.join(' · ') + '</span>';
+
+  if (arrT && w.forecast) {
+    const arrTs = new Date(arrT).getTime();
+    if (arrTs > Date.now() + 20 * 60000) {
+      const fc = forecastAt(w.forecast, arrT);
+      if (fc) {
+        const fcAdv = weatherAdvice(fc.temp, fc.precip, fc.wind);
+        const fcParts = [fc.icon + ' ' + fc.temp + '°'];
+        if (fc.wind >= 12) fcParts.push(fc.wind + ' m/s');
+        if (fc.precip >= 0.3) fcParts.push(fc.precip.toFixed(1) + ' mm');
+        html += '<span class="sel-wx-arr"> → ved ankomst ' + fcParts.join(' · ') + '</span>';
+        if (fcAdv && fcAdv !== w.advice) {
+          html += '<span class="sel-wx-adv">' + fcAdv + '</span>';
+        }
+      }
+    }
+  }
+
+  if (w.advice && (!arrT || new Date(arrT).getTime() < Date.now() + 20 * 60000)) {
+    html += '<span class="sel-wx-adv">' + w.advice + '</span>';
+  }
+
+  return html;
+}
 
 // ── Route map ────────────────────────────────────────────────
 const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
@@ -240,6 +276,18 @@ export function renderSelected() {
       + '</div>';
   }
 
+  // Fetch weather at user's position if not already available
+  const _wxPos = state.walkFromLL || state.homeLL;
+  if (!_selWeather && _wxPos) {
+    fetchWeather(_wxPos.lat, _wxPos.lon)
+      .then(w => {
+        _selWeather = w;
+        const el = document.getElementById('sel-weather-content');
+        if (el) el.innerHTML = _selWeatherHtml(arrT);
+      })
+      .catch(() => { _selWeather = { _err: true }; });
+  }
+
   document.getElementById('s-content').innerHTML = ''
     + '<div class="train-chip">'
     + chipBadges
@@ -247,6 +295,7 @@ export function renderSelected() {
     + (quay !== '?' ? '<span class="tc-meta">spor <span>' + quay + '</span>' + (delayed ? ' · <span style="color:#fcd34d">forsinket</span>' : '') + '</span>' : (delayed ? '<span class="tc-meta"><span style="color:#fcd34d">forsinket</span></span>' : ''))
     + '</div>'
     + '<div class="sel-route-ctx">' + dir.from.toLowerCase() + ' → ' + dir.to.toLowerCase() + '</div>'
+    + '<div class="sel-weather" id="sel-weather-content">' + _selWeatherHtml(arrT) + '</div>'
     + (departed
       ? '<div class="departed-banner">avgikk ' + clk(depTs) + ' · reisen er i gang</div>'
       : walkActive
@@ -384,6 +433,7 @@ export function startSelRefresh() {
 
 export function stopSelRefresh() {
   if (intervals.sel) { clearInterval(intervals.sel); intervals.sel = null; }
+  _selWeather = null;
 }
 
 function _fetchSel() {

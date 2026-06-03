@@ -116,7 +116,7 @@ export function timeCategory() {
   return PLACE_CATS[1]; // lunsj as default fallback
 }
 
-export function fetchNearbyPlaces(lat, lon, amenities, limit = 6, radius = 600) {
+export function fetchNearbyPlaces(lat, lon, amenities, limit = 8, radius = 600) {
   const key = lat.toFixed(3) + ',' + lon.toFixed(3) + ',' + amenities.join(',') + ',' + radius;
   const hit = _cache.get(key);
   if (hit && Date.now() - hit.ts < CACHE_MS) return Promise.resolve(hit.data);
@@ -124,12 +124,14 @@ export function fetchNearbyPlaces(lat, lon, amenities, limit = 6, radius = 600) 
   // Candidate pool scales with area (radius²) so we always get enough to sort by distance.
   // Capped at 500 to keep Overpass queries reasonable; timeout raised for large areas.
   const scale = (radius / 600) ** 2;
-  const outLimit = Math.min(Math.round(limit * 4 * scale), 500);
-  const timeout = radius > 1500 ? 20 : 10;
+  const outLimit = Math.min(Math.round(limit * 6 * scale), 500);
+  const timeout = radius > 1500 ? 25 : 15;
+  // Use nwr (nodes + ways + relations) for both amenity and shop tags so that
+  // venues mapped as building footprints (ways) are included, not just point nodes.
   const tagParts = amenities
     .map(a => SHOP_TYPES.has(a)
       ? `nwr["shop"="${a}"](around:${radius},${lat.toFixed(5)},${lon.toFixed(5)});`
-      : `node["amenity"="${a}"](around:${radius},${lat.toFixed(5)},${lon.toFixed(5)});`)
+      : `nwr["amenity"="${a}"](around:${radius},${lat.toFixed(5)},${lon.toFixed(5)});`)
     .join('');
   const query = `[out:json][timeout:${timeout}];(${tagParts});out center ${outLimit};`;
 
@@ -140,26 +142,30 @@ export function fetchNearbyPlaces(lat, lon, amenities, limit = 6, radius = 600) 
   })
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(j => {
-      const data = (j.elements || [])
+      const seen = new Map(); // name → existing entry (keep closest)
+      (j.elements || [])
         .filter(e => e.tags && e.tags.name)
-        .map(e => {
+        .forEach(e => {
           const typeKey = e.tags.amenity || e.tags.shop;
-          const label = AMENITY_LABELS[typeKey] || SHOP_LABELS[typeKey] || typeKey;
           // ways/relations return center coords; nodes have lat/lon directly
           const eLat = e.lat ?? (e.center && e.center.lat);
           const eLon = e.lon ?? (e.center && e.center.lon);
-          if (!eLat || !eLon) return null;
-          return {
-            name: e.tags.name,
-            amenity: typeKey,
-            type: label,
-            emoji: placeEmoji(typeKey),
-            lat: eLat, lon: eLon,
-            dist: Math.round(haver(lat, lon, eLat, eLon)),
-            hours: parseOpeningHours(e.tags.opening_hours || null),
-          };
-        })
-        .filter(Boolean)
+          if (!eLat || !eLon) return;
+          const dist = Math.round(haver(lat, lon, eLat, eLon));
+          const name = e.tags.name;
+          const existing = seen.get(name);
+          if (!existing || dist < existing.dist) {
+            seen.set(name, {
+              name,
+              amenity: typeKey,
+              type: AMENITY_LABELS[typeKey] || SHOP_LABELS[typeKey] || typeKey,
+              emoji: placeEmoji(typeKey),
+              lat: eLat, lon: eLon, dist,
+              hours: parseOpeningHours(e.tags.opening_hours || null),
+            });
+          }
+        });
+      const data = Array.from(seen.values())
         .sort((a, b) => a.dist - b.dist)
         .slice(0, limit);
       _cache.set(key, { ts: Date.now(), data });

@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer } from '../geo.js';
 import { fetchBoard, fetchTrip, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern } from '../api/adapt.js';
@@ -277,6 +277,24 @@ export function renderBoard() {
     return;
   }
   if (!state.deps.length) {
+    if (state.lastFetch !== null && dir._toLat && dir._toLon && pos) {
+      const dist = haver(pos.lat, pos.lon, dir._toLat, dir._toLon);
+      if (dist <= 3000) {
+        const spd  = SPEED_MPN[loadWalkSpeed()] || SPEED_MPN.middels;
+        const mins = Math.max(1, Math.ceil(dist * 1.3 / spd)) + loadWalkBuffer();
+        const distLbl = dist < 1000 ? Math.round(dist) + ' m' : (dist / 1000).toFixed(1) + ' km';
+        list.innerHTML =
+          '<div class="walk-only-card">'
+          + '<div class="woc-mins">' + mins + '<span>min</span></div>'
+          + '<div class="woc-info">'
+          + '<span class="woc-label">til fots</span>'
+          + '<span class="woc-dist">' + distLbl + ' · ' + dir.to + '</span>'
+          + '</div>'
+          + '<span class="woc-icon">🚶</span>'
+          + '</div>';
+        return;
+      }
+    }
     const msg = state.lastFetch !== null ? 'ingen ruter funnet' : 'kobler til…';
     list.innerHTML = '<div class="state-msg">' + msg + '</div>';
     return;

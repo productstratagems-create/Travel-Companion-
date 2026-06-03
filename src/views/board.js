@@ -207,6 +207,20 @@ function renderBoardMap(pos, modes) {
 
 let _walkRouteKey = null;
 
+// Google polyline decoder — OTP3 returns pointsOnLink.points in this format
+function _decodePoly(str) {
+  const out = []; let lat = 0, lng = 0, i = 0;
+  while (i < str.length) {
+    let b, s = 0, r = 0;
+    do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << s; s += 5; } while (b >= 0x20);
+    lat += (r & 1) ? ~(r >> 1) : (r >> 1); r = 0; s = 0;
+    do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << s; s += 5; } while (b >= 0x20);
+    lng += (r & 1) ? ~(r >> 1) : (r >> 1);
+    out.push([lat / 1e5, lng / 1e5]);
+  }
+  return out;
+}
+
 function _drawWalkRoute(fromLL, toLL, destName) {
   if (!_bMap) return;
   const key = fromLL.lat + ',' + fromLL.lon + '→' + toLL.lat + ',' + toLL.lon;
@@ -228,10 +242,32 @@ function _drawWalkRoute(fromLL, toLL, destName) {
     _bFitted = true;
   }
 
-  // Straight line shows approximate direction only (no external routing to avoid wrong paths)
-  L.polyline([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], {
-    color: '#f5b840', weight: 2, opacity: 0.45, dashArray: '6 7',
-  }).addTo(_bLayer);
+  // Foot route from Entur OTP3 — uses Norwegian OSM pedestrian data, same API already in use
+  const q = '{trip(from:{coordinates:{latitude:' + fromLL.lat + ',longitude:' + fromLL.lon + '}}' +
+    'to:{coordinates:{latitude:' + toLL.lat + ',longitude:' + toLL.lon + '}}' +
+    'modes:{directMode:foot}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}}';
+  fetch(config.api.journeyPlanner, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: q }),
+  })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(data => {
+      if (!_bLayer) return;
+      const pats = data.data && data.data.trip && data.data.trip.tripPatterns;
+      const pts = pats && pats[0] && pats[0].legs && pats[0].legs[0] &&
+                  pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
+      if (!pts) throw new Error('no points');
+      const latlngs = _decodePoly(pts);
+      L.polyline(latlngs, { color: '#f5b840', weight: 3, opacity: 0.85, dashArray: '7 6' }).addTo(_bLayer);
+      if (!_bUserMoved) _bMap.fitBounds(latlngs, { padding: [44, 44], maxZoom: 17 });
+    })
+    .catch(() => {
+      if (!_bLayer) return;
+      L.polyline([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], {
+        color: '#f5b840', weight: 2, opacity: 0.45, dashArray: '6 7',
+      }).addTo(_bLayer);
+    });
 }
 
 function renderModeFilter() {

@@ -251,7 +251,7 @@ function _drawWalkRoute(fromLL, toLL, destName) {
     });
 }
 
-
+function renderModeFilter() {
   const el = document.getElementById('mode-filter');
   if (!el) return;
   const modes = loadModes();

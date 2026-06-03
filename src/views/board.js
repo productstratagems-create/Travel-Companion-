@@ -277,7 +277,8 @@ export function renderBoard() {
     return;
   }
   if (!state.deps.length) {
-    list.innerHTML = '<div class="state-msg">' + (state.view === 'board' ? 'kobler til…' : 'ingen avganger') + '</div>';
+    const msg = state.lastFetch !== null ? 'ingen ruter funnet' : 'kobler til…';
+    list.innerHTML = '<div class="state-msg">' + msg + '</div>';
     return;
   }
   const now = Date.now();

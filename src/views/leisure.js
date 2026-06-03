@@ -254,16 +254,15 @@ function _cardHtml(v, i) {
 
 function _reisDit(venue) {
   const ns = state.nearestStation;
-  // Fall back to manual location or GPS coords when no nearest-station is resolved
   const pos = _locOvr || state.homeLL;
   config.dirs[2] = {
     key: 'custom-out',
     from: ns ? ns.name : (_locOvr ? _locOvr.label : 'Min posisjon'),
     to: venue.name,
-    stopId: ns ? ns.id : null,
+    stopId: null,
     toStopId: null,
     filter: null,
-    geo: (ns && ns.id) ? null : (ns ? ns.name : null),
+    geo: null,
     toGeo: null,
     line: null,
     _fromLat: ns ? ns.lat : (pos ? pos.lat : null),

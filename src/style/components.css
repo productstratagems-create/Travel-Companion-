@@ -1,4 +1,34 @@
 /* ── SHARED COMPONENTS ── */
+
+/* ── Global sticky journey chip ── */
+.onboard-chip-bar{
+  display: none;           /* shown via JS when jny active */
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 200;
+  align-items: center;
+  gap: .55rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding: .65rem 1rem;
+  padding-bottom: calc(.65rem + env(safe-area-inset-bottom, 0px));
+  background: rgba(10, 8, 6, .96);
+  border: none;
+  border-top: 1px solid rgba(251,191,36,.25);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.onboard-chip-bar:active { background: rgba(251,191,36,.08); }
+/* hidden when already on the tracking screen */
+.onboard-chip-bar.chip-on-track { display: none !important; }
+
+/* Add bottom clearance to the main wrap when chip is visible */
+body.jny-chip-visible .wrap { padding-bottom: 60px; }
+body.jny-chip-visible .wrap { padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
+
 .line-badge{
   display:inline-flex;align-items:center;justify-content:center;
   font-weight:700;font-size:11px;padding:0.15rem 0.45rem;

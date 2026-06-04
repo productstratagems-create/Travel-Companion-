@@ -4,6 +4,7 @@ import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
 import { fetchSelJourney } from '../api/entur.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
+import { addLegToPlan, isLegInPlan } from '../api/plan.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
@@ -356,6 +357,21 @@ export function renderSelected() {
       renderSelected();
     };
     ctaDiv.appendChild(starBtn);
+
+    const planBtn = document.createElement('button');
+    const alreadyInPlan = isLegInPlan(c.expectedDepartureTime);
+    planBtn.className = 'cta-btn secondary';
+    planBtn.textContent = alreadyInPlan ? '📋 i reiseplan' : '📋 legg til i reiseplan';
+    if (!alreadyInPlan) {
+      planBtn.onclick = () => {
+        addLegToPlan(c, dir);
+        renderSelected();
+      };
+    } else {
+      planBtn.style.opacity = '.6';
+      planBtn.disabled = true;
+    }
+    ctaDiv.appendChild(planBtn);
   }
 
   document.getElementById('v-selected').appendChild(ctaDiv);

@@ -5,7 +5,7 @@ import { saveWeekendMode } from '../geo.js';
 
 export function show(id) {
   if (id !== 'v-selected') window._destroySelMap && window._destroySelMap();
-  ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-favs', 'v-leisure'].forEach(v => {
+  ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-favs', 'v-leisure', 'v-plan'].forEach(v => {
     document.getElementById(v).style.display = (v === id ? 'block' : 'none');
   });
   state.view = id.replace('v-', '');
@@ -57,6 +57,16 @@ export function attachEventListeners() {
   document.getElementById('fav-btn').addEventListener('click', () => {
     show('v-favs');
     window._renderFavs && window._renderFavs();
+  });
+
+  document.getElementById('plan-btn').addEventListener('click', () => {
+    show('v-plan');
+    window._renderPlan && window._renderPlan();
+  });
+
+  document.getElementById('plan-back').addEventListener('click', () => {
+    show('v-board');
+    window._startBoard && window._startBoard();
   });
 
   document.getElementById('leisure-btn').addEventListener('click', () => {

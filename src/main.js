@@ -9,9 +9,11 @@ import './style/debug.css';
 import './style/settings.css';
 import './style/favs.css';
 import './style/leisure.css';
+import './style/plan.css';
 
 import { attachEventListeners, updateHeader, show } from './ui/nav.js';
 import './views/favs.js';
+import './views/plan.js';
 import { renderLeisure } from './views/leisure.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
 import { locateUser, updateWalkDbg, loadWeekendMode } from './geo.js';

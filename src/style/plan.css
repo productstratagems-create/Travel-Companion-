@@ -1,3 +1,62 @@
+/* ── Plan context strip (shown on v-board) ── */
+#plan-ctx {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .45rem .5rem .45rem .25rem;
+  margin-bottom: .2rem;
+  background: rgba(245,184,64,.04);
+  border: 1px solid rgba(245,184,64,.12);
+  border-radius: 6px;
+  font-size: 11px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.pctx-label {
+  color: #7485a0;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.pctx-badge {
+  flex-shrink: 0;
+}
+
+.pctx-dest {
+  flex: 1;
+  min-width: 0;
+  color: #f5b840;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pctx-arr {
+  color: #8a837d;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.pctx-done   { color: #4ade80; flex-shrink: 0; }
+.pctx-active { color: #f5b840; flex-shrink: 0; font-family: "Bebas Neue", sans-serif; font-size: 1rem; letter-spacing: .04em; }
+.pctx-future { color: #7485a0; flex-shrink: 0; }
+
+.pctx-close {
+  background: none;
+  border: none;
+  color: rgba(245,184,64,.2);
+  font-size: 15px;
+  padding: .1rem .3rem;
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.pctx-close:active { color: #fca5a5; }
+
+/* ── Plan screen ── */
 #v-plan { padding: 0 0 2rem; }
 
 .plan-journey-meta {

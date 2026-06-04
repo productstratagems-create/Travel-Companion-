@@ -5,6 +5,7 @@ import { fetchSelJourney } from '../api/entur.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 import { addLegToPlan, isLegInPlan } from '../api/plan.js';
+import { updatePlanCtx } from './plan.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
@@ -365,6 +366,7 @@ export function renderSelected() {
     if (!alreadyInPlan) {
       planBtn.onclick = () => {
         addLegToPlan(c, dir);
+        updatePlanCtx();
         renderSelected();
       };
     } else {

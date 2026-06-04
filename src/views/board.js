@@ -574,6 +574,7 @@ export function startBoard() {
   if (intervals.board) clearInterval(intervals.board);
   _fetchBoard();
   intervals.board = setInterval(_fetchBoard, config.boardRefreshMs);
+  window._updatePlanCtx && window._updatePlanCtx();
 }
 
 export function stopBoard() {

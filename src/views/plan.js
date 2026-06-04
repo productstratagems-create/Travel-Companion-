@@ -13,6 +13,49 @@ function fmtCountdown(ms) {
 
 let _planInterval = null;
 
+// ── Context strip (shown on v-board) ────────────────────────
+
+export function updatePlanCtx() {
+  const el = document.getElementById('plan-ctx');
+  if (!el) return;
+  const legs = loadPlan();
+  if (!legs.length) { el.style.display = 'none'; return; }
+
+  // Show the last leg as a reference for the next connection
+  const last = legs[legs.length - 1];
+  const now = Date.now();
+  const st = legStatus(last, now);
+  const arrTs = last.arrIso ? new Date(last.arrIso).getTime() : null;
+  const depTs = new Date(last.depIso).getTime();
+  const n = legs.length;
+
+  let statusLine = '';
+  if (st === 'done') {
+    statusLine = '<span class="pctx-done">ankom ' + (arrTs ? clk(arrTs) : '—') + '</span>';
+  } else if (st === 'active' && arrTs) {
+    const rem = arrTs - now;
+    statusLine = '<span class="pctx-active">'
+      + (rem > 0 ? fmtCountdown(rem) + ' igjen' : 'ankommer nå') + '</span>';
+  } else {
+    statusLine = '<span class="pctx-future">avgang ' + clk(depTs) + '</span>';
+  }
+
+  el.style.display = 'flex';
+  el.innerHTML =
+    '<span class="pctx-label">etappe ' + n + '</span>'
+    + '<span class="line-badge pctx-badge" style="background:#' + last.lineColour + '">' + last.line + '</span>'
+    + '<span class="pctx-dest">' + last.to.toLowerCase() + '</span>'
+    + (arrTs ? '<span class="pctx-arr">ank. ' + clk(arrTs) + '</span>' : '')
+    + statusLine
+    + '<button class="pctx-close" aria-label="Lukk kontekst">×</button>';
+
+  el.querySelector('.pctx-close').addEventListener('click', () => {
+    el.style.display = 'none';
+  });
+}
+
+// ── Plan screen ────────────────────────
+
 export function renderPlan() {
   const el = document.getElementById('plan-content');
   if (!el) return;
@@ -29,6 +72,7 @@ export function renderPlan() {
       + '«legg til i reiseplan» for å starte.'
       + '</div>';
     _stopPlanInterval();
+    updatePlanCtx();
     return;
   }
 
@@ -64,8 +108,7 @@ export function renderPlan() {
       }
     } else {
       const wait = depTs - now;
-      bottomHtml = '<div class="plan-leg-countdown">'
-        + 'om ' + fmtCountdown(wait) + '</div>';
+      bottomHtml = '<div class="plan-leg-countdown">om ' + fmtCountdown(wait) + '</div>';
     }
 
     timelineHtml +=
@@ -104,6 +147,7 @@ export function renderPlan() {
   const addBtn = document.getElementById('plan-add-leg-btn');
   if (addBtn) {
     addBtn.addEventListener('click', () => {
+      updatePlanCtx();
       show('v-board');
       window._startBoard && window._startBoard();
     });
@@ -113,6 +157,7 @@ export function renderPlan() {
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
       clearPlan();
+      updatePlanCtx();
       renderPlan();
     });
   }
@@ -123,10 +168,11 @@ export function renderPlan() {
 function _startPlanInterval() {
   if (_planInterval) return;
   _planInterval = setInterval(() => {
-    if (document.getElementById('v-plan') &&
-        document.getElementById('v-plan').style.display !== 'none') {
-      renderPlan();
-    }
+    const planView = document.getElementById('v-plan');
+    if (planView && planView.style.display !== 'none') renderPlan();
+    // Also refresh context strip on board if it is visible
+    const ctxEl = document.getElementById('plan-ctx');
+    if (ctxEl && ctxEl.style.display !== 'none') updatePlanCtx();
   }, 1000);
 }
 
@@ -136,7 +182,9 @@ function _stopPlanInterval() {
 
 window._planDelLeg = (id) => {
   removeLegFromPlan(id);
+  updatePlanCtx();
   renderPlan();
 };
 
 window._renderPlan = renderPlan;
+window._updatePlanCtx = updatePlanCtx;

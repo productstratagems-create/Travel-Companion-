@@ -440,9 +440,9 @@ function renderSelDeps() {
   el.querySelector('.s-next-dep').setAttribute('role', 'button');
   el.querySelector('.s-next-dep').setAttribute('tabindex', '0');
   el.querySelector('.s-next-dep').setAttribute('aria-label', a11y);
-  el.querySelector('.s-next-dep').addEventListener('click', () => window.tap(i));
+  el.querySelector('.s-next-dep').addEventListener('click', () => window.tap(c));
   el.querySelector('.s-next-dep').addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.tap(i); }
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.tap(c); }
   });
   document.getElementById('v-selected').appendChild(el);
 }

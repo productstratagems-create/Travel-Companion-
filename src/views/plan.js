@@ -2,6 +2,8 @@ import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus
 import { state } from '../state.js';
 import { show } from '../ui/nav.js';
 import config from '../config.js';
+import L from 'leaflet';
+import { geocodePlace } from '../api/entur.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -14,6 +16,108 @@ function fmtCountdown(ms) {
 }
 
 let _planInterval = null;
+
+// ── Plan map ────────────────────────
+const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+
+let _planMap = null;
+let _planMapKey = '';
+let _planMapLayer = null;
+let _planMapExpanded = false;
+
+function _destroyPlanMap() {
+  if (_planMap) { _planMap.remove(); _planMap = null; }
+  _planMapKey = '';
+  _planMapLayer = null;
+  _planMapExpanded = false;
+}
+
+async function _renderPlanMap(legs) {
+  const wrap = document.getElementById('plan-map-wrap');
+  if (!legs.length) {
+    if (wrap) wrap.style.display = 'none';
+    _destroyPlanMap();
+    return;
+  }
+
+  const key = legs.map(l => l.id).join(',');
+  if (key === _planMapKey) return;
+  _planMapKey = key;
+
+  if (wrap) wrap.style.display = 'block';
+
+  // Geocode unique station names
+  const names = [legs[0].from, ...legs.map(l => l.to)];
+  const unique = [...new Set(names)];
+  const coords = {};
+  await Promise.all(unique.map(async name => {
+    try {
+      const r = await geocodePlace(name);
+      if (r[0]) coords[name] = { lat: r[0].lat, lon: r[0].lon };
+    } catch {}
+  }));
+
+  const el = document.getElementById('plan-map');
+  if (!el) return;
+
+  if (!_planMap) {
+    _planMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+    L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_planMap);
+    L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_planMap);
+
+    const expandBtn = document.getElementById('plan-map-expand');
+    if (expandBtn) {
+      expandBtn.onclick = () => {
+        _planMapExpanded = !_planMapExpanded;
+        el.classList.toggle('expanded', _planMapExpanded);
+        expandBtn.textContent = _planMapExpanded ? '✕' : '⤢';
+        expandBtn.setAttribute('aria-label', _planMapExpanded ? 'Minimer kart' : 'Utvid kart');
+        setTimeout(() => _planMap && _planMap.invalidateSize(), 320);
+      };
+    }
+  }
+
+  if (_planMapLayer) { _planMapLayer.clearLayers(); }
+  else { _planMapLayer = L.layerGroup().addTo(_planMap); }
+
+  const allPts = [];
+
+  legs.forEach((leg, i) => {
+    const fromC = coords[leg.from];
+    const toC = coords[leg.to];
+    if (fromC && toC) {
+      const color = '#' + (leg.lineColour || '7c2d12');
+      L.polyline([[fromC.lat, fromC.lon], [toC.lat, toC.lon]], {
+        color, weight: 4, opacity: 0.85,
+      }).addTo(_planMapLayer);
+      allPts.push([fromC.lat, fromC.lon], [toC.lat, toC.lon]);
+    }
+
+    if (i === 0 && fromC) {
+      L.circleMarker([fromC.lat, fromC.lon], {
+        radius: 7, color: '#fff', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2,
+      }).bindTooltip(leg.from.toLowerCase(), { className: 'map-label', direction: 'top' })
+        .addTo(_planMapLayer);
+    }
+
+    if (toC) {
+      const bg = '#' + (leg.lineColour || '7c2d12');
+      const badgeHtml = '<div style="text-align:center;transform:translate(-50%,-50%)">'
+        + '<span class="line-badge" style="background:' + bg + ';font-size:11px;padding:3px 7px">' + leg.line + '</span>'
+        + '</div>';
+      const icon = L.divIcon({ className: '', html: badgeHtml, iconSize: [0, 0], iconAnchor: [0, 0] });
+      L.marker([toC.lat, toC.lon], { icon })
+        .bindTooltip(leg.to.toLowerCase(), { className: 'map-label', direction: 'top' })
+        .addTo(_planMapLayer);
+    }
+  });
+
+  if (allPts.length > 1) {
+    _planMap.fitBounds(allPts, { padding: [32, 32], maxZoom: 15 });
+  } else if (allPts.length === 1) {
+    _planMap.setView(allPts[0], 14);
+  }
+}
 
 // ── Context strip (shown on v-board) ────────────────────────
 
@@ -80,8 +184,11 @@ export function renderPlan() {
       + '</div>';
     _stopPlanInterval();
     updatePlanCtx();
+    _renderPlanMap([]);
     return;
   }
+
+  _renderPlanMap(legs);
 
   const firstDep = new Date(legs[0].depIso).getTime();
   const lastArr = legs[legs.length - 1].arrIso
@@ -166,6 +273,7 @@ export function renderPlan() {
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
       clearPlan();
+      _destroyPlanMap();
       updatePlanCtx();
       renderPlan();
     });

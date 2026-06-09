@@ -64,6 +64,13 @@ export function attachEventListeners() {
     window._renderPlan && window._renderPlan();
   });
 
+  ['s-plan-btn', 'w-plan-btn', 't-plan-btn', 'set-plan-btn', 'fav-plan-btn'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      show('v-plan');
+      window._renderPlan && window._renderPlan();
+    });
+  });
+
   document.getElementById('plan-back').addEventListener('click', () => {
     show('v-board');
     window._startBoard && window._startBoard();

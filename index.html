@@ -57,6 +57,7 @@
   <div class="screen-header">
     <button class="nav-back" id="s-back">← avganger</button>
     <span class="screen-label" role="heading" aria-level="2">avgangsdetaljer</span>
+    <button class="nav-plan-btn" id="s-plan-btn" aria-label="Reiseplan">📋</button>
   </div>
   <div id="s-content"></div>
   <div class="map-wrap" id="sel-map-wrap" style="display:none">
@@ -70,6 +71,7 @@
   <div class="screen-header">
     <button class="nav-back" id="w-back">← avgang</button>
     <span class="screen-label" role="heading" aria-level="2">gangtid</span>
+    <button class="nav-plan-btn" id="w-plan-btn" aria-label="Reiseplan">📋</button>
   </div>
   <div class="train-bar" id="w-train-bar"></div>
   <div class="map-wrap">
@@ -87,6 +89,7 @@
   <div class="screen-header">
     <button class="nav-back" id="alight-btn">← avslutt</button>
     <span class="screen-label" role="heading" aria-level="2">underveis</span>
+    <button class="nav-plan-btn" id="t-plan-btn" aria-label="Reiseplan">📋</button>
   </div>
   <div class="train-bar" id="t-train-bar"></div>
   <div class="track-center">
@@ -105,6 +108,7 @@
   <div class="screen-header">
     <button class="nav-back" id="set-back">← tilbake</button>
     <span class="screen-label" role="heading" aria-level="2">velg rute</span>
+    <button class="nav-plan-btn" id="set-plan-btn" aria-label="Reiseplan">📋</button>
   </div>
   <div id="set-dep-wrap" class="set-section">
     <label class="set-label" for="set-dep">fra stasjon</label>
@@ -194,6 +198,7 @@
   <div class="screen-header">
     <button class="nav-back" id="fav-back">← avganger</button>
     <span class="screen-label" role="heading" aria-level="2">favoritter</span>
+    <button class="nav-plan-btn" id="fav-plan-btn" aria-label="Reiseplan">📋</button>
   </div>
   <div id="fav-content"></div>
 </div>
@@ -206,6 +211,10 @@
   <div class="screen-header">
     <button class="nav-back" id="plan-back">← avganger</button>
     <span class="screen-label" role="heading" aria-level="2">reiseplan</span>
+  </div>
+  <div class="map-wrap" id="plan-map-wrap" style="display:none">
+    <div id="plan-map"></div>
+    <button class="map-expand-btn" id="plan-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
   </div>
   <div id="plan-content"></div>
 </div>

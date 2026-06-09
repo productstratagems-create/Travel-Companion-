@@ -52,8 +52,9 @@ html[data-theme="light"] .state-msg { color: #78716c; }
 html[data-theme="light"] .cta-btn { background: #b05800; color: #fff; }
 html[data-theme="light"] .cta-btn:active { background: #92400e; }
 html[data-theme="light"] .cta-btn.secondary {
-  border-color: rgba(176,88,0,.25);
-  color: #78716c;
+  background: none;
+  border-color: rgba(176,88,0,.3);
+  color: #5c4a1e;
 }
 html[data-theme="light"] .cta-btn.secondary:active {
   background: rgba(176,88,0,.06);

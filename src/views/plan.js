@@ -1,6 +1,7 @@
 import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus } from '../api/plan.js';
 import { state } from '../state.js';
 import { show } from '../ui/nav.js';
+import config from '../config.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -118,9 +119,11 @@ export function renderPlan() {
     }
 
     timelineHtml +=
-      '<div class="plan-leg-card ' + st + '">'
+      '<div class="plan-leg-card ' + st + '" role="button" tabindex="0"'
+      + ' onclick="window._tapPlanLeg(\'' + leg.id + '\')"'
+      + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window._tapPlanLeg(\'' + leg.id + '\')}">'
       + '<div class="plan-leg-dot ' + st + '"></div>'
-      + '<button class="plan-leg-del" onclick="window._planDelLeg(\'' + leg.id + '\')" aria-label="Fjern etappe">×</button>'
+      + '<button class="plan-leg-del" onclick="event.stopPropagation();window._planDelLeg(\'' + leg.id + '\')" aria-label="Fjern etappe">×</button>'
       + '<div class="plan-leg-top">'
       + '<span class="line-badge" style="background:#' + leg.lineColour + '">' + leg.line + '</span>'
       + '<div class="plan-leg-route">'
@@ -190,6 +193,42 @@ window._planDelLeg = (id) => {
   removeLegFromPlan(id);
   updatePlanCtx();
   renderPlan();
+};
+
+window._tapPlanLeg = (id) => {
+  const leg = loadPlan().find(l => l.id === id);
+  if (!leg) return;
+
+  // Set direction context to match the plan leg's route
+  const dIdx = config.dirs.findIndex(d => d.from.toLowerCase() === leg.from.toLowerCase());
+  if (dIdx >= 0) state.dIdx = dIdx;
+
+  // If the departure is still in the live board data, use the full object
+  if (state.deps && state.deps.length) {
+    const live = state.deps.find(d => d.expectedDepartureTime === leg.depIso);
+    if (live) { window.tap(live); return; }
+  }
+
+  // Synthesise a departure object from the stored plan data
+  window.tap({
+    serviceJourney: {
+      id: leg.serviceJourneyId || null,
+      line: {
+        publicCode: leg.line,
+        presentation: { colour: leg.lineColour },
+        transportMode: 'metro',
+      },
+      estimatedCalls: [],
+    },
+    destinationDisplay: { frontText: leg.to },
+    quay: { publicCode: '?' },
+    expectedDepartureTime: leg.depIso,
+    aimedDepartureTime: leg.depIso,
+    realtime: false,
+    cancellation: false,
+    _finalArrival: leg.arrIso || null,
+    _isTransfer: false,
+  });
 };
 
 window._renderPlan = renderPlan;

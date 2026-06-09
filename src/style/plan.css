@@ -118,6 +118,12 @@
   border: 1px solid rgba(245,184,64,.08);
   border-radius: 6px;
   transition: border-color .15s, background .15s;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.plan-leg-card:active {
+  background: rgba(245,184,64,.07);
+  border-color: rgba(245,184,64,.22);
 }
 
 .plan-leg-card.active {

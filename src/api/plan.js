@@ -22,6 +22,7 @@ export function addLegToPlan(c, dir) {
   const lineColour = (ln && ln.presentation && ln.presentation.colour) || '7c2d12';
   const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to;
   const arrIso = c._finalArrival || null;
+  const serviceJourneyId = (c.serviceJourney && c.serviceJourney.id) || null;
   legs.push({
     id: 'leg_' + Date.now(),
     line, lineColour,
@@ -29,6 +30,7 @@ export function addLegToPlan(c, dir) {
     to: dest,
     depIso,
     arrIso,
+    serviceJourneyId,
     addedAt: Date.now(),
   });
   savePlan(legs);

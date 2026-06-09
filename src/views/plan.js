@@ -409,12 +409,18 @@ window._tapPlanLeg = (id) => {
   const leg = loadPlan().find(l => l.id === id);
   if (!leg) return;
 
+  // Capture the FROM station that state.deps was fetched for BEFORE updating dIdx.
+  // After the update, state.deps is stale for the new direction.
+  const prevDepsFrom = (config.dirs[state.dIdx] && config.dirs[state.dIdx].from || '').toLowerCase();
+
   // Set direction context to match the plan leg's route
   const dIdx = config.dirs.findIndex(d => d.from.toLowerCase() === leg.from.toLowerCase());
   if (dIdx >= 0) state.dIdx = dIdx;
 
-  // If the departure is still in the live board data, use the full object
-  if (state.deps && state.deps.length) {
+  // Only use live board data if it was fetched from the same station as this leg's
+  // departure — prevents a time-collision match from a different station's departures
+  const legFrom = leg.from.toLowerCase();
+  if (prevDepsFrom === legFrom && state.deps && state.deps.length) {
     const live = state.deps.find(d => d.expectedDepartureTime === leg.depIso);
     if (live) { window.tap(live); return; }
   }

@@ -78,7 +78,9 @@
 
 .dep-mid{min-width:0}
 .dep-top{display:flex;align-items:center;gap:.45rem;margin-bottom:.15rem}
-.dep-arr{margin-left:auto;flex-shrink:0;font-size:13px;color:#fcd34d;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dep-times{margin-left:auto;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:.05rem}
+.dep-dep{font-size:13px;color:#f5b840;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dep-arr{font-size:11px;color:#8a837d;white-space:nowrap;font-variant-numeric:tabular-nums}
 .dep-info{display:flex;align-items:center;gap:.35rem;margin-bottom:.1rem}
 .dep-dest{
   font-size:12px;font-weight:400;color:#8c857f;

@@ -32,9 +32,6 @@ export const state = {
   // Latest normalised metadata for that journey (JourneyMeta from fetchJourneyMeta).
   // Shape: { journeyId, calls[], cancelled, delayMins, quay, realtime, fetchedAt }
   lockedJourneyMeta: null,
-  // True when the user navigated to the board from the plan screen to add a leg.
-  // Causes departure list to show clock times instead of minute countdowns.
-  planningNextLeg: false,
 };
 
 export const intervals = {

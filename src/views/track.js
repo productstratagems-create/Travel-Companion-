@@ -29,6 +29,7 @@ let _arrBoard = null;
 let _arrBoardStopId = null;
 let _arrBoardInterval = null;
 let _tCardsHtml = '';
+let _tWeatherHtml = '';
 
 let _arrWeather = null;
 let _nearbyPlaces = null;
@@ -780,8 +781,12 @@ export function renderTrack() {
       );
     });
   }
-  const tw = document.getElementById('t-weather');
-  if (tw) tw.innerHTML = _trackWeatherHtml();
+  const newWeather = _trackWeatherHtml();
+  if (newWeather !== _tWeatherHtml) {
+    _tWeatherHtml = newWeather;
+    const tw = document.getElementById('t-weather');
+    if (tw) tw.innerHTML = newWeather;
+  }
   _updateUserMarker();
 }
 
@@ -802,6 +807,7 @@ export function startTracking() {
   expanded = state.jny && state.jny.legs ? state.jny.legs.map(() => false) : [];
   _destroyArrMap();
   _tCardsHtml = '';
+  _tWeatherHtml = '';
   _walkDestLL = null;
   if (intervals.track) clearInterval(intervals.track);
   renderTrack();

@@ -112,6 +112,32 @@
   flex-shrink: 0;
 }
 
+/* Journey lock status banners (delay / cancellation / platform change) */
+.jny-status-bar {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  padding: .5rem .75rem;
+  margin-bottom: .6rem;
+}
+.jny-status-cancelled {
+  color: #ef4444;
+  background: rgba(220,38,38,.07);
+  border: 1px solid rgba(220,38,38,.2);
+}
+.jny-status-delay {
+  color: #fbbf24;
+  background: rgba(251,191,36,.06);
+  border: 1px solid rgba(251,191,36,.18);
+}
+.jny-status-quay {
+  color: #f5b840;
+  background: rgba(245,184,64,.06);
+  border: 1px solid rgba(245,184,64,.18);
+}
+
 /* Train bar (shared with walk screen) */
 .train-bar{
   display:flex;align-items:center;gap:.6rem;

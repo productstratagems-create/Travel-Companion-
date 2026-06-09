@@ -49,3 +49,15 @@ export function trackGQL(jid) {
     + 'estimatedCalls{quay{stopPlace{name}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime realtime}}}';
 }
+
+// Richer query used by fetchJourneyMeta — includes cancellation + platform per call.
+// Normalised shape is JourneyMeta (see entur.js).
+export function journeyGQL(jid) {
+  return '{serviceJourney(id:"' + jid + '"){'
+    + 'estimatedCalls{'
+    + 'cancellation realtime '
+    + 'quay{publicCode stopPlace{name latitude longitude}} '
+    + 'aimedArrivalTime expectedArrivalTime '
+    + 'aimedDepartureTime expectedDepartureTime'
+    + '}}}';
+}

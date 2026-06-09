@@ -14,6 +14,8 @@ function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.
 export function tap(i) {
   state.sel = state.deps[i];
   if (!state.sel) return;
+  state.lockedJourneyId   = (state.sel.serviceJourney && state.sel.serviceJourney.id) || null;
+  state.lockedJourneyMeta = null;
   stopBoard();
   show('v-selected');
   const old = document.getElementById('s-ctas');
@@ -102,12 +104,18 @@ export function doBoard() {
     _toLon,
     legs,
   };
+  // Confirm the lock is on the first (boarding) leg
+  state.lockedJourneyId = (firstLeg && firstLeg.journeyId) || state.lockedJourneyId;
   saveJny();
   activateTracking();
 }
 
 export function activateTracking() {
   stopSelRefresh();
+  // When restoring from localStorage the lock must be re-established
+  if (!state.lockedJourneyId && state.jny && state.jny.legs[0]) {
+    state.lockedJourneyId = state.jny.legs[0].journeyId || null;
+  }
   buildTrackBar();
   logMsg('ombord L' + state.jny.lineCode + ' → ' + state.jny.dest + (state.jny.arrival ? ' (' + state.jny.arrival.clk + ')' : ''));
   state.sel = null;
@@ -165,6 +173,8 @@ export function loadJny() {
 
 export function clearJny() {
   state.jny = null;
+  state.lockedJourneyId   = null;
+  state.lockedJourneyMeta = null;
   try { localStorage.removeItem(config.storage.journey); } catch {}
 }
 

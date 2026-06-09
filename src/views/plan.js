@@ -158,7 +158,8 @@ export function renderPlan() {
     addBtn.addEventListener('click', () => {
       updatePlanCtx();
       show('v-board');
-      window._startBoard && window._startBoard();
+      window._startBoard && window._startBoard(); // resets planningNextLeg to false first
+      state.planningNextLeg = true;               // then re-enable clock-time display
     });
   }
 

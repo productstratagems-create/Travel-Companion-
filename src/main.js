@@ -10,8 +10,10 @@ import './style/settings.css';
 import './style/favs.css';
 import './style/leisure.css';
 import './style/plan.css';
+import './style/theme-light.css';
 
 import { attachEventListeners, updateHeader, show } from './ui/nav.js';
+import { initTheme } from './theme.js';
 import './views/favs.js';
 import './views/plan.js';
 import { renderLeisure } from './views/leisure.js';
@@ -30,6 +32,7 @@ window._showSettings = showSettings;
 window._applyRoute = applyRoute;
 window._renderLeisure = renderLeisure;
 
+initTheme();
 attachEventListeners();
 initDebugToggle();
 initSettings();

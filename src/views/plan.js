@@ -3,7 +3,7 @@ import { state } from '../state.js';
 import { show } from '../ui/nav.js';
 import config from '../config.js';
 import L from 'leaflet';
-import { geocodePlace } from '../api/entur.js';
+import { geocodePlace, fetchJourneyMeta } from '../api/entur.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -32,6 +32,8 @@ function _destroyPlanMap() {
   _planMapExpanded = false;
 }
 
+function _normStn(s) { return String(s).toLowerCase().replace(/,.*$/, '').trim(); }
+
 async function _renderPlanMap(legs) {
   const wrap = document.getElementById('plan-map-wrap');
   if (!legs.length) {
@@ -46,15 +48,56 @@ async function _renderPlanMap(legs) {
 
   if (wrap) wrap.style.display = 'block';
 
-  // Geocode unique station names
-  const names = [legs[0].from, ...legs.map(l => l.to)];
-  const unique = [...new Set(names)];
-  const coords = {};
-  await Promise.all(unique.map(async name => {
-    try {
-      const r = await geocodePlace(name);
-      if (r[0]) coords[name] = { lat: r[0].lat, lon: r[0].lon };
-    } catch {}
+  // Fetch precise stop data — use fetchJourneyMeta when serviceJourneyId available
+  // (journeyGQL returns lat/lon per stop), fall back to geocoding otherwise
+  const legData = await Promise.all(legs.map(async (leg) => {
+    const color = '#' + (leg.lineColour || '7c2d12');
+    const fromNorm = _normStn(leg.from);
+    const toNorm = _normStn(leg.to);
+
+    if (leg.serviceJourneyId) {
+      try {
+        const meta = await fetchJourneyMeta(leg.serviceJourneyId);
+        if (meta && meta.calls && meta.calls.length) {
+          // Find from/to stop indices by name
+          let fromIdx = -1, toIdx = -1;
+          meta.calls.forEach((c, i) => {
+            const nm = _normStn(c.name);
+            if (fromIdx < 0 && nm.includes(fromNorm)) fromIdx = i;
+            if (nm.includes(toNorm)) toIdx = i;
+          });
+          if (fromIdx < 0) fromIdx = 0;
+          if (toIdx < 0) toIdx = meta.calls.length - 1;
+
+          // Route: all stops from fromIdx to toIdx (inclusive)
+          const slice = meta.calls.slice(fromIdx, toIdx + 1);
+          const routePts = slice
+            .filter(c => c.lat && c.lon)
+            .map(c => [c.lat, c.lon]);
+
+          const fromCoord = routePts[0] ? { lat: routePts[0][0], lon: routePts[0][1] } : null;
+          const toCoord   = routePts[routePts.length - 1]
+            ? { lat: routePts[routePts.length - 1][0], lon: routePts[routePts.length - 1][1] }
+            : null;
+
+          return { leg, color, fromCoord, toCoord, routePts };
+        }
+      } catch {}
+    }
+
+    // Geocoding fallback
+    const [fromR, toR] = await Promise.all([
+      geocodePlace(leg.from).catch(() => []),
+      geocodePlace(leg.to).catch(() => []),
+    ]);
+    const fromCoord = fromR[0] ? { lat: fromR[0].lat, lon: fromR[0].lon } : null;
+    const toCoord   = toR[0]   ? { lat: toR[0].lat,   lon: toR[0].lon   } : null;
+    return {
+      leg, color, fromCoord, toCoord,
+      routePts: (fromCoord && toCoord)
+        ? [[fromCoord.lat, fromCoord.lon], [toCoord.lat, toCoord.lon]]
+        : [],
+    };
   }));
 
   const el = document.getElementById('plan-map');
@@ -82,31 +125,30 @@ async function _renderPlanMap(legs) {
 
   const allPts = [];
 
-  legs.forEach((leg, i) => {
-    const fromC = coords[leg.from];
-    const toC = coords[leg.to];
-    if (fromC && toC) {
-      const color = '#' + (leg.lineColour || '7c2d12');
-      L.polyline([[fromC.lat, fromC.lon], [toC.lat, toC.lon]], {
-        color, weight: 4, opacity: 0.85,
-      }).addTo(_planMapLayer);
-      allPts.push([fromC.lat, fromC.lon], [toC.lat, toC.lon]);
+  legData.forEach((data, i) => {
+    const { leg, color, fromCoord, toCoord, routePts } = data;
+
+    // Draw route through intermediate stops (or straight line for geocoded fallback)
+    if (routePts.length > 1) {
+      L.polyline(routePts, { color, weight: 4, opacity: 0.85 }).addTo(_planMapLayer);
+      allPts.push(...routePts);
     }
 
-    if (i === 0 && fromC) {
-      L.circleMarker([fromC.lat, fromC.lon], {
+    // Origin marker (gold circle, first leg only)
+    if (i === 0 && fromCoord) {
+      L.circleMarker([fromCoord.lat, fromCoord.lon], {
         radius: 7, color: '#fff', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2,
       }).bindTooltip(leg.from.toLowerCase(), { className: 'map-label', direction: 'top' })
         .addTo(_planMapLayer);
     }
 
-    if (toC) {
-      const bg = '#' + (leg.lineColour || '7c2d12');
+    // Destination / transfer stop: line-badge marker
+    if (toCoord) {
       const badgeHtml = '<div style="text-align:center;transform:translate(-50%,-50%)">'
-        + '<span class="line-badge" style="background:' + bg + ';font-size:11px;padding:3px 7px">' + leg.line + '</span>'
-        + '</div>';
+        + '<span class="line-badge" style="background:' + color + ';font-size:11px;padding:3px 7px">'
+        + leg.line + '</span></div>';
       const icon = L.divIcon({ className: '', html: badgeHtml, iconSize: [0, 0], iconAnchor: [0, 0] });
-      L.marker([toC.lat, toC.lon], { icon })
+      L.marker([toCoord.lat, toCoord.lon], { icon })
         .bindTooltip(leg.to.toLowerCase(), { className: 'map-label', direction: 'top' })
         .addTo(_planMapLayer);
     }
@@ -121,13 +163,16 @@ async function _renderPlanMap(legs) {
 
 // ── Context strip (shown on v-board) ────────────────────────
 
+// Structural key: rebuild the full chip DOM only when legs/status/style change.
+// When only the active countdown text changes, update the span in-place.
+let _planCtxKey = '';
+
 export function updatePlanCtx() {
   const el = document.getElementById('plan-ctx');
   if (!el) return;
   const legs = loadPlan();
-  if (!legs.length) { el.style.display = 'none'; return; }
+  if (!legs.length) { el.style.display = 'none'; _planCtxKey = ''; return; }
 
-  // Show the last leg as a reference for the next connection
   const last = legs[legs.length - 1];
   const now = Date.now();
   const st = legStatus(last, now);
@@ -135,16 +180,31 @@ export function updatePlanCtx() {
   const depTs = new Date(last.depIso).getTime();
   const n = legs.length;
 
-  let statusLine = '';
+  // Status text (the only part that changes every second for active legs)
+  let statusText = '';
+  let statusClass = '';
   if (st === 'done') {
-    statusLine = '<span class="pctx-done">ankom ' + (arrTs ? clk(arrTs) : '—') + '</span>';
+    statusText = 'ankom ' + (arrTs ? clk(arrTs) : '—');
+    statusClass = 'pctx-done';
   } else if (st === 'active' && arrTs) {
     const rem = arrTs - now;
-    statusLine = '<span class="pctx-active">'
-      + (rem > 0 ? fmtCountdown(rem) + ' igjen' : 'ankommer nå') + '</span>';
+    statusText = rem > 0 ? fmtCountdown(rem) + ' igjen' : 'ankommer nå';
+    statusClass = 'pctx-active';
   } else {
-    statusLine = '<span class="pctx-future">avgang ' + clk(depTs) + '</span>';
+    statusText = 'avgang ' + clk(depTs);
+    statusClass = 'pctx-future';
   }
+
+  // Key: everything that controls the chip's structure
+  const structKey = n + '|' + last.id + '|' + st + '|' + last.lineColour;
+
+  if (structKey === _planCtxKey) {
+    // Only update the status text in-place — no DOM rebuild
+    const statusEl = document.getElementById('pctx-status');
+    if (statusEl) statusEl.textContent = statusText;
+    return;
+  }
+  _planCtxKey = structKey;
 
   el.style.display = 'flex';
   el.innerHTML =
@@ -153,7 +213,7 @@ export function updatePlanCtx() {
     + '<span class="line-badge pctx-badge" style="background:#' + last.lineColour + '">' + last.line + '</span>'
     + '<span class="pctx-dest">' + last.to.toLowerCase() + '</span>'
     + (arrTs ? '<span class="pctx-arr">ank. ' + clk(arrTs) + '</span>' : '')
-    + statusLine
+    + '<span id="pctx-status" class="' + statusClass + '">' + statusText + '</span>'
     + '</button>'
     + '<button class="pctx-close" aria-label="Lukk kontekst">×</button>';
 
@@ -167,15 +227,42 @@ export function updatePlanCtx() {
 
 // ── Plan screen ────────────────────────
 
+// Structural key: legs IDs + their status. Full plan-content rebuild only when
+// this changes — otherwise update countdowns in-place to prevent layout reflows
+// that would cause the sibling plan map to flicker.
+let _planStructKey = '';
+
+function _planStructuralKey(legs, now) {
+  return legs.map(l => l.id + ':' + legStatus(l, now)).join(',');
+}
+
+function _updatePlanCountdowns(legs, now) {
+  legs.forEach(leg => {
+    const cdEl = document.getElementById('pcd-' + leg.id);
+    if (!cdEl) return;
+    const depTs = new Date(leg.depIso).getTime();
+    const arrTs = leg.arrIso ? new Date(leg.arrIso).getTime() : null;
+    const st = legStatus(leg, now);
+    if (st === 'done') {
+      cdEl.textContent = '✓ ankomst ' + (arrTs ? clk(arrTs) : '—');
+    } else if (st === 'active' && arrTs) {
+      const remaining = arrTs - now;
+      cdEl.textContent = remaining > 0 ? fmtCountdown(remaining) + ' igjen' : 'ankommer nå';
+    } else if (st !== 'active') {
+      cdEl.textContent = 'om ' + fmtCountdown(depTs - now);
+    }
+  });
+}
+
 export function renderPlan() {
   const el = document.getElementById('plan-content');
   if (!el) return;
 
   const now = Date.now();
   const legs = loadPlan();
-  const status = planStatus(legs, now);
 
   if (!legs.length) {
+    _planStructKey = '';
     el.innerHTML =
       '<div class="plan-empty">'
       + 'Ingen etapper planlagt ennå.<br>'
@@ -189,7 +276,9 @@ export function renderPlan() {
   }
 
   _renderPlanMap(legs);
+  _planStructKey = _planStructuralKey(legs, now);
 
+  const status = planStatus(legs, now);
   const firstDep = new Date(legs[0].depIso).getTime();
   const lastArr = legs[legs.length - 1].arrIso
     ? new Date(legs[legs.length - 1].arrIso).getTime()
@@ -211,18 +300,19 @@ export function renderPlan() {
     const depTs = new Date(leg.depIso).getTime();
     const arrTs = leg.arrIso ? new Date(leg.arrIso).getTime() : null;
 
+    // Countdown element gets stable ID so _updatePlanCountdowns can update in-place
     let bottomHtml = '';
     if (st === 'done') {
-      bottomHtml = '<div class="plan-leg-check">✓ ankomst ' + (arrTs ? clk(arrTs) : '—') + '</div>';
+      bottomHtml = '<div class="plan-leg-check" id="pcd-' + leg.id + '">✓ ankomst ' + (arrTs ? clk(arrTs) : '—') + '</div>';
     } else if (st === 'active') {
       if (arrTs) {
         const remaining = arrTs - now;
-        bottomHtml = '<div class="plan-leg-countdown">'
+        bottomHtml = '<div class="plan-leg-countdown" id="pcd-' + leg.id + '">'
           + (remaining > 0 ? fmtCountdown(remaining) + ' igjen' : 'ankommer nå') + '</div>';
       }
     } else {
       const wait = depTs - now;
-      bottomHtml = '<div class="plan-leg-countdown">om ' + fmtCountdown(wait) + '</div>';
+      bottomHtml = '<div class="plan-leg-countdown" id="pcd-' + leg.id + '">om ' + fmtCountdown(wait) + '</div>';
     }
 
     timelineHtml +=
@@ -285,9 +375,20 @@ export function renderPlan() {
 function _startPlanInterval() {
   if (_planInterval) return;
   _planInterval = setInterval(() => {
+    const now = Date.now();
     const planView = document.getElementById('v-plan');
-    if (planView && planView.style.display !== 'none') renderPlan();
-    // Also refresh context strip on board if it is visible
+    if (planView && planView.style.display !== 'none') {
+      const legs = loadPlan();
+      if (legs.length) {
+        const sk = _planStructuralKey(legs, now);
+        if (sk !== _planStructKey) {
+          renderPlan(); // structural change — full rebuild
+        } else {
+          _updatePlanCountdowns(legs, now); // only text updates, no DOM thrash
+        }
+      }
+    }
+    // Context strip on board
     const ctxEl = document.getElementById('plan-ctx');
     if (ctxEl && ctxEl.style.display !== 'none') updatePlanCtx();
   }, 1000);
@@ -299,6 +400,7 @@ function _stopPlanInterval() {
 
 window._planDelLeg = (id) => {
   removeLegFromPlan(id);
+  _planStructKey = ''; // force full rebuild on next tick
   updatePlanCtx();
   renderPlan();
 };

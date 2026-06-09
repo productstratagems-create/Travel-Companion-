@@ -551,8 +551,7 @@ export function renderBoard() {
     const minsLabel = isNow ? 'nå' : mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' t' + (mins % 60 > 0 ? ' ' + mins % 60 + ' m' : '');
     const a11yLabel = lc + ' mot ' + dest + ', avgang om ' + minsLabel + (quay !== '?' ? ', spor ' + quay : '');
 
-    const planMode = state.planningNextLeg;
-    const isClock = mins >= 60 || planMode;
+    const isClock = mins >= 60;
     html += '<div class="' + rowCls + '"'
       + (isCancelled
         ? ''
@@ -564,7 +563,6 @@ export function renderBoard() {
       + '<div class="dep-mins' + (urgent ? ' urgent' : '') + (isNow ? ' now' : '') + (isClock ? ' clock' : '') + '">'
       + (() => {
           if (isNow) return 'NÅ';
-          if (planMode) return clk(depTs);
           if (diffSec < 60) return secs + '<span class="unit">sek</span>';
           if (mins < 60)    return mins + '<span class="unit">min</span>';
           return clk(depTs);
@@ -573,7 +571,10 @@ export function renderBoard() {
       + '<div class="dep-mid">'
       + '<div class="dep-top">'
       + lineBadges
-      + (arrT ? '<span class="dep-arr">ank.' + clk(arrT) + '</span>' : '')
+      + '<div class="dep-times">'
+      + '<span class="dep-dep">' + clk(depTs) + '</span>'
+      + (arrT ? '<span class="dep-arr">ank. ' + clk(arrT) + '</span>' : '')
+      + '</div>'
       + '</div>'
       + '<div class="dep-info">'
       + '<span class="dep-dest">' + dest + '</span>'
@@ -594,7 +595,6 @@ export function renderBoard() {
 }
 
 export function startBoard() {
-  state.planningNextLeg = false;
   state.deps = [];
   if (intervals.board) clearInterval(intervals.board);
   _fetchBoard();

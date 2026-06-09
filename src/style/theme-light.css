@@ -94,7 +94,8 @@ html[data-theme="light"] .dep-mins.clock { color: #78716c; }
 html[data-theme="light"] .dep-mins .unit { color: #6b7280; }
 
 html[data-theme="light"] .dep-dest { color: #78716c; }
-html[data-theme="light"] .dep-arr { color: #92400e; }
+html[data-theme="light"] .dep-dep { color: #b05800; }
+html[data-theme="light"] .dep-arr { color: #78716c; }
 html[data-theme="light"] .dep-tag { color: #92400e; }
 
 html[data-theme="light"] .dep-spor { border-left-color: rgba(26,19,9,.08); }

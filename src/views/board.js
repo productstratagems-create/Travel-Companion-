@@ -43,11 +43,13 @@ let _bUserMoved = false;
 let _bFitted = false;
 let _bDestLL = null;
 let _bDestKey = null;
+let _bMapKey = null;
 
 function _destroyBoardMap() {
   if (_bMap) { _bMap.remove(); _bMap = null; _bLayer = null; }
   _bUserMoved = false;
   _bFitted = false;
+  _bMapKey = null;
   _walkRouteKey = null;
 }
 
@@ -105,6 +107,19 @@ function renderBoardMap(pos, modes) {
     }
   }
 
+  // Only re-fetch and redraw when something meaningful changes.
+  // The 2-minute time bucket ensures bikes/scooters still refresh periodically.
+  const dir = config.dirs[state.dIdx];
+  const destName = dir.to || '';
+  const mapKey = [
+    pos ? pos.lat.toFixed(3) + ',' + pos.lon.toFixed(3) : '',
+    Object.keys(modes).filter(k => modes[k]).sort().join(','),
+    destName,
+    Math.floor(Date.now() / 120000),
+  ].join('|');
+  if (mapKey === _bMapKey) return;
+  _bMapKey = mapKey;
+
   const fetchPos = pos || { lat: 59.9139, lon: 10.7522 };
   const transitModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
   const p1 = transitModes.length ? fetchNearbyStops(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
@@ -112,8 +127,6 @@ function renderBoardMap(pos, modes) {
   const p3 = modes.sykkel ? fetchScooters(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
 
   // Destination coords — reset cache on direction change
-  const dir = config.dirs[state.dIdx];
-  const destName = dir.to || '';
   if (destName !== _bDestKey) {
     _bDestLL = null; _bDestKey = destName; _bFitted = false; _bUserMoved = false;
     _walkRouteKey = null;

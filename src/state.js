@@ -24,6 +24,14 @@ export const state = {
   gpsError: null,
   debugOpen: false,
   serviceAlerts: [],
+  // The serviceJourney ID the user is currently focused on or riding.
+  // Set at tap(), confirmed at doBoard(), cleared at clearJny().
+  // Consumers (selected screen, tracking, future features) can read this
+  // without coupling to the departure or journey object shape.
+  lockedJourneyId:   null,
+  // Latest normalised metadata for that journey (JourneyMeta from fetchJourneyMeta).
+  // Shape: { journeyId, calls[], cancelled, delayMins, quay, realtime, fetchedAt }
+  lockedJourneyMeta: null,
 };
 
 export const intervals = {

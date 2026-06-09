@@ -1,5 +1,5 @@
 import config from '../config.js';
-import { boardGQL, trackGQL, tripGQL } from './queries.js';
+import { boardGQL, journeyGQL, trackGQL, tripGQL } from './queries.js';
 import { logMsg, setDot } from '../ui/log.js';
 import { loadWalkSpeed } from '../geo.js';
 const WALK_MPS = { rolig: 41.67 / 60, middels: 83.33 / 60, rask: 116.67 / 60 };
@@ -250,15 +250,52 @@ export function fetchTrack(journeyId) {
     });
 }
 
-export function fetchSelJourney(journeyId) {
+/**
+ * Fetch normalised real-time metadata for a locked journey.
+ *
+ * Returns JourneyMeta:
+ *   { journeyId, calls[], cancelled, delayMins, quay, realtime, fetchedAt }
+ *
+ * calls[] items: { name, lat, lon, quay, aimed, expected, cancelled, realtime }
+ *
+ * This is the canonical way to query a specific serviceJourney by ID.
+ * state.lockedJourneyMeta is kept in sync with the latest result.
+ */
+export function fetchJourneyMeta(journeyId) {
   return fetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: trackGQL(journeyId) }),
+    body: JSON.stringify({ query: journeyGQL(journeyId) }),
   })
     .then(r => r.json())
     .then(j => {
       const sj = j && j.data && j.data.serviceJourney;
-      return (sj && sj.estimatedCalls) || null;
+      if (!sj || !sj.estimatedCalls) return null;
+      const calls = sj.estimatedCalls.map(c => {
+        const sp = c.quay && c.quay.stopPlace;
+        return {
+          name:      (sp && sp.name) || '',
+          lat:       (sp && sp.latitude)  || null,
+          lon:       (sp && sp.longitude) || null,
+          quay:      (c.quay && c.quay.publicCode) || null,
+          aimed:     c.aimedDepartureTime    || c.aimedArrivalTime    || null,
+          expected:  c.expectedDepartureTime || c.expectedArrivalTime || null,
+          cancelled: c.cancellation || false,
+          realtime:  c.realtime || false,
+        };
+      });
+      const first = calls[0] || null;
+      const delayMs = first && first.aimed && first.expected
+        ? new Date(first.expected).getTime() - new Date(first.aimed).getTime()
+        : 0;
+      return {
+        journeyId,
+        calls,
+        cancelled: calls.length > 0 && calls.every(c => c.cancelled),
+        delayMins: Math.round(delayMs / 60000),
+        quay:      first ? first.quay : null,
+        realtime:  first ? first.realtime : false,
+        fetchedAt: Date.now(),
+      };
     });
 }

@@ -127,6 +127,18 @@ html[data-theme="light"] .service-alert {
   border-color: rgba(146,64,14,.16);
 }
 
+/* ── JOURNEY LOCK STATUS BARS ── */
+html[data-theme="light"] .jny-status-delay {
+  color: #92400e;
+  background: rgba(146,64,14,.05);
+  border-color: rgba(146,64,14,.15);
+}
+html[data-theme="light"] .jny-status-quay {
+  color: #b05800;
+  background: rgba(176,88,0,.06);
+  border-color: rgba(176,88,0,.18);
+}
+
 /* ── SELECTED (DEPARTURE DETAILS) ── */
 html[data-theme="light"] .screen-header { border-bottom-color: rgba(26,19,9,.08); }
 html[data-theme="light"] .screen-label { color: #78716c; }

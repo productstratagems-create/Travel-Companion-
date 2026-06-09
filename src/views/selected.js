@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
-import { fetchSelJourney } from '../api/entur.js';
+import { fetchJourneyMeta } from '../api/entur.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 import { addLegToPlan, isLegInPlan } from '../api/plan.js';
@@ -290,12 +290,16 @@ export function renderSelected() {
       .catch(() => { _selWeather = { _err: true }; });
   }
 
+  // Remember the original departure platform so we can detect changes later
+  if (!c._origQuay && quay !== '?') c._origQuay = quay;
+
   document.getElementById('s-content').innerHTML = ''
     + '<div class="train-chip">'
     + chipBadges
     + '<span class="tc-dest">' + dest + '</span>'
     + (quay !== '?' ? '<span class="tc-meta">spor <span>' + quay + '</span>' + (delayed ? ' · <span style="color:#fcd34d">forsinket</span>' : '') + '</span>' : (delayed ? '<span class="tc-meta"><span style="color:#fcd34d">forsinket</span></span>' : ''))
     + '</div>'
+    + '<div id="s-live-status"></div>'
     + '<div class="sel-route-ctx">' + dir.from.toLowerCase() + ' → ' + dir.to.toLowerCase() + '</div>'
     + '<div class="sel-weather" id="sel-weather-content">' + _selWeatherHtml(arrT) + '</div>'
     + (departed
@@ -455,14 +459,86 @@ export function stopSelRefresh() {
 }
 
 function _fetchSel() {
-  if (!state.sel || !state.sel.serviceJourney || !state.sel.serviceJourney.id) return;
-  fetchSelJourney(state.sel.serviceJourney.id)
-    .then(calls => {
-      if (!calls || !state.sel) return;
-      state.sel.serviceJourney.estimatedCalls = calls;
-      logMsg('sel live: ' + calls.length + ' stopp', 'ok');
+  const jid = state.lockedJourneyId
+    || (state.sel && state.sel.serviceJourney && state.sel.serviceJourney.id);
+  if (!jid) return;
+  fetchJourneyMeta(jid)
+    .then(meta => {
+      if (!meta || !state.sel) return;
+      state.lockedJourneyMeta = meta;
+      // Advance the departure time so leaveby stays accurate
+      if (meta.realtime && meta.calls.length && meta.calls[0].expected) {
+        state.sel.expectedDepartureTime = meta.calls[0].expected;
+      }
+      // Keep estimated calls in sync for the route map
+      state.sel.serviceJourney.estimatedCalls = meta.calls.map(c => ({
+        quay: { publicCode: c.quay, stopPlace: { name: c.name, latitude: c.lat, longitude: c.lon } },
+        aimedArrivalTime:      c.aimed,
+        expectedArrivalTime:   c.expected,
+        aimedDepartureTime:    c.aimed,
+        expectedDepartureTime: c.expected,
+        realtime:              c.realtime,
+      }));
+      _refreshSelDisplay();
+      logMsg('sel live: ' + meta.calls.length + ' stopp'
+        + (meta.cancelled ? ' · INNSTILT' : meta.delayMins >= 2 ? ' · +' + meta.delayMins + 'min' : ''), 'ok');
     })
     .catch(err => logMsg('sel ✗ ' + err.message, 'err'));
+}
+
+function _refreshSelDisplay() {
+  const meta = state.lockedJourneyMeta;
+  const c    = state.sel;
+  if (!c || !meta) return;
+
+  // ── Live status banner (cancellation / delay / platform change) ──
+  const statusEl = document.getElementById('s-live-status');
+  if (statusEl) {
+    const origQuay = c._origQuay || null;
+    let html = '';
+    if (meta.cancelled) {
+      html = '<div class="jny-status-bar jny-status-cancelled">Avgangen er innstilt</div>';
+    } else {
+      if (meta.delayMins >= 2) {
+        html += '<div class="jny-status-bar jny-status-delay">+' + meta.delayMins + ' min forsinkelse</div>';
+      }
+      if (meta.quay && origQuay && meta.quay !== origQuay) {
+        html += '<div class="jny-status-bar jny-status-quay">Spor endret til ' + meta.quay + '</div>';
+      }
+    }
+    statusEl.innerHTML = html;
+  }
+
+  // ── Disable boarding CTA when cancelled ──
+  if (meta.cancelled) {
+    const primaryBtn = document.querySelector('#s-ctas .cta-btn:first-child');
+    if (primaryBtn && !primaryBtn.disabled) primaryBtn.disabled = true;
+  }
+
+  // ── Update leaveby countdown with corrected departure time ──
+  if (!meta.cancelled) {
+    const depTs    = new Date(c.expectedDepartureTime).getTime();
+    const wk       = walkInfo();
+    const leaveByTs = depTs - wk.mins * 60000;
+    const mtl      = mToLeave(depTs);
+    const rcls     = reachCls(mtl);
+    const ltCls    = rcls === 'r-ok' ? 'lt-ok' : rcls === 'r-soon' ? 'lt-soon'
+      : rcls === 'r-now' ? 'lt-now' : 'lt-late';
+
+    const lbEl = document.querySelector('.leaveby-time');
+    if (lbEl) {
+      lbEl.className = 'leaveby-time ' + ltCls;
+      lbEl.textContent = clk(leaveByTs);
+    }
+    const lbSubEl = document.querySelector('.leaveby-sub');
+    if (lbSubEl) {
+      let urgMsg;
+      if (rcls === 'missed') urgMsg = '<span style="color:#dc2626">Rakker ikke — velg neste avgang</span>';
+      else if (rcls === 'r-now') urgMsg = '<span class="go">Gå nå!</span>';
+      else urgMsg = 'Gå om <span class="amber">' + fmtMins(mtl) + '</span>';
+      lbSubEl.innerHTML = urgMsg;
+    }
+  }
 }
 
 // Expose for nav bridges

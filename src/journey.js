@@ -12,7 +12,7 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
 export function tap(i) {
-  state.sel = state.deps[i];
+  state.sel = typeof i === 'number' ? state.deps[i] : i;
   if (!state.sel) return;
   state.lockedJourneyId   = (state.sel.serviceJourney && state.sel.serviceJourney.id) || null;
   state.lockedJourneyMeta = null;

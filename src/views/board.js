@@ -16,6 +16,11 @@ import { makeStopIcon } from '../ui/mapIcons.js';
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
+// Departure objects for the currently rendered board rows, indexed by visual position.
+// Using visual-position indices instead of state.deps indices avoids a race condition
+// where state.deps is refreshed by the 20s fetch cycle between render and tap.
+let _boardDeps = [];
+
 // ── Mode filter ──────────────────────────────────────────────────────────────
 const MODES_KEY = 't.modes';
 const DEFAULT_MODES = { metro: true, tram: true, bus: true, sykkel: false };
@@ -418,9 +423,13 @@ export function renderBoard() {
   _lineGaps.forEach((gaps, lcode) => { if (gaps.length >= 2) _lineMedian.set(lcode, _median(gaps)); });
   const _linePrev = new Map();
 
+  _boardDeps = visibleDeps.map(v => v.c);
+
   let html = '';
   let urgentShown = false;
+  let _boardIdx = 0;
   visibleDeps.forEach(({ c, origIdx }) => {
+    const boardIdx = _boardIdx++;
     const depTs = new Date(c.expectedDepartureTime).getTime();
     const diffSec = Math.floor((depTs - now) / 1000);
     const mins = Math.floor(Math.max(0, diffSec) / 60);
@@ -533,10 +542,10 @@ export function renderBoard() {
     html += '<div class="' + rowCls + '"'
       + (isCancelled
         ? ''
-        : ' onclick="window.tap(' + origIdx + ')"'
+        : ' onclick="window.tapBoard(' + boardIdx + ')"'
           + ' role="button" tabindex="0"'
           + ' aria-label="' + a11yLabel.replace(/"/g, '&quot;') + '"'
-          + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.tap(' + origIdx + ')}"'
+          + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.tapBoard(' + boardIdx + ')}"'
       ) + '>'
       + '<div class="dep-mins' + (urgent ? ' urgent' : '') + (isNow ? ' now' : '') + (isClock ? ' clock' : '') + '">'
       + (() => {
@@ -636,5 +645,6 @@ function _fetchBoard() {
   });
 }
 
+window.tapBoard = (j) => { const dep = _boardDeps[j]; if (dep) window.tap(dep); };
 window._startBoard = startBoard;
 window._fetchBoard = _fetchBoard;

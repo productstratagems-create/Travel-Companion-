@@ -1,4 +1,5 @@
 import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus } from '../api/plan.js';
+import { state } from '../state.js';
 import { show } from '../ui/nav.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -42,13 +43,18 @@ export function updatePlanCtx() {
 
   el.style.display = 'flex';
   el.innerHTML =
-    '<span class="pctx-label">etappe ' + n + '</span>'
+    '<button class="pctx-main" aria-label="Se reise underveis">'
+    + '<span class="pctx-label">etappe ' + n + '</span>'
     + '<span class="line-badge pctx-badge" style="background:#' + last.lineColour + '">' + last.line + '</span>'
     + '<span class="pctx-dest">' + last.to.toLowerCase() + '</span>'
     + (arrTs ? '<span class="pctx-arr">ank. ' + clk(arrTs) + '</span>' : '')
     + statusLine
+    + '</button>'
     + '<button class="pctx-close" aria-label="Lukk kontekst">×</button>';
 
+  el.querySelector('.pctx-main').addEventListener('click', () => {
+    if (state.jny) window.jnyGoTracking && window.jnyGoTracking();
+  });
   el.querySelector('.pctx-close').addEventListener('click', () => {
     el.style.display = 'none';
   });

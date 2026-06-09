@@ -43,6 +43,25 @@
 .pctx-active { color: #f5b840; flex-shrink: 0; font-family: "Bebas Neue", sans-serif; font-size: 1rem; letter-spacing: .04em; }
 .pctx-future { color: #7485a0; flex-shrink: 0; }
 
+.pctx-main {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.pctx-main:active { opacity: .7; }
+
 .pctx-close {
   background: none;
   border: none;

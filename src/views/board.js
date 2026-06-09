@@ -551,7 +551,8 @@ export function renderBoard() {
     const minsLabel = isNow ? 'nå' : mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' t' + (mins % 60 > 0 ? ' ' + mins % 60 + ' m' : '');
     const a11yLabel = lc + ' mot ' + dest + ', avgang om ' + minsLabel + (quay !== '?' ? ', spor ' + quay : '');
 
-    const isClock = mins >= 60;
+    const planMode = state.planningNextLeg;
+    const isClock = mins >= 60 || planMode;
     html += '<div class="' + rowCls + '"'
       + (isCancelled
         ? ''
@@ -563,6 +564,7 @@ export function renderBoard() {
       + '<div class="dep-mins' + (urgent ? ' urgent' : '') + (isNow ? ' now' : '') + (isClock ? ' clock' : '') + '">'
       + (() => {
           if (isNow) return 'NÅ';
+          if (planMode) return clk(depTs);
           if (diffSec < 60) return secs + '<span class="unit">sek</span>';
           if (mins < 60)    return mins + '<span class="unit">min</span>';
           return clk(depTs);
@@ -592,6 +594,7 @@ export function renderBoard() {
 }
 
 export function startBoard() {
+  state.planningNextLeg = false;
   state.deps = [];
   if (intervals.board) clearInterval(intervals.board);
   _fetchBoard();

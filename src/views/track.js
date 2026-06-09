@@ -28,6 +28,7 @@ const RECENT_KEY = 't.recentDests';
 let _arrBoard = null;
 let _arrBoardStopId = null;
 let _arrBoardInterval = null;
+let _tCardsHtml = '';
 
 let _arrWeather = null;
 let _nearbyPlaces = null;
@@ -769,13 +770,16 @@ export function renderTrack() {
     }
   }
 
-  document.getElementById('t-cards').innerHTML = cards;
-  const explBtn = document.getElementById('t-explore-btn');
-  if (explBtn) explBtn.addEventListener('click', () => {
-    window._exploreDestination && window._exploreDestination(
-      state.jny._toLat, state.jny._toLon, state.jny.dest
-    );
-  });
+  if (cards !== _tCardsHtml) {
+    _tCardsHtml = cards;
+    document.getElementById('t-cards').innerHTML = cards;
+    const explBtn = document.getElementById('t-explore-btn');
+    if (explBtn) explBtn.addEventListener('click', () => {
+      window._exploreDestination && window._exploreDestination(
+        state.jny._toLat, state.jny._toLon, state.jny.dest
+      );
+    });
+  }
   const tw = document.getElementById('t-weather');
   if (tw) tw.innerHTML = _trackWeatherHtml();
   _updateUserMarker();
@@ -797,6 +801,7 @@ export function buildTrackBar() {
 export function startTracking() {
   expanded = state.jny && state.jny.legs ? state.jny.legs.map(() => false) : [];
   _destroyArrMap();
+  _tCardsHtml = '';
   _walkDestLL = null;
   if (intervals.track) clearInterval(intervals.track);
   renderTrack();

@@ -43,6 +43,16 @@ body.jny-chip-visible .wrap { padding-bottom: calc(60px + env(safe-area-inset-bo
 }
 .nav-back:active{color:#f5b840}
 
+.nav-plan-btn{
+  background:none;border:none;
+  color:rgba(245,184,64,.4);font-size:15px;
+  padding:.5rem;cursor:pointer;
+  min-height:44px;min-width:44px;
+  display:inline-flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.nav-plan-btn:active{color:#f5b840}
+
 /* Status dot */
 .status-dot{
   width:5px;height:5px;border-radius:50%;

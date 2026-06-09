@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0806">
 <title>T-bane</title>
+<script>
+(function(){var t=localStorage.getItem('t.theme')||'system';if(t==='light'||(t==='system'&&window.matchMedia('(prefers-color-scheme:light)').matches))document.documentElement.setAttribute('data-theme','light');else document.documentElement.setAttribute('data-theme','dark');}())
+</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Bebas+Neue&display=swap">
 </head>
 <body>
@@ -174,6 +177,14 @@
       <button class="pref-btn" data-val="2">2 min</button>
       <button class="pref-btn" data-val="5">5 min</button>
       <button class="pref-btn" data-val="10">10 min</button>
+    </div>
+  </div>
+  <div class="set-section">
+    <div class="set-label">utseende</div>
+    <div class="pref-group" id="pref-theme">
+      <button class="pref-btn" data-val="light">Lys</button>
+      <button class="pref-btn" data-val="system">Auto</button>
+      <button class="pref-btn" data-val="dark">Mørk</button>
     </div>
   </div>
 </div>

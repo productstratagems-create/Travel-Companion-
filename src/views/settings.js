@@ -3,7 +3,7 @@ import { state } from '../state.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
 import { loadTheme, setTheme } from '../theme.js';
 import { geocodePlace, geocodeDest } from '../api/entur.js';
-import { makeSuggBtn } from '../ui/fmt.js';
+import { makeSuggBtn, esc } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 
 const DEST_KEY = 't.dest';
@@ -13,11 +13,11 @@ const VIA_KEY = 't.via';
 const TRANSIT_CATEGORIES = ['metroStation', 'busStation', 'onstreetBus', 'tramStation', 'ferryStop'];
 
 const EXPLORE_CATS = [
-  { label: 'spise',  emoji: '🍽', amenities: ['restaurant', 'fast_food'] },
-  { label: 'kaffe',  emoji: '☕', amenities: ['cafe', 'bakery'] },
-  { label: 'kultur', emoji: '🏛', amenities: ['museum', 'cinema', 'theatre', 'arts_centre', 'library'] },
-  { label: 'handel', emoji: '🛍', amenities: ['clothes', 'shoes', 'sports', 'books', 'electronics', 'mall'] },
-  { label: 'drikke', emoji: '🍺', amenities: ['bar', 'pub'] },
+  { label: 'spise',  emoji: '🍽', amenities: ['catering.restaurant', 'catering.fast_food'] },
+  { label: 'kaffe',  emoji: '☕', amenities: ['catering.cafe', 'catering.bakery'] },
+  { label: 'kultur', emoji: '🏛', amenities: ['entertainment.museum', 'entertainment.cinema', 'entertainment.theatre', 'entertainment.arts_centre', 'education.library'] },
+  { label: 'handel', emoji: '🛍', amenities: ['commercial.clothing', 'commercial.shoes', 'commercial.sport', 'commercial.books', 'commercial.electronics', 'commercial.shopping_mall'] },
+  { label: 'drikke', emoji: '🍺', amenities: ['catering.bar', 'catering.pub'] },
 ];
 
 let _depAbort = null, _arrAbort = null, _viaAbort = null, _wfAbort = null;
@@ -150,7 +150,7 @@ function _fetchDestVenues() {
           : '';
         return '<div class="dest-prev-row">'
           + '<span class="dest-prev-emoji">' + p.emoji + '</span>'
-          + '<span class="dest-prev-name">' + p.name + '</span>'
+          + '<span class="dest-prev-name">' + esc(p.name) + '</span>'
           + hoursTxt
           + '<span class="dest-prev-dist">' + distTxt + '</span>'
           + '</div>';
@@ -414,7 +414,7 @@ export function applyRoute() {
   const arr = document.getElementById('set-arr').value.trim();
   const errEl = document.getElementById('set-error');
   if (!dep || !arr) {
-    errEl.textContent = 'Fyll inn destinasjon.';
+    errEl.textContent = !dep ? 'Fyll inn avgangssted.' : 'Fyll inn destinasjon.';
     errEl.style.display = 'block';
     return false;
   }

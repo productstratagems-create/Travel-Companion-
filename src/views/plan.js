@@ -101,6 +101,9 @@ async function _renderPlanMap(legs) {
     };
   }));
 
+  // Bail if a newer render started while these awaits were in flight
+  if (_planMapKey !== key) return;
+
   const el = document.getElementById('plan-map');
   if (!el) return;
 

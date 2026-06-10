@@ -19,7 +19,7 @@
   role="region" aria-label="Servicevarsler" aria-live="polite"></div>
 
 <!-- ══ 1: BOARD ══ -->
-<div id="v-board">
+<div id="v-board" tabindex="-1">
   <div class="board-header">
     <div style="display:flex;align-items:center;gap:.6rem">
       <span class="status-dot" id="status-dot" title="trykk for logg"
@@ -53,7 +53,7 @@
 </div>
 
 <!-- ══ 2a: AVGANGSDETALJER ══ -->
-<div id="v-selected" style="display:none">
+<div id="v-selected" tabindex="-1" style="display:none">
   <div class="screen-header">
     <button class="nav-back" id="s-back">← avganger</button>
     <span class="screen-label" role="heading" aria-level="2">avgangsdetaljer</span>
@@ -67,7 +67,7 @@
 </div>
 
 <!-- ══ 2b: GANGTID ══ -->
-<div id="v-walk" style="display:none">
+<div id="v-walk" tabindex="-1" style="display:none">
   <div class="screen-header">
     <button class="nav-back" id="w-back">← avgang</button>
     <span class="screen-label" role="heading" aria-level="2">gangtid</span>
@@ -85,7 +85,7 @@
 </div>
 
 <!-- ══ 3: TRACKING ══ -->
-<div id="v-track" style="display:none">
+<div id="v-track" tabindex="-1" style="display:none">
   <div class="screen-header">
     <button class="nav-back" id="alight-btn">← avslutt</button>
     <span class="screen-label" role="heading" aria-level="2">underveis</span>
@@ -104,7 +104,7 @@
 </div>
 
 <!-- ══ 5: VELG RUTE ══ -->
-<div id="v-settings" style="display:none">
+<div id="v-settings" tabindex="-1" style="display:none">
   <div class="screen-header">
     <button class="nav-back" id="set-back">← tilbake</button>
     <span class="screen-label" role="heading" aria-level="2">velg rute</span>
@@ -194,7 +194,7 @@
 </div>
 
 <!-- ══ 6: FAVORITTER ══ -->
-<div id="v-favs" style="display:none">
+<div id="v-favs" tabindex="-1" style="display:none">
   <div class="screen-header">
     <button class="nav-back" id="fav-back">← avganger</button>
     <span class="screen-label" role="heading" aria-level="2">favoritter</span>
@@ -204,10 +204,10 @@
 </div>
 
 <!-- ══ 7: FRITID ══ -->
-<div id="v-leisure" style="display:none"></div>
+<div id="v-leisure" tabindex="-1" style="display:none"></div>
 
 <!-- ══ 8: REISEPLAN ══ -->
-<div id="v-plan" style="display:none">
+<div id="v-plan" tabindex="-1" style="display:none">
   <div class="screen-header">
     <button class="nav-back" id="plan-back">← avganger</button>
     <span class="screen-label" role="heading" aria-level="2">reiseplan</span>

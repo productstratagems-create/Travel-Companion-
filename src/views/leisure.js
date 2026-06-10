@@ -6,6 +6,7 @@ import { saveWeekendMode } from '../geo.js';
 import { geocodePlace } from '../api/entur.js';
 import config from '../config.js';
 import { show, updateHeader } from '../ui/nav.js';
+import { esc } from '../ui/fmt.js';
 
 const HANDEL = { label: 'handel', emoji: '🛍', amenities: 'commercial.clothing,commercial.shoes,commercial.sport,commercial.books,commercial.electronics,commercial.shopping_mall,commercial.department_store,commercial.gift,commercial.jewelry' };
 const LEISURE_CATS = [...PLACE_CATS, HANDEL];
@@ -19,6 +20,7 @@ let _weather   = null;
 let _expanded  = null;   // expanded venue card index
 let _locOvr    = null;   // { lat, lon, label } — user-set position override
 let _radius    = 1000;   // metres
+let _venueReqId = 0;     // guards against stale fetchNearbyPlaces responses
 
 // Map state
 let _lMap         = null;
@@ -272,7 +274,7 @@ function _cardHtml(v, i) {
   return '<div class="lei-venue-card' + (isActive ? ' active' : '') + '" data-idx="' + i + '">'
     + '<div class="lei-venue-row">'
     + '<span class="lei-venue-emoji">' + v.emoji + '</span>'
-    + '<span class="lei-venue-name">' + v.name + '</span>'
+    + '<span class="lei-venue-name">' + esc(v.name) + '</span>'
     + hoursHtml
     + '<span class="lei-venue-dist">' + dist + '</span>'
     + '</div>'
@@ -315,11 +317,13 @@ function _updateWeatherEl() {
 
 function _loadVenues(cat, pos) {
   _loading = true;
+  const reqId = ++_venueReqId;
   const venEl = document.getElementById('lei-venues');
   if (venEl) venEl.innerHTML = '<div class="lei-loading">laster steder…</div>';
 
   fetchNearbyPlaces(pos.lat, pos.lon, cat.amenities, 8, _radius)
     .then(places => {
+      if (reqId !== _venueReqId) return;
       _venues = places;
       _loading = false;
       const el = document.getElementById('v-leisure');
@@ -332,6 +336,7 @@ function _loadVenues(cat, pos) {
       _updateLeisureMarkers(pos);
     })
     .catch(() => {
+      if (reqId !== _venueReqId) return;
       _loading = false;
       const vEl = document.getElementById('lei-venues');
       if (vEl) vEl.innerHTML = '<div class="lei-loading">Kunne ikke laste steder.</div>';

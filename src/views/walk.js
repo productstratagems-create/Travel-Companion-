@@ -8,6 +8,8 @@ import L from 'leaflet';
 import { fetchWalkRoute } from '../api/route.js';
 import { fetchWeather } from '../api/weather.js';
 import { stopSelRefresh } from './selected.js';
+import { logMsg } from '../ui/log.js';
+import { esc } from '../ui/fmt.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -104,7 +106,7 @@ export function buildWalkBar() {
     : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
   document.getElementById('w-train-bar').innerHTML =
     badges
-    + '<span class="tb-dest">' + dest + '</span>'
+    + '<span class="tb-dest">' + esc(dest) + '</span>'
     + '<span class="tb-dep">avg <span>' + clk(c.expectedDepartureTime) + '</span>'
     + (arrT ? ' · ank <span>' + clk(arrT) + '</span>' : '') + '</span>';
 }
@@ -121,7 +123,15 @@ export function renderWalk() {
     stopWalk();
     stopSelRefresh();
     state.sel = null;
-    show('v-board'); startBoard(); return;
+    logMsg('avgangen er passert — tilbake til avganger', 'err');
+    show('v-board'); startBoard();
+    const be = document.getElementById('board-error');
+    if (be) {
+      be.textContent = 'Avgangen er passert — viser oppdaterte avganger.';
+      be.style.display = 'block';
+      setTimeout(() => { be.style.display = 'none'; }, 4000);
+    }
+    return;
   }
   const wk = walkInfo();
   const leaveByTs = depTs - wk.mins * 60000;

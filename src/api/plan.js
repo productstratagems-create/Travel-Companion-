@@ -1,8 +1,10 @@
 const PLAN_KEY = 't.plan';
 
 export function loadPlan() {
-  try { return JSON.parse(localStorage.getItem(PLAN_KEY) || '[]'); }
-  catch { return []; }
+  try {
+    const v = JSON.parse(localStorage.getItem(PLAN_KEY) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
 }
 
 export function savePlan(legs) {
@@ -16,13 +18,13 @@ export function clearPlan() {
 export function addLegToPlan(c, dir) {
   const legs = loadPlan();
   const depIso = c.expectedDepartureTime;
-  if (legs.some(l => l.depIso === depIso)) return false;
+  const serviceJourneyId = (c.serviceJourney && c.serviceJourney.id) || null;
+  if (legs.some(l => serviceJourneyId ? l.serviceJourneyId === serviceJourneyId : l.depIso === depIso)) return false;
   const ln = c.serviceJourney && c.serviceJourney.line;
   const line = (ln && ln.publicCode) || '?';
   const lineColour = (ln && ln.presentation && ln.presentation.colour) || '7c2d12';
   const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to;
   const arrIso = c._finalArrival || null;
-  const serviceJourneyId = (c.serviceJourney && c.serviceJourney.id) || null;
   legs.push({
     id: 'leg_' + Date.now(),
     line, lineColour,
@@ -56,6 +58,6 @@ export function planStatus(legs, now) {
   return 'active';
 }
 
-export function isLegInPlan(depIso) {
-  return loadPlan().some(l => l.depIso === depIso);
+export function isLegInPlan(depIso, serviceJourneyId) {
+  return loadPlan().some(l => serviceJourneyId ? l.serviceJourneyId === serviceJourneyId : l.depIso === depIso);
 }

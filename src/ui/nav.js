@@ -12,6 +12,8 @@ export function show(id) {
   });
   state.view = id.replace('v-', '');
   window.scrollTo(0, 0);
+  // Move focus to the new screen so screen-reader users land at its top
+  document.getElementById(id).focus({ preventScroll: true });
   // Hide sticky chip when already on the tracking screen; it would be redundant there
   const chip = document.getElementById('onboard-chip');
   if (chip) chip.classList.toggle('chip-on-track', id === 'v-track');

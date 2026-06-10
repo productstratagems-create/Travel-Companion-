@@ -414,7 +414,7 @@ export function applyRoute() {
   const arr = document.getElementById('set-arr').value.trim();
   const errEl = document.getElementById('set-error');
   if (!dep || !arr) {
-    errEl.textContent = 'Fyll inn destinasjon.';
+    errEl.textContent = !dep ? 'Fyll inn avgangssted.' : 'Fyll inn destinasjon.';
     errEl.style.display = 'block';
     return false;
   }

@@ -462,7 +462,8 @@ export function renderBoard() {
     const lbg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
     const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
     const quay = (c.quay && c.quay.publicCode) || (c.quay && c.quay.name ? c.quay.name.replace(/^.*?\s/, '') : '?');
-    const delayed = c.realtime && depTs - new Date(c.aimedDepartureTime).getTime() > 60000;
+    const delayMins = c.realtime ? Math.round((depTs - new Date(c.aimedDepartureTime).getTime()) / 60000) : 0;
+    const delayed = delayMins > 1;
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
     const arr = findArr(sjc, dir.to);
     const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
@@ -588,7 +589,7 @@ export function renderBoard() {
       + '<div class="dep-info">'
       + '<span class="dep-dest">' + dest + '</span>'
       + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
-      + (delayed ? '<span class="dep-tag">+for</span>' : '')
+      + (delayed ? '<span class="dep-tag">+' + delayMins + ' min</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + '</div>'
       + (showReach

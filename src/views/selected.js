@@ -206,7 +206,7 @@ export function renderSelected() {
   const rcls = reachCls(mtl);
   const ltCls = rcls === 'r-ok' ? 'lt-ok' : rcls === 'r-soon' ? 'lt-soon' : rcls === 'r-now' ? 'lt-now' : 'lt-late';
   let urgMsg;
-  if (rcls === 'missed') urgMsg = '<span style="color:#dc2626">Rakker ikke — velg neste avgang</span>';
+  if (rcls === 'missed') urgMsg = '<span style="color:#dc2626">Rekker ikke — velg neste avgang</span>';
   else if (rcls === 'r-now') urgMsg = '<span class="go">Gå nå!</span>';
   else urgMsg = 'Gå om <span class="amber">' + fmtMins(mtl) + '</span>';
 
@@ -572,7 +572,7 @@ function _refreshSelDisplay() {
     const lbSubEl = document.querySelector('.leaveby-sub');
     if (lbSubEl) {
       let urgMsg;
-      if (rcls === 'missed') urgMsg = '<span style="color:#dc2626">Rakker ikke — velg neste avgang</span>';
+      if (rcls === 'missed') urgMsg = '<span style="color:#dc2626">Rekker ikke — velg neste avgang</span>';
       else if (rcls === 'r-now') urgMsg = '<span class="go">Gå nå!</span>';
       else urgMsg = 'Gå om <span class="amber">' + fmtMins(mtl) + '</span>';
       lbSubEl.innerHTML = urgMsg;

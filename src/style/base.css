@@ -86,6 +86,9 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
   border-radius:2px;
 }
 
+/* Programmatic focus on screen containers (for SR navigation) shouldn't show a ring */
+.wrap > div:focus{ outline:none; }
+
 /* Reduced motion — disable all animations when user prefers it */
 @media(prefers-reduced-motion:reduce){
   *{animation-duration:.001ms!important;transition-duration:.001ms!important}

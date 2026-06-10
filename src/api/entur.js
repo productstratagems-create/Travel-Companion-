@@ -284,6 +284,7 @@ export function fetchJourneyMeta(journeyId) {
           expected:  c.expectedDepartureTime || c.expectedArrivalTime || null,
           cancelled: c.cancellation || false,
           realtime:  c.realtime || false,
+          dest:      (c.destinationDisplay && c.destinationDisplay.frontText) || '',
         };
       });
       const first = calls[0] || null;
@@ -298,6 +299,9 @@ export function fetchJourneyMeta(journeyId) {
         quay:      first ? first.quay : null,
         realtime:  first ? first.realtime : false,
         fetchedAt: Date.now(),
+        lineCode:  (sj.line && sj.line.publicCode) || '',
+        lineBg:    (sj.line && sj.line.presentation && sj.line.presentation.colour) ? '#' + sj.line.presentation.colour : '',
+        dest:      first ? first.dest : '',
       };
     });
 }

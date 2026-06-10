@@ -38,6 +38,7 @@ export const intervals = {
   board: null,
   track: null,
   sel: null,
+  spectate: null,
 };
 
 let _seq = 0;

@@ -54,8 +54,10 @@ export function trackGQL(jid) {
 // Normalised shape is JourneyMeta (see entur.js).
 export function journeyGQL(jid) {
   return '{serviceJourney(id:"' + jid + '"){'
+    + 'line{publicCode transportMode presentation{colour}} '
     + 'estimatedCalls{'
     + 'cancellation realtime '
+    + 'destinationDisplay{frontText} '
     + 'quay{publicCode stopPlace{name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime '
     + 'aimedDepartureTime expectedDepartureTime'

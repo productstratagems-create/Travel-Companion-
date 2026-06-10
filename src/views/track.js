@@ -516,10 +516,13 @@ export function renderTrack() {
   const cs = computeState(now);
   const { phase, i } = cs;
 
-  // Auto-exit 5 min after final arrival
+  // Auto-exit 5 min after final arrival — end the journey fully so the
+  // chip, intervals and persisted state don't outlive the trip
   if (phase === 'arrived') {
     const lastLeg = legs[legs.length - 1];
     if (lastLeg.arrTime && now - new Date(lastLeg.arrTime.time).getTime() > 300000) {
+      logMsg('reise fullført → ' + state.jny.dest, 'ok');
+      window._clearJny && window._clearJny();
       show('v-board'); startBoard(); return;
     }
   }
@@ -861,6 +864,7 @@ export function startTracking() {
 
 export function stopTracking() {
   if (intervals.track) { clearInterval(intervals.track); intervals.track = null; }
+  if (_arrBoardInterval) { clearInterval(_arrBoardInterval); _arrBoardInterval = null; }
 }
 
 function _fetchTrack() {

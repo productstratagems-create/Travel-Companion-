@@ -102,8 +102,19 @@ function _depToRouteLegs(dep, fromName, toName) {
   return [{ stops, color }];
 }
 
+let _selMapKey = '';
+
 export function destroySelMap() {
   if (_selMap) { _selMap.remove(); _selMap = null; _selLayer = null; }
+  _selMapKey = '';
+}
+
+function _selMapStructKey(dep, legs) {
+  const jid = (dep.serviceJourney && dep.serviceJourney.id) || '';
+  return jid + '|' + legs.map(l => {
+    const f = l.stops[0], t = l.stops[l.stops.length - 1];
+    return l.stops.length + ':' + f.lat + ',' + f.lon + ':' + t.lat + ',' + t.lon;
+  }).join('|');
 }
 
 function _renderSelMap(dep, fromName, toName) {
@@ -114,8 +125,15 @@ function _renderSelMap(dep, fromName, toName) {
   const legs = _depToRouteLegs(dep, fromName, toName);
   if (!legs) { wrap.style.display = 'none'; destroySelMap(); return; }
 
+  // Rebuild only when the route itself changes — renderSelected runs every
+  // second and recreating the Leaflet map each tick flickers and resets pan/zoom
+  const key = _selMapStructKey(dep, legs);
+  if (key === _selMapKey && _selMap) return;
+  _selMapKey = key;
+
   wrap.style.display = 'block';
   destroySelMap();
+  _selMapKey = key;
   _selMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
   L.tileLayer(_TILE, { subdomains: 'abcd' }).addTo(_selMap);
   _selLayer = L.layerGroup().addTo(_selMap);
@@ -465,10 +483,31 @@ function _fetchSel() {
   fetchJourneyMeta(jid)
     .then(meta => {
       if (!meta || !state.sel) return;
+      // Drop stale responses: the user may have selected a different departure
+      // while this fetch was in flight
+      const curJid = state.lockedJourneyId
+        || (state.sel.serviceJourney && state.sel.serviceJourney.id);
+      if (curJid !== jid) return;
+
+      // The journey query returns the line's FULL run — calls[0] is the line's
+      // origin terminal, not the user's boarding stop. All live values (departure
+      // time, delay, platform) must come from the boarding stop's call.
+      const dir = config.dirs[state.dIdx];
+      const norm = s => (s || '').toLowerCase().replace(/\s+t$/i, '').trim();
+      const fromN = norm(dir.from);
+      const boarding = meta.calls.find(c => norm(c.name) === fromN) || null;
+      if (boarding) {
+        const dMs = boarding.aimed && boarding.expected
+          ? new Date(boarding.expected).getTime() - new Date(boarding.aimed).getTime()
+          : 0;
+        meta.delayMins = Math.round(dMs / 60000);
+        meta.quay = boarding.quay;
+        meta.realtime = boarding.realtime;
+      }
       state.lockedJourneyMeta = meta;
       // Advance the departure time so leaveby stays accurate
-      if (meta.realtime && meta.calls.length && meta.calls[0].expected) {
-        state.sel.expectedDepartureTime = meta.calls[0].expected;
+      if (boarding && boarding.realtime && boarding.expected) {
+        state.sel.expectedDepartureTime = boarding.expected;
       }
       // Keep estimated calls in sync for the route map
       state.sel.serviceJourney.estimatedCalls = meta.calls.map(c => ({

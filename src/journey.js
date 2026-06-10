@@ -6,7 +6,7 @@ import { updateOnboardChip } from './ui/chip.js';
 import { show } from './ui/nav.js';
 import { startBoard, stopBoard } from './views/board.js';
 import { renderSelected, startSelRefresh, stopSelRefresh } from './views/selected.js';
-import { buildTrackBar, startTracking } from './views/track.js';
+import { buildTrackBar, startTracking, stopTracking } from './views/track.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -176,6 +176,10 @@ export function clearJny() {
   state.lockedJourneyId   = null;
   state.lockedJourneyMeta = null;
   try { localStorage.removeItem(config.storage.journey); } catch {}
+  // Full teardown: stop all tracking polls and hide the sticky chip so the
+  // journey never outlives itself regardless of which path ended it
+  stopTracking();
+  updateOnboardChip();
 }
 
 // Window bridges used by HTML inline handlers and nav.js

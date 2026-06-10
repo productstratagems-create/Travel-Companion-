@@ -44,8 +44,17 @@ export function boardGQL(id, n) {
     + '}}';
 }
 
+// Realtime EstimatedCall.serviceJourney.id sometimes carries a lowercase
+// codespace prefix (e.g. "rut:ServiceJourney:..."), while the static graph
+// indexes ServiceJourney by its NeTEx ID with an uppercase codespace
+// ("RUT:ServiceJourney:..."). Uppercase the prefix so serviceJourney(id:)
+// lookups can resolve IDs copied straight from board/track data.
+function normJid(jid) {
+  return String(jid || '').replace(/^([a-z]+):/, m => m.toUpperCase());
+}
+
 export function trackGQL(jid) {
-  return '{serviceJourney(id:"' + jid + '"){'
+  return '{serviceJourney(id:"' + normJid(jid) + '"){'
     + 'estimatedCalls{quay{stopPlace{name}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime realtime}}}';
 }
@@ -53,7 +62,7 @@ export function trackGQL(jid) {
 // Richer query used by fetchJourneyMeta — includes cancellation + platform per call.
 // Normalised shape is JourneyMeta (see entur.js).
 export function journeyGQL(jid) {
-  return '{serviceJourney(id:"' + jid + '"){'
+  return '{serviceJourney(id:"' + normJid(jid) + '"){'
     + 'line{publicCode transportMode presentation{colour}} '
     + 'estimatedCalls{'
     + 'cancellation realtime '

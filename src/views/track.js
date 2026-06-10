@@ -803,6 +803,35 @@ export function buildTrackBar() {
     + '<span class="tb-dest">' + (state.jny.frontText || state.jny.dest) + '</span>'
     + (firstDep ? '<span class="tb-dep">avg <span>' + firstDep.clk + '</span></span>' : '')
     + (state.jny.arrival ? '<span class="tb-dep">ank <span>' + state.jny.arrival.clk + '</span></span>' : '');
+
+  const jidRow = document.getElementById('t-jid-row');
+  const jidVal = document.getElementById('t-jid-val');
+  if (jidRow && jidVal) {
+    if (state.lockedJourneyId) {
+      jidVal.textContent = state.lockedJourneyId;
+      jidRow.style.display = 'flex';
+    } else {
+      jidRow.style.display = 'none';
+    }
+  }
+}
+
+export function copyJourneyId() {
+  const jid = state.lockedJourneyId;
+  const msg = document.getElementById('t-jid-msg');
+  if (!jid || !msg) return;
+  const showMsg = text => {
+    msg.textContent = text;
+    msg.style.display = 'block';
+    setTimeout(() => { msg.style.display = 'none'; }, 2000);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(jid)
+      .then(() => showMsg('✓ kopiert'))
+      .catch(() => showMsg(jid));
+  } else {
+    showMsg(jid);
+  }
 }
 
 export function startTracking() {

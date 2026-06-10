@@ -1,4 +1,26 @@
 /* ── SCREEN 3: TRACKING ── */
+.journey-id-row{
+  display:flex;align-items:center;gap:.5rem;
+  margin:-1.25rem 0 1.25rem;
+  font-size:10px;
+}
+.journey-id-row .jid-label{
+  text-transform:uppercase;letter-spacing:.12em;color:#7485a0;flex-shrink:0;
+}
+.journey-id-row .jid-val{
+  font-family:"JetBrains Mono",monospace;font-size:10px;color:#a8a29e;
+  overflow-x:auto;white-space:nowrap;flex:1;min-width:0;
+  -ms-overflow-style:none;scrollbar-width:none;
+}
+.journey-id-row .jid-val::-webkit-scrollbar{display:none}
+.jid-copy-btn{
+  flex-shrink:0;background:none;border:1px solid rgba(245,184,64,.18);
+  border-radius:20px;color:#f5b840;font-family:inherit;font-size:9px;
+  letter-spacing:.1em;text-transform:uppercase;padding:.3rem .7rem;
+  cursor:pointer;min-height:32px;
+}
+.jid-copy-btn:active{background:rgba(245,184,64,.12)}
+
 .t-explore-link{
   display:block;width:100%;margin-top:.9rem;padding:.55rem 0 0;
   background:none;border:none;border-top:1px solid rgba(245,184,64,.07);

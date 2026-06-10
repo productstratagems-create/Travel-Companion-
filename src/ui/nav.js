@@ -4,6 +4,7 @@ import { addFav } from './favs.js';
 import { saveWeekendMode } from '../geo.js';
 import { confirmTap } from './confirm.js';
 import { stopSelRefresh } from '../views/selected.js';
+import { copyJourneyId } from '../views/track.js';
 
 export function show(id) {
   if (id !== 'v-selected') window._destroySelMap && window._destroySelMap();
@@ -108,6 +109,8 @@ export function attachEventListeners() {
       window._startBoard && window._startBoard();
     }
   });
+
+  document.getElementById('t-jid-copy').addEventListener('click', copyJourneyId);
 
   document.getElementById('alight-btn').addEventListener('click', (e) => {
     if (!confirmTap(e.currentTarget, 'sikker? trykk igjen', () => {

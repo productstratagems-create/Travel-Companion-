@@ -229,6 +229,10 @@ html[data-theme="light"] .train-bar { border-bottom-color: rgba(26,19,9,.08); }
 html[data-theme="light"] .train-bar .tb-dest { color: #9ca3af; }
 html[data-theme="light"] .train-bar .tb-dep  { color: #78716c; }
 html[data-theme="light"] .train-bar .tb-dep span { color: #b05800; }
+html[data-theme="light"] .journey-id-row .jid-label { color: #78716c; }
+html[data-theme="light"] .journey-id-row .jid-val { color: #57534e; }
+html[data-theme="light"] .jid-copy-btn { color: #b05800; border-color: rgba(176,88,0,.25); }
+html[data-theme="light"] .jid-copy-btn:active { background: rgba(176,88,0,.1); }
 
 html[data-theme="light"] .sel-stop-label {
   background: #fffdf7;

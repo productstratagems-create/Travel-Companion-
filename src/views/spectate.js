@@ -20,13 +20,10 @@ function _formHtml() {
 }
 
 function _resultHtml(meta) {
-  const now = Date.now();
-  const rows = meta.calls.map((c, i) => {
+  const rows = meta.calls.map(c => {
     const t = c.expected || c.aimed;
     const delayed = c.aimed && c.expected && c.aimed !== c.expected;
-    const future = !c.cancelled && t && new Date(t).getTime() > now;
-    return '<div class="spec-row' + (c.cancelled ? ' cancelled' : future ? ' tappable' : '') + '"'
-      + (future ? ' data-idx="' + i + '"' : '') + '>'
+    return '<div class="spec-row' + (c.cancelled ? ' cancelled' : '') + '">'
       + '<span class="spec-time' + (delayed ? ' delayed' : '') + '">' + (t ? clk(t) : '—') + '</span>'
       + '<span class="spec-stop">' + esc(c.name) + '</span>'
       + (c.cancelled ? '<span class="dep-cancelled">innstilt</span>' : '')
@@ -39,7 +36,7 @@ function _resultHtml(meta) {
       ? '<span class="dep-cancelled">innstilt</span>'
       : meta.delayMins > 1 ? '<span class="dep-tag">+' + meta.delayMins + ' min</span>' : '')
     + '</div>'
-    + '<div class="spec-hint">trykk på en stasjon for å spore reisen dit</div>'
+    + '<button class="spec-track-btn" id="spec-track" type="button">spor denne reisen →</button>'
     + '<div class="spec-stops">' + rows + '</div>';
 }
 
@@ -89,9 +86,10 @@ export function toggleSpectatePanel() {
       if (e.key === 'Enter') _onSearch();
     });
     document.getElementById('spec-result').addEventListener('click', e => {
-      const row = e.target.closest('.spec-row.tappable');
-      if (!row || !_lastMeta) return;
-      joinJourney(_lastMeta, parseInt(row.dataset.idx, 10));
+      if (!e.target.closest('#spec-track') || !_lastMeta) return;
+      let toIdx = _lastMeta.calls.length - 1;
+      while (toIdx > 0 && _lastMeta.calls[toIdx].cancelled) toIdx--;
+      joinJourney(_lastMeta, toIdx);
       _open = false;
       _lastMeta = null;
       panel.style.display = 'none';

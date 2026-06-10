@@ -287,22 +287,32 @@ function _drawWalkRoute(fromLL, toLL, destName) {
     });
 }
 
+let _modeFilterKey = '';
+
 function renderModeFilter() {
   const el = document.getElementById('mode-filter');
   if (!el) return;
   const modes = loadModes();
-  el.innerHTML = [
+  const pills = [
     { key: 'metro', label: 'T-bane' },
     { key: 'tram',  label: 'Trikk' },
     { key: 'bus',   label: 'Buss' },
     { key: 'sykkel', label: 'Sykkel' },
-  ].map(p => '<button class="mode-pill' + (modes[p.key] ? ' active' : '') + '" data-mode="' + p.key + '">'
+  ];
+  // Rebuilding via innerHTML every render tick can detach a pill mid-tap and
+  // swallow the click — only rebuild when the active set actually changes
+  const key = pills.map(p => p.key + ':' + (modes[p.key] ? 1 : 0)).join(',');
+  if (key === _modeFilterKey) return;
+  _modeFilterKey = key;
+
+  el.innerHTML = pills.map(p => '<button class="mode-pill' + (modes[p.key] ? ' active' : '') + '" data-mode="' + p.key + '">'
     + p.label + '</button>').join('');
   el.querySelectorAll('.mode-pill').forEach(btn => {
     btn.addEventListener('click', () => {
       const m = loadModes();
       m[btn.dataset.mode] = !m[btn.dataset.mode];
       saveModes(m);
+      _modeFilterKey = '';
       renderBoard();
     });
   });

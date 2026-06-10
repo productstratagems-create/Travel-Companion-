@@ -1,8 +1,9 @@
 import config from '../config.js';
-import { state, intervals } from '../state.js';
+import { state } from '../state.js';
 import { addFav } from './favs.js';
 import { saveWeekendMode } from '../geo.js';
 import { confirmTap } from './confirm.js';
+import { stopSelRefresh } from '../views/selected.js';
 
 export function show(id) {
   if (id !== 'v-selected') window._destroySelMap && window._destroySelMap();
@@ -89,7 +90,7 @@ export function attachEventListeners() {
   });
 
   document.getElementById('s-back').addEventListener('click', () => {
-    stopSelRefreshBridge();
+    stopSelRefresh();
     state.sel = null;
     show('v-board');
     window._startBoard && window._startBoard();
@@ -121,6 +122,7 @@ export function attachEventListeners() {
 
   document.getElementById('set-back').addEventListener('click', () => {
     show('v-board');
+    window._startBoard && window._startBoard();
   });
 
   document.getElementById('set-apply').addEventListener('click', () => {
@@ -156,8 +158,4 @@ export function attachEventListeners() {
     window._logMsg && window._logMsg('gangtid: ' + (state.walkOvr !== null ? state.walkOvr + ' min' : 'reset til beregnet'));
     window._updateWalkDbg && window._updateWalkDbg();
   });
-}
-
-function stopSelRefreshBridge() {
-  if (intervals.sel) { clearInterval(intervals.sel); intervals.sel = null; }
 }

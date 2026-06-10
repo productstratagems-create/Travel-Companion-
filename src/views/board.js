@@ -464,18 +464,6 @@ export function renderBoard() {
     const showReach = walkActive && rcls && !missed && (rcls !== 'r-now' || !urgentShown);
     if (rcls === 'r-now') urgentShown = true;
 
-    const visLegs = c._legs ? c._legs.slice(0, 3) : null;
-    const lineBadges = visLegs
-      ? visLegs.map(l => {
-          const ll = l.serviceJourney && l.serviceJourney.line;
-          const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
-          const lcode = (ll && ll.publicCode) || '?';
-          return '<span class="line-badge" style="background:' + bg + '">' + lcode + '</span>'
-            + occPip(legOccLevel(l));
-        }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
-      : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>'
-        + occPip(occLevel);
-
     // Occupancy: API primary, multi-signal heuristic fallback
     const occ = c.occupancyStatus;
     const _prev = _linePrev.get(lc);
@@ -544,6 +532,18 @@ export function renderBoard() {
       else if (score <= -3) occLevel = 1;
       else if (score <= -1) occLevel = 2;
     }
+
+    const visLegs = c._legs ? c._legs.slice(0, 3) : null;
+    const lineBadges = visLegs
+      ? visLegs.map(l => {
+          const ll = l.serviceJourney && l.serviceJourney.line;
+          const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
+          const lcode = (ll && ll.publicCode) || '?';
+          return '<span class="line-badge" style="background:' + bg + '">' + lcode + '</span>'
+            + occPip(legOccLevel(l));
+        }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
+      : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>'
+        + occPip(occLevel);
 
     const xferCount = c._transfers && c._transfers.length;
 

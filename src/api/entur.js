@@ -271,6 +271,7 @@ export function fetchJourneyMeta(journeyId) {
   })
     .then(r => r.json())
     .then(j => {
+      if (j && j.errors) throw new Error(j.errors[0].message);
       const sj = j && j.data && j.data.serviceJourney;
       if (!sj || !sj.estimatedCalls) return null;
       const calls = sj.estimatedCalls.map(c => {

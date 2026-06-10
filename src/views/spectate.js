@@ -1,6 +1,7 @@
 import config from '../config.js';
 import { intervals } from '../state.js';
 import { fetchJourneyMeta } from '../api/entur.js';
+import { logMsg } from '../ui/log.js';
 import { esc } from '../ui/fmt.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -43,14 +44,17 @@ function _load(id) {
       if (!result) return;
       if (!meta || !meta.calls.length) {
         result.innerHTML = '<div class="status-error-msg">fant ingen reise med denne ID-en (kan være utløpt eller for en annen dag).</div>';
+        logMsg('finn reise: ingen treff for ' + id, 'err');
         if (intervals.spectate) { clearInterval(intervals.spectate); intervals.spectate = null; }
         return;
       }
       result.innerHTML = _resultHtml(meta);
     })
-    .catch(() => {
+    .catch(err => {
       const result = document.getElementById('spec-result');
-      if (result) result.innerHTML = '<div class="status-error-msg">kunne ikke hente reise.</div>';
+      if (result) result.innerHTML = '<div class="status-error-msg">kunne ikke hente reise: ' + esc(err.message) + '</div>';
+      logMsg('finn reise ✗ ' + err.message, 'err');
+      if (intervals.spectate) { clearInterval(intervals.spectate); intervals.spectate = null; }
     });
 }
 

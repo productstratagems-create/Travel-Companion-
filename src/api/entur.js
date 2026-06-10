@@ -11,8 +11,9 @@ const TRANSIT_CAT = ['metroStation', 'busStation', 'onstreetBus', 'tramStation',
 
 export function resolveStop(dir, signal) {
   if (dir.stopId) return Promise.resolve(dir.stopId);
-  if (!dir.geo && dir._fromLat && dir._fromLon) return Promise.resolve({ lat: dir._fromLat, lon: dir._fromLon });
-  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo || '') + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
+  if (dir._fromLat && dir._fromLon) return Promise.resolve({ lat: dir._fromLat, lon: dir._fromLon });
+  if (!dir.geo) return Promise.reject(new Error('Mangler avgangssted'));
+  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(json => {
       const ff = ((json && json.features) || [])

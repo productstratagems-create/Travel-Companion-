@@ -13,11 +13,11 @@ const VIA_KEY = 't.via';
 const TRANSIT_CATEGORIES = ['metroStation', 'busStation', 'onstreetBus', 'tramStation', 'ferryStop'];
 
 const EXPLORE_CATS = [
-  { label: 'spise',  emoji: '🍽', amenities: ['restaurant', 'fast_food'] },
-  { label: 'kaffe',  emoji: '☕', amenities: ['cafe', 'bakery'] },
-  { label: 'kultur', emoji: '🏛', amenities: ['museum', 'cinema', 'theatre', 'arts_centre', 'library'] },
-  { label: 'handel', emoji: '🛍', amenities: ['clothes', 'shoes', 'sports', 'books', 'electronics', 'mall'] },
-  { label: 'drikke', emoji: '🍺', amenities: ['bar', 'pub'] },
+  { label: 'spise',  emoji: '🍽', amenities: ['catering.restaurant', 'catering.fast_food'] },
+  { label: 'kaffe',  emoji: '☕', amenities: ['catering.cafe', 'catering.bakery'] },
+  { label: 'kultur', emoji: '🏛', amenities: ['entertainment.museum', 'entertainment.cinema', 'entertainment.theatre', 'entertainment.arts_centre', 'education.library'] },
+  { label: 'handel', emoji: '🛍', amenities: ['commercial.clothing', 'commercial.shoes', 'commercial.sport', 'commercial.books', 'commercial.electronics', 'commercial.shopping_mall'] },
+  { label: 'drikke', emoji: '🍺', amenities: ['catering.bar', 'catering.pub'] },
 ];
 
 let _depAbort = null, _arrAbort = null, _viaAbort = null, _wfAbort = null;

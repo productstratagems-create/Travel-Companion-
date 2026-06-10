@@ -25,6 +25,10 @@ export function addFav(dir) {
     geo:      dir.geo      || null,
     toGeo:    dir.toGeo    || null,
     line:     dir.line     || null,
+    fromLat:  dir._fromLat || null,
+    fromLon:  dir._fromLon || null,
+    toLat:    dir._toLat   || null,
+    toLon:    dir._toLon   || null,
     createdAt: Date.now(),
   });
   if (favs.length > 12) favs.shift();
@@ -50,6 +54,10 @@ export function addTimedFav(dep, dir) {
     toStopId: dir.toStopId || null,
     geo:      dir.geo      || null,
     toGeo:    dir.toGeo    || null,
+    fromLat:  dir._fromLat || null,
+    fromLon:  dir._fromLon || null,
+    toLat:    dir._toLat   || null,
+    toLon:    dir._toLon   || null,
     line, lineColour: colour,
     departureHHMM: hhmm,
     createdAt: Date.now(),
@@ -74,5 +82,9 @@ export function favToDir(fav) {
     geo:      fav.geo,
     toGeo:    fav.toGeo,
     line:     fav.line,
+    _fromLat: fav.fromLat || null,
+    _fromLon: fav.fromLon || null,
+    _toLat:   fav.toLat   || null,
+    _toLon:   fav.toLon   || null,
   };
 }

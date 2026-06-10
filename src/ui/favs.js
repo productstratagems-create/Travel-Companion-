@@ -3,8 +3,10 @@ import config from '../config.js';
 function pad(n) { return String(n).padStart(2, '0'); }
 
 export function loadFavs() {
-  try { return JSON.parse(localStorage.getItem(config.storage.favs) || '[]'); }
-  catch { return []; }
+  try {
+    const v = JSON.parse(localStorage.getItem(config.storage.favs) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
 }
 
 export function saveFavs(favs) {

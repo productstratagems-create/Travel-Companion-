@@ -9,7 +9,7 @@ import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
-import { fmtMins, makeSuggBtn } from '../ui/fmt.js';
+import { fmtMins, makeSuggBtn, esc } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchWalkRoute } from '../api/route.js';
 
@@ -56,7 +56,10 @@ function _destroyArrMap() {
 }
 
 function loadRecentDests() {
-  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
+  try {
+    const v = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
 }
 
 function saveRecentDest(dest) {
@@ -218,10 +221,6 @@ function renderStopRow(r, isNext) {
     + '<div class="stop-clock">' + (r.arrT ? clk(r.arrT) : '—') + '</div>'
     + '<div class="stop-rel">' + r.relTxt + '</div>'
     + '</div>';
-}
-
-function esc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // DOM-safe walk result — avoids innerHTML XSS from external label strings

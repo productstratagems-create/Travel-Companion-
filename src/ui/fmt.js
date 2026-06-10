@@ -15,6 +15,13 @@ export function fmtMins(m) {
 }
 
 /**
+ * Escape a string for safe interpolation into innerHTML.
+ */
+export function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
  * Map a Pelias category array to a colored badge descriptor.
  * Used by all suggestion dropdowns to show transit-type icons.
  */

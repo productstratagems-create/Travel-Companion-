@@ -3,7 +3,7 @@ import { state } from '../state.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
 import { loadTheme, setTheme } from '../theme.js';
 import { geocodePlace, geocodeDest } from '../api/entur.js';
-import { makeSuggBtn } from '../ui/fmt.js';
+import { makeSuggBtn, esc } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 
 const DEST_KEY = 't.dest';
@@ -150,7 +150,7 @@ function _fetchDestVenues() {
           : '';
         return '<div class="dest-prev-row">'
           + '<span class="dest-prev-emoji">' + p.emoji + '</span>'
-          + '<span class="dest-prev-name">' + p.name + '</span>'
+          + '<span class="dest-prev-name">' + esc(p.name) + '</span>'
           + hoursTxt
           + '<span class="dest-prev-dist">' + distTxt + '</span>'
           + '</div>';

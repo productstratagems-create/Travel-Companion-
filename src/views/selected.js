@@ -7,6 +7,7 @@ import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 import { addLegToPlan, isLegInPlan } from '../api/plan.js';
 import { updatePlanCtx } from './plan.js';
 import { logMsg } from '../ui/log.js';
+import { esc } from '../ui/fmt.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
@@ -253,9 +254,9 @@ export function renderSelected() {
       itinHtml += '<div class="itin-leg">'
         + badge
         + '<div class="itin-stops">'
-        + '<div class="itin-row dep"><span>' + fromName + '</span><span class="itin-time dep">' + (depT ? clk(depT) : '—') + '</span></div>'
-        + (platform ? '<div class="itin-meta">spor ' + platform + (frontText ? ' · retning ' + frontText.toLowerCase() : '') + '</div>' : '')
-        + '<div class="itin-row' + (isLastLeg ? ' final' : '') + '"><span>' + toName + '</span><span class="itin-time' + (isLastLeg ? ' final' : '') + '">' + (arrT2 ? clk(arrT2) : '—') + '</span></div>'
+        + '<div class="itin-row dep"><span>' + esc(fromName) + '</span><span class="itin-time dep">' + (depT ? clk(depT) : '—') + '</span></div>'
+        + (platform ? '<div class="itin-meta">spor ' + esc(platform) + (frontText ? ' · retning ' + esc(frontText.toLowerCase()) : '') + '</div>' : '')
+        + '<div class="itin-row' + (isLastLeg ? ' final' : '') + '"><span>' + esc(toName) + '</span><span class="itin-time' + (isLastLeg ? ' final' : '') + '">' + (arrT2 ? clk(arrT2) : '—') + '</span></div>'
         + '</div></div>';
 
       if (!isLastLeg) {
@@ -281,7 +282,7 @@ export function renderSelected() {
   } else {
     const arrHero = arrT
       ? '<div class="arrival-hero">'
-        + '<div class="ah-label">ankommer ' + cleanName(dir.to).toLowerCase() + '</div>'
+        + '<div class="ah-label">ankommer ' + esc(cleanName(dir.to).toLowerCase()) + '</div>'
         + '<div class="ah-time">' + clk(arrT) + '</div>'
         + (tmin ? '<div class="ah-sub">' + tmin + ' min reise</div>' : '')
         + '</div>'
@@ -289,7 +290,7 @@ export function renderSelected() {
     journeyDetail = arrHero
       + '<div class="journey-detail">'
       + '<div class="jd-cell" style="grid-column:1/-1">'
-      + '<div class="jd-label">avgår fra ' + dir.from.toLowerCase() + '</div>'
+      + '<div class="jd-label">avgår fra ' + esc(dir.from.toLowerCase()) + '</div>'
       + '<div class="jd-val departure">' + clk(c.expectedDepartureTime) + '</div>'
       + (delayed ? '<div class="jd-sub">rute ' + clk(c.aimedDepartureTime) + '</div>' : '')
       + '</div>'
@@ -314,11 +315,11 @@ export function renderSelected() {
   document.getElementById('s-content').innerHTML = ''
     + '<div class="train-chip">'
     + chipBadges
-    + '<span class="tc-dest">' + dest + '</span>'
+    + '<span class="tc-dest">' + esc(dest) + '</span>'
     + (quay !== '?' ? '<span class="tc-meta">spor <span>' + quay + '</span>' + (delayed ? ' · <span style="color:#fcd34d">forsinket</span>' : '') + '</span>' : (delayed ? '<span class="tc-meta"><span style="color:#fcd34d">forsinket</span></span>' : ''))
     + '</div>'
     + '<div id="s-live-status"></div>'
-    + '<div class="sel-route-ctx">' + dir.from.toLowerCase() + ' → ' + dir.to.toLowerCase() + '</div>'
+    + '<div class="sel-route-ctx">' + esc(dir.from.toLowerCase()) + ' → ' + esc(dir.to.toLowerCase()) + '</div>'
     + '<div class="sel-weather" id="sel-weather-content">' + _selWeatherHtml(arrT) + '</div>'
     + (departed
       ? '<div class="departed-banner">avgikk ' + clk(depTs) + ' · reisen er i gang</div>'
@@ -382,7 +383,7 @@ export function renderSelected() {
     ctaDiv.appendChild(starBtn);
 
     const planBtn = document.createElement('button');
-    const alreadyInPlan = isLegInPlan(c.expectedDepartureTime);
+    const alreadyInPlan = isLegInPlan(c.expectedDepartureTime, c.serviceJourney && c.serviceJourney.id);
     planBtn.className = 'cta-btn secondary';
     planBtn.textContent = alreadyInPlan ? '📋 i reiseplan' : '📋 legg til i reiseplan';
     if (!alreadyInPlan) {

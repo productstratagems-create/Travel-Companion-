@@ -6,7 +6,7 @@ import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern } from '../api/adapt.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
-import { fmtMins } from '../ui/fmt.js';
+import { fmtMins, esc } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
@@ -567,7 +567,7 @@ export function renderBoard() {
         ? ''
         : ' onclick="window.tapDepId(\'' + depId + '\')"'
           + ' role="button" tabindex="0"'
-          + ' aria-label="' + a11yLabel.replace(/"/g, '&quot;') + '"'
+          + ' aria-label="' + esc(a11yLabel) + '"'
           + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.tapDepId(\'' + depId + '\')}"'
       ) + '>'
       + '<div class="dep-mins' + (urgent ? ' urgent' : '') + (isNow ? ' now' : '') + (isClock ? ' clock' : '') + '">'
@@ -587,7 +587,7 @@ export function renderBoard() {
       + '</div>'
       + '</div>'
       + '<div class="dep-info">'
-      + '<span class="dep-dest">' + dest + '</span>'
+      + '<span class="dep-dest">' + esc(dest) + '</span>'
       + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
       + (delayed ? '<span class="dep-tag">+' + delayMins + ' min</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')

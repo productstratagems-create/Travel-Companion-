@@ -429,8 +429,10 @@ export function renderBoard() {
     return;
   }
 
-  // If this route continues from an unfinished plan leg's destination, hide
-  // departures that leave before that leg is due to arrive — they can't be caught.
+  // If this route continues from an unfinished plan leg's destination, flag
+  // departures that leave before that leg is due to arrive — they're unlikely
+  // to be catchable, but boarding is the user's call, so don't hide them.
+  let planMinDepTs = null;
   const planLegs = loadPlan();
   if (planLegs.length) {
     const lastLeg = planLegs[planLegs.length - 1];
@@ -438,13 +440,7 @@ export function renderBoard() {
       const fromNorm = normStopName(dir.from);
       const toNorm = normStopName(lastLeg.to);
       if (fromNorm && toNorm && (fromNorm.includes(toNorm) || toNorm.includes(fromNorm))) {
-        const minDepTs = new Date(lastLeg.arrIso).getTime();
-        const reachable = visibleDeps.filter(({ c }) => new Date(c.expectedDepartureTime).getTime() >= minDepTs);
-        if (!reachable.length) {
-          list.innerHTML = '<div class="state-msg">ingen avganger etter forrige etappe (ank. ' + clk(minDepTs) + ')</div>';
-          return;
-        }
-        visibleDeps = reachable;
+        planMinDepTs = new Date(lastLeg.arrIso).getTime();
       }
     }
   }
@@ -492,7 +488,8 @@ export function renderBoard() {
     const rcls = walkActive ? reachCls(mtl) : null;
     const isCancelled = c.cancellation;
     const missed = rcls === 'missed';
-    const rowCls = 'dep-row' + (isCancelled ? ' cancelled' : missed ? ' missed' : rcls ? ' ' + rcls : '');
+    const tooEarlyForPlan = planMinDepTs !== null && depTs < planMinDepTs;
+    const rowCls = 'dep-row' + (isCancelled ? ' cancelled' : missed ? ' missed' : rcls ? ' ' + rcls : '') + (tooEarlyForPlan ? ' plan-early' : '');
     const showReach = walkActive && rcls && !missed && (rcls !== 'r-now' || !urgentShown);
     if (rcls === 'r-now') urgentShown = true;
 
@@ -612,6 +609,7 @@ export function renderBoard() {
       + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
       + (delayed ? '<span class="dep-tag">+' + delayMins + ' min</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
+      + (tooEarlyForPlan ? '<span class="dep-cancelled">før forrige etappe</span>' : '')
       + '</div>'
       + (showReach
         ? '<div class="dep-reach ' + rcls + '">'

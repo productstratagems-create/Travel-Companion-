@@ -1,6 +1,6 @@
 import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus } from '../api/plan.js';
 import { state } from '../state.js';
-import { show } from '../ui/nav.js';
+import { show, updateHeader } from '../ui/nav.js';
 import config from '../config.js';
 import L from 'leaflet';
 import { geocodePlace, fetchJourneyMeta } from '../api/entur.js';
@@ -415,7 +415,10 @@ window._tapPlanLeg = (id) => {
 
   // Set direction context to match the plan leg's route
   const dIdx = config.dirs.findIndex(d => d.from.toLowerCase() === leg.from.toLowerCase());
-  if (dIdx >= 0) state.dIdx = dIdx;
+  if (dIdx >= 0 && dIdx !== state.dIdx) {
+    state.dIdx = dIdx;
+    updateHeader();
+  }
 
   // Only use live board data if it was fetched from the same station as this leg's
   // departure — prevents a time-collision match from a different station's departures

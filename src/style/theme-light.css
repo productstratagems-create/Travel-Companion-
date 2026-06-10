@@ -42,10 +42,17 @@ html[data-theme="light"] .onboard-chip-bar {
   border-top-color: rgba(176,88,0,.2);
   color: #1c1309;
 }
-html[data-theme="light"] .onboard-chip-bar:active { background: rgba(176,88,0,.06); }
+html[data-theme="light"] .chip-status { color: #6b7280; }
+html[data-theme="light"] .chip-arrival { color: #b05800; text-shadow: none; }
+html[data-theme="light"] .chip-arrival-plain { color: #78716c; }
+html[data-theme="light"] #chip-end-btn { color: #9ca3af; }
+html[data-theme="light"] #chip-end-btn:active { color: #b91c1c; }
+html[data-theme="light"] #chip-end-btn.confirm-armed { color: #b91c1c; background: rgba(220,38,38,.08); }
 
 html[data-theme="light"] .nav-back { color: #78716c; }
 html[data-theme="light"] .nav-back:active { color: #b05800; }
+html[data-theme="light"] .nav-back.confirm-armed { color: #b91c1c; }
+html[data-theme="light"] .fav-del.confirm-armed { color: #b91c1c; background: rgba(220,38,38,.08); }
 
 html[data-theme="light"] .state-msg { color: #78716c; }
 

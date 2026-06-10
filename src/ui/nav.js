@@ -2,6 +2,7 @@ import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { addFav } from './favs.js';
 import { saveWeekendMode } from '../geo.js';
+import { confirmTap } from './confirm.js';
 
 export function show(id) {
   if (id !== 'v-selected') window._destroySelMap && window._destroySelMap();
@@ -105,12 +106,12 @@ export function attachEventListeners() {
     }
   });
 
-  document.getElementById('alight-btn').addEventListener('click', () => {
-    window._clearJny && window._clearJny();
-    if (intervals.track) { clearInterval(intervals.track); intervals.track = null; }
-    window._updateOnboardChip && window._updateOnboardChip();
-    show('v-board');
-    window._startBoard && window._startBoard();
+  document.getElementById('alight-btn').addEventListener('click', (e) => {
+    if (!confirmTap(e.currentTarget, 'sikker? trykk igjen', () => {
+      window._clearJny && window._clearJny();
+      show('v-board');
+      window._startBoard && window._startBoard();
+    })) return;
   });
 
   document.getElementById('route-btn').addEventListener('click', () => {

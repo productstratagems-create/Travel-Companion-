@@ -56,6 +56,7 @@
 }
 .dep-row:active{background:rgba(245,184,64,.04)}
 .dep-row.missed{opacity:.4;border-left-color:rgba(220,38,38,.3)}
+.dep-row.plan-early{opacity:.5;border-left-color:rgba(116,133,160,.4)}
 .dep-row.cancelled{opacity:.2;pointer-events:none}
 .dep-row.r-ok  {border-left-color:rgba(74,222,128,.4)}
 .dep-row.r-soon{border-left-color:rgba(251,191,36,.6)}

@@ -7,6 +7,11 @@ const WALK_BUF_KEY    = 't.walkBuf';
 const WALK_FROM_KEY   = 't.walkFrom';
 export const SPEED_MPN = { rolig: 41.67, middels: 83.33, rask: 116.67 };
 
+// Loose station-name match: lowercase, drop trailing ", area/city" qualifiers.
+export function normStopName(s) {
+  return String(s || '').toLowerCase().replace(/,.*$/, '').trim();
+}
+
 export function loadWalkSpeed() {
   try { return localStorage.getItem(WALK_SPEED_KEY) || 'middels'; } catch { return 'middels'; }
 }

@@ -1,9 +1,10 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName } from '../geo.js';
 import { fetchBoard, fetchTrip, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern } from '../api/adapt.js';
+import { loadPlan, legStatus } from '../api/plan.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
 import { fmtMins, esc } from '../ui/fmt.js';
@@ -426,6 +427,26 @@ export function renderBoard() {
   if (!visibleDeps.length) {
     list.innerHTML = '<div class="state-msg">ingen avganger for valgte modi</div>';
     return;
+  }
+
+  // If this route continues from an unfinished plan leg's destination, hide
+  // departures that leave before that leg is due to arrive — they can't be caught.
+  const planLegs = loadPlan();
+  if (planLegs.length) {
+    const lastLeg = planLegs[planLegs.length - 1];
+    if (lastLeg.arrIso && legStatus(lastLeg, now) !== 'done') {
+      const fromNorm = normStopName(dir.from);
+      const toNorm = normStopName(lastLeg.to);
+      if (fromNorm && toNorm && (fromNorm.includes(toNorm) || toNorm.includes(fromNorm))) {
+        const minDepTs = new Date(lastLeg.arrIso).getTime();
+        const reachable = visibleDeps.filter(({ c }) => new Date(c.expectedDepartureTime).getTime() >= minDepTs);
+        if (!reachable.length) {
+          list.innerHTML = '<div class="state-msg">ingen avganger etter forrige etappe (ank. ' + clk(minDepTs) + ')</div>';
+          return;
+        }
+        visibleDeps = reachable;
+      }
+    }
   }
 
   // Headway computation for occupancy heuristic

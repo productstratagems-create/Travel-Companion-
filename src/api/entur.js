@@ -9,11 +9,11 @@ let tripController = null;
 
 const TRANSIT_CAT = ['metroStation', 'busStation', 'onstreetBus', 'tramStation', 'ferryStop'];
 
-export function resolveStop(dir) {
+export function resolveStop(dir, signal) {
   if (dir.stopId) return Promise.resolve(dir.stopId);
   if (!dir.geo && dir._fromLat && dir._fromLon) return Promise.resolve({ lat: dir._fromLat, lon: dir._fromLon });
-  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo || '') + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522')
-    .then(r => r.json())
+  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo || '') + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(json => {
       const ff = ((json && json.features) || [])
         .filter(f => (f.properties.category || []).some(c => TRANSIT_CAT.includes(c)));
@@ -31,10 +31,10 @@ export function resolveStop(dir) {
     });
 }
 
-export function resolveToStop(dir) {
+export function resolveToStop(dir, signal) {
   if (dir.toStopId) return Promise.resolve(dir.toStopId);
-  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.toGeo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522')
-    .then(r => r.json())
+  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.toGeo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(json => {
       const ff = ((json && json.features) || [])
         .filter(f => (f.properties.category || []).some(c => TRANSIT_CAT.includes(c)));
@@ -53,11 +53,11 @@ export function resolveToStop(dir) {
     });
 }
 
-export function resolveViaStop(dir) {
+export function resolveViaStop(dir, signal) {
   if (dir.viaStopId) return Promise.resolve(dir.viaStopId);
   if (!dir.viaGeo) return Promise.resolve(null);
-  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.viaGeo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522')
-    .then(r => r.json())
+  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.viaGeo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(json => {
       const ff = ((json && json.features) || [])
         .filter(f => (f.properties.category || []).some(c => TRANSIT_CAT.includes(c)));
@@ -92,11 +92,11 @@ export function geocodeDest(query) {
     );
 }
 
-export function geocodePlace(query) {
+export function geocodePlace(query, signal) {
   return fetch(config.api.geocoder
     + '?text=' + encodeURIComponent(query)
-    + '&size=8&layers=venue,address&focus.point.lat=59.9139&focus.point.lon=10.7522')
-    .then(r => r.json())
+    + '&size=8&layers=venue,address&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(json => ((json && json.features) || [])
       .filter(f => f.geometry && f.geometry.coordinates && f.geometry.coordinates[1])
       .map(f => ({
@@ -108,12 +108,12 @@ export function geocodePlace(query) {
     );
 }
 
-export function resolveToPlace(dir) {
+export function resolveToPlace(dir, signal) {
   if (dir.toStopId) return Promise.resolve(dir.toStopId);
   if (dir._toLat && dir._toLon) return Promise.resolve({ lat: dir._toLat, lon: dir._toLon });
   if (!dir.toGeo) return Promise.reject(new Error('Ingen destinasjon'));
-  return resolveToStop(dir).catch(() =>
-    geocodePlace(dir.toGeo).then(results => {
+  return resolveToStop(dir, signal).catch(() =>
+    geocodePlace(dir.toGeo, signal).then(results => {
       if (!results.length) throw new Error('Fant ikke ' + dir.toGeo);
       dir._toLat = results[0].lat;
       dir._toLon = results[0].lon;
@@ -129,7 +129,7 @@ export function fetchTrip(dir, onSuccess, onError) {
   const signal = tripController.signal;
 
   setDot('loading');
-  Promise.all([resolveStop(dir), resolveToPlace(dir), resolveViaStop(dir)])
+  Promise.all([resolveStop(dir, signal), resolveToPlace(dir, signal), resolveViaStop(dir, signal)])
     .then(([fromId, toId, viaId]) => {
       if (signal.aborted) return;
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
@@ -173,12 +173,13 @@ export function fetchTrip(dir, onSuccess, onError) {
 
 export function fetchBoard(dir, onSuccess, onError) {
   if (boardController) boardController.abort();
+  if (tripController) tripController.abort();
   boardController = new AbortController();
   const signal = boardController.signal;
   const count = dir.key === 'in' ? 35 : 12;
 
   setDot('loading');
-  resolveStop(dir)
+  resolveStop(dir, signal)
     .then(id => {
       if (signal.aborted) return;
       logMsg('board → ' + id);

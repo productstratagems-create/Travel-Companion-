@@ -140,6 +140,7 @@ export function saveJny() {
       legs: state.jny.legs.map(leg => ({
         lineCode:    leg.lineCode,
         lineBg:      leg.lineBg,
+        mode:        leg.mode,
         frontText:   leg.frontText,
         journeyId:   leg.journeyId,
         fromStation: leg.fromStation,

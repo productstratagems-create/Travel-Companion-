@@ -1,6 +1,7 @@
 import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus } from '../api/plan.js';
 import { state } from '../state.js';
 import { show, updateHeader } from '../ui/nav.js';
+import { confirmTap } from '../ui/confirm.js';
 import config from '../config.js';
 import L from 'leaflet';
 import { geocodePlace, fetchJourneyMeta } from '../api/entur.js';
@@ -344,7 +345,7 @@ export function renderPlan() {
   }
   actionsHtml +=
     '<button class="plan-clear-btn" id="plan-clear-btn">'
-    + (status === 'done' ? 'Ny reiseplan' : 'Avslutt reiseplan')
+    + (status === 'done' ? 'Ny reiseplan' : 'Slett reiseplan')
     + '</button>';
   actionsHtml += '</div>';
 
@@ -361,11 +362,15 @@ export function renderPlan() {
 
   const clearBtn = document.getElementById('plan-clear-btn');
   if (clearBtn) {
-    clearBtn.addEventListener('click', () => {
-      clearPlan();
-      _destroyPlanMap();
-      updatePlanCtx();
-      renderPlan();
+    clearBtn.addEventListener('click', (e) => {
+      const run = () => {
+        clearPlan();
+        _destroyPlanMap();
+        updatePlanCtx();
+        renderPlan();
+      };
+      if (status === 'done') { run(); return; }
+      confirmTap(e.currentTarget, 'sikker? trykk igjen for å slette', run);
     });
   }
 

@@ -2,6 +2,7 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { loadFavs, removeFav, favToDir } from '../ui/favs.js';
 import { show, updateHeader } from '../ui/nav.js';
+import { confirmTap } from '../ui/confirm.js';
 
 export function renderFavs() {
   const el = document.getElementById('fav-content');
@@ -24,7 +25,7 @@ export function renderFavs() {
       html += '<div class="fav-card">'
         + '<button class="fav-card-sel" onclick="window._loadFavRoute(\'' + f.id + '\')">'
         + f.from + ' → ' + f.to + '</button>'
-        + '<button class="fav-del" onclick="window._deleteFav(\'' + f.id + '\')" aria-label="slett">×</button>'
+        + '<button class="fav-del" onclick="window._deleteFav(this,\'' + f.id + '\')" aria-label="slett">×</button>'
         + '</div>';
     });
   }
@@ -38,7 +39,7 @@ export function renderFavs() {
         + '<span class="fav-timed-time">' + f.departureHHMM + '</span>'
         + '<span class="fav-timed-route">' + f.from + ' → ' + f.to + '</span>'
         + '</div>'
-        + '<button class="fav-del" onclick="window._deleteFav(\'' + f.id + '\')" aria-label="slett">×</button>'
+        + '<button class="fav-del" onclick="window._deleteFav(this,\'' + f.id + '\')" aria-label="slett">×</button>'
         + '</div>';
     });
   }
@@ -57,9 +58,11 @@ window._loadFavRoute = (id) => {
   window._startBoard && window._startBoard();
 };
 
-window._deleteFav = (id) => {
-  removeFav(id);
-  renderFavs();
+window._deleteFav = (btn, id) => {
+  confirmTap(btn, '✓', () => {
+    removeFav(id);
+    renderFavs();
+  });
 };
 
 window._renderFavs = renderFavs;

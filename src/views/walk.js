@@ -7,6 +7,7 @@ import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchWalkRoute } from '../api/route.js';
 import { fetchWeather } from '../api/weather.js';
+import { stopSelRefresh } from './selected.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -114,7 +115,14 @@ export function renderWalk() {
   const depTs = new Date(c.expectedDepartureTime).getTime();
   const now = Date.now();
   const depMinLeft = Math.floor((depTs - now) / 60000);
-  if (depMinLeft < -3) { show('v-board'); startBoard(); return; }
+  if (depMinLeft < -3) {
+    // Departure has passed — bail out fully so the abandoned departure's
+    // refresh poll and walk map don't keep running in the background
+    stopWalk();
+    stopSelRefresh();
+    state.sel = null;
+    show('v-board'); startBoard(); return;
+  }
   const wk = walkInfo();
   const leaveByTs = depTs - wk.mins * 60000;
   const msLeft = leaveByTs - now;

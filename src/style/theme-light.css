@@ -425,6 +425,18 @@ html[data-theme="light"] .hn-input {
   color: #1c1309;
 }
 html[data-theme="light"] .hn-input:focus { border-color: rgba(176,88,0,.4); }
+html[data-theme="light"] #follow-jny-panel { background: rgba(176,88,0,.04); border-color: rgba(176,88,0,.15); }
+html[data-theme="light"] .spec-input {
+  background: rgba(176,88,0,.05);
+  border-color: rgba(176,88,0,.15);
+  color: #1c1309;
+}
+html[data-theme="light"] .spec-input:focus { border-color: rgba(176,88,0,.4); }
+html[data-theme="light"] .spec-go-btn { color: #b05800; border-color: rgba(176,88,0,.2); }
+html[data-theme="light"] .spec-go-btn:active { background: rgba(176,88,0,.06); }
+html[data-theme="light"] .spec-time { color: #78716c; }
+html[data-theme="light"] .spec-time.delayed { color: #b45309; }
+html[data-theme="light"] .spec-stop { color: #b05800; }
 html[data-theme="light"] .hn-walk-mins { color: #b05800; }
 html[data-theme="light"] .hn-walk-to   { color: #78716c; }
 html[data-theme="light"] .hn-loading   { color: #78716c; }

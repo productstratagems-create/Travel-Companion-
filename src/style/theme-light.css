@@ -125,10 +125,10 @@ html[data-theme="light"] .dep-spor .sn {
   background: rgba(176,88,0,.08);
 }
 
-html[data-theme="light"] .fav-bar { color: #78716c; border-bottom-color: rgba(26,19,9,.07); }
-html[data-theme="light"] .fav-bar:active { color: #b05800; }
-html[data-theme="light"] .lei-board-btn { color: rgba(176,88,0,.55); }
-html[data-theme="light"] .lei-board-btn:active { color: #b05800; }
+html[data-theme="light"] .board-action-btn { color: #78716c; border-color: rgba(26,19,9,.12); }
+html[data-theme="light"] .board-action-btn:active { color: #b05800; border-color: rgba(176,88,0,.4); background: rgba(176,88,0,.06); }
+html[data-theme="light"] .bab-leisure { color: rgba(176,88,0,.55); }
+html[data-theme="light"] .bab-leisure:active { color: #b05800; }
 
 html[data-theme="light"] #walk-summary { color: #78716c; }
 

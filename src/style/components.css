@@ -116,6 +116,18 @@ body.jny-chip-visible .wrap { padding-bottom: calc(60px + env(safe-area-inset-bo
 }
 .nav-plan-btn:active{color:#f5b840}
 
+/* Shared status messages — themable so light mode stays legible */
+.status-error-box{
+  padding:.6rem;margin:.5rem 0;font-size:11px;
+  color:#fca5a5;background:rgba(220,38,38,.08);border-radius:4px;
+}
+.status-error-msg{
+  margin-top:.75rem;font-size:11px;color:#fca5a5;
+}
+.status-ok-msg{
+  margin-top:.4rem;font-size:11px;color:#f5b840;text-align:center;
+}
+
 /* Status dot */
 .status-dot{
   width:5px;height:5px;border-radius:50%;

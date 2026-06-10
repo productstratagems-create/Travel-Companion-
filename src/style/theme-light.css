@@ -105,6 +105,18 @@ html[data-theme="light"] .dep-dep { color: #b05800; }
 html[data-theme="light"] .dep-arr { color: #78716c; }
 html[data-theme="light"] .dep-tag { color: #92400e; }
 
+html[data-theme="light"] .dep-reach.r-ok { color: #16a34a; }
+html[data-theme="light"] .dep-reach.r-soon { color: #b45309; }
+html[data-theme="light"] .dep-reach.r-now { color: #2563eb; }
+html[data-theme="light"] .dep-cancelled { color: #b91c1c; }
+
+html[data-theme="light"] .occ-pip.pnd { color: rgba(176,88,0,.25); }
+html[data-theme="light"] .occ-pip.pc1 { color: #16a34a; }
+html[data-theme="light"] .occ-pip.pc2 { color: #4ade80; }
+html[data-theme="light"] .occ-pip.pc3 { color: #b45309; }
+html[data-theme="light"] .occ-pip.pc4 { color: #ea580c; }
+html[data-theme="light"] .occ-pip.pc5 { color: #dc2626; }
+
 html[data-theme="light"] .dep-spor { border-left-color: rgba(26,19,9,.08); }
 html[data-theme="light"] .dep-spor .sl { color: #6b7280; }
 html[data-theme="light"] .dep-spor .sn {
@@ -298,6 +310,8 @@ html[data-theme="light"] .dest-prev-cat.active {
 html[data-theme="light"] .dest-prev-row { border-bottom-color: rgba(26,19,9,.05); }
 html[data-theme="light"] .dest-prev-name { color: #b05800; }
 html[data-theme="light"] .dest-prev-dist { color: #78716c; }
+html[data-theme="light"] .dest-prev-hours.open { color: #16a34a; }
+html[data-theme="light"] .dest-prev-hours.closed { color: #9ca3af; }
 
 /* ── WALK ── */
 html[data-theme="light"] #w-map { background: #e5e7eb; }
@@ -459,6 +473,8 @@ html[data-theme="light"] .lei-venue-card.active { border-left-color: #b05800; }
 html[data-theme="light"] .lei-venue-name { color: #b05800; }
 html[data-theme="light"] .lei-venue-dist { color: #78716c; }
 html[data-theme="light"] .lei-venue-type { color: #78716c; }
+html[data-theme="light"] .lei-venue-hours.open { color: #16a34a; }
+html[data-theme="light"] .lei-venue-hours.closed { color: #dc2626; }
 html[data-theme="light"] .lei-reis-btn {
   color: #b05800;
   border-color: rgba(176,88,0,.2);
@@ -564,10 +580,16 @@ html[data-theme="light"] .sbtn {
 }
 html[data-theme="light"] .sbtn:active { background: rgba(176,88,0,.2); }
 
-/* ── BOARD ERROR ── */
-html[data-theme="light"] #board-error {
+/* ── STATUS MESSAGES ── */
+html[data-theme="light"] .status-error-box,
+html[data-theme="light"] .status-error-msg {
   color: #991b1b;
+}
+html[data-theme="light"] .status-error-box {
   background: rgba(220,38,38,.06);
+}
+html[data-theme="light"] .status-ok-msg {
+  color: #b05800;
 }
 
 /* ── VEND BADGES — unchanged but ensure visibility ── */

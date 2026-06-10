@@ -24,6 +24,58 @@ export function tap(i) {
   renderSelected();
 }
 
+/**
+ * Start tracking a journey found via "finn reise" (journey-ID lookup),
+ * riding it to the chosen stop without going through the normal board/tap flow.
+ */
+export function joinJourney(meta, toIdx) {
+  if (!meta || !meta.calls || !meta.calls[toIdx]) return;
+  const first = meta.calls[0];
+  const dest  = meta.calls[toIdx];
+  const toTime = (c) => {
+    const t = c.expected || c.aimed;
+    return t ? { time: t, clk: clk(t) } : null;
+  };
+  const leg = {
+    lineCode:    meta.lineCode || '?',
+    lineBg:      meta.lineBg || '#7c2d12',
+    mode:        meta.mode || 'metro',
+    frontText:   meta.dest || dest.name,
+    journeyId:   meta.journeyId,
+    fromStation: first.name,
+    toStation:   dest.name,
+    depTime:     toTime(first),
+    arrTime:     toTime(dest),
+    quay:        first.quay,
+    stops: meta.calls.map(c => ({
+      quay: { stopPlace: { name: c.name, latitude: c.lat, longitude: c.lon } },
+      expectedArrivalTime:   c.expected,
+      aimedArrivalTime:      c.aimed,
+      expectedDepartureTime: c.expected,
+      aimedDepartureTime:    c.aimed,
+    })),
+  };
+  state.jny = {
+    dest:              dest.name,
+    from:              first.name,
+    boardedAt:         Date.now(),
+    lineCode:          leg.lineCode,
+    lineBg:            leg.lineBg,
+    frontText:         leg.frontText,
+    firstLegFrontText: leg.frontText,
+    arrival:           leg.arrTime,
+    _toLat:            dest.lat,
+    _toLon:            dest.lon,
+    legs:              [leg],
+  };
+  state.lockedJourneyId   = meta.journeyId;
+  state.lockedJourneyMeta = meta;
+  state.sel = null;
+  stopBoard();
+  saveJny();
+  activateTracking();
+}
+
 export function doBoard() {
   const c = state.sel;
   if (!c) return;

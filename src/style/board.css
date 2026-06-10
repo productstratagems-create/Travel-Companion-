@@ -184,6 +184,10 @@
 .spec-time{font-family:"JetBrains Mono",monospace;color:#a8a29e;font-variant-numeric:tabular-nums}
 .spec-time.delayed{color:#fbbf24}
 .spec-stop{color:#f5b840;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spec-hint{font-size:10px;color:#7485a0;letter-spacing:.04em;margin-bottom:.2rem}
+.spec-row.tappable{cursor:pointer}
+.spec-row.tappable:active{background:rgba(245,184,64,.06)}
+.spec-row.tappable .spec-stop{color:#fbbf24}
 
 #service-alerts{margin:.4rem 0}
 .service-alert{

@@ -302,6 +302,7 @@ export function fetchJourneyMeta(journeyId) {
         fetchedAt: Date.now(),
         lineCode:  (sj.line && sj.line.publicCode) || '',
         lineBg:    (sj.line && sj.line.presentation && sj.line.presentation.colour) ? '#' + sj.line.presentation.colour : '',
+        mode:      (sj.line && sj.line.transportMode) || 'metro',
         dest:      first ? first.dest : '',
       };
     });

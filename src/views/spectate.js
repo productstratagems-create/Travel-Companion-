@@ -1,6 +1,7 @@
 import config from '../config.js';
 import { intervals } from '../state.js';
 import { fetchJourneyMeta } from '../api/entur.js';
+import { joinJourney } from '../journey.js';
 import { logMsg } from '../ui/log.js';
 import { esc } from '../ui/fmt.js';
 
@@ -8,6 +9,7 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
 let _open = false;
+let _lastMeta = null;
 
 function _formHtml() {
   return '<div class="spec-form">'
@@ -18,10 +20,13 @@ function _formHtml() {
 }
 
 function _resultHtml(meta) {
-  const rows = meta.calls.map(c => {
+  const now = Date.now();
+  const rows = meta.calls.map((c, i) => {
     const t = c.expected || c.aimed;
     const delayed = c.aimed && c.expected && c.aimed !== c.expected;
-    return '<div class="spec-row' + (c.cancelled ? ' cancelled' : '') + '">'
+    const future = !c.cancelled && t && new Date(t).getTime() > now;
+    return '<div class="spec-row' + (c.cancelled ? ' cancelled' : future ? ' tappable' : '') + '"'
+      + (future ? ' data-idx="' + i + '"' : '') + '>'
       + '<span class="spec-time' + (delayed ? ' delayed' : '') + '">' + (t ? clk(t) : '—') + '</span>'
       + '<span class="spec-stop">' + esc(c.name) + '</span>'
       + (c.cancelled ? '<span class="dep-cancelled">innstilt</span>' : '')
@@ -34,6 +39,7 @@ function _resultHtml(meta) {
       ? '<span class="dep-cancelled">innstilt</span>'
       : meta.delayMins > 1 ? '<span class="dep-tag">+' + meta.delayMins + ' min</span>' : '')
     + '</div>'
+    + '<div class="spec-hint">trykk på en stasjon for å spore reisen dit</div>'
     + '<div class="spec-stops">' + rows + '</div>';
 }
 
@@ -43,11 +49,13 @@ function _load(id) {
       const result = document.getElementById('spec-result');
       if (!result) return;
       if (!meta || !meta.calls.length) {
+        _lastMeta = null;
         result.innerHTML = '<div class="status-error-msg">fant ingen reise med denne ID-en (kan være utløpt eller for en annen dag).</div>';
         logMsg('finn reise: ingen treff for ' + id, 'err');
         if (intervals.spectate) { clearInterval(intervals.spectate); intervals.spectate = null; }
         return;
       }
+      _lastMeta = meta;
       result.innerHTML = _resultHtml(meta);
     })
     .catch(err => {
@@ -80,9 +88,20 @@ export function toggleSpectatePanel() {
     document.getElementById('spec-input').addEventListener('keydown', e => {
       if (e.key === 'Enter') _onSearch();
     });
+    document.getElementById('spec-result').addEventListener('click', e => {
+      const row = e.target.closest('.spec-row.tappable');
+      if (!row || !_lastMeta) return;
+      joinJourney(_lastMeta, parseInt(row.dataset.idx, 10));
+      _open = false;
+      _lastMeta = null;
+      panel.style.display = 'none';
+      panel.innerHTML = '';
+      stopSpectate();
+    });
   } else {
     panel.style.display = 'none';
     panel.innerHTML = '';
+    _lastMeta = null;
     stopSpectate();
   }
 }

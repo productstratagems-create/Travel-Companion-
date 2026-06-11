@@ -223,8 +223,11 @@ export function renderWalk() {
 
   document.getElementById('w-center').innerHTML = numEl + lblEl + ctxEl;
 
-  // Map: init once per walk session, then only update origin marker as GPS refreshes
-  const fromLL = state.walkFromLL || state.homeLL;
+  // Map: init once per walk session, then only update origin marker as GPS refreshes.
+  // Live GPS takes priority here — walkFromLL is a named planning origin and
+  // would otherwise leave the "your location" marker stuck there even after
+  // the user has physically walked to (and arrived at) the station.
+  const fromLL = state.homeLL || state.walkFromLL;
   const toLL = dir && state.statLL && state.statLL[dir.key];
   if (fromLL && toLL) {
     if (!_wMap) {

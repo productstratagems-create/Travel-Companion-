@@ -204,6 +204,28 @@ export function initSettings() {
       () => _viaAbort, v => { _viaAbort = v; },
       () => _viaTimer, v => { _viaTimer = v; }));
 
+  // Quick destination: Oslo lufthavn (Gardermoen) — fills + resolves the
+  // arrival field in one tap, same as picking a geocoder suggestion.
+  const quickOslBtn = document.getElementById('set-quick-osl');
+  if (quickOslBtn) {
+    quickOslBtn.addEventListener('click', () => {
+      const inp = document.getElementById('set-arr');
+      const sugg = document.getElementById('arr-sugg');
+      if (sugg) { sugg.hidden = true; sugg.innerHTML = ''; }
+      if (_arrAbort) _arrAbort.abort();
+      _arrAbort = new AbortController();
+      geocodeDest('Oslo lufthavn').then(results => {
+        if (!results.length) return;
+        const r = results.find(x => x.id) || results[0];
+        _arrStopIds.clear();
+        _arrStopIds.set(r.label, { id: r.id, lat: r.lat, lon: r.lon });
+        if (inp) inp.value = r.label;
+        syncClear('set-arr', 'set-arr-clear');
+        if (r.lat && r.lon) _showDestPreview(r.lat, r.lon);
+      }).catch(() => {});
+    });
+  }
+
   ['dep', 'arr', 'via'].forEach(id => {
     const inp = document.getElementById('set-' + id);
     const btn = document.getElementById('set-' + id + '-clear');

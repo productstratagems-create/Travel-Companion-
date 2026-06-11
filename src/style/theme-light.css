@@ -142,6 +142,10 @@ html[data-theme="light"] .mode-pill.active {
   color: #b05800;
 }
 
+html[data-theme="light"] .line-pill.active {
+  border-color: rgba(176,88,0,.45);
+}
+
 html[data-theme="light"] .service-alert {
   color: #92400e;
   background: rgba(146,64,14,.05);

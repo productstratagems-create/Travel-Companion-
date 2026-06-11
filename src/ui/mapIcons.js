@@ -17,6 +17,32 @@ const _TRAM_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" fill="white" 
   + '<rect x="9" y="5.5" width="5" height="2.5" rx=".4" fill="#5c2b77"/>'
   + '</svg>';
 
+const _METRO_GLYPH = '<div style="font-size:8px;font-weight:900;color:#fff;line-height:1;font-family:Arial,sans-serif">T</div>';
+function _modeGlyph(mode) {
+  if (mode === 'bus') return _BUS_SVG.replace('width="13" height="13"', 'width="9" height="9"');
+  if (mode === 'tram') return _TRAM_SVG.replace('width="13" height="13"', 'width="9" height="9"');
+  return _METRO_GLYPH;
+}
+
+// rank 0 = next departure on the line (most prominent), rank 2 = least prominent
+const _VEH_SIZES = [30, 26, 22];
+const _VEH_OPACITY = [1, 0.85, 0.7];
+export function makeVehicleIcon(mode, code, color, rank) {
+  const size = _VEH_SIZES[rank] || _VEH_SIZES[_VEH_SIZES.length - 1];
+  const opacity = _VEH_OPACITY[rank] != null ? _VEH_OPACITY[rank] : _VEH_OPACITY[_VEH_OPACITY.length - 1];
+  const fontSize = Math.round(size * 0.4);
+  const html = '<div style="position:relative;opacity:' + opacity + '" class="veh-pulse">'
+    + '<div style="background:' + color + ';border-radius:50%;width:' + size + 'px;height:' + size + 'px;'
+    + 'display:flex;align-items:center;justify-content:center;'
+    + 'font-size:' + fontSize + 'px;font-weight:800;color:#fff;font-family:inherit;'
+    + 'border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.5)">' + code + '</div>'
+    + '<div style="position:absolute;bottom:-2px;right:-2px;background:rgba(10,8,6,.85);'
+    + 'border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center">'
+    + _modeGlyph(mode) + '</div>'
+    + '</div>';
+  return L.divIcon({ className: '', html, iconSize: [size, size], iconAnchor: [Math.round(size / 2), Math.round(size / 2)] });
+}
+
 export function makeStopIcon(mode, count) {
   const badge = (count > 1)
     ? '<span style="position:absolute;top:-5px;right:-5px;background:#fff;color:#111;'

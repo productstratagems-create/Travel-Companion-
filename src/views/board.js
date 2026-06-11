@@ -12,7 +12,7 @@ import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops } from '../api/stops.js';
-import { makeStopIcon, makeVehicleIcon } from '../ui/mapIcons.js';
+import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
 import { closeSpectatePanel } from './spectate.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -423,6 +423,11 @@ export function _interpolateVehiclePos(calls, now) {
 // the selected line we sketch its stop-to-stop corridor. Buses already follow
 // visible roads, so their corridor is drawn lighter — a subtle "which road"
 // hint rather than the primary cue.
+
+// How long a tapped stop's name tooltip stays visible — long enough to read
+// on a phone, short enough not to clutter a corridor with many stops.
+const _ROUTE_STOP_TOOLTIP_MS = 3000;
+
 function renderLineRoute(visibleDeps) {
   if (!_bMap) return;
   if (!_selectedLine) {
@@ -445,12 +450,14 @@ function renderLineRoute(visibleDeps) {
 
   const { c } = match;
   const pts = [];
+  const stops = [];
   c.serviceJourney.estimatedCalls.forEach(call => {
     const sp = call.quay && call.quay.stopPlace;
     if (!sp || sp.latitude == null || sp.longitude == null) return;
     const last = pts[pts.length - 1];
     if (last && last[0] === sp.latitude && last[1] === sp.longitude) return;
     pts.push([sp.latitude, sp.longitude]);
+    if (sp.name) stops.push({ lat: sp.latitude, lon: sp.longitude, name: sp.name });
   });
   if (pts.length < 2) {
     _bRouteLayer.clearLayers();
@@ -466,6 +473,22 @@ function renderLineRoute(visibleDeps) {
 
   _bRouteLayer.clearLayers();
   L.polyline(pts, style).addTo(_bRouteLayer);
+
+  // Mark each intermediate stop along the corridor with a small dot. Names are
+  // hidden by default and only flash on tap, so the route doesn't get
+  // cluttered with permanent labels for every stop on the line. Tooltip is
+  // opened/closed manually (bypassing Leaflet's hover handling) so the
+  // visible duration is the same on touch and mouse input.
+  stops.forEach(s => {
+    const marker = L.marker([s.lat, s.lon], { icon: makeRouteStopIcon(color) }).addTo(_bRouteLayer);
+    const tooltip = L.tooltip({ className: 'map-label' }).setLatLng([s.lat, s.lon]).setContent(esc(s.name));
+    let hideTimer = null;
+    marker.on('click', () => {
+      if (hideTimer) clearTimeout(hideTimer);
+      _bMap.openTooltip(tooltip);
+      hideTimer = setTimeout(() => _bMap.closeTooltip(tooltip), _ROUTE_STOP_TOOLTIP_MS);
+    });
+  });
 
   // Reveal the whole corridor when the user picks a line, unless they've
   // already panned/zoomed the map themselves.

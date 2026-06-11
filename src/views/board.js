@@ -49,6 +49,8 @@ let _bVehicleLayer = null;
 let _bRouteLayer = null;
 let _bFitRouteRequested = false;
 let _selectedLine = null;
+let _bRoutePts = null;
+let _bRouteSnapDist = null;
 
 function _destroyBoardMap() {
   if (_bMap) { _bMap.remove(); _bMap = null; _bLayer = null; }
@@ -59,6 +61,37 @@ function _destroyBoardMap() {
   _bVehicleLayer = null;
   _bRouteLayer = null;
   _bFitRouteRequested = false;
+  _bRoutePts = null;
+  _bRouteSnapDist = null;
+}
+
+// Project p onto the segment a→b (equirectangular approximation, fine for
+// the short stop-to-stop segments of a route corridor).
+function _projectOnSegment(p, a, b) {
+  const cos = Math.cos(a[0] * Math.PI / 180) || 1;
+  const ax = a[1] * cos, ay = a[0];
+  const bx = b[1] * cos, by = b[0];
+  const px = p.lon * cos, py = p.lat;
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return { lat: ay + t * dy, lon: (ax + t * dx) / cos };
+}
+
+// Snap a position onto the selected line's route corridor when close enough
+// to plausibly be on that road/track — gives the "Din posisjon" dot a
+// realistic position on the line the user is looking for, instead of the
+// raw (sometimes noisy) GPS fix sitting just off it.
+function _snapToCorridor(pos) {
+  if (!pos || !_bRoutePts || _bRoutePts.length < 2) return null;
+  let best = null;
+  for (let i = 0; i < _bRoutePts.length - 1; i++) {
+    const proj = _projectOnSegment(pos, _bRoutePts[i], _bRoutePts[i + 1]);
+    const dist = haver(pos.lat, pos.lon, proj.lat, proj.lon);
+    if (!best || dist < best.dist) best = { lat: proj.lat, lon: proj.lon, dist };
+  }
+  return best && best.dist <= _bRouteSnapDist ? { lat: best.lat, lon: best.lon } : null;
 }
 
 function _makeBikeIcon(bikes, ebikes) {
@@ -163,10 +196,11 @@ function renderBoardMap(pos, modes) {
     const pts = [];
 
     if (pos) {
-      L.circleMarker([pos.lat, pos.lon], { radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2 })
+      const snapped = _snapToCorridor(pos) || pos;
+      L.circleMarker([snapped.lat, snapped.lon], { radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2 })
         .bindTooltip('Din posisjon', { className: 'map-label' })
         .addTo(_bLayer);
-      pts.push([pos.lat, pos.lon]);
+      pts.push([snapped.lat, snapped.lon]);
     }
 
     // Merge stops from both ends, dedup by uid
@@ -432,7 +466,8 @@ function renderLineRoute(visibleDeps) {
   if (!_bMap) return;
   if (!_selectedLine) {
     if (_bRouteLayer) _bRouteLayer.clearLayers();
-      return;
+    _bRoutePts = null;
+    return;
   }
 
   const match = visibleDeps.find(({ c }) => {
@@ -445,7 +480,8 @@ function renderLineRoute(visibleDeps) {
 
   if (!match) {
     _bRouteLayer.clearLayers();
-      return;
+    _bRoutePts = null;
+    return;
   }
 
   const { c } = match;
@@ -461,7 +497,8 @@ function renderLineRoute(visibleDeps) {
   });
   if (pts.length < 2) {
     _bRouteLayer.clearLayers();
-      return;
+    _bRoutePts = null;
+    return;
   }
 
   const ln = c.serviceJourney.line;
@@ -470,6 +507,12 @@ function renderLineRoute(visibleDeps) {
   const style = isBus
     ? { color, weight: 2, opacity: 0.35, dashArray: '1 7', interactive: false }
     : { color, weight: 4, opacity: 0.45, lineCap: 'round', interactive: false };
+
+  _bRoutePts = pts;
+  // Buses run on regular roads (tighter snap so we don't jump to a parallel
+  // street); rail/tram corridors are looser since the straight stop-to-stop
+  // segments only approximate the real track curve.
+  _bRouteSnapDist = isBus ? 25 : 50;
 
   _bRouteLayer.clearLayers();
   L.polyline(pts, style).addTo(_bRouteLayer);

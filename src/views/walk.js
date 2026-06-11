@@ -14,6 +14,11 @@ import { esc } from '../ui/fmt.js';
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
+// "FREMME" should reflect the user's actual GPS position, not just the
+// departure clock — without this, a user still far from the station would
+// see "arrived" simply because the train leaves soon.
+const ARRIVED_DIST_M = 100;
+
 function _makeTransitStopIcon(code, bg, mode) {
   const modeLabel = mode === 'bus' ? 'BUS' : mode === 'tram' ? 'TRIKK' : 'T-BANE';
   const html = '<div style="text-align:center;line-height:1;white-space:nowrap;transform:translate(-50%,-50%)">'
@@ -144,8 +149,12 @@ export function renderWalk() {
   const firstMode = c._legs && c._legs[0] && c._legs[0].mode;
   const vehicleWord = firstMode === 'bus' ? 'Bussen' : firstMode === 'tram' ? 'Trikken' : 'Toget';
 
-  // 3 advisory phases — no urgency commands
-  const phase = depMinLeft <= 2 ? 'here' : isLate ? 'behind' : 'info';
+  // 3 advisory phases — no urgency commands.
+  // "here" additionally requires the user to actually be near the station
+  // (when a GPS/named position is known) — otherwise an imminent departure
+  // would falsely show "FREMME" while the user is still far away.
+  const nearStation = wk.dist == null || wk.dist <= ARRIVED_DIST_M;
+  const phase = depMinLeft <= 2 && nearStation ? 'here' : isLate ? 'behind' : 'info';
 
   // Fetch weather once per walk session — use walkFromLL (named origin) or homeLL (GPS)
   const _weatherPos = state.walkFromLL || state.homeLL;

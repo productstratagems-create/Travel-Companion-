@@ -160,7 +160,7 @@
 .vnd-tier    {background:rgba(96,165,250,.12);color:#60a5fa;border:1px solid rgba(96,165,250,.28)}
 
 /* Spectator panel — follow a journey by pasting its journey-ID */
-#follow-jny-panel{
+[id^="follow-jny-panel"]{
   margin:.5rem 0;padding:.75rem;border-radius:6px;
   background:rgba(245,184,64,.04);border:1px solid rgba(245,184,64,.12);
 }

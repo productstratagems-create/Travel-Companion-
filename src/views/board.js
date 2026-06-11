@@ -13,7 +13,7 @@ import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops } from '../api/stops.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
-import { stopSpectate } from './spectate.js';
+import { closeSpectatePanel } from './spectate.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -635,7 +635,7 @@ export function startBoard() {
 export function stopBoard() {
   if (intervals.board) { clearInterval(intervals.board); intervals.board = null; }
   _destroyBoardMap();
-  stopSpectate();
+  closeSpectatePanel();
 }
 
 function _fetchBoard() {

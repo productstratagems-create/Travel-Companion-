@@ -5,9 +5,10 @@ import { saveWeekendMode } from '../geo.js';
 import { confirmTap } from './confirm.js';
 import { stopSelRefresh } from '../views/selected.js';
 import { copyJourneyId } from '../views/track.js';
-import { toggleSpectatePanel } from '../views/spectate.js';
+import { toggleSpectatePanel, closeSpectatePanel } from '../views/spectate.js';
 
 export function show(id) {
+  closeSpectatePanel();
   if (id !== 'v-selected') window._destroySelMap && window._destroySelMap();
   ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-favs', 'v-leisure', 'v-plan'].forEach(v => {
     document.getElementById(v).style.display = (v === id ? 'block' : 'none');
@@ -88,7 +89,9 @@ export function attachEventListeners() {
     window._renderLeisure && window._renderLeisure();
   });
 
-  document.getElementById('spectate-btn').addEventListener('click', toggleSpectatePanel);
+  document.getElementById('spectate-btn').addEventListener('click', () => toggleSpectatePanel('follow-jny-panel'));
+  document.getElementById('w-spec-btn').addEventListener('click', () => toggleSpectatePanel('follow-jny-panel-walk'));
+  document.getElementById('t-spec-btn').addEventListener('click', () => toggleSpectatePanel('follow-jny-panel-track'));
 
   document.getElementById('fav-back').addEventListener('click', () => {
     show('v-board');

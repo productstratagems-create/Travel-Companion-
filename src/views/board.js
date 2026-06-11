@@ -46,6 +46,8 @@ let _bDestLL = null;
 let _bDestKey = null;
 let _bMapKey = null;
 let _bVehicleLayer = null;
+let _bRouteLayer = null;
+let _bFitRouteRequested = false;
 let _selectedLine = null;
 
 function _destroyBoardMap() {
@@ -55,6 +57,8 @@ function _destroyBoardMap() {
   _bMapKey = null;
   _walkRouteKey = null;
   _bVehicleLayer = null;
+  _bRouteLayer = null;
+  _bFitRouteRequested = false;
 }
 
 function _makeBikeIcon(bikes, ebikes) {
@@ -351,6 +355,7 @@ function renderLineFilter(visibleDeps) {
 
   if (!_selectedLine || !lines.some(l => l.code === _selectedLine)) {
     _selectedLine = lines[0].code;
+    _bFitRouteRequested = true;
   }
 
   const key = lines.map(l => l.code + ':' + l.color).join(',') + '|' + _selectedLine;
@@ -366,6 +371,7 @@ function renderLineFilter(visibleDeps) {
     btn.addEventListener('click', () => {
       _selectedLine = btn.dataset.line;
       _lineFilterKey = '';
+      _bFitRouteRequested = true;
       renderBoard();
     });
   });
@@ -390,7 +396,9 @@ export function _interpolateVehiclePos(calls, now) {
 
   if (pts.length < 2) return null;
 
-  if (now <= pts[0].dep) return { lat: pts[0].lat, lon: pts[0].lon };
+  // Only show vehicles actively running between their first and last stop —
+  // not yet departed from origin, or already finished, are excluded.
+  if (now < pts[0].dep || now > pts[pts.length - 1].arr) return null;
 
   for (let i = 0; i < pts.length - 1; i++) {
     const cur = pts[i], next = pts[i + 1];
@@ -408,6 +416,63 @@ export function _interpolateVehiclePos(calls, now) {
   return { lat: last.lat, lon: last.lon };
 }
 
+// ── Line route corridor ──────────────────────────────────────────────────────
+// Trains and trams run on dedicated tracks the basemap doesn't draw, so for
+// the selected line we sketch its stop-to-stop corridor. Buses already follow
+// visible roads, so their corridor is drawn lighter — a subtle "which road"
+// hint rather than the primary cue.
+function renderLineRoute(visibleDeps) {
+  if (!_bMap) return;
+  if (!_selectedLine) {
+    if (_bRouteLayer) _bRouteLayer.clearLayers();
+      return;
+  }
+
+  const match = visibleDeps.find(({ c }) => {
+    const ln = c.serviceJourney && c.serviceJourney.line;
+    const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
+    return ln && ln.publicCode === _selectedLine && sjc && sjc.length >= 2;
+  });
+
+  if (!_bRouteLayer) _bRouteLayer = L.layerGroup().addTo(_bMap);
+
+  if (!match) {
+    _bRouteLayer.clearLayers();
+      return;
+  }
+
+  const { c } = match;
+  const pts = [];
+  c.serviceJourney.estimatedCalls.forEach(call => {
+    const sp = call.quay && call.quay.stopPlace;
+    if (!sp || sp.latitude == null || sp.longitude == null) return;
+    const last = pts[pts.length - 1];
+    if (last && last[0] === sp.latitude && last[1] === sp.longitude) return;
+    pts.push([sp.latitude, sp.longitude]);
+  });
+  if (pts.length < 2) {
+    _bRouteLayer.clearLayers();
+      return;
+  }
+
+  const ln = c.serviceJourney.line;
+  const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
+  const isBus = _depMode(c) === 'bus';
+  const style = isBus
+    ? { color, weight: 2, opacity: 0.35, dashArray: '1 7', interactive: false }
+    : { color, weight: 4, opacity: 0.45, lineCap: 'round', interactive: false };
+
+  _bRouteLayer.clearLayers();
+  L.polyline(pts, style).addTo(_bRouteLayer);
+
+  // Reveal the whole corridor when the user picks a line, unless they've
+  // already panned/zoomed the map themselves.
+  if (_bFitRouteRequested && !_bUserMoved) {
+    _bMap.fitBounds(pts, { padding: [30, 30], maxZoom: 15 });
+  }
+  _bFitRouteRequested = false;
+}
+
 function renderVehicleMarkers(visibleDeps) {
   if (!_bMap || !_selectedLine) return;
   if (!_bVehicleLayer) _bVehicleLayer = L.layerGroup().addTo(_bMap);
@@ -417,9 +482,15 @@ function renderVehicleMarkers(visibleDeps) {
   const matches = visibleDeps.filter(({ c }) => {
     const ln = c.serviceJourney && c.serviceJourney.line;
     return ln && ln.publicCode === _selectedLine;
-  }).slice(0, 3);
+  });
 
-  matches.forEach(({ c }, rank) => {
+  const seen = new Set();
+  matches.forEach(({ c }) => {
+    const jid = c.serviceJourney && c.serviceJourney.id;
+    if (jid) {
+      if (seen.has(jid)) return;
+      seen.add(jid);
+    }
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
     const pos = _interpolateVehiclePos(sjc, now);
     if (!pos) return;
@@ -427,10 +498,12 @@ function renderVehicleMarkers(visibleDeps) {
     const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
     const mode = _depMode(c);
     const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
-    const depTs = new Date(c.expectedDepartureTime).getTime();
-    const mins = Math.max(0, Math.round((depTs - now) / 60000));
-    L.marker([pos.lat, pos.lon], { icon: makeVehicleIcon(mode, _selectedLine, color, rank) })
-      .bindTooltip('Linje ' + esc(_selectedLine) + ' → ' + esc(dest) + ' · ' + fmtMins(mins), { className: 'map-label' })
+    const lastCall = sjc[sjc.length - 1];
+    const finalArr = lastCall && _callTime(lastCall, true);
+    const mins = finalArr ? Math.max(0, Math.round((new Date(finalArr).getTime() - now) / 60000)) : null;
+    const eta = mins != null ? ' · ankomst om ' + fmtMins(mins) : '';
+    L.marker([pos.lat, pos.lon], { icon: makeVehicleIcon(mode, _selectedLine, color) })
+      .bindTooltip('Linje ' + esc(_selectedLine) + ' → ' + esc(dest) + eta, { className: 'map-label' })
       .addTo(_bVehicleLayer);
   });
 }
@@ -543,9 +616,12 @@ export function renderBoard() {
   if (!visibleDeps.length) {
     list.innerHTML = '<div class="state-msg">ingen avganger for valgte modi</div>';
     renderLineFilter([]);
+    renderLineRoute([]);
+    if (_bVehicleLayer) _bVehicleLayer.clearLayers();
     return;
   }
   renderLineFilter(visibleDeps);
+  renderLineRoute(visibleDeps);
   renderVehicleMarkers(visibleDeps);
 
   // If this route continues from an unfinished plan leg's destination, flag

@@ -24,12 +24,11 @@ function _modeGlyph(mode) {
   return _METRO_GLYPH;
 }
 
-// rank 0 = next departure on the line (most prominent), rank 2 = least prominent
-const _VEH_SIZES = [30, 26, 22];
-const _VEH_OPACITY = [1, 0.85, 0.7];
-export function makeVehicleIcon(mode, code, color, rank) {
-  const size = _VEH_SIZES[rank] || _VEH_SIZES[_VEH_SIZES.length - 1];
-  const opacity = _VEH_OPACITY[rank] != null ? _VEH_OPACITY[rank] : _VEH_OPACITY[_VEH_OPACITY.length - 1];
+const _VEH_SIZE = 28;
+const _VEH_OPACITY = 0.95;
+export function makeVehicleIcon(mode, code, color) {
+  const size = _VEH_SIZE;
+  const opacity = _VEH_OPACITY;
   const fontSize = Math.round(size * 0.4);
   const html = '<div style="position:relative;opacity:' + opacity + '" class="veh-pulse">'
     + '<div style="background:' + color + ';border-radius:50%;width:' + size + 'px;height:' + size + 'px;'

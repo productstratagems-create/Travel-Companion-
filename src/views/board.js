@@ -396,9 +396,11 @@ export function _interpolateVehiclePos(calls, now) {
 
   if (pts.length < 2) return null;
 
-  // Only show vehicles actively running between their first and last stop —
-  // not yet departed from origin, or already finished, are excluded.
-  if (now < pts[0].dep || now > pts[pts.length - 1].arr) return null;
+  // Vehicle hasn't left its starting terminus yet — show it parked there.
+  if (now <= pts[0].dep) return { lat: pts[0].lat, lon: pts[0].lon };
+
+  // Service has already finished its run — nothing to show.
+  if (now > pts[pts.length - 1].arr) return null;
 
   for (let i = 0; i < pts.length - 1; i++) {
     const cur = pts[i], next = pts[i + 1];

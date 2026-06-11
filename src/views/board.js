@@ -12,7 +12,7 @@ import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops } from '../api/stops.js';
-import { makeStopIcon } from '../ui/mapIcons.js';
+import { makeStopIcon, makeVehicleIcon } from '../ui/mapIcons.js';
 import { closeSpectatePanel } from './spectate.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -45,6 +45,8 @@ let _bFitted = false;
 let _bDestLL = null;
 let _bDestKey = null;
 let _bMapKey = null;
+let _bVehicleLayer = null;
+let _selectedLine = null;
 
 function _destroyBoardMap() {
   if (_bMap) { _bMap.remove(); _bMap = null; _bLayer = null; }
@@ -52,6 +54,7 @@ function _destroyBoardMap() {
   _bFitted = false;
   _bMapKey = null;
   _walkRouteKey = null;
+  _bVehicleLayer = null;
 }
 
 function _makeBikeIcon(bikes, ebikes) {
@@ -320,6 +323,118 @@ function renderModeFilter() {
   });
 }
 
+// ── Line filter (vehicle position markers) ──────────────────────────────────
+let _lineFilterKey = '';
+
+function renderLineFilter(visibleDeps) {
+  const el = document.getElementById('line-filter');
+  if (!el) return;
+
+  // Deduped {code, color} list, in departure order — first occurrence wins for color
+  const lines = [];
+  const seen = new Set();
+  visibleDeps.forEach(({ c }) => {
+    const ln = c.serviceJourney && c.serviceJourney.line;
+    const code = (ln && ln.publicCode) || null;
+    if (!code || seen.has(code)) return;
+    seen.add(code);
+    const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
+    lines.push({ code, color });
+  });
+
+  if (!lines.length) {
+    el.innerHTML = '';
+    _lineFilterKey = '';
+    _selectedLine = null;
+    return;
+  }
+
+  if (!_selectedLine || !lines.some(l => l.code === _selectedLine)) {
+    _selectedLine = lines[0].code;
+  }
+
+  const key = lines.map(l => l.code + ':' + l.color).join(',') + '|' + _selectedLine;
+  if (key === _lineFilterKey) return;
+  _lineFilterKey = key;
+
+  el.innerHTML = lines.map(l =>
+    '<button class="line-pill' + (l.code === _selectedLine ? ' active' : '') + '" data-line="' + esc(l.code) + '">'
+    + '<span class="line-badge" style="background:' + l.color + '">' + esc(l.code) + '</span>'
+    + '</button>'
+  ).join('');
+  el.querySelectorAll('.line-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _selectedLine = btn.dataset.line;
+      _lineFilterKey = '';
+      renderBoard();
+    });
+  });
+}
+
+// ── Vehicle position interpolation ──────────────────────────────────────────
+function _callTime(call, arrival) {
+  if (arrival) return call.expectedArrivalTime || call.aimedArrivalTime || call.expectedDepartureTime || call.aimedDepartureTime;
+  return call.expectedDepartureTime || call.aimedDepartureTime || call.expectedArrivalTime || call.aimedArrivalTime;
+}
+
+export function _interpolateVehiclePos(calls, now) {
+  if (!calls || !calls.length) return null;
+  const pts = calls.map(call => {
+    const sp = call.quay && call.quay.stopPlace;
+    if (!sp || sp.latitude == null || sp.longitude == null) return null;
+    const arr = _callTime(call, true);
+    const dep = _callTime(call, false);
+    if (!arr || !dep) return null;
+    return { lat: sp.latitude, lon: sp.longitude, arr: new Date(arr).getTime(), dep: new Date(dep).getTime() };
+  }).filter(Boolean);
+
+  if (pts.length < 2) return null;
+
+  if (now <= pts[0].dep) return { lat: pts[0].lat, lon: pts[0].lon };
+
+  for (let i = 0; i < pts.length - 1; i++) {
+    const cur = pts[i], next = pts[i + 1];
+    if (now >= cur.dep && now <= next.arr) {
+      const span = next.arr - cur.dep;
+      const frac = span > 0 ? Math.min(1, Math.max(0, (now - cur.dep) / span)) : 0;
+      return { lat: cur.lat + (next.lat - cur.lat) * frac, lon: cur.lon + (next.lon - cur.lon) * frac };
+    }
+    if (now >= next.arr && now <= next.dep) {
+      return { lat: next.lat, lon: next.lon };
+    }
+  }
+
+  const last = pts[pts.length - 1];
+  return { lat: last.lat, lon: last.lon };
+}
+
+function renderVehicleMarkers(visibleDeps) {
+  if (!_bMap || !_selectedLine) return;
+  if (!_bVehicleLayer) _bVehicleLayer = L.layerGroup().addTo(_bMap);
+  _bVehicleLayer.clearLayers();
+
+  const now = Date.now();
+  const matches = visibleDeps.filter(({ c }) => {
+    const ln = c.serviceJourney && c.serviceJourney.line;
+    return ln && ln.publicCode === _selectedLine;
+  }).slice(0, 3);
+
+  matches.forEach(({ c }, rank) => {
+    const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
+    const pos = _interpolateVehiclePos(sjc, now);
+    if (!pos) return;
+    const ln = c.serviceJourney.line;
+    const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
+    const mode = _depMode(c);
+    const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
+    const depTs = new Date(c.expectedDepartureTime).getTime();
+    const mins = Math.max(0, Math.round((depTs - now) / 60000));
+    L.marker([pos.lat, pos.lon], { icon: makeVehicleIcon(mode, _selectedLine, color, rank) })
+      .bindTooltip('Linje ' + esc(_selectedLine) + ' → ' + esc(dest) + ' · ' + fmtMins(mins), { className: 'map-label' })
+      .addTo(_bVehicleLayer);
+  });
+}
+
 const OCC_LABELS = ['', 'svært lite folk', 'lite folk', 'noen seter', 'travelt', 'fullt'];
 const _PIP = '<svg class="pp" viewBox="0 0 7 10" aria-hidden="true"><circle cx="3.5" cy="2.5" r="1.75"/><path d="M0.5 10v-1C0.5 7 1.8 6 3.5 6S6.5 7 6.5 9V10z"/></svg>';
 function occPip(level) {
@@ -427,8 +542,11 @@ export function renderBoard() {
   }
   if (!visibleDeps.length) {
     list.innerHTML = '<div class="state-msg">ingen avganger for valgte modi</div>';
+    renderLineFilter([]);
     return;
   }
+  renderLineFilter(visibleDeps);
+  renderVehicleMarkers(visibleDeps);
 
   // If this route continues from an unfinished plan leg's destination, flag
   // departures that leave before that leg is due to arrive — they're unlikely

@@ -8,7 +8,7 @@ import { esc } from '../ui/fmt.js';
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
-let _open = false;
+let _activePanel = null;
 let _lastMeta = null;
 
 function _formHtml() {
@@ -74,34 +74,42 @@ function _onSearch() {
   intervals.spectate = setInterval(() => _load(id), config.trackRefreshMs);
 }
 
-export function toggleSpectatePanel() {
-  const panel = document.getElementById('follow-jny-panel');
-  if (!panel) return;
-  _open = !_open;
-  if (_open) {
-    panel.style.display = 'block';
-    panel.innerHTML = _formHtml();
-    document.getElementById('spec-go').addEventListener('click', _onSearch);
-    document.getElementById('spec-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') _onSearch();
-    });
-    document.getElementById('spec-result').addEventListener('click', e => {
-      if (!e.target.closest('#spec-track') || !_lastMeta) return;
-      let toIdx = _lastMeta.calls.length - 1;
-      while (toIdx > 0 && _lastMeta.calls[toIdx].cancelled) toIdx--;
-      joinJourney(_lastMeta, toIdx);
-      _open = false;
-      _lastMeta = null;
-      panel.style.display = 'none';
-      panel.innerHTML = '';
-      stopSpectate();
-    });
-  } else {
-    panel.style.display = 'none';
-    panel.innerHTML = '';
-    _lastMeta = null;
-    stopSpectate();
+export function closeSpectatePanel() {
+  if (_activePanel) {
+    _activePanel.style.display = 'none';
+    _activePanel.innerHTML = '';
+    _activePanel = null;
   }
+  _lastMeta = null;
+  stopSpectate();
+}
+
+/**
+ * Toggle the "finn reise" lookup panel. Each view that offers this shortcut
+ * has its own panel container (only one is ever open at a time).
+ */
+export function toggleSpectatePanel(panelId) {
+  const panel = document.getElementById(panelId || 'follow-jny-panel');
+  if (!panel) return;
+  if (_activePanel === panel) {
+    closeSpectatePanel();
+    return;
+  }
+  closeSpectatePanel();
+  _activePanel = panel;
+  panel.style.display = 'block';
+  panel.innerHTML = _formHtml();
+  document.getElementById('spec-go').addEventListener('click', _onSearch);
+  document.getElementById('spec-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') _onSearch();
+  });
+  document.getElementById('spec-result').addEventListener('click', e => {
+    if (!e.target.closest('#spec-track') || !_lastMeta) return;
+    let toIdx = _lastMeta.calls.length - 1;
+    while (toIdx > 0 && _lastMeta.calls[toIdx].cancelled) toIdx--;
+    joinJourney(_lastMeta, toIdx);
+    closeSpectatePanel();
+  });
 }
 
 export function stopSpectate() {

@@ -106,6 +106,8 @@ body.jny-chip-visible .wrap { padding-bottom: calc(60px + env(safe-area-inset-bo
 .nav-back.confirm-armed{color:#fca5a5}
 .fav-del.confirm-armed{color:#fca5a5;background:rgba(220,38,38,.12);border-radius:3px}
 
+.header-actions{display:flex;align-items:center}
+
 .nav-plan-btn{
   background:none;border:none;
   color:rgba(245,184,64,.4);font-size:15px;

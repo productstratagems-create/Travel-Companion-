@@ -29,7 +29,7 @@ export function adaptTripPattern(tp) {
       serviceJourney: {
         id:   first.serviceJourney && first.serviceJourney.id,
         line: first.serviceJourney && first.serviceJourney.line,
-        estimatedCalls: [],
+        estimatedCalls: (first.serviceJourney && first.serviceJourney.estimatedCalls) || [],
       },
       _toLat:            last.toPlace && last.toPlace.latitude,
       _toLon:            last.toPlace && last.toPlace.longitude,

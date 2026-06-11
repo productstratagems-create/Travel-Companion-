@@ -23,7 +23,8 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
     + ' toPlace{name latitude longitude}'
     + ' mode'
     + ' aimedStartTime expectedStartTime aimedEndTime expectedEndTime'
-    + ' serviceJourney{id line{publicCode presentation{colour}} estimatedCalls{quay{stopPlace{name latitude longitude}}}}'
+    + ' serviceJourney{id line{publicCode presentation{colour}} estimatedCalls{quay{stopPlace{name latitude longitude}}'
+    + ' aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime occupancyStatus quay{publicCode} destinationDisplay{frontText}}'
     + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime}'
     + '} } } }';

@@ -42,8 +42,7 @@ export function makeVehicleIcon(mode, code, color) {
   return L.divIcon({ className: '', html, iconSize: [size, size], iconAnchor: [Math.round(size / 2), Math.round(size / 2)] });
 }
 
-export function makeStopIcon(mode, count) {
-  const badge = (count > 1)
+export function makeStopIcon(mode, count) {  const badge = (count > 1)
     ? '<span style="position:absolute;top:-5px;right:-5px;background:#fff;color:#111;'
       + 'border-radius:50%;width:14px;height:14px;font-size:8px;font-weight:800;'
       + 'display:flex;align-items:center;justify-content:center;line-height:1;'
@@ -75,4 +74,12 @@ export function makeStopIcon(mode, count) {
   }
   const html = '<div style="position:relative;display:inline-block">' + inner + badge + '</div>';
   return L.divIcon({ className: '', html, iconSize: [w, h], iconAnchor: [Math.round(w / 2), Math.round(h / 2)] });
+}
+
+// Small dot marking an intermediate stop on the selected line's route corridor.
+export function makeRouteStopIcon(color) {
+  const size = 10;
+  const html = '<div style="background:' + color + ';border-radius:50%;width:' + size + 'px;height:' + size + 'px;'
+    + 'border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.5)"></div>';
+  return L.divIcon({ className: '', html, iconSize: [size, size], iconAnchor: [Math.round(size / 2), Math.round(size / 2)] });
 }

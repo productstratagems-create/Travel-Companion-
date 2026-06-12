@@ -460,6 +460,7 @@ html[data-theme="light"] .hn-arr-dest { color: #b05800; }
 html[data-theme="light"] .hn-arr-spor { color: #78716c; }
 html[data-theme="light"] .hn-new-btn  { color: #b05800; border-color: rgba(176,88,0,.2); }
 html[data-theme="light"] .hn-new-btn:active { background: rgba(176,88,0,.06); }
+html[data-theme="light"] #t-map { background: #e5e7eb; }
 html[data-theme="light"] #hn-map { background: #e5e7eb; }
 html[data-theme="light"] .hn-map-bike { background: #e8f5e9; border-color: #4ade80; color: #15803d; }
 html[data-theme="light"] .hn-map-bike.empty { background: #fdecea; border-color: #f87171; color: #dc2626; }

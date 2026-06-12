@@ -147,9 +147,9 @@ describe('trackGQL(jid)', () => {
     expect(q).toContain('RUT:ServiceJourney:3-123456');
   });
 
-  it('requests estimatedCalls with stopPlace name', () => {
+  it('requests estimatedCalls with stopPlace name and coordinates', () => {
     expect(q).toContain('estimatedCalls');
-    expect(q).toContain('stopPlace{name}');
+    expect(q).toContain('stopPlace{name latitude longitude}');
   });
 
   it('requests both aimed and expected arrival times', () => {

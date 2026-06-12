@@ -7,7 +7,8 @@ import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { fetchNearbyPlaces, timeCategory, PLACE_CATS, placeEmoji } from '../api/places.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
-import { startBoard } from './board.js';
+import { startBoard, _interpolateVehiclePos } from './board.js';
+import { makeVehicleIcon } from '../ui/mapIcons.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn, esc } from '../ui/fmt.js';
 import L from 'leaflet';
@@ -44,6 +45,11 @@ let _placesLayer = null;
 let _userMarker = null;
 let _arrUserMoved = false;
 
+let _tMap = null;
+let _tLayer = null;
+let _tVehicleMarker = null;
+let _tMapKey = null;
+
 function _destroyArrMap() {
   if (_arrBoardInterval) { clearInterval(_arrBoardInterval); _arrBoardInterval = null; }
   _arrBoard = null; _arrBoardStopId = null;
@@ -53,6 +59,89 @@ function _destroyArrMap() {
   _placesLL = null;
   if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _bikeLayer = null; _placesLayer = null; _userMarker = null; }
   _arrUserMoved = false;
+}
+
+function _destroyTrackMap() {
+  if (_tMap) { _tMap.remove(); _tMap = null; _tLayer = null; _tVehicleMarker = null; }
+  _tMapKey = null;
+}
+
+function _trackMapStructKey(leg) {
+  if (!leg || !leg.stops || !leg.stops.length) return '';
+  const first = leg.stops[0], last = leg.stops[leg.stops.length - 1];
+  const fsp = first.quay && first.quay.stopPlace;
+  const lsp = last.quay && last.quay.stopPlace;
+  return (leg.journeyId || '') + '|' + leg.stops.length + ':'
+    + (fsp && fsp.latitude) + ',' + (fsp && fsp.longitude) + ':'
+    + (lsp && lsp.latitude) + ',' + (lsp && lsp.longitude);
+}
+
+// Live position of the vehicle the user is currently riding, shown on its
+// route corridor. Only relevant while actually riding — hidden during
+// platform waits or after arrival.
+function _renderTrackMap(now, cs, legs) {
+  const wrap = document.getElementById('t-map-wrap');
+  const mapEl = document.getElementById('t-map');
+  if (!wrap || !mapEl) return;
+
+  const leg = cs.phase === 'riding' ? legs[cs.i] : null;
+  const pts = [];
+  if (leg && leg.stops) {
+    leg.stops.forEach(s => {
+      const sp = s.quay && s.quay.stopPlace;
+      if (!sp || sp.latitude == null || sp.longitude == null) return;
+      const last = pts[pts.length - 1];
+      if (last && last[0] === sp.latitude && last[1] === sp.longitude) return;
+      pts.push([sp.latitude, sp.longitude]);
+    });
+  }
+
+  if (!leg || pts.length < 2) {
+    wrap.style.display = 'none';
+    _destroyTrackMap();
+    return;
+  }
+
+  wrap.style.display = 'block';
+
+  const key = _trackMapStructKey(leg);
+  if (key !== _tMapKey || !_tMap) {
+    _tMapKey = key;
+    _destroyTrackMap();
+    _tMapKey = key;
+    _tMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+    L.tileLayer(_TILE, { subdomains: 'abcd' }).addTo(_tMap);
+    _tLayer = L.layerGroup().addTo(_tMap);
+    L.polyline(pts, { color: leg.lineBg || '#7c2d12', weight: 4, opacity: 0.6, lineCap: 'round' }).addTo(_tLayer);
+    const first = pts[0], last = pts[pts.length - 1];
+    L.circleMarker(first, { radius: 6, color: '#fff', fillColor: leg.lineBg || '#7c2d12', fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
+    L.circleMarker(last, { radius: 6, color: '#fff', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
+    _tMap.fitBounds(pts, { padding: [28, 28], maxZoom: 16 });
+    setTimeout(() => _tMap && _tMap.invalidateSize(), 100);
+
+    const expandBtn = document.getElementById('t-map-expand');
+    if (expandBtn) {
+      expandBtn.onclick = () => {
+        const exp = mapEl.classList.toggle('expanded');
+        expandBtn.textContent = exp ? '✕' : '⤢';
+        expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
+        setTimeout(() => _tMap && _tMap.invalidateSize(), 320);
+      };
+    }
+  }
+
+  if (!_tMap) return;
+  const pos = _interpolateVehiclePos(leg.stops, now);
+  if (pos) {
+    if (_tVehicleMarker) {
+      _tVehicleMarker.setLatLng([pos.lat, pos.lon]);
+    } else {
+      _tVehicleMarker = L.marker([pos.lat, pos.lon], { icon: makeVehicleIcon(leg.mode, leg.lineCode, leg.lineBg) }).addTo(_tLayer);
+    }
+  } else if (_tVehicleMarker) {
+    _tVehicleMarker.remove();
+    _tVehicleMarker = null;
+  }
 }
 
 function loadRecentDests() {
@@ -790,6 +879,7 @@ export function renderTrack() {
     if (tw) tw.innerHTML = newWeather;
   }
   _updateUserMarker();
+  _renderTrackMap(now, cs, legs);
 }
 
 export function buildTrackBar() {
@@ -837,6 +927,7 @@ export function copyJourneyId() {
 export function startTracking() {
   expanded = state.jny && state.jny.legs ? state.jny.legs.map(() => false) : [];
   _destroyArrMap();
+  _destroyTrackMap();
   _tCardsHtml = '';
   _tWeatherHtml = '';
   _walkDestLL = null;

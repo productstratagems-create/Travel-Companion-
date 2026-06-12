@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseOpeningHours } from '../src/api/places.js';
+import { parseOpeningHours, _normName, mergePlaces, parseOverpassElements } from '../src/api/places.js';
 
 function d(weekday, hour, min = 0) {
   // weekday: 1=Mon..5=Fri, 6=Sat, 0=Sun
@@ -76,5 +76,84 @@ describe('parseOpeningHours', () => {
     const spec = 'Mo-Su 08:00-22:00; Mo-Fr 09:00-17:00';
     const r = parseOpeningHours(spec, d(1, 20)); // Monday 20:00
     expect(r).toMatchObject({ isOpen: true }); // first rule matches
+  });
+});
+
+describe('_normName', () => {
+  it('folds Norwegian letters and diacritics', () => {
+    expect(_normName('Kafé Brønnøya')).toBe('kafebronnoya');
+    expect(_normName('Åpent Bakeri')).toBe('apentbakeri');
+  });
+
+  it('drops legal suffixes and punctuation', () => {
+    expect(_normName('Olsen & Sønn AS')).toBe('olsensonn');
+    expect(_normName('Java-Bar')).toBe('javabar');
+  });
+
+  it('matches the same name written slightly differently', () => {
+    expect(_normName('Café Olé')).toBe(_normName('Cafe Ole'));
+  });
+});
+
+describe('mergePlaces', () => {
+  const A = { name: 'Kafé A', _norm: 'kafea', osmId: 'n/1', lat: 59.9, lon: 10.7, dist: 100, hours: null, amenity: 'catering.cafe', type: 'kafé', emoji: '☕' };
+
+  it('deduplicates across sources by shared OSM id', () => {
+    const dupe = { ...A, dist: 120, _norm: 'somethingelse' }; // different name, same id
+    const out = mergePlaces([[A], [dupe]]);
+    expect(out).toHaveLength(1);
+    expect(out[0].sources).toBe(2);
+  });
+
+  it('deduplicates by normalised name within proximity when ids differ', () => {
+    const near = { ...A, osmId: 'w/9', lat: 59.9001, lon: 10.7001, dist: 110 };
+    const out = mergePlaces([[A], [near]]);
+    expect(out).toHaveLength(1);
+    expect(out[0].sources).toBe(2);
+  });
+
+  it('keeps same-named places that are far apart as distinct', () => {
+    const far = { ...A, osmId: 'w/9', lat: 60.0, lon: 10.9, dist: 5000 };
+    const out = mergePlaces([[A], [far]]);
+    expect(out).toHaveLength(2);
+  });
+
+  it('fills gaps (opening hours) from the secondary source', () => {
+    const base = { ...A, hours: null, osmId: null };
+    const withHours = { ...A, osmId: null, hours: { isOpen: true, label: 'til 22:00' } };
+    const out = mergePlaces([[base], [withHours]]);
+    expect(out[0].hours).toMatchObject({ isOpen: true });
+  });
+
+  it('adopts the nearest known coordinates/distance', () => {
+    const nearer = { ...A, osmId: 'n/1', dist: 40, lat: 59.901, lon: 10.701 };
+    const out = mergePlaces([[A], [nearer]]);
+    expect(out[0].dist).toBe(40);
+  });
+
+  it('marks single-source records with sources = 1', () => {
+    const out = mergePlaces([[A], []]);
+    expect(out[0].sources).toBe(1);
+  });
+});
+
+describe('parseOverpassElements', () => {
+  it('maps node + way elements to the shared venue shape', () => {
+    const els = [
+      { type: 'node', id: 5, lat: 59.9, lon: 10.7, tags: { name: 'Bakeriet', shop: 'bakery' } },
+      { type: 'way', id: 8, center: { lat: 59.91, lon: 10.72 }, tags: { name: 'Kino X', amenity: 'cinema', opening_hours: '10:00-22:00' } },
+    ];
+    const out = parseOverpassElements(els, 59.9, 10.7);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ name: 'Bakeriet', amenity: 'catering.bakery', osmId: 'n/5' });
+    expect(out[1]).toMatchObject({ name: 'Kino X', amenity: 'entertainment.cinema', osmId: 'w/8' });
+  });
+
+  it('skips elements without a name or coordinates', () => {
+    const els = [
+      { type: 'node', id: 1, lat: 59.9, lon: 10.7, tags: { amenity: 'cafe' } }, // no name
+      { type: 'way', id: 2, tags: { name: 'No Center', amenity: 'cafe' } },     // no center
+    ];
+    expect(parseOverpassElements(els, 59.9, 10.7)).toHaveLength(0);
   });
 });

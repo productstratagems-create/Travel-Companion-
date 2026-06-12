@@ -8,7 +8,8 @@ import { fetchNearbyPlaces, timeCategory, PLACE_CATS, placeEmoji } from '../api/
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard, _interpolateVehiclePos } from './board.js';
-import { makeVehicleIcon } from '../ui/mapIcons.js';
+import { makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
+import { snapToCorridor } from '../ui/corridor.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn, esc } from '../ui/fmt.js';
 import L from 'leaflet';
@@ -49,7 +50,14 @@ let _arrUserMoved = false;
 let _tMap = null;
 let _tLayer = null;
 let _tVehicleMarker = null;
+let _tUserMarker = null;
+let _tRoutePts = null;
+let _tSnapDist = null;
 let _tMapKey = null;
+
+// How long a tapped stop's name tooltip stays visible on the tracking map —
+// matches the board map's route-stop tooltip behaviour.
+const _T_ROUTE_STOP_TOOLTIP_MS = 3000;
 
 function _destroyArrMap() {
   if (_arrBoardInterval) { clearInterval(_arrBoardInterval); _arrBoardInterval = null; }
@@ -63,7 +71,9 @@ function _destroyArrMap() {
 }
 
 function _destroyTrackMap() {
-  if (_tMap) { _tMap.remove(); _tMap = null; _tLayer = null; _tVehicleMarker = null; }
+  if (_tMap) { _tMap.remove(); _tMap = null; _tLayer = null; _tVehicleMarker = null; _tUserMarker = null; }
+  _tRoutePts = null;
+  _tSnapDist = null;
   _tMapKey = null;
 }
 
@@ -87,6 +97,7 @@ function _renderTrackMap(now, cs, legs) {
 
   const leg = cs.phase === 'riding' ? legs[cs.i] : null;
   const pts = [];
+  const stops = [];
   if (leg && leg.stops) {
     leg.stops.forEach(s => {
       const sp = s.quay && s.quay.stopPlace;
@@ -94,6 +105,7 @@ function _renderTrackMap(now, cs, legs) {
       const last = pts[pts.length - 1];
       if (last && last[0] === sp.latitude && last[1] === sp.longitude) return;
       pts.push([sp.latitude, sp.longitude]);
+      if (sp.name) stops.push({ lat: sp.latitude, lon: sp.longitude, name: sp.name });
     });
   }
 
@@ -114,10 +126,33 @@ function _renderTrackMap(now, cs, legs) {
     L.tileLayer(_TILE, { subdomains: 'abcd' }).addTo(_tMap);
     _tLayer = L.layerGroup().addTo(_tMap);
     addCompass(_tMap, mapEl);
-    L.polyline(pts, { color: leg.lineBg || '#7c2d12', weight: 4, opacity: 0.6, lineCap: 'round' }).addTo(_tLayer);
+    const lineColor = leg.lineBg || '#7c2d12';
+    L.polyline(pts, { color: lineColor, weight: 4, opacity: 0.6, lineCap: 'round' }).addTo(_tLayer);
     const first = pts[0], last = pts[pts.length - 1];
-    L.circleMarker(first, { radius: 6, color: '#fff', fillColor: leg.lineBg || '#7c2d12', fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
+
+    // Intermediate stop dots along the line. Names stay hidden until tapped so
+    // the corridor doesn't fill with permanent labels — same pattern as the
+    // board map's route stops.
+    stops.slice(1, -1).forEach(s => {
+      const marker = L.marker([s.lat, s.lon], { icon: makeRouteStopIcon(lineColor) }).addTo(_tLayer);
+      const tooltip = L.tooltip({ className: 'map-label' }).setLatLng([s.lat, s.lon]).setContent(esc(s.name));
+      let hideTimer = null;
+      marker.on('click', () => {
+        if (hideTimer) clearTimeout(hideTimer);
+        _tMap.openTooltip(tooltip);
+        hideTimer = setTimeout(() => _tMap.closeTooltip(tooltip), _T_ROUTE_STOP_TOOLTIP_MS);
+      });
+    });
+
+    L.circleMarker(first, { radius: 6, color: '#fff', fillColor: lineColor, fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
     L.circleMarker(last, { radius: 6, color: '#fff', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
+
+    // Remember the corridor so the live user-position dot can snap onto it.
+    // Rail/tram tracks aren't drawn by the basemap so the straight stop-to-stop
+    // segments only approximate them — use a looser snap than for buses.
+    _tRoutePts = pts;
+    _tSnapDist = leg.mode === 'bus' ? 25 : 50;
+
     _tMap.fitBounds(pts, { padding: [28, 28], maxZoom: 16 });
     setTimeout(() => _tMap && _tMap.invalidateSize(), 100);
 
@@ -143,6 +178,24 @@ function _renderTrackMap(now, cs, legs) {
   } else if (_tVehicleMarker) {
     _tVehicleMarker.remove();
     _tVehicleMarker = null;
+  }
+
+  // User's live position, snapped onto the line when close enough — while
+  // riding this sits on the train; off the line (e.g. just before boarding)
+  // it falls back to the raw GPS fix.
+  const userPos = state.homeLL || state.walkFromLL;
+  if (userPos) {
+    const snapped = snapToCorridor(userPos, _tRoutePts, _tSnapDist) || userPos;
+    if (_tUserMarker) {
+      _tUserMarker.setLatLng([snapped.lat, snapped.lon]);
+    } else {
+      _tUserMarker = L.circleMarker([snapped.lat, snapped.lon], {
+        radius: 6, color: '#fff', fillColor: '#60a5fa', fillOpacity: 0.95, weight: 2,
+      }).bindTooltip('Din posisjon', { className: 'map-label' }).addTo(_tLayer);
+    }
+  } else if (_tUserMarker) {
+    _tUserMarker.remove();
+    _tUserMarker = null;
   }
 }
 

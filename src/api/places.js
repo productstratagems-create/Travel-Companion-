@@ -105,15 +105,97 @@ export function timeCategory() {
   return PLACE_CATS[1];
 }
 
-export function fetchNearbyPlaces(lat, lon, amenities, limit = 8, radius = 600) {
-  // amenities is a Geoapify category string (comma-separated) or legacy array (ignored gracefully)
-  const catStr = Array.isArray(amenities) ? amenities.join(',') : amenities;
-  const key = lat.toFixed(3) + ',' + lon.toFixed(3) + ',' + catStr + ',' + radius;
-  const hit = _cache.get(key);
-  if (hit && Date.now() - hit.ts < CACHE_MS) return Promise.resolve(hit.data);
+// ── Complementary OpenStreetMap source (Overpass) ────────────────────────────
+// Geoapify is a curated *subset* of OSM, so it silently drops POIs whose tags
+// fall outside its category tree. Querying Overpass (raw OSM) recovers those,
+// and because it needs no API key it also acts as a resilience fallback when
+// the Geoapify key is missing or its request fails. Both sources are
+// OSM-derived, so results are merged on the shared OSM id (deterministic),
+// backed by a normalised-name + proximity check as a safety net.
+const _OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
-  if (!config.api.geoapifyKey) return Promise.resolve([]);
+// Geoapify category → equivalent OSM tag(s)
+const _OSM_TAGS = {
+  'catering.restaurant': [['amenity', 'restaurant']],
+  'catering.cafe':       [['amenity', 'cafe']],
+  'catering.fast_food':  [['amenity', 'fast_food']],
+  'catering.bakery':     [['shop', 'bakery']],
+  'catering.bar':        [['amenity', 'bar']],
+  'catering.pub':        [['amenity', 'pub']],
+  'catering.ice_cream':  [['amenity', 'ice_cream']],
+  'catering.biergarten': [['amenity', 'biergarten']],
+  'entertainment.museum':      [['tourism', 'museum']],
+  'entertainment.cinema':      [['amenity', 'cinema']],
+  'entertainment.theatre':     [['amenity', 'theatre']],
+  'entertainment.arts_centre': [['amenity', 'arts_centre']],
+  'education.library':         [['amenity', 'library']],
+  'commercial.clothing':         [['shop', 'clothes']],
+  'commercial.shoes':            [['shop', 'shoes']],
+  'commercial.sport':            [['shop', 'sports']],
+  'commercial.books':            [['shop', 'books']],
+  'commercial.electronics':      [['shop', 'electronics']],
+  'commercial.shopping_mall':    [['shop', 'mall']],
+  'commercial.department_store': [['shop', 'department_store']],
+  'commercial.gift':             [['shop', 'gift']],
+  'commercial.jewelry':          [['shop', 'jewelry']],
+};
+const _OSM_TO_CAT = {};
+Object.entries(_OSM_TAGS).forEach(([cat, pairs]) => {
+  pairs.forEach(([k, v]) => { _OSM_TO_CAT[k + '=' + v] = cat; });
+});
 
+// Two records within this distance (m) with the same normalised name are
+// treated as the same physical place.
+const DEDUP_DIST = 60;
+
+// Normalise a venue name for cross-source matching: lowercase, fold Norwegian
+// letters, strip diacritics, drop trailing legal suffixes and all punctuation.
+export function _normName(s) {
+  return (s || '').toLowerCase()
+    .replace(/ø/g, 'o').replace(/æ/g, 'ae').replace(/å/g, 'a')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(as|asa)\b/g, '')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function _geoapifyOsmId(raw) {
+  if (!raw) return null;
+  const id = raw.osm_id ?? raw['@id'] ?? null;
+  if (id == null) return null;
+  const t = raw.osm_type || raw['@type'] || '';
+  const letter = typeof t === 'string' && t ? t[0].toLowerCase() : '';
+  return (letter ? letter + '/' : '') + id;
+}
+
+function _isSamePlace(a, b) {
+  if (a.osmId && b.osmId && a.osmId === b.osmId) return true;
+  return !!a._norm && a._norm === b._norm
+    && haver(a.lat, a.lon, b.lat, b.lon) <= DEDUP_DIST;
+}
+
+// Fold one or more source lists into a single deduplicated list. Earlier lists
+// win as the base record (Geoapify first → richer categories); later sources
+// fill gaps, nudge the kept record to the nearest known coordinates, and bump
+// a `sources` count usable as a quality/confidence signal.
+export function mergePlaces(lists) {
+  const out = [];
+  lists.forEach(list => {
+    (list || []).forEach(rec => {
+      const dup = out.find(o => _isSamePlace(o, rec));
+      if (dup) {
+        dup.sources = (dup.sources || 1) + 1;
+        if (!dup.hours && rec.hours) dup.hours = rec.hours;
+        if (!dup.amenity && rec.amenity) { dup.amenity = rec.amenity; dup.type = rec.type; dup.emoji = rec.emoji; }
+        if (rec.dist < dup.dist) { dup.dist = rec.dist; dup.lat = rec.lat; dup.lon = rec.lon; }
+        return;
+      }
+      out.push({ ...rec, sources: 1 });
+    });
+  });
+  return out;
+}
+
+function _fetchGeoapify(lat, lon, catStr, limit, radius) {
   const url = 'https://api.geoapify.com/v2/places'
     + '?categories=' + encodeURIComponent(catStr)
     + '&filter=circle:' + lon.toFixed(6) + ',' + lat.toFixed(6) + ',' + radius
@@ -123,36 +205,100 @@ export function fetchNearbyPlaces(lat, lon, amenities, limit = 8, radius = 600) 
 
   return fetch(url)
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(json => {
-      const seen = new Map();
-      (json.features || [])
-        .filter(f => f.properties && f.properties.name)
-        .forEach(f => {
-          const p = f.properties;
-          const cats = (p.categories || []).slice().reverse();
-          const knownCat = cats.find(c => CAT_EMOJI[c]) || cats[0] || '';
-          const fLat = p.lat ?? (f.geometry && f.geometry.coordinates[1]);
-          const fLon = p.lon ?? (f.geometry && f.geometry.coordinates[0]);
-          if (!fLat || !fLon) return;
-          const dist = Math.round(haver(lat, lon, fLat, fLon));
-          const name = p.name;
-          const existing = seen.get(name);
-          if (!existing || dist < existing.dist) {
-            const raw = p.datasource && p.datasource.raw;
-            seen.set(name, {
-              name,
-              amenity: knownCat,
-              type: CAT_LABEL[knownCat] || knownCat.split('.').pop() || '',
-              emoji: placeEmoji(knownCat),
-              lat: fLat, lon: fLon, dist,
-              hours: parseOpeningHours(raw && raw.opening_hours || null),
-            });
-          }
-        });
-      const data = Array.from(seen.values())
-        .sort((a, b) => a.dist - b.dist)
-        .slice(0, limit);
-      _cache.set(key, { ts: Date.now(), data });
-      return data;
+    .then(json => (json.features || [])
+      .filter(f => f.properties && f.properties.name)
+      .map(f => {
+        const p = f.properties;
+        const cats = (p.categories || []).slice().reverse();
+        const knownCat = cats.find(c => CAT_EMOJI[c]) || cats[0] || '';
+        const fLat = p.lat ?? (f.geometry && f.geometry.coordinates[1]);
+        const fLon = p.lon ?? (f.geometry && f.geometry.coordinates[0]);
+        if (!fLat || !fLon) return null;
+        const raw = p.datasource && p.datasource.raw;
+        return {
+          name: p.name,
+          amenity: knownCat,
+          type: CAT_LABEL[knownCat] || knownCat.split('.').pop() || '',
+          emoji: placeEmoji(knownCat),
+          lat: fLat, lon: fLon,
+          dist: Math.round(haver(lat, lon, fLat, fLon)),
+          hours: parseOpeningHours(raw && raw.opening_hours || null),
+          osmId: _geoapifyOsmId(raw),
+          _norm: _normName(p.name),
+        };
+      })
+      .filter(Boolean));
+}
+
+// Parse Overpass JSON elements into the shared venue shape.
+export function parseOverpassElements(elements, lat, lon) {
+  return (elements || [])
+    .map(el => {
+      const tags = el.tags || {};
+      if (!tags.name) return null;
+      const elLat = el.lat ?? (el.center && el.center.lat);
+      const elLon = el.lon ?? (el.center && el.center.lon);
+      if (elLat == null || elLon == null) return null;
+      let cat = '';
+      for (const [k, v] of Object.entries(tags)) {
+        if (_OSM_TO_CAT[k + '=' + v]) { cat = _OSM_TO_CAT[k + '=' + v]; break; }
+      }
+      return {
+        name: tags.name,
+        amenity: cat,
+        type: CAT_LABEL[cat] || cat.split('.').pop() || '',
+        emoji: placeEmoji(cat),
+        lat: elLat, lon: elLon,
+        dist: Math.round(haver(lat, lon, elLat, elLon)),
+        hours: parseOpeningHours(tags.opening_hours || null),
+        osmId: (el.type ? el.type[0] : '') + '/' + el.id,
+        _norm: _normName(tags.name),
+      };
+    })
+    .filter(Boolean);
+}
+
+function _fetchOverpass(lat, lon, catStr, radius) {
+  const cats = catStr.split(',').map(s => s.trim()).filter(Boolean);
+  const clauses = [];
+  cats.forEach(cat => {
+    (_OSM_TAGS[cat] || []).forEach(([k, v]) => {
+      clauses.push('nwr["' + k + '"="' + v + '"](around:' + radius + ',' + lat.toFixed(6) + ',' + lon.toFixed(6) + ');');
     });
+  });
+  if (!clauses.length) return Promise.resolve([]);
+  const ql = '[out:json][timeout:20];(' + clauses.join('') + ');out center tags 60;';
+
+  return fetch(_OVERPASS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'data=' + encodeURIComponent(ql),
+  })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(json => parseOverpassElements(json.elements, lat, lon));
+}
+
+export function fetchNearbyPlaces(lat, lon, amenities, limit = 8, radius = 600) {
+  // amenities is a Geoapify category string (comma-separated) or legacy array (ignored gracefully)
+  const catStr = Array.isArray(amenities) ? amenities.join(',') : amenities;
+  const key = lat.toFixed(3) + ',' + lon.toFixed(3) + ',' + catStr + ',' + radius;
+  const hit = _cache.get(key);
+  if (hit && Date.now() - hit.ts < CACHE_MS) return Promise.resolve(hit.data);
+
+  // Query both sources in parallel. Geoapify is skipped when no key is set;
+  // either source may fail independently (→ null) without sinking the other.
+  const geoP = config.api.geoapifyKey
+    ? _fetchGeoapify(lat, lon, catStr, limit, radius).catch(() => null)
+    : Promise.resolve(null);
+  const ovpP = _fetchOverpass(lat, lon, catStr, radius).catch(() => null);
+
+  return Promise.all([geoP, ovpP]).then(([geo, ovp]) => {
+    // Both sources errored (vs. legitimately empty) — surface as a load error.
+    if (geo === null && ovp === null) throw new Error('all place sources failed');
+    const data = mergePlaces([geo || [], ovp || []])
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, limit);
+    _cache.set(key, { ts: Date.now(), data });
+    return data;
+  });
 }

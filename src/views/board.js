@@ -14,6 +14,7 @@ import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
 import { addCompass } from '../ui/mapCompass.js';
+import { snapToCorridor } from '../ui/corridor.js';
 import { closeSpectatePanel } from './spectate.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -68,31 +69,12 @@ function _destroyBoardMap() {
 
 // Project p onto the segment a→b (equirectangular approximation, fine for
 // the short stop-to-stop segments of a route corridor).
-function _projectOnSegment(p, a, b) {
-  const cos = Math.cos(a[0] * Math.PI / 180) || 1;
-  const ax = a[1] * cos, ay = a[0];
-  const bx = b[1] * cos, by = b[0];
-  const px = p.lon * cos, py = p.lat;
-  const dx = bx - ax, dy = by - ay;
-  const len2 = dx * dx + dy * dy;
-  let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
-  t = Math.max(0, Math.min(1, t));
-  return { lat: ay + t * dy, lon: (ax + t * dx) / cos };
-}
-
 // Snap a position onto the selected line's route corridor when close enough
 // to plausibly be on that road/track — gives the "Din posisjon" dot a
 // realistic position on the line the user is looking for, instead of the
 // raw (sometimes noisy) GPS fix sitting just off it.
 function _snapToCorridor(pos) {
-  if (!pos || !_bRoutePts || _bRoutePts.length < 2) return null;
-  let best = null;
-  for (let i = 0; i < _bRoutePts.length - 1; i++) {
-    const proj = _projectOnSegment(pos, _bRoutePts[i], _bRoutePts[i + 1]);
-    const dist = haver(pos.lat, pos.lon, proj.lat, proj.lon);
-    if (!best || dist < best.dist) best = { lat: proj.lat, lon: proj.lon, dist };
-  }
-  return best && best.dist <= _bRouteSnapDist ? { lat: best.lat, lon: best.lon } : null;
+  return snapToCorridor(pos, _bRoutePts, _bRouteSnapDist);
 }
 
 function _makeBikeIcon(bikes, ebikes) {

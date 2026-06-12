@@ -13,6 +13,7 @@ import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
+import { addCompass } from '../ui/mapCompass.js';
 import { closeSpectatePanel } from './spectate.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -128,11 +129,12 @@ function renderBoardMap(pos, modes) {
   if (!mapEl) return;
 
   if (!_bMap) {
-    _bMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+    _bMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' }, rotate: true, touchRotate: true, rotateControl: false });
     _bMap.on('dragstart', () => { _bUserMoved = true; });
     L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_bMap);
     L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_bMap);
     _bLayer = L.layerGroup().addTo(_bMap);
+    addCompass(_bMap, mapEl);
     const c = pos || { lat: 59.9139, lon: 10.7522 };
     _bMap.setView([c.lat, c.lon], 14);
     setTimeout(() => _bMap && _bMap.invalidateSize(), 100);

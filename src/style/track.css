@@ -203,6 +203,10 @@
 }
 .hn-new-btn:active{background:rgba(245,184,64,.06)}
 
+/* Live vehicle position map */
+#t-map{height:200px;border-radius:8px;overflow:hidden;background:#0f0d0b;transition:height .3s ease,border-radius .3s ease}
+#t-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
+
 /* Arrival map */
 #hn-map{height:220px;border-radius:8px;overflow:hidden;background:#0f0d0b;transition:height .3s ease,border-radius .3s ease}
 #hn-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}

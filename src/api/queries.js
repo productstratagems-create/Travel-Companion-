@@ -56,7 +56,7 @@ function normJid(jid) {
 
 export function trackGQL(jid) {
   return '{serviceJourney(id:"' + normJid(jid) + '"){'
-    + 'estimatedCalls{quay{stopPlace{name}} '
+    + 'estimatedCalls{quay{stopPlace{name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime realtime}}}';
 }
 

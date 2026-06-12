@@ -5,6 +5,7 @@ import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
+import { addCompass } from '../ui/mapCompass.js';
 import { fetchWalkRoute } from '../api/route.js';
 import { fetchWeather } from '../api/weather.js';
 import { stopSelRefresh } from './selected.js';
@@ -42,10 +43,11 @@ function _initWalkMap(fromLL, toLL) {
   if (!el || !fromLL || !toLL) return;
   _destroyWalkMap();
   _wUserMoved = false;
-  _wMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+  _wMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' }, rotate: true, touchRotate: true, rotateControl: false });
   _wMap.on('dragstart', () => { _wUserMoved = true; });
   L.tileLayer(TILE, { subdomains: 'abcd', attribution: TILE_ATTR }).addTo(_wMap);
   L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_wMap);
+  addCompass(_wMap, el);
   // Station marker — transit line badge
   const sel = state.sel;
   const leg0 = sel && sel._legs && sel._legs[0];

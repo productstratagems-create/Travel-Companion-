@@ -13,6 +13,7 @@ import { startBoard } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
+import { addCompass } from '../ui/mapCompass.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -135,9 +136,10 @@ function _renderSelMap(dep, fromName, toName) {
   wrap.style.display = 'block';
   destroySelMap();
   _selMapKey = key;
-  _selMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+  _selMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' }, rotate: true, touchRotate: true, rotateControl: false });
   L.tileLayer(_TILE, { subdomains: 'abcd' }).addTo(_selMap);
   _selLayer = L.layerGroup().addTo(_selMap);
+  addCompass(_selMap, mapEl);
 
   const pts = [];
   legs.forEach(({ stops, color }, li) => {

@@ -13,6 +13,7 @@ import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn, esc } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchWalkRoute } from '../api/route.js';
+import { addCompass } from '../ui/mapCompass.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -109,9 +110,10 @@ function _renderTrackMap(now, cs, legs) {
     _tMapKey = key;
     _destroyTrackMap();
     _tMapKey = key;
-    _tMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+    _tMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' }, rotate: true, touchRotate: true, rotateControl: false });
     L.tileLayer(_TILE, { subdomains: 'abcd' }).addTo(_tMap);
     _tLayer = L.layerGroup().addTo(_tMap);
+    addCompass(_tMap, mapEl);
     L.polyline(pts, { color: leg.lineBg || '#7c2d12', weight: 4, opacity: 0.6, lineCap: 'round' }).addTo(_tLayer);
     const first = pts[0], last = pts[pts.length - 1];
     L.circleMarker(first, { radius: 6, color: '#fff', fillColor: leg.lineBg || '#7c2d12', fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
@@ -220,10 +222,11 @@ function _initArrMap(arrLL) {
   if (_arrMap) return; // already initialized — use _addBikeMarkers to update
   _arrLL = arrLL;
   _arrUserMoved = false;
-  _arrMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+  _arrMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' }, rotate: true, touchRotate: true, rotateControl: false });
   _arrMap.on('dragstart', () => { _arrUserMoved = true; });
   L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_arrMap);
   L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_arrMap);
+  addCompass(_arrMap, el);
   // Arrival station marker — last transit leg's line badge
   const jLegs = state.jny && state.jny.legs;
   const jLast = jLegs && jLegs[jLegs.length - 1];

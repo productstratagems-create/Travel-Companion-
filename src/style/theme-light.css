@@ -22,6 +22,13 @@ html[data-theme="light"] .map-expand-btn {
 }
 html[data-theme="light"] .map-expand-btn:active { background: rgba(176,88,0,.1); }
 
+html[data-theme="light"] .map-compass {
+  background: rgba(255,253,247,.9);
+  border-color: rgba(26,19,9,.15);
+  color: #1c1309;
+}
+html[data-theme="light"] .map-compass:active { background: rgba(176,88,0,.1); }
+
 html[data-theme="light"] .leaflet-bar a,
 html[data-theme="light"] .leaflet-bar a:hover {
   background: rgba(255,253,247,.92) !important;

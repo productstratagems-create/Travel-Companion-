@@ -4,6 +4,7 @@ import { show, updateHeader } from '../ui/nav.js';
 import { confirmTap } from '../ui/confirm.js';
 import config from '../config.js';
 import L from 'leaflet';
+import { addCompass } from '../ui/mapCompass.js';
 import { geocodePlace, fetchJourneyMeta } from '../api/entur.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -108,9 +109,10 @@ async function _renderPlanMap(legs) {
   if (!el) return;
 
   if (!_planMap) {
-    _planMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' } });
+    _planMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' }, rotate: true, touchRotate: true, rotateControl: false });
     L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_planMap);
     L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_planMap);
+    addCompass(_planMap, el);
 
     const expandBtn = document.getElementById('plan-map-expand');
     if (expandBtn) {

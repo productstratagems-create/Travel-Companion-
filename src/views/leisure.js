@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import { addCompass } from '../ui/mapCompass.js';
 import { state } from '../state.js';
 import { fetchNearbyPlaces, timeCategory, PLACE_CATS } from '../api/places.js';
 import { fetchWeather } from '../api/weather.js';
@@ -349,8 +350,9 @@ function _initLeisureMap(pos) {
   const el = document.getElementById('lei-map');
   if (!el) return;
 
-  _lMap = L.map(el, { zoomControl: false, attributionControl: false });
+  _lMap = L.map(el, { zoomControl: false, attributionControl: false, rotate: true, touchRotate: true, rotateControl: false });
   L.tileLayer(_TILE, { subdomains: 'abcd' }).addTo(_lMap);
+  addCompass(_lMap, el);
 
   if (pos) {
     _lMap.setView([pos.lat, pos.lon], 15);

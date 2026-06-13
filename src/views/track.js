@@ -78,14 +78,52 @@ function _destroyTrackMap() {
   _tMapKey = null;
 }
 
-function _trackMapStructKey(leg) {
-  if (!leg || !leg.stops || !leg.stops.length) return '';
-  const first = leg.stops[0], last = leg.stops[leg.stops.length - 1];
-  const fll = quayLatLon(first.quay);
-  const lll = quayLatLon(last.quay);
-  return (leg.journeyId || '') + '|' + leg.stops.length + ':'
-    + (fll && fll.lat) + ',' + (fll && fll.lon) + ':'
-    + (lll && lll.lat) + ',' + (lll && lll.lon);
+// A leg's serviceJourney calls cover the whole physical vehicle run, which
+// often extends well past where this leg's journey segment actually ends
+// (e.g. the train continues past the transfer stop). Trim to just the
+// fromStation→toStation span so the map reflects the user's own journey.
+function _legRouteStops(leg) {
+  if (!leg || !leg.stops || !leg.stops.length) return [];
+  const from = normStn(leg.fromStation || '');
+  const to = normStn(leg.toStation || '');
+  if (!from && !to) return leg.stops;
+  let pastFrom = !leg.fromStation;
+  const out = [];
+  for (const s of leg.stops) {
+    const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
+    if (!pastFrom) {
+      if (normStn(nm) === from) pastFrom = true;
+      else continue;
+    }
+    out.push(s);
+    if (to && normStn(nm) === to) break;
+  }
+  return out.length >= 2 ? out : leg.stops;
+}
+
+function _legRoutePts(leg) {
+  const pts = [];
+  const stops = [];
+  _legRouteStops(leg).forEach(s => {
+    const sp = s.quay && s.quay.stopPlace;
+    const ll = quayLatLon(s.quay);
+    if (!ll) return;
+    const last = pts[pts.length - 1];
+    if (last && last[0] === ll.lat && last[1] === ll.lon) return;
+    pts.push([ll.lat, ll.lon]);
+    if (sp && sp.name) stops.push({ lat: ll.lat, lon: ll.lon, name: sp.name });
+  });
+  return { pts, stops };
+}
+
+function _trackMapStructKey(legs, fromIdx) {
+  return legs.slice(fromIdx).map(leg => {
+    if (!leg || !leg.stops || !leg.stops.length) return leg && leg.journeyId || '';
+    const { pts } = _legRoutePts(leg);
+    if (!pts.length) return leg.journeyId || '';
+    const first = pts[0], last = pts[pts.length - 1];
+    return (leg.journeyId || '') + '|' + pts.length + ':' + first.join(',') + ':' + last.join(',');
+  }).join('|');
 }
 
 // Live position of the vehicle the user is currently riding, shown on its
@@ -97,19 +135,7 @@ function _renderTrackMap(now, cs, legs) {
   if (!wrap || !mapEl) return;
 
   const leg = cs.phase === 'riding' ? legs[cs.i] : null;
-  const pts = [];
-  const stops = [];
-  if (leg && leg.stops) {
-    leg.stops.forEach(s => {
-      const sp = s.quay && s.quay.stopPlace;
-      const ll = quayLatLon(s.quay);
-      if (!ll) return;
-      const last = pts[pts.length - 1];
-      if (last && last[0] === ll.lat && last[1] === ll.lon) return;
-      pts.push([ll.lat, ll.lon]);
-      if (sp && sp.name) stops.push({ lat: ll.lat, lon: ll.lon, name: sp.name });
-    });
-  }
+  const { pts, stops } = leg ? _legRoutePts(leg) : { pts: [], stops: [] };
 
   if (!leg || pts.length < 2) {
     wrap.style.display = 'none';
@@ -119,7 +145,7 @@ function _renderTrackMap(now, cs, legs) {
 
   wrap.style.display = 'block';
 
-  const key = _trackMapStructKey(leg);
+  const key = _trackMapStructKey(legs, cs.i);
   if (key !== _tMapKey || !_tMap) {
     _tMapKey = key;
     _destroyTrackMap();
@@ -131,23 +157,48 @@ function _renderTrackMap(now, cs, legs) {
     const lineColor = leg.lineBg || '#7c2d12';
     L.polyline(pts, { color: lineColor, weight: 4, opacity: 0.6, lineCap: 'round' }).addTo(_tLayer);
     const first = pts[0], last = pts[pts.length - 1];
+    const allPts = pts.slice();
 
     // Intermediate stop dots along the line. Names stay hidden until tapped so
     // the corridor doesn't fill with permanent labels — same pattern as the
     // board map's route stops.
-    stops.slice(1, -1).forEach(s => {
-      const marker = L.marker([s.lat, s.lon], { icon: makeRouteStopIcon(lineColor) }).addTo(_tLayer);
-      const tooltip = L.tooltip({ className: 'map-label' }).setLatLng([s.lat, s.lon]).setContent(esc(s.name));
-      let hideTimer = null;
-      marker.on('click', () => {
-        if (hideTimer) clearTimeout(hideTimer);
-        _tMap.openTooltip(tooltip);
-        hideTimer = setTimeout(() => _tMap.closeTooltip(tooltip), _T_ROUTE_STOP_TOOLTIP_MS);
+    const addStopMarkers = (stopList, color) => {
+      stopList.forEach(s => {
+        const marker = L.marker([s.lat, s.lon], { icon: makeRouteStopIcon(color) }).addTo(_tLayer);
+        const tooltip = L.tooltip({ className: 'map-label' }).setLatLng([s.lat, s.lon]).setContent(esc(s.name));
+        let hideTimer = null;
+        marker.on('click', () => {
+          if (hideTimer) clearTimeout(hideTimer);
+          _tMap.openTooltip(tooltip);
+          hideTimer = setTimeout(() => _tMap.closeTooltip(tooltip), _T_ROUTE_STOP_TOOLTIP_MS);
+        });
       });
-    });
+    };
+    addStopMarkers(stops.slice(1, -1), lineColor);
 
     L.circleMarker(first, { radius: 6, color: '#fff', fillColor: lineColor, fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
-    L.circleMarker(last, { radius: 6, color: '#fff', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
+
+    // Draw the rest of the journey's legs (after the transfer) as a lighter,
+    // dashed corridor in each leg's own line colour, so the map reflects the
+    // whole onward journey — not just the vehicle currently being ridden.
+    for (let j = cs.i + 1; j < legs.length; j++) {
+      const nextLeg = legs[j];
+      const { pts: nPts, stops: nStops } = _legRoutePts(nextLeg);
+      if (nPts.length < 2) continue;
+      const nColor = nextLeg.lineBg || '#7c2d12';
+      L.polyline(nPts, { color: nColor, weight: 3, opacity: 0.35, lineCap: 'round', dashArray: '1,8' }).addTo(_tLayer);
+      addStopMarkers(nStops.slice(1, -1), nColor);
+      allPts.push(...nPts);
+      // Transfer point between this leg and the previous one
+      L.circleMarker(nPts[0], { radius: 6, color: '#fff', fillColor: nColor, fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
+      if (j === legs.length - 1) {
+        L.circleMarker(nPts[nPts.length - 1], { radius: 6, color: '#fff', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
+      }
+    }
+    // Current leg is the final leg — mark its end as the destination.
+    if (cs.i === legs.length - 1) {
+      L.circleMarker(last, { radius: 6, color: '#fff', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
+    }
 
     // Remember the corridor so the live user-position dot can snap onto it.
     // Rail/tram tracks aren't drawn by the basemap so the straight stop-to-stop
@@ -155,7 +206,7 @@ function _renderTrackMap(now, cs, legs) {
     _tRoutePts = pts;
     _tSnapDist = leg.mode === 'bus' ? 25 : 50;
 
-    _tMap.fitBounds(pts, { padding: [28, 28], maxZoom: 16 });
+    _tMap.fitBounds(allPts, { padding: [28, 28], maxZoom: 16 });
     setTimeout(() => _tMap && _tMap.invalidateSize(), 100);
 
     const expandBtn = document.getElementById('t-map-expand');
@@ -170,7 +221,7 @@ function _renderTrackMap(now, cs, legs) {
   }
 
   if (!_tMap) return;
-  const pos = _interpolateVehiclePos(leg.stops, now);
+  const pos = _interpolateVehiclePos(_legRouteStops(leg), now);
   if (pos) {
     if (_tVehicleMarker) {
       _tVehicleMarker.setLatLng([pos.lat, pos.lon]);

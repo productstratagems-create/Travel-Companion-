@@ -76,7 +76,7 @@ html[data-theme="light"] .cta-btn.secondary:active {
 }
 
 /* ── BOARD ── */
-html[data-theme="light"] .board-header { border-bottom-color: rgba(26,19,9,.08); }
+html[data-theme="light"] .board-header-slim { border-bottom-color: rgba(26,19,9,.08); }
 html[data-theme="light"] #via-label { color: rgba(176,88,0,.8); }
 
 html[data-theme="light"] .station-name {
@@ -132,8 +132,12 @@ html[data-theme="light"] .dep-spor .sn {
   background: rgba(176,88,0,.08);
 }
 
-html[data-theme="light"] .board-action-btn { color: #78716c; border-color: rgba(26,19,9,.12); }
-html[data-theme="light"] .board-action-btn:active { color: #b05800; border-color: rgba(176,88,0,.4); background: rgba(176,88,0,.06); }
+html[data-theme="light"] .board-more-btn { color: #78716c; border-color: rgba(26,19,9,.12); }
+html[data-theme="light"] .board-more-btn:active,
+html[data-theme="light"] .board-more-btn[aria-expanded="true"] { color: #b05800; border-color: rgba(176,88,0,.4); background: rgba(176,88,0,.06); }
+html[data-theme="light"] .board-more-menu { border-color: rgba(26,19,9,.12); background: rgba(176,88,0,.03); }
+html[data-theme="light"] .board-more-item { color: #78716c; }
+html[data-theme="light"] .board-more-item:active { color: #b05800; background: rgba(176,88,0,.06); }
 html[data-theme="light"] .bab-leisure { color: rgba(176,88,0,.55); }
 html[data-theme="light"] .bab-leisure:active { color: #b05800; }
 
@@ -141,6 +145,7 @@ html[data-theme="light"] #walk-summary { color: #78716c; }
 
 html[data-theme="light"] .mode-pill {
   border-color: rgba(26,19,9,.14);
+  background: rgba(255,255,255,.8);
   color: #78716c;
 }
 html[data-theme="light"] .mode-pill.active {
@@ -149,6 +154,9 @@ html[data-theme="light"] .mode-pill.active {
   color: #b05800;
 }
 
+html[data-theme="light"] .line-pill {
+  background: rgba(255,255,255,.8);
+}
 html[data-theme="light"] .line-pill.active {
   border-color: rgba(176,88,0,.45);
 }
@@ -472,6 +480,18 @@ html[data-theme="light"] #hn-map { background: #e5e7eb; }
 html[data-theme="light"] .hn-map-bike { background: #e8f5e9; border-color: #4ade80; color: #15803d; }
 html[data-theme="light"] .hn-map-bike.empty { background: #fdecea; border-color: #f87171; color: #dc2626; }
 html[data-theme="light"] .hn-map-scooter { background: #fff3e0; border-color: #f97316; color: #c2410c; }
+
+/* ── LAGRET (favoritter / reiseplan / finn reise) ── */
+html[data-theme="light"] .saved-tab {
+  background: rgba(0,0,0,.04);
+  border-color: rgba(176,88,0,.18);
+  color: rgba(176,88,0,.85);
+}
+html[data-theme="light"] .saved-tab.active {
+  background: rgba(176,88,0,.12);
+  border-color: rgba(176,88,0,.5);
+  color: #b05800;
+}
 
 /* ── FAVORITES ── */
 html[data-theme="light"] .fav-section-label { color: #6b7280; }

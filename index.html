@@ -20,39 +20,41 @@
 
 <!-- ══ 1: BOARD ══ -->
 <div id="v-board" tabindex="-1">
-  <div class="board-header">
-    <div style="display:flex;align-items:center;gap:.6rem">
+  <div class="board-header-slim">
+    <div style="display:flex;align-items:center;gap:.6rem;min-width:0;flex:1">
       <span class="status-dot" id="status-dot" title="trykk for logg"
         role="img" aria-label="systemstatus: tilkoblet"></span>
-      <div style="display:flex;flex-direction:column;gap:.15rem">
+      <div style="display:flex;flex-direction:column;gap:.15rem;min-width:0;flex:1">
         <span class="station-name" id="station-name" role="heading" aria-level="1">MORTENSRUD</span>
         <span id="via-label" style="display:none"></span>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:.5rem">
-      <button class="dir-btn" id="route-btn" type="button" style="font-size:11px;letter-spacing:.08em">endre rute</button>
+    <div style="display:flex;align-items:center;gap:.5rem;flex-shrink:0">
       <button class="dir-btn" id="dir-btn" type="button">
         <span aria-hidden="true">⇄</span>
         <span class="sr-only">Bytt retning:</span>
         <span class="dir-dest" id="dir-dest">Jernbanetorget</span>
       </button>
+      <button class="board-more-btn" id="board-more-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋯</button>
     </div>
   </div>
-  <div class="board-actions">
-    <button id="fav-btn" class="board-action-btn" type="button"><span class="bab-ic">★</span>favoritter</button>
-    <button id="plan-btn" class="board-action-btn" type="button"><span class="bab-ic">📋</span>reiseplan</button>
-    <button id="leisure-btn" class="board-action-btn bab-leisure" type="button"><span class="bab-ic">🌟</span>utforsk</button>
-    <button id="spectate-btn" class="board-action-btn" type="button"><span class="bab-ic">🔗</span>finn reise</button>
+  <div id="board-more-menu" class="board-more-menu" style="display:none" role="menu">
+    <button id="route-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">🛤</span>endre rute</button>
+    <button id="fav-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">★</span>favoritter</button>
+    <button id="plan-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">📋</span>reiseplan</button>
+    <button id="leisure-btn" class="board-more-item bab-leisure" type="button" role="menuitem"><span class="bmi-ic">🌟</span>utforsk</button>
+    <button id="spectate-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">🔗</span>finn reise</button>
+    <button id="prefs-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">⚙</span>innstillinger</button>
   </div>
   <div id="follow-jny-panel" style="display:none"></div>
   <div id="plan-ctx" style="display:none"></div>
   <div id="board-error" role="alert" class="status-error-box" style="display:none"></div>
   <div id="walk-summary" style="display:none"></div>
-  <div id="mode-filter"></div>
-  <div id="line-filter"></div>
   <div class="map-wrap">
     <div id="board-map"></div>
     <button class="map-expand-btn" id="board-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
+    <div id="mode-filter"></div>
+    <div id="line-filter"></div>
   </div>
   <div id="dep-list"></div>
 </div>
@@ -190,6 +192,17 @@
   </div>
   <div id="set-fav-msg" role="status" class="status-ok-msg" style="display:none"></div>
   <div id="set-error" role="alert" class="status-error-msg" style="display:none"></div>
+  <div style="margin-top:1rem">
+    <button id="set-prefs-link" class="set-via-add-btn" type="button">⚙ innstillinger</button>
+  </div>
+</div>
+
+<!-- ══ 5b: INNSTILLINGER (preferanser) ══ -->
+<div id="v-prefs" tabindex="-1" style="display:none">
+  <div class="screen-header">
+    <button class="nav-back" id="prefs-back">← tilbake</button>
+    <span class="screen-label" role="heading" aria-level="2">innstillinger</span>
+  </div>
   <div class="set-section">
     <div class="set-label">tempo</div>
     <div class="pref-group" id="pref-speed">
@@ -217,31 +230,30 @@
   </div>
 </div>
 
-<!-- ══ 6: FAVORITTER ══ -->
-<div id="v-favs" tabindex="-1" style="display:none">
+<!-- ══ 6: LAGRET (favoritter / reiseplan / finn reise) ══ -->
+<div id="v-saved" tabindex="-1" style="display:none">
   <div class="screen-header">
-    <button class="nav-back" id="fav-back">← avganger</button>
-    <span class="screen-label" role="heading" aria-level="2">favoritter</span>
-    <button class="nav-plan-btn" id="fav-plan-btn" aria-label="Reiseplan">📋</button>
+    <button class="nav-back" id="saved-back">← avganger</button>
+    <span class="screen-label" role="heading" aria-level="2">lagret</span>
   </div>
-  <div id="fav-content"></div>
+  <div class="saved-tabs" role="tablist">
+    <button class="saved-tab" type="button" role="tab" data-tab="favs">favoritter</button>
+    <button class="saved-tab" type="button" role="tab" data-tab="plan">reiseplan</button>
+    <button class="saved-tab" type="button" role="tab" data-tab="find">finn reise</button>
+  </div>
+  <div id="saved-favs" class="saved-pane"></div>
+  <div id="saved-plan" class="saved-pane" style="display:none">
+    <div class="map-wrap" id="plan-map-wrap" style="display:none">
+      <div id="plan-map"></div>
+      <button class="map-expand-btn" id="plan-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
+    </div>
+    <div id="plan-content"></div>
+  </div>
+  <div id="saved-find" class="saved-pane" style="display:none"></div>
 </div>
 
 <!-- ══ 7: FRITID ══ -->
 <div id="v-leisure" tabindex="-1" style="display:none"></div>
-
-<!-- ══ 8: REISEPLAN ══ -->
-<div id="v-plan" tabindex="-1" style="display:none">
-  <div class="screen-header">
-    <button class="nav-back" id="plan-back">← avganger</button>
-    <span class="screen-label" role="heading" aria-level="2">reiseplan</span>
-  </div>
-  <div class="map-wrap" id="plan-map-wrap" style="display:none">
-    <div id="plan-map"></div>
-    <button class="map-expand-btn" id="plan-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
-  </div>
-  <div id="plan-content"></div>
-</div>
 
 <!-- ══ DEBUG (hidden) ══ -->
 <div class="debug-panel" id="debug-panel" style="display:none">

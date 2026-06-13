@@ -430,6 +430,10 @@ export function showSettings() {
   }
 }
 
+export function showPrefs() {
+  _highlightPrefs();
+}
+
 export function applyRoute() {
   const ns = state.nearestStation;
   const dep = document.getElementById('set-dep').value.trim();

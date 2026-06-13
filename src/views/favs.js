@@ -3,9 +3,11 @@ import { state } from '../state.js';
 import { loadFavs, removeFav, favToDir } from '../ui/favs.js';
 import { show, updateHeader } from '../ui/nav.js';
 import { confirmTap } from '../ui/confirm.js';
+import { renderPlan } from './plan.js';
+import { renderSpectateInline } from './spectate.js';
 
 export function renderFavs() {
-  const el = document.getElementById('fav-content');
+  const el = document.getElementById('saved-favs');
   if (!el) return;
   const favs = loadFavs();
   const routes = favs.filter(f => !f.type || f.type === 'route');
@@ -66,3 +68,21 @@ window._deleteFav = (btn, id) => {
 };
 
 window._renderFavs = renderFavs;
+
+let _savedTab = 'favs';
+
+export function renderSaved(tab) {
+  if (tab) _savedTab = tab;
+  document.querySelectorAll('.saved-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === _savedTab);
+  });
+  ['favs', 'plan', 'find'].forEach(t => {
+    const pane = document.getElementById('saved-' + t);
+    if (pane) pane.style.display = (t === _savedTab ? 'block' : 'none');
+  });
+  if (_savedTab === 'favs') renderFavs();
+  else if (_savedTab === 'plan') renderPlan();
+  else renderSpectateInline('saved-find');
+}
+
+window._renderSaved = renderSaved;

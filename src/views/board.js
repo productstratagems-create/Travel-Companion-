@@ -111,7 +111,8 @@ function renderBoardMap(pos, modes) {
   if (!mapEl) return;
 
   if (!_bMap) {
-    _bMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' }, rotate: true, touchRotate: true, rotateControl: false });
+    _bMap = L.map(mapEl, { zoomControl: false, attributionControl: false, rotate: true, touchRotate: true, rotateControl: false });
+    L.control.zoom({ position: 'bottomright' }).addTo(_bMap);
     _bMap.on('dragstart', () => { _bUserMoved = true; });
     L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_bMap);
     L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_bMap);

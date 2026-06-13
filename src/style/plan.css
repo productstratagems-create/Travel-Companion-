@@ -84,7 +84,7 @@
 #plan-map.expanded { height: 72vh; }
 
 /* ── Plan screen ── */
-#v-plan { padding: 0 0 2rem; }
+#saved-plan { padding: 0 0 2rem; }
 
 .plan-journey-meta {
   padding: .5rem 0 1rem;

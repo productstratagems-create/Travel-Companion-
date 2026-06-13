@@ -22,13 +22,14 @@ import { locateUser, updateWalkDbg, loadWeekendMode } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
-import { initSettings, showSettings, applyRoute, applyRouteFromState, loadDest } from './views/settings.js';
+import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest } from './views/settings.js';
 import { state } from './state.js';
 
 // Expose helpers used via window bridges in nav.js and debug controls
 window._logMsg = logMsg;
 window._updateWalkDbg = updateWalkDbg;
 window._showSettings = showSettings;
+window._showPrefs = showPrefs;
 window._applyRoute = applyRoute;
 window._renderLeisure = renderLeisure;
 

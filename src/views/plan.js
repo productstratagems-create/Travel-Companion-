@@ -386,8 +386,9 @@ function _startPlanInterval() {
   if (_planInterval) return;
   _planInterval = setInterval(() => {
     const now = Date.now();
-    const planView = document.getElementById('v-plan');
-    if (planView && planView.style.display !== 'none') {
+    const planView = document.getElementById('v-saved');
+    const planPane = document.getElementById('saved-plan');
+    if (planView && planView.style.display !== 'none' && planPane && planPane.style.display !== 'none') {
       const legs = loadPlan();
       if (legs.length) {
         const sk = _planStructuralKey(legs, now);

@@ -1,9 +1,10 @@
 /* ── SCREEN 1: BOARD ── */
-.board-header{
-  display:flex;align-items:flex-end;justify-content:space-between;
-  padding-bottom:.75rem;
+.board-header-slim{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:.6rem;
   border-bottom:1px solid rgba(245,184,64,.08);
-  margin-bottom:.1rem;
+  margin-bottom:.3rem;
+  gap:.5rem;
 }
 #via-label{
   font-size:9px;text-transform:uppercase;letter-spacing:.12em;
@@ -15,6 +16,8 @@
   letter-spacing:.04em;line-height:1;
   color:#f5b840;
   text-shadow:0 0 20px rgba(245,184,64,.8),0 0 40px rgba(245,184,64,.15);
+  display:block;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .dir-btn{
   display:flex;align-items:center;gap:.4rem;
@@ -112,42 +115,65 @@
 .dep-spor .sn{font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:#f5b840;line-height:1;text-shadow:0 0 8px rgba(245,184,64,.7);background:rgba(30,58,138,.2);border-radius:3px;padding:0 4px}
 
 
-.board-actions{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;
-  margin:.6rem 0;
-}
-.board-action-btn{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.2rem;
+.board-more-btn{
+  display:flex;align-items:center;justify-content:center;
   background:none;border:1px solid rgba(245,184,64,.15);border-radius:8px;
-  font-family:inherit;font-size:9px;letter-spacing:.08em;text-transform:uppercase;
-  color:#8c857f;cursor:pointer;
-  padding:.5rem .2rem;min-height:48px;
+  color:#8c857f;font-family:inherit;font-size:1.1rem;line-height:1;
+  width:44px;height:44px;cursor:pointer;flex-shrink:0;
   transition:color .1s,border-color .1s,background .1s;
 }
-.board-action-btn .bab-ic{font-size:1.1rem;line-height:1}
-.board-action-btn:active{color:#f5b840;border-color:rgba(245,184,64,.4);background:rgba(245,184,64,.06)}
+.board-more-btn:active,.board-more-btn[aria-expanded="true"]{
+  color:#f5b840;border-color:rgba(245,184,64,.4);background:rgba(245,184,64,.06);
+}
+
+.board-more-menu{
+  display:flex;flex-direction:column;gap:.3rem;
+  margin-bottom:.5rem;padding:.4rem;
+  border:1px solid rgba(245,184,64,.15);border-radius:8px;
+  background:rgba(245,184,64,.03);
+}
+.board-more-item{
+  display:flex;align-items:center;gap:.6rem;
+  background:none;border:none;border-radius:6px;
+  font-family:inherit;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
+  color:#8c857f;cursor:pointer;text-align:left;
+  padding:.65rem .6rem;min-height:44px;
+  transition:color .1s,background .1s;
+}
+.board-more-item .bmi-ic{font-size:1.1rem;line-height:1;width:1.4rem;text-align:center;flex-shrink:0}
+.board-more-item:active{color:#f5b840;background:rgba(245,184,64,.06)}
 .bab-leisure{color:rgba(245,184,64,.55)}
 .bab-leisure:active{color:#f5b840}
 
 #walk-summary{font-size:12px;color:#7485a0;padding:.3rem 0 .6rem;letter-spacing:.04em}
 
-#mode-filter{display:flex;gap:.35rem;flex-wrap:wrap;padding:.5rem 0 .35rem}
+.map-wrap #mode-filter,.map-wrap #line-filter{
+  position:absolute;left:.5rem;right:.5rem;
+  display:flex;gap:.35rem;flex-wrap:wrap;
+  z-index:5;pointer-events:none;
+}
+.map-wrap #mode-filter{top:.5rem}
+.map-wrap #line-filter{bottom:.5rem}
+.map-wrap #mode-filter > *,.map-wrap #line-filter > *{pointer-events:auto}
+.map-wrap #mode-filter:empty,.map-wrap #line-filter:empty{display:none}
+
 .mode-pill{
   padding:.3rem .7rem;border-radius:20px;
-  border:1px solid rgba(245,184,64,.18);background:none;
+  border:1px solid rgba(245,184,64,.18);background:rgba(20,16,12,.7);
+  backdrop-filter:blur(2px);
   color:#7485a0;font-family:inherit;font-size:10px;
   letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
   transition:background .1s,color .1s,border-color .1s;
   min-height:32px;
 }
-.mode-pill.active{background:rgba(245,184,64,.12);border-color:rgba(245,184,64,.4);color:#f5b840}
+.mode-pill.active{background:rgba(245,184,64,.18);border-color:rgba(245,184,64,.4);color:#f5b840}
 .mode-pill:active{opacity:.7}
 
-#line-filter{display:flex;gap:.35rem;flex-wrap:wrap;padding:0 0 .35rem}
 .line-pill{
   display:inline-flex;align-items:center;
   padding:2px;border-radius:5px;
-  border:1px solid transparent;background:none;
+  border:1px solid transparent;background:rgba(20,16,12,.7);
+  backdrop-filter:blur(2px);
   cursor:pointer;min-height:32px;line-height:0;
   transition:border-color .1s,opacity .1s;
   opacity:.55;

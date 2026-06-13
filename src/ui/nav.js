@@ -7,10 +7,27 @@ import { stopSelRefresh } from '../views/selected.js';
 import { copyJourneyId } from '../views/track.js';
 import { toggleSpectatePanel, closeSpectatePanel } from '../views/spectate.js';
 
+export function closeBoardMenu() {
+  const menu = document.getElementById('board-more-menu');
+  const btn = document.getElementById('board-more-btn');
+  if (menu) menu.style.display = 'none';
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+export function toggleBoardMenu() {
+  const menu = document.getElementById('board-more-menu');
+  const btn = document.getElementById('board-more-btn');
+  if (!menu || !btn) return;
+  const open = menu.style.display === 'none' || !menu.style.display;
+  menu.style.display = open ? 'flex' : 'none';
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
 export function show(id) {
   closeSpectatePanel();
+  closeBoardMenu();
   if (id !== 'v-selected') window._destroySelMap && window._destroySelMap();
-  ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-favs', 'v-leisure', 'v-plan'].forEach(v => {
+  ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-prefs', 'v-saved', 'v-leisure'].forEach(v => {
     document.getElementById(v).style.display = (v === id ? 'block' : 'none');
   });
   state.view = id.replace('v-', '');
@@ -61,26 +78,34 @@ function toggleDir() {
 export function attachEventListeners() {
   document.getElementById('dir-btn').addEventListener('click', toggleDir);
 
+  document.getElementById('board-more-btn').addEventListener('click', toggleBoardMenu);
+
+  document.getElementById('prefs-btn').addEventListener('click', () => {
+    window._showPrefs && window._showPrefs();
+    show('v-prefs');
+  });
+
   document.getElementById('fav-btn').addEventListener('click', () => {
-    show('v-favs');
-    window._renderFavs && window._renderFavs();
+    show('v-saved');
+    window._renderSaved && window._renderSaved('favs');
   });
 
   document.getElementById('plan-btn').addEventListener('click', () => {
-    show('v-plan');
-    window._renderPlan && window._renderPlan();
+    show('v-saved');
+    window._renderSaved && window._renderSaved('plan');
   });
 
-  ['s-plan-btn', 'w-plan-btn', 't-plan-btn', 'set-plan-btn', 'fav-plan-btn'].forEach(id => {
+  ['s-plan-btn', 'w-plan-btn', 't-plan-btn', 'set-plan-btn'].forEach(id => {
     document.getElementById(id).addEventListener('click', () => {
-      show('v-plan');
-      window._renderPlan && window._renderPlan();
+      show('v-saved');
+      window._renderSaved && window._renderSaved('plan');
     });
   });
 
-  document.getElementById('plan-back').addEventListener('click', () => {
-    show('v-board');
-    window._startBoard && window._startBoard();
+  document.querySelectorAll('.saved-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      window._renderSaved && window._renderSaved(btn.dataset.tab);
+    });
   });
 
   document.getElementById('leisure-btn').addEventListener('click', () => {
@@ -89,11 +114,14 @@ export function attachEventListeners() {
     window._renderLeisure && window._renderLeisure();
   });
 
-  document.getElementById('spectate-btn').addEventListener('click', () => toggleSpectatePanel('follow-jny-panel'));
+  document.getElementById('spectate-btn').addEventListener('click', () => {
+    show('v-saved');
+    window._renderSaved && window._renderSaved('find');
+  });
   document.getElementById('w-spec-btn').addEventListener('click', () => toggleSpectatePanel('follow-jny-panel-walk'));
   document.getElementById('t-spec-btn').addEventListener('click', () => toggleSpectatePanel('follow-jny-panel-track'));
 
-  document.getElementById('fav-back').addEventListener('click', () => {
+  document.getElementById('saved-back').addEventListener('click', () => {
     show('v-board');
     window._startBoard && window._startBoard();
   });
@@ -132,6 +160,16 @@ export function attachEventListeners() {
   });
 
   document.getElementById('set-back').addEventListener('click', () => {
+    show('v-board');
+    window._startBoard && window._startBoard();
+  });
+
+  document.getElementById('set-prefs-link').addEventListener('click', () => {
+    window._showPrefs && window._showPrefs();
+    show('v-prefs');
+  });
+
+  document.getElementById('prefs-back').addEventListener('click', () => {
     show('v-board');
     window._startBoard && window._startBoard();
   });

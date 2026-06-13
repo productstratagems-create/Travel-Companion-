@@ -84,19 +84,7 @@ export function closeSpectatePanel() {
   stopSpectate();
 }
 
-/**
- * Toggle the "finn reise" lookup panel. Each view that offers this shortcut
- * has its own panel container (only one is ever open at a time).
- */
-export function toggleSpectatePanel(panelId) {
-  const panel = document.getElementById(panelId || 'follow-jny-panel');
-  if (!panel) return;
-  if (_activePanel === panel) {
-    closeSpectatePanel();
-    return;
-  }
-  closeSpectatePanel();
-  _activePanel = panel;
+function _populatePanel(panel) {
   panel.style.display = 'block';
   panel.innerHTML = _formHtml();
   document.getElementById('spec-go').addEventListener('click', _onSearch);
@@ -110,6 +98,34 @@ export function toggleSpectatePanel(panelId) {
     joinJourney(_lastMeta, toIdx);
     closeSpectatePanel();
   });
+}
+
+/**
+ * Toggle the "finn reise" lookup panel. Each view that offers this shortcut
+ * has its own panel container (only one is ever open at a time).
+ */
+export function toggleSpectatePanel(panelId) {
+  const panel = document.getElementById(panelId || 'follow-jny-panel');
+  if (!panel) return;
+  if (_activePanel === panel) {
+    closeSpectatePanel();
+    return;
+  }
+  closeSpectatePanel();
+  _activePanel = panel;
+  _populatePanel(panel);
+}
+
+/**
+ * Render the "finn reise" lookup form directly into a container (no toggle).
+ * Used by the unified "Lagret" view's "finn reise" tab.
+ */
+export function renderSpectateInline(containerId) {
+  const panel = document.getElementById(containerId);
+  if (!panel) return;
+  closeSpectatePanel();
+  _activePanel = panel;
+  _populatePanel(panel);
 }
 
 export function stopSpectate() {

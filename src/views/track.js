@@ -2,6 +2,7 @@ import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, loadWeekendMode } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
+import { quayLatLon } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { fetchNearbyPlaces, timeCategory, PLACE_CATS, placeEmoji } from '../api/places.js';
@@ -80,11 +81,11 @@ function _destroyTrackMap() {
 function _trackMapStructKey(leg) {
   if (!leg || !leg.stops || !leg.stops.length) return '';
   const first = leg.stops[0], last = leg.stops[leg.stops.length - 1];
-  const fsp = first.quay && first.quay.stopPlace;
-  const lsp = last.quay && last.quay.stopPlace;
+  const fll = quayLatLon(first.quay);
+  const lll = quayLatLon(last.quay);
   return (leg.journeyId || '') + '|' + leg.stops.length + ':'
-    + (fsp && fsp.latitude) + ',' + (fsp && fsp.longitude) + ':'
-    + (lsp && lsp.latitude) + ',' + (lsp && lsp.longitude);
+    + (fll && fll.lat) + ',' + (fll && fll.lon) + ':'
+    + (lll && lll.lat) + ',' + (lll && lll.lon);
 }
 
 // Live position of the vehicle the user is currently riding, shown on its
@@ -101,11 +102,12 @@ function _renderTrackMap(now, cs, legs) {
   if (leg && leg.stops) {
     leg.stops.forEach(s => {
       const sp = s.quay && s.quay.stopPlace;
-      if (!sp || sp.latitude == null || sp.longitude == null) return;
+      const ll = quayLatLon(s.quay);
+      if (!ll) return;
       const last = pts[pts.length - 1];
-      if (last && last[0] === sp.latitude && last[1] === sp.longitude) return;
-      pts.push([sp.latitude, sp.longitude]);
-      if (sp.name) stops.push({ lat: sp.latitude, lon: sp.longitude, name: sp.name });
+      if (last && last[0] === ll.lat && last[1] === ll.lon) return;
+      pts.push([ll.lat, ll.lon]);
+      if (sp && sp.name) stops.push({ lat: ll.lat, lon: ll.lon, name: sp.name });
     });
   }
 

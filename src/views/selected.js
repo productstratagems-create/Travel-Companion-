@@ -2,6 +2,7 @@ import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
 import { fetchJourneyMeta } from '../api/entur.js';
+import { quayLatLon } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 import { addLegToPlan, isLegInPlan } from '../api/plan.js';
@@ -77,7 +78,8 @@ function _depToRouteLegs(dep, fromName, toName) {
       });
       const stops = calls.slice(fi, ti + 1).map(ca => {
         const sp = ca.quay && ca.quay.stopPlace;
-        return sp && sp.latitude ? { name: cleanName(sp.name), lat: sp.latitude, lon: sp.longitude } : null;
+        const ll = quayLatLon(ca.quay);
+        return sp && ll ? { name: cleanName(sp.name), lat: ll.lat, lon: ll.lon } : null;
       }).filter(Boolean);
       if (stops.length < 2) continue;
       const ll = leg.serviceJourney && leg.serviceJourney.line;
@@ -96,7 +98,8 @@ function _depToRouteLegs(dep, fromName, toName) {
   });
   const stops = calls.slice(fi, ti + 1).map(ca => {
     const sp = ca.quay && ca.quay.stopPlace;
-    return sp && sp.latitude ? { name: cleanName(sp.name), lat: sp.latitude, lon: sp.longitude } : null;
+    const ll = quayLatLon(ca.quay);
+    return sp && ll ? { name: cleanName(sp.name), lat: ll.lat, lon: ll.lon } : null;
   }).filter(Boolean);
   if (stops.length < 2) return null;
   const sj = dep.serviceJourney;

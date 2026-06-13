@@ -1,5 +1,6 @@
 import config from '../config.js';
 import { boardGQL, journeyGQL, trackGQL, tripGQL } from './queries.js';
+import { quayLatLon } from './adapt.js';
 import { logMsg, setDot } from '../ui/log.js';
 import { loadWalkSpeed } from '../geo.js';
 const WALK_MPS = { rolig: 41.67 / 60, middels: 83.33 / 60, rask: 116.67 / 60 };
@@ -276,10 +277,11 @@ export function fetchJourneyMeta(journeyId) {
       if (!sj || !sj.estimatedCalls) return null;
       const calls = sj.estimatedCalls.map(c => {
         const sp = c.quay && c.quay.stopPlace;
+        const ll = quayLatLon(c.quay);
         return {
           name:      (sp && sp.name) || '',
-          lat:       (sp && sp.latitude)  || null,
-          lon:       (sp && sp.longitude) || null,
+          lat:       ll ? ll.lat : null,
+          lon:       ll ? ll.lon : null,
           quay:      (c.quay && c.quay.publicCode) || null,
           aimed:     c.aimedDepartureTime    || c.aimedArrivalTime    || null,
           expected:  c.expectedDepartureTime || c.expectedArrivalTime || null,

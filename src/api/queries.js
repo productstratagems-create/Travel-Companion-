@@ -23,7 +23,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
     + ' toPlace{name latitude longitude}'
     + ' mode'
     + ' aimedStartTime expectedStartTime aimedEndTime expectedEndTime'
-    + ' serviceJourney{id line{publicCode presentation{colour}} estimatedCalls{quay{stopPlace{name latitude longitude}}'
+    + ' serviceJourney{id line{publicCode presentation{colour}} estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}}'
     + ' aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime occupancyStatus quay{publicCode} destinationDisplay{frontText}}'
     + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime}'
@@ -39,7 +39,7 @@ export function boardGQL(id, n) {
     + 'destinationDisplay{frontText} quay{id publicCode name} '
     + 'serviceJourney{id line{publicCode transportMode presentation{colour}} '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
-    + 'estimatedCalls{quay{stopPlace{name latitude longitude}} '
+    + 'estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + '}'
     + '}}';
@@ -56,7 +56,7 @@ function normJid(jid) {
 
 export function trackGQL(jid) {
   return '{serviceJourney(id:"' + normJid(jid) + '"){'
-    + 'estimatedCalls{quay{stopPlace{name latitude longitude}} '
+    + 'estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime realtime}}}';
 }
 
@@ -68,7 +68,7 @@ export function journeyGQL(jid) {
     + 'estimatedCalls{'
     + 'cancellation realtime '
     + 'destinationDisplay{frontText} '
-    + 'quay{publicCode stopPlace{name latitude longitude}} '
+    + 'quay{publicCode latitude longitude stopPlace{name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime '
     + 'aimedDepartureTime expectedDepartureTime'
     + '}}}';

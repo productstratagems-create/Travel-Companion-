@@ -3,7 +3,7 @@ import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName } from '../geo.js';
 import { fetchBoard, fetchTrip, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
-import { adaptTripPattern } from '../api/adapt.js';
+import { adaptTripPattern, quayLatLon } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
@@ -405,12 +405,12 @@ function _callTime(call, arrival) {
 export function _interpolateVehiclePos(calls, now) {
   if (!calls || !calls.length) return null;
   const pts = calls.map(call => {
-    const sp = call.quay && call.quay.stopPlace;
-    if (!sp || sp.latitude == null || sp.longitude == null) return null;
+    const ll = quayLatLon(call.quay);
+    if (!ll) return null;
     const arr = _callTime(call, true);
     const dep = _callTime(call, false);
     if (!arr || !dep) return null;
-    return { lat: sp.latitude, lon: sp.longitude, arr: new Date(arr).getTime(), dep: new Date(dep).getTime() };
+    return { lat: ll.lat, lon: ll.lon, arr: new Date(arr).getTime(), dep: new Date(dep).getTime() };
   }).filter(Boolean);
 
   if (pts.length < 2) return null;
@@ -474,11 +474,12 @@ function renderLineRoute(visibleDeps) {
   const stops = [];
   c.serviceJourney.estimatedCalls.forEach(call => {
     const sp = call.quay && call.quay.stopPlace;
-    if (!sp || sp.latitude == null || sp.longitude == null) return;
+    const ll = quayLatLon(call.quay);
+    if (!ll) return;
     const last = pts[pts.length - 1];
-    if (last && last[0] === sp.latitude && last[1] === sp.longitude) return;
-    pts.push([sp.latitude, sp.longitude]);
-    if (sp.name) stops.push({ lat: sp.latitude, lon: sp.longitude, name: sp.name });
+    if (last && last[0] === ll.lat && last[1] === ll.lon) return;
+    pts.push([ll.lat, ll.lon]);
+    if (sp && sp.name) stops.push({ lat: ll.lat, lon: ll.lon, name: sp.name });
   });
   if (pts.length < 2) {
     _bRouteLayer.clearLayers();

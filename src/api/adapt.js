@@ -1,3 +1,18 @@
+// Quays carry their own coordinates (the actual platform), distinct from
+// their stopPlace's centroid. Prefer the quay-level point when present so
+// map markers land on the platform rather than the station's middle.
+export function quayLatLon(quay) {
+  if (!quay) return null;
+  if (quay.latitude != null && quay.longitude != null) {
+    return { lat: quay.latitude, lon: quay.longitude };
+  }
+  const sp = quay.stopPlace;
+  if (sp && sp.latitude != null && sp.longitude != null) {
+    return { lat: sp.latitude, lon: sp.longitude };
+  }
+  return null;
+}
+
 export function adaptTripPattern(tp) {
   try {
     if (!tp || !tp.legs) return null;

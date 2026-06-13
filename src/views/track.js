@@ -1082,13 +1082,33 @@ function _fetchTrack() {
     })
     .catch(err => logMsg('track ✗ ' + err.message, 'err'));
 
-  // Pre-fetch all remaining legs while riding so cards show stops immediately
+  // Pre-fetch all remaining legs while riding so cards show stops immediately,
+  // and refresh their dep/arr times from live data — without this, a delay on
+  // the current leg leaves later legs showing their stale as-boarded times
+  // (e.g. a transfer departure shown as earlier than the current leg's arrival).
   if (cs.phase === 'riding') {
     for (let j = cs.i + 1; j < state.jny.legs.length; j++) {
       const nxt = state.jny.legs[j];
-      if (nxt && nxt.journeyId && !nxt.stops.length) {
+      if (nxt && nxt.journeyId) {
         fetchTrack(nxt.journeyId)
-          .then(calls => { if (calls) { nxt.stops = calls; renderTrack(); } })
+          .then(calls => {
+            if (!calls) return;
+            nxt.stops = calls;
+            if (nxt.fromStation) {
+              const depStop = findArr(calls, nxt.fromStation);
+              const dt = depStop && (depStop.expectedDepartureTime || depStop.aimedDepartureTime);
+              if (dt) nxt.depTime = { time: dt, clk: clk(dt) };
+            }
+            if (nxt.toStation) {
+              const arrStop = findArr(calls, nxt.toStation);
+              const at = arrStop && (arrStop.expectedArrivalTime || arrStop.aimedArrivalTime);
+              if (at) {
+                nxt.arrTime = { time: at, clk: clk(at) };
+                if (j === state.jny.legs.length - 1) state.jny.arrival = { time: at, clk: clk(at) };
+              }
+            }
+            renderTrack();
+          })
           .catch(() => {});
       }
     }

@@ -22,8 +22,25 @@ import { locateUser, updateWalkDbg, loadWeekendMode } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
-import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest } from './views/settings.js';
+import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, saveDep, saveDest } from './views/settings.js';
 import { state } from './state.js';
+
+// Prefill from/to/travelTime via deep link query params (e.g. from Wakety)
+(function applyPrefillFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const from = params.get('from');
+  const to = params.get('to');
+  const travelTime = params.get('travelTime');
+  if (from) saveDep(from);
+  if (to) saveDest(to);
+  if (travelTime) {
+    const mins = Number(travelTime);
+    if (!isNaN(mins) && mins > 0) state.walkOvr = mins;
+  }
+  if (from || to || travelTime) {
+    history.replaceState(null, '', window.location.pathname);
+  }
+})();
 
 // Expose helpers used via window bridges in nav.js and debug controls
 window._logMsg = logMsg;

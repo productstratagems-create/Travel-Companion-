@@ -24,12 +24,22 @@ export function resolveStop(dir, signal) {
         (f.properties.category || []).indexOf('metroStation') !== -1
         && (f.properties.label || '').toLowerCase().indexOf(q) !== -1
       ) || ff.find(f => (f.properties.label || '').toLowerCase().indexOf(q) !== -1);
-      if (!m) throw new Error('Fant ikke ' + dir.geo);
-      dir.stopId = m.properties.id;
-      dir._fromLat = m.geometry.coordinates[1];
-      dir._fromLon = m.geometry.coordinates[0];
-      logMsg('stop: ' + dir.from + ' = ' + dir.stopId, 'ok');
-      return dir.stopId;
+      if (m) {
+        dir.stopId = m.properties.id;
+        dir._fromLat = m.geometry.coordinates[1];
+        dir._fromLon = m.geometry.coordinates[0];
+        logMsg('stop: ' + dir.from + ' = ' + dir.stopId, 'ok');
+        return dir.stopId;
+      }
+      // Not a transit stop — fall back to a general place/address lookup so
+      // trip planning can still start from these coordinates.
+      return geocodePlace(dir.geo, signal).then(results => {
+        if (!results.length) throw new Error('Fant ikke ' + dir.geo);
+        dir._fromLat = results[0].lat;
+        dir._fromLon = results[0].lon;
+        logMsg('sted: ' + dir.from + ' = ' + dir._fromLat + ',' + dir._fromLon, 'ok');
+        return { lat: dir._fromLat, lon: dir._fromLon };
+      });
     });
 }
 

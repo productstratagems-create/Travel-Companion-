@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0806">
+<title>T-bane</title>
+<script>
+(function(){var t=localStorage.getItem('t.theme')||'system';if(t==='light'||(t==='system'&&window.matchMedia('(prefers-color-scheme:light)').matches))document.documentElement.setAttribute('data-theme','light');else document.documentElement.setAttribute('data-theme','dark');}())
+</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Bebas+Neue&display=swap">
+  <script type="module" crossorigin src="./assets/index-DBqJtshi.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-CYs3Muh4.css">
+</head>
+<body>
+<main class="wrap" id="main-content">
+
+<div id="service-alerts" style="display:none"
+  role="region" aria-label="Servicevarsler" aria-live="polite"></div>
+
+<!-- ══ 1: BOARD ══ -->
+<div id="v-board" tabindex="-1">
+  <div class="board-header-slim">
+    <div style="display:flex;align-items:center;gap:.6rem;min-width:0;flex:1">
+      <span class="status-dot" id="status-dot" title="trykk for logg"
+        role="img" aria-label="systemstatus: tilkoblet"></span>
+      <div style="display:flex;flex-direction:column;gap:.15rem;min-width:0;flex:1">
+        <span class="station-name" id="station-name" role="heading" aria-level="1">MORTENSRUD</span>
+        <span id="via-label" style="display:none"></span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:.5rem;flex-shrink:0">
+      <button class="dir-btn" id="dir-btn" type="button">
+        <span aria-hidden="true">⇄</span>
+        <span class="sr-only">Bytt retning:</span>
+        <span class="dir-dest" id="dir-dest">Jernbanetorget</span>
+      </button>
+      <button class="board-more-btn" id="board-more-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋯</button>
+    </div>
+  </div>
+  <div id="board-more-menu" class="board-more-menu" style="display:none" role="menu">
+    <button id="route-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">🛤</span>endre rute</button>
+    <button id="fav-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">★</span>favoritter</button>
+    <button id="plan-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">📋</span>reiseplan</button>
+    <button id="leisure-btn" class="board-more-item bab-leisure" type="button" role="menuitem"><span class="bmi-ic">🌟</span>utforsk</button>
+    <button id="spectate-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">🔗</span>finn reise</button>
+    <button id="prefs-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">⚙</span>innstillinger</button>
+  </div>
+  <div id="follow-jny-panel" style="display:none"></div>
+  <div id="plan-ctx" style="display:none"></div>
+  <div id="board-error" role="alert" class="status-error-box" style="display:none"></div>
+  <div id="walk-summary" style="display:none"></div>
+  <div class="map-wrap">
+    <div id="board-map"></div>
+    <button class="map-expand-btn" id="board-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
+    <div id="mode-filter"></div>
+    <div id="line-filter"></div>
+  </div>
+  <div id="dep-list"></div>
+</div>
+
+<!-- ══ 2a: AVGANGSDETALJER ══ -->
+<div id="v-selected" tabindex="-1" style="display:none">
+  <div class="screen-header">
+    <button class="nav-back" id="s-back">← avganger</button>
+    <span class="screen-label" role="heading" aria-level="2">avgangsdetaljer</span>
+    <button class="nav-plan-btn" id="s-plan-btn" aria-label="Reiseplan">📋</button>
+  </div>
+  <div id="s-content"></div>
+  <div class="map-wrap" id="sel-map-wrap" style="display:none">
+    <div id="sel-map"></div>
+    <button class="map-expand-btn" id="sel-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
+  </div>
+</div>
+
+<!-- ══ 2b: GANGTID ══ -->
+<div id="v-walk" tabindex="-1" style="display:none">
+  <div class="screen-header">
+    <button class="nav-back" id="w-back">← avgang</button>
+    <span class="screen-label" role="heading" aria-level="2">gangtid</span>
+    <div class="header-actions">
+      <button class="nav-plan-btn" id="w-spec-btn" aria-label="Finn reise">🔗</button>
+      <button class="nav-plan-btn" id="w-plan-btn" aria-label="Reiseplan">📋</button>
+    </div>
+  </div>
+  <div id="follow-jny-panel-walk" style="display:none"></div>
+  <div class="train-bar" id="w-train-bar"></div>
+  <div class="map-wrap">
+    <div id="w-map"></div>
+    <button class="map-expand-btn" id="w-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
+  </div>
+  <div class="walk-center" id="w-center" aria-live="polite"></div>
+  <div id="w-board-btn-wrap" style="display:none">
+    <button class="cta-btn" onclick="window.doBoard&&window.doBoard()">reis →</button>
+  </div>
+</div>
+
+<!-- ══ 3: TRACKING ══ -->
+<div id="v-track" tabindex="-1" style="display:none">
+  <div class="screen-header">
+    <button class="nav-back" id="alight-btn">← avslutt</button>
+    <span class="screen-label" role="heading" aria-level="2">underveis</span>
+    <div class="header-actions">
+      <button class="nav-plan-btn" id="t-spec-btn" aria-label="Finn reise">🔗</button>
+      <button class="nav-plan-btn" id="t-plan-btn" aria-label="Reiseplan">📋</button>
+    </div>
+  </div>
+  <div id="follow-jny-panel-track" style="display:none"></div>
+  <div class="train-bar" id="t-train-bar"></div>
+  <div class="map-wrap" id="t-map-wrap" style="display:none">
+    <div id="t-map"></div>
+    <button class="map-expand-btn" id="t-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
+  </div>
+  <div class="journey-id-row" id="t-jid-row" style="display:none">
+    <span class="jid-label">reise-id</span>
+    <code class="jid-val" id="t-jid-val"></code>
+    <button class="jid-copy-btn" id="t-jid-copy" aria-label="Kopier reise-ID">kopier</button>
+  </div>
+  <div id="t-jid-msg" role="status" class="status-ok-msg" style="display:none"></div>
+  <div class="track-center">
+    <div class="track-num" id="t-num">—</div>
+    <div class="track-num-label" id="t-lbl">min til ankomst</div>
+  </div>
+  <div class="track-arr-clock" id="t-clock"></div>
+  <div class="track-arr-label" id="t-label"></div>
+  <div id="t-weather"></div>
+  <div id="t-cards" style="margin-top:.75rem"></div>
+  <div id="t-next" style="display:none"></div>
+</div>
+
+<!-- ══ 5: VELG RUTE ══ -->
+<div id="v-settings" tabindex="-1" style="display:none">
+  <div class="screen-header">
+    <button class="nav-back" id="set-back">← tilbake</button>
+    <span class="screen-label" role="heading" aria-level="2">velg rute</span>
+    <button class="nav-plan-btn" id="set-plan-btn" aria-label="Reiseplan">📋</button>
+  </div>
+  <div id="set-dep-wrap" class="set-section">
+    <label class="set-label" for="set-dep">fra stasjon</label>
+    <div class="set-field">
+      <input type="text" id="set-dep" placeholder="f.eks. Stortinget" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <button class="set-clear" id="set-dep-clear" aria-label="Tøm felt" style="display:none">×</button>
+    </div>
+    <div id="dep-sugg" class="stop-sugg" hidden></div>
+  </div>
+  <div id="set-nearby-list" style="display:none;margin:.25rem 0 .75rem"></div>
+  <div id="set-walkfrom-toggle" style="padding:.2rem 0 .5rem">
+    <button id="set-walkfrom-add" class="set-via-add-btn" type="button">+ gå fra et annet sted</button>
+  </div>
+  <div id="set-walkfrom-wrap" class="set-section" style="display:none">
+    <label class="set-label" for="set-walkfrom">gå fra</label>
+    <div class="set-field">
+      <input type="text" id="set-walkfrom" placeholder="f.eks. hjemme eller arbeidssted"
+        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <button class="set-clear" id="set-walkfrom-clear" aria-label="Fjern gå-fra sted" style="display:none">×</button>
+    </div>
+    <div id="walkfrom-sugg" class="stop-sugg" hidden></div>
+  </div>
+  <div id="set-via-toggle" style="padding:.2rem 0 .5rem">
+    <button id="set-via-add" class="set-via-add-btn" type="button">+ legg til via-stopp</button>
+  </div>
+  <div id="set-via-wrap" class="set-section" style="display:none">
+    <label class="set-label" for="set-via">via stopp</label>
+    <div class="set-field">
+      <input type="text" id="set-via" placeholder="f.eks. Helsfyr"
+        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <button class="set-clear" id="set-via-clear" aria-label="Fjern via-stopp" style="display:none">×</button>
+    </div>
+    <div id="via-sugg" class="stop-sugg" hidden></div>
+  </div>
+  <div class="set-section">
+    <label class="set-label" for="set-arr">til stopp eller stasjon</label>
+    <div class="set-field">
+      <input type="text" id="set-arr" placeholder="f.eks. Jernbanetorget eller Bygdøy allé 2" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <button class="set-clear" id="set-arr-clear" aria-label="Tøm felt" style="display:none">×</button>
+    </div>
+    <div id="arr-sugg" class="stop-sugg" hidden></div>
+    <button id="set-quick-osl" class="set-via-add-btn" type="button">✈ Oslo lufthavn (Gardermoen)</button>
+  </div>
+  <div id="dest-preview" style="display:none;margin-top:1rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+      <span class="dest-prev-title">hva er det der?</span>
+    </div>
+    <div id="dest-prev-cats" class="dest-prev-cats"></div>
+    <div id="dest-prev-results" class="dest-prev-results"></div>
+  </div>
+  <div style="margin-top:1.5rem">
+    <button class="cta-btn" id="set-apply">Bruk rute →</button>
+  </div>
+  <div style="margin-top:.5rem">
+    <button class="cta-btn secondary" id="set-save-fav">Lagre som favoritt ★</button>
+  </div>
+  <div id="set-fav-msg" role="status" class="status-ok-msg" style="display:none"></div>
+  <div id="set-error" role="alert" class="status-error-msg" style="display:none"></div>
+  <div style="margin-top:1rem">
+    <button id="set-prefs-link" class="set-via-add-btn" type="button">⚙ innstillinger</button>
+  </div>
+</div>
+
+<!-- ══ 5b: INNSTILLINGER (preferanser) ══ -->
+<div id="v-prefs" tabindex="-1" style="display:none">
+  <div class="screen-header">
+    <button class="nav-back" id="prefs-back">← tilbake</button>
+    <span class="screen-label" role="heading" aria-level="2">innstillinger</span>
+  </div>
+  <div class="set-section">
+    <div class="set-label">tempo</div>
+    <div class="pref-group" id="pref-speed">
+      <button class="pref-btn" data-val="rolig">Rolig<span class="pref-sub">2.5 km/t</span></button>
+      <button class="pref-btn" data-val="middels">Middels<span class="pref-sub">5.0 km/t</span></button>
+      <button class="pref-btn" data-val="rask">Rask<span class="pref-sub">7.0 km/t</span></button>
+    </div>
+  </div>
+  <div class="set-section">
+    <div class="set-label">ekstra tid</div>
+    <div class="pref-group" id="pref-buf">
+      <button class="pref-btn" data-val="0">0 min</button>
+      <button class="pref-btn" data-val="2">2 min</button>
+      <button class="pref-btn" data-val="5">5 min</button>
+      <button class="pref-btn" data-val="10">10 min</button>
+    </div>
+  </div>
+  <div class="set-section">
+    <div class="set-label">utseende</div>
+    <div class="pref-group" id="pref-theme">
+      <button class="pref-btn" data-val="light">Lys</button>
+      <button class="pref-btn" data-val="system">Auto</button>
+      <button class="pref-btn" data-val="dark">Mørk</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 6: LAGRET (favoritter / reiseplan / finn reise) ══ -->
+<div id="v-saved" tabindex="-1" style="display:none">
+  <div class="screen-header">
+    <button class="nav-back" id="saved-back">← avganger</button>
+    <span class="screen-label" role="heading" aria-level="2">lagret</span>
+  </div>
+  <div class="saved-tabs" role="tablist">
+    <button class="saved-tab" type="button" role="tab" data-tab="favs">favoritter</button>
+    <button class="saved-tab" type="button" role="tab" data-tab="plan">reiseplan</button>
+    <button class="saved-tab" type="button" role="tab" data-tab="find">finn reise</button>
+  </div>
+  <div id="saved-favs" class="saved-pane"></div>
+  <div id="saved-plan" class="saved-pane" style="display:none">
+    <div class="map-wrap" id="plan-map-wrap" style="display:none">
+      <div id="plan-map"></div>
+      <button class="map-expand-btn" id="plan-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
+    </div>
+    <div id="plan-content"></div>
+  </div>
+  <div id="saved-find" class="saved-pane" style="display:none"></div>
+</div>
+
+<!-- ══ 7: FRITID ══ -->
+<div id="v-leisure" tabindex="-1" style="display:none"></div>
+
+<!-- ══ DEBUG (hidden) ══ -->
+<div class="debug-panel" id="debug-panel" style="display:none">
+  <div class="debug-label">logg</div>
+  <div class="log-wrap" id="log"></div>
+  <div class="dbg-sec">
+    <div class="debug-label">stop id</div>
+    <div class="dbg-row">
+      <input type="text" id="stop-input" placeholder="NSR:StopPlace:XXXX" autocapitalize="off" spellcheck="false">
+      <button class="sbtn" id="stop-set">bytt</button>
+    </div>
+  </div>
+  <div class="dbg-sec">
+    <div class="debug-label">gangtid (min) — blank = beregn</div>
+    <div class="dbg-row">
+      <input type="text" id="walk-input" placeholder="eks. 8" autocomplete="off">
+      <button class="sbtn" id="walk-set">sett</button>
+    </div>
+    <div id="walk-dbg" style="margin-top:.3rem;font-size:9px;opacity:.5"></div>
+  </div>
+  <div class="dbg-sec" style="margin-top:.75rem">
+    <div class="debug-label">simuler bytte (krever bytterute)</div>
+    <div class="dbg-row">
+      <button class="sbtn" onclick="window._simBytt&&window._simBytt(2)">om 2 min</button>
+      <button class="sbtn" onclick="window._simBytt&&window._simBytt(0)">bytt nå!</button>
+      <button class="sbtn" onclick="window._simEtterBytt&&window._simEtterBytt()">etter bytte</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GLOBAL: Sticky journey chip — shown on all screens during active journey ══ -->
+<div id="onboard-chip" role="group" aria-label="Reise underveis" class="onboard-chip-bar"></div>
+
+</main><!-- .wrap -->
+
+</body>
+</html>

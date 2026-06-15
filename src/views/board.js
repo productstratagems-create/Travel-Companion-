@@ -106,32 +106,35 @@ function _makeScooterIcon(operator, battery) {
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
-function renderBoardMap(pos, modes) {
+function _ensureMap(pos) {
   const mapEl = document.getElementById('board-map');
-  if (!mapEl) return;
+  if (!mapEl || _bMap) return _bMap;
 
-  if (!_bMap) {
-    _bMap = L.map(mapEl, { zoomControl: false, attributionControl: false, rotate: true, touchRotate: true, rotateControl: false });
-    L.control.zoom({ position: 'bottomright' }).addTo(_bMap);
-    _bMap.on('dragstart', () => { _bUserMoved = true; });
-    L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_bMap);
-    L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_bMap);
-    _bLayer = L.layerGroup().addTo(_bMap);
-    addCompass(_bMap, mapEl);
-    const c = pos || { lat: 59.9139, lon: 10.7522 };
-    _bMap.setView([c.lat, c.lon], 14);
-    setTimeout(() => _bMap && _bMap.invalidateSize(), 100);
-    const expandBtn = document.getElementById('board-map-expand');
-    if (expandBtn) {
-      expandBtn.onclick = () => {
-        const exp = mapEl.classList.toggle('expanded');
-        expandBtn.textContent = exp ? '✕' : '⤢';
-        expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
-        expandBtn.title = exp ? 'Minimer kart' : 'Utvid kart';
-        setTimeout(() => _bMap && _bMap.invalidateSize(), 320);
-      };
-    }
+  _bMap = L.map(mapEl, { zoomControl: false, attributionControl: false, rotate: true, touchRotate: true, rotateControl: false });
+  L.control.zoom({ position: 'bottomright' }).addTo(_bMap);
+  _bMap.on('dragstart', () => { _bUserMoved = true; });
+  L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_bMap);
+  L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_bMap);
+  _bLayer = L.layerGroup().addTo(_bMap);
+  addCompass(_bMap, mapEl);
+  const c = pos || { lat: 59.9139, lon: 10.7522 };
+  _bMap.setView([c.lat, c.lon], 14);
+  setTimeout(() => _bMap && _bMap.invalidateSize(), 100);
+  const expandBtn = document.getElementById('board-map-expand');
+  if (expandBtn) {
+    expandBtn.onclick = () => {
+      const exp = mapEl.classList.toggle('expanded');
+      expandBtn.textContent = exp ? '✕' : '⤢';
+      expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
+      expandBtn.title = exp ? 'Minimer kart' : 'Utvid kart';
+      setTimeout(() => _bMap && _bMap.invalidateSize(), 320);
+    };
   }
+  return _bMap;
+}
+
+function renderBoardMap(pos, modes) {
+  if (!_ensureMap(pos)) return;
 
   // Only re-fetch and redraw when something meaningful changes.
   // The 2-minute time bucket ensures bikes/scooters still refresh periodically.
@@ -267,7 +270,7 @@ function _decodePoly(str) {
 }
 
 function _drawWalkRoute(fromLL, toLL, destName) {
-  if (!_bMap) return;
+  if (!_ensureMap(fromLL)) return;
   const key = fromLL.lat + ',' + fromLL.lon + '→' + toLL.lat + ',' + toLL.lon;
   if (_walkRouteKey === key) return;
   _walkRouteKey = key;

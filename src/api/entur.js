@@ -8,7 +8,10 @@ const WALK_MPS = { rolig: 41.67 / 60, middels: 83.33 / 60, rask: 116.67 / 60 };
 let boardController = null;
 let tripController = null;
 
-const TRANSIT_CAT = ['metroStation', 'busStation', 'onstreetBus', 'tramStation', 'ferryStop'];
+const TRANSIT_CAT = [
+  'railStation', 'metroStation', 'busStation', 'onstreetBus', 'onstreetTram',
+  'tramStation', 'harbourPort', 'airport', 'ferryStop', 'GroupOfStopPlaces', 'StopPlace',
+];
 
 export function resolveStop(dir, signal) {
   if (dir.stopId) return Promise.resolve(dir.stopId);

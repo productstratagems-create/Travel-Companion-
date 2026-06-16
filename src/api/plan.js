@@ -1,18 +1,20 @@
+import { storage } from '../storage.js';
+
 const PLAN_KEY = 't.plan';
 
 export function loadPlan() {
   try {
-    const v = JSON.parse(localStorage.getItem(PLAN_KEY) || '[]');
+    const v = JSON.parse(storage.get(PLAN_KEY) || '[]');
     return Array.isArray(v) ? v : [];
   } catch { return []; }
 }
 
 export function savePlan(legs) {
-  try { localStorage.setItem(PLAN_KEY, JSON.stringify(legs)); } catch {}
+  storage.set(PLAN_KEY, JSON.stringify(legs));
 }
 
 export function clearPlan() {
-  try { localStorage.removeItem(PLAN_KEY); } catch {}
+  storage.remove(PLAN_KEY);
 }
 
 export function addLegToPlan(c, dir) {

@@ -1,5 +1,6 @@
 import config from '../config.js';
 import { state } from '../state.js';
+import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
 import { loadTheme, setTheme } from '../theme.js';
 import { geocodePlace, geocodeDest } from '../api/entur.js';
@@ -419,6 +420,7 @@ export function showSettings() {
 
   document.getElementById('set-error').style.display = 'none';
   _highlightPrefs();
+  renderProfileSwitcher();
 
   // Restore destination preview if we already have resolved coords from a prior apply
   const prevDir = config.dirs[2];
@@ -526,31 +528,82 @@ export function applyRouteFromState(arr) {
 }
 
 export function loadDest() {
-  try { return localStorage.getItem(DEST_KEY) || null; } catch { return null; }
+  return storage.get(DEST_KEY) || null;
 }
 
 export function saveDest(arr) {
-  try { localStorage.setItem(DEST_KEY, arr); } catch {}
+  storage.set(DEST_KEY, arr);
 }
 
 export function loadDep() {
-  try { return localStorage.getItem(DEP_KEY) || null; } catch { return null; }
+  return storage.get(DEP_KEY) || null;
 }
 
 export function saveDep(name) {
-  try { localStorage.setItem(DEP_KEY, name); } catch {}
+  storage.set(DEP_KEY, name);
 }
 
 export function loadVia() {
-  try { return localStorage.getItem(VIA_KEY) || null; } catch { return null; }
+  return storage.get(VIA_KEY) || null;
 }
 
 function saveVia(v) {
-  try { if (v) localStorage.setItem(VIA_KEY, v); else localStorage.removeItem(VIA_KEY); } catch {}
+  if (v) storage.set(VIA_KEY, v); else storage.remove(VIA_KEY);
 }
 
 function clearVia() {
-  try { localStorage.removeItem(VIA_KEY); } catch {}
+  storage.remove(VIA_KEY);
+}
+
+// ── Profile switcher ─────────────────────────────────────────────────────────
+export function renderProfileSwitcher() {
+  const el = document.getElementById('profile-switcher');
+  if (!el) return;
+  const profiles = listProfiles();
+  const active   = getActiveProfile();
+
+  el.innerHTML = '<div class="profile-row">'
+    + profiles.map(p =>
+        '<button class="profile-pill' + (p === active ? ' active' : '') + '" data-profile="' + p + '">'
+        + p
+        + (p !== 'default' && p !== active
+          ? ' <span class="profile-del" data-del="' + p + '">×</span>'
+          : '')
+        + '</button>'
+      ).join('')
+    + '<button class="profile-pill profile-add" id="profile-add-btn">+ ny</button>'
+    + '</div>'
+    + '<div id="profile-new-wrap" style="display:none;margin-top:8px">'
+    + '<input id="profile-new-input" class="set-input" placeholder="profilnavn" maxlength="20" style="width:140px">'
+    + '<button class="pref-btn" id="profile-new-ok" style="margin-left:8px">OK</button>'
+    + '</div>';
+
+  el.querySelectorAll('.profile-pill[data-profile]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      if (e.target.dataset.del) return;
+      if (btn.dataset.profile !== active) switchProfile(btn.dataset.profile);
+    });
+  });
+
+  el.querySelectorAll('.profile-del').forEach(span => {
+    span.addEventListener('click', e => {
+      e.stopPropagation();
+      deleteProfile(span.dataset.del);
+    });
+  });
+
+  document.getElementById('profile-add-btn').addEventListener('click', () => {
+    const wrap = document.getElementById('profile-new-wrap');
+    if (wrap) { wrap.style.display = 'block'; document.getElementById('profile-new-input').focus(); }
+  });
+
+  document.getElementById('profile-new-ok').addEventListener('click', () => {
+    const inp = document.getElementById('profile-new-input');
+    const name = (inp && inp.value.trim().replace(/[^a-zA-Z0-9_-]/g, '')) || '';
+    if (!name) return;
+    createProfile(name);
+    switchProfile(name);
+  });
 }
 
 // Kept for backward compat — no-op; GPS now determines departure

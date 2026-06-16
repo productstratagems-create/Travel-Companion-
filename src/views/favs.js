@@ -1,6 +1,7 @@
 import config from '../config.js';
 import { state } from '../state.js';
 import { loadFavs, removeFav, favToDir } from '../ui/favs.js';
+import { storage } from '../storage.js';
 import { show, updateHeader } from '../ui/nav.js';
 import { confirmTap } from '../ui/confirm.js';
 import { renderPlan } from './plan.js';
@@ -53,7 +54,7 @@ window._loadFavRoute = (id) => {
   if (!fav) return;
   config.dirs[2] = favToDir(fav);
   state.dIdx = 2;
-  try { localStorage.setItem(config.storage.dir, '2'); } catch {}
+  storage.set(config.storage.dir, '2');
   updateHeader();
   state.deps = [];
   show('v-board');

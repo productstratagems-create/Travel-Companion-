@@ -201,3 +201,19 @@
 .dest-prev-hours{font-size:10px;flex-shrink:0;white-space:nowrap}
 .dest-prev-hours.open{color:#4ade80}
 .dest-prev-hours.closed{color:#7485a0}
+
+/* ── Profile switcher ──────────────────────────────────────────────────────── */
+.profile-row{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+.profile-pill{
+  padding:.3rem .7rem;border-radius:999px;border:1px solid rgba(245,184,64,.25);
+  background:transparent;color:#b0a090;font-size:12px;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  display:inline-flex;align-items:center;gap:.35rem;
+}
+.profile-pill.active{background:rgba(245,184,64,.12);border-color:rgba(245,184,64,.45);color:#f5b840;font-weight:600}
+.profile-pill:active{background:rgba(245,184,64,.18)}
+.profile-pill.profile-add{border-style:dashed;color:#7485a0}
+.profile-del{
+  font-size:14px;line-height:1;color:#7485a0;margin-left:.1rem;
+  padding:0 .1rem;
+}

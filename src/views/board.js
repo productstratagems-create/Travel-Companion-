@@ -1,5 +1,6 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
+import { storage } from '../storage.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName } from '../geo.js';
 import { fetchBoard, fetchTrip, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
@@ -28,10 +29,10 @@ const _depMap = new Map();
 const MODES_KEY = 't.modes';
 const DEFAULT_MODES = { metro: true, tram: true, bus: true, sykkel: false };
 function loadModes() {
-  try { const v = localStorage.getItem(MODES_KEY); return v ? { ...DEFAULT_MODES, ...JSON.parse(v) } : { ...DEFAULT_MODES }; }
+  try { const v = storage.get(MODES_KEY); return v ? { ...DEFAULT_MODES, ...JSON.parse(v) } : { ...DEFAULT_MODES }; }
   catch { return { ...DEFAULT_MODES }; }
 }
-function saveModes(m) { try { localStorage.setItem(MODES_KEY, JSON.stringify(m)); } catch {} }
+function saveModes(m) { storage.set(MODES_KEY, JSON.stringify(m)); }
 function _depMode(dep) {
   if (dep._legs && dep._legs[0]) return dep._legs[0].mode;
   const ln = dep.serviceJourney && dep.serviceJourney.line;

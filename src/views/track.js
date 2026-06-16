@@ -16,6 +16,7 @@ import { fmtMins, makeSuggBtn, esc } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchWalkRoute } from '../api/route.js';
 import { addCompass } from '../ui/mapCompass.js';
+import { storage } from '../storage.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -254,7 +255,7 @@ function _renderTrackMap(now, cs, legs) {
 
 function loadRecentDests() {
   try {
-    const v = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+    const v = JSON.parse(storage.get(RECENT_KEY) || '[]');
     return Array.isArray(v) ? v : [];
   } catch { return []; }
 }
@@ -263,7 +264,7 @@ function saveRecentDest(dest) {
   const list = loadRecentDests().filter(d => d.label !== dest.label);
   list.unshift(dest);
   if (list.length > 5) list.pop();
-  try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch {}
+  storage.set(RECENT_KEY, JSON.stringify(list));
 }
 
 function _fetchArrBoardData() {

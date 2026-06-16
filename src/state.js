@@ -1,11 +1,8 @@
 import config from './config.js';
+import { storage } from './storage.js';
 
 function loadDirIndex() {
-  try {
-    return Math.min(parseInt(localStorage.getItem(config.storage.dir) || '0', 10), config.dirs.length - 1);
-  } catch {
-    return 0;
-  }
+  return Math.min(parseInt(storage.get(config.storage.dir) || '0', 10), config.dirs.length - 1);
 }
 
 export const state = {

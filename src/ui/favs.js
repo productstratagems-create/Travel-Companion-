@@ -1,16 +1,17 @@
 import config from '../config.js';
+import { storage } from '../storage.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
 export function loadFavs() {
   try {
-    const v = JSON.parse(localStorage.getItem(config.storage.favs) || '[]');
+    const v = JSON.parse(storage.get(config.storage.favs) || '[]');
     return Array.isArray(v) ? v : [];
   } catch { return []; }
 }
 
 export function saveFavs(favs) {
-  try { localStorage.setItem(config.storage.favs, JSON.stringify(favs)); } catch {}
+  storage.set(config.storage.favs, JSON.stringify(favs));
 }
 
 export function addFav(dir) {

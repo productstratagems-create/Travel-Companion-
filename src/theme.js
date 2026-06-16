@@ -1,11 +1,13 @@
+import { storage } from './storage.js';
+
 const THEME_KEY = 't.theme';
 
 export function loadTheme() {
-  try { return localStorage.getItem(THEME_KEY) || 'system'; } catch { return 'system'; }
+  return storage.get(THEME_KEY) || 'system';
 }
 
 export function saveTheme(val) {
-  try { localStorage.setItem(THEME_KEY, val); } catch {}
+  storage.set(THEME_KEY, val);
 }
 
 function resolveTheme(pref) {

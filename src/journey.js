@@ -1,6 +1,7 @@
 import config from './config.js';
 import { state, intervals } from './state.js';
 import { findArr } from './geo.js';
+import { storage } from './storage.js';
 import { logMsg } from './ui/log.js';
 import { updateOnboardChip } from './ui/chip.js';
 import { show } from './ui/nav.js';
@@ -178,7 +179,7 @@ export function activateTracking() {
 
 export function saveJny() {
   try {
-    localStorage.setItem(config.storage.journey, JSON.stringify({
+    storage.set(config.storage.journey, JSON.stringify({
       dest:              state.jny.dest,
       from:              state.jny.from,
       boardedAt:         state.jny.boardedAt,
@@ -207,16 +208,16 @@ export function saveJny() {
 
 export function loadJny() {
   try {
-    const raw = localStorage.getItem(config.storage.journey);
+    const raw = storage.get(config.storage.journey);
     if (!raw) return null;
     const j = JSON.parse(raw);
     if (!j.boardedAt || Date.now() - j.boardedAt > config.journeyMaxAgeMs) {
-      localStorage.removeItem(config.storage.journey);
+      storage.remove(config.storage.journey);
       return null;
     }
     // Old journeys without legs[] are incompatible — drop them
     if (!j.legs || !j.legs.length) {
-      localStorage.removeItem(config.storage.journey);
+      storage.remove(config.storage.journey);
       return null;
     }
     j.legs = j.legs.map(leg => ({ ...leg, stops: [] }));
@@ -228,7 +229,7 @@ export function clearJny() {
   state.jny = null;
   state.lockedJourneyId   = null;
   state.lockedJourneyMeta = null;
-  try { localStorage.removeItem(config.storage.journey); } catch {}
+  storage.remove(config.storage.journey);
   // Full teardown: stop all tracking polls and hide the sticky chip so the
   // journey never outlives itself regardless of which path ended it
   stopTracking();

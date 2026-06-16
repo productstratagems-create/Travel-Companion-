@@ -1,6 +1,7 @@
 import { state } from './state.js';
 import config from './config.js';
 import { logMsg } from './ui/log.js';
+import { storage } from './storage.js';
 
 const WALK_SPEED_KEY  = 't.walkSpeed';
 const WALK_BUF_KEY    = 't.walkBuf';
@@ -13,35 +14,35 @@ export function normStopName(s) {
 }
 
 export function loadWalkSpeed() {
-  try { return localStorage.getItem(WALK_SPEED_KEY) || 'middels'; } catch { return 'middels'; }
+  return storage.get(WALK_SPEED_KEY) || 'middels';
 }
 export function saveWalkSpeed(v) {
-  try { localStorage.setItem(WALK_SPEED_KEY, v); } catch {}
+  storage.set(WALK_SPEED_KEY, v);
 }
 export function loadWalkBuffer() {
-  try { return parseInt(localStorage.getItem(WALK_BUF_KEY) || '2', 10); } catch { return 2; }
+  return parseInt(storage.get(WALK_BUF_KEY) || '2', 10);
 }
 export function saveWalkBuffer(v) {
-  try { localStorage.setItem(WALK_BUF_KEY, String(v)); } catch {}
+  storage.set(WALK_BUF_KEY, String(v));
 }
 
 export function loadWalkFrom() {
-  try { const v = localStorage.getItem(WALK_FROM_KEY); return v ? JSON.parse(v) : null; } catch { return null; }
+  try { const v = storage.get(WALK_FROM_KEY); return v ? JSON.parse(v) : null; } catch { return null; }
 }
 export function saveWalkFrom(v) {
-  try { if (v) localStorage.setItem(WALK_FROM_KEY, JSON.stringify(v)); else localStorage.removeItem(WALK_FROM_KEY); } catch {}
+  if (v) storage.set(WALK_FROM_KEY, JSON.stringify(v)); else storage.remove(WALK_FROM_KEY);
 }
 export function clearWalkFrom() {
   state.walkFromLL = null;
-  try { localStorage.removeItem(WALK_FROM_KEY); } catch {}
+  storage.remove(WALK_FROM_KEY);
 }
 
 const WEEKEND_MODE_KEY = 't.weekendMode';
 export function loadWeekendMode() {
-  try { return localStorage.getItem(WEEKEND_MODE_KEY) === '1'; } catch { return false; }
+  return storage.get(WEEKEND_MODE_KEY) === '1';
 }
 export function saveWeekendMode(v) {
-  try { if (v) localStorage.setItem(WEEKEND_MODE_KEY, '1'); else localStorage.removeItem(WEEKEND_MODE_KEY); } catch {}
+  if (v) storage.set(WEEKEND_MODE_KEY, '1'); else storage.remove(WEEKEND_MODE_KEY);
 }
 
 export function haver(la1, lo1, la2, lo2) {

@@ -1,6 +1,7 @@
 import config from '../config.js';
 import { state } from '../state.js';
 import { addFav } from './favs.js';
+import { storage } from '../storage.js';
 import { saveWeekendMode } from '../geo.js';
 import { confirmTap } from './confirm.js';
 import { stopSelRefresh } from '../views/selected.js';
@@ -68,7 +69,7 @@ function toggleDir() {
   } else {
     state.dIdx = state.dIdx === 0 ? 1 : 0;
   }
-  try { localStorage.setItem(config.storage.dir, String(state.dIdx)); } catch {}
+  storage.set(config.storage.dir, String(state.dIdx));
   updateHeader();
   state.deps = [];
   show('v-board');

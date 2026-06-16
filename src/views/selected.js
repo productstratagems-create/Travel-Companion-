@@ -59,6 +59,19 @@ function _selWeatherHtml(arrT) {
 const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 let _selMap = null, _selLayer = null;
 
+function _decodePoly(str) {
+  const out = []; let lat = 0, lng = 0, i = 0;
+  while (i < str.length) {
+    let b, s = 0, r = 0;
+    do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << s; s += 5; } while (b >= 0x20);
+    lat += (r & 1) ? ~(r >> 1) : (r >> 1); r = 0; s = 0;
+    do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << s; s += 5; } while (b >= 0x20);
+    lng += (r & 1) ? ~(r >> 1) : (r >> 1);
+    out.push([lat / 1e5, lng / 1e5]);
+  }
+  return out;
+}
+
 function _ns(s) { return (s || '').toLowerCase().replace(/,.*$/, '').replace(/\s+t$/i, '').trim(); }
 
 function _depToRouteLegs(dep, fromName, toName) {
@@ -114,12 +127,14 @@ export function destroySelMap() {
   _selMapKey = '';
 }
 
-function _selMapStructKey(dep, legs) {
+function _selMapStructKey(dep, legs, dir) {
   const jid = (dep.serviceJourney && dep.serviceJourney.id) || '';
+  const destSuffix = (dir._toLat && dir._toLon && !dir.toStopId)
+    ? '|dest:' + dir._toLat + ',' + dir._toLon : '';
   return jid + '|' + legs.map(l => {
     const f = l.stops[0], t = l.stops[l.stops.length - 1];
     return l.stops.length + ':' + f.lat + ',' + f.lon + ':' + t.lat + ',' + t.lon;
-  }).join('|');
+  }).join('|') + destSuffix;
 }
 
 function _renderSelMap(dep, fromName, toName) {
@@ -127,12 +142,13 @@ function _renderSelMap(dep, fromName, toName) {
   const mapEl = document.getElementById('sel-map');
   if (!wrap || !mapEl) return;
 
+  const dir = config.dirs[state.dIdx];
   const legs = _depToRouteLegs(dep, fromName, toName);
   if (!legs) { wrap.style.display = 'none'; destroySelMap(); return; }
 
   // Rebuild only when the route itself changes — renderSelected runs every
   // second and recreating the Leaflet map each tick flickers and resets pan/zoom
-  const key = _selMapStructKey(dep, legs);
+  const key = _selMapStructKey(dep, legs, dir);
   if (key === _selMapKey && _selMap) return;
   _selMapKey = key;
 
@@ -144,19 +160,28 @@ function _renderSelMap(dep, fromName, toName) {
   _selLayer = L.layerGroup().addTo(_selMap);
   addCompass(_selMap, mapEl);
 
+  const destIsVenue = dir._toLat && dir._toLon && !dir.toStopId;
   const pts = [];
+
   legs.forEach(({ stops, color }, li) => {
     const lc = color || '#f5b840';
     L.polyline(stops.map(s => [s.lat, s.lon]), { color: lc, weight: 4, opacity: 0.8 }).addTo(_selLayer);
     stops.forEach((s, i) => {
       pts.push([s.lat, s.lon]);
       const isFirst = li === 0 && i === 0;
-      const isLast  = li === legs.length - 1 && i === stops.length - 1;
+      // When destination is a venue, the last transit stop is the alighting stop —
+      // render it as an intermediate stop, not the terminus, so the venue pin is distinct.
+      const isLast  = !destIsVenue && li === legs.length - 1 && i === stops.length - 1;
+      const isAlight = destIsVenue && li === legs.length - 1 && i === stops.length - 1;
       if (isFirst || isLast) {
         const html = '<div style="background:' + (isLast ? '#f5b840' : lc) + ';border:2px solid #fff;border-radius:50%;'
           + 'width:14px;height:14px;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>';
         L.marker([s.lat, s.lon], { icon: L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] }) })
           .bindTooltip(s.name, { permanent: true, direction: isFirst ? 'bottom' : 'top', offset: [0, isFirst ? 8 : -10], className: 'sel-stop-label' })
+          .addTo(_selLayer);
+      } else if (isAlight) {
+        L.circleMarker([s.lat, s.lon], { radius: 5, color: '#fff', fillColor: lc, fillOpacity: 0.9, weight: 2 })
+          .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -8], className: 'sel-stop-label' })
           .addTo(_selLayer);
       } else {
         L.circleMarker([s.lat, s.lon], { radius: 4, color: '#fff', fillColor: lc, fillOpacity: 0.9, weight: 1.5 })
@@ -166,6 +191,52 @@ function _renderSelMap(dep, fromName, toName) {
     });
   });
 
+  // Walking extension to venue destination
+  if (destIsVenue) {
+    const lastLeg = legs[legs.length - 1];
+    const alightStop = lastLeg && lastLeg.stops[lastLeg.stops.length - 1];
+    const destLL = { lat: dir._toLat, lon: dir._toLon };
+    pts.push([destLL.lat, destLL.lon]);
+
+    // Venue pin
+    const pinHtml = '<svg width="20" height="28" viewBox="0 0 22 30" xmlns="http://www.w3.org/2000/svg">'
+      + '<path d="M11 0C5 0 0 5 0 11c0 8.3 11 19 11 19S22 19.3 22 11C22 5 17 0 11 0z" fill="#f5b840"/>'
+      + '<circle cx="11" cy="11" r="4.5" fill="#b8860b"/></svg>';
+    L.marker([destLL.lat, destLL.lon], {
+      icon: L.divIcon({ className: '', html: pinHtml, iconSize: [20, 28], iconAnchor: [10, 28] }),
+    }).bindTooltip(dir.to || 'Destinasjon', { permanent: true, direction: 'top', offset: [0, -30], className: 'sel-stop-label' })
+      .addTo(_selLayer);
+
+    if (alightStop) {
+      // Try real walking polyline, fall back to straight dashed line
+      const q = '{trip(from:{coordinates:{latitude:' + alightStop.lat + ',longitude:' + alightStop.lon + '}}'
+        + 'to:{coordinates:{latitude:' + destLL.lat + ',longitude:' + destLL.lon + '}}'
+        + 'modes:{directMode:foot}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}}';
+      fetch(config.api.journeyPlanner, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q }),
+      })
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(data => {
+          if (!_selLayer) return;
+          const pats = data.data && data.data.trip && data.data.trip.tripPatterns;
+          const encoded = pats && pats[0] && pats[0].legs && pats[0].legs[0]
+            && pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
+          if (!encoded) throw new Error('no points');
+          const latlngs = _decodePoly(encoded);
+          L.polyline(latlngs, { color: '#f5b840', weight: 3, opacity: 0.9, dashArray: '6 6' }).addTo(_selLayer);
+          if (_selMap) _selMap.fitBounds([...pts, ...latlngs], { padding: [40, 40], maxZoom: 16 });
+        })
+        .catch(() => {
+          if (!_selLayer) return;
+          L.polyline([[alightStop.lat, alightStop.lon], [destLL.lat, destLL.lon]], {
+            color: '#f5b840', weight: 2, opacity: 0.55, dashArray: '6 7',
+          }).addTo(_selLayer);
+        });
+    }
+  }
+
   // User position
   const userPos = state.walkFromLL || state.homeLL;
   if (userPos) {
@@ -174,7 +245,7 @@ function _renderSelMap(dep, fromName, toName) {
       .addTo(_selLayer);
   }
 
-  if (pts.length) _selMap.fitBounds(pts, { padding: [32, 32], maxZoom: 15 });
+  if (pts.length) _selMap.fitBounds(pts, { padding: [40, 40], maxZoom: 15 });
   setTimeout(() => _selMap && _selMap.invalidateSize(), 100);
 
   const expandBtn = document.getElementById('sel-map-expand');

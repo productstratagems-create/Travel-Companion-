@@ -2,6 +2,7 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { addFav } from './favs.js';
 import { storage } from '../storage.js';
+import { renderBoardProfileSwitcher } from '../views/settings.js';
 import { saveWeekendMode } from '../geo.js';
 import { confirmTap } from './confirm.js';
 import { stopSelRefresh } from '../views/selected.js';
@@ -22,6 +23,7 @@ export function toggleBoardMenu() {
   const open = menu.style.display === 'none' || !menu.style.display;
   menu.style.display = open ? 'flex' : 'none';
   btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) renderBoardProfileSwitcher();
 }
 
 export function show(id) {

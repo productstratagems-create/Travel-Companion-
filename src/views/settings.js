@@ -555,9 +555,8 @@ function clearVia() {
   storage.remove(VIA_KEY);
 }
 
-// ── Profile switcher ─────────────────────────────────────────────────────────
-export function renderProfileSwitcher() {
-  const el = document.getElementById('profile-switcher');
+// ── Profile switcher (shared renderer) ──────────────────────────────────────
+function _renderProfileSwitcherInto(el, addInputId, addOkId, newWrapId) {
   if (!el) return;
   const profiles = listProfiles();
   const active   = getActiveProfile();
@@ -571,11 +570,11 @@ export function renderProfileSwitcher() {
           : '')
         + '</button>'
       ).join('')
-    + '<button class="profile-pill profile-add" id="profile-add-btn">+ ny</button>'
+    + '<button class="profile-pill profile-add" data-add="1">+ ny</button>'
     + '</div>'
-    + '<div id="profile-new-wrap" style="display:none;margin-top:8px">'
-    + '<input id="profile-new-input" class="set-input" placeholder="profilnavn" maxlength="20" style="width:140px">'
-    + '<button class="pref-btn" id="profile-new-ok" style="margin-left:8px">OK</button>'
+    + '<div id="' + newWrapId + '" style="display:none;margin-top:8px">'
+    + '<input id="' + addInputId + '" class="set-input" placeholder="profilnavn" maxlength="20" style="width:140px">'
+    + '<button class="pref-btn" id="' + addOkId + '" style="margin-left:8px">OK</button>'
     + '</div>';
 
   el.querySelectorAll('.profile-pill[data-profile]').forEach(btn => {
@@ -592,18 +591,32 @@ export function renderProfileSwitcher() {
     });
   });
 
-  document.getElementById('profile-add-btn').addEventListener('click', () => {
-    const wrap = document.getElementById('profile-new-wrap');
-    if (wrap) { wrap.style.display = 'block'; document.getElementById('profile-new-input').focus(); }
+  el.querySelector('[data-add]').addEventListener('click', () => {
+    const wrap = document.getElementById(newWrapId);
+    if (wrap) { wrap.style.display = 'block'; document.getElementById(addInputId).focus(); }
   });
 
-  document.getElementById('profile-new-ok').addEventListener('click', () => {
-    const inp = document.getElementById('profile-new-input');
+  document.getElementById(addOkId).addEventListener('click', () => {
+    const inp = document.getElementById(addInputId);
     const name = (inp && inp.value.trim().replace(/[^a-zA-Z0-9_-]/g, '')) || '';
     if (!name) return;
     createProfile(name);
     switchProfile(name);
   });
+}
+
+export function renderProfileSwitcher() {
+  _renderProfileSwitcherInto(
+    document.getElementById('profile-switcher'),
+    'profile-new-input', 'profile-new-ok', 'profile-new-wrap',
+  );
+}
+
+export function renderBoardProfileSwitcher() {
+  _renderProfileSwitcherInto(
+    document.getElementById('board-profile-switcher'),
+    'board-profile-new-input', 'board-profile-new-ok', 'board-profile-new-wrap',
+  );
 }
 
 // Kept for backward compat — no-op; GPS now determines departure

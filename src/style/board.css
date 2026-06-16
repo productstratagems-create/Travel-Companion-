@@ -250,3 +250,8 @@
   border:1px solid rgba(251,191,36,.18);
   border-radius:4px;letter-spacing:.02em;
 }
+
+.board-profile-row{
+  padding:.5rem .75rem .3rem;border-bottom:1px solid rgba(245,184,64,.08);
+  display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;
+}

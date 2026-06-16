@@ -152,6 +152,8 @@ function renderBoardMap(pos, modes) {
 
   const fetchPos = pos || { lat: 59.9139, lon: 10.7522 };
   const transitModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
+  // Only fetch stops near the user — destination-side stops add clutter without
+  // helping the user decide which departure to board.
   const p1 = transitModes.length ? fetchNearbyStops(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
   const p2 = modes.sykkel ? fetchBysykkel(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
   const p3 = modes.sykkel ? fetchScooters(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
@@ -175,73 +177,95 @@ function renderBoardMap(pos, modes) {
   } else {
     p4 = Promise.resolve(null);
   }
-  const p5 = transitModes.length
-    ? p4.then(d => d ? fetchNearbyStops(d.lat, d.lon) : []).catch(() => [])
-    : Promise.resolve([]);
 
-  Promise.allSettled([p1, p2, p3, p4, p5]).then(([r1, r2, r3, r4, r5]) => {
+  Promise.allSettled([p1, p2, p3, p4]).then(([r1, r2, r3, r4]) => {
     if (!_bLayer) return;
     _bLayer.clearLayers();
     const pts = [];
 
+    // User position — anchor for the whole map
     if (pos) {
       const snapped = _snapToCorridor(pos) || pos;
       L.circleMarker([snapped.lat, snapped.lon], { radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2 })
-        .bindTooltip('Din posisjon', { className: 'map-label' })
+        .bindTooltip('Din posisjon', { className: 'map-label', direction: 'bottom', offset: [0, 6] })
         .addTo(_bLayer);
       pts.push([snapped.lat, snapped.lon]);
     }
 
-    // Merge stops from both ends, dedup by uid
-    const allStops = [
-      ...(r1.status === 'fulfilled' ? r1.value : []),
-      ...(r5.status === 'fulfilled' ? r5.value : []),
-    ];
-    const seen = new Set();
-    const uniqueStops = allStops.filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
-    if (uniqueStops.length) {
+    // Nearby stops: cluster tightly, show only the closest stop per mode,
+    // label on tap (not permanent) to keep the map readable.
+    if (r1.status === 'fulfilled' && r1.value.length) {
       const modeSet = new Set(transitModes);
-      const filtered = uniqueStops.filter(s => modeSet.has(s.mode));
+      const stops = r1.value.filter(s => modeSet.has(s.mode));
+
+      // Cluster stops within 80 m
       const used = new Set();
-      filtered.forEach((s, i) => {
+      const clusters = [];
+      stops.forEach((s, i) => {
         if (used.has(i)) return;
         used.add(i);
         const cluster = [s];
-        filtered.forEach((t, j) => {
+        stops.forEach((t, j) => {
           if (used.has(j) || t.mode !== s.mode) return;
           if (haver(s.lat, s.lon, t.lat, t.lon) < 80) { cluster.push(t); used.add(j); }
         });
+        clusters.push(cluster);
+      });
+
+      // Keep only the 2 nearest clusters per mode to limit marker density
+      const perMode = {};
+      clusters.forEach(cl => {
+        const mode = cl[0].mode;
+        if (!perMode[mode]) perMode[mode] = [];
+        if (perMode[mode].length < 2) perMode[mode].push(cl);
+      });
+
+      Object.values(perMode).flat().forEach(cluster => {
         const lat = cluster.reduce((a, c) => a + c.lat, 0) / cluster.length;
         const lon = cluster.reduce((a, c) => a + c.lon, 0) / cluster.length;
         const name = cluster.slice().sort((a, b) => a.name.length - b.name.length)[0].name;
+        const mode = cluster[0].mode;
         pts.push([lat, lon]);
-        L.marker([lat, lon], { icon: _makeStopIcon(s.mode, cluster.length) })
-          .bindTooltip(name, { permanent: true, direction: 'top', offset: [0, -15], className: 'map-label' })
+        // Permanent label only for the single closest stop of the primary mode;
+        // everything else reveals its name on tap.
+        const isPrimary = transitModes[0] === mode && clusters.indexOf(cluster) === 0;
+        L.marker([lat, lon], { icon: _makeStopIcon(mode, cluster.length) })
+          .bindTooltip(name, {
+            permanent: isPrimary,
+            direction: 'top',
+            offset: [0, -15],
+            className: 'map-label',
+          })
           .addTo(_bLayer);
       });
     }
 
+    // Bikes: label on tap only — count in icon is enough at a glance
     if (r2.status === 'fulfilled') {
       r2.value.forEach(s => {
         pts.push([s.lat, s.lon]);
         L.marker([s.lat, s.lon], { icon: _makeBikeIcon(s.bikes, s.ebikes) })
-          .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -18], className: 'map-label' })
+          .bindTooltip(s.name, { className: 'map-label', direction: 'top', offset: [0, -18] })
           .addTo(_bLayer);
       });
     }
 
+    // Scooters: minimal marker only, battery on tap
     if (r3.status === 'fulfilled') {
       r3.value.forEach(v => {
         pts.push([v.lat, v.lon]);
-        L.marker([v.lat, v.lon], { icon: _makeScooterIcon(v.operator, v.battery) }).addTo(_bLayer);
+        L.marker([v.lat, v.lon], { icon: _makeScooterIcon(v.operator, v.battery) })
+          .bindTooltip((v.operator || '') + (v.battery != null ? ' · ' + v.battery + '%' : ''), { className: 'map-label' })
+          .addTo(_bLayer);
       });
     }
 
+    // Destination pin — subtle, no permanent label (destination is shown in header)
     if (r4.status === 'fulfilled' && r4.value) {
       const { lat, lon } = r4.value;
       pts.push([lat, lon]);
       L.marker([lat, lon], { icon: _makeDestIcon() })
-        .bindTooltip(destName, { permanent: true, direction: 'top', offset: [0, -32], className: 'map-label' })
+        .bindTooltip(destName, { className: 'map-label', direction: 'top', offset: [0, -32] })
         .addTo(_bLayer);
     }
 

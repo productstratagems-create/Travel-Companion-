@@ -255,3 +255,11 @@
   padding:.5rem .75rem .3rem;border-bottom:1px solid rgba(245,184,64,.08);
   display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;
 }
+
+.header-profile-chip{
+  display:none;font-size:11px;font-weight:600;
+  padding:.2rem .55rem;border-radius:999px;
+  background:rgba(245,184,64,.15);border:1px solid rgba(245,184,64,.35);
+  color:#f5b840;cursor:pointer;flex-shrink:0;
+  -webkit-tap-highlight-color:transparent;
+}

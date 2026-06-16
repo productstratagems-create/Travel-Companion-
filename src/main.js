@@ -23,7 +23,8 @@ import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
 import config from './config.js';
-import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, saveDep, saveDest } from './views/settings.js';
+import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, saveDep, saveDest, renderBoardProfileSwitcher } from './views/settings.js';
+import { getActiveProfile } from './storage.js';
 import { state } from './state.js';
 
 // Prefill from/to/travelTime (and optionally stop IDs / coords) via deep
@@ -90,6 +91,22 @@ initDebugToggle();
 initSettings();
 updateHeader();
 startRenderLoop();
+
+// Profile chip in header
+const _profileChip = document.getElementById('header-profile-chip');
+if (_profileChip) {
+  const _prof = getActiveProfile();
+  if (_prof !== 'default') {
+    _profileChip.textContent = _prof;
+    _profileChip.style.display = 'inline-block';
+  }
+  _profileChip.addEventListener('click', () => {
+    renderBoardProfileSwitcher();
+    const menu = document.getElementById('board-more-menu');
+    const btn  = document.getElementById('board-more-btn');
+    if (menu) { menu.style.display = 'flex'; if (btn) btn.setAttribute('aria-expanded', 'true'); }
+  });
+}
 
 // Journey restore: activate immediately if a journey is in progress
 const restored = loadJny();

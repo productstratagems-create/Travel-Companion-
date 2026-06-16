@@ -231,3 +231,6 @@
   transition:background .12s,border-color .12s,color .12s;
 }
 .freq-pill:active{background:rgba(245,184,64,.16);border-color:rgba(245,184,64,.45);color:#f5b840}
+
+/* Frequent items inside autocomplete list */
+.freq-sugg{border-left:2px solid rgba(245,184,64,.4) !important}

@@ -30,13 +30,49 @@ const _depStopIds = new Map();
 const _arrStopIds = new Map();
 const _viaStopIds = new Map();
 
-function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbort, getTimer, setTimer) {
+// Render freq items into a suggestion list. Returns the set of names added.
+function _prependFreqToSugg(sugg, inp, role, query, stopMap, onPick) {
+  const key = role === 'dep' ? FREQ_DEP_KEY : FREQ_ARR_KEY;
+  const all  = _loadFreq(key);
+  const q    = (query || '').toLowerCase();
+  const matches = q.length
+    ? all.filter(p => p.name.toLowerCase().includes(q)).slice(0, 3)
+    : all.slice(0, 4);
+  const added = new Set();
+  matches.forEach(p => {
+    added.add(p.name.toLowerCase());
+    if (p.lat) stopMap.set(p.name, { id: p.stopId || null, lat: p.lat, lon: p.lon });
+    const btn = makeSuggBtn(p.name, p.stopId ? ['metroStation'] : [], () => {
+      inp.value = p.name;
+      sugg.hidden = true; sugg.innerHTML = '';
+      syncClear(inp.id, inp.id + '-clear');
+      if (onPick) onPick(p);
+    });
+    btn.classList.add('freq-sugg');
+    sugg.appendChild(btn);
+  });
+  return added;
+}
+
+function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbort, getTimer, setTimer, role) {
   clearTimeout(getTimer());
   const suggEl = document.getElementById(suggId);
-  if (query.length < 2) {
-    if (suggEl) { suggEl.hidden = true; suggEl.innerHTML = ''; }
+  const inp    = document.getElementById(inputId);
+  if (!suggEl || !inp) return;
+
+  // On focus / empty query: show frequent places immediately
+  if (!query.length) {
+    suggEl.innerHTML = '';
+    const added = _prependFreqToSugg(suggEl, inp, role, '', stopMap, null);
+    suggEl.hidden = !added.size;
     return;
   }
+
+  if (query.length < 2) {
+    suggEl.hidden = true; suggEl.innerHTML = '';
+    return;
+  }
+
   setTimer(setTimeout(() => {
     if (getAbort()) getAbort().abort();
     const ctrl = new AbortController();
@@ -46,8 +82,8 @@ function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbo
       .then(r => r.json())
       .then(j => {
         const sugg = document.getElementById(suggId);
-        const inp = document.getElementById(inputId);
-        if (!sugg || !inp) return;
+        const inp2 = document.getElementById(inputId);
+        if (!sugg || !inp2) return;
         const stops = ((j && j.features) || [])
           .filter(f => (f.properties.category || []).some(c => TRANSIT_CATEGORIES.includes(c)))
           .filter(f => {
@@ -56,14 +92,19 @@ function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbo
           });
         stopMap.clear();
         sugg.innerHTML = '';
-        if (!stops.length) { sugg.hidden = true; return; }
-        stops.forEach(f => {
+        // Frequent matches first
+        const freqNames = _prependFreqToSugg(sugg, inp2, role, query, stopMap, null);
+        const fresh = stops.filter(f => {
+          const name = (f.properties.name || f.properties.label || '').toLowerCase();
+          return !freqNames.has(name);
+        });
+        if (!fresh.length && !freqNames.size) { sugg.hidden = true; return; }
+        fresh.forEach(f => {
           const name = f.properties.name || f.properties.label;
           stopMap.set(name, { id: f.properties.id, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] });
           sugg.appendChild(makeSuggBtn(name, f.properties.category || [], () => {
-            inp.value = name;
-            sugg.hidden = true;
-            sugg.innerHTML = '';
+            inp2.value = name;
+            sugg.hidden = true; sugg.innerHTML = '';
             syncClear(inputId, clearId);
           }));
         });
@@ -165,31 +206,54 @@ function _fetchDestVenues() {
 export function initSettings() {
   const depEl = document.getElementById('set-dep');
   const arrEl = document.getElementById('set-arr');
-  if (depEl) depEl.addEventListener('input', e =>
-    suggestStops(e.target.value.trim(), 'dep-sugg', 'set-dep', 'set-dep-clear', _depStopIds,
+
+  function _runDepSugg(q) {
+    suggestStops(q, 'dep-sugg', 'set-dep', 'set-dep-clear', _depStopIds,
       () => _depAbort, v => { _depAbort = v; },
-      () => _depTimer, v => { _depTimer = v; }));
-  if (arrEl) arrEl.addEventListener('input', e => {
-    const q = e.target.value.trim();
-    clearTimeout(_arrTimer);
+      () => _depTimer, v => { _depTimer = v; }, 'dep');
+  }
+
+  if (depEl) {
+    depEl.addEventListener('input', e => _runDepSugg(e.target.value.trim()));
+    depEl.addEventListener('focus', () => { if (!depEl.value.trim()) _runDepSugg(''); });
+  }
+
+  function _runArrSugg(q) {
     const suggEl = document.getElementById('arr-sugg');
-    if (q.length < 2) { if (suggEl) { suggEl.hidden = true; suggEl.innerHTML = ''; } return; }
+    const inp    = document.getElementById('set-arr');
+    if (!suggEl || !inp) return;
+
+    // On focus/empty: show frequent destinations immediately
+    if (!q.length) {
+      suggEl.innerHTML = '';
+      const added = _prependFreqToSugg(suggEl, inp, 'arr', '', _arrStopIds, p => {
+        if (p.lat && p.lon) _showDestPreview(p.lat, p.lon);
+      });
+      suggEl.hidden = !added.size;
+      return;
+    }
+
+    clearTimeout(_arrTimer);
+    if (q.length < 2) { suggEl.hidden = true; suggEl.innerHTML = ''; return; }
     _arrTimer = setTimeout(() => {
-      if (_arrAbort) { _arrAbort.abort(); }
+      if (_arrAbort) _arrAbort.abort();
       _arrAbort = new AbortController();
       geocodeDest(q).then(results => {
         const sugg = document.getElementById('arr-sugg');
-        const inp = document.getElementById('set-arr');
-        if (!sugg || !inp) return;
+        const i    = document.getElementById('set-arr');
+        if (!sugg || !i) return;
         _arrStopIds.clear();
         sugg.innerHTML = '';
-        if (!results.length) { sugg.hidden = true; return; }
-        results.forEach(r => {
+        const freqNames = _prependFreqToSugg(sugg, i, 'arr', q, _arrStopIds, p => {
+          if (p.lat && p.lon) _showDestPreview(p.lat, p.lon);
+        });
+        const fresh = results.filter(r => !freqNames.has(r.label.toLowerCase()));
+        if (!fresh.length && !freqNames.size) { sugg.hidden = true; return; }
+        fresh.forEach(r => {
           _arrStopIds.set(r.label, { id: r.id, lat: r.lat, lon: r.lon });
           sugg.appendChild(makeSuggBtn(r.label, r.category || [], () => {
-            inp.value = r.label;
-            sugg.hidden = true;
-            sugg.innerHTML = '';
+            i.value = r.label;
+            sugg.hidden = true; sugg.innerHTML = '';
             syncClear('set-arr', 'set-arr-clear');
             if (r.lat && r.lon) _showDestPreview(r.lat, r.lon);
           }));
@@ -197,13 +261,18 @@ export function initSettings() {
         sugg.hidden = false;
       }).catch(() => {});
     }, 250);
-  });
+  }
+
+  if (arrEl) {
+    arrEl.addEventListener('input', e => _runArrSugg(e.target.value.trim()));
+    arrEl.addEventListener('focus', () => { if (!arrEl.value.trim()) _runArrSugg(''); });
+  }
 
   const viaEl = document.getElementById('set-via');
   if (viaEl) viaEl.addEventListener('input', e =>
     suggestStops(e.target.value.trim(), 'via-sugg', 'set-via', 'set-via-clear', _viaStopIds,
       () => _viaAbort, v => { _viaAbort = v; },
-      () => _viaTimer, v => { _viaTimer = v; }));
+      () => _viaTimer, v => { _viaTimer = v; }, 'via'));
 
   // Quick destination: Oslo lufthavn (Gardermoen) — fills + resolves the
   // arrival field in one tap, same as picking a geocoder suggestion.
@@ -363,10 +432,12 @@ export function showSettings() {
   const ns = state.nearestStation;
   const depEl = document.getElementById('set-dep');
 
-  // Dep input always visible — pre-fill from: saved > GPS station > current dir
+  // Dep input: GPS nearest station takes priority (user is there now),
+  // then saved preference, then current dir name.
   if (depEl) {
     const saved = loadDep();
-    depEl.value = saved || (ns ? ns.name : (config.dirs[state.dIdx] ? config.dirs[state.dIdx].from : ''));
+    depEl.value = (ns ? ns.name : null) || saved || (config.dirs[state.dIdx] ? config.dirs[state.dIdx].from : '');
+    if (ns) _depStopIds.set(ns.name, { id: ns.id, lat: ns.lat, lon: ns.lon });
     syncClear('set-dep', 'set-dep-clear');
   }
 
@@ -420,8 +491,6 @@ export function showSettings() {
 
   document.getElementById('set-error').style.display = 'none';
   _highlightPrefs();
-  _renderFreqRow('freq-dep', 'dep');
-  _renderFreqRow('freq-arr', 'arr');
   renderProfileSwitcher();
 
   // Restore destination preview if we already have resolved coords from a prior apply

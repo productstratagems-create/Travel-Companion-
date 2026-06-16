@@ -450,6 +450,8 @@ export function _interpolateVehiclePos(calls, now) {
 // on a phone, short enough not to clutter a corridor with many stops.
 const _ROUTE_STOP_TOOLTIP_MS = 3000;
 
+let _walkExtKey = null;
+
 function renderLineRoute(visibleDeps) {
   if (!_bMap) return;
   if (!_selectedLine) {
@@ -469,22 +471,74 @@ function renderLineRoute(visibleDeps) {
   if (!match) {
     _bRouteLayer.clearLayers();
     _bRoutePts = null;
+    _walkExtKey = null;
     return;
   }
 
   const { c } = match;
-  const pts = [];
-  const stops = [];
+  const dir = config.dirs[state.dIdx];
+  const allPts = [];
+  const allStops = [];
   c.serviceJourney.estimatedCalls.forEach(call => {
     const sp = call.quay && call.quay.stopPlace;
     const ll = quayLatLon(call.quay);
     if (!ll) return;
-    const last = pts[pts.length - 1];
+    const last = allPts[allPts.length - 1];
     if (last && last[0] === ll.lat && last[1] === ll.lon) return;
-    pts.push([ll.lat, ll.lon]);
-    if (sp && sp.name) stops.push({ lat: ll.lat, lon: ll.lon, name: sp.name });
+    allPts.push([ll.lat, ll.lon]);
+    allStops.push({ lat: ll.lat, lon: ll.lon, name: (sp && sp.name) || '' });
   });
-  if (pts.length < 2) {
+  if (allPts.length < 2) {
+    _bRouteLayer.clearLayers();
+    _bRoutePts = null;
+    _walkExtKey = null;
+    return;
+  }
+
+  // Clip corridor to boarding→alighting segment only.
+  // Board: stop whose name matches dir.from, or closest stop to departure coords.
+  // Alight: stop whose name matches dir.to, or closest stop to destination coords.
+  function findStopIdx(name, fallbackLat, fallbackLon) {
+    if (name) {
+      const norm = s => s.toLowerCase().replace(/\s+t$/i, '').trim();
+      const n = norm(name);
+      const idx = allStops.findIndex(s => norm(s.name) === n || norm(s.name).includes(n) || n.includes(norm(s.name)));
+      if (idx !== -1) return idx;
+    }
+    if (fallbackLat != null && fallbackLon != null) {
+      let best = -1, bestDist = Infinity;
+      allStops.forEach((s, i) => {
+        const d = haver(s.lat, s.lon, fallbackLat, fallbackLon);
+        if (d < bestDist) { bestDist = d; best = i; }
+      });
+      return best;
+    }
+    return -1;
+  }
+
+  let boardIdx = findStopIdx(dir.from, dir._fromLat, dir._fromLon);
+  let alightIdx = findStopIdx(dir.to, dir._toLat, dir._toLon);
+
+  // If destination is a venue (not a stop), find the stop nearest to it for alighting.
+  const destIsVenue = dir._toLat && dir._toLon && !dir.toStopId;
+  if (destIsVenue && alightIdx === -1) {
+    let best = -1, bestDist = Infinity;
+    allStops.forEach((s, i) => {
+      const d = haver(s.lat, s.lon, dir._toLat, dir._toLon);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    alightIdx = best;
+  }
+
+  // Fall back to full corridor if we can't locate either end.
+  if (boardIdx === -1) boardIdx = 0;
+  if (alightIdx === -1) alightIdx = allPts.length - 1;
+  const lo = Math.min(boardIdx, alightIdx);
+  const hi = Math.max(boardIdx, alightIdx);
+  const pts = allPts.slice(lo, hi + 1);
+  const stops = allStops.slice(lo, hi + 1);
+
+  if (pts.length < 1) {
     _bRouteLayer.clearLayers();
     _bRoutePts = null;
     return;
@@ -494,38 +548,83 @@ function renderLineRoute(visibleDeps) {
   const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
   const isBus = _depMode(c) === 'bus';
   const style = isBus
-    ? { color, weight: 2, opacity: 0.35, dashArray: '1 7', interactive: false }
-    : { color, weight: 4, opacity: 0.45, lineCap: 'round', interactive: false };
+    ? { color, weight: 2, opacity: 0.55, dashArray: '1 7', interactive: false }
+    : { color, weight: 4, opacity: 0.7, lineCap: 'round', interactive: false };
 
   _bRoutePts = pts;
-  // Buses run on regular roads (tighter snap so we don't jump to a parallel
-  // street); rail/tram corridors are looser since the straight stop-to-stop
-  // segments only approximate the real track curve.
   _bRouteSnapDist = isBus ? 25 : 50;
 
   _bRouteLayer.clearLayers();
-  L.polyline(pts, style).addTo(_bRouteLayer);
+  if (pts.length >= 2) L.polyline(pts, style).addTo(_bRouteLayer);
 
-  // Mark each intermediate stop along the corridor with a small dot. Names are
-  // hidden by default and only flash on tap, so the route doesn't get
-  // cluttered with permanent labels for every stop on the line. Tooltip is
-  // opened/closed manually (bypassing Leaflet's hover handling) so the
-  // visible duration is the same on touch and mouse input.
-  stops.forEach(s => {
+  stops.forEach((s, i) => {
+    if (!s.name) return;
+    // Always show name labels for the first and last stop (boarding/alighting).
+    const isEndpoint = i === 0 || i === stops.length - 1;
     const marker = L.marker([s.lat, s.lon], { icon: makeRouteStopIcon(color) }).addTo(_bRouteLayer);
-    const tooltip = L.tooltip({ className: 'map-label' }).setLatLng([s.lat, s.lon]).setContent(esc(s.name));
-    let hideTimer = null;
-    marker.on('click', () => {
-      if (hideTimer) clearTimeout(hideTimer);
-      _bMap.openTooltip(tooltip);
-      hideTimer = setTimeout(() => _bMap.closeTooltip(tooltip), _ROUTE_STOP_TOOLTIP_MS);
-    });
+    const tooltip = L.tooltip({
+      className: 'map-label',
+      permanent: isEndpoint,
+      direction: 'top',
+      offset: [0, -8],
+    }).setLatLng([s.lat, s.lon]).setContent(esc(s.name));
+    if (isEndpoint) {
+      _bMap.addLayer(tooltip);
+    } else {
+      let hideTimer = null;
+      marker.on('click', () => {
+        if (hideTimer) clearTimeout(hideTimer);
+        _bMap.openTooltip(tooltip);
+        hideTimer = setTimeout(() => _bMap.closeTooltip(tooltip), _ROUTE_STOP_TOOLTIP_MS);
+      });
+    }
   });
 
-  // Reveal the whole corridor when the user picks a line, unless they've
-  // already panned/zoomed the map themselves.
+  // Walking extension: dashed line from alighting stop to final destination venue.
+  if (destIsVenue && alightIdx !== -1) {
+    const alightPt = allPts[alightIdx];
+    const destLL = { lat: dir._toLat, lon: dir._toLon };
+    const extKey = alightPt[0] + ',' + alightPt[1] + '→' + destLL.lat + ',' + destLL.lon;
+    if (extKey !== _walkExtKey) {
+      _walkExtKey = extKey;
+      L.marker([destLL.lat, destLL.lon], { icon: _makeDestIcon() })
+        .bindTooltip(dir.to || 'Destinasjon', { permanent: true, direction: 'top', offset: [0, -32], className: 'map-label' })
+        .addTo(_bRouteLayer);
+      // Fetch a real walking polyline from OTP, fall back to straight dashed line.
+      const q = '{trip(from:{coordinates:{latitude:' + alightPt[0] + ',longitude:' + alightPt[1] + '}}'
+        + 'to:{coordinates:{latitude:' + destLL.lat + ',longitude:' + destLL.lon + '}}'
+        + 'modes:{directMode:foot}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}}';
+      fetch(config.api.journeyPlanner, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q }),
+      })
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(data => {
+          if (!_bRouteLayer) return;
+          const pats = data.data && data.data.trip && data.data.trip.tripPatterns;
+          const encoded = pats && pats[0] && pats[0].legs && pats[0].legs[0]
+            && pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
+          if (!encoded) throw new Error('no points');
+          const latlngs = _decodePoly(encoded);
+          L.polyline(latlngs, { color: '#f5b840', weight: 3, opacity: 0.9, dashArray: '6 6' }).addTo(_bRouteLayer);
+        })
+        .catch(() => {
+          if (!_bRouteLayer) return;
+          L.polyline([alightPt, [destLL.lat, destLL.lon]], {
+            color: '#f5b840', weight: 2, opacity: 0.55, dashArray: '6 7',
+          }).addTo(_bRouteLayer);
+        });
+    }
+  } else {
+    _walkExtKey = null;
+  }
+
+  const fitPts = [...pts];
+  if (destIsVenue && dir._toLat && dir._toLon) fitPts.push([dir._toLat, dir._toLon]);
+
   if (_bFitRouteRequested && !_bUserMoved) {
-    _bMap.fitBounds(pts, { padding: [30, 30], maxZoom: 15 });
+    _bMap.fitBounds(fitPts.length >= 2 ? fitPts : pts, { padding: [40, 40], maxZoom: 15 });
   }
   _bFitRouteRequested = false;
 }

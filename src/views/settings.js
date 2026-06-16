@@ -420,6 +420,8 @@ export function showSettings() {
 
   document.getElementById('set-error').style.display = 'none';
   _highlightPrefs();
+  _renderFreqRow('freq-dep', 'dep');
+  _renderFreqRow('freq-arr', 'arr');
   renderProfileSwitcher();
 
   // Restore destination preview if we already have resolved coords from a prior apply
@@ -495,6 +497,8 @@ export function applyRoute() {
   saveDep(dep);
   saveDest(arr);
   saveVia(via);
+  trackPlace('dep', dep, { lat: depLat, lon: depLon, stopId: depId });
+  trackPlace('arr', arr, { lat: arrLat, lon: arrLon, stopId: arrId });
   return true;
 }
 
@@ -525,6 +529,68 @@ export function applyRouteFromState(arr) {
   };
   state.dIdx = 2;
   return true;
+}
+
+// ── Frequent places ──────────────────────────────────────────────────────────
+const FREQ_DEP_KEY = 't.freqDep';
+const FREQ_ARR_KEY = 't.freqArr';
+const FREQ_MAX     = 10;
+
+function _loadFreq(key) {
+  try { const v = storage.get(key); return v ? JSON.parse(v) : []; } catch { return []; }
+}
+
+function _saveFreq(key, list) {
+  storage.set(key, JSON.stringify(list));
+}
+
+export function trackPlace(role, name, meta) {
+  if (!name) return;
+  const key = role === 'dep' ? FREQ_DEP_KEY : FREQ_ARR_KEY;
+  const list = _loadFreq(key);
+  const norm = name.trim();
+  const idx = list.findIndex(p => p.name.toLowerCase() === norm.toLowerCase());
+  if (idx !== -1) {
+    list[idx].count += 1;
+    list[idx].lastUsed = Date.now();
+    if (meta) Object.assign(list[idx], { lat: meta.lat, lon: meta.lon, stopId: meta.stopId || null });
+  } else {
+    list.push({ name: norm, count: 1, lastUsed: Date.now(), lat: meta && meta.lat, lon: meta && meta.lon, stopId: meta && meta.stopId || null });
+  }
+  list.sort((a, b) => b.count - a.count || b.lastUsed - a.lastUsed);
+  _saveFreq(key, list.slice(0, FREQ_MAX));
+}
+
+function _renderFreqRow(elId, role) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const key = role === 'dep' ? FREQ_DEP_KEY : FREQ_ARR_KEY;
+  const list = _loadFreq(key).slice(0, 4);
+  if (!list.length) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML = list.map(p =>
+    '<button class="freq-pill" data-name="' + esc(p.name) + '" aria-label="' + esc(p.name) + '">'
+    + esc(p.name) + '</button>'
+  ).join('');
+  el.querySelectorAll('.freq-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const inp = document.getElementById(role === 'dep' ? 'set-dep' : 'set-arr');
+      if (inp) {
+        inp.value = btn.dataset.name;
+        syncClear(inp.id, inp.id + '-clear');
+        // Pre-populate the stop map from stored coords if available
+        const entry = list.find(p => p.name === btn.dataset.name);
+        if (entry && entry.lat) {
+          const map = role === 'dep' ? _depStopIds : _arrStopIds;
+          map.set(entry.name, { id: entry.stopId, lat: entry.lat, lon: entry.lon });
+          if (role === 'arr' && entry.lat) _showDestPreview(entry.lat, entry.lon);
+        }
+        // Move focus to the other field so user can complete the route
+        const other = document.getElementById(role === 'dep' ? 'set-arr' : 'set-dep');
+        if (other && !other.value) other.focus();
+      }
+    });
+  });
 }
 
 export function loadDest() {

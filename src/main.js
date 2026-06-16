@@ -23,7 +23,7 @@ import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
 import config from './config.js';
-import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, saveDep, saveDest, renderBoardProfileSwitcher } from './views/settings.js';
+import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, saveDep, saveDest, renderBoardProfileSwitcher, trackPlace } from './views/settings.js';
 import { getActiveProfile } from './storage.js';
 import { state } from './state.js';
 
@@ -69,6 +69,8 @@ const prefilledRoute = (function applyPrefillFromQuery() {
     };
     state.dIdx = 2;
     applied = true;
+    trackPlace('dep', from, { lat: fromLat ? Number(fromLat) : null, lon: fromLon ? Number(fromLon) : null, stopId: fromStopId || null });
+    trackPlace('arr', to,   { lat: toLat   ? Number(toLat)   : null, lon: toLon   ? Number(toLon)   : null, stopId: toStopId   || null });
   }
 
   if (from || to || travelTime) {

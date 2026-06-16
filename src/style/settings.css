@@ -217,3 +217,17 @@
   font-size:14px;line-height:1;color:#7485a0;margin-left:.1rem;
   padding:0 .1rem;
 }
+
+/* ── Frequent places ────────────────────────────────────────────────────────── */
+.freq-places{
+  display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.45rem;
+}
+.freq-pill{
+  padding:.25rem .65rem;border-radius:999px;
+  border:1px solid rgba(245,184,64,.2);background:rgba(245,184,64,.06);
+  color:#c8b090;font-size:12px;cursor:pointer;white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  max-width:160px;overflow:hidden;text-overflow:ellipsis;
+  transition:background .12s,border-color .12s,color .12s;
+}
+.freq-pill:active{background:rgba(245,184,64,.16);border-color:rgba(245,184,64,.45);color:#f5b840}

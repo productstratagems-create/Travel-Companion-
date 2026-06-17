@@ -595,24 +595,49 @@ function renderLineRoute(visibleDeps) {
         + 'to:{coordinates:{latitude:' + n[0] + ',longitude:' + n[1] + '}}'
         + 'modes:{directMode:car}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}';
     });
-    fetch(config.api.journeyPlanner, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: '{' + segQueries.join(' ') + '}' }),
-    })
-      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    function _extractEncoded(d, i) {
+      const seg = d && d['seg' + i];
+      const leg = seg && seg.tripPatterns && seg.tripPatterns[0]
+        && seg.tripPatterns[0].legs && seg.tripPatterns[0].legs[0];
+      return (leg && leg.pointsOnLink && leg.pointsOnLink.points) || null;
+    }
+    function _buildSegQuery(mode, p, n, i) {
+      return 'seg' + i + ':trip(from:{coordinates:{latitude:' + p[0] + ',longitude:' + p[1] + '}}'
+        + 'to:{coordinates:{latitude:' + n[0] + ',longitude:' + n[1] + '}}'
+        + 'modes:{directMode:' + mode + '}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}';
+    }
+    function _postOtp(queries) {
+      return fetch(config.api.journeyPlanner, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: '{' + queries.join(' ') + '}' }),
+      }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    }
+    _postOtp(segQueries)
       .then(data => {
         if (!_bRouteLayer) return;
         const d = data && data.data;
         if (!d) throw new Error('no data');
+        // Collect results; track which segments failed for retry
+        const resolved = segQueries.map((_, i) => _extractEncoded(d, i));
+        const failedIdx = resolved.map((enc, i) => enc ? null : i).filter(i => i !== null);
+        if (!failedIdx.length) return resolved;
+        // Retry failed segments with bicycle mode (reaches more areas than car)
+        const retryQueries = failedIdx.map(i => _buildSegQuery('bicycle', pts[i], pts[i + 1], i));
+        return _postOtp(retryQueries).then(r2 => {
+          const d2 = r2 && r2.data;
+          failedIdx.forEach(i => {
+            const enc = _extractEncoded(d2, i);
+            if (enc) resolved[i] = enc;
+          });
+          return resolved;
+        }).catch(() => resolved);
+      })
+      .then(resolved => {
+        if (!_bRouteLayer || !resolved) return;
         const allLatlngs = [];
-        segQueries.forEach((_, i) => {
-          const seg = d['seg' + i];
-          const encoded = seg && seg.tripPatterns && seg.tripPatterns[0]
-            && seg.tripPatterns[0].legs && seg.tripPatterns[0].legs[0]
-            && seg.tripPatterns[0].legs[0].pointsOnLink
-            && seg.tripPatterns[0].legs[0].pointsOnLink.points;
-          if (encoded) allLatlngs.push(..._decodePoly(encoded));
+        resolved.forEach((enc, i) => {
+          if (enc) allLatlngs.push(..._decodePoly(enc));
           else allLatlngs.push(pts[i], pts[i + 1]);
         });
         if (!allLatlngs.length) throw new Error('no points');
@@ -625,7 +650,6 @@ function renderLineRoute(visibleDeps) {
       })
       .catch(() => {
         if (!_bRouteLayer) return;
-        // Fall back to straight-line segments
         L.polyline(pts, style).addTo(_bRouteLayer);
       });
   } else if (pts.length >= 2) {

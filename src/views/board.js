@@ -595,12 +595,10 @@ function renderLineRoute(visibleDeps) {
         + 'to:{coordinates:{latitude:' + n[0] + ',longitude:' + n[1] + '}}'
         + 'modes:{directMode:car}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}';
     });
-    // Cap at 8 segments to avoid overly large requests on long corridors
-    const capped = segQueries.slice(0, 8);
     fetch(config.api.journeyPlanner, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: '{' + capped.join(' ') + '}' }),
+      body: JSON.stringify({ query: '{' + segQueries.join(' ') + '}' }),
     })
       .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(data => {
@@ -608,14 +606,14 @@ function renderLineRoute(visibleDeps) {
         const d = data && data.data;
         if (!d) throw new Error('no data');
         const allLatlngs = [];
-        capped.forEach((_, i) => {
+        segQueries.forEach((_, i) => {
           const seg = d['seg' + i];
           const encoded = seg && seg.tripPatterns && seg.tripPatterns[0]
             && seg.tripPatterns[0].legs && seg.tripPatterns[0].legs[0]
             && seg.tripPatterns[0].legs[0].pointsOnLink
             && seg.tripPatterns[0].legs[0].pointsOnLink.points;
           if (encoded) allLatlngs.push(..._decodePoly(encoded));
-          else if (i < pts.length - 1) allLatlngs.push(pts[i], pts[i + 1]);
+          else allLatlngs.push(pts[i], pts[i + 1]);
         });
         if (!allLatlngs.length) throw new Error('no points');
         _bRoutePts = allLatlngs.map(ll => ({ lat: ll[0], lon: ll[1] }));

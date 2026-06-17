@@ -580,7 +580,59 @@ function renderLineRoute(visibleDeps) {
   _bRouteSnapDist = isBus ? 25 : 50;
 
   _bRouteLayer.clearLayers();
-  if (pts.length >= 2) L.polyline(pts, style).addTo(_bRouteLayer);
+
+  // For buses, snap the corridor to actual road geometry via OTP car routing.
+  // Metro/tram run on dedicated tracks — straight stop-to-stop lines are accurate enough.
+  if (isBus && pts.length >= 2) {
+    const first = pts[0], last = pts[pts.length - 1];
+    // Build a multi-leg car query: chain through every intermediate stop so the
+    // road route follows the actual bus path rather than cutting across.
+    // OTP doesn't support waypoints in directMode, so we query each stop-to-stop
+    // segment in one batched GraphQL request and concatenate the polylines.
+    const segQueries = pts.slice(0, -1).map((p, i) => {
+      const n = pts[i + 1];
+      return 'seg' + i + ':trip(from:{coordinates:{latitude:' + p[0] + ',longitude:' + p[1] + '}}'
+        + 'to:{coordinates:{latitude:' + n[0] + ',longitude:' + n[1] + '}}'
+        + 'modes:{directMode:car}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}';
+    });
+    // Cap at 8 segments to avoid overly large requests on long corridors
+    const capped = segQueries.slice(0, 8);
+    fetch(config.api.journeyPlanner, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: '{' + capped.join(' ') + '}' }),
+    })
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(data => {
+        if (!_bRouteLayer) return;
+        const d = data && data.data;
+        if (!d) throw new Error('no data');
+        const allLatlngs = [];
+        capped.forEach((_, i) => {
+          const seg = d['seg' + i];
+          const encoded = seg && seg.tripPatterns && seg.tripPatterns[0]
+            && seg.tripPatterns[0].legs && seg.tripPatterns[0].legs[0]
+            && seg.tripPatterns[0].legs[0].pointsOnLink
+            && seg.tripPatterns[0].legs[0].pointsOnLink.points;
+          if (encoded) allLatlngs.push(..._decodePoly(encoded));
+          else if (i < pts.length - 1) allLatlngs.push(pts[i], pts[i + 1]);
+        });
+        if (!allLatlngs.length) throw new Error('no points');
+        _bRoutePts = allLatlngs.map(ll => ({ lat: ll[0], lon: ll[1] }));
+        L.polyline(allLatlngs, { color, weight: 3, opacity: 0.65, lineCap: 'round', interactive: false }).addTo(_bRouteLayer);
+        if (_bFitRouteRequested && !_bUserMoved) {
+          _bMap.fitBounds(allLatlngs, { padding: [30, 30], maxZoom: 15 });
+          _bFitRouteRequested = false;
+        }
+      })
+      .catch(() => {
+        if (!_bRouteLayer) return;
+        // Fall back to straight-line segments
+        L.polyline(pts, style).addTo(_bRouteLayer);
+      });
+  } else if (pts.length >= 2) {
+    L.polyline(pts, style).addTo(_bRouteLayer);
+  }
 
   stops.forEach((s, i) => {
     if (!s.name) return;

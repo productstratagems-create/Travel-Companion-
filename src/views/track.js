@@ -921,9 +921,14 @@ export function renderTrack() {
       const depStatus = mToDep === null ? ''
         : mToDep > 0 ? 'om ' + fmtMins(mToDep)
         : mToDep === 0 ? 'nå' : 'avgått';
+      const nextLegDelayMins = (() => {
+        if (!leg._aimedDepTime || !leg.depTime) return 0;
+        return Math.round((new Date(leg.depTime.time).getTime() - new Date(leg._aimedDepTime).getTime()) / 60000);
+      })();
       headerHtml = '<div class="ct-detail">'
         + '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
         + (leg.frontText ? '<span class="ct-dest">' + leg.frontText + '</span>' : '')
+        + (nextLegDelayMins > 1 ? '<span class="ct-delay-tag">+' + nextLegDelayMins + ' min</span>' : '')
         + '</div>'
         + '<div class="ct-detail ct-detail-2">'
         + (leg.quay ? '<span class="ct-quay">spor ' + leg.quay + '</span>' : '')
@@ -944,6 +949,33 @@ export function renderTrack() {
     }
 
     return buildCard(label, headerHtml, stopsContent);
+  }
+
+  // ── Connection risk banner ────────────────────────────────────────────────
+  const connAlertEl = document.getElementById('t-conn-alert');
+  if (connAlertEl) {
+    let alertHtml = '';
+    if (phase === 'riding' && i < legs.length - 1) {
+      const curLeg = legs[i];
+      const nextLeg = legs[i + 1];
+      if (curLeg.arrTime && nextLeg.depTime) {
+        const arrTs = new Date(curLeg.arrTime.time).getTime();
+        const depTs = new Date(nextLeg.depTime.time).getTime();
+        const marginMins = Math.round((depTs - arrTs) / 60000);
+        if (marginMins < 0) {
+          alertHtml = '<div class="conn-alert conn-alert-miss">'
+            + '⚠ Rekker trolig ikke byttet til ' + nextLeg.lineCode
+            + ' — sjekk neste avgang på ' + normStn(nextLeg.fromStation)
+            + '</div>';
+        } else if (marginMins <= 3) {
+          alertHtml = '<div class="conn-alert conn-alert-risk">'
+            + '⚠ Knapt byttetid · ' + marginMins + ' min til '
+            + nextLeg.lineCode + ' fra ' + normStn(nextLeg.fromStation)
+            + '</div>';
+        }
+      }
+    }
+    if (alertHtml !== connAlertEl.innerHTML) connAlertEl.innerHTML = alertHtml;
   }
 
   // ── Build cards ───────────────────────────────────────────────────────────
@@ -1149,7 +1181,10 @@ function _fetchTrack() {
             if (nxt.fromStation) {
               const depStop = findArr(calls, nxt.fromStation);
               const dt = depStop && (depStop.expectedDepartureTime || depStop.aimedDepartureTime);
-              if (dt) nxt.depTime = { time: dt, clk: clk(dt) };
+              if (dt) {
+                nxt.depTime = { time: dt, clk: clk(dt) };
+                if (!nxt._aimedDepTime && depStop.aimedDepartureTime) nxt._aimedDepTime = depStop.aimedDepartureTime;
+              }
             }
             if (nxt.toStation) {
               const arrStop = findArr(calls, nxt.toStation);

@@ -225,3 +225,11 @@
   display:flex;align-items:center;justify-content:center;
   line-height:1;
 }
+
+/* Connection risk banner */
+.conn-alert{margin:.75rem 0 0;padding:.6rem .85rem;border-radius:6px;font-size:12px;font-weight:600;line-height:1.35}
+.conn-alert-risk{background:rgba(245,184,64,.12);border:1px solid rgba(245,184,64,.5);color:#f5b840}
+.conn-alert-miss{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.5);color:#ef4444}
+
+/* Delay tag on queued leg cards */
+.ct-delay-tag{margin-left:auto;font-size:10px;font-weight:700;color:#ef4444;background:rgba(239,68,68,.1);border-radius:3px;padding:1px 5px}

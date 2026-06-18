@@ -979,68 +979,94 @@ export function renderTrack() {
   }
 
   // ── Alighting sequence card ───────────────────────────────────────────────
-  // Fires ≤ 2 min before alight point. For transfers: next line + platform.
-  // For venue final stop: pre-arm _walkDestLL so "Hva nå?" is instant.
+  // Two completely different use cases:
+  //   Transfer  — time-critical execution. ≤ 2 min. Platform, line, seconds left.
+  //   Final leg — open-ended arrival. ≤ 5 min. Weather, walk time, invitation to explore.
   function buildAlightCard() {
     if (phase !== 'riding') return '';
     const leg = legs[i];
     const arrTs = leg.arrTime ? new Date(leg.arrTime.time).getTime() : null;
     if (!arrTs) return '';
     const mLeft = Math.floor((arrTs - now) / 60000);
-    if (mLeft > 2) return '';
-
     const isLastLeg = i === legs.length - 1;
-    const isVenueDest = isLastLeg && state.jny._toLat && state.jny._toLon;
 
-    if (isLastLeg) {
-      // Pre-arm walk destination so "Hva nå?" panel is instant after alighting
-      if (isVenueDest && !_walkDestLL) {
-        _walkDestLL = { lat: state.jny._toLat, lon: state.jny._toLon, label: state.jny.dest };
-      }
-      const walkMins = (() => {
-        if (!isVenueDest) return null;
-        const toLL = { lat: state.jny._toLat, lon: state.jny._toLon };
-        const fromLL = state.homeLL || state.walkFromLL;
-        // Use last stop coords if available
-        const stopLL = (() => {
-          if (!leg.stops || !leg.stops.length) return null;
-          const last = leg.stops[leg.stops.length - 1];
-          const sp = last && last.quay && last.quay.stopPlace;
-          return sp && sp.latitude ? { lat: sp.latitude, lon: sp.longitude } : null;
-        })();
-        const origin = stopLL || fromLL;
-        if (!origin) return null;
-        const d = haver(origin.lat, origin.lon, toLL.lat, toLL.lon);
-        const spd = SPEED_MPN[loadWalkSpeed()] || 83.33;
-        return Math.max(1, Math.ceil(d * 1.3 / spd)) + loadWalkBuffer();
+    // ── Transfer: tight execution window ──────────────────────────────────
+    if (!isLastLeg) {
+      if (mLeft > 2) return '';
+      const nextLeg = legs[i + 1];
+      if (!nextLeg) return '';
+      const depTs = nextLeg.depTime ? new Date(nextLeg.depTime.time).getTime() : null;
+      const mToDep = depTs !== null ? Math.round((depTs - now) / 60000) : null;
+      const delayMins = (() => {
+        if (!nextLeg._aimedDepTime || !nextLeg.depTime) return 0;
+        return Math.round((new Date(nextLeg.depTime.time).getTime() - new Date(nextLeg._aimedDepTime).getTime()) / 60000);
       })();
-      const alightNow = mLeft <= 0;
-      return '<div class="alight-card alight-card-dest">'
-        + '<div class="alight-card-title">' + (alightNow ? 'Gå av nå' : 'Gjør deg klar') + '</div>'
+      // Urgency: how many seconds until arrival
+      const secsLeft = Math.round((arrTs - now) / 1000);
+      const alightNow = secsLeft <= 30;
+      const timeStr = alightNow ? 'GÅ AV NÅ'
+        : secsLeft < 60 ? 'Gå av om ' + secsLeft + ' sek'
+        : 'Gå av om ' + mLeft + ' min';
+      return '<div class="alight-card alight-card-transfer' + (alightNow ? ' alight-urgent' : '') + '">'
+        + '<div class="alight-card-title">' + timeStr + '</div>'
         + '<div class="alight-card-stop">' + normStn(leg.toStation) + '</div>'
-        + (walkMins !== null
-          ? '<div class="alight-walk">🚶 ' + walkMins + ' min til ' + esc(state.jny.dest) + '</div>'
+        + '<div class="alight-card-next">'
+        + '<span class="line-badge" style="background:' + nextLeg.lineBg + '">' + nextLeg.lineCode + '</span>'
+        + (nextLeg.frontText ? '<span class="alight-next-dest">' + nextLeg.frontText + '</span>' : '')
+        + (delayMins > 1 ? '<span class="ct-delay-tag">+' + delayMins + ' min</span>' : '')
+        + '</div>'
+        + '<div class="alight-card-meta">'
+        + (nextLeg.quay ? '<span class="alight-platform">Spor ' + nextLeg.quay + '</span>' : '')
+        + (mToDep !== null
+          ? '<span class="' + (mToDep <= 1 ? 'alight-dep-urgent' : '') + '">'
+            + (mToDep <= 0 ? 'Avgår nå' : 'Avgang om ' + mToDep + ' min') + '</span>'
           : '')
+        + '</div>'
         + '</div>';
     }
 
-    // Transfer
-    const nextLeg = legs[i + 1];
-    if (!nextLeg) return '';
-    const depTs = nextLeg.depTime ? new Date(nextLeg.depTime.time).getTime() : null;
-    const mToDep = depTs ? Math.round((depTs - now) / 60000) : null;
+    // ── Final leg: open-ended arrival ─────────────────────────────────────
+    if (mLeft > 5) return '';
+
+    const isVenueDest = state.jny._toLat && state.jny._toLon;
+    // Pre-arm walk destination silently so "Hva nå?" panel is instant
+    if (isVenueDest && !_walkDestLL) {
+      _walkDestLL = { lat: state.jny._toLat, lon: state.jny._toLon, label: state.jny.dest };
+    }
+
+    const walkMins = (() => {
+      if (!isVenueDest) return null;
+      const stopLL = (() => {
+        if (!leg.stops || !leg.stops.length) return null;
+        const last = leg.stops[leg.stops.length - 1];
+        const sp = last && last.quay && last.quay.stopPlace;
+        return sp && sp.latitude ? { lat: sp.latitude, lon: sp.longitude } : null;
+      })();
+      if (!stopLL) return null;
+      const d = haver(stopLL.lat, stopLL.lon, state.jny._toLat, state.jny._toLon);
+      const spd = SPEED_MPN[loadWalkSpeed()] || 83.33;
+      return Math.max(1, Math.ceil(d * 1.3 / spd)) + loadWalkBuffer();
+    })();
+
+    const weatherSnippet = (() => {
+      if (!_arrWeather || _arrWeather._err) return '';
+      const w = _arrWeather;
+      return (w.icon ? w.icon + ' ' : '') + w.temp + '°'
+        + (w.wind >= 12 ? ' · ' + w.wind + ' m/s' : '')
+        + (w.advice ? ' · ' + w.advice : '');
+    })();
+
     const alightNow = mLeft <= 0;
-    return '<div class="alight-card alight-card-transfer">'
-      + '<div class="alight-card-title">' + (alightNow ? 'Gå av nå' : 'Gjør deg klar') + '</div>'
-      + '<div class="alight-card-stop">' + normStn(leg.toStation) + '</div>'
-      + '<div class="alight-card-next">'
-      + '<span class="line-badge" style="background:' + nextLeg.lineBg + '">' + nextLeg.lineCode + '</span>'
-      + (nextLeg.frontText ? '<span class="alight-next-dest">' + nextLeg.frontText + '</span>' : '')
-      + '</div>'
-      + '<div class="alight-card-meta">'
-      + (nextLeg.quay ? '<span>Spor ' + nextLeg.quay + '</span>' : '')
-      + (mToDep !== null ? '<span>' + (mToDep <= 0 ? 'avgår nå' : 'avgang om ' + mToDep + ' min') + '</span>' : '')
-      + '</div>'
+    return '<div class="alight-card alight-card-dest">'
+      + '<div class="alight-card-eyebrow">' + (alightNow ? 'Gå av nå' : 'Snart fremme') + '</div>'
+      + '<div class="alight-card-dest-name">' + esc(displayStn(state.jny.dest)) + '</div>'
+      + (walkMins !== null
+        ? '<div class="alight-walk">🚶 ' + walkMins + ' min gangavstand</div>'
+        : '')
+      + (weatherSnippet
+        ? '<div class="alight-weather">' + weatherSnippet + '</div>'
+        : '')
+      + '<div class="alight-hvanaa-hint">Trykk Hva nå? etter avgang →</div>'
       + '</div>';
   }
 

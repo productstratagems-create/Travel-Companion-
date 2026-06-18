@@ -228,31 +228,30 @@
 
 /* Connection risk banner */
 .conn-alert{margin:.75rem 0 0;padding:.6rem .85rem;border-radius:6px;font-size:12px;font-weight:600;line-height:1.35}
-.conn-alert-risk{background:rgba(245,184,64,.12);border:1px solid rgba(245,184,64,.5);color:#f5b840}
-.conn-alert-miss{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.5);color:#ef4444}
+.conn-alert-risk{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.65)}
+.conn-alert-miss{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.65)}
 
 /* Delay tag on queued leg cards */
 .ct-delay-tag{margin-left:auto;font-size:10px;font-weight:700;color:#ef4444;background:rgba(239,68,68,.1);border-radius:3px;padding:1px 5px}
 
 /* Alighting sequence card */
 
-/* ── Transfer alighting: urgent, action-focused ── */
-.alight-card{border-radius:8px;padding:.85rem 1rem;margin-top:.75rem}
-.alight-card-transfer{background:rgba(245,184,64,.08);border:1px solid rgba(245,184,64,.4)}
-.alight-card-transfer.alight-urgent{background:rgba(245,184,64,.18);border-color:rgba(245,184,64,.8)}
-.alight-card-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#f5b840;margin-bottom:.4rem}
-.alight-urgent .alight-card-title{font-size:14px;color:#fbbf24;letter-spacing:.05em}
+
+/* ── Transfer alighting: steady, factual, confidence-giving ── */
+.alight-card{border-radius:8px;padding:.9rem 1rem;margin-top:.75rem}
+.alight-card-transfer{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14)}
+.alight-card-eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.18em;color:rgba(255,255,255,.45);font-weight:600;margin-bottom:.3rem}
 .alight-card-stop{font-size:17px;font-weight:700;margin-bottom:.5rem}
-.alight-card-next{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem}
-.alight-next-dest{font-size:13px;opacity:.85}
-.alight-card-meta{display:flex;gap:1rem;font-size:12px;color:rgba(255,255,255,.6)}
-.alight-platform{font-weight:700;color:rgba(255,255,255,.85)}
-.alight-dep-urgent{color:#f5b840;font-weight:700}
+.alight-card-next{display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem}
+.alight-next-dest{font-size:13px;opacity:.8}
+.alight-card-meta{display:flex;gap:1.2rem;font-size:13px;color:rgba(255,255,255,.55)}
+.alight-platform{font-size:15px;font-weight:700;color:rgba(255,255,255,.9);letter-spacing:.02em}
+.alight-delayed{color:#f87171;font-weight:600}
 
 /* ── Final destination: calm, inviting ── */
-.alight-card-dest{background:rgba(96,165,250,.07);border:1px solid rgba(96,165,250,.25)}
-.alight-card-eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:rgba(96,165,250,.8);font-weight:600;margin-bottom:.3rem}
-.alight-card-dest-name{font-size:19px;font-weight:700;margin-bottom:.55rem}
-.alight-walk{font-size:13px;color:rgba(255,255,255,.75);margin-bottom:.2rem}
-.alight-weather{font-size:13px;color:rgba(255,255,255,.65);margin-bottom:.3rem}
-.alight-hvanaa-hint{font-size:11px;color:rgba(96,165,250,.6);margin-top:.4rem}
+.alight-card-dest{background:rgba(96,165,250,.07);border:1px solid rgba(96,165,250,.2)}
+.alight-card-dest .alight-card-eyebrow{color:rgba(96,165,250,.7)}
+.alight-card-dest-name{font-size:19px;font-weight:700;margin-bottom:.5rem}
+.alight-walk{font-size:13px;color:rgba(255,255,255,.7);margin-bottom:.2rem}
+.alight-weather{font-size:13px;color:rgba(255,255,255,.55);margin-bottom:.25rem}
+.alight-hvanaa-hint{font-size:11px;color:rgba(96,165,250,.55);margin-top:.4rem}

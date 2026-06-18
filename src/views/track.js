@@ -964,13 +964,13 @@ export function renderTrack() {
         const marginMins = Math.round((depTs - arrTs) / 60000);
         if (marginMins < 0) {
           alertHtml = '<div class="conn-alert conn-alert-miss">'
-            + '⚠ Rekker trolig ikke byttet til ' + nextLeg.lineCode
-            + ' — sjekk neste avgang på ' + normStn(nextLeg.fromStation)
+            + 'Neste ' + nextLeg.lineCode + ' går fra ' + normStn(nextLeg.fromStation)
+            + (nextLeg.depTime ? ' · avg ' + nextLeg.depTime.clk : '')
             + '</div>';
         } else if (marginMins <= 3) {
           alertHtml = '<div class="conn-alert conn-alert-risk">'
-            + '⚠ Knapt byttetid · ' + marginMins + ' min til '
-            + nextLeg.lineCode + ' fra ' + normStn(nextLeg.fromStation)
+            + nextLeg.lineCode + ' venter' + (marginMins > 0 ? ' · ' + marginMins + ' min byttetid' : '')
+            + (nextLeg.quay ? ' · Spor ' + nextLeg.quay : '')
             + '</div>';
         }
       }
@@ -990,37 +990,27 @@ export function renderTrack() {
     const mLeft = Math.floor((arrTs - now) / 60000);
     const isLastLeg = i === legs.length - 1;
 
-    // ── Transfer: tight execution window ──────────────────────────────────
+    // ── Transfer: calm, factual, confidence-giving ────────────────────────
     if (!isLastLeg) {
       if (mLeft > 2) return '';
       const nextLeg = legs[i + 1];
       if (!nextLeg) return '';
-      const depTs = nextLeg.depTime ? new Date(nextLeg.depTime.time).getTime() : null;
-      const mToDep = depTs !== null ? Math.round((depTs - now) / 60000) : null;
       const delayMins = (() => {
         if (!nextLeg._aimedDepTime || !nextLeg.depTime) return 0;
         return Math.round((new Date(nextLeg.depTime.time).getTime() - new Date(nextLeg._aimedDepTime).getTime()) / 60000);
       })();
-      // Urgency: how many seconds until arrival
-      const secsLeft = Math.round((arrTs - now) / 1000);
-      const alightNow = secsLeft <= 30;
-      const timeStr = alightNow ? 'GÅ AV NÅ'
-        : secsLeft < 60 ? 'Gå av om ' + secsLeft + ' sek'
-        : 'Gå av om ' + mLeft + ' min';
-      return '<div class="alight-card alight-card-transfer' + (alightNow ? ' alight-urgent' : '') + '">'
-        + '<div class="alight-card-title">' + timeStr + '</div>'
+      // Show clock time for the connection — certainty beats countdown
+      const depClk = nextLeg.depTime ? nextLeg.depTime.clk : null;
+      return '<div class="alight-card alight-card-transfer">'
+        + '<div class="alight-card-eyebrow">bytt her</div>'
         + '<div class="alight-card-stop">' + normStn(leg.toStation) + '</div>'
         + '<div class="alight-card-next">'
         + '<span class="line-badge" style="background:' + nextLeg.lineBg + '">' + nextLeg.lineCode + '</span>'
         + (nextLeg.frontText ? '<span class="alight-next-dest">' + nextLeg.frontText + '</span>' : '')
-        + (delayMins > 1 ? '<span class="ct-delay-tag">+' + delayMins + ' min</span>' : '')
         + '</div>'
         + '<div class="alight-card-meta">'
         + (nextLeg.quay ? '<span class="alight-platform">Spor ' + nextLeg.quay + '</span>' : '')
-        + (mToDep !== null
-          ? '<span class="' + (mToDep <= 1 ? 'alight-dep-urgent' : '') + '">'
-            + (mToDep <= 0 ? 'Avgår nå' : 'Avgang om ' + mToDep + ' min') + '</span>'
-          : '')
+        + (depClk ? '<span>avg ' + depClk + (delayMins > 1 ? ' <span class="alight-delayed">+' + delayMins + ' min</span>' : '') + '</span>' : '')
         + '</div>'
         + '</div>';
     }

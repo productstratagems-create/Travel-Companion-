@@ -4,6 +4,7 @@ import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, loadWeekendMo
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
+import { fetchScooters } from '../api/scooters.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { fetchNearbyPlaces, timeCategory, PLACE_CATS, placeEmoji } from '../api/places.js';
 import { logMsg } from '../ui/log.js';
@@ -365,9 +366,10 @@ function _fitArrMap(arrLL) {
 }
 
 function _addBikeMarkers(arrLL) {
+  if (!_bikeLayer) { _bikeLayer = L.layerGroup().addTo(_arrMap); } else { _bikeLayer.clearLayers(); }
+
   fetchBysykkel(arrLL.lat, arrLL.lon).then(stations => {
     if (!_arrMap || !stations.length) return;
-    if (_bikeLayer) { _bikeLayer.clearLayers(); } else { _bikeLayer = L.layerGroup().addTo(_arrMap); }
     stations.forEach(s => {
       const count = s.bikes + (s.ebikes || 0);
       const icon = L.divIcon({
@@ -377,6 +379,21 @@ function _addBikeMarkers(arrLL) {
       });
       L.marker([s.lat, s.lon], { icon })
         .bindTooltip(s.name + ' · ' + count + ' sykler · ' + s.dist + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
+        .addTo(_bikeLayer);
+    });
+  }).catch(() => {});
+
+  fetchScooters(arrLL.lat, arrLL.lon).then(scooters => {
+    if (!_arrMap || !scooters.length) return;
+    scooters.forEach(v => {
+      const label = v.battery !== null ? v.battery + '%' : '⚡';
+      const icon = L.divIcon({
+        className: '',
+        html: '<div class="hn-map-scooter">' + label + '</div>',
+        iconAnchor: [14, 14],
+      });
+      L.marker([v.lat, v.lon], { icon })
+        .bindTooltip(v.operator + ' · ' + (v.battery !== null ? v.battery + '% batteri · ' : '') + v.dist + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
         .addTo(_bikeLayer);
     });
   }).catch(() => {});

@@ -367,41 +367,56 @@ function _fitArrMap(arrLL) {
   _arrMap.fitBounds(pts, { padding: [24, 24], maxZoom: 16 });
 }
 
-function _addBikeMarkers(arrLL) {
-  if (!_bikeLayer) { _bikeLayer = L.layerGroup().addTo(_arrMap); } else { _bikeLayer.clearLayers(); }
+function _drawMobilityMarkers(ranked) {
+  if (!_arrMap || !_bikeLayer) return;
+  _bikeLayer.clearLayers();
+  // Build a lookup: lat+lon → rank number
+  const rankMap = new Map();
+  ranked.forEach((o, idx) => rankMap.set(o.lat + ',' + o.lon, idx + 1));
 
-  fetchBysykkel(arrLL.lat, arrLL.lon).then(stations => {
-    _cachedBikes = stations;
-    _updateMobilitySection();
-    if (!_arrMap || !stations.length) return;
-    stations.forEach(s => {
+  if (_cachedBikes) {
+    _cachedBikes.forEach(s => {
       const count = s.bikes + (s.ebikes || 0);
+      const rank = rankMap.get(s.lat + ',' + s.lon);
+      const rankBadge = rank ? '<span class="mob-marker-rank">' + rank + '</span>' : '';
       const icon = L.divIcon({
         className: '',
-        html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '') + '">' + count + '</div>',
+        html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '') + '">' + rankBadge + count + '</div>',
         iconAnchor: [14, 14],
       });
       L.marker([s.lat, s.lon], { icon })
         .bindTooltip(s.name + ' · ' + count + ' sykler · ' + s.dist + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
         .addTo(_bikeLayer);
     });
+  }
+  if (_cachedScooters) {
+    _cachedScooters.forEach(v => {
+      const rank = rankMap.get(v.lat + ',' + v.lon);
+      const rankBadge = rank ? '<span class="mob-marker-rank">' + rank + '</span>' : '';
+      const label = v.battery !== null ? v.battery + '%' : '⚡';
+      const icon = L.divIcon({
+        className: '',
+        html: '<div class="hn-map-scooter">' + rankBadge + label + '</div>',
+        iconAnchor: [14, 14],
+      });
+      L.marker([v.lat, v.lon], { icon })
+        .bindTooltip(v.operator + ' · ' + (v.battery !== null ? v.battery + '% · ' : '') + v.dist + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
+        .addTo(_bikeLayer);
+    });
+  }
+}
+
+function _addBikeMarkers(arrLL) {
+  if (!_bikeLayer) { _bikeLayer = L.layerGroup().addTo(_arrMap); } else { _bikeLayer.clearLayers(); }
+
+  fetchBysykkel(arrLL.lat, arrLL.lon).then(stations => {
+    _cachedBikes = stations;
+    _updateMobilitySection();
   }).catch(() => {});
 
   fetchScooters(arrLL.lat, arrLL.lon).then(scooters => {
     _cachedScooters = scooters;
     _updateMobilitySection();
-    if (!_arrMap || !scooters.length) return;
-    scooters.forEach(v => {
-      const label = v.battery !== null ? v.battery + '%' : '⚡';
-      const icon = L.divIcon({
-        className: '',
-        html: '<div class="hn-map-scooter">' + label + '</div>',
-        iconAnchor: [14, 14],
-      });
-      L.marker([v.lat, v.lon], { icon })
-        .bindTooltip(v.operator + ' · ' + (v.battery !== null ? v.battery + '% batteri · ' : '') + v.dist + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
-        .addTo(_bikeLayer);
-    });
   }).catch(() => {});
 }
 
@@ -649,12 +664,11 @@ function _rankMobility(arrLL, destLL) {
       const rideM = haver(s.lat, s.lon, destLL.lat, destLL.lon) * ROUTE_FACTOR;
       if (s.ebikes > 0) {
         options.push({ type: 'ebike', label: 'El-sykkel', sub: s.name, dist: Math.round(walkM),
-          walkT, rideT: Math.ceil(rideM / RIDE_MPM.ebike), count: s.ebikes });
+          walkT, rideT: Math.ceil(rideM / RIDE_MPM.ebike), count: s.ebikes, lat: s.lat, lon: s.lon });
       }
-      const regularCount = s.bikes;
-      if (regularCount > 0) {
+      if (s.bikes > 0) {
         options.push({ type: 'bike', label: 'Bysykkel', sub: s.name, dist: Math.round(walkM),
-          walkT, rideT: Math.ceil(rideM / RIDE_MPM.bike), count: regularCount });
+          walkT, rideT: Math.ceil(rideM / RIDE_MPM.bike), count: s.bikes, lat: s.lat, lon: s.lon });
       }
     });
   }
@@ -669,7 +683,7 @@ function _rankMobility(arrLL, destLL) {
       const tooLow  = rangeKm !== null && rangeKm < rideKm;
       if (!tooLow) {
         options.push({ type: 'scooter', label: v.operator, sub: 'sparkesykkel', dist: Math.round(walkM),
-          walkT, rideT: Math.ceil(rideM / RIDE_MPM.scooter), battery: v.battery, rangeKm });
+          walkT, rideT: Math.ceil(rideM / RIDE_MPM.scooter), battery: v.battery, rangeKm, lat: v.lat, lon: v.lon });
       }
     });
   }
@@ -698,11 +712,13 @@ function _mobilitySectionHtml() {
 
   return ranked.map((o, idx) => {
     const isBest = idx === 0;
+    const rank = idx + 1;
     const meta = [];
     if (o.type === 'bike' || o.type === 'ebike') meta.push(o.count + ' ledig');
     if (o.battery !== null) meta.push(o.battery + '% · ca ' + o.rangeKm + ' km');
     meta.push(o.dist + ' m unna');
     return '<div class="mob-option' + (isBest ? ' mob-best' : '') + '">'
+      + '<span class="mob-rank">' + rank + '</span>'
       + '<span class="mob-icon">' + _mobilityIcon(o.type) + '</span>'
       + '<div class="mob-info">'
       + '<span class="mob-name">' + o.label + (o.sub !== o.label ? ' <span class="mob-sub">· ' + o.sub + '</span>' : '') + '</span>'
@@ -710,7 +726,7 @@ function _mobilitySectionHtml() {
       + '</div>'
       + '<div class="mob-time' + (isBest ? ' mob-time-best' : '') + '">'
       + '<span class="mob-total">' + o.total + ' min</span>'
-      + '<span class="mob-breakdown">' + o.walkT + ' + ' + o.rideT + '</span>'
+      + '<span class="mob-breakdown">' + o.walkT + 'g + ' + o.rideT + 'r</span>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -719,6 +735,13 @@ function _mobilitySectionHtml() {
 function _updateMobilitySection() {
   const el = document.getElementById('hn-mobility-content');
   if (el) el.innerHTML = _mobilitySectionHtml();
+  // Sync map markers with current ranking
+  if (_arrLL && (_cachedBikes || _cachedScooters)) {
+    const ranked = (_walkDestLL && _arrLL)
+      ? _rankMobility(_arrLL, _walkDestLL)
+      : [];
+    _drawMobilityMarkers(ranked);
+  }
 }
 
 function renderNextPanel() {

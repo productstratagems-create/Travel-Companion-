@@ -270,3 +270,18 @@
 .mob-time-best .mob-total{color:#f5b840}
 .mob-breakdown{font-size:10px;color:rgba(255,255,255,.35)}
 .mob-loading{font-size:12px;color:rgba(255,255,255,.35);padding:.4rem 0}
+
+/* Rank badge — shared between map markers and list */
+.mob-rank{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:16px;height:16px;border-radius:50%;
+  background:rgba(255,255,255,.15);color:rgba(255,255,255,.8);
+  font-size:9px;font-weight:800;flex-shrink:0;margin-right:.1rem
+}
+.mob-best .mob-rank{background:rgba(245,184,64,.25);color:#f5b840}
+.mob-marker-rank{
+  font-size:8px;font-weight:800;
+  background:rgba(0,0,0,.55);color:#fff;
+  border-radius:3px;padding:0 2px;margin-right:2px;
+  vertical-align:middle;line-height:1.4
+}

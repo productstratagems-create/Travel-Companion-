@@ -3,7 +3,7 @@ import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
 import { loadTheme, setTheme } from '../theme.js';
-import { geocodePlace, geocodeDest } from '../api/entur.js';
+import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
 import { makeSuggBtn, esc } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 
@@ -11,7 +11,7 @@ const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
 const VIA_KEY = 't.via';
 
-const TRANSIT_CATEGORIES = ['metroStation', 'busStation', 'onstreetBus', 'tramStation', 'ferryStop'];
+const TRANSIT_CATEGORIES = TRANSIT_CAT;
 
 const EXPLORE_CATS = [
   { label: 'spise',  emoji: '🍽', amenities: ['catering.restaurant', 'catering.fast_food'] },
@@ -250,7 +250,9 @@ export function initSettings() {
         const fresh = results.filter(r => !freqNames.has(r.label.toLowerCase()));
         if (!fresh.length && !freqNames.size) { sugg.hidden = true; return; }
         fresh.forEach(r => {
-          _arrStopIds.set(r.label, { id: r.id, lat: r.lat, lon: r.lon });
+          // Don't overwrite a valid stop ID with null (transit result takes precedence over venue)
+          const existing = _arrStopIds.get(r.label);
+          if (!existing || !existing.id) _arrStopIds.set(r.label, { id: r.id, lat: r.lat, lon: r.lon });
           sugg.appendChild(makeSuggBtn(r.label, r.category || [], () => {
             i.value = r.label;
             sugg.hidden = true; sugg.innerHTML = '';

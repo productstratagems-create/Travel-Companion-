@@ -12,6 +12,7 @@ const TRANSIT_CAT = [
   'railStation', 'metroStation', 'busStation', 'onstreetBus', 'onstreetTram',
   'tramStation', 'harbourPort', 'airport', 'ferryStop', 'GroupOfStopPlaces', 'StopPlace',
 ];
+export { TRANSIT_CAT };
 
 export function resolveStop(dir, signal) {
   if (dir.stopId) return Promise.resolve(dir.stopId);
@@ -90,21 +91,32 @@ export function resolveViaStop(dir, signal) {
 export function geocodeDest(query) {
   return fetch(config.api.geocoder
     + '?text=' + encodeURIComponent(query)
-    + '&size=8&layers=venue,address&focus.point.lat=59.9139&focus.point.lon=10.7522')
+    + '&size=10&layers=venue,address&focus.point.lat=59.9139&focus.point.lon=10.7522')
     .then(r => r.json())
-    .then(json => ((json && json.features) || [])
-      .filter(f => f.geometry && f.geometry.coordinates && f.geometry.coordinates[1])
-      .map(f => {
-        const isTransit = (f.properties.category || []).some(c => TRANSIT_CAT.includes(c));
-        return {
-          label:    f.properties.label || f.properties.name || '',
-          id:       isTransit ? f.properties.id : null,
-          lat:      f.geometry.coordinates[1],
-          lon:      f.geometry.coordinates[0],
-          category: f.properties.category || [],
-        };
-      })
-    );
+    .then(json => {
+      const mapped = ((json && json.features) || [])
+        .filter(f => f.geometry && f.geometry.coordinates && f.geometry.coordinates[1])
+        .map(f => {
+          const isTransit = (f.properties.category || []).some(c => TRANSIT_CAT.includes(c));
+          return {
+            label:    f.properties.label || f.properties.name || '',
+            id:       isTransit ? f.properties.id : null,
+            lat:      f.geometry.coordinates[1],
+            lon:      f.geometry.coordinates[0],
+            category: f.properties.category || [],
+          };
+        });
+      // Deduplicate by label: if a transit result (has id) and a venue result share
+      // the same label, keep only the transit one. Transit results sort first.
+      const seen = new Map();
+      mapped.sort((a, b) => (b.id ? 1 : 0) - (a.id ? 1 : 0));
+      return mapped.filter(r => {
+        const key = r.label.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.set(key, true);
+        return true;
+      });
+    });
 }
 
 export function geocodePlace(query, signal) {

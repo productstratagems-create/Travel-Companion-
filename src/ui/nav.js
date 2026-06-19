@@ -81,6 +81,11 @@ function toggleDir() {
 export function attachEventListeners() {
   document.getElementById('dir-btn').addEventListener('click', toggleDir);
 
+  document.getElementById('station-name-btn').addEventListener('click', () => {
+    window._showSettings && window._showSettings();
+    show('v-settings');
+  });
+
   document.getElementById('board-more-btn').addEventListener('click', toggleBoardMenu);
 
   document.getElementById('prefs-btn').addEventListener('click', () => {

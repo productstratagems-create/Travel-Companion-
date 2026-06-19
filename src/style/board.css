@@ -10,6 +10,7 @@
   font-size:9px;text-transform:uppercase;letter-spacing:.12em;
   color:rgba(245,184,64,.8);line-height:1;
 }
+.station-name-btn{background:none;border:none;padding:0;margin:0;text-align:left;cursor:pointer;min-width:0;max-width:100%}
 .station-name{
   font-family:"Bebas Neue",sans-serif;
   font-size:clamp(2rem,8vw,2.8rem);

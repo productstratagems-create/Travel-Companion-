@@ -255,3 +255,18 @@
 .alight-walk{font-size:13px;color:rgba(255,255,255,.7);margin-bottom:.2rem}
 .alight-weather{font-size:13px;color:rgba(255,255,255,.55);margin-bottom:.25rem}
 .alight-hvanaa-hint{font-size:11px;color:rgba(96,165,250,.55);margin-top:.4rem}
+
+/* ── Mobility ranking section ── */
+.mob-option{display:flex;align-items:center;gap:.65rem;padding:.6rem 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.mob-option:last-child{border-bottom:none}
+.mob-best{padding:.7rem .75rem;margin:0 -.75rem;background:rgba(255,255,255,.05);border-radius:6px;border-bottom:none}
+.mob-icon{font-size:18px;flex-shrink:0;width:24px;text-align:center}
+.mob-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:.1rem}
+.mob-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mob-sub{font-weight:400;color:rgba(255,255,255,.5)}
+.mob-meta{font-size:11px;color:rgba(255,255,255,.45)}
+.mob-time{display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0}
+.mob-total{font-size:15px;font-weight:700}
+.mob-time-best .mob-total{color:#f5b840}
+.mob-breakdown{font-size:10px;color:rgba(255,255,255,.35)}
+.mob-loading{font-size:12px;color:rgba(255,255,255,.35);padding:.4rem 0}

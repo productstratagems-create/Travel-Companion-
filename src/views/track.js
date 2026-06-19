@@ -39,6 +39,8 @@ let _tWeatherHtml = '';
 
 let _arrWeather = null;
 let _nearbyPlaces = null;
+let _cachedBikes = null;
+let _cachedScooters = null;
 let _placesCat = null;   // currently active PLACE_CATS entry
 let _placesLL = null;    // coords used for last places fetch
 let _arrMap = null;
@@ -369,6 +371,8 @@ function _addBikeMarkers(arrLL) {
   if (!_bikeLayer) { _bikeLayer = L.layerGroup().addTo(_arrMap); } else { _bikeLayer.clearLayers(); }
 
   fetchBysykkel(arrLL.lat, arrLL.lon).then(stations => {
+    _cachedBikes = stations;
+    _updateMobilitySection();
     if (!_arrMap || !stations.length) return;
     stations.forEach(s => {
       const count = s.bikes + (s.ebikes || 0);
@@ -384,6 +388,8 @@ function _addBikeMarkers(arrLL) {
   }).catch(() => {});
 
   fetchScooters(arrLL.lat, arrLL.lon).then(scooters => {
+    _cachedScooters = scooters;
+    _updateMobilitySection();
     if (!_arrMap || !scooters.length) return;
     scooters.forEach(v => {
       const label = v.battery !== null ? v.battery + '%' : '⚡';
@@ -464,8 +470,9 @@ function _applyWalkResult() {
   tEl.textContent = ' til ' + _walkDestLL.label;
   res.appendChild(mEl);
   res.appendChild(tEl);
-  // Update map walk-destination pin after layout settles
+  // Update map walk-destination pin and mobility rankings after dest changes
   _resolveArrivalLL().then(arrLL => _updateArrMapWalkPin(arrLL));
+  _updateMobilitySection();
 }
 
 function _onWalkInput() {
@@ -627,6 +634,93 @@ function _updateWeatherSection() {
   if (tw) tw.innerHTML = _trackWeatherHtml();
 }
 
+// Ride speeds in metres per minute (realistic street speeds including lights/stops)
+const RIDE_MPM = { bike: 200, ebike: 250, scooter: 225 };
+const ROUTE_FACTOR = 1.3; // straight-line to actual route distance
+
+function _rankMobility(arrLL, destLL) {
+  const walkSpd = SPEED_MPN[loadWalkSpeed()] || 83.33;
+  const options = [];
+
+  if (_cachedBikes) {
+    _cachedBikes.forEach(s => {
+      const walkM = haver(arrLL.lat, arrLL.lon, s.lat, s.lon);
+      const walkT = Math.ceil(walkM / walkSpd);
+      const rideM = haver(s.lat, s.lon, destLL.lat, destLL.lon) * ROUTE_FACTOR;
+      if (s.ebikes > 0) {
+        options.push({ type: 'ebike', label: 'El-sykkel', sub: s.name, dist: Math.round(walkM),
+          walkT, rideT: Math.ceil(rideM / RIDE_MPM.ebike), count: s.ebikes });
+      }
+      const regularCount = s.bikes;
+      if (regularCount > 0) {
+        options.push({ type: 'bike', label: 'Bysykkel', sub: s.name, dist: Math.round(walkM),
+          walkT, rideT: Math.ceil(rideM / RIDE_MPM.bike), count: regularCount });
+      }
+    });
+  }
+
+  if (_cachedScooters) {
+    _cachedScooters.forEach(v => {
+      const walkM = haver(arrLL.lat, arrLL.lon, v.lat, v.lon);
+      const walkT = Math.ceil(walkM / walkSpd);
+      const rideM = haver(v.lat, v.lon, destLL.lat, destLL.lon) * ROUTE_FACTOR;
+      const rangeKm = v.battery !== null ? Math.round(v.battery * 0.25) : null;
+      const rideKm  = Math.round(rideM / 1000 * 10) / 10;
+      const tooLow  = rangeKm !== null && rangeKm < rideKm;
+      if (!tooLow) {
+        options.push({ type: 'scooter', label: v.operator, sub: 'sparkesykkel', dist: Math.round(walkM),
+          walkT, rideT: Math.ceil(rideM / RIDE_MPM.scooter), battery: v.battery, rangeKm });
+      }
+    });
+  }
+
+  return options
+    .map(o => ({ ...o, total: o.walkT + o.rideT }))
+    .sort((a, b) => a.total - b.total)
+    .slice(0, 5);
+}
+
+function _mobilityIcon(type) {
+  if (type === 'ebike')   return '⚡🚲';
+  if (type === 'bike')    return '🚲';
+  if (type === 'scooter') return '🛴';
+  return '🚲';
+}
+
+function _mobilitySectionHtml() {
+  if (!_walkDestLL || (!_cachedBikes && !_cachedScooters)) {
+    return '<div class="mob-loading">angi destinasjon for å sammenligne alternativer</div>';
+  }
+  const arrLL = _arrLL;
+  if (!arrLL) return '';
+  const ranked = _rankMobility(arrLL, _walkDestLL);
+  if (!ranked.length) return '<div class="mob-loading">ingen tilgjengelige alternativer i nærheten</div>';
+
+  return ranked.map((o, idx) => {
+    const isBest = idx === 0;
+    const meta = [];
+    if (o.type === 'bike' || o.type === 'ebike') meta.push(o.count + ' ledig');
+    if (o.battery !== null) meta.push(o.battery + '% · ca ' + o.rangeKm + ' km');
+    meta.push(o.dist + ' m unna');
+    return '<div class="mob-option' + (isBest ? ' mob-best' : '') + '">'
+      + '<span class="mob-icon">' + _mobilityIcon(o.type) + '</span>'
+      + '<div class="mob-info">'
+      + '<span class="mob-name">' + o.label + (o.sub !== o.label ? ' <span class="mob-sub">· ' + o.sub + '</span>' : '') + '</span>'
+      + '<span class="mob-meta">' + meta.join(' · ') + '</span>'
+      + '</div>'
+      + '<div class="mob-time' + (isBest ? ' mob-time-best' : '') + '">'
+      + '<span class="mob-total">' + o.total + ' min</span>'
+      + '<span class="mob-breakdown">' + o.walkT + ' + ' + o.rideT + '</span>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function _updateMobilitySection() {
+  const el = document.getElementById('hn-mobility-content');
+  if (el) el.innerHTML = _mobilitySectionHtml();
+}
+
 function renderNextPanel() {
   const el = document.getElementById('t-next');
   if (!el) return;
@@ -659,6 +753,10 @@ function renderNextPanel() {
         + '<div id="hn-places-content">' + _placesSectionHtml() + '</div>'
         + '</div>'
       : '')
+    + '<div class="hn-section">'
+    + '<div class="hn-section-label">beste alternativ</div>'
+    + '<div id="hn-mobility-content">' + _mobilitySectionHtml() + '</div>'
+    + '</div>'
     + '<div class="hn-section">'
     + '<div class="hn-section-label">gangavstand</div>'
     + recentsHtml
@@ -1173,6 +1271,8 @@ export function startTracking() {
   _tCardsHtml = '';
   _tWeatherHtml = '';
   _walkDestLL = null;
+  _cachedBikes = null;
+  _cachedScooters = null;
   if (intervals.track) clearInterval(intervals.track);
   renderTrack();
   _fetchTrack();

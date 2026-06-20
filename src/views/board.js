@@ -27,7 +27,7 @@ const _depMap = new Map();
 
 // ── Mode filter ──────────────────────────────────────────────────────────────
 const MODES_KEY = 't.modes';
-const DEFAULT_MODES = { metro: true, tram: true, bus: true, sykkel: false };
+const DEFAULT_MODES = { metro: true, tram: true, bus: true, rail: true, sykkel: false };
 function loadModes() {
   try { const v = storage.get(MODES_KEY); return v ? { ...DEFAULT_MODES, ...JSON.parse(v) } : { ...DEFAULT_MODES }; }
   catch { return { ...DEFAULT_MODES }; }
@@ -316,9 +316,9 @@ function _drawWalkRoute(fromLL, toLL, destName) {
   }
 
   // Foot route from Entur OTP3 — uses Norwegian OSM pedestrian data, same API already in use
-  const q = '{trip(from:{coordinates:{latitude:' + fromLL.lat + ',longitude:' + fromLL.lon + '}}' +
-    'to:{coordinates:{latitude:' + toLL.lat + ',longitude:' + toLL.lon + '}}' +
-    'modes:{directMode:foot}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}}';
+  const q = '{trip(from:{coordinates:{latitude:' + fromLL.lat + ',longitude:' + fromLL.lon + '}}'
+    + 'to:{coordinates:{latitude:' + toLL.lat + ',longitude:' + toLL.lon + '}}'
+    + 'modes:{directMode:foot}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}}';
   fetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -353,6 +353,7 @@ function renderModeFilter() {
     { key: 'metro', label: 'T-bane' },
     { key: 'tram',  label: 'Trikk' },
     { key: 'bus',   label: 'Buss' },
+    { key: 'rail',  label: 'Tog' },
     { key: 'sykkel', label: 'Sykkel' },
   ];
   // Rebuilding via innerHTML every render tick can detach a pill mid-tap and
@@ -584,11 +585,6 @@ function renderLineRoute(visibleDeps) {
   // For buses, snap the corridor to actual road geometry via OTP car routing.
   // Metro/tram run on dedicated tracks — straight stop-to-stop lines are accurate enough.
   if (isBus && pts.length >= 2) {
-    const first = pts[0], last = pts[pts.length - 1];
-    // Build a multi-leg car query: chain through every intermediate stop so the
-    // road route follows the actual bus path rather than cutting across.
-    // OTP doesn't support waypoints in directMode, so we query each stop-to-stop
-    // segment in one batched GraphQL request and concatenate the polylines.
     const segQueries = pts.slice(0, -1).map((p, i) => {
       const n = pts[i + 1];
       return 'seg' + i + ':trip(from:{coordinates:{latitude:' + p[0] + ',longitude:' + p[1] + '}}'
@@ -618,11 +614,9 @@ function renderLineRoute(visibleDeps) {
         if (!_bRouteLayer) return;
         const d = data && data.data;
         if (!d) throw new Error('no data');
-        // Collect results; track which segments failed for retry
         const resolved = segQueries.map((_, i) => _extractEncoded(d, i));
         const failedIdx = resolved.map((enc, i) => enc ? null : i).filter(i => i !== null);
         if (!failedIdx.length) return resolved;
-        // Retry failed segments with bicycle mode (reaches more areas than car)
         const retryQueries = failedIdx.map(i => _buildSegQuery('bicycle', pts[i], pts[i + 1], i));
         return _postOtp(retryQueries).then(r2 => {
           const d2 = r2 && r2.data;
@@ -658,7 +652,6 @@ function renderLineRoute(visibleDeps) {
 
   stops.forEach((s, i) => {
     if (!s.name) return;
-    // Always show name labels for the first and last stop (boarding/alighting).
     const isEndpoint = i === 0 || i === stops.length - 1;
     const marker = L.marker([s.lat, s.lon], { icon: makeRouteStopIcon(color) }).addTo(_bRouteLayer);
     const tooltip = L.tooltip({
@@ -689,7 +682,6 @@ function renderLineRoute(visibleDeps) {
       L.marker([destLL.lat, destLL.lon], { icon: _makeDestIcon() })
         .bindTooltip(dir.to || 'Destinasjon', { permanent: true, direction: 'top', offset: [0, -32], className: 'map-label' })
         .addTo(_bRouteLayer);
-      // Fetch a real walking polyline from OTP, fall back to straight dashed line.
       const q = '{trip(from:{coordinates:{latitude:' + alightPt[0] + ',longitude:' + alightPt[1] + '}}'
         + 'to:{coordinates:{latitude:' + destLL.lat + ',longitude:' + destLL.lon + '}}'
         + 'modes:{directMode:foot}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}}';
@@ -823,7 +815,7 @@ export function renderBoard() {
     renderBoardMap(pos, modes);
   }
 
-  const activeModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
+  const activeModes = ['metro', 'tram', 'bus', 'rail'].filter(m => modes[m]);
   const list = document.getElementById('dep-list');
   if (!activeModes.length) {
     list.innerHTML = '';
@@ -865,7 +857,7 @@ export function renderBoard() {
     if (!cur || arrMs < cur.arrMs) depMinMap.set(depMin, { c, origIdx, arrMs });
   });
   let visibleDeps = Array.from(depMinMap.values());
-  if (activeModes.length < 3) {
+  if (activeModes.length < 4) {
     visibleDeps = visibleDeps.filter(({ c }) => activeModes.includes(_depMode(c)));
   }
   if (!visibleDeps.length) {
@@ -936,6 +928,7 @@ export function renderBoard() {
     const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
     const mtl = walkActive ? mToLeave(depTs) : null;
     const rcls = walkActive ? reachCls(mtl) : null;
+    const isRail = _depMode(c) === 'rail';
     const isCancelled = c.cancellation;
     const missed = rcls === 'missed';
     const tooEarlyForPlan = planMinDepTs !== null && depTs < planMinDepTs;
@@ -1012,6 +1005,17 @@ export function renderBoard() {
       else if (score <= -1) occLevel = 2;
     }
 
+    // Skip local heuristic occupancy for trains — patterns don't apply
+    if (isRail) occLevel = null;
+
+    // Journey duration for trains (dep→arr)
+    const railDuration = (isRail && arrT)
+      ? (() => {
+          const dm = Math.round((new Date(arrT).getTime() - depTs) / 60000);
+          return dm >= 60 ? Math.floor(dm / 60) + 't' + (dm % 60 > 0 ? ' ' + (dm % 60) + 'm' : '') : dm + ' min';
+        })()
+      : null;
+
     const visLegs = c._legs ? c._legs.slice(0, 3) : null;
     const lineBadges = visLegs
       ? visLegs.map(l => {
@@ -1052,6 +1056,7 @@ export function renderBoard() {
       + '<div class="dep-times">'
       + '<span class="dep-dep">' + clk(depTs) + '</span>'
       + (arrT ? '<span class="dep-arr">ank. ' + clk(arrT) + '</span>' : '')
+      + (railDuration ? '<span class="dep-arr dep-rail-dur">' + railDuration + '</span>' : '')
       + '</div>'
       + '</div>'
       + '<div class="dep-info">'
@@ -1067,7 +1072,7 @@ export function renderBoard() {
           + '</div>'
         : '')
       + '</div>'
-      + '<div class="dep-spor"><div class="sl">spor</div><div class="sn">' + quay + '</div></div>'
+      + '<div class="dep-spor' + (isRail ? ' dep-spor-rail' : '') + '"><div class="sl">spor</div><div class="sn">' + quay + '</div></div>'
       + '</div>';
   });
   list.innerHTML = html;
@@ -1091,7 +1096,6 @@ function _fetchBoard() {
   const dir = config.dirs[state.dIdx];
   if (dir.toGeo || dir.toStopId || (dir._toLat && dir._toLon)) {
     fetchTrip(dir, (patterns, situations) => {
-      // Populate statLL from geocoded departure coords (covers GPS-unavailable + walkFromLL path)
       if (dir._fromLat && dir._fromLon) {
         state.statLL[dir.key] = { lat: dir._fromLat, lon: dir._fromLon };
         window._updateWalkDbg && window._updateWalkDbg();

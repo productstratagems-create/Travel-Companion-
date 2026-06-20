@@ -15,6 +15,14 @@ html[data-theme="light"] .amber { color: #b05800; }
 html[data-theme="light"] .warn  { color: #92400e; }
 html[data-theme="light"] .go    { color: #b45309; }
 
+html[data-theme="light"] .mode-pill{
+  background:rgba(255,253,247,.92);border-color:rgba(26,19,9,.2);color:#4b5563;
+}
+html[data-theme="light"] .mode-pill.active{
+  background:rgba(176,88,0,.12);border-color:rgba(176,88,0,.45);color:#b05800;
+}
+html[data-theme="light"] .line-pill{background:rgba(255,253,247,.92)}
+
 html[data-theme="light"] .map-expand-btn {
   background: rgba(255,253,247,.9);
   border-color: rgba(26,19,9,.15);

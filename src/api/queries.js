@@ -3,7 +3,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
   const fromIsCoord = fromId && typeof fromId === 'object';
   const stopPlaceQuery = fromIsCoord ? '' : ('stopPlace(id:"' + fromId + '"){'
     + sits + ' '
-    + 'estimatedCalls(numberOfDepartures:5,whiteListedModes:[metro,tram,bus,rail]):{'  
+    + 'estimatedCalls(numberOfDepartures:5,whiteListedModes:[metro,tram,bus,rail]){'
     + sits + ' serviceJourney{' + sits + '}}} ');
   const fromField = fromIsCoord
     ? 'from:{coordinates:{latitude:' + fromId.lat + ',longitude:' + fromId.lon + '}} '
@@ -33,7 +33,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
 export function boardGQL(id, n) {
   return '{stopPlace(id:"' + id + '"){id name latitude longitude '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
-    + 'estimatedCalls(numberOfDepartures:' + (n || 10) + ',whiteListedModes:[metro,tram,bus,rail]):{'  
+    + 'estimatedCalls(numberOfDepartures:' + (n || 10) + ',whiteListedModes:[metro,tram,bus,rail]){'
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation occupancyStatus '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
     + 'destinationDisplay{frontText} quay{id publicCode name} '

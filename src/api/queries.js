@@ -3,7 +3,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
   const fromIsCoord = fromId && typeof fromId === 'object';
   const stopPlaceQuery = fromIsCoord ? '' : ('stopPlace(id:"' + fromId + '"){'
     + sits + ' '
-    + 'estimatedCalls(numberOfDepartures:5,whiteListedModes:[metro]){'
+    + 'estimatedCalls(numberOfDepartures:5,whiteListedModes:[metro,tram,bus,rail]):{'  
     + sits + ' serviceJourney{' + sits + '}}} ');
   const fromField = fromIsCoord
     ? 'from:{coordinates:{latitude:' + fromId.lat + ',longitude:' + fromId.lon + '}} '
@@ -17,7 +17,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
     + (viaId ? 'via:[{visit:{stopLocationIds:["' + viaId + '"]}}] ' : '')
     + 'numTripPatterns:' + (n || 12) + ' '
     + 'walkSpeed:' + (walkSpeed || 1.3) + ' '
-    + 'modes:{accessMode:foot,egressMode:foot,transportModes:[{transportMode:metro},{transportMode:bus},{transportMode:tram}]}'
+    + 'modes:{accessMode:foot,egressMode:foot,transportModes:[{transportMode:metro},{transportMode:bus},{transportMode:tram},{transportMode:rail}]}'
     + ') { tripPatterns { duration legs {'
     + ' fromPlace{name latitude longitude}'
     + ' toPlace{name latitude longitude}'
@@ -33,7 +33,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
 export function boardGQL(id, n) {
   return '{stopPlace(id:"' + id + '"){id name latitude longitude '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
-    + 'estimatedCalls(numberOfDepartures:' + (n || 10) + ',whiteListedModes:[metro,tram]){'
+    + 'estimatedCalls(numberOfDepartures:' + (n || 10) + ',whiteListedModes:[metro,tram,bus,rail]):{'  
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation occupancyStatus '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
     + 'destinationDisplay{frontText} quay{id publicCode name} '

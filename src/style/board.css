@@ -86,6 +86,9 @@
 .dep-times{margin-left:auto;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:.05rem}
 .dep-dep{font-size:13px;color:#f5b840;white-space:nowrap;font-variant-numeric:tabular-nums}
 .dep-arr{font-size:11px;color:#8a837d;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dep-rail-dur{color:#7485a0;font-style:italic}
+.dep-spor-rail .sl{color:#f5b840;opacity:.7}
+.dep-spor-rail .sn{font-size:1.9rem;color:#f5b840;text-shadow:0 0 10px rgba(245,184,64,.9)}
 .dep-info{display:flex;align-items:center;gap:.35rem;margin-bottom:.1rem}
 .dep-dest{
   font-size:12px;font-weight:400;color:#8c857f;

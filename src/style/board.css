@@ -154,7 +154,7 @@
 .map-wrap #mode-filter,.map-wrap #line-filter{
   position:absolute;left:.5rem;right:.5rem;
   display:flex;gap:.35rem;flex-wrap:wrap;
-  z-index:5;pointer-events:none;
+  z-index:1000;pointer-events:none;
 }
 .map-wrap #mode-filter{top:.5rem}
 .map-wrap #line-filter{bottom:.5rem}

@@ -23,9 +23,10 @@ import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
 import config from './config.js';
-import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, saveDep, saveDest, renderBoardProfileSwitcher, trackPlace } from './views/settings.js';
-import { getActiveProfile } from './storage.js';
+import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, loadDep, saveDep, saveDest, renderBoardProfileSwitcher, trackPlace } from './views/settings.js';
+import { getActiveProfile, storage } from './storage.js';
 import { state } from './state.js';
+import { recordSmartTrip, predictDest } from './api/smart.js';
 
 // Prefill from/to/travelTime (and optionally stop IDs / coords) via deep
 // link query params (e.g. from Wakety). When stop IDs or coordinates are
@@ -71,6 +72,7 @@ const prefilledRoute = (function applyPrefillFromQuery() {
     applied = true;
     trackPlace('dep', from, { lat: fromLat ? Number(fromLat) : null, lon: fromLon ? Number(fromLon) : null, stopId: fromStopId || null });
     trackPlace('arr', to,   { lat: toLat   ? Number(toLat)   : null, lon: toLon   ? Number(toLon)   : null, stopId: toStopId   || null });
+    recordSmartTrip(from, to, toStopId || null, toLat ? Number(toLat) : null, toLon ? Number(toLon) : null);
   }
 
   if (from || to || travelTime) {
@@ -86,6 +88,40 @@ window._showSettings = showSettings;
 window._showPrefs = showPrefs;
 window._applyRoute = applyRoute;
 window._renderLeisure = renderLeisure;
+
+window._smartMode = function() {
+  const ns = state.nearestStation;
+  const dest = predictDest();
+  if (!dest) {
+    logMsg('Ikke nok reisehistorikk ennå — reis manuelt noen ganger først.', 'err');
+    return;
+  }
+  const from = (ns && ns.name) || loadDep();
+  if (!from) {
+    logMsg('Finner ikke posisjon. Aktiver GPS og prøv igjen.', 'err');
+    return;
+  }
+  config.dirs[2] = {
+    key: 'custom-out',
+    from,
+    to: dest.toName,
+    stopId: ns ? ns.id : null,
+    toStopId: dest.toStopId || null,
+    filter: null,
+    geo: ns ? null : from,
+    toGeo: dest.toStopId ? null : dest.toName,
+    line: null,
+    _fromLat: ns ? ns.lat : null,
+    _fromLon: ns ? ns.lon : null,
+  };
+  state.dIdx = 2;
+  updateHeader();
+  state.deps = [];
+  show('v-board');
+  const label = dest.source === 'smart' ? '⚡ auto' : '⚡ hyppigst';
+  logMsg(label + ': ' + from + ' → ' + dest.toName);
+  window._startBoard && window._startBoard();
+};
 
 initTheme();
 attachEventListeners();

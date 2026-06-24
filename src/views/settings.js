@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { recordSmartTrip } from '../api/smart.js';
 import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
@@ -570,6 +571,7 @@ export function applyRoute() {
   saveVia(via);
   trackPlace('dep', dep, { lat: depLat, lon: depLon, stopId: depId });
   trackPlace('arr', arr, { lat: arrLat, lon: arrLon, stopId: arrId });
+  recordSmartTrip(dep, arr, arrId, arrLat, arrLon);
   return true;
 }
 

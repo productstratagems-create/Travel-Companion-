@@ -88,6 +88,11 @@ export function attachEventListeners() {
 
   document.getElementById('board-more-btn').addEventListener('click', toggleBoardMenu);
 
+  document.getElementById('smart-btn').addEventListener('click', () => {
+    closeBoardMenu();
+    window._smartMode && window._smartMode();
+  });
+
   document.getElementById('prefs-btn').addEventListener('click', () => {
     window._showPrefs && window._showPrefs();
     show('v-prefs');

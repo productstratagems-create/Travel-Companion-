@@ -17,7 +17,7 @@ const TRANSIT_CATEGORIES = TRANSIT_CAT;
 const EXPLORE_CATS = [
   { label: 'spise',  emoji: '🍽', amenities: ['catering.restaurant', 'catering.fast_food'] },
   { label: 'kaffe',  emoji: '☕', amenities: ['catering.cafe', 'catering.bakery'] },
-  { label: 'kultur', emoji: '🏛', amenities: ['entertainment.museum', 'entertainment.cinema', 'entertainment.theatre', 'entertainment.arts_centre', 'education.library'] },
+  { label: 'kultur', emoji: '🏗', amenities: ['entertainment.museum', 'entertainment.cinema', 'entertainment.theatre', 'entertainment.arts_centre', 'education.library'] },
   { label: 'handel', emoji: '🛍', amenities: ['commercial.clothing', 'commercial.shoes', 'commercial.sport', 'commercial.books', 'commercial.electronics', 'commercial.shopping_mall'] },
   { label: 'drikke', emoji: '🍺', amenities: ['catering.bar', 'catering.pub'] },
 ];
@@ -31,7 +31,6 @@ const _depStopIds = new Map();
 const _arrStopIds = new Map();
 const _viaStopIds = new Map();
 
-// Render freq items into a suggestion list. Returns the set of names added.
 function _prependFreqToSugg(sugg, inp, role, query, stopMap, onPick) {
   const key = role === 'dep' ? FREQ_DEP_KEY : FREQ_ARR_KEY;
   const all  = _loadFreq(key);
@@ -61,7 +60,6 @@ function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbo
   const inp    = document.getElementById(inputId);
   if (!suggEl || !inp) return;
 
-  // On focus / empty query: show frequent places immediately
   if (!query.length) {
     suggEl.innerHTML = '';
     const added = _prependFreqToSugg(suggEl, inp, role, '', stopMap, null);
@@ -93,7 +91,6 @@ function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbo
           });
         stopMap.clear();
         sugg.innerHTML = '';
-        // Frequent matches first
         const freqNames = _prependFreqToSugg(sugg, inp2, role, query, stopMap, null);
         const fresh = stops.filter(f => {
           const name = (f.properties.name || f.properties.label || '').toLowerCase();
@@ -224,7 +221,6 @@ export function initSettings() {
     const inp    = document.getElementById('set-arr');
     if (!suggEl || !inp) return;
 
-    // On focus/empty: show frequent destinations immediately
     if (!q.length) {
       suggEl.innerHTML = '';
       const added = _prependFreqToSugg(suggEl, inp, 'arr', '', _arrStopIds, p => {
@@ -251,7 +247,6 @@ export function initSettings() {
         const fresh = results.filter(r => !freqNames.has(r.label.toLowerCase()));
         if (!fresh.length && !freqNames.size) { sugg.hidden = true; return; }
         fresh.forEach(r => {
-          // Don't overwrite a valid stop ID with null (transit result takes precedence over venue)
           const existing = _arrStopIds.get(r.label);
           if (!existing || !existing.id) _arrStopIds.set(r.label, { id: r.id, lat: r.lat, lon: r.lon });
           sugg.appendChild(makeSuggBtn(r.label, r.category || [], () => {
@@ -277,8 +272,6 @@ export function initSettings() {
       () => _viaAbort, v => { _viaAbort = v; },
       () => _viaTimer, v => { _viaTimer = v; }, 'via'));
 
-  // Quick destination: Oslo lufthavn (Gardermoen) — fills + resolves the
-  // arrival field in one tap, same as picking a geocoder suggestion.
   const quickOslBtn = document.getElementById('set-quick-osl');
   if (quickOslBtn) {
     quickOslBtn.addEventListener('click', () => {
@@ -352,7 +345,6 @@ export function initSettings() {
     });
   }
 
-  // Walk-from: show/hide toggle
   const wfAddBtn = document.getElementById('set-walkfrom-add');
   if (wfAddBtn) {
     wfAddBtn.addEventListener('click', () => {
@@ -365,7 +357,6 @@ export function initSettings() {
     });
   }
 
-  // Walk-from: input → geocode any place
   const wfEl = document.getElementById('set-walkfrom');
   if (wfEl) {
     wfEl.addEventListener('input', () => {
@@ -410,7 +401,6 @@ export function initSettings() {
     });
   }
 
-  // Walk-from: clear button
   const wfClearBtn = document.getElementById('set-walkfrom-clear');
   if (wfClearBtn) {
     wfClearBtn.addEventListener('click', () => {
@@ -435,8 +425,6 @@ export function showSettings() {
   const ns = state.nearestStation;
   const depEl = document.getElementById('set-dep');
 
-  // Dep input: GPS nearest station takes priority (user is there now),
-  // then saved preference, then current dir name.
   if (depEl) {
     const saved = loadDep();
     depEl.value = (ns ? ns.name : null) || saved || (config.dirs[state.dIdx] ? config.dirs[state.dIdx].from : '');
@@ -444,7 +432,6 @@ export function showSettings() {
     syncClear('set-dep', 'set-dep-clear');
   }
 
-  // Nearby station list
   const nearbyList = document.getElementById('set-nearby-list');
   if (nearbyList) {
     const stations = (state.nearestStations && state.nearestStations.length)
@@ -496,7 +483,6 @@ export function showSettings() {
   _highlightPrefs();
   renderProfileSwitcher();
 
-  // Restore destination preview if we already have resolved coords from a prior apply
   const prevDir = config.dirs[2];
   if (prevDir && prevDir._toLat && prevDir._toLon && loadDest()) {
     _showDestPreview(prevDir._toLat, prevDir._toLon);
@@ -526,22 +512,19 @@ export function applyRoute() {
     return false;
   }
 
-  // Resolve departure stop ID + coords: GPS > nearestStations list > autocomplete map > geocode
   const depMatchesGps = ns && ns.name.toLowerCase() === dep.toLowerCase();
   const depNearby = !depMatchesGps
     && state.nearestStations.find(s => s.name.toLowerCase() === dep.toLowerCase());
-  const depEntry = _depStopIds.get(dep);  // { id, lat, lon } | null
+  const depEntry = _depStopIds.get(dep);
   const depId  = depMatchesGps ? ns.id   : (depNearby ? depNearby.id  : (depEntry ? depEntry.id  : null));
   const depLat = depMatchesGps ? ns.lat  : (depNearby ? depNearby.lat : (depEntry ? depEntry.lat : null));
   const depLon = depMatchesGps ? ns.lon  : (depNearby ? depNearby.lon : (depEntry ? depEntry.lon : null));
 
-  // Resolve destination: autocomplete map gives { id, lat, lon }; id may be null for addresses
-  const arrEntry = _arrStopIds.get(arr);  // { id, lat, lon } | null
+  const arrEntry = _arrStopIds.get(arr);
   const arrId  = arrEntry ? arrEntry.id  : null;
   const arrLat = arrEntry ? arrEntry.lat : null;
   const arrLon = arrEntry ? arrEntry.lon : null;
 
-  // Resolve optional via stop ID: autocomplete map > geocode
   const viaRaw = (document.getElementById('set-via') || {}).value;
   const via = (viaRaw && viaRaw.trim()) || null;
   const viaEntry = via ? _viaStopIds.get(via) : null;
@@ -571,7 +554,7 @@ export function applyRoute() {
   saveVia(via);
   trackPlace('dep', dep, { lat: depLat, lon: depLon, stopId: depId });
   trackPlace('arr', arr, { lat: arrLat, lon: arrLon, stopId: arrId });
-  recordSmartTrip(dep, arr, arrId, arrLat, arrLon);
+  recordSmartTrip(dep, arr, arrId, arrLat, arrLon, depId);
   return true;
 }
 
@@ -604,7 +587,6 @@ export function applyRouteFromState(arr) {
   return true;
 }
 
-// ── Frequent places ──────────────────────────────────────────────────────────
 const FREQ_DEP_KEY = 't.freqDep';
 const FREQ_ARR_KEY = 't.freqArr';
 const FREQ_MAX     = 10;
@@ -651,14 +633,12 @@ function _renderFreqRow(elId, role) {
       if (inp) {
         inp.value = btn.dataset.name;
         syncClear(inp.id, inp.id + '-clear');
-        // Pre-populate the stop map from stored coords if available
         const entry = list.find(p => p.name === btn.dataset.name);
         if (entry && entry.lat) {
           const map = role === 'dep' ? _depStopIds : _arrStopIds;
           map.set(entry.name, { id: entry.stopId, lat: entry.lat, lon: entry.lon });
           if (role === 'arr' && entry.lat) _showDestPreview(entry.lat, entry.lon);
         }
-        // Move focus to the other field so user can complete the route
         const other = document.getElementById(role === 'dep' ? 'set-arr' : 'set-dep');
         if (other && !other.value) other.focus();
       }
@@ -694,7 +674,6 @@ function clearVia() {
   storage.remove(VIA_KEY);
 }
 
-// ── Profile switcher (shared renderer) ──────────────────────────────────────
 function _renderProfileSwitcherInto(el, addInputId, addOkId, newWrapId) {
   if (!el) return;
   const profiles = listProfiles();
@@ -705,7 +684,7 @@ function _renderProfileSwitcherInto(el, addInputId, addOkId, newWrapId) {
         '<button class="profile-pill' + (p === active ? ' active' : '') + '" data-profile="' + p + '">'
         + p
         + (p !== 'default' && p !== active
-          ? ' <span class="profile-del" data-del="' + p + '">×</span>'
+          ? ' <span class="profile-del" data-del="' + p + '">&times;</span>'
           : '')
         + '</button>'
       ).join('')
@@ -758,5 +737,4 @@ export function renderBoardProfileSwitcher() {
   );
 }
 
-// Kept for backward compat — no-op; GPS now determines departure
 export function loadCustomRoute() {}

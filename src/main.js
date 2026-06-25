@@ -28,10 +28,6 @@ import { getActiveProfile, storage } from './storage.js';
 import { state } from './state.js';
 import { recordSmartTrip, predictDest, smartHistLen } from './api/smart.js';
 
-// Prefill from/to/travelTime (and optionally stop IDs / coords) via deep
-// link query params (e.g. from Wakety). When stop IDs or coordinates are
-// given, build the route directly so it doesn't depend on name-matching
-// via the geocoder or GPS.
 const prefilledRoute = (function applyPrefillFromQuery() {
   const params = new URLSearchParams(window.location.search);
   const from = params.get('from');
@@ -72,7 +68,7 @@ const prefilledRoute = (function applyPrefillFromQuery() {
     applied = true;
     trackPlace('dep', from, { lat: fromLat ? Number(fromLat) : null, lon: fromLon ? Number(fromLon) : null, stopId: fromStopId || null });
     trackPlace('arr', to,   { lat: toLat   ? Number(toLat)   : null, lon: toLon   ? Number(toLon)   : null, stopId: toStopId   || null });
-    recordSmartTrip(from, to, toStopId || null, toLat ? Number(toLat) : null, toLon ? Number(toLon) : null);
+    recordSmartTrip(from, to, toStopId || null, toLat ? Number(toLat) : null, toLon ? Number(toLon) : null, fromStopId || null);
   }
 
   if (from || to || travelTime) {
@@ -81,7 +77,6 @@ const prefilledRoute = (function applyPrefillFromQuery() {
   return applied;
 })();
 
-// Expose helpers used via window bridges in nav.js and debug controls
 window._logMsg = logMsg;
 window._updateWalkDbg = updateWalkDbg;
 window._showSettings = showSettings;
@@ -90,20 +85,27 @@ window._applyRoute = applyRoute;
 window._renderLeisure = renderLeisure;
 
 function _applySmartRoute(ns, dest) {
-  const from = (ns && ns.name) || loadDep();
+  // Prefer a nearby station that matches the historically-used departure stop;
+  // fall back to the GPS-nearest station, then to the saved departure name.
+  const nearby = state.nearestStations || (ns ? [ns] : []);
+  const preferred = dest.fromStopId
+    ? nearby.find(s => s.id === dest.fromStopId) || ns
+    : ns;
+  const dep = preferred || ns;
+  const from = (dep && dep.name) || loadDep();
   if (!from) return false;
   config.dirs[2] = {
     key: 'custom-out',
     from,
     to: dest.toName,
-    stopId: ns ? ns.id : null,
+    stopId: dep ? dep.id : null,
     toStopId: dest.toStopId || null,
     filter: null,
-    geo: ns ? null : from,
+    geo: dep ? null : from,
     toGeo: dest.toStopId ? null : dest.toName,
     line: null,
-    _fromLat: ns ? ns.lat : null,
-    _fromLon: ns ? ns.lon : null,
+    _fromLat: dep ? dep.lat : null,
+    _fromLon: dep ? dep.lon : null,
   };
   state.dIdx = 2;
   updateHeader();
@@ -148,7 +150,6 @@ initSettings();
 updateHeader();
 startRenderLoop();
 
-// Profile chip in header
 const _profileChip = document.getElementById('header-profile-chip');
 if (_profileChip) {
   const _prof = getActiveProfile();
@@ -164,20 +165,16 @@ if (_profileChip) {
   });
 }
 
-// Journey restore: activate immediately if a journey is in progress
 const restored = loadJny();
 if (restored) {
   state.jny = restored;
   activateTracking();
-  // GPS runs in background to refresh walk time for next trip
   locateUser(() => {}, () => {});
 } else if (prefilledRoute) {
   updateHeader();
   startBoard();
-  // GPS runs in background to refresh walk time for next trip
   locateUser(() => {}, () => {});
 } else {
-  // GPS-first: detect nearest station, then decide what to show
   locateUser(
     (station) => {
       if (loadWeekendMode()) {
@@ -190,7 +187,6 @@ if (restored) {
           updateHeader();
           startBoard();
         } else {
-          // Auto-reise: trigger smart mode silently if history is established and confidence is high
           const smartDest = smartHistLen() >= 3 ? predictDest() : null;
           if (smartDest && smartDest.score >= 6) {
             if (_applySmartRoute(station, smartDest)) {
@@ -210,7 +206,6 @@ if (restored) {
       }
     },
     () => {
-      // GPS denied or failed
       if (loadWeekendMode()) {
         renderLeisure();
         show('v-leisure');

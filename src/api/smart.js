@@ -8,7 +8,7 @@ function _load() {
 }
 
 // Record a route with time context. Called when user applies a route.
-export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon) {
+export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon, fromStopId) {
   if (!fromName || !toName) return;
   const now = new Date();
   const bucket = Math.floor(now.getHours() / 2); // 2-hour slots, 0-11
@@ -21,8 +21,9 @@ export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon) {
     hist[idx].lastUsed = Date.now();
     if (toStopId) hist[idx].toStopId = toStopId;
     if (toLat != null) { hist[idx].toLat = toLat; hist[idx].toLon = toLon; }
+    if (fromStopId) hist[idx].fromStopId = fromStopId;
   } else {
-    hist.push({ key, toName, toStopId: toStopId || null, toLat: toLat || null, toLon: toLon || null, bucket, isWeekend, count: 1, lastUsed: Date.now() });
+    hist.push({ key, toName, toStopId: toStopId || null, toLat: toLat || null, toLon: toLon || null, fromStopId: fromStopId || null, bucket, isWeekend, count: 1, lastUsed: Date.now() });
   }
   hist.sort((a, b) => b.count - a.count || b.lastUsed - a.lastUsed);
   storage.set(HIST_KEY, JSON.stringify(hist.slice(0, HIST_MAX)));
@@ -45,14 +46,14 @@ export function predictDest() {
       const diff = Math.abs(e.bucket - bucket);
       if (diff > 2) return;
       const score = e.count * (diff === 0 ? 3 : diff === 1 ? 2 : 1) * (e.isWeekend === isWeekend ? 2 : 0.5);
-      if (score > bestScore) { bestScore = score; best = { toName: e.toName, toStopId: e.toStopId, score }; }
+      if (score > bestScore) { bestScore = score; best = { toName: e.toName, toStopId: e.toStopId, fromStopId: e.fromStopId || null, score }; }
     });
     if (best) return { ...best, source: 'smart' };
   }
   // Fallback: most-visited arrival regardless of time
   try {
     const arr = JSON.parse(storage.get('t.freqArr') || '[]');
-    if (arr.length) return { toName: arr[0].name, toStopId: arr[0].stopId || null, score: 0, source: 'freq' };
+    if (arr.length) return { toName: arr[0].name, toStopId: arr[0].stopId || null, fromStopId: null, score: 0, source: 'freq' };
   } catch { /* ignore */ }
   return null;
 }

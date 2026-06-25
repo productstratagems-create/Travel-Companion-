@@ -96,30 +96,33 @@ export function findArr(calls, name) {
   return null;
 }
 
+const TRANSIT_STOP_CATS = new Set(['metroStation', 'railStation', 'tramStop', 'busStation']);
+
 export function findNearestStation(lat, lon, onFound, onFail) {
   fetch(config.api.geocoderReverse
     + '?point.lat=' + lat + '&point.lon=' + lon
-    + '&boundary.circle.radius=5000&size=10&layers=venue')
+    + '&boundary.circle.radius=5000&size=20&layers=venue')
     .then(r => r.json())
     .then(j => {
-      const metros = ((j && j.features) || [])
-        .filter(f => (f.properties.category || []).includes('metroStation'))
+      const stops = ((j && j.features) || [])
+        .filter(f => (f.properties.category || []).some(c => TRANSIT_STOP_CATS.has(c)))
         .map(f => ({
           name: f.properties.name || f.properties.label,
           id: f.properties.id,
           lat: f.geometry.coordinates[1],
           lon: f.geometry.coordinates[0],
           distM: Math.round(haver(lat, lon, f.geometry.coordinates[1], f.geometry.coordinates[0])),
+          type: (f.properties.category || []).find(c => TRANSIT_STOP_CATS.has(c)) || 'unknown',
         }))
         .sort((a, b) => a.distM - b.distM)
-        .slice(0, 5);
-      if (!metros.length) { if (onFail) onFail('ingen stasjon i nærheten'); return; }
-      state.nearestStations = metros;
-      state.nearestStation = metros[0];
-      state.statLL['custom-out'] = { lat: metros[0].lat, lon: metros[0].lon };
-      logMsg('nærmeste: ' + metros[0].name, 'ok');
+        .slice(0, 8);
+      if (!stops.length) { if (onFail) onFail('ingen stasjon i nærheten'); return; }
+      state.nearestStations = stops;
+      state.nearestStation = stops[0];
+      state.statLL['custom-out'] = { lat: stops[0].lat, lon: stops[0].lon };
+      logMsg('nærmeste: ' + stops[0].name + ' (' + stops[0].type + ')', 'ok');
       updateWalkDbg();
-      if (onFound) onFound(metros[0]);
+      if (onFound) onFound(stops[0]);
     })
     .catch(err => { if (onFail) onFail(err.message); });
 }
@@ -186,4 +189,3 @@ const _wfSaved = loadWalkFrom();
 if (_wfSaved && _wfSaved.lat && _wfSaved.lon) {
   state.walkFromLL = { lat: _wfSaved.lat, lon: _wfSaved.lon };
 }
-

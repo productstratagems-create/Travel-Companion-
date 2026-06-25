@@ -22,8 +22,9 @@ export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon, fromSt
     if (toStopId) hist[idx].toStopId = toStopId;
     if (toLat != null) { hist[idx].toLat = toLat; hist[idx].toLon = toLon; }
     if (fromStopId) hist[idx].fromStopId = fromStopId;
+    if (fromName) hist[idx].fromName = fromName;
   } else {
-    hist.push({ key, toName, toStopId: toStopId || null, toLat: toLat || null, toLon: toLon || null, fromStopId: fromStopId || null, bucket, isWeekend, count: 1, lastUsed: Date.now() });
+    hist.push({ key, fromName, toName, toStopId: toStopId || null, toLat: toLat || null, toLon: toLon || null, fromStopId: fromStopId || null, bucket, isWeekend, count: 1, lastUsed: Date.now() });
   }
   hist.sort((a, b) => b.count - a.count || b.lastUsed - a.lastUsed);
   storage.set(HIST_KEY, JSON.stringify(hist.slice(0, HIST_MAX)));
@@ -46,7 +47,7 @@ export function predictDest() {
       const diff = Math.abs(e.bucket - bucket);
       if (diff > 2) return;
       const score = e.count * (diff === 0 ? 3 : diff === 1 ? 2 : 1) * (e.isWeekend === isWeekend ? 2 : 0.5);
-      if (score > bestScore) { bestScore = score; best = { toName: e.toName, toStopId: e.toStopId, fromStopId: e.fromStopId || null, score }; }
+      if (score > bestScore) { bestScore = score; best = { fromName: e.fromName || null, toName: e.toName, toStopId: e.toStopId, fromStopId: e.fromStopId || null, score }; }
     });
     if (best) return { ...best, source: 'smart' };
   }

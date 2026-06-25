@@ -92,16 +92,16 @@ function _applySmartRoute(ns, dest) {
     ? nearby.find(s => s.id === dest.fromStopId) || ns
     : ns;
   const dep = preferred || ns;
-  const from = (dep && dep.name) || loadDep();
+  const from = (dep && dep.name) || dest.fromName || loadDep();
   if (!from) return false;
   config.dirs[2] = {
     key: 'custom-out',
     from,
     to: dest.toName,
-    stopId: dep ? dep.id : null,
+    stopId: dep ? dep.id : (dest.fromStopId || null),
     toStopId: dest.toStopId || null,
     filter: null,
-    geo: dep ? null : from,
+    geo: (dep || dest.fromStopId) ? null : from,
     toGeo: dest.toStopId ? null : dest.toName,
     line: null,
     _fromLat: dep ? dep.lat : null,
@@ -174,6 +174,63 @@ if (restored) {
   updateHeader();
   startBoard();
   locateUser(() => {}, () => {});
+} else if (!loadWeekendMode() && !loadDest()) {
+  // History inference: if we have a high-confidence prediction with a stored departure stop,
+  // start the board immediately without waiting for GPS at all.
+  // Threshold is higher (score >= 9) since there's no GPS confirmation.
+  const histDest = smartHistLen() >= 3 ? predictDest() : null;
+  if (histDest && histDest.score >= 9 && histDest.fromStopId && histDest.fromName) {
+    _applySmartRoute(null, histDest);
+    show('v-board');
+    startBoard();
+    showSmartToast(histDest.toName, () => { showSettings(); show('v-settings'); });
+    logMsg('⚡ auto (historia): ' + config.dirs[2].from + ' → ' + histDest.toName);
+    // GPS in background — updates walk time and nearestStations silently
+    locateUser(() => {}, () => {});
+  } else {
+    // GPS-first (with cached position for fast startup)
+    locateUser(
+      (station) => {
+        if (loadWeekendMode()) {
+          renderLeisure();
+          show('v-leisure');
+        } else {
+          const savedDest = loadDest();
+          if (savedDest) {
+            applyRouteFromState(savedDest);
+            updateHeader();
+            startBoard();
+          } else {
+            const smartDest = smartHistLen() >= 3 ? predictDest() : null;
+            if (smartDest && smartDest.score >= 6) {
+              if (_applySmartRoute(station, smartDest)) {
+                show('v-board');
+                startBoard();
+                showSmartToast(smartDest.toName, () => { showSettings(); show('v-settings'); });
+                logMsg('⚡ auto: ' + config.dirs[2].from + ' → ' + smartDest.toName);
+              } else {
+                showSettings();
+                show('v-settings');
+              }
+            } else {
+              showSettings();
+              show('v-settings');
+            }
+          }
+        }
+      },
+      () => {
+        if (loadWeekendMode()) {
+          renderLeisure();
+          show('v-leisure');
+        } else {
+          const dest = loadDest();
+          if (dest) { applyRouteFromState(dest); updateHeader(); startBoard(); }
+          else { showSettings(); show('v-settings'); }
+        }
+      }
+    );
+  }
 } else {
   locateUser(
     (station) => {
@@ -187,21 +244,8 @@ if (restored) {
           updateHeader();
           startBoard();
         } else {
-          const smartDest = smartHistLen() >= 3 ? predictDest() : null;
-          if (smartDest && smartDest.score >= 6) {
-            if (_applySmartRoute(station, smartDest)) {
-              show('v-board');
-              startBoard();
-              showSmartToast(smartDest.toName, () => { showSettings(); show('v-settings'); });
-              logMsg('⚡ auto: ' + config.dirs[2].from + ' → ' + smartDest.toName);
-            } else {
-              showSettings();
-              show('v-settings');
-            }
-          } else {
-            showSettings();
-            show('v-settings');
-          }
+          showSettings();
+          show('v-settings');
         }
       }
     },

@@ -6,6 +6,7 @@ import { storage } from './storage.js';
 const WALK_SPEED_KEY  = 't.walkSpeed';
 const WALK_BUF_KEY    = 't.walkBuf';
 const WALK_FROM_KEY   = 't.walkFrom';
+const HOME_LL_KEY     = 't.homeLL';
 export const SPEED_MPN = { rolig: 41.67, middels: 83.33, rask: 116.67 };
 
 // Loose station-name match: lowercase, drop trailing ", area/city" qualifiers.
@@ -150,19 +151,32 @@ export function locateUser(onFound, onFail) {
   }
   if (_watchId !== null) return; // single watch for the session lifetime
 
+  // Cached position: call onFound immediately so the UI doesn't wait for GPS warm-up.
+  // GPS will still run in background; significant drift (>200m) silently re-fetches stations.
+  const hasCachedPos = !!state.homeLL;
+  if (hasCachedPos) {
+    findNearestStation(state.homeLL.lat, state.homeLL.lon, onFound, onFail);
+  }
+
   _watchId = navigator.geolocation.watchPosition(
     pos => {
       const { latitude, longitude, accuracy } = pos.coords;
       state.gpsError = null;
-      const firstFix = !state.homeLL;
-      // Accept the first fix unconditionally; subsequent ones only if precise enough
-      if (firstFix || accuracy <= ACC_GATE) {
+      const prevLL = state.homeLL;
+      if (!prevLL || accuracy <= ACC_GATE) {
         state.homeLL = _ema(state.homeLL, { lat: latitude, lon: longitude });
+        storage.set(HOME_LL_KEY, JSON.stringify({ lat: state.homeLL.lat, lon: state.homeLL.lon }));
         updateWalkDbg();
       }
-      if (firstFix) {
+      const drift = prevLL ? haver(prevLL.lat, prevLL.lon, latitude, longitude) : Infinity;
+      if (!hasCachedPos) {
+        // First-ever fix: notify and find station
         logMsg('✓ posisjon ±' + Math.round(accuracy) + 'm', 'ok');
         findNearestStation(latitude, longitude, onFound, onFail);
+      } else if (drift > 200) {
+        // User is at a meaningfully different location — refresh stations silently
+        logMsg('posisjon oppdatert ±' + Math.round(accuracy) + 'm (' + Math.round(drift) + 'm drift)', 'ok');
+        findNearestStation(latitude, longitude, () => {}, () => {});
       }
     },
     err => {
@@ -184,8 +198,12 @@ export function updateWalkDbg() {
   el.textContent = w.src + ': ~' + w.mins + ' min' + (w.dist ? ' (' + w.dist + ' m)' : '');
 }
 
-// Restore persisted walk-from position on module load
+// Restore persisted positions on module load
 const _wfSaved = loadWalkFrom();
 if (_wfSaved && _wfSaved.lat && _wfSaved.lon) {
   state.walkFromLL = { lat: _wfSaved.lat, lon: _wfSaved.lon };
 }
+try {
+  const _hlSaved = storage.get(HOME_LL_KEY);
+  if (_hlSaved) { const p = JSON.parse(_hlSaved); if (p && p.lat) state.homeLL = p; }
+} catch { /* ignore */ }

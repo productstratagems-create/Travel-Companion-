@@ -26,7 +26,7 @@ import config from './config.js';
 import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, loadDep, saveDep, saveDest, renderBoardProfileSwitcher, trackPlace } from './views/settings.js';
 import { getActiveProfile, storage } from './storage.js';
 import { state } from './state.js';
-import { recordSmartTrip, predictDest } from './api/smart.js';
+import { recordSmartTrip, predictDest, smartHistLen } from './api/smart.js';
 
 // Prefill from/to/travelTime (and optionally stop IDs / coords) via deep
 // link query params (e.g. from Wakety). When stop IDs or coordinates are
@@ -89,18 +89,9 @@ window._showPrefs = showPrefs;
 window._applyRoute = applyRoute;
 window._renderLeisure = renderLeisure;
 
-window._smartMode = function() {
-  const ns = state.nearestStation;
-  const dest = predictDest();
-  if (!dest) {
-    logMsg('Ikke nok reisehistorikk ennå — reis manuelt noen ganger først.', 'err');
-    return;
-  }
+function _applySmartRoute(ns, dest) {
   const from = (ns && ns.name) || loadDep();
-  if (!from) {
-    logMsg('Finner ikke posisjon. Aktiver GPS og prøv igjen.', 'err');
-    return;
-  }
+  if (!from) return false;
   config.dirs[2] = {
     key: 'custom-out',
     from,
@@ -117,9 +108,36 @@ window._smartMode = function() {
   state.dIdx = 2;
   updateHeader();
   state.deps = [];
+  return true;
+}
+
+function showSmartToast(destName, onCancel) {
+  const el = document.getElementById('smart-toast');
+  if (!el) return;
+  el.querySelector('.smart-toast-dest').textContent = destName;
+  el.style.display = 'flex';
+  let timer = setTimeout(() => { el.style.display = 'none'; }, 4000);
+  el.querySelector('.smart-toast-cancel').onclick = () => {
+    clearTimeout(timer);
+    el.style.display = 'none';
+    onCancel();
+  };
+}
+
+window._smartMode = function() {
+  const ns = state.nearestStation;
+  const dest = predictDest();
+  if (!dest) {
+    logMsg('Ikke nok reisehistorikk ennå — reis manuelt noen ganger først.', 'err');
+    return;
+  }
+  if (!_applySmartRoute(ns, dest)) {
+    logMsg('Finner ikke posisjon. Aktiver GPS og prøv igjen.', 'err');
+    return;
+  }
   show('v-board');
   const label = dest.source === 'smart' ? '⚡ auto' : '⚡ hyppigst';
-  logMsg(label + ': ' + from + ' → ' + dest.toName);
+  logMsg(label + ': ' + config.dirs[2].from + ' → ' + dest.toName);
   window._startBoard && window._startBoard();
 };
 
@@ -166,14 +184,28 @@ if (restored) {
         renderLeisure();
         show('v-leisure');
       } else {
-        const dest = loadDest();
-        if (dest) {
-          applyRouteFromState(dest);
+        const savedDest = loadDest();
+        if (savedDest) {
+          applyRouteFromState(savedDest);
           updateHeader();
           startBoard();
         } else {
-          showSettings();
-          show('v-settings');
+          // Auto-reise: trigger smart mode silently if history is established and confidence is high
+          const smartDest = smartHistLen() >= 3 ? predictDest() : null;
+          if (smartDest && smartDest.score >= 6) {
+            if (_applySmartRoute(station, smartDest)) {
+              show('v-board');
+              startBoard();
+              showSmartToast(smartDest.toName, () => { showSettings(); show('v-settings'); });
+              logMsg('⚡ auto: ' + config.dirs[2].from + ' → ' + smartDest.toName);
+            } else {
+              showSettings();
+              show('v-settings');
+            }
+          } else {
+            showSettings();
+            show('v-settings');
+          }
         }
       }
     },

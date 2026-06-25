@@ -28,6 +28,10 @@ export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon) {
   storage.set(HIST_KEY, JSON.stringify(hist.slice(0, HIST_MAX)));
 }
 
+export function smartHistLen() {
+  return _load().length;
+}
+
 // Return best prediction for current time, or null if no history.
 // Falls back to freqArr (no time dimension) if smart history is empty.
 export function predictDest() {

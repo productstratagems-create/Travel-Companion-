@@ -163,3 +163,23 @@ body.jny-chip-visible .wrap { padding-bottom: calc(60px + env(safe-area-inset-bo
   color:#8c857f;margin-top:.6rem;font-size:1.1rem;
 }
 .cta-btn.secondary:active{background:rgba(245,184,64,.06);color:#f5b840}
+
+/* ── Smart auto-reise toast ── */
+.smart-toast{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:.6rem;padding:.55rem .75rem;margin:.4rem .5rem 0;
+  background:rgba(245,184,64,.12);border:1px solid rgba(245,184,64,.25);
+  border-radius:8px;font-size:.85rem;color:#c9a84c;
+  animation:smart-toast-in .18s ease;
+}
+@keyframes smart-toast-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.smart-toast strong{color:#f5b840}
+.smart-toast-cancel{
+  background:none;border:none;color:#8c857f;
+  font-size:1rem;cursor:pointer;padding:0 .2rem;line-height:1;flex-shrink:0;
+}
+.smart-toast-cancel:hover{color:#f5b840}
+html[data-theme="light"] .smart-toast{
+  background:rgba(176,88,0,.07);border-color:rgba(176,88,0,.2);color:#b05800;
+}
+html[data-theme="light"] .smart-toast strong{color:#b05800}

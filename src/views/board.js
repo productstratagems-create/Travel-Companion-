@@ -844,7 +844,8 @@ export function renderBoard() {
   const now = Date.now();
   const walkActive = isWalkActive(dir);
 
-  // For each departure minute keep only the route with the earliest arrival.
+  // Trip-planner results (have _legs): deduplicate by departure minute, keep fastest arrival.
+  // Board results (no _legs): each call is a distinct service — deduplicate only exact duplicates.
   const indexed = state.deps.map((c, i) => ({ c, origIdx: i }));
   indexed.sort((a, b) =>
     new Date(a.c.expectedDepartureTime).getTime() - new Date(b.c.expectedDepartureTime).getTime()
@@ -853,8 +854,11 @@ export function renderBoard() {
   indexed.forEach(({ c, origIdx }) => {
     const depMin = Math.floor(new Date(c.expectedDepartureTime).getTime() / 60000);
     const arrMs  = c._finalArrival ? new Date(c._finalArrival).getTime() : Infinity;
-    const cur    = depMinMap.get(depMin);
-    if (!cur || arrMs < cur.arrMs) depMinMap.set(depMin, { c, origIdx, arrMs });
+    const key = c._legs
+      ? depMin
+      : (c.expectedDepartureTime + '|' + ((c.serviceJourney && c.serviceJourney.id) || origIdx));
+    const cur = depMinMap.get(key);
+    if (!cur || arrMs < cur.arrMs) depMinMap.set(key, { c, origIdx, arrMs });
   });
   let visibleDeps = Array.from(depMinMap.values());
   if (activeModes.length < 4) {
@@ -1117,6 +1121,13 @@ function _fetchBoard() {
   fetchBoard(dir, (stop) => {
     const sitMap = new Map();
     const addSits = (arr) => (arr || []).forEach(s => s && s.id && sitMap.set(s.id, s));
+    addSits(stop.situations);
+    (stop.estimatedCalls || []).forEach(call => {
+      addSits(call.situations);
+      if (call.serviceJourney) addSits(call.serviceJourney.situations);
+    });
+    state.serviceAlerts = Array.from(sitMap.values());
+    logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);
     if (stop.latitude && stop.longitude) {
       state.statLL[dir.key] = { lat: stop.latitude, lon: stop.longitude };
       window._updateWalkDbg && window._updateWalkDbg();
@@ -1126,14 +1137,6 @@ function _fetchBoard() {
       ? raw.filter(c => { const l = c.serviceJourney && c.serviceJourney.line; return l && l.publicCode === dir.line; })
       : raw;
     const byD = dir.filter ? byL.filter(c => dir.filter.test((c.destinationDisplay && c.destinationDisplay.frontText) || '')) : byL;
-    // Stop-level alerts apply to all departures; call/journey alerts only from filtered departures
-    addSits(stop.situations);
-    byD.forEach(call => {
-      addSits(call.situations);
-      if (call.serviceJourney) addSits(call.serviceJourney.situations);
-    });
-    state.serviceAlerts = Array.from(sitMap.values());
-    logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);
     logMsg('✓ ' + byD.length + '/' + raw.length + (dir.line ? ' L' + dir.line : ' alle linjer'), 'ok');
     state.deps = byD;
     state.lastFetch = Date.now();

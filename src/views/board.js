@@ -1117,13 +1117,6 @@ function _fetchBoard() {
   fetchBoard(dir, (stop) => {
     const sitMap = new Map();
     const addSits = (arr) => (arr || []).forEach(s => s && s.id && sitMap.set(s.id, s));
-    addSits(stop.situations);
-    (stop.estimatedCalls || []).forEach(call => {
-      addSits(call.situations);
-      if (call.serviceJourney) addSits(call.serviceJourney.situations);
-    });
-    state.serviceAlerts = Array.from(sitMap.values());
-    logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);
     if (stop.latitude && stop.longitude) {
       state.statLL[dir.key] = { lat: stop.latitude, lon: stop.longitude };
       window._updateWalkDbg && window._updateWalkDbg();
@@ -1133,6 +1126,14 @@ function _fetchBoard() {
       ? raw.filter(c => { const l = c.serviceJourney && c.serviceJourney.line; return l && l.publicCode === dir.line; })
       : raw;
     const byD = dir.filter ? byL.filter(c => dir.filter.test((c.destinationDisplay && c.destinationDisplay.frontText) || '')) : byL;
+    // Stop-level alerts apply to all departures; call/journey alerts only from filtered departures
+    addSits(stop.situations);
+    byD.forEach(call => {
+      addSits(call.situations);
+      if (call.serviceJourney) addSits(call.serviceJourney.situations);
+    });
+    state.serviceAlerts = Array.from(sitMap.values());
+    logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);
     logMsg('✓ ' + byD.length + '/' + raw.length + (dir.line ? ' L' + dir.line : ' alle linjer'), 'ok');
     state.deps = byD;
     state.lastFetch = Date.now();

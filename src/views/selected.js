@@ -356,20 +356,19 @@ export function renderSelected() {
     itinHtml += (tmin ? '<div class="itin-total">' + tmin + ' min reise</div>' : '') + '</div>';
     journeyDetail = itinHtml;
   } else {
-    const arrHero = arrT
-      ? '<div class="arrival-hero">'
-        + '<div class="ah-label">ankommer ' + esc(cleanName(dir.to).toLowerCase()) + '</div>'
-        + '<div class="ah-time">' + clk(arrT) + '</div>'
-        + (tmin ? '<div class="ah-sub">' + tmin + ' min reise</div>' : '')
-        + '</div>'
-      : '';
-    journeyDetail = arrHero
-      + '<div class="journey-detail">'
-      + '<div class="jd-cell" style="grid-column:1/-1">'
-      + '<div class="jd-label">avgår fra ' + esc(dir.from.toLowerCase()) + '</div>'
+    journeyDetail = '<div class="journey-detail">'
+      + '<div class="jd-cell"' + (arrT ? '' : ' style="grid-column:1/-1"') + '>'
+      + '<div class="jd-label">avgår ' + esc(cleanName(dir.from).toLowerCase()) + '</div>'
       + '<div class="jd-val departure">' + clk(c.expectedDepartureTime) + '</div>'
       + (delayed ? '<div class="jd-sub">rute ' + clk(c.aimedDepartureTime) + '</div>' : '')
       + '</div>'
+      + (arrT
+        ? '<div class="jd-cell">'
+          + '<div class="jd-label">ankommer ' + esc(cleanName(dir.to).toLowerCase()) + '</div>'
+          + '<div class="jd-val arrival">' + clk(arrT) + '</div>'
+          + (tmin ? '<div class="jd-sub">' + tmin + ' min reise</div>' : '')
+          + '</div>'
+        : '')
       + '</div>';
   }
 

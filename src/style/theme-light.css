@@ -223,12 +223,8 @@ html[data-theme="light"] .journey-detail { background: rgba(26,19,9,.08); }
 html[data-theme="light"] .jd-cell { background: #fffdf7; }
 html[data-theme="light"] .jd-label { color: #78716c; }
 html[data-theme="light"] .jd-val.departure { color: #b05800; }
-html[data-theme="light"] .jd-val.arrival { color: #92400e; }
+html[data-theme="light"] .jd-val.arrival { color: #92400e; text-shadow: none; }
 html[data-theme="light"] .jd-sub { color: #78716c; }
-
-html[data-theme="light"] .arrival-hero .ah-label { color: #78716c; }
-html[data-theme="light"] .arrival-hero .ah-time { color: #92400e; text-shadow: none; }
-html[data-theme="light"] .arrival-hero .ah-sub  { color: #78716c; }
 
 html[data-theme="light"] .itinerary { border-color: rgba(26,19,9,.1); }
 html[data-theme="light"] .itin-leg { background: #fffdf7; }

@@ -844,7 +844,8 @@ export function renderBoard() {
   const now = Date.now();
   const walkActive = isWalkActive(dir);
 
-  // For each departure minute keep only the route with the earliest arrival.
+  // Trip-planner results (have _legs): deduplicate by departure minute, keep fastest arrival.
+  // Board results (no _legs): each call is a distinct service — deduplicate only exact duplicates.
   const indexed = state.deps.map((c, i) => ({ c, origIdx: i }));
   indexed.sort((a, b) =>
     new Date(a.c.expectedDepartureTime).getTime() - new Date(b.c.expectedDepartureTime).getTime()
@@ -853,8 +854,11 @@ export function renderBoard() {
   indexed.forEach(({ c, origIdx }) => {
     const depMin = Math.floor(new Date(c.expectedDepartureTime).getTime() / 60000);
     const arrMs  = c._finalArrival ? new Date(c._finalArrival).getTime() : Infinity;
-    const cur    = depMinMap.get(depMin);
-    if (!cur || arrMs < cur.arrMs) depMinMap.set(depMin, { c, origIdx, arrMs });
+    const key = c._legs
+      ? depMin
+      : (c.expectedDepartureTime + '|' + ((c.serviceJourney && c.serviceJourney.id) || origIdx));
+    const cur = depMinMap.get(key);
+    if (!cur || arrMs < cur.arrMs) depMinMap.set(key, { c, origIdx, arrMs });
   });
   let visibleDeps = Array.from(depMinMap.values());
   if (activeModes.length < 4) {

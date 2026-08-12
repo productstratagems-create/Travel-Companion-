@@ -148,6 +148,10 @@
 .board-more-item:active{color:#f5b840;background:rgba(245,184,64,.06)}
 .bab-leisure{color:rgba(245,184,64,.55)}
 .bab-leisure:active{color:#f5b840}
+.board-more-version{
+  font-size:10px;color:rgba(140,133,127,.45);letter-spacing:.06em;
+  text-align:right;padding:.2rem .6rem .3rem;user-select:none;
+}
 
 #walk-summary{font-size:12px;color:#7485a0;padding:.3rem 0 .6rem;letter-spacing:.04em}
 

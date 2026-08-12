@@ -143,6 +143,9 @@ window._smartMode = function() {
   window._startBoard && window._startBoard();
 };
 
+const _vEl = document.getElementById('board-version');
+if (_vEl) _vEl.textContent = 'v' + __APP_VERSION__;
+
 initTheme();
 attachEventListeners();
 initDebugToggle();

@@ -92,9 +92,7 @@ html[data-theme="light"] .station-name {
   text-shadow: none;
 }
 
-html[data-theme="light"] .dir-btn { color: #78716c; }
-html[data-theme="light"] .dir-btn:active { color: #b05800; }
-html[data-theme="light"] .dir-dest { color: #b05800; }
+html[data-theme="light"] .station-dest { color: rgba(176,88,0,.85); }
 
 html[data-theme="light"] .woc-mins { color: #b05800; }
 html[data-theme="light"] .woc-mins span,

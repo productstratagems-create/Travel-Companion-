@@ -20,16 +20,18 @@
   display:block;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-.dir-btn{
-  display:flex;align-items:center;gap:.4rem;
-  background:none;border:none;
-  color:#7485a0;font-family:inherit;
-  font-size:11px;letter-spacing:.1em;text-transform:uppercase;
-  padding:.5rem 0 .5rem .5rem;cursor:pointer;min-height:44px;
-  flex-shrink:0;
+/* Destination on its own line under the departure name — the two together
+   used to compete for one row with the header buttons, which truncated both
+   on narrow screens. */
+.station-dest{
+  display:block;
+  font-family:"Bebas Neue",sans-serif;
+  font-size:clamp(1.05rem,4.4vw,1.5rem);
+  letter-spacing:.06em;line-height:1.05;
+  color:rgba(245,184,64,.75);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-.dir-btn:active{color:#f5b840}
-.dir-dest{color:#f5b840;font-weight:700}
+.station-dest::before{content:"→ ";opacity:.55}
 
 /* Walk-only fallback card (no transit routes, destination within walking distance) */
 .walk-only-card{
@@ -130,9 +132,9 @@
   color:#f5b840;border-color:rgba(245,184,64,.4);background:rgba(245,184,64,.06);
 }
 
-/* Refresh — narrower than the ⋯ button so the header stays uncluttered,
-   but still a full-height touch target. Spins only on a manual refresh. */
-.board-refresh-btn{width:36px;font-size:1rem}
+/* Narrower than the ⋯ button so the header stays uncluttered, but still
+   full-height touch targets. Must follow .board-more-btn to win on width. */
+.board-refresh-btn,.dir-btn{width:36px;font-size:1rem}
 .board-refresh-btn.spinning{color:#f5b840;animation:refresh-spin .7s linear infinite}
 @keyframes refresh-spin{to{transform:rotate(360deg)}}
 

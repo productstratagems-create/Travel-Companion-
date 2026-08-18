@@ -56,6 +56,13 @@ export function updateHeader() {
     viaLabel.textContent = 'via ' + (dir.via || '');
     viaLabel.style.display = dir.via ? 'block' : 'none';
   }
+  // The button's aria-label replaces its contents, so spell the route out —
+  // otherwise a screen reader gets "Endre rute" with no idea which route.
+  const routeBtn = document.getElementById('station-name-btn');
+  if (routeBtn) {
+    routeBtn.setAttribute('aria-label',
+      'Endre rute: ' + dir.from + (dir.via ? ' via ' + dir.via : '') + ' til ' + dir.to);
+  }
   document.title = dir.from + (dir.via ? ' via ' + dir.via : '') + ' → ' + dir.to;
 }
 

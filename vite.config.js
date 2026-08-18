@@ -9,7 +9,9 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   test: {
-    environment: 'node',
+    // jsdom, not node: storage.js runs its profile migration against
+    // localStorage at import time, so any module reaching it needs a DOM.
+    environment: 'jsdom',
     include: ['tests/**/*.test.js'],
   },
 });

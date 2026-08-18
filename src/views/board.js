@@ -1072,7 +1072,7 @@ export function renderBoard() {
       + '</div>'
       + (showReach
         ? '<div class="dep-reach ' + rcls + '">'
-          + (rcls === 'r-ok' || rcls === 'r-soon' ? 'gå om ' + fmtMins(mtl) : 'gå nå')
+          + (mtl > 0 ? fmtMins(mtl) : '0 min') + ' igjen'
           + '</div>'
         : '')
       + '</div>'

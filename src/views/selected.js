@@ -20,6 +20,16 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 function cleanName(s) { return (s || '').replace(/,\s*\S.*$/, '').replace(/\s+T$/i, '').trim(); }
 
+// Walk-deadline sub-line. States the remaining margin as a fact and leaves the
+// decision to the reader — colour carries the urgency, the words don't command.
+function leaveByMsg(rcls, mtl) {
+  if (rcls === 'missed') {
+    return '<span style="color:#dc2626">passert for ' + fmtMins(Math.abs(mtl)) + ' siden</span>';
+  }
+  const cls = rcls === 'r-now' ? 'go' : 'amber';
+  return '<span class="' + cls + '">' + (mtl > 0 ? fmtMins(mtl) : '0 min') + '</span> igjen';
+}
+
 let _selWeather = null;
 
 function _selWeatherHtml(arrT) {
@@ -282,10 +292,7 @@ export function renderSelected() {
   const mtl = mToLeave(depTs);
   const rcls = reachCls(mtl);
   const ltCls = rcls === 'r-ok' ? 'lt-ok' : rcls === 'r-soon' ? 'lt-soon' : rcls === 'r-now' ? 'lt-now' : 'lt-late';
-  let urgMsg;
-  if (rcls === 'missed') urgMsg = '<span style="color:#dc2626">Rekker ikke — velg neste avgang</span>';
-  else if (rcls === 'r-now') urgMsg = '<span class="go">Gå nå!</span>';
-  else urgMsg = 'Gå om <span class="amber">' + fmtMins(mtl) + '</span>';
+  const urgMsg = leaveByMsg(rcls, mtl);
 
   const walkActive = isWalkActive(dir);
   const isTransfer = c._isTransfer && c._legs && c._legs.length >= 2;
@@ -647,11 +654,7 @@ function _refreshSelDisplay() {
     }
     const lbSubEl = document.querySelector('.leaveby-sub');
     if (lbSubEl) {
-      let urgMsg;
-      if (rcls === 'missed') urgMsg = '<span style="color:#dc2626">Rekker ikke — velg neste avgang</span>';
-      else if (rcls === 'r-now') urgMsg = '<span class="go">Gå nå!</span>';
-      else urgMsg = 'Gå om <span class="amber">' + fmtMins(mtl) + '</span>';
-      lbSubEl.innerHTML = urgMsg;
+      lbSubEl.innerHTML = leaveByMsg(rcls, mtl);
     }
   }
 }

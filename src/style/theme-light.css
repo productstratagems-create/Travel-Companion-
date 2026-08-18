@@ -143,6 +143,7 @@ html[data-theme="light"] .dep-spor .sn {
 html[data-theme="light"] .board-more-btn { color: #78716c; border-color: rgba(26,19,9,.12); }
 html[data-theme="light"] .board-more-btn:active,
 html[data-theme="light"] .board-more-btn[aria-expanded="true"] { color: #b05800; border-color: rgba(176,88,0,.4); background: rgba(176,88,0,.06); }
+html[data-theme="light"] .board-refresh-btn.spinning { color: #b05800; }
 html[data-theme="light"] .board-more-menu { border-color: rgba(26,19,9,.12); background: rgba(176,88,0,.03); }
 html[data-theme="light"] .board-more-item { color: #78716c; }
 html[data-theme="light"] .board-more-item:active { color: #b05800; background: rgba(176,88,0,.06); }

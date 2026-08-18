@@ -130,6 +130,12 @@
   color:#f5b840;border-color:rgba(245,184,64,.4);background:rgba(245,184,64,.06);
 }
 
+/* Refresh — narrower than the ⋯ button so the header stays uncluttered,
+   but still a full-height touch target. Spins only on a manual refresh. */
+.board-refresh-btn{width:36px;font-size:1rem}
+.board-refresh-btn.spinning{color:#f5b840;animation:refresh-spin .7s linear infinite}
+@keyframes refresh-spin{to{transform:rotate(360deg)}}
+
 .board-more-menu{
   display:flex;flex-direction:column;gap:.3rem;
   margin-bottom:.5rem;padding:.4rem;

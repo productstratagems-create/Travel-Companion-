@@ -8,6 +8,11 @@ import { confirmTap } from './confirm.js';
 import { stopSelRefresh } from '../views/selected.js';
 import { copyJourneyId } from '../views/track.js';
 import { toggleSpectatePanel, closeSpectatePanel } from '../views/spectate.js';
+import { onStatusChange } from './log.js';
+
+// Keep the refresh button spinning for at least this long so a fast response
+// reads as a deliberate refresh rather than a flicker.
+const REFRESH_SPIN_MIN_MS = 450;
 
 export function closeBoardMenu() {
   const menu = document.getElementById('board-more-menu');
@@ -87,6 +92,29 @@ export function attachEventListeners() {
   });
 
   document.getElementById('board-more-btn').addEventListener('click', toggleBoardMenu);
+
+  const refreshBtn = document.getElementById('board-refresh-btn');
+  if (refreshBtn) {
+    let spinStartedAt = 0;
+    const stopSpin = () => {
+      if (!spinStartedAt) return;
+      const held = Date.now() - spinStartedAt;
+      spinStartedAt = 0;
+      setTimeout(() => refreshBtn.classList.remove('spinning'),
+        Math.max(0, REFRESH_SPIN_MIN_MS - held));
+    };
+    // Auto-refreshes run every 20s; only a manual tap spins the button.
+    onStatusChange(s => { if (s !== 'loading') stopSpin(); });
+    refreshBtn.addEventListener('click', () => {
+      if (spinStartedAt) return;
+      spinStartedAt = Date.now();
+      refreshBtn.classList.add('spinning');
+      // Fallback: an aborted request never reports a settled status, so make
+      // sure the spinner can't be left running indefinitely.
+      setTimeout(stopSpin, 10000);
+      window._fetchBoard && window._fetchBoard();
+    });
+  }
 
   document.getElementById('smart-btn').addEventListener('click', () => {
     closeBoardMenu();

@@ -16,11 +16,18 @@ export function logMsg(msg, kind) {
   while (el.children.length > 30) el.removeChild(el.lastChild);
 }
 
+let _onStatus = null;
+
+// Subscribe to fetch-status changes ('loading' | 'ok' | 'error').
+// Used by the refresh button to stop spinning once a request settles.
+export function onStatusChange(fn) { _onStatus = fn; }
+
 export function setDot(s) {
   const d = document.getElementById('status-dot');
   d.className = 'status-dot' + (s === 'error' ? ' error' : s === 'loading' ? ' loading' : '');
   const label = s === 'error' ? 'systemstatus: feil' : s === 'loading' ? 'systemstatus: laster' : 'systemstatus: tilkoblet';
   d.setAttribute('aria-label', label);
+  if (_onStatus) _onStatus(s);
 }
 
 export function initDebugToggle() {

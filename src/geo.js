@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import config from './config.js';
+import { enturFetch } from './api/http.js';
 import { logMsg } from './ui/log.js';
 import { storage } from './storage.js';
 
@@ -100,7 +101,7 @@ export function findArr(calls, name) {
 const TRANSIT_STOP_CATS = new Set(['metroStation', 'railStation', 'tramStop', 'busStation']);
 
 export function findNearestStation(lat, lon, onFound, onFail) {
-  fetch(config.api.geocoderReverse
+  enturFetch(config.api.geocoderReverse
     + '?point.lat=' + lat + '&point.lon=' + lon
     + '&boundary.circle.radius=5000&size=20&layers=venue')
     .then(r => r.json())

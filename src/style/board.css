@@ -264,6 +264,40 @@
   border:1px solid rgba(251,191,36,.18);
   border-radius:4px;letter-spacing:.02em;
 }
+.service-alert.sev-severe{
+  color:#fca5a5;background:rgba(220,38,38,.08);border-color:rgba(220,38,38,.3);
+}
+.service-alert.sev-slight{
+  color:#8c857f;background:rgba(140,133,127,.05);border-color:rgba(140,133,127,.15);
+}
+
+/* Staleness — "sist oppdatert HH:MM" under the header; rows dim when the
+   data is old enough that the countdowns can no longer be trusted. */
+#board-updated{
+  font-size:9px;letter-spacing:.15em;text-transform:uppercase;
+  color:#8c857f;padding:.1rem 0 .3rem;
+}
+#board-updated.stale{color:#fca5a5}
+#dep-list.stale .dep-row{opacity:.45}
+
+/* First-load skeleton — the board renders before the first response lands. */
+.dep-skeleton{padding:.2rem 0}
+.dep-skeleton .sk-row{
+  height:56px;margin:.35rem 0;border-radius:6px;
+  background:linear-gradient(90deg,rgba(245,184,64,.05) 25%,rgba(245,184,64,.11) 50%,rgba(245,184,64,.05) 75%);
+  background-size:200% 100%;
+  animation:sk-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes sk-shimmer{to{background-position:-200% 0}}
+
+.board-retry-btn{
+  margin-left:.6rem;background:none;cursor:pointer;
+  border:1px solid currentColor;border-radius:5px;
+  color:inherit;font-family:inherit;font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;
+  padding:.3rem .55rem;min-height:32px;
+}
+.dep-tag-soft{color:#8c857f !important}
 
 .board-profile-row{
   padding:.5rem .75rem .3rem;border-bottom:1px solid rgba(245,184,64,.08);

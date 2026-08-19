@@ -7,11 +7,8 @@ export default {
     // Set via VITE_GEOAPIFY_KEY env var (or replace '' here, but don't commit the key)
     geoapifyKey: import.meta.env.VITE_GEOAPIFY_KEY || '',
   },
-  line: '3',
-  home: {
-    query: 'Stenbråtveien 81 Oslo',
-    label: 'Stenbråtveien 81',
-  },
+  // Fallback line label when a departure carries no publicCode.
+  line: '',
   defaultWalkMinutes: 8,
   boardRefreshMs: 20_000,
   trackRefreshMs: 15_000,
@@ -25,27 +22,29 @@ export default {
   },
   // RegExp fields are intentionally JS (not JSON-serializable)
   dirs: [
+    // Neutral central-Oslo fallback pair. Only ever seen if the user reverses
+    // direction before setting their own route; dirs[2] holds the real one.
     {
       key: 'out',
-      from: 'Mortensrud',
-      to: 'Jernbanetorget',
-      stopId: 'NSR:StopPlace:58228',
+      from: 'Jernbanetorget',
+      to: 'Nationaltheatret',
+      stopId: null,
       toStopId: null,
       filter: null,
-      geo: null,
-      toGeo: null,
-      line: '3',
+      geo: 'Jernbanetorget',
+      toGeo: 'Nationaltheatret',
+      line: null,
     },
     {
       key: 'in',
-      from: 'Jernbanetorget',
-      to: 'Mortensrud',
+      from: 'Nationaltheatret',
+      to: 'Jernbanetorget',
       stopId: null,
       toStopId: null,
-      filter: /mortensrud/i,
-      geo: 'Jernbanetorget',
-      toGeo: null,
-      line: '3',
+      filter: null,
+      geo: 'Nationaltheatret',
+      toGeo: 'Jernbanetorget',
+      line: null,
     },
   ],
 };

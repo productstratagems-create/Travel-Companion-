@@ -187,6 +187,8 @@
   padding:.35rem 0;border-bottom:1px solid rgba(245,184,64,.05);
 }
 .hn-arr-row:last-child{border-bottom:none}
+.hn-arr-row.cancelled .hn-arr-mins,
+.hn-arr-row.cancelled .hn-arr-dest{text-decoration:line-through;opacity:.5}
 .hn-arr-mins{
   text-align:right;font-family:"Bebas Neue",sans-serif;
   font-size:1.5rem;line-height:1;color:#f5b840;font-variant-numeric:tabular-nums;

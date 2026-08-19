@@ -288,11 +288,12 @@ function _renderArrBoardHtml() {
     const lc = (c.ln && c.ln.publicCode) || '?';
     const bg = (c.ln && c.ln.presentation && c.ln.presentation.colour) ? '#' + c.ln.presentation.colour : '#7c2d12';
     const minsHtml = mins <= 0 ? 'NÅ' : mins + '<span>min</span>';
-    return '<div class="hn-arr-row">'
+    return '<div class="hn-arr-row' + (c.cancelled ? ' cancelled' : '') + '">'
       + '<div class="hn-arr-mins">' + minsHtml + '</div>'
       + '<div class="hn-arr-mid">'
       + '<span class="line-badge" style="background:' + bg + '">' + lc + '</span>'
       + '<span class="hn-arr-dest">' + esc(c.dest) + '</span>'
+      + (c.cancelled ? '<span class="dep-cancelled">innstilt</span>' : '')
       + '</div>'
       + (c.quay && c.quay !== '?' ? '<div class="hn-arr-spor">spor ' + c.quay + '</div>' : '<div></div>')
       + '</div>';

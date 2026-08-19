@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { enturFetch } from '../api/http.js';
 import { recordSmartTrip } from '../api/smart.js';
 import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
@@ -76,7 +77,7 @@ function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbo
     if (getAbort()) getAbort().abort();
     const ctrl = new AbortController();
     setAbort(ctrl);
-    fetch(config.api.geocoder + '?text=' + encodeURIComponent(query) + '&size=8&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522',
+    enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(query) + '&size=8&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522',
       { signal: ctrl.signal })
       .then(r => r.json())
       .then(j => {

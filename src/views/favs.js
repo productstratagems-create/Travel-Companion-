@@ -6,6 +6,7 @@ import { show, updateHeader } from '../ui/nav.js';
 import { confirmTap } from '../ui/confirm.js';
 import { renderPlan } from './plan.js';
 import { renderSpectateInline } from './spectate.js';
+import { esc } from '../ui/fmt.js';
 
 export function renderFavs() {
   const el = document.getElementById('saved-favs');
@@ -27,7 +28,7 @@ export function renderFavs() {
     routes.forEach(f => {
       html += '<div class="fav-card">'
         + '<button class="fav-card-sel" onclick="window._loadFavRoute(\'' + f.id + '\')">'
-        + f.from + ' → ' + f.to + '</button>'
+        + esc(f.from) + ' → ' + esc(f.to) + '</button>'
         + '<button class="fav-del" onclick="window._deleteFav(this,\'' + f.id + '\')" aria-label="slett">×</button>'
         + '</div>';
     });
@@ -38,9 +39,9 @@ export function renderFavs() {
       const bg = '#' + (f.lineColour || '7c2d12');
       html += '<div class="fav-card">'
         + '<div class="fav-timed-sel" onclick="window._loadFavRoute(\'' + f.id + '\')">'
-        + '<span class="line-badge" style="background:' + bg + '">' + (f.line || '?') + '</span>'
-        + '<span class="fav-timed-time">' + f.departureHHMM + '</span>'
-        + '<span class="fav-timed-route">' + f.from + ' → ' + f.to + '</span>'
+        + '<span class="line-badge" style="background:' + bg + '">' + esc(f.line || '?') + '</span>'
+        + '<span class="fav-timed-time">' + esc(f.departureHHMM) + '</span>'
+        + '<span class="fav-timed-route">' + esc(f.from) + ' → ' + esc(f.to) + '</span>'
         + '</div>'
         + '<button class="fav-del" onclick="window._deleteFav(this,\'' + f.id + '\')" aria-label="slett">×</button>'
         + '</div>';

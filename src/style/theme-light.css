@@ -172,6 +172,18 @@ html[data-theme="light"] .service-alert {
   background: rgba(146,64,14,.05);
   border-color: rgba(146,64,14,.16);
 }
+html[data-theme="light"] .service-alert.sev-severe {
+  color: #b91c1c;
+  background: rgba(185,28,28,.06);
+  border-color: rgba(185,28,28,.25);
+}
+html[data-theme="light"] .service-alert.sev-slight {
+  color: #78716c;
+  background: rgba(120,113,108,.05);
+  border-color: rgba(120,113,108,.16);
+}
+html[data-theme="light"] #board-updated { color: #78716c; }
+html[data-theme="light"] #board-updated.stale { color: #b91c1c; }
 
 /* ── JOURNEY LOCK STATUS BARS ── */
 html[data-theme="light"] .jny-status-delay {

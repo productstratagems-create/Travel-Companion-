@@ -135,8 +135,6 @@
 /* Narrower than the ⋯ button so the header stays uncluttered, but still
    full-height touch targets. Must follow .board-more-btn to win on width. */
 .board-refresh-btn,.dir-btn{width:36px;font-size:1rem}
-.board-refresh-btn.spinning{color:#f5b840;animation:refresh-spin .7s linear infinite}
-@keyframes refresh-spin{to{transform:rotate(360deg)}}
 
 .board-more-menu{
   display:flex;flex-direction:column;gap:.3rem;

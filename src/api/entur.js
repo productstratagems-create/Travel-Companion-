@@ -162,8 +162,8 @@ export function fetchTrip(dir, onSuccess, onError) {
     .then(([fromId, toId, viaId]) => {
       if (signal.aborted) return;
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
-      const toLabel = typeof toId === 'object' ? toId.lat + ',' + toId.lon : toId;
-      logMsg('trip → ' + fromId + (viaId ? ' via ' + viaId : '') + ' → ' + toLabel);
+      const label = p => (p && typeof p === 'object') ? p.lat + ',' + p.lon : p;
+      logMsg('trip → ' + label(fromId) + (viaId ? ' via ' + viaId : '') + ' → ' + label(toId));
       return fetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

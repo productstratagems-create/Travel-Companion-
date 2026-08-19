@@ -26,7 +26,7 @@ import config from './config.js';
 import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, loadDep, saveDep, saveDest, renderBoardProfileSwitcher, trackPlace } from './views/settings.js';
 import { getActiveProfile, storage } from './storage.js';
 import { state } from './state.js';
-import { recordSmartTrip, predictDest, smartHistLen } from './api/smart.js';
+import { recordSmartTrip, predictDest } from './api/smart.js';
 
 const prefilledRoute = (function applyPrefillFromQuery() {
   const params = new URLSearchParams(window.location.search);
@@ -113,19 +113,6 @@ function _applySmartRoute(ns, dest) {
   return true;
 }
 
-function showSmartToast(destName, onCancel) {
-  const el = document.getElementById('smart-toast');
-  if (!el) return;
-  el.querySelector('.smart-toast-dest').textContent = destName;
-  el.style.display = 'flex';
-  let timer = setTimeout(() => { el.style.display = 'none'; }, 4000);
-  el.querySelector('.smart-toast-cancel').onclick = () => {
-    clearTimeout(timer);
-    el.style.display = 'none';
-    onCancel();
-  };
-}
-
 window._smartMode = function() {
   const ns = state.nearestStation;
   const dest = predictDest();
@@ -172,95 +159,24 @@ const restored = loadJny();
 if (restored) {
   state.jny = restored;
   activateTracking();
-  locateUser(() => {}, () => {});
 } else if (prefilledRoute) {
   updateHeader();
   startBoard();
-  locateUser(() => {}, () => {});
-} else if (!loadWeekendMode() && !loadDest()) {
-  // History inference: if we have a high-confidence prediction with a stored departure stop,
-  // start the board immediately without waiting for GPS at all.
-  // Threshold is higher (score >= 9) since there's no GPS confirmation.
-  const histDest = smartHistLen() >= 3 ? predictDest() : null;
-  if (histDest && histDest.score >= 9 && histDest.fromStopId && histDest.fromName) {
-    _applySmartRoute(null, histDest);
-    show('v-board');
-    startBoard();
-    showSmartToast(histDest.toName, () => { showSettings(); show('v-settings'); });
-    logMsg('⚡ auto (historia): ' + config.dirs[2].from + ' → ' + histDest.toName);
-    // GPS in background — updates walk time and nearestStations silently
-    locateUser(() => {}, () => {});
-  } else {
-    // GPS-first (with cached position for fast startup)
-    locateUser(
-      (station) => {
-        if (loadWeekendMode()) {
-          renderLeisure();
-          show('v-leisure');
-        } else {
-          const savedDest = loadDest();
-          if (savedDest) {
-            applyRouteFromState(savedDest);
-            updateHeader();
-            startBoard();
-          } else {
-            const smartDest = smartHistLen() >= 3 ? predictDest() : null;
-            if (smartDest && smartDest.score >= 6) {
-              if (_applySmartRoute(station, smartDest)) {
-                show('v-board');
-                startBoard();
-                showSmartToast(smartDest.toName, () => { showSettings(); show('v-settings'); });
-                logMsg('⚡ auto: ' + config.dirs[2].from + ' → ' + smartDest.toName);
-              } else {
-                showSettings();
-                show('v-settings');
-              }
-            } else {
-              showSettings();
-              show('v-settings');
-            }
-          }
-        }
-      },
-      () => {
-        if (loadWeekendMode()) {
-          renderLeisure();
-          show('v-leisure');
-        } else {
-          const dest = loadDest();
-          if (dest) { applyRouteFromState(dest); updateHeader(); startBoard(); }
-          else { showSettings(); show('v-settings'); }
-        }
-      }
-    );
-  }
+} else if (loadWeekendMode()) {
+  renderLeisure();
+  show('v-leisure');
 } else {
-  locateUser(
-    (station) => {
-      if (loadWeekendMode()) {
-        renderLeisure();
-        show('v-leisure');
-      } else {
-        const savedDest = loadDest();
-        if (savedDest) {
-          applyRouteFromState(savedDest);
-          updateHeader();
-          startBoard();
-        } else {
-          showSettings();
-          show('v-settings');
-        }
-      }
-    },
-    () => {
-      if (loadWeekendMode()) {
-        renderLeisure();
-        show('v-leisure');
-      } else {
-        const dest = loadDest();
-        if (dest) { applyRouteFromState(dest); updateHeader(); startBoard(); }
-        else { showSettings(); show('v-settings'); }
-      }
-    }
-  );
+  const savedDest = loadDest();
+  if (savedDest && applyRouteFromState(savedDest)) {
+    updateHeader();
+    startBoard();
+  } else {
+    showSettings();
+    show('v-settings');
+  }
 }
+
+// GPS runs in the background and only feeds walk time. It must never gate
+// which route is shown: a slow or blocked fix used to mean startBoard() was
+// never reached, leaving the board empty on a stale default route.
+locateUser(() => {}, () => {});

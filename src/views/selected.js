@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { enturFetch } from '../api/http.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
 import { fetchJourneyMeta } from '../api/entur.js';
@@ -222,7 +223,7 @@ function _renderSelMap(dep, fromName, toName) {
       const q = '{trip(from:{coordinates:{latitude:' + alightStop.lat + ',longitude:' + alightStop.lon + '}}'
         + 'to:{coordinates:{latitude:' + destLL.lat + ',longitude:' + destLL.lon + '}}'
         + 'modes:{directMode:foot}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}}';
-      fetch(config.api.journeyPlanner, {
+      enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: q }),

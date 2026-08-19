@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { enturFetch } from '../api/http.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName } from '../geo.js';
@@ -319,7 +320,7 @@ function _drawWalkRoute(fromLL, toLL, destName) {
   const q = '{trip(from:{coordinates:{latitude:' + fromLL.lat + ',longitude:' + fromLL.lon + '}}'
     + 'to:{coordinates:{latitude:' + toLL.lat + ',longitude:' + toLL.lon + '}}'
     + 'modes:{directMode:foot}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}}';
-  fetch(config.api.journeyPlanner, {
+  enturFetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: q }),
@@ -603,7 +604,7 @@ function renderLineRoute(visibleDeps) {
         + 'modes:{directMode:' + mode + '}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}';
     }
     function _postOtp(queries) {
-      return fetch(config.api.journeyPlanner, {
+      return enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: '{' + queries.join(' ') + '}' }),
@@ -685,7 +686,7 @@ function renderLineRoute(visibleDeps) {
       const q = '{trip(from:{coordinates:{latitude:' + alightPt[0] + ',longitude:' + alightPt[1] + '}}'
         + 'to:{coordinates:{latitude:' + destLL.lat + ',longitude:' + destLL.lon + '}}'
         + 'modes:{directMode:foot}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}}';
-      fetch(config.api.journeyPlanner, {
+      enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: q }),
@@ -793,10 +794,29 @@ function renderWalkSummary() {
   }
 }
 
+// Data older than this can no longer be trusted for a countdown — underground
+// the connection drops silently and the board would otherwise look live.
+const STALE_AFTER_MS = 60_000;
+
+function renderUpdatedStamp() {
+  const el = document.getElementById('board-updated');
+  if (!el) return false;
+  if (state.lastFetch === null) { el.style.display = 'none'; return false; }
+  const age = Date.now() - state.lastFetch;
+  const stale = age > STALE_AFTER_MS;
+  el.textContent = stale
+    ? 'sist oppdatert ' + clk(state.lastFetch) + ' · ikke sanntid nå'
+    : 'sist oppdatert ' + clk(state.lastFetch);
+  el.className = stale ? 'stale' : '';
+  el.style.display = 'block';
+  return stale;
+}
+
 export function renderBoard() {
   renderAlerts();
   renderWalkSummary();
   renderModeFilter();
+  const isStale = renderUpdatedStamp();
   const modes = loadModes();
   const dir = config.dirs[state.dIdx];
   const pos = state.walkFromLL || state.homeLL || (state.statLL && state.statLL[dir.key]);
@@ -817,8 +837,10 @@ export function renderBoard() {
 
   const activeModes = ['metro', 'tram', 'bus', 'rail'].filter(m => modes[m]);
   const list = document.getElementById('dep-list');
+  list.className = isStale ? 'stale' : '';
   if (!activeModes.length) {
-    list.innerHTML = '';
+    list.innerHTML = '<div class="state-msg">Ingen transportmidler er valgt. '
+      + 'Slå på minst ett filter over kartet for å se avganger.</div>';
     return;
   }
   if (!state.deps.length) {
@@ -837,8 +859,14 @@ export function renderBoard() {
         + '</div>';
       return;
     }
-    const msg = state.lastFetch !== null ? 'ingen ruter funnet' : 'kobler til…';
-    list.innerHTML = '<div class="state-msg">' + msg + '</div>';
+    if (state.lastFetch === null) {
+      // Skeleton rather than a bare line — the board renders before the first
+      // response lands, and an empty screen reads as "no departures".
+      list.innerHTML = '<div class="dep-skeleton" aria-label="laster avganger">'
+        + '<div class="sk-row"></div><div class="sk-row"></div><div class="sk-row"></div></div>';
+      return;
+    }
+    list.innerHTML = '<div class="state-msg">Ingen avganger funnet for denne ruta akkurat nå.</div>';
     return;
   }
   const now = Date.now();
@@ -865,7 +893,8 @@ export function renderBoard() {
     visibleDeps = visibleDeps.filter(({ c }) => activeModes.includes(_depMode(c)));
   }
   if (!visibleDeps.length) {
-    list.innerHTML = '<div class="state-msg">ingen avganger for valgte modi</div>';
+    list.innerHTML = '<div class="state-msg">Ingen avganger matcher filtrene. '
+      + 'Det går avganger herfra, men ikke med transportmidlene som er valgt.</div>';
     renderLineFilter([]);
     renderLineRoute([]);
     if (_bVehicleLayer) _bVehicleLayer.clearLayers();
@@ -1067,6 +1096,7 @@ export function renderBoard() {
       + '<span class="dep-dest">' + esc(dest) + '</span>'
       + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
       + (delayed ? '<span class="dep-tag">+' + delayMins + ' min</span>' : '')
+      + (c.realtime === false ? '<span class="dep-tag dep-tag-soft">kun rutetid</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + (tooEarlyForPlan ? '<span class="dep-cancelled">før forrige etappe</span>' : '')
       + '</div>'
@@ -1096,6 +1126,32 @@ export function stopBoard() {
   closeSpectatePanel();
 }
 
+// Raw thrower messages ("HTTP 503", "Failed to fetch") tell the user nothing
+// they can act on. Translate, and always offer a way to try again.
+function _showBoardError(msg) {
+  const be = document.getElementById('board-error');
+  if (!be) return;
+  const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  let human;
+  if (offline) human = 'Ingen nettforbindelse.';
+  else if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) human = 'Fikk ikke kontakt med Entur \u2014 kan v\u00e6re dekningen.';
+  else if (/HTTP 4\d\d/.test(msg)) human = 'Ruta kunne ikke hentes. Sjekk avreise og destinasjon.';
+  else if (/HTTP 5\d\d|^\d{3}$/.test(msg)) human = 'Entur svarer ikke akkurat n\u00e5.';
+  else if (/Fant ikke/i.test(msg)) human = msg + '. Pr\u00f8v et annet s\u00f8keord.';
+  else human = msg;
+  be.innerHTML = '';
+  const t = document.createElement('span');
+  t.textContent = human;
+  const btn = document.createElement('button');
+  btn.className = 'board-retry-btn';
+  btn.type = 'button';
+  btn.textContent = 'pr\u00f8v igjen';
+  btn.addEventListener('click', () => { be.style.display = 'none'; _fetchBoard(); });
+  be.appendChild(t);
+  be.appendChild(btn);
+  be.style.display = 'block';
+}
+
 function _fetchBoard() {
   const dir = config.dirs[state.dIdx];
   if (dir.toGeo || dir.toStopId || (dir._toLat && dir._toLon)) {
@@ -1111,11 +1167,7 @@ function _fetchBoard() {
       state.deps = adapted;
       state.lastFetch = Date.now();
       document.getElementById('board-error').style.display = 'none';
-    }, (msg) => {
-      const be = document.getElementById('board-error');
-      be.style.display = 'block';
-      be.textContent = msg;
-    });
+    }, _showBoardError);
     return;
   }
   fetchBoard(dir, (stop) => {
@@ -1142,11 +1194,7 @@ function _fetchBoard() {
     state.lastFetch = Date.now();
     document.getElementById('board-error').style.display = 'none';
     setDot('ok');
-  }, (msg) => {
-    const be = document.getElementById('board-error');
-    be.style.display = 'block';
-    be.textContent = msg;
-  });
+  }, _showBoardError);
 }
 
 window.tapDepId = (id) => { const dep = _depMap.get(id); if (dep) window.tap(dep); };

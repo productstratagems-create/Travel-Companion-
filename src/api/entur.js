@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { enturFetch } from './http.js';
 import { boardGQL, journeyGQL, trackGQL, tripGQL } from './queries.js';
 import { quayLatLon } from './adapt.js';
 import { logMsg, setDot } from '../ui/log.js';
@@ -20,7 +21,7 @@ export function resolveStop(dir, signal) {
   if (dir._fromLat && dir._fromLon) return Promise.resolve({ lat: dir._fromLat, lon: dir._fromLon });
   if (dir.stopId) return Promise.resolve(dir.stopId);
   if (!dir.geo) return Promise.reject(new Error('Mangler avgangssted'));
-  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
+  return enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(json => {
       const ff = ((json && json.features) || [])
@@ -51,7 +52,7 @@ export function resolveStop(dir, signal) {
 
 export function resolveToStop(dir, signal) {
   if (dir.toStopId) return Promise.resolve(dir.toStopId);
-  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.toGeo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
+  return enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.toGeo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(json => {
       const ff = ((json && json.features) || [])
@@ -74,7 +75,7 @@ export function resolveToStop(dir, signal) {
 export function resolveViaStop(dir, signal) {
   if (dir.viaStopId) return Promise.resolve(dir.viaStopId);
   if (!dir.viaGeo) return Promise.resolve(null);
-  return fetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.viaGeo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
+  return enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.viaGeo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(json => {
       const ff = ((json && json.features) || [])
@@ -91,7 +92,7 @@ export function resolveViaStop(dir, signal) {
 }
 
 export function geocodeDest(query) {
-  return fetch(config.api.geocoder
+  return enturFetch(config.api.geocoder
     + '?text=' + encodeURIComponent(query)
     + '&size=10&layers=venue,address&focus.point.lat=59.9139&focus.point.lon=10.7522')
     .then(r => r.json())
@@ -122,7 +123,7 @@ export function geocodeDest(query) {
 }
 
 export function geocodePlace(query, signal) {
-  return fetch(config.api.geocoder
+  return enturFetch(config.api.geocoder
     + '?text=' + encodeURIComponent(query)
     + '&size=8&layers=venue,address&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -164,7 +165,7 @@ export function fetchTrip(dir, onSuccess, onError) {
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
       const label = p => (p && typeof p === 'object') ? p.lat + ',' + p.lon : p;
       logMsg('trip → ' + label(fromId) + (viaId ? ' via ' + viaId : '') + ' → ' + label(toId));
-      return fetch(config.api.journeyPlanner, {
+      return enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs) }),
@@ -212,7 +213,7 @@ export function fetchBoard(dir, onSuccess, onError) {
     .then(id => {
       if (signal.aborted) return;
       logMsg('board → ' + id);
-      return fetch(config.api.journeyPlanner, {
+      return enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: boardGQL(id, count) }),
@@ -245,7 +246,7 @@ export function fetchArrBoard(stopId, n) {
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation '
     + 'destinationDisplay{frontText} quay{publicCode} '
     + 'serviceJourney{id line{publicCode transportMode presentation{colour}}}}}}';
-  return fetch(config.api.journeyPlanner, {
+  return enturFetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: q }),
@@ -254,13 +255,15 @@ export function fetchArrBoard(stopId, n) {
     .then(j => {
       const calls = (j && j.data && j.data.stopPlace && j.data.stopPlace.estimatedCalls) || [];
       const now = Date.now();
+      // Cancelled departures stay in the list — hiding them sends the user
+      // to a platform for a service that isn't coming.
       return calls
-        .filter(c => !c.cancellation)
         .map(c => ({
           ln:      c.serviceJourney && c.serviceJourney.line,
           dest:    (c.destinationDisplay && c.destinationDisplay.frontText) || '',
           depTs:   new Date(c.expectedDepartureTime || c.aimedDepartureTime).getTime(),
           realtime: c.realtime || false,
+          cancelled: !!c.cancellation,
           quay:    c.quay && c.quay.publicCode,
         }))
         .filter(c => c.depTs > now - 30000);
@@ -268,7 +271,7 @@ export function fetchArrBoard(stopId, n) {
 }
 
 export function fetchTrack(journeyId) {
-  return fetch(config.api.journeyPlanner, {
+  return enturFetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: trackGQL(journeyId) }),
@@ -292,7 +295,7 @@ export function fetchTrack(journeyId) {
  * state.lockedJourneyMeta is kept in sync with the latest result.
  */
 export function fetchJourneyMeta(journeyId) {
-  return fetch(config.api.journeyPlanner, {
+  return enturFetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: journeyGQL(journeyId) }),

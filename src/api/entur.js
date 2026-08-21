@@ -16,10 +16,14 @@ const TRANSIT_CAT = [
 export { TRANSIT_CAT };
 
 export function resolveStop(dir, signal) {
-  // Prefer coordinates so OTP foot-access finds all nearby stops (metro + bus + tram),
-  // not just quays within the single StopPlace the stopId belongs to.
-  if (dir._fromLat && dir._fromLon) return Promise.resolve({ lat: dir._fromLat, lon: dir._fromLon });
+  // Prefer the stop id. Passing coordinates instead makes OTP run a foot-access
+  // search and add walking time to the platform, which silently drops departures
+  // it judges unreachable — the user loses the very next one. This app already
+  // computes and shows its own walk time and reachability, so letting OTP also
+  // subtract it double-counts, and it hides options rather than flagging them.
+  // Coordinates remain the fallback for origins that aren't transit stops.
   if (dir.stopId) return Promise.resolve(dir.stopId);
+  if (dir._fromLat && dir._fromLon) return Promise.resolve({ lat: dir._fromLat, lon: dir._fromLon });
   if (!dir.geo) return Promise.reject(new Error('Mangler avgangssted'));
   return enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })

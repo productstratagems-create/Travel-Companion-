@@ -69,5 +69,12 @@ export function adaptTripPattern(tp) {
       })(),
       _durationMins:     Math.round(tp.duration / 60),
     };
-  } catch { return null; }
+  } catch (err) {
+    // Dropping a pattern silently made a whole class of "missing departure"
+    // bugs invisible; surface it in the debug log at least.
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('adaptTripPattern dropped a pattern:', err && err.message);
+    }
+    return null;
+  }
 }

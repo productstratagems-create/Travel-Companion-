@@ -22,8 +22,8 @@ import { closeSpectatePanel } from './spectate.js';
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
-// Keyed by expectedDepartureTime — stable across re-renders so a click fired on
-// a DOM element from a previous render still resolves the correct departure.
+// Keyed by _depKey — stable across re-renders so a click fired on a DOM element
+// from a previous render still resolves the correct departure.
 const _depMap = new Map();
 
 // ── Mode filter ──────────────────────────────────────────────────────────────
@@ -812,6 +812,41 @@ function renderUpdatedStamp() {
   return stale;
 }
 
+// Stable per-row identity, shared by the tap map and the rendered handlers.
+function _depKey(c, origIdx) {
+  return c.expectedDepartureTime + '|' + ((c.serviceJourney && c.serviceJourney.id) || origIdx);
+}
+
+// Collapse the departure list for display, sorted ascending by departure time.
+//
+// Trip-planner results (have _legs) are bucketed per departure minute so a
+// single minute doesn't fill the board with variations of the same trip.
+// Within a bucket the EARLIEST DEPARTURE always wins — arrival time is only a
+// tiebreak between services leaving at the same instant. Ranking by arrival
+// instead let a service leaving at 10:05:55 evict one leaving at 10:05:05,
+// which silently hid the user's genuine next departure.
+//
+// Board results (no _legs) are distinct services; only exact duplicates merge.
+export function dedupeDepartures(deps) {
+  const indexed = (deps || []).map((c, i) => ({ c, origIdx: i }));
+  indexed.sort((a, b) =>
+    new Date(a.c.expectedDepartureTime).getTime() - new Date(b.c.expectedDepartureTime).getTime()
+  );
+  const byKey = new Map();
+  indexed.forEach(({ c, origIdx }) => {
+    const depMs = new Date(c.expectedDepartureTime).getTime();
+    const arrMs = c._finalArrival ? new Date(c._finalArrival).getTime() : Infinity;
+    const key = c._legs
+      ? Math.floor(depMs / 60000)
+      : _depKey(c, origIdx);
+    const cur = byKey.get(key);
+    if (!cur || depMs < cur.depMs || (depMs === cur.depMs && arrMs < cur.arrMs)) {
+      byKey.set(key, { c, origIdx, arrMs, depMs });
+    }
+  });
+  return Array.from(byKey.values());
+}
+
 export function renderBoard() {
   renderAlerts();
   renderWalkSummary();
@@ -872,23 +907,7 @@ export function renderBoard() {
   const now = Date.now();
   const walkActive = isWalkActive(dir);
 
-  // Trip-planner results (have _legs): deduplicate by departure minute, keep fastest arrival.
-  // Board results (no _legs): each call is a distinct service — deduplicate only exact duplicates.
-  const indexed = state.deps.map((c, i) => ({ c, origIdx: i }));
-  indexed.sort((a, b) =>
-    new Date(a.c.expectedDepartureTime).getTime() - new Date(b.c.expectedDepartureTime).getTime()
-  );
-  const depMinMap = new Map();
-  indexed.forEach(({ c, origIdx }) => {
-    const depMin = Math.floor(new Date(c.expectedDepartureTime).getTime() / 60000);
-    const arrMs  = c._finalArrival ? new Date(c._finalArrival).getTime() : Infinity;
-    const key = c._legs
-      ? depMin
-      : (c.expectedDepartureTime + '|' + ((c.serviceJourney && c.serviceJourney.id) || origIdx));
-    const cur = depMinMap.get(key);
-    if (!cur || arrMs < cur.arrMs) depMinMap.set(key, { c, origIdx, arrMs });
-  });
-  let visibleDeps = Array.from(depMinMap.values());
+  let visibleDeps = dedupeDepartures(state.deps);
   if (activeModes.length < 4) {
     visibleDeps = visibleDeps.filter(({ c }) => activeModes.includes(_depMode(c)));
   }
@@ -937,13 +956,15 @@ export function renderBoard() {
   _lineGaps.forEach((gaps, lcode) => { if (gaps.length >= 2) _lineMedian.set(lcode, _median(gaps)); });
   const _linePrev = new Map();
 
+  // Key must be unique per rendered row: two board-path services can share an
+  // ISO departure time, and keying on that alone made a tap open the wrong one.
   _depMap.clear();
-  visibleDeps.forEach(v => _depMap.set(v.c.expectedDepartureTime, v.c));
+  visibleDeps.forEach(v => _depMap.set(_depKey(v.c, v.origIdx), v.c));
 
   let html = '';
   let urgentShown = false;
   visibleDeps.forEach(({ c, origIdx }) => {
-    const depId = c.expectedDepartureTime;
+    const depId = _depKey(c, origIdx);
     const depTs = new Date(c.expectedDepartureTime).getTime();
     const diffSec = Math.floor((depTs - now) / 1000);
     const mins = Math.floor(Math.max(0, diffSec) / 60);
@@ -1163,7 +1184,9 @@ function _fetchBoard() {
       state.serviceAlerts = situations || [];
       logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);
       const adapted = patterns.map(adaptTripPattern).filter(Boolean);
-      logMsg('✓ ' + adapted.length + ' trip patterns', 'ok');
+      const dropped = patterns.length - adapted.length;
+      logMsg('✓ ' + adapted.length + '/' + patterns.length + ' trip patterns'
+        + (dropped ? ' (' + dropped + ' forkastet)' : ''), dropped ? null : 'ok');
       state.deps = adapted;
       state.lastFetch = Date.now();
       document.getElementById('board-error').style.display = 'none';

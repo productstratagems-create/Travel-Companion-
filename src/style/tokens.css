@@ -1,0 +1,129 @@
+/* ── COLOUR TOKENS ────────────────────────────────────────────────────────────
+ * Every themable colour in the app resolves through these. Two independent
+ * axes combine:
+ *
+ *   data-theme   = light | dark        (the existing Lys / Auto / Mørk setting)
+ *   data-palette = standard | bluegrey (the "farger" setting)
+ *
+ * Alpha variants are handled by the *-rgb triplets, consumed as
+ * rgba(var(--accent-rgb), .06). That collapses what used to be a dozen
+ * hardcoded alpha steps per colour into a single token.
+ *
+ * Colours that carry MEANING rather than brand stay literal in the component
+ * sheets: transit line colours from the API, the occupancy scale, scooter
+ * vendor colours and the mode marker colours. --ok / --err / --urgent are
+ * tokenised only so their SHADE can adapt for contrast — never their meaning.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Standard (warm amber) — dark. The unconditional baseline. */
+  --accent:          #f5b840;
+  --accent-rgb:      245, 184, 64;
+  --accent-strong:   #fbbf24;
+  --border-rgb:      245, 184, 64;
+
+  --bg:              #0a0806;
+  --bg-rgb:          10, 8, 6;
+  --bg-gradient:     radial-gradient(ellipse at top, #1a1410 0%, #0a0806 55%, #000 100%);
+  --surface:         #0f0d0b;
+  --surface-2:       #1a1410;
+
+  --text:            #f5b840;
+  --text-muted:      #8a837d;
+  --text-muted-rgb:  140, 133, 127;
+  --text-muted-hi:   #a8a29e;
+  --text-soft:       #7485a0;
+  --text-soft-hi:    #8898aa;
+  --text-dim:        #94a3b8;
+
+  --warn:            #fbbf24;
+  --warn-rgb:        251, 191, 36;
+  --ok:              #4ade80;
+  --err:             #fca5a5;
+  --urgent:          #f97316;
+}
+
+/* Standard — light. Values reproduce the previous theme-light.css exactly. */
+:root[data-theme="light"] {
+  --accent:          #b05800;
+  --accent-rgb:      176, 88, 0;
+  --accent-strong:   #92400e;
+  --border-rgb:      26, 19, 9;
+
+  --bg:              #fffdf7;
+  --bg-rgb:          255, 253, 247;
+  --bg-gradient:     linear-gradient(150deg, #fffdf7 0%, #fef9e8 100%);
+  --surface:         #fffdf7;
+  --surface-2:       #fef9e8;
+
+  --text:            #1c1309;
+  --text-muted:      #78716c;
+  --text-muted-rgb:  120, 113, 108;
+  --text-muted-hi:   #9ca3af;
+  --text-soft:       #6b7280;
+  --text-soft-hi:    #6b7280;
+  --text-dim:        #9ca3af;
+
+  --warn:            #92400e;
+  --warn-rgb:        146, 64, 14;
+  --ok:              #16a34a;
+  --err:             #b91c1c;
+  --urgent:          #b45309;
+}
+
+/* Blågrå — dark. Cool counterpart to the light palette below. */
+:root[data-palette="bluegrey"] {
+  --accent:          #60a5fa;
+  --accent-rgb:      96, 165, 250;
+  --accent-strong:   #93c5fd;
+  --border-rgb:      148, 163, 184;
+
+  --bg:              #0f172a;
+  --bg-rgb:          15, 23, 42;
+  --bg-gradient:     radial-gradient(ellipse at top, #1e293b 0%, #0f172a 55%, #020617 100%);
+  --surface:         #131c31;
+  --surface-2:       #1e293b;
+
+  --text:            #e2e8f0;
+  --text-muted:      #94a3b8;
+  --text-muted-rgb:  148, 163, 184;
+  --text-muted-hi:   #cbd5e1;
+  --text-soft:       #7c8ca5;
+  --text-soft-hi:    #94a3b8;
+  --text-dim:        #64748b;
+
+  --warn:            #fbbf24;
+  --warn-rgb:        251, 191, 36;
+  --ok:              #4ade80;
+  --err:             #fca5a5;
+  --urgent:          #fb923c;
+}
+
+/* Blågrå — light. The requested look: near-white and pale blue-grey,
+   slate text, a clear medium blue accent. */
+:root[data-palette="bluegrey"][data-theme="light"] {
+  --accent:          #2563eb;
+  --accent-rgb:      37, 99, 235;
+  --accent-strong:   #1d4ed8;
+  --border-rgb:      51, 65, 85;
+
+  --bg:              #f7f9fb;
+  --bg-rgb:          247, 249, 251;
+  --bg-gradient:     linear-gradient(150deg, #f7f9fb 0%, #eef2f6 100%);
+  --surface:         #ffffff;
+  --surface-2:       #eef2f6;
+
+  --text:            #334155;
+  --text-muted:      #64748b;
+  --text-muted-rgb:  100, 116, 139;
+  --text-muted-hi:   #475569;
+  --text-soft:       #64748b;
+  --text-soft-hi:    #64748b;
+  --text-dim:        #94a3b8;
+
+  --warn:            #b45309;
+  --warn-rgb:        180, 83, 9;
+  --ok:              #16a34a;
+  --err:             #b91c1c;
+  --urgent:          #c2410c;
+}

@@ -1,4 +1,5 @@
 import 'leaflet/dist/leaflet.css';
+import './style/tokens.css';
 import './style/base.css';
 import './style/components.css';
 import './style/board.css';

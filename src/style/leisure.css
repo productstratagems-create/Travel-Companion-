@@ -1,52 +1,52 @@
 #v-leisure{padding:0 1rem 3rem}
 
 .lei-header{display:flex;justify-content:space-between;align-items:center;padding:1rem 0 .6rem}
-.lei-title{font-family:"Bebas Neue",sans-serif;font-size:1.8rem;color:#f5b840;letter-spacing:.06em;line-height:1}
-.lei-mode-btn{background:none;border:none;font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#8898aa;cursor:pointer;padding:.25rem 0}
-.lei-mode-btn:active{color:#f5b840}
+.lei-title{font-family:"Bebas Neue",sans-serif;font-size:1.8rem;color:var(--accent);letter-spacing:.06em;line-height:1}
+.lei-mode-btn{background:none;border:none;font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-soft-hi);cursor:pointer;padding:.25rem 0}
+.lei-mode-btn:active{color:var(--accent)}
 
-.lei-weather{font-size:12px;color:#8a837d;margin-bottom:.75rem;min-height:1rem}
+.lei-weather{font-size:12px;color:var(--text-muted);margin-bottom:.75rem;min-height:1rem}
 
 .lei-cats{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
-.lei-cat-btn{background:rgba(245,184,64,.06);border:1px solid rgba(245,184,64,.12);border-radius:20px;padding:.3rem .7rem;font-family:inherit;font-size:11px;color:#8a837d;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-.lei-cat-btn.active{background:rgba(245,184,64,.15);border-color:rgba(245,184,64,.4);color:#f5b840}
-.lei-cat-btn:active{background:rgba(245,184,64,.1)}
+.lei-cat-btn{background:rgba(var(--accent-rgb),.06);border:1px solid rgba(var(--border-rgb),.12);border-radius:20px;padding:.3rem .7rem;font-family:inherit;font-size:11px;color:var(--text-muted);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.lei-cat-btn.active{background:rgba(var(--accent-rgb),.15);border-color:rgba(var(--border-rgb),.4);color:var(--accent)}
+.lei-cat-btn:active{background:rgba(var(--accent-rgb),.1)}
 
-.lei-venue-card{border-bottom:1px solid rgba(245,184,64,.07);padding:.65rem 0;cursor:pointer;-webkit-tap-highlight-color:transparent;border-left:2px solid transparent;padding-left:0;transition:border-color .15s}
-.lei-venue-card.active{border-left-color:#f5b840;padding-left:.4rem}
+.lei-venue-card{border-bottom:1px solid rgba(var(--border-rgb),.07);padding:.65rem 0;cursor:pointer;-webkit-tap-highlight-color:transparent;border-left:2px solid transparent;padding-left:0;transition:border-color .15s}
+.lei-venue-card.active{border-left-color:var(--accent);padding-left:.4rem}
 .lei-venue-card:last-child{border-bottom:none}
 .lei-venue-row{display:flex;align-items:baseline;gap:.45rem}
 .lei-venue-emoji{font-size:1rem;flex-shrink:0;line-height:1.4}
-.lei-venue-name{flex:1;font-size:13px;color:#f5b840;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lei-venue-dist{font-size:11px;color:#7485a0;flex-shrink:0}
+.lei-venue-name{flex:1;font-size:13px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lei-venue-dist{font-size:11px;color:var(--text-soft);flex-shrink:0}
 .lei-venue-hours{font-size:10px;flex-shrink:0;margin-left:.15rem}
-.lei-venue-hours.open{color:#4ade80}
+.lei-venue-hours.open{color:var(--ok)}
 .lei-venue-hours.closed{color:#f87171}
 
 .lei-venue-expanded{padding:.5rem 0 .15rem .1rem}
-.lei-venue-type{font-size:10px;color:#8a837d;margin-bottom:.45rem}
-.lei-reis-btn{display:block;width:100%;padding:.6rem .75rem;background:none;border:1px solid rgba(245,184,64,.2);border-radius:6px;font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#f5b840;cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent}
-.lei-reis-btn:active{background:rgba(245,184,64,.06)}
+.lei-venue-type{font-size:10px;color:var(--text-muted);margin-bottom:.45rem}
+.lei-reis-btn{display:block;width:100%;padding:.6rem .75rem;background:none;border:1px solid rgba(var(--border-rgb),.2);border-radius:6px;font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent}
+.lei-reis-btn:active{background:rgba(var(--accent-rgb),.06)}
 
-.lei-loading{font-size:12px;color:#7485a0;padding:1.25rem 0}
+.lei-loading{font-size:12px;color:var(--text-soft);padding:1.25rem 0}
 
 /* Location bar */
 .lei-loc-bar{display:flex;align-items:center;gap:.4rem;margin-bottom:.35rem}
 .lei-loc-dot{font-size:.85rem;flex-shrink:0;line-height:1}
-.lei-loc-label{flex:1;font-size:11px;color:#8a837d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lei-loc-edit-btn{background:none;border:none;font-family:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(245,184,64,.45);cursor:pointer;flex-shrink:0;padding:0}
-.lei-loc-edit-btn:active{color:#f5b840}
+.lei-loc-label{flex:1;font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lei-loc-edit-btn{background:none;border:none;font-family:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(var(--accent-rgb),.45);cursor:pointer;flex-shrink:0;padding:0}
+.lei-loc-edit-btn:active{color:var(--accent)}
 .lei-loc-search{margin-bottom:.5rem}
-#lei-loc-input{width:100%;box-sizing:border-box;background:rgba(245,184,64,.05);border:1px solid rgba(245,184,64,.15);border-radius:6px;padding:.5rem .65rem;color:#f5b840;font-family:inherit;font-size:.9rem;outline:none}
-#lei-loc-input:focus{border-color:rgba(245,184,64,.4)}
+#lei-loc-input{width:100%;box-sizing:border-box;background:rgba(var(--accent-rgb),.05);border:1px solid rgba(var(--border-rgb),.15);border-radius:6px;padding:.5rem .65rem;color:var(--accent);font-family:inherit;font-size:.9rem;outline:none}
+#lei-loc-input:focus{border-color:rgba(var(--border-rgb),.4)}
 
 /* Map strip */
-.lei-map-wrap{height:180px;border-radius:8px;overflow:hidden;margin-bottom:.85rem;background:#1a1410}
+.lei-map-wrap{height:180px;border-radius:8px;overflow:hidden;margin-bottom:.85rem;background:var(--surface-2)}
 #lei-map{height:100%}
-.lei-map-tip{background:#1a1410;border:1px solid rgba(245,184,64,.3);color:#f5b840;font-size:11px;white-space:nowrap;padding:.2rem .45rem;border-radius:3px}
+.lei-map-tip{background:var(--surface-2);border:1px solid rgba(var(--border-rgb),.3);color:var(--accent);font-size:11px;white-space:nowrap;padding:.2rem .45rem;border-radius:3px}
 
 /* Radius pills */
 .lei-radius-row{display:flex;gap:.35rem;margin-bottom:.5rem}
-.lei-radius-btn{background:rgba(245,184,64,.04);border:1px solid rgba(245,184,64,.1);border-radius:20px;padding:.25rem .6rem;font-family:inherit;font-size:10px;color:#7485a0;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.lei-radius-btn.active{background:rgba(245,184,64,.12);border-color:rgba(245,184,64,.35);color:#f5b840}
-.lei-radius-btn:active{background:rgba(245,184,64,.09)}
+.lei-radius-btn{background:rgba(var(--accent-rgb),.04);border:1px solid rgba(var(--border-rgb),.1);border-radius:20px;padding:.25rem .6rem;font-family:inherit;font-size:10px;color:var(--text-soft);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.lei-radius-btn.active{background:rgba(var(--accent-rgb),.12);border-color:rgba(var(--border-rgb),.35);color:var(--accent)}
+.lei-radius-btn:active{background:rgba(var(--accent-rgb),.09)}

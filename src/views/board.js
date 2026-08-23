@@ -17,6 +17,7 @@ import { fetchNearbyStops } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
 import { addCompass } from '../ui/mapCompass.js';
 import { snapToCorridor } from '../ui/corridor.js';
+import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -92,7 +93,7 @@ function _makeStopIcon(mode, count) { return makeStopIcon(mode, count); }
 
 function _makeDestIcon() {
   const html = '<svg width="22" height="30" viewBox="0 0 22 30" xmlns="http://www.w3.org/2000/svg">'
-    + '<path d="M11 0C5 0 0 5 0 11c0 8.3 11 19 11 19S22 19.3 22 11C22 5 17 0 11 0z" fill="#f5b840"/>'
+    + '<path d="M11 0C5 0 0 5 0 11c0 8.3 11 19 11 19S22 19.3 22 11C22 5 17 0 11 0z" fill="' + tokens().accent + '"/>'
     + '<circle cx="11" cy="11" r="4.5" fill="#b8860b"/>'
     + '</svg>';
   return L.divIcon({ className: '', html, iconSize: [22, 30], iconAnchor: [11, 30] });
@@ -102,7 +103,7 @@ const VENDOR_COLORS = { Bolt: '#22c55e', Voi: '#f87171', Tier: '#60a5fa' };
 function _makeScooterIcon(operator, battery) {
   const vc = VENDOR_COLORS[operator] || '#94a3b8';
   const label = battery != null ? battery + '%' : '?';
-  const html = '<div style="background:rgba(10,8,6,.85);border:2px solid ' + vc + ';border-radius:4px;padding:2px 5px;'
+  const html = '<div style="background:' + alpha('bgRgb', .85) + ';border:2px solid ' + vc + ';border-radius:4px;padding:2px 5px;'
     + 'font-size:10px;font-weight:700;transform:translate(-50%,-100%);white-space:nowrap;'
     + 'box-shadow:0 1px 4px rgba(0,0,0,.4);color:' + vc + '">⚡' + label + '</div>';
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
@@ -304,7 +305,7 @@ function _drawWalkRoute(fromLL, toLL, destName) {
   if (_bLayer) _bLayer.clearLayers();
 
   L.circleMarker([fromLL.lat, fromLL.lon], {
-    radius: 8, color: '#f5b840', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2,
+    radius: 8, color: tokens().accent, fillColor: tokens().accent, fillOpacity: 0.9, weight: 2,
   }).bindTooltip('Avreisested', { className: 'map-label' }).addTo(_bLayer);
 
   L.marker([toLL.lat, toLL.lon], { icon: _makeDestIcon() })
@@ -333,13 +334,13 @@ function _drawWalkRoute(fromLL, toLL, destName) {
                   pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
       if (!pts) throw new Error('no points');
       const latlngs = _decodePoly(pts);
-      L.polyline(latlngs, { color: '#f5b840', weight: 3, opacity: 0.85, dashArray: '7 6' }).addTo(_bLayer);
+      L.polyline(latlngs, { color: tokens().accent, weight: 3, opacity: 0.85, dashArray: '7 6' }).addTo(_bLayer);
       if (!_bUserMoved) _bMap.fitBounds(latlngs, { padding: [44, 44], maxZoom: 17 });
     })
     .catch(() => {
       if (!_bLayer) return;
       L.polyline([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], {
-        color: '#f5b840', weight: 2, opacity: 0.45, dashArray: '6 7',
+        color: tokens().accent, weight: 2, opacity: 0.45, dashArray: '6 7',
       }).addTo(_bLayer);
     });
 }
@@ -699,12 +700,12 @@ function renderLineRoute(visibleDeps) {
             && pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
           if (!encoded) throw new Error('no points');
           const latlngs = _decodePoly(encoded);
-          L.polyline(latlngs, { color: '#f5b840', weight: 3, opacity: 0.9, dashArray: '6 6' }).addTo(_bRouteLayer);
+          L.polyline(latlngs, { color: tokens().accent, weight: 3, opacity: 0.9, dashArray: '6 6' }).addTo(_bRouteLayer);
         })
         .catch(() => {
           if (!_bRouteLayer) return;
           L.polyline([alightPt, [destLL.lat, destLL.lon]], {
-            color: '#f5b840', weight: 2, opacity: 0.55, dashArray: '6 7',
+            color: tokens().accent, weight: 2, opacity: 0.55, dashArray: '6 7',
           }).addTo(_bRouteLayer);
         });
     }

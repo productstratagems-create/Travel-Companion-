@@ -5,6 +5,7 @@ import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
+import { tokens, alpha } from '../ui/themeTokens.js';
 import { addCompass } from '../ui/mapCompass.js';
 import { fetchWalkRoute } from '../api/route.js';
 import { fetchWeather } from '../api/weather.js';
@@ -60,13 +61,13 @@ function _initWalkMap(fromLL, toLL) {
   _wFromMarker = L.circleMarker([fromLL.lat, fromLL.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 }).addTo(_wMap);
   // Straight placeholder line shown immediately; replaced by routed path when OSRM responds
   let _routeLine = L.polyline([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]],
-    { color: '#f5b840', weight: 2, dashArray: '5 5', opacity: 0.4 }).addTo(_wMap);
+    { color: tokens().accent, weight: 2, dashArray: '5 5', opacity: 0.4 }).addTo(_wMap);
   _wMap.fitBounds([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], { padding: [30, 30] });
 
   fetchWalkRoute(fromLL, toLL).then(pts => {
     if (!_wMap || !pts) return;
     _routeLine.remove();
-    _routeLine = L.polyline(pts, { color: '#f5b840', weight: 3, opacity: 0.8 }).addTo(_wMap);
+    _routeLine = L.polyline(pts, { color: tokens().accent, weight: 3, opacity: 0.8 }).addTo(_wMap);
     if (!_wUserMoved) _wMap.fitBounds(pts, { padding: [30, 30] });
   }).catch(() => {});
 

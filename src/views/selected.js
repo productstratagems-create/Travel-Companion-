@@ -16,6 +16,7 @@ import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
 import { addCompass } from '../ui/mapCompass.js';
+import { tokens } from '../ui/themeTokens.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -175,7 +176,7 @@ function _renderSelMap(dep, fromName, toName) {
   const pts = [];
 
   legs.forEach(({ stops, color }, li) => {
-    const lc = color || '#f5b840';
+    const lc = color || tokens().accent;
     L.polyline(stops.map(s => [s.lat, s.lon]), { color: lc, weight: 4, opacity: 0.8 }).addTo(_selLayer);
     stops.forEach((s, i) => {
       pts.push([s.lat, s.lon]);
@@ -185,7 +186,7 @@ function _renderSelMap(dep, fromName, toName) {
       const isLast  = !destIsVenue && li === legs.length - 1 && i === stops.length - 1;
       const isAlight = destIsVenue && li === legs.length - 1 && i === stops.length - 1;
       if (isFirst || isLast) {
-        const html = '<div style="background:' + (isLast ? '#f5b840' : lc) + ';border:2px solid #fff;border-radius:50%;'
+        const html = '<div style="background:' + (isLast ? tokens().accent : lc) + ';border:2px solid #fff;border-radius:50%;'
           + 'width:14px;height:14px;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>';
         L.marker([s.lat, s.lon], { icon: L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] }) })
           .bindTooltip(s.name, { permanent: true, direction: isFirst ? 'bottom' : 'top', offset: [0, isFirst ? 8 : -10], className: 'sel-stop-label' })
@@ -211,7 +212,7 @@ function _renderSelMap(dep, fromName, toName) {
 
     // Venue pin
     const pinHtml = '<svg width="20" height="28" viewBox="0 0 22 30" xmlns="http://www.w3.org/2000/svg">'
-      + '<path d="M11 0C5 0 0 5 0 11c0 8.3 11 19 11 19S22 19.3 22 11C22 5 17 0 11 0z" fill="#f5b840"/>'
+      + '<path d="M11 0C5 0 0 5 0 11c0 8.3 11 19 11 19S22 19.3 22 11C22 5 17 0 11 0z" fill="' + tokens().accent + '"/>'
       + '<circle cx="11" cy="11" r="4.5" fill="#b8860b"/></svg>';
     L.marker([destLL.lat, destLL.lon], {
       icon: L.divIcon({ className: '', html: pinHtml, iconSize: [20, 28], iconAnchor: [10, 28] }),
@@ -236,13 +237,13 @@ function _renderSelMap(dep, fromName, toName) {
             && pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
           if (!encoded) throw new Error('no points');
           const latlngs = _decodePoly(encoded);
-          L.polyline(latlngs, { color: '#f5b840', weight: 3, opacity: 0.9, dashArray: '6 6' }).addTo(_selLayer);
+          L.polyline(latlngs, { color: tokens().accent, weight: 3, opacity: 0.9, dashArray: '6 6' }).addTo(_selLayer);
           if (_selMap) _selMap.fitBounds([...pts, ...latlngs], { padding: [40, 40], maxZoom: 16 });
         })
         .catch(() => {
           if (!_selLayer) return;
           L.polyline([[alightStop.lat, alightStop.lon], [destLL.lat, destLL.lon]], {
-            color: '#f5b840', weight: 2, opacity: 0.55, dashArray: '6 7',
+            color: tokens().accent, weight: 2, opacity: 0.55, dashArray: '6 7',
           }).addTo(_selLayer);
         });
     }

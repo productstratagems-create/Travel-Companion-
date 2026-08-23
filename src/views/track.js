@@ -15,6 +15,7 @@ import { snapToCorridor } from '../ui/corridor.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn, esc } from '../ui/fmt.js';
 import L from 'leaflet';
+import { tokens, alpha } from '../ui/themeTokens.js';
 import { fetchWalkRoute } from '../api/route.js';
 import { addCompass } from '../ui/mapCompass.js';
 import { storage } from '../storage.js';
@@ -196,12 +197,12 @@ function _renderTrackMap(now, cs, legs) {
       // Transfer point between this leg and the previous one
       L.circleMarker(nPts[0], { radius: 6, color: '#fff', fillColor: nColor, fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
       if (j === legs.length - 1) {
-        L.circleMarker(nPts[nPts.length - 1], { radius: 6, color: '#fff', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
+        L.circleMarker(nPts[nPts.length - 1], { radius: 6, color: '#fff', fillColor: tokens().accent, fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
       }
     }
     // Current leg is the final leg — mark its end as the destination.
     if (cs.i === legs.length - 1) {
-      L.circleMarker(last, { radius: 6, color: '#fff', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
+      L.circleMarker(last, { radius: 6, color: '#fff', fillColor: tokens().accent, fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
     }
 
     // Remember the corridor so the live user-position dot can snap onto it.

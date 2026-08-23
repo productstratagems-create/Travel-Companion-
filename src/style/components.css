@@ -12,9 +12,9 @@
   box-sizing: border-box;
   padding: .4rem .5rem .4rem 1rem;
   padding-bottom: calc(.4rem + env(safe-area-inset-bottom, 0px));
-  background: rgba(10, 8, 6, .96);
+  background: rgba(var(--bg-rgb), .96);
   border: none;
-  border-top: 1px solid rgba(251,191,36,.25);
+  border-top: 1px solid rgba(var(--warn-rgb),.25);
   font-family: inherit;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -43,7 +43,7 @@
   flex: 1;
   min-width: 0;
   font-size: 11px;
-  color: #a8a29e;
+  color: var(--text-muted-hi);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -52,14 +52,14 @@
 .chip-arrival{
   font-family: 'Bebas Neue', sans-serif;
   font-size: 1.1rem;
-  color: #fbbf24;
-  text-shadow: 0 0 10px rgba(251,191,36,.5);
+  color: var(--warn);
+  text-shadow: 0 0 10px rgba(var(--warn-rgb),.5);
   flex-shrink: 0;
 }
 .chip-arrival-plain{
   font-family: inherit;
   font-size: 11px;
-  color: #7485a0;
+  color: var(--text-soft);
   text-shadow: none;
 }
 
@@ -75,9 +75,9 @@
   min-width: 44px;
   min-height: 44px;
 }
-#chip-end-btn:active{ color: #fca5a5; }
+#chip-end-btn:active{ color: var(--err); }
 #chip-end-btn.confirm-armed{
-  color: #fca5a5;
+  color: var(--err);
   background: rgba(220,38,38,.12);
   border-radius: 6px;
   font-size: 13px;
@@ -96,38 +96,38 @@ body.jny-chip-visible .wrap { padding-bottom: calc(60px + env(safe-area-inset-bo
 .nav-back{
   display:inline-flex;align-items:center;gap:.4rem;
   background:none;border:none;
-  color:#8c857f;font-family:inherit;font-size:11px;
+  color:var(--text-muted);font-family:inherit;font-size:11px;
   letter-spacing:.1em;text-transform:uppercase;
   padding:.5rem 0;cursor:pointer;min-height:44px;
 }
-.nav-back:active{color:#f5b840}
+.nav-back:active{color:var(--accent)}
 
 /* "Tap again to confirm" state for destructive actions — see ui/confirm.js */
-.nav-back.confirm-armed{color:#fca5a5}
-.fav-del.confirm-armed{color:#fca5a5;background:rgba(220,38,38,.12);border-radius:3px}
+.nav-back.confirm-armed{color:var(--err)}
+.fav-del.confirm-armed{color:var(--err);background:rgba(220,38,38,.12);border-radius:3px}
 
 .header-actions{display:flex;align-items:center}
 
 .nav-plan-btn{
   background:none;border:none;
-  color:rgba(245,184,64,.4);font-size:15px;
+  color:rgba(var(--accent-rgb),.4);font-size:15px;
   padding:.5rem;cursor:pointer;
   min-height:44px;min-width:44px;
   display:inline-flex;align-items:center;justify-content:center;
   flex-shrink:0;
 }
-.nav-plan-btn:active{color:#f5b840}
+.nav-plan-btn:active{color:var(--accent)}
 
 /* Shared status messages — themable so light mode stays legible */
 .status-error-box{
   padding:.6rem;margin:.5rem 0;font-size:11px;
-  color:#fca5a5;background:rgba(220,38,38,.08);border-radius:4px;
+  color:var(--err);background:rgba(220,38,38,.08);border-radius:4px;
 }
 .status-error-msg{
-  margin-top:.75rem;font-size:11px;color:#fca5a5;
+  margin-top:.75rem;font-size:11px;color:var(--err);
 }
 .status-ok-msg{
-  margin-top:.4rem;font-size:11px;color:#f5b840;text-align:center;
+  margin-top:.4rem;font-size:11px;color:var(--accent);text-align:center;
 }
 
 /* Status dot */
@@ -137,48 +137,48 @@ body.jny-chip-visible .wrap { padding-bottom: calc(60px + env(safe-area-inset-bo
   display:inline-block;margin-right:.4rem;vertical-align:middle;
   animation:blink 3s infinite;cursor:pointer;flex-shrink:0;
 }
-.status-dot.loading{background:#fbbf24;box-shadow:0 0 6px rgba(251,191,36,.7)}
+.status-dot.loading{background:var(--warn);box-shadow:0 0 6px rgba(var(--warn-rgb),.7)}
 .status-dot.error{background:#dc2626;box-shadow:0 0 6px rgba(220,38,38,.7);animation:none}
 @keyframes blink{0%,90%,100%{opacity:1}95%{opacity:.3}}
 
 /* Empty / error states */
 .state-msg{
   padding:3rem 0;text-align:center;
-  font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:#8a837d;
+  font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:var(--text-muted);
 }
 
 /* CTA buttons */
 .cta-btn{
   width:100%;padding:1.1rem;
   font-family:"Bebas Neue",sans-serif;font-size:1.5rem;letter-spacing:.1em;
-  color:#0a0806;background:#f5b840;
+  color:var(--bg);background:var(--accent);
   border:none;border-radius:6px;cursor:pointer;
   transition:background .1s, opacity .1s;
   display:block;
 }
-.cta-btn:active{background:#fbbf24}
+.cta-btn:active{background:var(--warn)}
 .cta-btn:disabled{opacity:.3;cursor:default}
 .cta-btn.secondary{
-  background:none;border:1px solid rgba(245,184,64,.25);
-  color:#8c857f;margin-top:.6rem;font-size:1.1rem;
+  background:none;border:1px solid rgba(var(--border-rgb),.25);
+  color:var(--text-muted);margin-top:.6rem;font-size:1.1rem;
 }
-.cta-btn.secondary:active{background:rgba(245,184,64,.06);color:#f5b840}
+.cta-btn.secondary:active{background:rgba(var(--accent-rgb),.06);color:var(--accent)}
 
 /* ── Smart auto-reise toast ── */
 .smart-toast{
   display:flex;align-items:center;justify-content:space-between;
   gap:.6rem;padding:.55rem .75rem;margin:.4rem .5rem 0;
-  background:rgba(245,184,64,.12);border:1px solid rgba(245,184,64,.25);
+  background:rgba(var(--accent-rgb),.12);border:1px solid rgba(var(--border-rgb),.25);
   border-radius:8px;font-size:.85rem;color:#c9a84c;
   animation:smart-toast-in .18s ease;
 }
 @keyframes smart-toast-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-.smart-toast strong{color:#f5b840}
+.smart-toast strong{color:var(--accent)}
 .smart-toast-cancel{
-  background:none;border:none;color:#8c857f;
+  background:none;border:none;color:var(--text-muted);
   font-size:1rem;cursor:pointer;padding:0 .2rem;line-height:1;flex-shrink:0;
 }
-.smart-toast-cancel:hover{color:#f5b840}
+.smart-toast-cancel:hover{color:var(--accent)}
 html[data-theme="light"] .smart-toast{
   background:rgba(176,88,0,.07);border-color:rgba(176,88,0,.2);color:#b05800;
 }

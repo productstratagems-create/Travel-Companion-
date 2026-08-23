@@ -4,6 +4,7 @@ import { show, updateHeader } from '../ui/nav.js';
 import { confirmTap } from '../ui/confirm.js';
 import config from '../config.js';
 import L from 'leaflet';
+import { tokens, alpha } from '../ui/themeTokens.js';
 import { addCompass } from '../ui/mapCompass.js';
 import { geocodePlace, fetchJourneyMeta } from '../api/entur.js';
 
@@ -143,7 +144,7 @@ async function _renderPlanMap(legs) {
     // Origin marker (gold circle, first leg only)
     if (i === 0 && fromCoord) {
       L.circleMarker([fromCoord.lat, fromCoord.lon], {
-        radius: 7, color: '#fff', fillColor: '#f5b840', fillOpacity: 0.9, weight: 2,
+        radius: 7, color: '#fff', fillColor: tokens().accent, fillOpacity: 0.9, weight: 2,
       }).bindTooltip(leg.from.toLowerCase(), { className: 'map-label', direction: 'top' })
         .addTo(_planMapLayer);
     }

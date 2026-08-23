@@ -4,7 +4,7 @@ import { recordSmartTrip } from '../api/smart.js';
 import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
-import { loadTheme, setTheme } from '../theme.js';
+import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
 import { makeSuggBtn, esc } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
@@ -132,6 +132,10 @@ function _highlightPrefs() {
   document.querySelectorAll('#pref-theme .pref-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.val === theme);
   });
+  const palette = loadPalette();
+  document.querySelectorAll('#pref-palette .pref-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === palette);
+  });
 }
 
 function initPrefs() {
@@ -143,6 +147,9 @@ function initPrefs() {
   });
   document.querySelectorAll('#pref-theme .pref-btn').forEach(btn => {
     btn.addEventListener('click', () => { setTheme(btn.dataset.val); _highlightPrefs(); });
+  });
+  document.querySelectorAll('#pref-palette .pref-btn').forEach(btn => {
+    btn.addEventListener('click', () => { setPalette(btn.dataset.val); _highlightPrefs(); });
   });
 }
 

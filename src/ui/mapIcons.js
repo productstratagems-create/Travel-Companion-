@@ -1,5 +1,6 @@
 import L from 'leaflet';
 
+import { tokens, alpha } from './themeTokens.js';
 const _BUS_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" fill="white" xmlns="http://www.w3.org/2000/svg">'
   + '<rect x="1" y="3" width="14" height="9" rx="2"/>'
   + '<rect x="3" y="1" width="10" height="3" rx="1" opacity=".8"/>'
@@ -35,7 +36,7 @@ export function makeVehicleIcon(mode, code, color) {
     + 'display:flex;align-items:center;justify-content:center;'
     + 'font-size:' + fontSize + 'px;font-weight:800;color:#fff;font-family:inherit;'
     + 'border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.5)">' + code + '</div>'
-    + '<div style="position:absolute;bottom:-2px;right:-2px;background:rgba(10,8,6,.85);'
+    + '<div style="position:absolute;bottom:-2px;right:-2px;background:' + alpha('bgRgb', .85) + ';'
     + 'border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center">'
     + _modeGlyph(mode) + '</div>'
     + '</div>';

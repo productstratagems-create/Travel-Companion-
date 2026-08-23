@@ -5,52 +5,52 @@
 .saved-tab{
   flex:1;padding:.6rem .4rem;
   background:rgba(0,0,0,.45);
-  border:1px solid rgba(245,184,64,.18);border-radius:6px;
-  color:rgba(245,184,64,.85);font-family:inherit;
+  border:1px solid rgba(var(--border-rgb),.18);border-radius:6px;
+  color:rgba(var(--accent-rgb),.85);font-family:inherit;
   font-size:11px;letter-spacing:.06em;text-transform:uppercase;
   cursor:pointer;min-height:44px;
   transition:background .15s,border-color .15s,color .15s;
 }
 .saved-tab.active{
-  background:rgba(245,184,64,.14);
-  border-color:rgba(245,184,64,.6);
-  color:#f5b840;
+  background:rgba(var(--accent-rgb),.14);
+  border-color:rgba(var(--border-rgb),.6);
+  color:var(--accent);
 }
-.saved-tab:active{background:rgba(245,184,64,.2)}
+.saved-tab:active{background:rgba(var(--accent-rgb),.2)}
 
 .fav-section-label{
   font-size:9px;text-transform:uppercase;letter-spacing:.15em;
-  color:#8898aa;padding:.75rem 0 .3rem;
+  color:var(--text-soft-hi);padding:.75rem 0 .3rem;
 }
 .fav-card{
   display:flex;align-items:center;
-  border-bottom:1px solid rgba(245,184,64,.06);
+  border-bottom:1px solid rgba(var(--border-rgb),.06);
 }
 .fav-card-sel{
   flex:1;text-align:left;font-family:inherit;font-size:13px;
   padding:.75rem .5rem .75rem 0;background:none;border:none;
-  color:#a8a29e;cursor:pointer;
+  color:var(--text-muted-hi);cursor:pointer;
 }
-.fav-card-sel:active{color:#f5b840}
+.fav-card-sel:active{color:var(--accent)}
 .fav-timed-sel{
   flex:1;display:flex;align-items:center;gap:.5rem;
   padding:.65rem .5rem .65rem 0;cursor:pointer;min-width:0;
 }
 .fav-timed-time{
   font-family:"Bebas Neue",sans-serif;font-size:1.4rem;
-  color:#f5b840;line-height:1;flex-shrink:0;
+  color:var(--accent);line-height:1;flex-shrink:0;
 }
 .fav-timed-route{
-  font-size:11px;color:#8c857f;
+  font-size:11px;color:var(--text-muted);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .fav-del{
   flex-shrink:0;background:none;border:none;
-  color:#8898aa;font-size:14px;padding:.5rem .4rem;
+  color:var(--text-soft-hi);font-size:14px;padding:.5rem .4rem;
   cursor:pointer;line-height:1;
 }
-.fav-del:active{color:#fca5a5}
+.fav-del:active{color:var(--err)}
 .fav-empty{
-  font-size:12px;color:#8898aa;line-height:1.8;
+  font-size:12px;color:var(--text-soft-hi);line-height:1.8;
   padding:2rem 0;text-align:center;
 }

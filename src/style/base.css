@@ -1,9 +1,9 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{
   min-height:100vh;
-  background:radial-gradient(ellipse at top,#1a1410 0%,#0a0806 55%,#000 100%);
+  background:var(--bg-gradient);
   background-attachment:fixed;
-  color:#f5b840;
+  color:var(--text);
   font-family:"JetBrains Mono",ui-monospace,monospace;
   -webkit-font-smoothing:antialiased;
 }
@@ -12,12 +12,12 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 
 /* ── TYPE SCALE ── */
 .num{font-family:"Bebas Neue",sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1}
-.muted{color:#8898aa}
-.soft{color:#94a3b8}
-.amber{color:#f5b840}
-.warn{color:#fbbf24}
-.go{color:#f97316}
-.ok{color:#4ade80}
+.muted{color:var(--text-soft-hi)}
+.soft{color:var(--text-dim)}
+.amber{color:var(--accent)}
+.warn{color:var(--warn)}
+.go{color:var(--urgent)}
+.ok{color:var(--ok)}
 .dim{opacity:.3}
 
 /* ── MAP SHARED ── */
@@ -25,28 +25,31 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 .map-expand-btn{
   position:absolute;top:6px;right:6px;z-index:500;
   width:28px;height:28px;padding:0;
-  border-radius:4px;border:1px solid rgba(245,184,64,.25);
-  background:rgba(10,8,6,.72);color:#f5b840;
+  border-radius:4px;border:1px solid rgba(var(--border-rgb),.25);
+  background:rgba(var(--bg-rgb),.72);color:var(--accent);
   font-size:14px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   line-height:1;backdrop-filter:blur(4px);
 }
-.map-expand-btn:active{background:rgba(245,184,64,.15)}
+.map-expand-btn:active{background:rgba(var(--accent-rgb),.15)}
 .map-compass{
   position:absolute;top:6px;right:40px;z-index:500;
   width:28px;height:28px;padding:0;
-  border-radius:4px;border:1px solid rgba(245,184,64,.25);
-  background:rgba(10,8,6,.72);color:#f5b840;
+  border-radius:4px;border:1px solid rgba(var(--border-rgb),.25);
+  background:rgba(var(--bg-rgb),.72);color:var(--accent);
   cursor:pointer;display:none;
   align-items:center;justify-content:center;
   line-height:1;backdrop-filter:blur(4px);
 }
-.map-compass:active{background:rgba(245,184,64,.15)}
+.map-compass:active{background:rgba(var(--accent-rgb),.15)}
 .map-compass svg{transition:transform .15s ease-out}
 
 /* ── LEAFLET MAP LABELS & SCALE ── */
 /* Station name tooltip on bike markers */
 .map-label{
+  /* Sits on the map, not on the page: the chip is always white, so its ink is
+     always dark. Deliberately NOT tokenised — a themed colour here would go
+     white-on-white in a light palette. */
   background:rgba(255,255,255,.92)!important;
   border:1px solid rgba(0,0,0,.12)!important;
   border-radius:3px!important;
@@ -73,18 +76,18 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 /* ── LEAFLET ZOOM CONTROLS — dark theme ── */
 .leaflet-bar{border:none!important;box-shadow:none!important}
 .leaflet-bar a,.leaflet-bar a:hover{
-  background:rgba(10,8,6,.78)!important;
-  color:#f5b840!important;
-  border-color:rgba(245,184,64,.22)!important;
+  background:rgba(var(--bg-rgb),.78)!important;
+  color:var(--accent)!important;
+  border-color:rgba(var(--border-rgb),.22)!important;
   width:28px!important;height:28px!important;line-height:26px!important;
   font-size:16px!important;font-weight:400!important;
   backdrop-filter:blur(4px);
 }
 .leaflet-bar a:first-child{border-radius:4px 4px 0 0!important}
-.leaflet-bar a:last-child{border-radius:0 0 4px 4px!important;border-top:1px solid rgba(245,184,64,.1)!important}
+.leaflet-bar a:last-child{border-radius:0 0 4px 4px!important;border-top:1px solid rgba(var(--border-rgb),.1)!important}
 .leaflet-bar a:only-child{border-radius:4px!important}
-.leaflet-bar a:hover{background:rgba(245,184,64,.12)!important}
-.leaflet-bar a.leaflet-disabled{color:rgba(245,184,64,.2)!important;cursor:default}
+.leaflet-bar a:hover{background:rgba(var(--accent-rgb),.12)!important}
+.leaflet-bar a.leaflet-disabled{color:rgba(var(--accent-rgb),.2)!important;cursor:default}
 
 /* ── ACCESSIBILITY ── */
 /* Screen-reader only utility */
@@ -92,7 +95,7 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 
 /* Visible focus indicator for keyboard users */
 :focus-visible{
-  outline:2px solid #f5b840;
+  outline:2px solid var(--accent);
   outline-offset:3px;
   border-radius:2px;
 }

@@ -5,8 +5,8 @@
   gap: .4rem;
   padding: .45rem .5rem .45rem .25rem;
   margin-bottom: .2rem;
-  background: rgba(245,184,64,.04);
-  border: 1px solid rgba(245,184,64,.12);
+  background: rgba(var(--accent-rgb),.04);
+  border: 1px solid rgba(var(--border-rgb),.12);
   border-radius: 6px;
   font-size: 11px;
   flex-wrap: nowrap;
@@ -14,7 +14,7 @@
 }
 
 .pctx-label {
-  color: #7485a0;
+  color: var(--text-soft);
   letter-spacing: .07em;
   text-transform: uppercase;
   flex-shrink: 0;
@@ -27,21 +27,21 @@
 .pctx-dest {
   flex: 1;
   min-width: 0;
-  color: #f5b840;
+  color: var(--accent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .pctx-arr {
-  color: #8a837d;
+  color: var(--text-muted);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
 
-.pctx-done   { color: #4ade80; flex-shrink: 0; }
-.pctx-active { color: #f5b840; flex-shrink: 0; font-family: "Bebas Neue", sans-serif; font-size: 1rem; letter-spacing: .04em; }
-.pctx-future { color: #7485a0; flex-shrink: 0; }
+.pctx-done   { color: var(--ok); flex-shrink: 0; }
+.pctx-active { color: var(--accent); flex-shrink: 0; font-family: "Bebas Neue", sans-serif; font-size: 1rem; letter-spacing: .04em; }
+.pctx-future { color: var(--text-soft); flex-shrink: 0; }
 
 .pctx-main {
   display: flex;
@@ -65,7 +65,7 @@
 .pctx-close {
   background: none;
   border: none;
-  color: rgba(245,184,64,.2);
+  color: rgba(var(--accent-rgb),.2);
   font-size: 15px;
   padding: .1rem .3rem;
   cursor: pointer;
@@ -73,12 +73,12 @@
   flex-shrink: 0;
   margin-left: auto;
 }
-.pctx-close:active { color: #fca5a5; }
+.pctx-close:active { color: var(--err); }
 
 /* ── Plan map ── */
 #plan-map {
   height: 220px;
-  background: #0f0d0b;
+  background: var(--surface);
   transition: height .3s ease, border-radius .3s ease;
 }
 #plan-map.expanded { height: 72vh; }
@@ -89,7 +89,7 @@
 .plan-journey-meta {
   padding: .5rem 0 1rem;
   font-size: 11px;
-  color: #8a837d;
+  color: var(--text-muted);
   letter-spacing: .06em;
   text-transform: uppercase;
 }
@@ -97,7 +97,7 @@
 .plan-journey-done {
   font-family: "Bebas Neue", sans-serif;
   font-size: 1.6rem;
-  color: #4ade80;
+  color: var(--ok);
   letter-spacing: .06em;
   padding: 1.25rem 0 .75rem;
   line-height: 1;
@@ -115,28 +115,28 @@
   top: .9rem;
   bottom: 1rem;
   width: 1px;
-  background: rgba(245,184,64,.1);
+  background: rgba(var(--accent-rgb),.1);
 }
 
 .plan-leg-card {
   position: relative;
   margin-bottom: .9rem;
   padding: .65rem .8rem .65rem .85rem;
-  background: rgba(245,184,64,.03);
-  border: 1px solid rgba(245,184,64,.08);
+  background: rgba(var(--accent-rgb),.03);
+  border: 1px solid rgba(var(--border-rgb),.08);
   border-radius: 6px;
   transition: border-color .15s, background .15s;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 .plan-leg-card:active {
-  background: rgba(245,184,64,.07);
-  border-color: rgba(245,184,64,.22);
+  background: rgba(var(--accent-rgb),.07);
+  border-color: rgba(var(--border-rgb),.22);
 }
 
 .plan-leg-card.active {
-  border-color: rgba(245,184,64,.28);
-  background: rgba(245,184,64,.055);
+  border-color: rgba(var(--border-rgb),.28);
+  background: rgba(var(--accent-rgb),.055);
 }
 
 .plan-leg-card.done {
@@ -150,20 +150,20 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: rgba(245,184,64,.15);
-  border: 1px solid rgba(245,184,64,.25);
+  background: rgba(var(--accent-rgb),.15);
+  border: 1px solid rgba(var(--border-rgb),.25);
   flex-shrink: 0;
 }
 
 .plan-leg-dot.active {
-  background: #f5b840;
-  border-color: #f5b840;
-  box-shadow: 0 0 7px rgba(245,184,64,.55);
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 7px rgba(var(--accent-rgb),.55);
 }
 
 .plan-leg-dot.done {
-  background: #4ade80;
-  border-color: #4ade80;
+  background: var(--ok);
+  border-color: var(--ok);
 }
 
 .plan-leg-top {
@@ -180,7 +180,7 @@
 
 .plan-leg-from {
   font-size: 11px;
-  color: #8a837d;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -189,7 +189,7 @@
 
 .plan-leg-to {
   font-size: 13px;
-  color: #f5b840;
+  color: var(--accent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -198,26 +198,26 @@
 
 .plan-leg-times {
   font-size: 11px;
-  color: #7485a0;
+  color: var(--text-soft);
   display: flex;
   gap: .4rem;
   margin-top: .2rem;
   font-variant-numeric: tabular-nums;
 }
 
-.plan-leg-arr { color: #8a837d; }
+.plan-leg-arr { color: var(--text-muted); }
 
 .plan-leg-countdown {
   font-family: "Bebas Neue", sans-serif;
   font-size: 1rem;
-  color: #f5b840;
+  color: var(--accent);
   letter-spacing: .04em;
   margin-top: .2rem;
 }
 
 .plan-leg-check {
   font-size: 12px;
-  color: #4ade80;
+  color: var(--ok);
   margin-top: .2rem;
   letter-spacing: .04em;
 }
@@ -228,14 +228,14 @@
   right: .4rem;
   background: none;
   border: none;
-  color: rgba(245,184,64,.18);
+  color: rgba(var(--accent-rgb),.18);
   font-size: 15px;
   padding: .2rem .4rem;
   cursor: pointer;
   line-height: 1;
 }
 
-.plan-leg-del:active { color: #fca5a5; }
+.plan-leg-del:active { color: var(--err); }
 
 .plan-actions {
   margin-top: 1.25rem;
@@ -246,18 +246,18 @@
   width: 100%;
   padding: .75rem;
   background: none;
-  border: 1px solid rgba(245,184,64,.2);
+  border: 1px solid rgba(var(--border-rgb),.2);
   border-radius: 6px;
   font-family: inherit;
   font-size: 11px;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: #f5b840;
+  color: var(--accent);
   cursor: pointer;
   text-align: left;
 }
 
-.plan-add-btn:active { background: rgba(245,184,64,.06); }
+.plan-add-btn:active { background: rgba(var(--accent-rgb),.06); }
 
 .plan-clear-btn {
   display: block;
@@ -265,28 +265,28 @@
   margin-top: .5rem;
   padding: .65rem;
   background: none;
-  border: 1px solid rgba(245,184,64,.07);
+  border: 1px solid rgba(var(--border-rgb),.07);
   border-radius: 6px;
   font-family: inherit;
   font-size: 11px;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: #7485a0;
+  color: var(--text-soft);
   cursor: pointer;
   text-align: left;
 }
 
-.plan-clear-btn:active { color: #fca5a5; }
+.plan-clear-btn:active { color: var(--err); }
 
 .plan-clear-btn.confirm-armed {
-  color: #fca5a5;
+  color: var(--err);
   border-color: rgba(220,38,38,.35);
   background: rgba(220,38,38,.08);
 }
 
 .plan-empty {
   font-size: 12px;
-  color: #7485a0;
+  color: var(--text-soft);
   line-height: 1.9;
   padding: 2.5rem 0;
   text-align: center;

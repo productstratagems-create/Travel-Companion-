@@ -15,7 +15,7 @@ import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
-import { addCompass } from '../ui/mapCompass.js';
+import { createMap, drawRoute } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
@@ -42,7 +42,6 @@ function _depMode(dep) {
 }
 
 // ── Board map (single universal map for all modes) ──────────────────────────
-const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 let _bMap = null;
 let _bLayer = null;
 let _bUserMoved = false;
@@ -83,10 +82,12 @@ function _snapToCorridor(pos) {
 function _makeBikeIcon(bikes, ebikes) {
   const color = bikes === 0 ? '#f87171' : bikes <= 2 ? '#fbbf24' : '#4ade80';
   const label = bikes + (ebikes ? '+' : '');
+  // A real iconSize/iconAnchor: with [0,0] the marker had essentially no hit
+  // area, so these were close to untappable on a phone.
   const html = '<div style="background:' + color + ';color:#111;border-radius:50%;width:28px;height:28px;'
     + 'display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;'
-    + 'transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.3)">' + label + '</div>';
-  return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
+    + 'border:2px solid ' + tokens().mapInk + ';box-shadow:0 1px 4px rgba(0,0,0,.3)">' + label + '</div>';
+  return L.divIcon({ className: '', html, iconSize: [28, 28], iconAnchor: [14, 14] });
 }
 
 function _makeStopIcon(mode, count) { return makeStopIcon(mode, count); }
@@ -103,23 +104,20 @@ const VENDOR_COLORS = { Bolt: '#22c55e', Voi: '#f87171', Tier: '#60a5fa' };
 function _makeScooterIcon(operator, battery) {
   const vc = VENDOR_COLORS[operator] || '#94a3b8';
   const label = battery != null ? battery + '%' : '?';
-  const html = '<div style="background:' + alpha('bgRgb', .85) + ';border:2px solid ' + vc + ';border-radius:4px;padding:2px 5px;'
-    + 'font-size:10px;font-weight:700;transform:translate(-50%,-100%);white-space:nowrap;'
+  const html = '<div style="background:' + alpha('bgRgb', .9) + ';border:2px solid ' + vc + ';border-radius:4px;'
+    + 'width:44px;height:20px;display:flex;align-items:center;justify-content:center;'
+    + 'font-size:10px;font-weight:700;white-space:nowrap;'
     + 'box-shadow:0 1px 4px rgba(0,0,0,.4);color:' + vc + '">⚡' + label + '</div>';
-  return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
+  return L.divIcon({ className: '', html, iconSize: [44, 20], iconAnchor: [22, 10] });
 }
 
 function _ensureMap(pos) {
   const mapEl = document.getElementById('board-map');
   if (!mapEl || _bMap) return _bMap;
 
-  _bMap = L.map(mapEl, { zoomControl: false, attributionControl: false, rotate: true, touchRotate: true, rotateControl: false });
-  L.control.zoom({ position: 'bottomright' }).addTo(_bMap);
+  _bMap = createMap(mapEl, { scale: true });
   _bMap.on('dragstart', () => { _bUserMoved = true; });
-  L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_bMap);
-  L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_bMap);
   _bLayer = L.layerGroup().addTo(_bMap);
-  addCompass(_bMap, mapEl);
   const c = pos || { lat: 59.9139, lon: 10.7522 };
   _bMap.setView([c.lat, c.lon], 14);
   setTimeout(() => _bMap && _bMap.invalidateSize(), 100);
@@ -188,7 +186,10 @@ function renderBoardMap(pos, modes) {
     // User position — anchor for the whole map
     if (pos) {
       const snapped = _snapToCorridor(pos) || pos;
-      L.circleMarker([snapped.lat, snapped.lon], { radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2 })
+      L.circleMarker([snapped.lat, snapped.lon], {
+        radius: 7, color: tokens().mapInk, fillColor: tokens().mapYou,
+        fillOpacity: 1, weight: 2.5,
+      })
         .bindTooltip('Din posisjon', { className: 'map-label', direction: 'bottom', offset: [0, 6] })
         .addTo(_bLayer);
       pts.push([snapped.lat, snapped.lon]);
@@ -334,7 +335,7 @@ function _drawWalkRoute(fromLL, toLL, destName) {
                   pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
       if (!pts) throw new Error('no points');
       const latlngs = _decodePoly(pts);
-      L.polyline(latlngs, { color: tokens().accent, weight: 3, opacity: 0.85, dashArray: '7 6' }).addTo(_bLayer);
+      drawRoute(_bLayer, latlngs, { color: tokens().accent, weight: 3, opacity: 0.9, dashArray: '7 6' });
       if (!_bUserMoved) _bMap.fitBounds(latlngs, { padding: [44, 44], maxZoom: 17 });
     })
     .catch(() => {
@@ -638,7 +639,7 @@ function renderLineRoute(visibleDeps) {
         });
         if (!allLatlngs.length) throw new Error('no points');
         _bRoutePts = allLatlngs.map(ll => ({ lat: ll[0], lon: ll[1] }));
-        L.polyline(allLatlngs, { color, weight: 3, opacity: 0.65, lineCap: 'round', interactive: false }).addTo(_bRouteLayer);
+        drawRoute(_bRouteLayer, allLatlngs, { color, weight: 3, opacity: 0.85 });
         if (_bFitRouteRequested && !_bUserMoved) {
           _bMap.fitBounds(allLatlngs, { padding: [30, 30], maxZoom: 15 });
           _bFitRouteRequested = false;
@@ -700,7 +701,7 @@ function renderLineRoute(visibleDeps) {
             && pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
           if (!encoded) throw new Error('no points');
           const latlngs = _decodePoly(encoded);
-          L.polyline(latlngs, { color: tokens().accent, weight: 3, opacity: 0.9, dashArray: '6 6' }).addTo(_bRouteLayer);
+          drawRoute(_bRouteLayer, latlngs, { color: tokens().accent, weight: 3, opacity: 0.9, dashArray: '6 6' });
         })
         .catch(() => {
           if (!_bRouteLayer) return;

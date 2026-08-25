@@ -1,5 +1,5 @@
 import L from 'leaflet';
-import { addCompass } from '../ui/mapCompass.js';
+import { createMap } from '../ui/map.js';
 import { state } from '../state.js';
 import { fetchNearbyPlaces, timeCategory, PLACE_CATS } from '../api/places.js';
 import { fetchWeather } from '../api/weather.js';
@@ -12,7 +12,6 @@ import { esc, venueDetailHtml } from '../ui/fmt.js';
 const HANDEL = { label: 'handel', emoji: '🛍', amenities: 'commercial.clothing,commercial.shoes,commercial.sport,commercial.books,commercial.electronics,commercial.shopping_mall,commercial.department_store,commercial.gift,commercial.jewelry' };
 const LEISURE_CATS = [...PLACE_CATS, HANDEL];
 const RADII = [500, 1000, 2000, 5000];
-const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
 let _catIdx    = null;   // null = auto via timeCategory()
 let _venues    = null;
@@ -355,9 +354,7 @@ function _initLeisureMap(pos) {
   const el = document.getElementById('lei-map');
   if (!el) return;
 
-  _lMap = L.map(el, { zoomControl: false, attributionControl: false, rotate: true, touchRotate: true, rotateControl: false });
-  L.tileLayer(_TILE, { subdomains: 'abcd' }).addTo(_lMap);
-  addCompass(_lMap, el);
+  _lMap = createMap(el, { zoom: false });
 
   if (pos) {
     _lMap.setView([pos.lat, pos.lon], 15);

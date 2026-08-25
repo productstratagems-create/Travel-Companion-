@@ -41,6 +41,11 @@
   --ok:              #4ade80;
   --err:             #fca5a5;
   --urgent:          #f97316;
+
+  /* Reserved for "you are here". Must never equal --accent or a vendor
+     colour, or the user dot stops being findable on the map. */
+  --map-you:         #3b82f6;
+  --map-ink:         #05070d;
 }
 
 /* Standard — light. Values reproduce the previous theme-light.css exactly. */
@@ -69,6 +74,9 @@
   --ok:              #16a34a;
   --err:             #b91c1c;
   --urgent:          #b45309;
+
+  --map-you:         #1d4ed8;
+  --map-ink:         #ffffff;
 }
 
 /* Blågrå — dark. Cool counterpart to the light palette below. */
@@ -97,6 +105,10 @@
   --ok:              #4ade80;
   --err:             #fca5a5;
   --urgent:          #fb923c;
+
+  /* The blågrå accent is #60a5fa, so "you" moves to a distinct violet. */
+  --map-you:         #a78bfa;
+  --map-ink:         #05070d;
 }
 
 /* Blågrå — light. The requested look: near-white and pale blue-grey,
@@ -126,4 +138,7 @@
   --ok:              #16a34a;
   --err:             #b91c1c;
   --urgent:          #c2410c;
+
+  --map-you:         #7c3aed;
+  --map-ink:         #ffffff;
 }

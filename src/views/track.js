@@ -17,7 +17,7 @@ import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { fetchWalkRoute } from '../api/route.js';
-import { addCompass } from '../ui/mapCompass.js';
+import { createMap, drawRoute } from '../ui/map.js';
 import { storage } from '../storage.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -29,7 +29,6 @@ let _walkDestLL = null;
 let _walkTimer  = null;
 let _walkAbort  = null;
 
-const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const RECENT_KEY = 't.recentDests';
 
 let _arrBoard = null;
@@ -156,12 +155,10 @@ function _renderTrackMap(now, cs, legs) {
     _tMapKey = key;
     _destroyTrackMap();
     _tMapKey = key;
-    _tMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' }, rotate: true, touchRotate: true, rotateControl: false });
-    L.tileLayer(_TILE, { subdomains: 'abcd' }).addTo(_tMap);
+    _tMap = createMap(mapEl);
     _tLayer = L.layerGroup().addTo(_tMap);
-    addCompass(_tMap, mapEl);
     const lineColor = leg.lineBg || '#7c2d12';
-    L.polyline(pts, { color: lineColor, weight: 4, opacity: 0.6, lineCap: 'round' }).addTo(_tLayer);
+    drawRoute(_tLayer, pts, { color: lineColor, weight: 4, opacity: 0.85 });
     const first = pts[0], last = pts[pts.length - 1];
     const allPts = pts.slice();
 
@@ -354,11 +351,8 @@ function _initArrMap(arrLL) {
   if (_arrMap) return; // already initialized — use _addBikeMarkers to update
   _arrLL = arrLL;
   _arrUserMoved = false;
-  _arrMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' }, rotate: true, touchRotate: true, rotateControl: false });
+  _arrMap = createMap(el, { scale: true });
   _arrMap.on('dragstart', () => { _arrUserMoved = true; });
-  L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_arrMap);
-  L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_arrMap);
-  addCompass(_arrMap, el);
   // Arrival station marker — last transit leg's line badge
   const jLegs = state.jny && state.jny.legs;
   const jLast = jLegs && jLegs[jLegs.length - 1];
@@ -452,7 +446,7 @@ function _updateArrMapWalkPin(arrLL) {
   fetchWalkRoute(arrLL, _walkDestLL).then(pts => {
     if (!_arrMap || !pts) return;
     if (_arrRouteLine) _arrRouteLine.remove();
-    _arrRouteLine = L.polyline(pts, { color: '#60a5fa', weight: 3, opacity: 0.8 }).addTo(_arrMap);
+    _arrRouteLine = drawRoute(_arrMap, pts, { color: tokens().mapYou, weight: 3, opacity: 0.9 });
     if (!_arrUserMoved) _arrMap.fitBounds(pts, { padding: [24, 24] });
   }).catch(() => {});
 }

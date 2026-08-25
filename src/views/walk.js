@@ -6,7 +6,7 @@ import { startBoard } from './board.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
-import { addCompass } from '../ui/mapCompass.js';
+import { createMap } from '../ui/map.js';
 import { fetchWalkRoute } from '../api/route.js';
 import { fetchWeather } from '../api/weather.js';
 import { stopSelRefresh } from './selected.js';
@@ -25,8 +25,6 @@ function _makeTransitStopIcon(code, bg, mode) {
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
-const TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const TILE_ATTR = '© CartoDB';
 
 let _wMap = null;
 let _wFromMarker = null;
@@ -44,11 +42,8 @@ function _initWalkMap(fromLL, toLL) {
   if (!el || !fromLL || !toLL) return;
   _destroyWalkMap();
   _wUserMoved = false;
-  _wMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' }, rotate: true, touchRotate: true, rotateControl: false });
+  _wMap = createMap(el, { scale: true });
   _wMap.on('dragstart', () => { _wUserMoved = true; });
-  L.tileLayer(TILE, { subdomains: 'abcd', attribution: TILE_ATTR }).addTo(_wMap);
-  L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_wMap);
-  addCompass(_wMap, el);
   // Station marker — transit line badge
   const sel = state.sel;
   const leg0 = sel && sel._legs && sel._legs[0];
@@ -58,7 +53,9 @@ function _initWalkMap(fromLL, toLL) {
   const stopMode = (leg0 && leg0.mode) || 'metro';
   L.marker([toLL.lat, toLL.lon], { icon: _makeTransitStopIcon(stopCode, stopBg, stopMode) }).addTo(_wMap);
   // User position marker (blue) — stored so GPS updates can move it
-  _wFromMarker = L.circleMarker([fromLL.lat, fromLL.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 }).addTo(_wMap);
+  _wFromMarker = L.circleMarker([fromLL.lat, fromLL.lon], {
+    radius: 6, color: tokens().mapInk, fillColor: tokens().mapYou, fillOpacity: 1, weight: 2.5,
+  }).addTo(_wMap);
   // Straight placeholder line shown immediately; replaced by routed path when OSRM responds
   let _routeLine = L.polyline([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]],
     { color: tokens().accent, weight: 2, dashArray: '5 5', opacity: 0.4 }).addTo(_wMap);

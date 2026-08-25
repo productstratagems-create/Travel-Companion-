@@ -15,7 +15,7 @@ import { startBoard } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
-import { addCompass } from '../ui/mapCompass.js';
+import { createMap, drawRoute } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -71,7 +71,6 @@ function _selWeatherHtml(arrT) {
 }
 
 // ── Route map ────────────────────────────────────────────────
-const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 let _selMap = null, _selLayer = null;
 
 function _decodePoly(str) {
@@ -170,17 +169,15 @@ function _renderSelMap(dep, fromName, toName) {
   wrap.style.display = 'block';
   destroySelMap();
   _selMapKey = key;
-  _selMap = L.map(mapEl, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' }, rotate: true, touchRotate: true, rotateControl: false });
-  L.tileLayer(_TILE, { subdomains: 'abcd' }).addTo(_selMap);
+  _selMap = createMap(mapEl);
   _selLayer = L.layerGroup().addTo(_selMap);
-  addCompass(_selMap, mapEl);
 
   const destIsVenue = dir._toLat && dir._toLon && !dir.toStopId;
   const pts = [];
 
   legs.forEach(({ stops, color }, li) => {
     const lc = color || tokens().accent;
-    L.polyline(stops.map(s => [s.lat, s.lon]), { color: lc, weight: 4, opacity: 0.8 }).addTo(_selLayer);
+    drawRoute(_selLayer, stops.map(s => [s.lat, s.lon]), { color: lc, weight: 4, opacity: 0.85 });
     stops.forEach((s, i) => {
       pts.push([s.lat, s.lon]);
       const isFirst = li === 0 && i === 0;
@@ -240,7 +237,7 @@ function _renderSelMap(dep, fromName, toName) {
             && pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
           if (!encoded) throw new Error('no points');
           const latlngs = _decodePoly(encoded);
-          L.polyline(latlngs, { color: tokens().accent, weight: 3, opacity: 0.9, dashArray: '6 6' }).addTo(_selLayer);
+          drawRoute(_selLayer, latlngs, { color: tokens().accent, weight: 3, opacity: 0.9, dashArray: '6 6' });
           if (_selMap) _selMap.fitBounds([...pts, ...latlngs], { padding: [40, 40], maxZoom: 16 });
         })
         .catch(() => {

@@ -44,16 +44,33 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 .map-compass:active{background:rgba(var(--accent-rgb),.15)}
 .map-compass svg{transition:transform .15s ease-out}
 
+/* Leaflet paints #ddd behind the tiles by default, which flashes as a bright
+   slab in a dark theme every time a map opens. */
+.leaflet-container{background:var(--surface-2)}
+
+/* Attribution is a licence requirement for CARTO and OSM — present on every
+   map, but quiet enough not to compete with the content. */
+.leaflet-control-attribution{
+  background:rgba(var(--bg-rgb),.65)!important;
+  color:var(--text-muted)!important;
+  font-family:"JetBrains Mono",monospace!important;
+  font-size:8px!important;
+  padding:1px 5px!important;
+  backdrop-filter:blur(3px);
+}
+.leaflet-control-attribution a{color:var(--text-muted)!important;text-decoration:none}
+
 /* ── LEAFLET MAP LABELS & SCALE ── */
 /* Station name tooltip on bike markers */
 .map-label{
-  /* Sits on the map, not on the page: the chip is always white, so its ink is
-     always dark. Deliberately NOT tokenised — a themed colour here would go
-     white-on-white in a light palette. */
-  background:rgba(255,255,255,.92)!important;
-  border:1px solid rgba(0,0,0,.12)!important;
+  /* Sits on the basemap, so it follows the BASEMAP's light/dark, not the
+     palette. A white chip on Dark Matter is a bright blob; a dark chip on
+     Positron is the same problem inverted. --map-ink is the readable ink for
+     the current canvas and the chip is its inverse. */
+  background:rgba(var(--bg-rgb),.92)!important;
+  border:1px solid rgba(var(--border-rgb),.25)!important;
   border-radius:3px!important;
-  color:#1a1410!important;
+  color:var(--text)!important;
   font-family:"JetBrains Mono",monospace!important;
   font-size:9px!important;
   letter-spacing:.04em!important;
@@ -65,9 +82,9 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 
 /* Scale bar */
 .leaflet-control-scale-line{
-  background:rgba(255,255,255,.85)!important;
-  border-color:rgba(0,0,0,.3)!important;
-  color:#444!important;
+  background:rgba(var(--bg-rgb),.85)!important;
+  border-color:rgba(var(--border-rgb),.35)!important;
+  color:var(--text-muted)!important;
   font-family:"JetBrains Mono",monospace!important;
   font-size:9px!important;
   padding:1px 4px!important;

@@ -26,6 +26,98 @@ export function toggleBoardMenu() {
   if (open) renderBoardProfileSwitcher();
 }
 
+/**
+ * Browser history.
+ *
+ * Every screen change pushes an entry, so a back-swipe moves between screens
+ * instead of leaving the app — which is what it used to do, from every screen,
+ * and is far more noticeable now the app installs standalone.
+ *
+ * The URL never changes: entries carry the view id in history.state only. The
+ * `?from=&to=` deep link and the GitHub Pages subpath both keep working
+ * untouched, and there is no route table to keep in sync.
+ */
+const HISTORY_FALLBACK = 'v-board';
+
+// Suppressed during startup (before the landing view is stamped) and while a
+// popstate is being applied — restoring a view must not push a new entry.
+let _pushEnabled = false;
+
+// How many entries we have pushed on top of our own landing entry. Lets
+// goBack() tell "there is a screen behind this one" from "behind this is
+// whatever the user was doing before they opened the app".
+let _depth = 0;
+
+/**
+ * Some screens only exist while the state behind them does. Landing on
+ * "underveis" with no journey, because the entry outlived a cleared journey,
+ * would show an empty shell.
+ */
+function _reachable(id) {
+  if (id === 'v-selected') return !!state.sel;
+  if (id === 'v-track')    return !!state.jny;
+  // Walk runs a loop that only selected.js can start, so it is deliberately
+  // not re-enterable by going forward. Backing *out* of it works, which is
+  // the direction that matters.
+  if (id === 'v-walk')     return false;
+  return true;
+}
+
+// What each screen needs in order to be live rather than merely visible.
+// These mirror the in-page back buttons below.
+const _enter = {
+  'v-board':    () => window._startBoard && window._startBoard(),
+  'v-selected': () => window._renderSelected && window._renderSelected(),
+  'v-track':    () => {},
+  'v-settings': () => window._showSettings && window._showSettings(),
+  'v-prefs':    () => window._showPrefs && window._showPrefs(),
+  'v-saved':    () => window._renderSaved && window._renderSaved(),
+  'v-leisure':  () => window._renderLeisure && window._renderLeisure(),
+};
+
+function _restore(id) {
+  // Leaving cleanup, same as the back buttons do.
+  const from = 'v-' + state.view;
+  if (from === 'v-selected') stopSelRefresh();
+  if (from === 'v-walk') window._stopWalk && window._stopWalk();
+
+  let target = _reachable(id) ? id : HISTORY_FALLBACK;
+  if (id === 'v-walk' && state.sel) target = 'v-selected';
+  if (target === 'v-board') { stopSelRefresh(); state.sel = null; }
+
+  _pushEnabled = false;
+  show(target);
+  _pushEnabled = true;
+  // Keep the entry honest about where we actually ended up, so pressing back
+  // again doesn't bounce off the same unreachable screen.
+  if (target !== id) { try { history.replaceState({ v: target }, ''); } catch {} }
+  (_enter[target] || (() => {}))();
+}
+
+/**
+ * The in-page back buttons. Popping the entry the user actually arrived from
+ * is more accurate than any hardcoded destination, and it stops a session of
+ * tapping in and out of departures from growing the stack without bound.
+ *
+ * `fallbackId` covers the case where there is nothing of ours to pop — a deep
+ * link, or the very first screen — because going back past our own first entry
+ * would leave the app, which is the behaviour this whole module exists to fix.
+ */
+export function goBack(fallbackId) {
+  if (_depth > 0) { history.back(); return; }
+  _restore(fallbackId);
+}
+
+/** Called once, after startup has settled on its landing screen. */
+export function initHistory() {
+  try { history.replaceState({ v: 'v-' + state.view }, ''); } catch {}
+  _pushEnabled = true;
+  window.addEventListener('popstate', e => {
+    if (_depth > 0) _depth--;
+    _restore((e.state && e.state.v) || HISTORY_FALLBACK);
+  });
+}
+
 export function show(id) {
   closeSpectatePanel();
   closeBoardMenu();
@@ -40,6 +132,13 @@ export function show(id) {
   // Hide sticky chip when already on the tracking screen; it would be redundant there
   const chip = document.getElementById('onboard-chip');
   if (chip) chip.classList.toggle('chip-on-track', id === 'v-track');
+
+  // Re-showing the screen you are already on — a tab switch inside "lagret",
+  // re-applying the same route — is not a navigation and must not stack an
+  // entry, or back would have to be pressed once per no-op.
+  if (_pushEnabled && !(history.state && history.state.v === id)) {
+    try { history.pushState({ v: id }, ''); _depth++; } catch {}
+  }
 }
 
 export function updateHeader() {
@@ -148,28 +247,12 @@ export function attachEventListeners() {
   document.getElementById('w-spec-btn').addEventListener('click', () => toggleSpectatePanel('follow-jny-panel-walk'));
   document.getElementById('t-spec-btn').addEventListener('click', () => toggleSpectatePanel('follow-jny-panel-track'));
 
-  document.getElementById('saved-back').addEventListener('click', () => {
-    show('v-board');
-    window._startBoard && window._startBoard();
-  });
+  document.getElementById('saved-back').addEventListener('click', () => goBack('v-board'));
 
-  document.getElementById('s-back').addEventListener('click', () => {
-    stopSelRefresh();
-    state.sel = null;
-    show('v-board');
-    window._startBoard && window._startBoard();
-  });
+  document.getElementById('s-back').addEventListener('click', () => goBack('v-board'));
 
-  document.getElementById('w-back').addEventListener('click', () => {
-    window._stopWalk && window._stopWalk();
-    if (state.sel) {
-      show('v-selected');
-      window._renderSelected && window._renderSelected();
-    } else {
-      show('v-board');
-      window._startBoard && window._startBoard();
-    }
-  });
+  document.getElementById('w-back').addEventListener('click', () =>
+    goBack(state.sel ? 'v-selected' : 'v-board'));
 
   document.getElementById('t-jid-copy').addEventListener('click', copyJourneyId);
 
@@ -186,20 +269,14 @@ export function attachEventListeners() {
     show('v-settings');
   });
 
-  document.getElementById('set-back').addEventListener('click', () => {
-    show('v-board');
-    window._startBoard && window._startBoard();
-  });
+  document.getElementById('set-back').addEventListener('click', () => goBack('v-board'));
 
   document.getElementById('set-prefs-link').addEventListener('click', () => {
     window._showPrefs && window._showPrefs();
     show('v-prefs');
   });
 
-  document.getElementById('prefs-back').addEventListener('click', () => {
-    show('v-board');
-    window._startBoard && window._startBoard();
-  });
+  document.getElementById('prefs-back').addEventListener('click', () => goBack('v-board'));
 
   document.getElementById('set-apply').addEventListener('click', () => {
     if (window._applyRoute && window._applyRoute()) {

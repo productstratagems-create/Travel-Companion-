@@ -14,7 +14,7 @@ import './style/leisure.css';
 import './style/plan.css';
 import './style/theme-light.css';
 
-import { attachEventListeners, updateHeader, show } from './ui/nav.js';
+import { attachEventListeners, updateHeader, show, initHistory } from './ui/nav.js';
 import { initTheme } from './theme.js';
 import { registerServiceWorker, initOfflineBanner } from './pwa.js';
 import './views/favs.js';
@@ -180,6 +180,10 @@ if (restored) {
     show('v-settings');
   }
 }
+
+// Only now is the landing screen settled, so this is where the first history
+// entry gets stamped. Any show() above it is startup, not navigation.
+initHistory();
 
 // GPS runs in the background and only feeds walk time. It must never gate
 // which route is shown: a slow or blocked fix used to mean startBoard() was

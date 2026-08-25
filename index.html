@@ -7,16 +7,28 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0806">
 <title>T-bane</title>
+<meta name="description" content="Sanntids avganger, gangtid og hva som venter deg fram. Reisefølge for Oslo.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="T-bane — reisefølge for Oslo">
+<meta property="og:description" content="Sanntids avganger, gangtid og hva som venter deg fram.">
+<meta property="og:image" content="icons/icon-512.png">
+<meta property="og:locale" content="nb_NO">
+<meta name="twitter:card" content="summary">
 <script>
 /* Paint the right theme before first render. Keys are profile-scoped by
    storage.js, so they must be read with the same prefix — reading the bare
    key always missed and fell back to system, flashing the wrong theme. */
 (function(){try{var p=localStorage.getItem('__activeProfile')||'default';var g=function(k){return localStorage.getItem(p+'::'+k)};var t=g('t.theme')||'system';var pal=g('t.palette')||'standard';var d=document.documentElement;d.setAttribute('data-theme',(t==='light'||(t==='system'&&window.matchMedia('(prefers-color-scheme:light)').matches))?'light':'dark');d.setAttribute('data-palette',pal==='bluegrey'?'bluegrey':'standard')}catch(e){}}())
 </script>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Bebas+Neue&display=swap">
 </head>
 <body>
 <main class="wrap" id="main-content">
+
+<div id="offline-banner" style="display:none"
+  role="status" aria-live="polite">Ingen nett — viser sist hentede data.</div>
 
 <div id="service-alerts" style="display:none"
   role="region" aria-label="Servicevarsler" aria-live="polite"></div>

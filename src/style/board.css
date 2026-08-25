@@ -311,3 +311,15 @@
   color:var(--accent);cursor:pointer;flex-shrink:0;
   -webkit-tap-highlight-color:transparent;
 }
+
+/* Offline banner. Same visual language as a service alert — this is a fact
+   about the trip, not an error dialog — but it sits above them, because when
+   there is no signal nothing else on the screen can be trusted either. */
+#offline-banner{
+  padding:.5rem .75rem;margin:.4rem 0;
+  font-size:11px;line-height:1.4;
+  color:var(--text-muted);
+  background:rgba(var(--text-muted-rgb),.05);
+  border:1px solid rgba(var(--text-muted-rgb),.15);
+  border-radius:4px;letter-spacing:.02em;
+}

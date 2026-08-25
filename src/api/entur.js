@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { enturFetch } from './http.js';
-import { boardGQL, journeyGQL, trackGQL, tripGQL } from './queries.js';
+import { arrBoardGQL, boardGQL, journeyGQL, trackGQL, tripGQL } from './queries.js';
 import { quayLatLon } from './adapt.js';
 import { logMsg, setDot } from '../ui/log.js';
 import { loadWalkSpeed } from '../geo.js';
@@ -245,25 +245,36 @@ export function fetchBoard(dir, onSuccess, onError) {
     });
 }
 
+/**
+ * Resolves to { stop, departures, situations } — the arrival stop's onward
+ * departures AND its disruptions, which no other call in the app fetches.
+ */
 export function fetchArrBoard(stopId, n) {
-  const q = '{stopPlace(id:"' + stopId + '"){estimatedCalls(numberOfDepartures:' + (n || 8) + '){'
-    + 'realtime aimedDepartureTime expectedDepartureTime cancellation '
-    + 'destinationDisplay{frontText} quay{publicCode} '
-    + 'serviceJourney{id line{publicCode transportMode presentation{colour}}}}}}';
   return enturFetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: q }),
+    body: JSON.stringify({ query: arrBoardGQL(stopId, n) }),
   })
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(j => {
-      const calls = (j && j.data && j.data.stopPlace && j.data.stopPlace.estimatedCalls) || [];
+      const stop = (j && j.data && j.data.stopPlace) || null;
+      const calls = (stop && stop.estimatedCalls) || [];
       const now = Date.now();
+
+      // Deduplicate across the three levels the API reports them at.
+      const sitMap = new Map();
+      const addSits = arr => (arr || []).forEach(s => s && s.id && sitMap.set(s.id, s));
+      addSits(stop && stop.situations);
+      calls.forEach(c => {
+        addSits(c.situations);
+        if (c.serviceJourney) addSits(c.serviceJourney.situations);
+      });
       // Cancelled departures stay in the list — hiding them sends the user
       // to a platform for a service that isn't coming.
-      return calls
+      const departures = calls
         .map(c => ({
           ln:      c.serviceJourney && c.serviceJourney.line,
+          journeyId: c.serviceJourney && c.serviceJourney.id,
           dest:    (c.destinationDisplay && c.destinationDisplay.frontText) || '',
           depTs:   new Date(c.expectedDepartureTime || c.aimedDepartureTime).getTime(),
           realtime: c.realtime || false,
@@ -271,6 +282,12 @@ export function fetchArrBoard(stopId, n) {
           quay:    c.quay && c.quay.publicCode,
         }))
         .filter(c => c.depTs > now - 30000);
+
+      return {
+        stop: stop ? { name: stop.name, lat: stop.latitude, lon: stop.longitude } : null,
+        departures,
+        situations: Array.from(sitMap.values()),
+      };
     });
 }
 

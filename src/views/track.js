@@ -12,7 +12,7 @@ import { show } from '../ui/nav.js';
 import { startBoard, _interpolateVehiclePos } from './board.js';
 import { makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
-import { renderAlerts } from '../ui/alerts.js';
+import { renderAlerts, activeSituations, situationText, sevClass } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn, esc } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
@@ -33,6 +33,7 @@ const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}
 const RECENT_KEY = 't.recentDests';
 
 let _arrBoard = null;
+let _destAlerts = null;
 let _arrBoardStopId = null;
 let _arrBoardInterval = null;
 let _tCardsHtml = '';
@@ -273,10 +274,29 @@ function saveRecentDest(dest) {
 
 function _fetchArrBoardData() {
   if (!_arrBoardStopId) return;
-  fetchArrBoard(_arrBoardStopId).then(deps => {
-    _arrBoard = deps;
+  fetchArrBoard(_arrBoardStopId).then(res => {
+    _arrBoard = res.departures;
+    // Kept apart from state.serviceAlerts, which is the DEPARTURE stop's
+    // banner — merging the two ends of the trip into one list would leave the
+    // user unable to tell which end is disrupted.
+    _destAlerts = res.situations || [];
     _updateArrBoardSection();
+    _updateDestAlertsSection();
   }).catch(() => {});
+}
+
+function _destAlertsHtml() {
+  const active = activeSituations(_destAlerts);
+  if (!active.length) return '';
+  return active.map(s => {
+    const txt = situationText(s);
+    return txt ? '<div class="service-alert' + sevClass(s.severity) + '">' + esc(txt) + '</div>' : '';
+  }).filter(Boolean).join('');
+}
+
+function _updateDestAlertsSection() {
+  const el = document.getElementById('hn-dest-alerts');
+  if (el) el.innerHTML = _destAlertsHtml();
 }
 
 function _renderArrBoardHtml() {
@@ -795,6 +815,9 @@ function renderNextPanel() {
   el.innerHTML =
     '<div class="hn-panel">'
     + '<div class="hn-title">Hva nå?</div>'
+    // Disruptions at the far end of the trip. Deliberately above the map:
+    // if the destination stop is closed, nothing below it matters.
+    + '<div id="hn-dest-alerts">' + _destAlertsHtml() + '</div>'
     + '<div class="map-wrap"><div id="hn-map"></div><button class="map-expand-btn" id="hn-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
     + '<div class="hn-section">'
     + '<div class="hn-section-label">vær</div>'
@@ -1216,15 +1239,18 @@ export function renderTrack() {
     })();
 
     const alightNow = mLeft <= 0;
+    const arrQuay = state.jny.arrQuay;
     return '<div class="alight-card alight-card-dest">'
       + '<div class="alight-card-eyebrow">' + (alightNow ? 'Gå av nå' : 'Snart fremme') + '</div>'
       + '<div class="alight-card-dest-name">' + esc(displayStn(state.jny.dest)) + '</div>'
+      + (arrQuay ? '<div class="alight-quay">spor ' + esc(arrQuay) + '</div>' : '')
       + (walkMins !== null
         ? '<div class="alight-walk">🚶 ' + walkMins + ' min gangavstand</div>'
         : '')
       + (weatherSnippet
         ? '<div class="alight-weather">' + weatherSnippet + '</div>'
         : '')
+      + _destAlertsHtml()
       + '<div class="alight-hvanaa-hint">Trykk Hva nå? etter avgang →</div>'
       + '</div>';
   }

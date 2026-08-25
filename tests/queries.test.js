@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tripGQL, boardGQL, trackGQL } from '../src/api/queries.js';
+import { tripGQL, boardGQL, trackGQL, arrBoardGQL } from '../src/api/queries.js';
 
 // --- tripGQL ---
 
@@ -164,5 +164,46 @@ describe('trackGQL(jid)', () => {
 
   it('requests realtime flag for live tracking', () => {
     expect(q).toContain('realtime');
+  });
+});
+
+describe('arrBoardGQL — the destination stop', () => {
+  const q = arrBoardGQL('NSR:StopPlace:337', 8);
+
+  it('queries the stop it is given', () => {
+    expect(q).toContain('stopPlace(id:"NSR:StopPlace:337")');
+  });
+
+  it('asks for situations at all three levels', () => {
+    // Disruption can be attached to the stop, the call, or the journey.
+    // Missing any level means silently missing disruptions.
+    const levels = q.split('situations{').length - 1;
+    expect(levels).toBe(3);
+  });
+
+  it('asks for severity and validity so alerts can be ranked and expired', () => {
+    expect(q).toContain('severity');
+    expect(q).toContain('validityPeriod{startTime endTime}');
+  });
+
+  it('asks for the stop name and coordinates', () => {
+    expect(q).toContain('name latitude longitude');
+  });
+
+  it('keeps the fields the onward-departures list renders', () => {
+    ['expectedDepartureTime', 'cancellation', 'destinationDisplay{frontText}',
+     'quay{publicCode}', 'line{publicCode transportMode presentation{colour}}']
+      .forEach(f => expect(q).toContain(f));
+  });
+
+  it('defaults to 8 departures', () => {
+    expect(arrBoardGQL('X')).toContain('numberOfDepartures:8');
+  });
+});
+
+describe('tripGQL — arrival platform', () => {
+  it('requests the quay you get off at, not just the one you board from', () => {
+    const q = tripGQL('A', 'B', null, 12, 1.3);
+    expect(q).toContain('toEstimatedCall{expectedArrivalTime aimedArrivalTime quay{publicCode}}');
   });
 });

@@ -26,8 +26,25 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
     + ' serviceJourney{id line{publicCode presentation{colour}} estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}}'
     + ' aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime occupancyStatus quay{publicCode} destinationDisplay{frontText}}'
-    + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime}'
+    + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime quay{publicCode}}'
     + '} } } }';
+}
+
+/**
+ * Departures from the ARRIVAL stop, plus that stop's disruptions.
+ *
+ * The app's other situation queries are all keyed on the departure stop, so
+ * until now a closure at the far end of the trip was invisible. Same fragment
+ * and same shape as boardGQL, so ui/alerts.js renders it unchanged.
+ */
+export function arrBoardGQL(id, n) {
+  const sits = 'situations{id summary{language value} severity validityPeriod{startTime endTime}}';
+  return '{stopPlace(id:"' + id + '"){name latitude longitude ' + sits + ' '
+    + 'estimatedCalls(numberOfDepartures:' + (n || 8) + '){'
+    + 'realtime aimedDepartureTime expectedDepartureTime cancellation '
+    + sits + ' '
+    + 'destinationDisplay{frontText} quay{publicCode} '
+    + 'serviceJourney{id ' + sits + ' line{publicCode transportMode presentation{colour}}}}}}';
 }
 
 export function boardGQL(id, n) {

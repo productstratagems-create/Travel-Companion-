@@ -383,3 +383,36 @@ describe('adaptTripPattern — full journey with initial and final walks', () =>
     expect(result._durationMins).toBe(43);
   });
 });
+
+describe('arrival platform (_arrQuay)', () => {
+  const withArrQuay = quay => ({
+    duration: 900,
+    legs: [{
+      mode: 'metro',
+      fromPlace: { name: 'Helsfyr' },
+      toPlace: { name: 'Jernbanetorget' },
+      serviceJourney: { id: 'sj', line: { publicCode: '3', presentation: { colour: '8B0000' } } },
+      fromEstimatedCall: { expectedDepartureTime: '2026-05-24T08:00:00+02:00',
+        aimedDepartureTime: '2026-05-24T08:00:00+02:00', realtime: true,
+        quay: { publicCode: '1' }, destinationDisplay: { frontText: 'Jernbanetorget' } },
+      toEstimatedCall: { expectedArrivalTime: '2026-05-24T08:15:00+02:00',
+        aimedArrivalTime: '2026-05-24T08:15:00+02:00',
+        ...(quay === undefined ? {} : { quay }) },
+    }],
+  });
+
+  it('exposes the platform you get off at', () => {
+    expect(adaptTripPattern(withArrQuay({ publicCode: '3' }))._arrQuay).toBe('3');
+  });
+
+  it('is null when the API does not report one', () => {
+    expect(adaptTripPattern(withArrQuay(undefined))._arrQuay).toBeNull();
+    expect(adaptTripPattern(withArrQuay({}))._arrQuay).toBeNull();
+  });
+
+  it('does not disturb the boarding platform', () => {
+    const a = adaptTripPattern(withArrQuay({ publicCode: '3' }));
+    expect(a.quay.publicCode).toBe('1');   // where you board
+    expect(a._arrQuay).toBe('3');          // where you alight
+  });
+});

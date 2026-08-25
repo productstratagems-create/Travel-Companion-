@@ -7,7 +7,7 @@ vi.mock('../src/ui/mapIcons.js', () => ({ makeStopIcon: vi.fn(), makeVehicleIcon
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
-import { dedupeDepartures, _headingDeg, _corridorProgress, _legIndices, _buildStrip } from '../src/views/board.js';
+import { dedupeDepartures, _headingDeg, _corridorProgress, _legIndices, _buildStrip, _stripSummary } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -328,5 +328,35 @@ describe('_buildStrip', () => {
     const s = _buildStrip([dep(10, 'a')], [], { from: 'Majorstuen', to: 'Ryen' }, '5', NOW, new Map());
     expect(s.stops).toEqual([]);
     expect(s.trains).toEqual([]);
+  });
+});
+
+describe('_stripSummary', () => {
+  const t = (approaching) => ({ approaching });
+  const D = (trains) => ({ trains, from: 'Økern', to: 'Jernbanetorget' });
+
+  it('names both halves when both have trains', () => {
+    expect(_stripSummary(D([t(true), t(true), t(true), t(false), t(false)])))
+      .toBe('3 tog på vei til Økern, 2 tog foran deg mot Jernbanetorget');
+  });
+
+  it('omits a half that is empty rather than saying zero', () => {
+    expect(_stripSummary(D([t(true), t(true)]))).toBe('2 tog på vei til Økern');
+    expect(_stripSummary(D([t(false)]))).toBe('1 tog foran deg mot Jernbanetorget');
+  });
+
+  it('keeps "tog" invariant, which is how the plural actually works', () => {
+    expect(_stripSummary(D([t(true)]))).toContain('1 tog på vei');
+    expect(_stripSummary(D([t(true), t(true)]))).toContain('2 tog på vei');
+  });
+
+  it('says so plainly when there is nothing to show', () => {
+    expect(_stripSummary(D([]))).toBe('Ingen tog på strekningen nå');
+    expect(_stripSummary(null)).toBe('Ingen tog på strekningen nå');
+  });
+
+  it('falls back to generic wording when the stops are unknown', () => {
+    expect(_stripSummary({ trains: [t(true), t(false)] }))
+      .toBe('1 tog på vei til stoppet ditt, 1 tog foran deg mot destinasjonen');
   });
 });

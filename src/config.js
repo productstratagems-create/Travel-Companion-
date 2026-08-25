@@ -15,6 +15,9 @@ export default {
   selRefreshMs: 15_000,
   renderTickMs: 1_000,
   journeyMaxAgeMs: 4 * 60 * 60 * 1000,
+  // Below this much time to arrival, an arrival forecast says nothing the
+  // current conditions don't. One value — it was 15 min in track, 20 in selected.
+  arrivalForecastMinMs: 15 * 60_000,
   storage: {
     dir: 't.dir',
     journey: 't.jny',

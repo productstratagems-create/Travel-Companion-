@@ -132,6 +132,9 @@
 .hn-place-row:last-child{border-bottom:none}
 .hn-place-emoji{font-size:13px;flex-shrink:0;width:1.4rem;text-align:center}
 .hn-place-name{flex:1;font-size:12px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hn-place-hours{font-size:10px;flex-shrink:0;white-space:nowrap}
+.hn-place-hours.open{color:var(--ok)}
+.hn-place-hours.closed{color:var(--text-soft)}
 .hn-place-dist{font-size:10px;color:var(--text-soft);flex-shrink:0}
 
 /* Place markers on the arrival map */

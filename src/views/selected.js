@@ -45,13 +45,16 @@ function _selWeatherHtml(arrT) {
 
   if (arrT && w.forecast) {
     const arrTs = new Date(arrT).getTime();
-    if (arrTs > Date.now() + 20 * 60000) {
+    if (arrTs > Date.now() + config.arrivalForecastMinMs) {
       const fc = forecastAt(w.forecast, arrT);
       if (fc) {
-        const fcAdv = weatherAdvice(fc.temp, fc.precip, fc.wind);
+        const fcAdv = weatherAdvice(fc.temp, fc.precip, fc.wind,
+          { feels: fc.feels, precipProb: fc.precipProb });
         const fcParts = [fc.icon + ' ' + fc.temp + '°'];
+        if (fc.feels != null && Math.abs(fc.feels - fc.temp) >= 2) fcParts.push('føles som ' + fc.feels + '°');
         if (fc.wind >= 12) fcParts.push(fc.wind + ' m/s');
-        if (fc.precip >= 0.3) fcParts.push(fc.precip.toFixed(1) + ' mm');
+        if (fc.precipProb != null && fc.precipProb >= 20) fcParts.push(fc.precipProb + '% regn');
+        else if (fc.precip >= 0.3) fcParts.push(fc.precip.toFixed(1) + ' mm');
         html += '<span class="sel-wx-arr"> → ved ankomst ' + fcParts.join(' · ') + '</span>';
         if (fcAdv && fcAdv !== w.advice) {
           html += '<span class="sel-wx-adv">' + fcAdv + '</span>';
@@ -60,7 +63,7 @@ function _selWeatherHtml(arrT) {
     }
   }
 
-  if (w.advice && (!arrT || new Date(arrT).getTime() < Date.now() + 20 * 60000)) {
+  if (w.advice && (!arrT || new Date(arrT).getTime() < Date.now() + config.arrivalForecastMinMs)) {
     html += '<span class="sel-wx-adv">' + w.advice + '</span>';
   }
 

@@ -7,7 +7,7 @@ vi.mock('../src/ui/mapIcons.js', () => ({ makeStopIcon: vi.fn(), makeVehicleIcon
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
-import { dedupeDepartures, _headingDeg } from '../src/views/board.js';
+import { dedupeDepartures, _headingDeg, _corridorProgress, _legIndices, _buildStrip } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -156,5 +156,177 @@ describe('_headingDeg', () => {
       expect(h).toBeGreaterThanOrEqual(0);
       expect(h).toBeLessThan(360);
     }
+  });
+});
+
+// ── Corridor strip maths ────────────────────────────────────────────────────
+const stopCall = (name, mins, base = Date.UTC(2026, 4, 24, 8, 0, 0)) => {
+  const t = new Date(base + mins * 60000).toISOString();
+  return { quay: { stopPlace: { name } }, aimedArrivalTime: t, expectedArrivalTime: t,
+           aimedDepartureTime: t, expectedDepartureTime: t };
+};
+const BASE = Date.UTC(2026, 4, 24, 8, 0, 0);
+// Five stops, two minutes apart, leaving the first at 08:00.
+const RUN = ['Vestli', 'Grorud', 'Økern', 'Tøyen', 'Jernbanetorget'].map((n, i) => stopCall(n, i * 2));
+const at = (mins) => BASE + mins * 60000;
+
+describe('_corridorProgress', () => {
+  it('is null before the run starts and after it ends', () => {
+    expect(_corridorProgress(RUN, at(-1))).toBeNull();
+    expect(_corridorProgress(RUN, at(9))).toBeNull();
+  });
+
+  it('reads whole numbers at stops', () => {
+    expect(_corridorProgress(RUN, at(0))).toBe(0);
+    expect(_corridorProgress(RUN, at(4))).toBe(2);
+    expect(_corridorProgress(RUN, at(8))).toBe(4);
+  });
+
+  it('interpolates between stops', () => {
+    expect(_corridorProgress(RUN, at(1))).toBeCloseTo(0.5, 5);
+    expect(_corridorProgress(RUN, at(5))).toBeCloseTo(2.5, 5);
+    expect(_corridorProgress(RUN, at(2.5))).toBeCloseTo(1.25, 5);
+  });
+
+  it('rises monotonically across the whole run', () => {
+    let prev = -1;
+    for (let m = 0; m <= 8; m += 0.25) {
+      const p = _corridorProgress(RUN, at(m));
+      expect(p).not.toBeNull();
+      expect(p).toBeGreaterThanOrEqual(prev);
+      prev = p;
+    }
+  });
+
+  it('returns null rather than guessing when there is nothing to interpolate', () => {
+    expect(_corridorProgress(null, at(1))).toBeNull();
+    expect(_corridorProgress([RUN[0]], at(1))).toBeNull();
+    expect(_corridorProgress([{ quay: { stopPlace: { name: 'X' } } }, { quay: {} }], at(1))).toBeNull();
+  });
+});
+
+describe('_legIndices — direction is what keeps foreign trains off the strip', () => {
+  it('finds both ends when the journey runs our way', () => {
+    expect(_legIndices(RUN, 'Grorud', 'Tøyen')).toEqual({ from: 1, to: 3 });
+  });
+
+  it('rejects a journey running the other way rather than mirroring it', () => {
+    expect(_legIndices(RUN, 'Tøyen', 'Grorud')).toBeNull();
+  });
+
+  it('rejects a journey that does not serve both ends', () => {
+    expect(_legIndices(RUN, 'Grorud', 'Majorstuen')).toBeNull();
+    expect(_legIndices(RUN, 'Majorstuen', 'Tøyen')).toBeNull();
+  });
+
+  it('rejects origin and destination being the same stop', () => {
+    expect(_legIndices(RUN, 'Grorud', 'Grorud')).toBeNull();
+  });
+
+  it('matches loosely enough for the "T" suffix and case Entur returns', () => {
+    expect(_legIndices(RUN, 'grorud', 'JERNBANETORGET')).toEqual({ from: 1, to: 4 });
+    expect(_legIndices(RUN, 'Grorud T', 'Tøyen')).toEqual({ from: 1, to: 3 });
+  });
+
+  it('is null with missing arguments', () => {
+    expect(_legIndices(RUN, null, 'Tøyen')).toBeNull();
+    expect(_legIndices(null, 'Grorud', 'Tøyen')).toBeNull();
+  });
+});
+
+describe('_buildStrip', () => {
+  const LINE = { id: 'RUT:Line:5', publicCode: '5', presentation: { colour: 'f5a000' } };
+  const DIR = { from: 'Grorud', to: 'Jernbanetorget' };
+  // RUN: Vestli(0) Grorud(2) Økern(4) Tøyen(6) Jernbanetorget(8), in minutes.
+  const dep = (offsetMin, id, frontText) => {
+    const calls = RUN.map(c => {
+      const t = new Date(new Date(c.aimedArrivalTime).getTime() + offsetMin * 60000).toISOString();
+      return { ...c, aimedArrivalTime: t, expectedArrivalTime: t,
+               aimedDepartureTime: t, expectedDepartureTime: t };
+    });
+    return {
+      expectedDepartureTime: calls[1].expectedDepartureTime,   // leaves Grorud
+      destinationDisplay: { frontText: frontText || 'Jernbanetorget' },
+      serviceJourney: { id, line: LINE, estimatedCalls: calls },
+    };
+  };
+  // now = 08:10. A run offset by +N has its Grorud departure at 08:02+N.
+  const NOW = at(10);
+
+  it('places the origin at 0 and lists stops from origin to destination', () => {
+    const s = _buildStrip([dep(10, 'a')], [], DIR, '5', NOW, new Map());
+    expect(s.stops).toEqual(['Grorud', 'Økern', 'Tøyen', 'Jernbanetorget']);
+    expect(s.from).toBe('Grorud');
+    expect(s.to).toBe('Jernbanetorget');
+  });
+
+  it('gives approaching trains the same countdown the list row shows', () => {
+    // Grorud departure at 08:02+10 = 08:12, i.e. 2 minutes after NOW.
+    const s = _buildStrip([dep(10, 'a')], [], DIR, '5', NOW, new Map());
+    const t = s.trains.find(x => x.approaching);
+    expect(t.mins).toBe(2);
+  });
+
+  it('truncates like the list does, not rounds', () => {
+    // 2 min 40 s away. The list floors this to 2; rounding would print 3 and
+    // the strip would contradict the row sitting directly beneath it.
+    const d = dep(10, 'a');
+    const shifted = new Date(new Date(d.expectedDepartureTime).getTime() + 40000).toISOString();
+    d.expectedDepartureTime = shifted;
+    const s = _buildStrip([d], [], DIR, '5', NOW, new Map());
+    expect(s.trains.find(t => t.approaching).mins).toBe(2);
+  });
+
+  it('orders approaching trains by countdown, furthest back first', () => {
+    const s = _buildStrip([dep(10, 'a'), dep(24, 'b'), dep(17, 'c')], [], DIR, '5', NOW, new Map());
+    const appr = s.trains.filter(t => t.approaching);
+    expect(appr.map(t => t.mins)).toEqual([16, 9, 2]);
+    // Strictly increasing position, so none can stack on top of another.
+    for (let i = 1; i < appr.length; i++) expect(appr[i].pos).toBeGreaterThan(appr[i - 1].pos);
+  });
+
+  it('puts a train that already left ahead of you, with no countdown', () => {
+    // Offset +4 puts its Grorud departure at 08:06 and its arrival at 08:12,
+    // so at 08:10 it is on the stretch, four minutes in front.
+    const s = _buildStrip([], [dep(4, 'past')], DIR, '5', NOW, new Map());
+    const t = s.trains[0];
+    expect(t.approaching).toBe(false);
+    expect(t.mins).toBeNull();
+    expect(t.pos).toBeGreaterThan(0);
+  });
+
+  it('drops a train running the opposite direction', () => {
+    const backwards = dep(4, 'wrong');
+    backwards.serviceJourney.estimatedCalls = backwards.serviceJourney.estimatedCalls.slice().reverse();
+    expect(_buildStrip([], [backwards], DIR, '5', NOW, new Map()).trains).toHaveLength(0);
+  });
+
+  it('drops a train already past your destination, though still running', () => {
+    // Alighting at Økern (08:08) while the train is at Tøyen (08:10): gone.
+    const shortHop = { from: 'Grorud', to: 'Økern' };
+    expect(_buildStrip([], [dep(4, 'gone')], shortHop, '5', NOW, new Map()).trains).toHaveLength(0);
+  });
+
+  it('ignores other lines', () => {
+    const other = dep(10, 'x');
+    other.serviceJourney.line = { id: 'RUT:Line:2', publicCode: '2' };
+    expect(_buildStrip([other], [], DIR, '5', NOW, new Map()).trains).toHaveLength(0);
+  });
+
+  it('never lists the same journey twice', () => {
+    const d = dep(10, 'same');
+    expect(_buildStrip([d, d], [d], DIR, '5', NOW, new Map()).trains).toHaveLength(1);
+  });
+
+  it('still works with no in-flight data at all', () => {
+    const s = _buildStrip([dep(10, 'a')], [], DIR, '5', NOW, new Map());
+    expect(s.trains).toHaveLength(1);
+    expect(s.stops.length).toBeGreaterThan(1);
+  });
+
+  it('returns nothing usable when no journey serves both ends', () => {
+    const s = _buildStrip([dep(10, 'a')], [], { from: 'Majorstuen', to: 'Ryen' }, '5', NOW, new Map());
+    expect(s.stops).toEqual([]);
+    expect(s.trains).toEqual([]);
   });
 });

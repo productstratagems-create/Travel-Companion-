@@ -107,3 +107,30 @@ export function vehiclesGQL(lineRef) {
     + 'serviceJourney{id}'
     + '}}';
 }
+
+/**
+ * Departures that have already left — the trains now between you and your
+ * destination.
+ *
+ * A train currently on your stretch is, by construction, one that departed
+ * your stop a little while ago, so a window that starts in the past returns
+ * exactly them. Deliberately its own query rather than another field on the
+ * board query: if these argument names are wrong the request fails on its
+ * own, instead of taking the departure list down with it.
+ *
+ * @param {string} id      origin stop place
+ * @param {number} backMins how far back to look
+ */
+export function inflightGQL(id, backMins) {
+  const back = backMins || 40;
+  const startTime = new Date(Date.now() - back * 60000).toISOString();
+  return '{stopPlace(id:"' + id + '"){'
+    + 'estimatedCalls(startTime:"' + startTime + '",timeRange:' + (back * 60)
+    + ',numberOfDepartures:12,whiteListedModes:[metro,tram,bus,rail]){'
+    + 'aimedDepartureTime expectedDepartureTime cancellation '
+    + 'destinationDisplay{frontText} '
+    + 'serviceJourney{id line{id publicCode transportMode presentation{colour}} '
+    + 'estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}} '
+    + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
+    + '}}}';
+}

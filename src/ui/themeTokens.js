@@ -9,6 +9,8 @@ function _read() {
   const get = (name, fallback) => (cs.getPropertyValue(name) || '').trim() || fallback;
   return {
     accent:     get('--accent', '#f5b840'),
+    mapYou:     get('--map-you', '#3b82f6'),
+    mapInk:     get('--map-ink', '#0a0806'),
     accentRgb:  get('--accent-rgb', '245, 184, 64').replace(/\s+/g, ''),
     bgRgb:      get('--bg-rgb', '10, 8, 6').replace(/\s+/g, ''),
     surface2:   get('--surface-2', '#1a1410'),
@@ -30,9 +32,17 @@ export function refreshTokens() {
   _cache = null;
 }
 
+// Basemap follows data-theme. Registered lazily so ui/map.js can import this
+// module without a cycle.
+let _onThemeChange = null;
+export function onThemeChange(fn) { _onThemeChange = fn; }
+
 // data-theme / data-palette are only ever set on <html>.
 if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined') {
-  new MutationObserver(refreshTokens).observe(document.documentElement, {
+  new MutationObserver(() => {
+    refreshTokens();
+    if (_onThemeChange) _onThemeChange();
+  }).observe(document.documentElement, {
     attributes: true, attributeFilter: ['data-theme', 'data-palette'],
   });
 }

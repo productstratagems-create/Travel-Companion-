@@ -5,7 +5,7 @@ import { confirmTap } from '../ui/confirm.js';
 import config from '../config.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
-import { addCompass } from '../ui/mapCompass.js';
+import { createMap, drawRoute } from '../ui/map.js';
 import { geocodePlace, fetchJourneyMeta } from '../api/entur.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -21,7 +21,6 @@ function fmtCountdown(ms) {
 let _planInterval = null;
 
 // ── Plan map ────────────────────────
-const _TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
 let _planMap = null;
 let _planMapKey = '';
@@ -110,10 +109,7 @@ async function _renderPlanMap(legs) {
   if (!el) return;
 
   if (!_planMap) {
-    _planMap = L.map(el, { zoomControl: true, attributionControl: false, zoomControlOptions: { position: 'topleft' }, rotate: true, touchRotate: true, rotateControl: false });
-    L.tileLayer(_TILE, { subdomains: 'abcd', attribution: '© CartoDB' }).addTo(_planMap);
-    L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(_planMap);
-    addCompass(_planMap, el);
+    _planMap = createMap(el, { scale: true });
 
     const expandBtn = document.getElementById('plan-map-expand');
     if (expandBtn) {
@@ -137,7 +133,7 @@ async function _renderPlanMap(legs) {
 
     // Draw route through intermediate stops (or straight line for geocoded fallback)
     if (routePts.length > 1) {
-      L.polyline(routePts, { color, weight: 4, opacity: 0.85 }).addTo(_planMapLayer);
+      drawRoute(_planMapLayer, routePts, { color, weight: 4, opacity: 0.85 });
       allPts.push(...routePts);
     }
 

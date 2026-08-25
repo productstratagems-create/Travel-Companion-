@@ -332,7 +332,7 @@ function _addArrBoardSection(arrStation) {
   if (!nb || !nb.parentNode) return;
   const div = document.createElement('div');
   div.className = 'hn-section';
-  div.innerHTML = '<div class="hn-section-label">avganger fra ' + esc(displayStn(arrStation)) + '</div>'
+  div.innerHTML = '<div class="hn-section-label">videre med kollektivt</div>'
     + '<div id="hn-arr-board">' + _renderArrBoardHtml() + '</div>';
   nb.parentNode.insertBefore(div, nb);
 }
@@ -488,25 +488,10 @@ function _applyWalkResult() {
   if (!res) return;
   while (res.firstChild) res.removeChild(res.firstChild);
   if (!_walkDestLL) return;
+  // Without a position nothing can be ranked, and the ranking below renders
+  // empty — so say nothing rather than "? min".
   const pos = _arrLL || state.homeLL || state.walkFromLL;
-  if (!pos) {
-    const el = document.createElement('span');
-    el.className = 'hn-walk-mins';
-    el.textContent = '? min';
-    res.appendChild(el);
-    return;
-  }
-  const d = haver(pos.lat, pos.lon, _walkDestLL.lat, _walkDestLL.lon);
-  const spd = SPEED_MPN[loadWalkSpeed()] || 83.33;
-  const mins = Math.max(1, Math.ceil(d * 1.3 / spd)) + loadWalkBuffer();
-  const mEl = document.createElement('span');
-  mEl.className = 'hn-walk-mins';
-  mEl.textContent = mins + ' min';
-  const tEl = document.createElement('span');
-  tEl.className = 'hn-walk-to';
-  tEl.textContent = ' til ' + _walkDestLL.label;
-  res.appendChild(mEl);
-  res.appendChild(tEl);
+  if (!pos) return;
   // Update map walk-destination pin and mobility rankings after dest changes
   _resolveArrivalLL().then(arrLL => _updateArrMapWalkPin(arrLL));
   _updateMobilitySection();
@@ -636,11 +621,9 @@ function _weatherSectionHtml() {
     + (src.precipProb != null && src.precipProb >= 20 ? ' · ' + src.precipProb + '% regn'
        : src.precip >= 0.3 ? ' · ' + src.precip.toFixed(1) + ' mm' : '');
   const dark = darknessNote(w, arrIso);
-  const advice = weatherAdvice(src.temp, src.precip, src.wind,
-    { feels: src.feels, precipProb: src.precipProb });
-  return '<div class="hn-weather-main">' + main + '</div>'
-    + (dark ? '<div class="hn-weather-adv">' + dark + '</div>' : '')
-    + (advice ? '<div class="hn-weather-adv">' + advice + '</div>' : '');
+  // No clothing advice here: the strip at the top of the tracking screen
+  // already carries it, and repeating it on one screen is noise.
+  return '<div class="hn-weather-main">' + main + (dark ? ' · ' + dark : '') + '</div>';
 }
 
 // Called when user taps a category pill
@@ -711,6 +694,19 @@ function _rankMobility(arrLL, destLL) {
   const walkSpd = SPEED_MPN[loadWalkSpeed()] || 83.33;
   const options = [];
 
+  // Walking is an option like any other and belongs in the same ranking. It
+  // used to be measured in a separate section, so the user could not compare
+  // "9 min on foot" against "6 min by bike" without doing it themselves.
+  {
+    const walkM = haver(arrLL.lat, arrLL.lon, destLL.lat, destLL.lon) * ROUTE_FACTOR;
+    options.push({
+      type: 'walk', label: 'Gå', sub: null,
+      dist: Math.round(walkM),
+      walkT: Math.max(1, Math.ceil(walkM / walkSpd)),
+      rideT: 0,
+    });
+  }
+
   if (_cachedBikes) {
     _cachedBikes.forEach(s => {
       const walkM = haver(arrLL.lat, arrLL.lon, s.lat, s.lon);
@@ -745,10 +741,18 @@ function _rankMobility(arrLL, destLL) {
     });
   }
 
-  return options
+  // One row per mode, each the best of its kind. Three operators' scooters
+  // parked on the same corner are one option, not three, and a top-5 cut by
+  // raw time could push walking — the baseline every other row is judged
+  // against — off the list entirely.
+  const bestPerMode = new Map();
+  options
     .map(o => ({ ...o, total: o.walkT + o.rideT }))
-    .sort((a, b) => a.total - b.total)
-    .slice(0, 5);
+    .forEach(o => {
+      const cur = bestPerMode.get(o.type);
+      if (!cur || o.total < cur.total) bestPerMode.set(o.type, o);
+    });
+  return Array.from(bestPerMode.values()).sort((a, b) => a.total - b.total);
 }
 
 // Nearest station to the ride's END that can actually accept a bike.
@@ -763,6 +767,7 @@ function _nearestReturnStation(destLL) {
 }
 
 function _mobilityIcon(type) {
+  if (type === 'walk')    return '🚶';
   if (type === 'ebike')   return '⚡🚲';
   if (type === 'bike')    return '🚲';
   if (type === 'scooter') return '🛴';
@@ -770,9 +775,10 @@ function _mobilityIcon(type) {
 }
 
 function _mobilitySectionHtml() {
-  if (!_walkDestLL || (!_cachedBikes && !_cachedScooters)) {
-    return '<div class="mob-loading">angi destinasjon for å sammenligne alternativer</div>';
-  }
+  // Nothing to rank until the user says where they are going. The prompt for
+  // that lives directly above, so this stays silent rather than showing a
+  // placeholder line that reads like a broken feature.
+  if (!_walkDestLL) return '';
   const arrLL = _arrLL;
   if (!arrLL) return '';
   const ranked = _rankMobility(arrLL, _walkDestLL);
@@ -786,22 +792,24 @@ function _mobilitySectionHtml() {
       meta.push(o.count + ' ledig');
       if (o.ret) {
         meta.push(o.ret.docks > 0
-          ? o.ret.docks + ' plasser ved ' + o.ret.name
-          : 'ingen ledige plasser ved ' + o.ret.name);
+          ? o.ret.docks + ' plasser ved ' + esc(o.ret.name)
+          : 'ingen ledige plasser ved ' + esc(o.ret.name));
       }
     }
-    if (o.battery !== null) meta.push(o.battery + '% · ca ' + o.rangeKm + ' km');
-    meta.push(o.dist + ' m unna');
+    if (o.battery != null) meta.push(o.battery + '% · ca ' + o.rangeKm + ' km');
+    if (o.type === 'walk') meta.push(o.dist < 1000 ? o.dist + ' m' : (o.dist / 1000).toFixed(1) + ' km');
+    else meta.push(o.dist + ' m unna');
     return '<div class="mob-option' + (isBest ? ' mob-best' : '') + '">'
       + '<span class="mob-rank">' + rank + '</span>'
       + '<span class="mob-icon">' + _mobilityIcon(o.type) + '</span>'
       + '<div class="mob-info">'
-      + '<span class="mob-name">' + o.label + (o.sub !== o.label ? ' <span class="mob-sub">· ' + o.sub + '</span>' : '') + '</span>'
+      + '<span class="mob-name">' + esc(o.label)
+      + (o.sub && o.sub !== o.label ? ' <span class="mob-sub">· ' + esc(o.sub) + '</span>' : '') + '</span>'
       + '<span class="mob-meta">' + meta.join(' · ') + '</span>'
       + '</div>'
       + '<div class="mob-time' + (isBest ? ' mob-time-best' : '') + '">'
       + '<span class="mob-total">' + o.total + ' min</span>'
-      + '<span class="mob-breakdown">' + o.walkT + 'g + ' + o.rideT + 'r</span>'
+      + (o.rideT > 0 ? '<span class="mob-breakdown">' + o.walkT + 'g + ' + o.rideT + 'r</span>' : '')
       + '</div>'
       + '</div>';
   }).join('');
@@ -840,32 +848,36 @@ function renderNextPanel() {
 
   el.innerHTML =
     '<div class="hn-panel">'
-    + '<div class="hn-title">Hva nå?</div>'
-    // Disruptions at the far end of the trip. Deliberately above the map:
+    // One heading that says where you are, with the conditions folded into it
+    // rather than given a section of their own.
+    + '<div class="hn-head">'
+    + '<div class="hn-head-eyebrow">fremme ved</div>'
+    + '<div class="hn-head-stop">' + esc(displayStn(arrStation)) + '</div>'
+    + '<div id="hn-weather-content" class="hn-head-wx">' + _weatherSectionHtml() + '</div>'
+    + '</div>'
+    // Disruptions at the far end of the trip. Deliberately near the top:
     // if the destination stop is closed, nothing below it matters.
     + '<div id="hn-dest-alerts">' + _destAlertsHtml() + '</div>'
     + '<div class="map-wrap"><div id="hn-map"></div><button class="map-expand-btn" id="hn-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
-    + '<div class="hn-section">'
-    + '<div class="hn-section-label">vær</div>'
-    + '<div id="hn-weather-content">' + _weatherSectionHtml() + '</div>'
-    + '</div>'
-    + '<div class="hn-section">'
-    + '<div class="hn-section-label" id="hn-places-label">' + (_cat ? _cat.emoji + ' ' + _cat.label : 'steder i nærheten') + '</div>'
-    + _catPillsHtml(activeCatIdx >= 0 ? activeCatIdx : PLACE_CATS.indexOf(_cat))
-    + '<div id="hn-places-content">' + _placesSectionHtml() + '</div>'
-    + '</div>'
-    + '<div class="hn-section">'
-    + '<div class="hn-section-label">beste alternativ</div>'
-    + '<div id="hn-mobility-content">' + _mobilitySectionHtml() + '</div>'
-    + '</div>'
-    + '<div class="hn-section">'
-    + '<div class="hn-section-label">gangavstand</div>'
+    // The single question this screen exists to answer, and directly beneath
+    // it the one ranked answer — walking, bike and scooter in the same list
+    // and the same units, instead of a walk box and a separate vehicle table.
+    + '<div class="hn-section hn-primary">'
+    + '<div class="hn-section-label">hvor skal du videre?</div>'
     + recentsHtml
-    + '<input class="hn-input" id="t-walk-dest" placeholder="hvor videre?" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
+    + '<input class="hn-input" id="t-walk-dest" placeholder="sted eller adresse" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
     + (_walkDestLL ? ' value="' + esc(_walkDestLL.label) + '"' : '') + '>'
     + '<div id="t-walk-sugg" class="stop-sugg" hidden></div>'
     + '<div id="t-walk-result"></div>'
+    + '<div id="hn-mobility-content">' + _mobilitySectionHtml() + '</div>'
     + '</div>'
+    // Browsing is a different intent from getting somewhere, so it folds away.
+    + '<details class="hn-details" id="hn-places-details">'
+    + '<summary class="hn-summary"><span id="hn-places-label">'
+    + (_cat ? _cat.emoji + ' ' + _cat.label : 'steder i nærheten') + '</span></summary>'
+    + _catPillsHtml(activeCatIdx >= 0 ? activeCatIdx : PLACE_CATS.indexOf(_cat))
+    + '<div id="hn-places-content">' + _placesSectionHtml() + '</div>'
+    + '</details>'
     + '<button class="hn-new-btn" id="t-new-btn">ny reise fra ' + esc(displayStn(arrStation)) + ' →</button>'
     + '</div>';
 

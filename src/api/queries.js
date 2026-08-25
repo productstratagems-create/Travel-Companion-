@@ -121,13 +121,20 @@ export function vehiclesGQL(lineRef) {
  * @param {string} id      origin stop place
  * @param {number} backMins how far back to look
  */
-export function inflightGQL(id, backMins) {
+export function inflightGQL(id, backMins, fwdMins) {
   const back = backMins || 40;
+  const fwd = fwdMins == null ? 25 : fwdMins;
   const startTime = new Date(Date.now() - back * 60000).toISOString();
   return '{stopPlace(id:"' + id + '"){'
-    + 'estimatedCalls(startTime:"' + startTime + '",timeRange:' + (back * 60)
-    + ',numberOfDepartures:12,whiteListedModes:[metro,tram,bus,rail]){'
-    + 'aimedDepartureTime expectedDepartureTime cancellation '
+    + 'estimatedCalls(startTime:"' + startTime + '",timeRange:' + ((back + fwd) * 60)
+    + ',numberOfDepartures:20,whiteListedModes:[metro,tram,bus,rail]){'
+    + 'aimedDepartureTime expectedDepartureTime cancellation realtime '
+    // The only authoritative answer to "is it standing at my platform": it has
+    // actually arrived and has not actually left. These two fields ride in
+    // this isolated query rather than the board query on purpose — if they are
+    // not spelled the way I think, the strip and this badge go quiet and the
+    // departure list is untouched.
+    + 'actualArrivalTime actualDepartureTime '
     + 'destinationDisplay{frontText} '
     + 'serviceJourney{id line{id publicCode transportMode presentation{colour}} '
     + 'estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}} '

@@ -53,13 +53,18 @@ export function makeVehicleIcon(mode, color, opts = {}) {
   const { bearing = null, estimated = false } = opts;
 
   // Proportions only — at this size a per-mode pictogram is invisible detail.
-  const long = mode === 'bus' ? 17 : mode === 'tram' ? 18 : 21;
-  const wide = mode === 'bus' ? 10 : 9;
+  const long = mode === 'bus' ? 18 : mode === 'tram' ? 19 : 22;
+  const wide = mode === 'bus' ? 11 : 10;
   const radius = mode === 'bus' ? 3 : wide / 2;
 
   const halo = _halo();
-  const fill = estimated ? 'none' : color;
-  const bodyOpacity = estimated ? 0.9 : 1;
+  // Both variants are filled. v1.11.0 drew the estimated one as a hollow
+  // dashed outline in the line's own colour, directly on top of a corridor
+  // drawn in that same colour: correctly placed, in the DOM, and invisible on
+  // a phone. Since metro has no live feed, that was the only variant anyone
+  // saw. The distinction is spent on fill strength and the nose band instead,
+  // never on whether the thing is drawn at all.
+  const fillOpacity = estimated ? 0.7 : 1;
 
   // The leading end carries a band in the halo colour — dark on a light
   // canvas, light on a dark one — so the front reads at a glance whichever
@@ -69,13 +74,15 @@ export function makeVehicleIcon(mode, color, opts = {}) {
     : '<rect x="' + ((_VEH_BOX - wide) / 2 + 1.4) + '" y="' + ((_VEH_BOX - long) / 2 + 2)
       + '" width="' + (wide - 2.8) + '" height="3.2" rx="1.2" fill="' + halo + '" opacity=".85"/>';
 
+  // The halo outline is what separates the body from the corridor beneath it,
+  // which is drawn in the same colour — so it stays solid and full strength
+  // for both variants.
   const svg = '<svg width="' + _VEH_BOX + '" height="' + _VEH_BOX + '" viewBox="0 0 ' + _VEH_BOX + ' ' + _VEH_BOX + '"'
     + ' xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
     + '<rect x="' + ((_VEH_BOX - wide) / 2) + '" y="' + ((_VEH_BOX - long) / 2) + '"'
     + ' width="' + wide + '" height="' + long + '" rx="' + radius + '"'
-    + ' fill="' + fill + '" fill-opacity="' + (estimated ? 0 : 1) + '"'
-    + ' stroke="' + (estimated ? color : halo) + '" stroke-width="' + (estimated ? 1.6 : 1.4) + '"'
-    + (estimated ? ' stroke-dasharray="3 2"' : '') + ' opacity="' + bodyOpacity + '"/>'
+    + ' fill="' + color + '" fill-opacity="' + fillOpacity + '"'
+    + ' stroke="' + halo + '" stroke-width="1.7"/>'
     + nose
     + '</svg>';
 

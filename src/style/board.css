@@ -204,7 +204,6 @@
   50%{ filter:drop-shadow(0 0 4px rgba(255,255,255,.5)) }
 }
 .veh-live{animation:veh-breathe 3.2s ease-in-out infinite}
-.veh-est{opacity:.75}
 @media (prefers-reduced-motion:reduce){
   .veh-live{animation:none}
 }

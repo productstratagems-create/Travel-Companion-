@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { enturFetch } from './http.js';
-import { arrBoardGQL, boardGQL, journeyGQL, trackGQL, tripGQL } from './queries.js';
+import { arrBoardGQL, boardGQL, inflightGQL, journeyGQL, trackGQL, tripGQL } from './queries.js';
 import { quayLatLon } from './adapt.js';
 import { logMsg, setDot } from '../ui/log.js';
 import { loadWalkSpeed } from '../geo.js';
@@ -359,4 +359,27 @@ export function fetchJourneyMeta(journeyId) {
         dest:      first ? first.dest : '',
       };
     });
+}
+
+/**
+ * Trains that have already left the origin — see inflightGQL.
+ *
+ * Never rejects and never disturbs the board: this is extra context, and a
+ * board that works is worth more than a strip that is complete.
+ *
+ * @returns {Promise<Array>} the raw estimatedCalls, or [] on any failure.
+ */
+export function fetchInflight(stopId, backMins) {
+  if (!stopId) return Promise.resolve([]);
+  return enturFetch(config.api.journeyPlanner, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: inflightGQL(stopId, backMins) }),
+  })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(j => {
+      const sp = j && j.data && j.data.stopPlace;
+      return (sp && sp.estimatedCalls) || [];
+    })
+    .catch(() => []);
 }

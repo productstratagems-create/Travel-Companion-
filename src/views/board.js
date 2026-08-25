@@ -1016,6 +1016,24 @@ function _snapToCalls(calls, lat, lon) {
   return best;
 }
 
+/**
+ * What the strip says, in words.
+ *
+ * The container is role="img" with a fixed label, which told a screen-reader
+ * user that a picture of trains existed and nothing else. Kept pure so the
+ * Norwegian agreement is tested rather than buried in markup.
+ */
+export function _stripSummary(data) {
+  if (!data || !data.trains || !data.trains.length) return 'Ingen tog på strekningen nå';
+  const appr = data.trains.filter(t => t.approaching).length;
+  const ahead = data.trains.length - appr;
+  // 'tog' is invariant in Norwegian — no plural branch to get wrong.
+  const parts = [];
+  if (appr) parts.push(appr + ' tog på vei til ' + (data.from || 'stoppet ditt'));
+  if (ahead) parts.push(ahead + ' tog foran deg mot ' + (data.to || 'destinasjonen'));
+  return parts.join(', ');
+}
+
 function renderLineStrip(visibleDeps) {
   const el = document.getElementById('line-strip');
   if (!el) return;
@@ -1043,10 +1061,34 @@ function renderLineStrip(visibleDeps) {
     + (t.approaching && t.mins != null ? '<b>' + (t.mins <= 0 ? 'nå' : t.mins) + '</b>' : '')
     + '</span>').join('');
 
+  // Name the two halves, each caption centred over its own zone. A zone with
+  // no trains gets no caption: with the in-flight request failing, the right
+  // half is empty, and a label over an empty stretch is worse than silence.
+  const originPct = pct(0);
+  const nAppr = data.trains.filter(t => t.approaching).length;
+  const nAhead = data.trains.length - nAppr;
+  const caption = (text, left, width) =>
+    width < 14 ? ''
+      : '<span class="ls-cap" style="left:' + left.toFixed(2) + '%;width:' + width.toFixed(2) + '%">'
+        + text + '</span>';
+
+  const caps =
+    (nAppr && originPct > 0 ? caption('på vei til deg', 0, originPct) : '')
+    + (nAhead && originPct < 100 ? caption('foran deg', originPct, 100 - originPct) : '');
+
   el.innerHTML =
-    '<div class="ls-rail">'
-    + '<span class="ls-you" style="left:' + pct(0).toFixed(2) + '%"></span>'
+    (caps ? '<div class="ls-caps">' + caps + '</div>' : '')
+    + '<div class="ls-rail">'
+    // Tint behind each half, so the split reads before the captions do.
+    + '<span class="ls-zone ls-zone-appr" style="width:' + originPct.toFixed(2) + '%"></span>'
+    + '<span class="ls-zone ls-zone-ahead" style="left:' + originPct.toFixed(2) + '%;'
+    + 'width:' + (100 - originPct).toFixed(2) + '%"></span>'
+    + '<span class="ls-you" style="left:' + originPct.toFixed(2) + '%"></span>'
     + ticks + trains
+    // One arrowhead at the destination end settles which way the whole rail
+    // runs. Drawn, not a text glyph: a character outside the bundled font
+    // subset falls back silently, which is how the menu dots went wrong.
+    + '<span class="ls-arrow" aria-hidden="true"></span>'
     + '</div>'
     // The origin label sits under its own marker, not at the left edge — the
     // space to its left belongs to the trains still on their way to you, and
@@ -1056,6 +1098,7 @@ function renderLineStrip(visibleDeps) {
     + esc(data.from || '') + '</span>'
     + '<span class="ls-end-to">' + esc(data.to || '') + '</span>'
     + '</div>';
+  el.setAttribute('aria-label', _stripSummary(data));
   el.style.display = 'block';
 }
 

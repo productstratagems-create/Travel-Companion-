@@ -334,7 +334,19 @@
 /* Corridor strip — your stretch as a schematic, under the map.
    Stops are ticks, trains sit on the rail. Approaching trains carry the same
    countdown as their row in the list below, so the two read as one thing. */
-#line-strip{margin:.1rem 0 .6rem;padding:.55rem .4rem .3rem}
+#line-strip{margin:.1rem 0 .6rem;padding:.35rem .4rem .3rem}
+
+/* Captions naming the two halves. Each sits over its own zone; a zone with no
+   trains gets none, so nothing labels an empty stretch. */
+.ls-caps{position:relative;height:12px;margin-bottom:.1rem}
+.ls-cap{
+  position:absolute;text-align:center;
+  font-family:"JetBrains Mono",ui-monospace,monospace;
+  font-size:9px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--text-muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
 .ls-rail{
   position:relative;height:22px;
   border-radius:2px;
@@ -343,14 +355,27 @@
   content:"";position:absolute;left:0;right:0;top:10px;height:2px;
   background:rgba(var(--text-muted-rgb),.35);border-radius:1px;
 }
+/* Tint behind each half, so the split reads before the captions are read. */
+.ls-zone{position:absolute;top:4px;height:14px;border-radius:3px}
+.ls-zone-appr{left:0;background:rgba(var(--accent-rgb),.07)}
+.ls-zone-ahead{background:rgba(var(--text-muted-rgb),.07)}
+/* Which way the line runs. One arrowhead for the whole rail. */
+.ls-arrow{
+  position:absolute;right:0;top:6px;
+  width:0;height:0;
+  border-top:5px solid transparent;
+  border-bottom:5px solid transparent;
+  border-left:7px solid rgba(var(--text-muted-rgb),.6);
+}
 .ls-tick{
   position:absolute;top:7px;width:2px;height:8px;margin-left:-1px;
   background:rgba(var(--text-muted-rgb),.55);border-radius:1px;
 }
-/* Your stop: the reference point everything else is read against. */
+/* Your stop: a divide between the two halves, not just another tick. */
 .ls-you{
-  position:absolute;top:3px;width:2px;height:16px;margin-left:-1px;
+  position:absolute;top:0;width:2px;height:22px;margin-left:-1px;
   background:var(--accent);border-radius:1px;
+  box-shadow:0 0 0 3px rgba(var(--accent-rgb),.12);
 }
 .ls-train{
   position:absolute;top:1px;margin-left:-9px;

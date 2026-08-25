@@ -13,7 +13,7 @@ import { startBoard, _interpolateVehiclePos } from './board.js';
 import { makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { renderAlerts, activeSituations, situationText, sevClass } from '../ui/alerts.js';
-import { fmtMins, makeSuggBtn, esc } from '../ui/fmt.js';
+import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { fetchWalkRoute } from '../api/route.js';
@@ -580,7 +580,10 @@ function _placesSectionHtml() {
       : '';
     return '<div class="hn-place-row">'
       + '<span class="hn-place-emoji">' + p.emoji + '</span>'
+      + '<span class="hn-place-main">'
       + '<span class="hn-place-name">' + esc(p.name) + '</span>'
+      + venueDetailHtml(p)
+      + '</span>'
       + hoursHtml
       + '<span class="hn-place-dist">' + (p.dist < 1000 ? p.dist + ' m' : (p.dist / 1000).toFixed(1) + ' km') + '</span>'
       + '</div>';

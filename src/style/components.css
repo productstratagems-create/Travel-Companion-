@@ -183,3 +183,12 @@ html[data-theme="light"] .smart-toast{
   background:rgba(176,88,0,.07);border-color:rgba(176,88,0,.2);color:#b05800;
 }
 html[data-theme="light"] .smart-toast strong{color:#b05800}
+
+
+/* ── Venue detail line (shared by the route preview, Hva na and Utforsk) ──── */
+.venue-detail{
+  display:flex;align-items:center;gap:.3rem;flex-wrap:wrap;
+  font-size:10px;line-height:1.2;margin-top:.1rem;
+}
+.venue-detail .vd-type{color:var(--text-soft);text-transform:lowercase}
+.venue-detail .vd-chip{color:var(--text-muted);font-size:11px;line-height:1}

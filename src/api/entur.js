@@ -369,12 +369,12 @@ export function fetchJourneyMeta(journeyId) {
  *
  * @returns {Promise<Array>} the raw estimatedCalls, or [] on any failure.
  */
-export function fetchInflight(stopId, backMins) {
+export function fetchInflight(stopId, backMins, fwdMins) {
   if (!stopId) return Promise.resolve([]);
   return enturFetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: inflightGQL(stopId, backMins) }),
+    body: JSON.stringify({ query: inflightGQL(stopId, backMins, fwdMins) }),
   })
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(j => {

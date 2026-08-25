@@ -7,7 +7,7 @@ vi.mock('../src/ui/mapIcons.js', () => ({ makeStopIcon: vi.fn(), makeVehicleIcon
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
-import { dedupeDepartures, _headingDeg, _corridorProgress, _legIndices, _buildStrip, _stripSummary } from '../src/views/board.js';
+import { dedupeDepartures, _headingDeg, _corridorProgress, _legIndices, _buildStrip, _stripSummary, _platformState } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -358,5 +358,43 @@ describe('_stripSummary', () => {
   it('falls back to generic wording when the stops are unknown', () => {
     expect(_stripSummary({ trains: [t(true), t(false)] }))
       .toBe('1 tog på vei til stoppet ditt, 1 tog foran deg mot destinasjonen');
+  });
+});
+
+describe('_platformState — three-valued, because "unknown" is not "no"', () => {
+  const LL = { lat: 59.9139, lon: 10.7522 };
+  const near = { lat: 59.9141, lon: 10.7524 };     // ~28 m away
+  const far = { lat: 59.9180, lon: 10.7600 };      // ~600 m away
+
+  it('is "at" when the operator says it arrived and not that it left', () => {
+    expect(_platformState({ actualArrivalTime: '2026-05-24T08:00:00Z' }, null, LL)).toBe('at');
+  });
+
+  it('is "gone" once an actual departure is reported', () => {
+    expect(_platformState({ actualArrivalTime: '2026-05-24T08:00:00Z',
+                            actualDepartureTime: '2026-05-24T08:00:30Z' }, null, LL)).toBe('gone');
+  });
+
+  it('trusts an actual departure even with no arrival reported', () => {
+    expect(_platformState({ actualDepartureTime: '2026-05-24T08:00:30Z' }, null, LL)).toBe('gone');
+  });
+
+  it('falls back to a measured position at the stop', () => {
+    expect(_platformState({}, near, LL)).toBe('at');
+  });
+
+  it('never says "gone" from position alone — far away may mean not yet here', () => {
+    expect(_platformState({}, far, LL)).toBeNull();
+  });
+
+  it('prefers the operator over the position when they disagree', () => {
+    expect(_platformState({ actualDepartureTime: '2026-05-24T08:00:30Z' }, near, LL)).toBe('gone');
+  });
+
+  it('is null when nothing can establish it, so the caller says nothing', () => {
+    expect(_platformState({}, null, LL)).toBeNull();
+    expect(_platformState({ expectedDepartureTime: '2026-05-24T08:00:00Z' }, null, LL)).toBeNull();
+    expect(_platformState({}, near, null)).toBeNull();
+    expect(_platformState(null, near, LL)).toBeNull();
   });
 });

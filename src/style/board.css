@@ -408,3 +408,18 @@
 .ls-ends span{position:absolute;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46%}
 .ls-end-from{transform:translateX(-50%);color:var(--accent)}
 .ls-end-to{right:0;text-align:right}
+
+/* "står på perrongen" — shown only when the operator reports an actual
+   arrival with no actual departure, or a measured position sits at the stop.
+   Accent-filled rather than outlined: this is the one tag that means move. */
+.dep-tag-at{
+  background:var(--accent);
+  /* The light theme overrides .dep-tag's colour with a higher-specificity
+     selector, which quietly won and left dark-on-amber at 1.43:1. Same
+     escape hatch .dep-tag-soft already uses. */
+  color:var(--bg) !important;
+  padding:.12rem .4rem;
+  border-radius:3px;
+  font-weight:700;
+  letter-spacing:.1em;
+}

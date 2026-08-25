@@ -903,6 +903,7 @@ function _rowMins(c, fallbackIso, now) {
 }
 
 let _inflight = [];
+let _atStop = new Map();
 let _inflightAt = 0;
 let _inflightKey = null;
 const _INFLIGHT_POLL_MS = 30_000;
@@ -913,11 +914,19 @@ function _refreshInflight(dir) {
   const key = stopId + '|' + (dir.to || '');
   const now = Date.now();
   if (key === _inflightKey && now - _inflightAt < _INFLIGHT_POLL_MS) return;
-  if (key !== _inflightKey) _inflight = [];
+  if (key !== _inflightKey) { _inflight = []; _atStop = new Map(); }
   _inflightKey = key;
   _inflightAt = now;
   fetchInflight(stopId).then(calls => {
-    if (_inflightKey === key) _inflight = calls;
+    if (_inflightKey !== key) return;
+    _inflight = calls;
+    // Same payload, second use: these calls are the ones at YOUR stop, so
+    // they carry whether each train has actually arrived and actually left.
+    _atStop = new Map();
+    calls.forEach(c => {
+      const jid = c.serviceJourney && c.serviceJourney.id;
+      if (jid) _atStop.set(jid, c);
+    });
   });
 }
 
@@ -1023,6 +1032,39 @@ function _snapToCalls(calls, lat, lon) {
  * user that a picture of trains existed and nothing else. Kept pure so the
  * Norwegian agreement is tested rather than buried in markup.
  */
+/**
+ * Is this train standing at your platform right now?
+ *
+ * Three-valued on purpose. `null` means nobody knows, and the caller must say
+ * nothing — the board already prints "NÅ" at zero minutes, which means *due
+ * now*, not *here now*. Turning that into "står på perrongen" without evidence
+ * would be exactly the false confidence this app keeps removing.
+ *
+ * @param {object} call   the call at YOUR stop, from the isolated query
+ * @param {object|null} live  a measured position for this journey, if any
+ * @param {{lat:number,lon:number}|null} stopLL  your stop's coordinates
+ * @returns {'at'|'gone'|null}
+ */
+export const _PLATFORM_RADIUS_M = 60;
+
+export function _platformState(call, live, stopLL) {
+  if (!call) return null;
+
+  // Authoritative: the operator says it arrived, and has not said it left.
+  if (call.actualDepartureTime) return 'gone';
+  if (call.actualArrivalTime) return 'at';
+
+  // Measured position, second best. A stop coordinate is a centroid and a
+  // metro platform is long, so this is deliberately generous — and it can
+  // only ever say "at", never "gone", because a vehicle far from the stop
+  // might not have reached it yet.
+  if (live && stopLL && live.lat != null && stopLL.lat != null) {
+    if (haver(live.lat, live.lon, stopLL.lat, stopLL.lon) <= _PLATFORM_RADIUS_M) return 'at';
+  }
+
+  return null;
+}
+
 export function _stripSummary(data) {
   if (!data || !data.trains || !data.trains.length) return 'Ingen tog på strekningen nå';
   const appr = data.trains.filter(t => t.approaching).length;
@@ -1515,6 +1557,7 @@ export function renderBoard() {
       + '<span class="dep-dest">' + esc(dest) + '</span>'
       + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
       + (delayed ? '<span class="dep-tag">+' + delayMins + ' min</span>' : '')
+      + (_atPlatform(c) ? '<span class="dep-tag dep-tag-at">står på perrongen</span>' : '')
       + (c.realtime === false ? '<span class="dep-tag dep-tag-soft">kun rutetid</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + (tooEarlyForPlan ? '<span class="dep-cancelled">før forrige etappe</span>' : '')
@@ -1529,6 +1572,22 @@ export function renderBoard() {
       + '</div>';
   });
   list.innerHTML = html;
+}
+
+/**
+ * Row-side wrapper: is this departure's train standing at your platform?
+ *
+ * Only ever true from evidence. When the isolated request has not landed, or
+ * the operator reports nothing and there is no measured position, this is
+ * false and the row says nothing extra — "NÅ" already means due now.
+ */
+function _atPlatform(c) {
+  const jid = c.serviceJourney && c.serviceJourney.id;
+  if (!jid) return false;
+  const dir = config.dirs[state.dIdx];
+  const stopLL = (state.statLL && dir && state.statLL[dir.key]) || null;
+  const live = livePosition(_livePos, jid, Date.now());
+  return _platformState(_atStop.get(jid), live, stopLL) === 'at';
 }
 
 // The very first board of a session restores the last known departures, so a

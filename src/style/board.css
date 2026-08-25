@@ -195,11 +195,19 @@
 .line-pill.active{border-color:rgba(var(--border-rgb),.5);opacity:1}
 .line-pill:active{opacity:.85}
 
-@keyframes veh-pulse{
-  0%,100%{ filter:drop-shadow(0 0 0 rgba(255,255,255,0)) }
-  50%{ filter:drop-shadow(0 0 5px rgba(255,255,255,.65)) }
+/* Only a measured position animates. The old marker glowed white every 2.4s
+   regardless, which asserted liveness for a position computed from a
+   timetable — so the animation is now a signal that is only spent when true,
+   and it breathes rather than flashes. */
+@keyframes veh-breathe{
+  0%,100%{ filter:drop-shadow(0 0 1px rgba(255,255,255,.25)) }
+  50%{ filter:drop-shadow(0 0 4px rgba(255,255,255,.5)) }
 }
-.veh-pulse{animation:veh-pulse 2.4s ease-in-out infinite}
+.veh-live{animation:veh-breathe 3.2s ease-in-out infinite}
+.veh-est{opacity:.75}
+@media (prefers-reduced-motion:reduce){
+  .veh-live{animation:none}
+}
 
 #board-map{height:220px;border-radius:8px;overflow:hidden;margin-bottom:.5rem}
 #board-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}

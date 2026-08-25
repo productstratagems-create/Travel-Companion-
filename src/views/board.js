@@ -16,6 +16,7 @@ import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
+import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
 import { createMap, drawRoute } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
@@ -435,6 +436,62 @@ function _callTime(call, arrival) {
   return call.expectedDepartureTime || call.aimedDepartureTime || call.expectedArrivalTime || call.aimedArrivalTime;
 }
 
+/**
+ * Where the vehicle is, in stops.
+ *
+ * The reason this exists: at the board map's scale a vehicle marker moves
+ * about a third of a pixel per second, and Leaflet rounds transforms to whole
+ * pixels — so a correct, updating position still reads as frozen. Stops are a
+ * unit that changes visibly, and they mean the same thing whether the
+ * underlying position was measured or estimated.
+ *
+ * @returns {{idx:number, label:string}|null}
+ */
+/**
+ * Compass heading from one point to another, in degrees clockwise from north.
+ *
+ * A degree of longitude is much shorter than a degree of latitude this far
+ * north, so the east-west component has to be scaled by cos(lat). Skipping
+ * that skews a diagonal heading by roughly 25 degrees at Oslo's latitude —
+ * wrong in a way that still looks plausible on a map.
+ *
+ * @returns {number|null} null when the two points coincide, so callers can
+ *   leave the symbol unrotated rather than snapping it north.
+ */
+export function _headingDeg(fromLat, fromLon, toLat, toLon) {
+  const dLat = toLat - fromLat;
+  const dLon = (toLon - fromLon) * Math.cos(((fromLat + toLat) / 2) * Math.PI / 180);
+  if (dLat === 0 && dLon === 0) return null;
+  const deg = Math.atan2(dLon, dLat) * 180 / Math.PI;
+  return (deg + 360) % 360;
+}
+
+export function _stopsAway(calls, now) {
+  if (!calls || calls.length < 2) return null;
+  const named = calls.map(call => ({
+    name: (call.quay && call.quay.stopPlace && call.quay.stopPlace.name) || null,
+    arr: _callTime(call, true),
+    dep: _callTime(call, false),
+  })).filter(c => c.arr && c.dep);
+  if (named.length < 2) return null;
+
+  const t = (v) => new Date(v).getTime();
+  if (now <= t(named[0].dep)) {
+    return { idx: 0, label: named[0].name ? 'står på ' + named[0].name : 'ikke avgått' };
+  }
+  for (let i = 0; i < named.length; i++) {
+    // Standing at a stop.
+    if (now >= t(named[i].arr) && now <= t(named[i].dep) && named[i].name) {
+      return { idx: i, label: 'ved ' + named[i].name };
+    }
+    // Between this stop and the next.
+    if (i < named.length - 1 && now > t(named[i].dep) && now < t(named[i + 1].arr)) {
+      return { idx: i, label: named[i + 1].name ? 'neste stopp ' + named[i + 1].name : 'underveis' };
+    }
+  }
+  return null;
+}
+
 export function _interpolateVehiclePos(calls, now) {
   if (!calls || !calls.length) return null;
   const pts = calls.map(call => {
@@ -449,7 +506,10 @@ export function _interpolateVehiclePos(calls, now) {
   if (pts.length < 2) return null;
 
   // Vehicle hasn't left its starting terminus yet — show it parked there.
-  if (now <= pts[0].dep) return { lat: pts[0].lat, lon: pts[0].lon };
+  if (now <= pts[0].dep) {
+    return { lat: pts[0].lat, lon: pts[0].lon,
+             heading: _headingDeg(pts[0].lat, pts[0].lon, pts[1].lat, pts[1].lon) };
+  }
 
   // Service has already finished its run — nothing to show.
   if (now > pts[pts.length - 1].arr) return null;
@@ -459,15 +519,22 @@ export function _interpolateVehiclePos(calls, now) {
     if (now >= cur.dep && now <= next.arr) {
       const span = next.arr - cur.dep;
       const frac = span > 0 ? Math.min(1, Math.max(0, (now - cur.dep) / span)) : 0;
-      return { lat: cur.lat + (next.lat - cur.lat) * frac, lon: cur.lon + (next.lon - cur.lon) * frac };
+      return { lat: cur.lat + (next.lat - cur.lat) * frac,
+               lon: cur.lon + (next.lon - cur.lon) * frac,
+               heading: _headingDeg(cur.lat, cur.lon, next.lat, next.lon) };
     }
+    // Standing at a stop: keep facing the way it is about to go.
     if (now >= next.arr && now <= next.dep) {
-      return { lat: next.lat, lon: next.lon };
+      const after = pts[i + 2];
+      return { lat: next.lat, lon: next.lon,
+               heading: after ? _headingDeg(next.lat, next.lon, after.lat, after.lon)
+                              : _headingDeg(cur.lat, cur.lon, next.lat, next.lon) };
     }
   }
 
-  const last = pts[pts.length - 1];
-  return { lat: last.lat, lon: last.lon };
+  const last = pts[pts.length - 1], prev = pts[pts.length - 2];
+  return { lat: last.lat, lon: last.lon,
+           heading: _headingDeg(prev.lat, prev.lon, last.lat, last.lon) };
 }
 
 // ── Line route corridor ──────────────────────────────────────────────────────
@@ -724,6 +791,30 @@ function renderLineRoute(visibleDeps) {
   _bFitRouteRequested = false;
 }
 
+// Live positions for the selected line, refreshed on their own cadence. The
+// render loop runs at 1 Hz; fetching from inside it would turn every second
+// into a request against a shared public API.
+let _livePos = new Map();
+let _liveLine = null;
+let _liveReqAt = 0;
+const _LIVE_POLL_MS = 10_000;
+
+function _refreshLivePositions(lineRef) {
+  if (!lineRef) return;
+  const now = Date.now();
+  if (lineRef === _liveLine && now - _liveReqAt < _LIVE_POLL_MS) return;
+  if (lineRef !== _liveLine) _livePos = new Map();   // never show one line's trains on another
+  _liveLine = lineRef;
+  _liveReqAt = now;
+  fetchVehiclePositions(lineRef).then(m => {
+    if (_liveLine !== lineRef) return;               // line changed while in flight
+    _livePos = m;
+    // Coverage varies by operator and cannot be checked from a dev machine,
+    // so let one real trip answer it.
+    logMsg('sanntidsposisjoner: ' + m.size + ' for ' + lineRef, m.size ? 'ok' : null);
+  });
+}
+
 function renderVehicleMarkers(visibleDeps) {
   if (!_bMap || !_selectedLine) return;
   if (!_bVehicleLayer) _bVehicleLayer = L.layerGroup().addTo(_bMap);
@@ -735,6 +826,10 @@ function renderVehicleMarkers(visibleDeps) {
     return ln && ln.publicCode === _selectedLine;
   });
 
+  const lineRef = matches.length && matches[0].c.serviceJourney
+    && matches[0].c.serviceJourney.line && matches[0].c.serviceJourney.line.id;
+  _refreshLivePositions(lineRef);
+
   const seen = new Set();
   matches.forEach(({ c }) => {
     const jid = c.serviceJourney && c.serviceJourney.id;
@@ -743,7 +838,11 @@ function renderVehicleMarkers(visibleDeps) {
       seen.add(jid);
     }
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
-    const pos = _interpolateVehiclePos(sjc, now);
+    // Where the vehicle actually is, if anyone knows. Otherwise where the
+    // timetable says it should be — drawn differently, so the map never
+    // passes off an estimate as a measurement.
+    const live = livePosition(_livePos, jid, now);
+    const pos = live || _interpolateVehiclePos(sjc, now);
     if (!pos) return;
     const ln = c.serviceJourney.line;
     const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
@@ -753,8 +852,16 @@ function renderVehicleMarkers(visibleDeps) {
     const finalArr = lastCall && _callTime(lastCall, true);
     const mins = finalArr ? Math.max(0, Math.round((new Date(finalArr).getTime() - now) / 60000)) : null;
     const eta = mins != null ? ' · ankomst om ' + fmtMins(mins) : '';
-    L.marker([pos.lat, pos.lon], { icon: makeVehicleIcon(mode, _selectedLine, color) })
-      .bindTooltip('Linje ' + esc(_selectedLine) + ' → ' + esc(dest) + eta, { className: 'map-label' })
+    const away = _stopsAway(sjc, now);
+    const where = live
+      ? 'sanntid'
+      : (away ? away.label : 'beregnet fra rutetabellen');
+    L.marker([pos.lat, pos.lon], { icon: makeVehicleIcon(mode, color, {
+      bearing: live ? live.bearing : pos.heading,
+      estimated: !live,
+    }) })
+      .bindTooltip('Linje ' + esc(_selectedLine) + ' → ' + esc(dest) + eta + ' · ' + esc(where),
+        { className: 'map-label' })
       .addTo(_bVehicleLayer);
   });
 }

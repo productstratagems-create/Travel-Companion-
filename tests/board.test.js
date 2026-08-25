@@ -7,7 +7,7 @@ vi.mock('../src/ui/mapIcons.js', () => ({ makeStopIcon: vi.fn(), makeVehicleIcon
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
-import { dedupeDepartures } from '../src/views/board.js';
+import { dedupeDepartures, _headingDeg } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -120,5 +120,41 @@ describe('dedupeDepartures — edge cases', () => {
   it('exposes departure times unmodified', () => {
     const out = dedupeDepartures([trip(iso(10, 5, 0), iso(10, 40, 0), 'a')]);
     expect(depTimes(out)).toEqual([iso(10, 5, 0)]);
+  });
+});
+
+// ── Vehicle heading ─────────────────────────────────────────────────────────
+// Pure, and wrong in a way that still looks plausible on a map if the
+// longitude scaling is skipped — so it is worth pinning down numerically.
+describe('_headingDeg', () => {
+  const OSLO = 59.91;
+
+  it('reads compass degrees clockwise from north', () => {
+    expect(_headingDeg(OSLO, 10.75, OSLO + 0.01, 10.75)).toBeCloseTo(0, 5);    // north
+    expect(_headingDeg(OSLO, 10.75, OSLO, 10.76)).toBeCloseTo(90, 5);          // east
+    expect(_headingDeg(OSLO, 10.75, OSLO - 0.01, 10.75)).toBeCloseTo(180, 5);  // south
+    expect(_headingDeg(OSLO, 10.75, OSLO, 10.74)).toBeCloseTo(270, 5);         // west
+  });
+
+  it('scales longitude by cos(lat) — the bug a screenshot would never show', () => {
+    // Equal degree steps north and east. A degree of longitude is about half a
+    // degree of latitude this far north, so the true bearing is well under 45.
+    const h = _headingDeg(OSLO, 10.75, OSLO + 0.01, 10.76);
+    expect(h).toBeGreaterThan(20);
+    expect(h).toBeLessThan(30);
+    // Without the cos(lat) term this would come out at exactly 45.
+    expect(Math.abs(h - 45)).toBeGreaterThan(15);
+  });
+
+  it('is null for two identical points, so the symbol stays unrotated', () => {
+    expect(_headingDeg(OSLO, 10.75, OSLO, 10.75)).toBeNull();
+  });
+
+  it('never returns a negative angle', () => {
+    for (const [dLat, dLon] of [[1, -1], [-1, -1], [-1, 1], [1, 1], [0, -1], [-1, 0]]) {
+      const h = _headingDeg(OSLO, 10.75, OSLO + dLat * 0.01, 10.75 + dLon * 0.01);
+      expect(h).toBeGreaterThanOrEqual(0);
+      expect(h).toBeLessThan(360);
+    }
   });
 });

@@ -97,6 +97,7 @@ export function doBoard() {
       const tr = c._transfers && c._transfers[i];
       legs.push({
         lineCode:    (legLine && legLine.publicCode) || '?',
+        lineRef:     (legLine && legLine.id) || null,
         lineBg:      legLbg ? '#' + legLbg : '#7c2d12',
         mode:        leg.mode || 'metro',
         frontText:   (leg.fromEstimatedCall && leg.fromEstimatedCall.destinationDisplay && leg.fromEstimatedCall.destinationDisplay.frontText) || leg.toPlace.name,
@@ -117,6 +118,7 @@ export function doBoard() {
     const depT = c.expectedDepartureTime || c.aimedDepartureTime;
     legs.push({
       lineCode:    (sj && sj.line && sj.line.publicCode) || config.line,
+      lineRef:     (sj && sj.line && sj.line.id) || null,
       lineBg:      lbg ? '#' + lbg : '#7c2d12',
       mode:        'metro',
       frontText:   (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to,

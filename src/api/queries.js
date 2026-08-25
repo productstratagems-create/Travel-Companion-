@@ -23,7 +23,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
     + ' toPlace{name latitude longitude}'
     + ' mode'
     + ' aimedStartTime expectedStartTime aimedEndTime expectedEndTime'
-    + ' serviceJourney{id line{publicCode presentation{colour}} estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}}'
+    + ' serviceJourney{id line{id publicCode presentation{colour}} estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}}'
     + ' aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime occupancyStatus quay{publicCode} destinationDisplay{frontText}}'
     + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime quay{publicCode}}'
@@ -54,7 +54,7 @@ export function boardGQL(id, n) {
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation occupancyStatus '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
     + 'destinationDisplay{frontText} quay{id publicCode name} '
-    + 'serviceJourney{id line{publicCode transportMode presentation{colour}} '
+    + 'serviceJourney{id line{id publicCode transportMode presentation{colour}} '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
     + 'estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
@@ -89,4 +89,21 @@ export function journeyGQL(jid) {
     + 'aimedArrivalTime expectedArrivalTime '
     + 'aimedDepartureTime expectedDepartureTime'
     + '}}}';
+}
+
+/**
+ * Live vehicle positions (SIRI-VM, via Entur's realtime API).
+ *
+ * Separate endpoint from the journey planner — see api.vehicles in config.
+ * `serviceJourneyId` is the join key back to a departure; without it a
+ * position cannot be tied to the train the user is waiting for, and an
+ * untied position is worse than none.
+ */
+export function vehiclesGQL(lineRef) {
+  return '{vehicles(lineRef:"' + lineRef + '"){'
+    + 'vehicleId lastUpdated bearing speed '
+    + 'location{latitude longitude} '
+    + 'line{lineRef} '
+    + 'serviceJourney{id}'
+    + '}}';
 }

@@ -23,6 +23,11 @@ export function fetchBysykkel(lat, lon) {
         lon:    s.lon,
         bikes:  sm[s.station_id].num_bikes_available  || 0,
         ebikes: sm[s.station_id].num_ebikes_available || 0,
+        // A ride needs a free dock to END, not just a bike to start. Both
+        // numbers ride along in the same payload; only bikes were kept.
+        docks:  sm[s.station_id].num_docks_available ?? null,
+        capacity: s.capacity ?? null,
+        returning: sm[s.station_id].is_returning !== false,
       }));
     _cache = { ts: Date.now(), stations };
     return _rank(stations, lat, lon);

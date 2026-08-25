@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
-import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, loadWeekendMode } from '../geo.js';
+import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
@@ -713,13 +713,16 @@ function _rankMobility(arrLL, destLL) {
       const walkM = haver(arrLL.lat, arrLL.lon, s.lat, s.lon);
       const walkT = Math.ceil(walkM / walkSpd);
       const rideM = haver(s.lat, s.lon, destLL.lat, destLL.lon) * ROUTE_FACTOR;
+      // A dock-based ride also needs somewhere to LEAVE the bike. Report the
+      // nearest station to the destination, not the one you pick up from.
+      const ret = _nearestReturnStation(destLL);
       if (s.ebikes > 0) {
         options.push({ type: 'ebike', label: 'El-sykkel', sub: s.name, dist: Math.round(walkM),
-          walkT, rideT: Math.ceil(rideM / RIDE_MPM.ebike), count: s.ebikes, lat: s.lat, lon: s.lon });
+          walkT, rideT: Math.ceil(rideM / RIDE_MPM.ebike), count: s.ebikes, lat: s.lat, lon: s.lon, ret });
       }
       if (s.bikes > 0) {
         options.push({ type: 'bike', label: 'Bysykkel', sub: s.name, dist: Math.round(walkM),
-          walkT, rideT: Math.ceil(rideM / RIDE_MPM.bike), count: s.bikes, lat: s.lat, lon: s.lon });
+          walkT, rideT: Math.ceil(rideM / RIDE_MPM.bike), count: s.bikes, lat: s.lat, lon: s.lon, ret });
       }
     });
   }
@@ -745,6 +748,17 @@ function _rankMobility(arrLL, destLL) {
     .slice(0, 5);
 }
 
+// Nearest station to the ride's END that can actually accept a bike.
+function _nearestReturnStation(destLL) {
+  if (!_cachedBikes || !destLL) return null;
+  const usable = _cachedBikes
+    .filter(s => s.returning !== false && s.docks != null)
+    .map(s => ({ ...s, d: haver(s.lat, s.lon, destLL.lat, destLL.lon) }))
+    .sort((a, b) => a.d - b.d);
+  const s = usable[0];
+  return s ? { name: s.name, docks: s.docks, dist: Math.round(s.d) } : null;
+}
+
 function _mobilityIcon(type) {
   if (type === 'ebike')   return '⚡🚲';
   if (type === 'bike')    return '🚲';
@@ -765,7 +779,14 @@ function _mobilitySectionHtml() {
     const isBest = idx === 0;
     const rank = idx + 1;
     const meta = [];
-    if (o.type === 'bike' || o.type === 'ebike') meta.push(o.count + ' ledig');
+    if (o.type === 'bike' || o.type === 'ebike') {
+      meta.push(o.count + ' ledig');
+      if (o.ret) {
+        meta.push(o.ret.docks > 0
+          ? o.ret.docks + ' plasser ved ' + o.ret.name
+          : 'ingen ledige plasser ved ' + o.ret.name);
+      }
+    }
     if (o.battery !== null) meta.push(o.battery + '% · ca ' + o.rangeKm + ' km');
     meta.push(o.dist + ' m unna');
     return '<div class="mob-option' + (isBest ? ' mob-best' : '') + '">'
@@ -808,9 +829,11 @@ function renderNextPanel() {
       + '</div>'
     : '';
 
-  const weekendMode = loadWeekendMode();
+  // Nearby places used to render only in weekend mode — a flag set invisibly
+  // by opening Utforsk — so a weekday commute never saw them. "What's near
+  // where I'm going" is not a weekend-only question.
   const activeCatIdx = _placesCat ? PLACE_CATS.indexOf(_placesCat) : -1;
-  const _cat = _placesCat || (weekendMode ? timeCategory() : null);
+  const _cat = _placesCat || timeCategory();
 
   el.innerHTML =
     '<div class="hn-panel">'
@@ -823,13 +846,11 @@ function renderNextPanel() {
     + '<div class="hn-section-label">vær</div>'
     + '<div id="hn-weather-content">' + _weatherSectionHtml() + '</div>'
     + '</div>'
-    + (weekendMode
-      ? '<div class="hn-section">'
-        + '<div class="hn-section-label" id="hn-places-label">' + (_cat ? _cat.emoji + ' ' + _cat.label : 'steder i nærheten') + '</div>'
-        + _catPillsHtml(activeCatIdx >= 0 ? activeCatIdx : PLACE_CATS.indexOf(_cat))
-        + '<div id="hn-places-content">' + _placesSectionHtml() + '</div>'
-        + '</div>'
-      : '')
+    + '<div class="hn-section">'
+    + '<div class="hn-section-label" id="hn-places-label">' + (_cat ? _cat.emoji + ' ' + _cat.label : 'steder i nærheten') + '</div>'
+    + _catPillsHtml(activeCatIdx >= 0 ? activeCatIdx : PLACE_CATS.indexOf(_cat))
+    + '<div id="hn-places-content">' + _placesSectionHtml() + '</div>'
+    + '</div>'
     + '<div class="hn-section">'
     + '<div class="hn-section-label">beste alternativ</div>'
     + '<div id="hn-mobility-content">' + _mobilitySectionHtml() + '</div>'
@@ -1265,7 +1286,21 @@ export function renderTrack() {
 
   let cards = '';
   if (phase === 'arrived') {
-    cards = '<div class="state-msg" style="padding:1rem;font-size:11px;color:#57534e">ankommet · ' + state.jny.dest.toLowerCase() + '</div>';
+    // The weather, disruptions and onward departures are all already loaded by
+    // this point — the arrived state used to throw them away and show a single
+    // grey line, at exactly the moment "what now?" is the only question left.
+    const w = _arrWeather && !_arrWeather._err ? _arrWeather : null;
+    const wx = w
+      ? (w.icon ? w.icon + ' ' : '') + w.temp + '°'
+        + (w.feels != null && Math.abs(w.feels - w.temp) >= 2 ? ' · føles som ' + w.feels + '°' : '')
+        + (w.advice ? ' · ' + w.advice : '')
+      : '';
+    cards = '<div class="arrived-card">'
+      + '<div class="arrived-eyebrow">ankommet</div>'
+      + '<div class="arrived-dest">' + esc(displayStn(state.jny.dest)) + '</div>'
+      + (wx ? '<div class="arrived-weather">' + wx + '</div>' : '')
+      + _destAlertsHtml()
+      + '</div>';
   } else if (phase === 'riding') {
     cards += buildAlightCard();
     cards += buildLegCard(i, 'underveis', true);
@@ -1364,17 +1399,24 @@ export function startTracking() {
   if (nextEl) nextEl.style.display = 'block';
   renderNextPanel();
 
-  // Resolve arrival stop ID and start the live departure board
+  // Resolve arrival stop ID and start the live departure board.
+  // When the destination is a venue there is no toStopId/toGeo, and the board
+  // used to be skipped entirely — exactly when "how do I carry on from here?"
+  // matters most. Fall back to the stop the journey actually alights at.
   const _dir = config.dirs[state.dIdx];
-  if (_dir.toStopId || _dir.toGeo) {
-    resolveToStop(_dir)
-      .then(id => {
-        _arrBoardStopId = id;
-        const _last = state.jny && state.jny.legs && state.jny.legs[state.jny.legs.length - 1];
-        _addArrBoardSection(_last ? _last.toStation : '');
-        _fetchArrBoardData();
-      }).catch(() => {});
-  }
+  const _lastLeg = state.jny && state.jny.legs && state.jny.legs[state.jny.legs.length - 1];
+  const _alightName = _lastLeg ? _lastLeg.toStation : '';
+  const _arrStopPromise = (_dir.toStopId || _dir.toGeo)
+    ? resolveToStop(_dir)
+    : (_alightName
+        ? resolveToStop({ toGeo: _alightName })
+        : Promise.reject(new Error('no arrival stop')));
+  _arrStopPromise
+    .then(id => {
+      _arrBoardStopId = id;
+      _addArrBoardSection(_alightName);
+      _fetchArrBoardData();
+    }).catch(() => {});
   _arrBoardInterval = setInterval(_fetchArrBoardData, 30000);
 
   _resolveArrivalLL().then(ll => {
@@ -1388,7 +1430,7 @@ export function startTracking() {
     fetchWeather(ll.lat, ll.lon)
       .then(w => { _arrWeather = w; _updateWeatherSection(); })
       .catch(() => { _arrWeather = { _err: true }; _updateWeatherSection(); });
-    if (loadWeekendMode()) {
+    {
       _placesLL = ll;
       if (!_placesCat) _placesCat = timeCategory();
       // Update pill highlights in place — avoids destroying the already-initialized map

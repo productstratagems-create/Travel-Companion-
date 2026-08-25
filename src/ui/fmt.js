@@ -18,6 +18,9 @@ export function fmtMins(m) {
  * Escape a string for safe interpolation into innerHTML.
  */
 export function esc(s) {
+  // null/undefined render as empty, not as the literal text "null". Numbers
+  // and everything else still stringify normally.
+  if (s == null) return '';
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
@@ -51,4 +54,41 @@ export function makeSuggBtn(label, cats, onClick) {
   btn.addEventListener('mousedown', e => e.preventDefault());
   btn.addEventListener('click', onClick);
   return btn;
+}
+
+// Norwegian labels for the OSM cuisine values that actually turn up in Oslo.
+const CUISINE_NO = {
+  italian: 'italiensk', pizza: 'pizza', sushi: 'sushi', japanese: 'japansk',
+  chinese: 'kinesisk', thai: 'thai', indian: 'indisk', vietnamese: 'vietnamesisk',
+  kebab: 'kebab', burger: 'burger', mexican: 'meksikansk', greek: 'gresk',
+  french: 'fransk', spanish: 'spansk', american: 'amerikansk', asian: 'asiatisk',
+  seafood: 'sjømat', vegetarian: 'vegetarisk', vegan: 'vegansk',
+  coffee_shop: 'kaffebar', sandwich: 'smørbrød', bakery: 'bakeri',
+  regional: 'lokal', international: 'internasjonal',
+};
+
+export function cuisineLabel(c) {
+  if (!c) return null;
+  const first = String(c).split(/[;,]/)[0].trim().toLowerCase();
+  return CUISINE_NO[first] || first.replace(/_/g, ' ');
+}
+
+/**
+ * Compact facts about a venue, from tags both place sources already return.
+ * Deliberately terse: these sit under a name in a narrow list, so each is a
+ * glyph or one word. Returns '' when there is nothing worth saying.
+ */
+export function venueDetailHtml(p) {
+  if (!p) return '';
+  const bits = [];
+  const type = p.type ? esc(p.type) : null;
+  const cuisine = cuisineLabel(p.cuisine);
+  // Cuisine is more specific than the category, so it wins when both exist.
+  if (cuisine) bits.push('<span class="vd-type">' + esc(cuisine) + '</span>');
+  else if (type) bits.push('<span class="vd-type">' + type + '</span>');
+  if (p.wheelchair && p.wheelchair !== 'no') bits.push('<span class="vd-chip" title="rullestolvennlig">♿</span>');
+  if (p.toilets) bits.push('<span class="vd-chip" title="toalett">🚻</span>');
+  if (p.outdoor) bits.push('<span class="vd-chip" title="uteservering">⛱</span>');
+  if (!bits.length) return '';
+  return '<div class="venue-detail">' + bits.join('') + '</div>';
 }

@@ -7,7 +7,7 @@ import { saveWeekendMode } from '../geo.js';
 import { geocodePlace } from '../api/entur.js';
 import config from '../config.js';
 import { show, updateHeader } from '../ui/nav.js';
-import { esc } from '../ui/fmt.js';
+import { esc, venueDetailHtml } from '../ui/fmt.js';
 
 const HANDEL = { label: 'handel', emoji: '🛍', amenities: 'commercial.clothing,commercial.shoes,commercial.sport,commercial.books,commercial.electronics,commercial.shopping_mall,commercial.department_store,commercial.gift,commercial.jewelry' };
 const LEISURE_CATS = [...PLACE_CATS, HANDEL];
@@ -267,7 +267,12 @@ function _cardHtml(v, i) {
     : '';
   const expandedHtml = _expanded === i
     ? '<div class="lei-venue-expanded">'
-      + '<div class="lei-venue-type">' + v.emoji + ' ' + v.type + '</div>'
+      + '<div class="lei-venue-type">' + v.emoji + ' ' + esc(v.type) + '</div>'
+      + venueDetailHtml(v)
+      + (v.address ? '<div class="lei-venue-addr">' + esc(v.address) + '</div>' : '')
+      + (v.website
+        ? '<a class="lei-venue-link" href="' + esc(v.website) + '" target="_blank" rel="noopener noreferrer">nettside →</a>'
+        : '')
       + '<button class="lei-reis-btn" data-idx="' + i + '">Reis dit →</button>'
       + '</div>'
     : '';

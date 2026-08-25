@@ -6,7 +6,7 @@ import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, 
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
 import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
-import { makeSuggBtn, esc } from '../ui/fmt.js';
+import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 
 const DEST_KEY = 't.dest';
@@ -198,7 +198,10 @@ function _fetchDestVenues() {
           : '';
         return '<div class="dest-prev-row">'
           + '<span class="dest-prev-emoji">' + p.emoji + '</span>'
+          + '<span class="dest-prev-main">'
           + '<span class="dest-prev-name">' + esc(p.name) + '</span>'
+          + venueDetailHtml(p)
+          + '</span>'
           + hoursTxt
           + '<span class="dest-prev-dist">' + distTxt + '</span>'
           + '</div>';

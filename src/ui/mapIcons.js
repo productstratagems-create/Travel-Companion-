@@ -27,22 +27,72 @@ function _halo() {
   return ink === '#ffffff' ? '#1e293b' : '#ffffff';
 }
 
-const _VEH_SIZE = 28;
-const _VEH_OPACITY = 0.95;
-export function makeVehicleIcon(mode, code, color) {
-  const size = _VEH_SIZE;
-  const opacity = _VEH_OPACITY;
-  const fontSize = Math.round(size * 0.4);
-  // One clean disc. The mode sub-badge that used to sit here rendered its
-  // glyph at 8px — below the legible floor — and the line code already tells
-  // you the mode.
-  const html = '<div style="position:relative;opacity:' + opacity + '" class="veh-pulse">'
-    + '<div style="background:' + color + ';border-radius:50%;width:' + size + 'px;height:' + size + 'px;'
-    + 'display:flex;align-items:center;justify-content:center;'
-    + 'font-size:' + fontSize + 'px;font-weight:800;color:#fff;font-family:inherit;'
-    + 'border:2px solid ' + _halo() + ';box-shadow:0 1px 5px rgba(0,0,0,.5)">' + code + '</div>'
-    + '</div>';
-  return L.divIcon({ className: '', html, iconSize: [size, size], iconAnchor: [Math.round(size / 2), Math.round(size / 2)] });
+/**
+ * A vehicle, not a map pin.
+ *
+ * This used to be a 28px saturated disc with the line code stamped across it,
+ * pulsing white every 2.4 seconds. Three things were wrong with that: it read
+ * as an abstract marker rather than a train, several departures on one line
+ * rendered as a string of identical beads, and the pulse asserted liveness for
+ * a position that is usually computed from a timetable.
+ *
+ * The code is gone from the marker because it is redundant by construction —
+ * the board only ever draws vehicles for the selected line, and the track map
+ * only ever draws the leg being ridden. It still appears in the tooltip.
+ *
+ * @param {string} mode  metro | rail | tram | bus
+ * @param {string} color line colour
+ * @param {{bearing?:number|null, estimated?:boolean}} [opts]
+ *   bearing is degrees clockwise from north; the body is drawn pointing north,
+ *   so it maps straight onto a CSS rotation. estimated draws the hollow
+ *   variant, for a position derived from the timetable rather than measured.
+ */
+const _VEH_BOX = 26;   // room for the body plus its rotation
+
+export function makeVehicleIcon(mode, color, opts = {}) {
+  const { bearing = null, estimated = false } = opts;
+
+  // Proportions only — at this size a per-mode pictogram is invisible detail.
+  const long = mode === 'bus' ? 17 : mode === 'tram' ? 18 : 21;
+  const wide = mode === 'bus' ? 10 : 9;
+  const radius = mode === 'bus' ? 3 : wide / 2;
+
+  const halo = _halo();
+  const fill = estimated ? 'none' : color;
+  const bodyOpacity = estimated ? 0.9 : 1;
+
+  // The leading end carries a band in the halo colour — dark on a light
+  // canvas, light on a dark one — so the front reads at a glance whichever
+  // basemap is under it. That is the whole point of orienting the body.
+  const nose = estimated
+    ? ''
+    : '<rect x="' + ((_VEH_BOX - wide) / 2 + 1.4) + '" y="' + ((_VEH_BOX - long) / 2 + 2)
+      + '" width="' + (wide - 2.8) + '" height="3.2" rx="1.2" fill="' + halo + '" opacity=".85"/>';
+
+  const svg = '<svg width="' + _VEH_BOX + '" height="' + _VEH_BOX + '" viewBox="0 0 ' + _VEH_BOX + ' ' + _VEH_BOX + '"'
+    + ' xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+    + '<rect x="' + ((_VEH_BOX - wide) / 2) + '" y="' + ((_VEH_BOX - long) / 2) + '"'
+    + ' width="' + wide + '" height="' + long + '" rx="' + radius + '"'
+    + ' fill="' + fill + '" fill-opacity="' + (estimated ? 0 : 1) + '"'
+    + ' stroke="' + (estimated ? color : halo) + '" stroke-width="' + (estimated ? 1.6 : 1.4) + '"'
+    + (estimated ? ' stroke-dasharray="3 2"' : '') + ' opacity="' + bodyOpacity + '"/>'
+    + nose
+    + '</svg>';
+
+  // Unrotated when the heading is unknown, rather than snapped north — a
+  // confident wrong direction is worse than none.
+  const rot = bearing == null ? '' : 'transform:rotate(' + Math.round(bearing) + 'deg);';
+  // Only a measured position earns an animation. See the note above.
+  const cls = estimated ? 'veh veh-est' : 'veh veh-live';
+  const html = '<div class="' + cls + '" style="' + rot
+    + 'width:' + _VEH_BOX + 'px;height:' + _VEH_BOX + 'px;line-height:0">' + svg + '</div>';
+
+  return L.divIcon({
+    className: '',
+    html,
+    iconSize: [_VEH_BOX, _VEH_BOX],
+    iconAnchor: [_VEH_BOX / 2, _VEH_BOX / 2],
+  });
 }
 
 export function makeStopIcon(mode, count) {  const badge = (count > 1)

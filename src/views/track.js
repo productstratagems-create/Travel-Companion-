@@ -10,6 +10,7 @@ import { fetchNearbyPlaces, timeCategory, PLACE_CATS, placeEmoji, parseOpeningHo
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard, _interpolateVehiclePos } from './board.js';
+import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
 import { makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { renderAlerts, activeSituations, situationText, sevClass } from '../ui/alerts.js';
@@ -131,6 +132,34 @@ function _trackMapStructKey(legs, fromIdx) {
   }).join('|');
 }
 
+// Live positions for the line being ridden. Same cadence rule as the board:
+// the render loop is 1 Hz, so fetching from inside it would mean a request a
+// second against a shared public API.
+let _tLivePos = new Map();
+let _tLiveLine = null;
+let _tLiveReqAt = 0;
+let _tVehIconKey = null;
+const _T_LIVE_POLL_MS = 10_000;
+
+function _refreshTrackLive(lineRef) {
+  if (!lineRef) return;
+  const now = Date.now();
+  if (lineRef === _tLiveLine && now - _tLiveReqAt < _T_LIVE_POLL_MS) return;
+  if (lineRef !== _tLiveLine) _tLivePos = new Map();
+  _tLiveLine = lineRef;
+  _tLiveReqAt = now;
+  fetchVehiclePositions(lineRef).then(m => {
+    if (_tLiveLine === lineRef) _tLivePos = m;
+  });
+}
+
+// Redraw the icon only when something about it actually changed — rotation to
+// the nearest degree, or the live/estimated distinction.
+function _tVehKey(live, pos) {
+  const b = live ? live.bearing : pos.heading;
+  return (live ? 'L' : 'E') + ':' + (b == null ? '-' : Math.round(b));
+}
+
 // Live position of the vehicle the user is currently riding, shown on its
 // route corridor. Only relevant while actually riding — hidden during
 // platform waits or after arrival.
@@ -224,12 +253,25 @@ function _renderTrackMap(now, cs, legs) {
   }
 
   if (!_tMap) return;
-  const pos = _interpolateVehiclePos(_legRouteStops(leg), now);
+  _refreshTrackLive(leg.lineRef);
+  const live = livePosition(_tLivePos, leg.journeyId, now);
+  const pos = live || _interpolateVehiclePos(_legRouteStops(leg), now);
   if (pos) {
+    const icon = makeVehicleIcon(leg.mode, leg.lineBg, {
+      bearing: live ? live.bearing : pos.heading,
+      estimated: !live,
+    });
     if (_tVehicleMarker) {
       _tVehicleMarker.setLatLng([pos.lat, pos.lon]);
+      // The heading changes as the train rounds a curve, and live and
+      // estimated look different — so the icon is re-set, not just the point.
+      if (_tVehIconKey !== _tVehKey(live, pos)) {
+        _tVehIconKey = _tVehKey(live, pos);
+        _tVehicleMarker.setIcon(icon);
+      }
     } else {
-      _tVehicleMarker = L.marker([pos.lat, pos.lon], { icon: makeVehicleIcon(leg.mode, leg.lineCode, leg.lineBg) }).addTo(_tLayer);
+      _tVehIconKey = _tVehKey(live, pos);
+      _tVehicleMarker = L.marker([pos.lat, pos.lon], { icon }).addTo(_tLayer);
     }
   } else if (_tVehicleMarker) {
     _tVehicleMarker.remove();

@@ -1,4 +1,5 @@
 import 'leaflet/dist/leaflet.css';
+import './style/fonts.css';
 import './style/tokens.css';
 import './style/base.css';
 import './style/components.css';
@@ -15,6 +16,7 @@ import './style/theme-light.css';
 
 import { attachEventListeners, updateHeader, show } from './ui/nav.js';
 import { initTheme } from './theme.js';
+import { registerServiceWorker, initOfflineBanner } from './pwa.js';
 import './views/favs.js';
 import './views/plan.js';
 import { renderLeisure } from './views/leisure.js';
@@ -135,6 +137,8 @@ const _vEl = document.getElementById('board-version');
 if (_vEl) _vEl.textContent = 'v' + __APP_VERSION__;
 
 initTheme();
+registerServiceWorker();
+initOfflineBanner();
 attachEventListeners();
 initDebugToggle();
 initSettings();

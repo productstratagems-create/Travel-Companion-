@@ -1,5 +1,6 @@
 import { haver } from '../geo.js';
 import config from '../config.js';
+import { enturFetch } from './http.js';
 
 const CAT_MODE = {
   metroStation: 'metro',
@@ -24,7 +25,7 @@ export function fetchNearbyStops(lat, lon) {
     + '&size=40'
     + '&layers=venue';
 
-  return fetch(url)
+  return enturFetch(url)
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(json => {
       const seen = new Set();

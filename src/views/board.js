@@ -1,5 +1,6 @@
 import config from '../config.js';
 import { enturFetch } from '../api/http.js';
+import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName } from '../geo.js';
@@ -1135,8 +1136,23 @@ export function renderBoard() {
   list.innerHTML = html;
 }
 
+// The very first board of a session restores the last known departures, so a
+// cold start with no signal shows something. Every later call — a back
+// navigation, a direction swap — blanks as before; the data is about to be
+// refetched and stale rows would just flicker.
+let _hydrated = false;
+
 export function startBoard() {
   state.deps = [];
+  if (!_hydrated) {
+    _hydrated = true;
+    const snap = loadBoardSnapshot(config.dirs[state.dIdx]);
+    if (snap) {
+      state.deps = snap.deps;
+      state.lastFetch = snap.ts;
+      logMsg('gjenopprettet ' + snap.deps.length + ' avganger fra ' + new Date(snap.ts).toLocaleTimeString('nb-NO'));
+    }
+  }
   if (intervals.board) clearInterval(intervals.board);
   _fetchBoard();
   intervals.board = setInterval(_fetchBoard, config.boardRefreshMs);
@@ -1155,6 +1171,10 @@ function _showBoardError(msg) {
   const be = document.getElementById('board-error');
   if (!be) return;
   const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  // Offline with a restored board, the banner above already says there is no
+  // net and the stamp already says the times aren't live. A third message
+  // saying the same thing, with a retry button that cannot work, is noise.
+  if (offline && state.deps.length) { be.style.display = 'none'; return; }
   let human;
   if (offline) human = 'Ingen nettforbindelse.';
   else if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) human = 'Fikk ikke kontakt med Entur \u2014 kan v\u00e6re dekningen.';
@@ -1191,6 +1211,7 @@ function _fetchBoard() {
         + (dropped ? ' (' + dropped + ' forkastet)' : ''), dropped ? null : 'ok');
       state.deps = adapted;
       state.lastFetch = Date.now();
+      saveBoardSnapshot(dir, adapted, state.lastFetch);
       document.getElementById('board-error').style.display = 'none';
     }, _showBoardError);
     return;
@@ -1217,6 +1238,7 @@ function _fetchBoard() {
     logMsg('✓ ' + byD.length + '/' + raw.length + (dir.line ? ' L' + dir.line : ' alle linjer'), 'ok');
     state.deps = byD;
     state.lastFetch = Date.now();
+    saveBoardSnapshot(dir, byD, state.lastFetch);
     document.getElementById('board-error').style.display = 'none';
     setDot('ok');
   }, _showBoardError);

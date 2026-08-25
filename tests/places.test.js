@@ -77,6 +77,70 @@ describe('parseOpeningHours', () => {
     const r = parseOpeningHours(spec, d(1, 20)); // Monday 20:00
     expect(r).toMatchObject({ isOpen: true }); // first rule matches
   });
+
+  // ── post-midnight closing times ──────────────────────────────────────────
+  it('reports open after midnight for a wrapping range (18:00-02:00)', () => {
+    // Previously reported "åpner 18:00" at 01:00 while the bar was open.
+    const r = parseOpeningHours('18:00-02:00', d(6, 1)); // Saturday 01:00
+    expect(r).toMatchObject({ isOpen: true });
+    expect(r.minsLeft).toBe(60);
+  });
+
+  it('reports open in the evening for a wrapping range', () => {
+    const r = parseOpeningHours('18:00-02:00', d(5, 19)); // Friday 19:00
+    expect(r).toMatchObject({ isOpen: true });
+    expect(r.minsLeft).toBe(420); // 5h to midnight + 2h
+  });
+
+  it('reports closed in the afternoon for a wrapping range', () => {
+    const r = parseOpeningHours('18:00-02:00', d(5, 15)); // Friday 15:00
+    expect(r).toMatchObject({ isOpen: false, label: 'åpner 18:00' });
+  });
+
+  // ── comma-separated spans (lunch break) ──────────────────────────────────
+  it('handles a split day with a lunch break', () => {
+    const spec = 'Mo-Fr 08:00-12:00,13:00-18:00';
+    expect(parseOpeningHours(spec, d(2, 9))).toMatchObject({ isOpen: true });
+    expect(parseOpeningHours(spec, d(2, 15))).toMatchObject({ isOpen: true });
+  });
+
+  it('reports the next opening during a lunch break rather than dropping the hours', () => {
+    // Previously the regex failed on the comma and returned null (no hours at all).
+    const r = parseOpeningHours('Mo-Fr 08:00-12:00,13:00-18:00', d(2, 12, 30));
+    expect(r).not.toBeNull();
+    expect(r).toMatchObject({ isOpen: false, label: 'åpner 13:00' });
+  });
+
+  // ── explicit "off" ───────────────────────────────────────────────────────
+  it('reports stengt for an explicit day-off rule', () => {
+    const r = parseOpeningHours('Mo-Sa 09:00-17:00; Su off', d(0, 12)); // Sunday
+    expect(r).toMatchObject({ isOpen: false, label: 'stengt' });
+  });
+
+  it('still returns null for a bare unparseable closure', () => {
+    expect(parseOpeningHours('closed')).toBeNull();
+  });
+
+  // ── numeric fields for arrival-time comparison ───────────────────────────
+  it('exposes openMins/closeMins/minsLeft for comparison', () => {
+    const r = parseOpeningHours('09:00-17:00', d(2, 16));
+    expect(r).toMatchObject({ openMins: 540, closeMins: 1020, minsLeft: 60 });
+  });
+
+  it('evaluates against the time passed in, not the wall clock', () => {
+    // The whole point: same spec, two moments, different answers.
+    const spec = 'Mo-Fr 09:00-17:00';
+    expect(parseOpeningHours(spec, d(2, 16, 30))).toMatchObject({ isOpen: true });
+    expect(parseOpeningHours(spec, d(2, 17, 30))).toMatchObject({ isOpen: false });
+  });
+
+  it('answers "still open when I arrive" for a journey that outlasts closing', () => {
+    const spec = 'Mo-Fr 09:00-17:00';
+    const departure = d(2, 16, 40);
+    const arrival = new Date(departure.getTime() + 40 * 60000); // 17:20
+    expect(parseOpeningHours(spec, departure).isOpen).toBe(true);
+    expect(parseOpeningHours(spec, arrival).isOpen).toBe(false);
+  });
 });
 
 describe('_normName', () => {
@@ -155,5 +219,59 @@ describe('parseOverpassElements', () => {
       { type: 'way', id: 2, tags: { name: 'No Center', amenity: 'cafe' } },     // no center
     ];
     expect(parseOverpassElements(els, 59.9, 10.7)).toHaveLength(0);
+  });
+});
+
+describe('venue detail tags (already in the response, previously discarded)', () => {
+  const el = (tags, id = 1) => ({ type: 'node', id, lat: 59.91, lon: 10.75, tags });
+
+  it('keeps the raw opening_hours spec so it can be re-evaluated at arrival time', () => {
+    const [p] = parseOverpassElements([el({ name: 'Kafe', amenity: 'cafe', opening_hours: 'Mo-Fr 08:00-16:00' })], 59.91, 10.75);
+    expect(p.rawHours).toBe('Mo-Fr 08:00-16:00');
+    // and the parsed form is still there for callers that just want a label
+    expect(p.hours).not.toBeNull();
+  });
+
+  it('extracts contact, accessibility and amenity tags', () => {
+    const [p] = parseOverpassElements([el({
+      name: 'Thea', amenity: 'restaurant',
+      website: 'https://thea.no', phone: '+4722334455',
+      wheelchair: 'yes', toilets: 'yes', outdoor_seating: 'yes',
+      cuisine: 'italian', 'addr:street': 'Storgata', 'addr:housenumber': '12',
+    })], 59.91, 10.75);
+    expect(p).toMatchObject({
+      website: 'https://thea.no', phone: '+4722334455',
+      wheelchair: 'yes', toilets: true, outdoor: true,
+      cuisine: 'italian', address: 'Storgata 12',
+    });
+  });
+
+  it('prefers contact:* fallbacks', () => {
+    const [p] = parseOverpassElements([el({
+      name: 'X', amenity: 'cafe', 'contact:website': 'https://x.no', 'contact:phone': '123',
+    })], 59.91, 10.75);
+    expect(p.website).toBe('https://x.no');
+    expect(p.phone).toBe('123');
+  });
+
+  it('records wheelchair=no rather than silently dropping it', () => {
+    const [p] = parseOverpassElements([el({ name: 'X', amenity: 'cafe', wheelchair: 'no' })], 59.91, 10.75);
+    expect(p.wheelchair).toBe('no');
+  });
+
+  it('leaves absent tags null rather than undefined noise', () => {
+    const [p] = parseOverpassElements([el({ name: 'X', amenity: 'cafe' })], 59.91, 10.75);
+    expect(p.website).toBeNull();
+    expect(p.toilets).toBeNull();
+  });
+
+  it('back-fills detail tags across sources when merging duplicates', () => {
+    // Same venue: one source knows the website, the other the wheelchair status.
+    const a = [{ name: 'Kafe X', _norm: 'kafex', lat: 59.91, lon: 10.75, dist: 40, osmId: 'n/1',
+                 website: 'https://x.no', wheelchair: null, hours: null }];
+    const b = [{ name: 'Kafe X', _norm: 'kafex', lat: 59.91, lon: 10.75, dist: 50, osmId: 'n/1',
+                 website: null, wheelchair: 'yes', hours: null }];
+    const [m] = mergePlaces([a, b]);
+    expect(m).toMatchObject({ website: 'https://x.no', wheelchair: 'yes', sources: 2 });
   });
 });

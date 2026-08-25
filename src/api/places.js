@@ -61,28 +61,68 @@ function _dayInRange(daySpec, jsDay) {
   return false;
 }
 
-export function parseOpeningHours(spec, now = new Date()) {
+const _RANGE_RE = /^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/;
+
+/**
+ * Evaluate an OSM opening_hours spec at a given moment.
+ *
+ * `at` defaults to now, but callers should pass the ARRIVAL time when the
+ * question is "will this still be open when I get there?" — evaluating at
+ * departure time is wrong by the length of the journey.
+ *
+ * Returns { isOpen, label, openMins, closeMins, minsLeft } — the numeric
+ * fields let callers compare against an arrival time rather than re-parsing.
+ */
+export function parseOpeningHours(spec, at = new Date()) {
   if (!spec) return null;
   const s = spec.trim();
-  if (s === '24/7') return { isOpen: true, label: 'åpent 24/7' };
-  const jsDay = now.getDay();
-  const hm = now.getHours() * 60 + now.getMinutes();
+  if (s === '24/7') {
+    return { isOpen: true, label: 'åpent 24/7', openMins: 0, closeMins: 1440, minsLeft: null };
+  }
+  const jsDay = at.getDay();
+  const hm = at.getHours() * 60 + at.getMinutes();
   const rules = s.split(';').map(r => r.trim()).filter(Boolean);
+
   for (const rule of rules) {
-    const m = rule.match(/^((?:[A-Z][a-z][-,A-Za-z]*)\s+)?(\d{2}:\d{2})-(\d{2}:\d{2})$/);
+    const m = rule.match(/^((?:[A-Z][a-z][-,A-Za-z]*)\s+)?(.+)$/);
     if (!m) continue;
-    const [, dayPart, openStr, closeStr] = m;
+    const [, dayPart, timePart] = m;
     if (dayPart && !_dayInRange(dayPart.trim(), jsDay)) continue;
-    const openMins  = _timeToMins(openStr);
-    const closeMins = _timeToMins(closeStr);
-    if (hm >= openMins && hm < closeMins) {
-      const minsLeft = closeMins - hm;
-      return { isOpen: true, label: minsLeft <= 60 ? 'stenger ' + closeStr : 'til ' + closeStr };
-    } else if (hm < openMins) {
-      return { isOpen: false, label: 'åpner ' + openStr };
-    } else {
-      return { isOpen: false, label: 'stengt' };
+    const tp = timePart.trim();
+
+    // "Su off" — an explicit closure for this day. Only meaningful with a day
+    // part; a bare "closed" is too ambiguous to report, so it falls through.
+    if (dayPart && /^(off|closed)$/i.test(tp)) {
+      return { isOpen: false, label: 'stengt', openMins: null, closeMins: null, minsLeft: null };
     }
+
+    // A day can have several spans: "08:00-12:00,13:00-18:00".
+    const spans = [];
+    for (const span of tp.split(',').map(x => x.trim()).filter(Boolean)) {
+      const r = span.match(_RANGE_RE);
+      if (!r) { spans.length = 0; break; }
+      spans.push({ open: _timeToMins(r[1]), close: _timeToMins(r[2]), openStr: r[1], closeStr: r[2] });
+    }
+    if (!spans.length) continue;
+
+    for (const sp of spans) {
+      // "18:00-02:00" wraps past midnight, so the open window is inverted.
+      const wraps = sp.close <= sp.open;
+      const isOpen = wraps ? (hm >= sp.open || hm < sp.close) : (hm >= sp.open && hm < sp.close);
+      if (!isOpen) continue;
+      const minsLeft = wraps && hm >= sp.open ? (1440 - hm) + sp.close : sp.close - hm;
+      return {
+        isOpen: true,
+        label: minsLeft <= 60 ? 'stenger ' + sp.closeStr : 'til ' + sp.closeStr,
+        openMins: sp.open, closeMins: sp.close, minsLeft,
+      };
+    }
+
+    const next = spans.filter(sp => hm < sp.open).sort((a, b) => a.open - b.open)[0];
+    if (next) {
+      return { isOpen: false, label: 'åpner ' + next.openStr, openMins: next.open, closeMins: next.close, minsLeft: null };
+    }
+    return { isOpen: false, label: 'stengt', openMins: spans[0].open, closeMins: spans[0].close, minsLeft: null };
   }
   return null;
 }
@@ -177,6 +217,9 @@ function _isSamePlace(a, b) {
 // win as the base record (Geoapify first → richer categories); later sources
 // fill gaps, nudge the kept record to the nearest known coordinates, and bump
 // a `sources` count usable as a quality/confidence signal.
+export const DETAIL_KEYS = ['rawHours', 'website', 'phone', 'wheelchair', 'toilets',
+  'outdoor', 'takeaway', 'cuisine', 'indoorLevel', 'address'];
+
 export function mergePlaces(lists) {
   const out = [];
   lists.forEach(list => {
@@ -186,6 +229,9 @@ export function mergePlaces(lists) {
         dup.sources = (dup.sources || 1) + 1;
         if (!dup.hours && rec.hours) dup.hours = rec.hours;
         if (!dup.amenity && rec.amenity) { dup.amenity = rec.amenity; dup.type = rec.type; dup.emoji = rec.emoji; }
+        // Back-fill detail tags: the two sources cover different venues
+        // unevenly, so whichever one has a field should win over a blank.
+        DETAIL_KEYS.forEach(k => { if (dup[k] == null && rec[k] != null) dup[k] = rec[k]; });
         if (rec.dist < dup.dist) { dup.dist = rec.dist; dup.lat = rec.lat; dup.lon = rec.lon; }
         return;
       }
@@ -215,19 +261,46 @@ function _fetchGeoapify(lat, lon, catStr, limit, radius) {
         const fLon = p.lon ?? (f.geometry && f.geometry.coordinates[0]);
         if (!fLat || !fLon) return null;
         const raw = p.datasource && p.datasource.raw;
+        const details = _extractDetails(raw);
         return {
+          ...details,
           name: p.name,
           amenity: knownCat,
           type: CAT_LABEL[knownCat] || knownCat.split('.').pop() || '',
           emoji: placeEmoji(knownCat),
           lat: fLat, lon: fLon,
           dist: Math.round(haver(lat, lon, fLat, fLon)),
-          hours: parseOpeningHours(raw && raw.opening_hours || null),
+          hours: parseOpeningHours(details.rawHours),
           osmId: _geoapifyOsmId(raw),
           _norm: _normName(p.name),
         };
       })
       .filter(Boolean));
+}
+
+// Tags worth surfacing that both sources already return — Overpass sends every
+// tag with `out tags`, and Geoapify mirrors them under datasource.raw. Reading
+// them costs nothing extra on the wire.
+function _extractDetails(t) {
+  if (!t) return {};
+  const first = (...keys) => {
+    for (const k of keys) { const v = t[k]; if (v) return String(v); }
+    return null;
+  };
+  const yes = v => v === 'yes' || v === 'designated' || v === 'limited';
+  const wheelchair = t.wheelchair || null;
+  return {
+    rawHours:    first('opening_hours'),
+    website:     first('website', 'contact:website', 'url'),
+    phone:       first('phone', 'contact:phone'),
+    wheelchair:  wheelchair && wheelchair !== 'no' ? wheelchair : (wheelchair === 'no' ? 'no' : null),
+    toilets:     yes(t.toilets) || yes(t['toilets:wheelchair']) ? true : null,
+    outdoor:     yes(t.outdoor_seating) ? true : null,
+    takeaway:    yes(t.takeaway) ? true : null,
+    cuisine:     first('cuisine'),
+    indoorLevel: first('level'),
+    address:     [first('addr:street'), first('addr:housenumber')].filter(Boolean).join(' ') || null,
+  };
 }
 
 // Parse Overpass JSON elements into the shared venue shape.
@@ -243,14 +316,16 @@ export function parseOverpassElements(elements, lat, lon) {
       for (const [k, v] of Object.entries(tags)) {
         if (_OSM_TO_CAT[k + '=' + v]) { cat = _OSM_TO_CAT[k + '=' + v]; break; }
       }
+      const details = _extractDetails(tags);
       return {
+        ...details,
         name: tags.name,
         amenity: cat,
         type: CAT_LABEL[cat] || cat.split('.').pop() || '',
         emoji: placeEmoji(cat),
         lat: elLat, lon: elLon,
         dist: Math.round(haver(lat, lon, elLat, elLon)),
-        hours: parseOpeningHours(tags.opening_hours || null),
+        hours: parseOpeningHours(details.rawHours),
         osmId: (el.type ? el.type[0] : '') + '/' + el.id,
         _norm: _normName(tags.name),
       };

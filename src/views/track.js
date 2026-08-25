@@ -5,8 +5,8 @@ import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/e
 import { quayLatLon } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters } from '../api/scooters.js';
-import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
-import { fetchNearbyPlaces, timeCategory, PLACE_CATS, placeEmoji } from '../api/places.js';
+import { fetchWeather, forecastAt, weatherAdvice, darknessNote } from '../api/weather.js';
+import { fetchNearbyPlaces, timeCategory, PLACE_CATS, placeEmoji, parseOpeningHours } from '../api/places.js';
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard, _interpolateVehiclePos } from './board.js';
@@ -539,16 +539,32 @@ function _resolveArrivalLL() {
   return Promise.resolve(state.homeLL || null);
 }
 
+// The moment the user actually arrives — the correct basis for "will it still
+// be open?" and for the arrival forecast. Falls back to now when unknown.
+function _arrivalDate() {
+  const arr = state.jny && state.jny.arrival;
+  const t = arr && arr.time;
+  const d = t ? new Date(t) : null;
+  return d && !isNaN(d.getTime()) ? d : new Date();
+}
+
 function _placesSectionHtml() {
   if (!_nearbyPlaces) return '<div class="hn-loading">laster steder…</div>';
   if (!_nearbyPlaces.length) return '<div class="hn-loading">ingen steder funnet i nærheten</div>';
-  return _nearbyPlaces.map(p =>
-    '<div class="hn-place-row">'
-    + '<span class="hn-place-emoji">' + p.emoji + '</span>'
-    + '<span class="hn-place-name">' + esc(p.name) + '</span>'
-    + '<span class="hn-place-dist">' + (p.dist < 1000 ? p.dist + ' m' : (p.dist / 1000).toFixed(1) + ' km') + '</span>'
-    + '</div>'
-  ).join('');
+  const at = _arrivalDate();
+  return _nearbyPlaces.map(p => {
+    // Re-evaluate against arrival, not the cached departure-time result.
+    const h = p.rawHours ? parseOpeningHours(p.rawHours, at) : p.hours;
+    const hoursHtml = h
+      ? '<span class="hn-place-hours' + (h.isOpen ? ' open' : ' closed') + '">' + esc(h.label) + '</span>'
+      : '';
+    return '<div class="hn-place-row">'
+      + '<span class="hn-place-emoji">' + p.emoji + '</span>'
+      + '<span class="hn-place-name">' + esc(p.name) + '</span>'
+      + hoursHtml
+      + '<span class="hn-place-dist">' + (p.dist < 1000 ? p.dist + ' m' : (p.dist / 1000).toFixed(1) + ' km') + '</span>'
+      + '</div>';
+  }).join('');
 }
 
 function _catPillsHtml(activeCatIdx) {
@@ -588,11 +604,20 @@ function _weatherSectionHtml() {
   if (!_arrWeather) return '<div class="hn-loading">laster vær…</div>';
   if (_arrWeather._err) return '<div class="hn-loading">vær utilgjengelig</div>';
   const w = _arrWeather;
-  const main = (w.icon ? w.icon + ' ' : '') + w.temp + '°'
-    + (w.wind >= 12 ? ' · ' + w.wind + ' m/s vind' : '')
-    + (w.precip >= 0.3 ? ' · ' + w.precip.toFixed(1) + ' mm' : '');
+  const arrIso = state.jny && state.jny.arrival && state.jny.arrival.time;
+  const fc = arrIso ? forecastAt(w.forecast, arrIso) : null;
+  const src = fc || w;
+  const main = (src.icon ? src.icon + ' ' : '') + src.temp + '°'
+    + (src.feels != null && Math.abs(src.feels - src.temp) >= 2 ? ' · føles som ' + src.feels + '°' : '')
+    + (src.wind >= 12 ? ' · ' + src.wind + ' m/s vind' : '')
+    + (src.precipProb != null && src.precipProb >= 20 ? ' · ' + src.precipProb + '% regn'
+       : src.precip >= 0.3 ? ' · ' + src.precip.toFixed(1) + ' mm' : '');
+  const dark = darknessNote(w, arrIso);
+  const advice = weatherAdvice(src.temp, src.precip, src.wind,
+    { feels: src.feels, precipProb: src.precipProb });
   return '<div class="hn-weather-main">' + main + '</div>'
-    + (w.advice ? '<div class="hn-weather-adv">' + w.advice + '</div>' : '');
+    + (dark ? '<div class="hn-weather-adv">' + dark + '</div>' : '')
+    + (advice ? '<div class="hn-weather-adv">' + advice + '</div>' : '');
 }
 
 // Called when user taps a category pill
@@ -617,6 +642,7 @@ function _trackWeatherHtml() {
   if (!_arrWeather || _arrWeather._err) return '';
   const w = _arrWeather;
   const nowParts = [w.icon + ' ' + w.temp + '°'];
+  if (w.feels != null && Math.abs(w.feels - w.temp) >= 2) nowParts.push('føles som ' + w.feels + '°');
   if (w.wind >= 12) nowParts.push(w.wind + ' m/s');
   if (w.precip >= 0.3) nowParts.push(w.precip.toFixed(1) + ' mm');
   let html = '<span class="t-wx-now">' + nowParts.join(' · ') + '</span>';
@@ -624,13 +650,16 @@ function _trackWeatherHtml() {
   const arr = state.jny && state.jny.arrival;
   if (arr && w.forecast) {
     const arrTs = new Date(arr.time).getTime();
-    if (arrTs > Date.now() + 15 * 60000) {
+    if (arrTs > Date.now() + config.arrivalForecastMinMs) {
       const fc = forecastAt(w.forecast, arr.time);
       if (fc) {
-        const fcAdv = weatherAdvice(fc.temp, fc.precip, fc.wind);
+        const fcAdv = weatherAdvice(fc.temp, fc.precip, fc.wind,
+          { feels: fc.feels, precipProb: fc.precipProb });
         const fcParts = [fc.icon + ' ' + fc.temp + '°'];
+        if (fc.feels != null && Math.abs(fc.feels - fc.temp) >= 2) fcParts.push('føles som ' + fc.feels + '°');
         if (fc.wind >= 12) fcParts.push(fc.wind + ' m/s');
-        if (fc.precip >= 0.3) fcParts.push(fc.precip.toFixed(1) + ' mm');
+        if (fc.precipProb != null && fc.precipProb >= 20) fcParts.push(fc.precipProb + '% regn');
+        else if (fc.precip >= 0.3) fcParts.push(fc.precip.toFixed(1) + ' mm');
         html += '<span class="t-wx-arr"> → ank. ' + fcParts.join(' · ') + '</span>';
         if (fcAdv && fcAdv !== w.advice) {
           html += '<span class="t-wx-adv">' + fcAdv + '</span>';

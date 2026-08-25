@@ -18,7 +18,7 @@ const ASSET_CACHE = 'assets-' + VERSION;
 const TILE_CACHE  = 'tiles-v1';        // survives releases; tiles don't change
 const TILE_LIMIT  = 400;               // ~15 MB of 256px PNGs
 
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png'];
+const SHELL = ['./', './index.html', './install.html', './manifest.webmanifest', './icons/icon-192.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -73,10 +73,17 @@ self.addEventListener('fetch', e => {
       fetch(req)
         .then(res => {
           const copy = res.clone();
-          caches.open(SHELL_CACHE).then(c => c.put('./index.html', copy));
+          // Key the copy to the page that was actually requested. Writing
+          // every navigation to './index.html' meant a single visit to the
+          // install guide replaced the cached app shell, so the next offline
+          // launch of the app opened the guide instead of the board.
+          caches.open(SHELL_CACHE).then(c => c.put(req.url, copy));
           return res;
         })
-        .catch(() => caches.match('./index.html', { ignoreSearch: true })
+        // Prefer the page asked for; fall back to the app shell only when we
+        // have never seen that page.
+        .catch(() => caches.match(req.url, { ignoreSearch: true })
+          .then(hit => hit || caches.match('./index.html', { ignoreSearch: true }))
           .then(hit => hit || caches.match('./')))
     );
     return;

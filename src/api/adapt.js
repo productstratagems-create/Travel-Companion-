@@ -46,6 +46,10 @@ export function adaptTripPattern(tp) {
         line: first.serviceJourney && first.serviceJourney.line,
         estimatedCalls: (first.serviceJourney && first.serviceJourney.estimatedCalls) || [],
       },
+      // Where you get OFF. The app has always shown the boarding platform and
+      // never this one, even though it rides along in the same response.
+      _arrQuay:          (last.toEstimatedCall && last.toEstimatedCall.quay
+                          && last.toEstimatedCall.quay.publicCode) || null,
       _toLat:            last.toPlace && last.toPlace.latitude,
       _toLon:            last.toPlace && last.toPlace.longitude,
       _allLegs:          tp.legs,

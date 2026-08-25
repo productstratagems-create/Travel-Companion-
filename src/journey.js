@@ -147,6 +147,7 @@ export function doBoard() {
   state.jny = {
     dest:              dir.to,
     from:              dir.from,
+    arrQuay:           c._arrQuay || null,
     boardedAt:         Date.now(),
     lineCode:          firstLeg.lineCode,
     lineBg:            firstLeg.lineBg,

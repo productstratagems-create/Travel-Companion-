@@ -378,7 +378,10 @@ export function renderSelected() {
         ? '<div class="jd-cell">'
           + '<div class="jd-label">ankommer ' + esc(cleanName(dir.to).toLowerCase()) + '</div>'
           + '<div class="jd-val arrival">' + clk(arrT) + '</div>'
-          + (tmin ? '<div class="jd-sub">' + tmin + ' min reise</div>' : '')
+          + '<div class="jd-sub">'
+          + (tmin ? tmin + ' min reise' : '')
+          + (c._arrQuay ? (tmin ? ' · ' : '') + 'spor ' + esc(c._arrQuay) : '')
+          + '</div>'
           + '</div>'
         : '')
       + '</div>';

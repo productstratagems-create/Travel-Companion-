@@ -1,7 +1,7 @@
 {
   "name": "T-bane — reisefølge for Oslo",
   "short_name": "T-bane",
-  "description": "Sanntids avganger, gangtid og hva som venter deg fram.",
+  "description": "Ikke bare når banen går, men når du må gå — og hva som venter deg framme.",
   "lang": "nb",
   "dir": "ltr",
   "start_url": "./",

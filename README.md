@@ -1,6 +1,6 @@
 # T-bane
 
-Sanntids avganger for Oslo, gangtid til stasjonen, og hva som venter deg framme.
+Ikke bare når banen går, men når du må gå — og hva som venter deg framme.
 
 **Appen:** https://productstratagems-create.github.io/Travel-Companion-/
 **Slik legger du den på hjemskjermen:** https://productstratagems-create.github.io/Travel-Companion-/install.html

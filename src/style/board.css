@@ -446,3 +446,13 @@
                      -6px 0 0 -2px rgba(var(--accent-rgb),.3)}
 /* The one caption left names the whole strip rather than a half. */
 .ls-cap-wide{left:0;width:100%}
+
+/* The list scrolls, not the page: the route header, map and strip stay put
+   while you look down the departures. Height is set from the viewport at
+   render time — see _fitDepList. */
+#dep-list{
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  /* Reaching either end must not start dragging the page behind it. */
+  overscroll-behavior:contain;
+}

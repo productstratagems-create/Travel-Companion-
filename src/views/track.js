@@ -13,6 +13,7 @@ import { startBoard, _interpolateVehiclePos } from './board.js';
 import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
 import { makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
+import { renderJourneyStrip } from './journeyStrip.js';
 import { renderAlerts, activeSituations, situationText, sevClass } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
@@ -1386,6 +1387,24 @@ export function renderTrack() {
   }
   _updateUserMarker();
   _renderTrackMap(now, cs, legs);
+  _renderJourneyStrip(now, cs, legs);
+}
+
+/**
+ * Where the train is on the leg being ridden, as stops rather than pixels.
+ *
+ * Only while riding, exactly like the map above it: during a platform wait
+ * there is no train on this leg to track, and drawing one anyway would be the
+ * false liveness this app keeps taking out. A leg whose calls have not arrived
+ * yet — a journey restored from storage before the first fetchTrack returns —
+ * simply has no strip, and the screen looks as it did before.
+ */
+function _renderJourneyStrip(now, cs, legs) {
+  const el = document.getElementById('j-strip');
+  if (!el) return;
+  const leg = cs.phase === 'riding' ? legs[cs.i] : null;
+  if (!leg) { el.style.display = 'none'; return; }
+  renderJourneyStrip(el, _legRouteStops(leg), now, _tLivePos, leg.journeyId);
 }
 
 export function buildTrackBar() {

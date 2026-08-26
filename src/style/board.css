@@ -528,3 +528,66 @@ html.view-board.map-open #dep-list{
 @media (prefers-reduced-motion:reduce){
   .ls-departing{animation:none}
 }
+
+/* ── The journey progress strip (underveis) ─────────────────────────────────
+   Same visual family as the board's line strip, different object: one train
+   across many stops, rather than many trains at one stop. Ticks are evenly
+   spaced because this is a schematic — position is by stop index, not by
+   distance on the ground. */
+/* The end labels are small uppercase mono, and so is the reise-id row right
+   below; without real air between them the two read as one block. */
+#j-strip{margin:.1rem 0 .8rem;padding:.35rem .4rem .3rem}
+
+.js-rail{position:relative;height:22px}
+.js-rail::before{
+  content:"";position:absolute;left:0;right:0;top:10px;height:2px;
+  background:rgba(var(--text-muted-rgb),.35);border-radius:1px;
+}
+/* How far you have come, filled in behind the train. */
+.js-done{
+  position:absolute;left:0;top:10px;height:2px;
+  background:var(--accent);border-radius:1px;opacity:.75;
+}
+.js-tick{
+  position:absolute;top:8px;width:6px;height:6px;margin-left:-3px;
+  border-radius:50%;
+  background:var(--surface);
+  border:1.5px solid rgba(var(--text-muted-rgb),.55);
+  box-sizing:border-box;
+}
+/* The two ends are the stops that are named, so they carry more weight. */
+.js-end{width:8px;height:8px;top:7px;margin-left:-4px;border-color:var(--accent)}
+/* Behind the train: visited, and no longer a thing you are waiting for. */
+.js-past{border-color:rgba(var(--accent-rgb),.5);background:rgba(var(--accent-rgb),.5)}
+
+.js-train{
+  position:absolute;top:1px;margin-left:-10px;
+  min-width:20px;height:20px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:"JetBrains Mono",ui-monospace,monospace;
+  font-size:10px;font-weight:700;line-height:1;
+  background:var(--accent);color:var(--bg);
+  border:1.5px solid var(--surface);
+  padding:0 .28rem;box-sizing:border-box;
+  /* The glyph is redrawn once a second with a new left; without this it jumps
+     between stops instead of running between them. */
+  transition:left .9s linear;
+}
+/* A measured position, not a timetable estimate — the same ring the board's
+   strip spends on that distinction. */
+.js-live{box-shadow:0 0 0 2px rgba(var(--accent-rgb),.25)}
+/* Standing at a stop rather than running between two. */
+.js-at{box-shadow:0 0 0 3px rgba(var(--accent-rgb),.14)}
+
+.js-ends{
+  position:relative;height:12px;
+  font-family:"JetBrains Mono",ui-monospace,monospace;
+  font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-muted);margin-top:.2rem;
+}
+.js-ends span{
+  position:absolute;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:46%;
+}
+.js-end-from{left:0}
+.js-end-to{right:0;color:var(--accent)}

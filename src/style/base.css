@@ -48,7 +48,7 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
    slab in a dark theme every time a map opens. */
 .leaflet-container{background:var(--surface-2)}
 
-/* Attribution is a licence requirement for CARTO and OSM — present on every
+/* Attribution is a licence requirement for Stadia, OpenMapTiles and OSM — on every
    map, but quiet enough not to compete with the content. */
 .leaflet-control-attribution{
   background:rgba(var(--bg-rgb),.65)!important;

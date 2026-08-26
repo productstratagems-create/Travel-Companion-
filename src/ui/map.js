@@ -11,28 +11,45 @@ import { onThemeChange } from './themeTokens.js';
  * Only data-theme picks the tile set. The palette axis (standard/blågrå)
  * doesn't need its own imagery — a neutral canvas suits both.
  */
+/**
+ * Stadia's Alidade Smooth, light and dark.
+ *
+ * This used to be CARTO Positron / Dark Matter. CARTO began requiring an API
+ * key on basemaps.cartocdn.com and stamps keyless requests with a repeating
+ * "API key required" watermark, which is what the maps were showing; they are
+ * retiring those raster endpoints besides. Alidade Smooth is the same idea —
+ * a neutral canvas so the app's own colours are the only saturated thing on
+ * it — so the design from v1.8.0 survives the move intact.
+ *
+ * Authentication is by registered domain, which is why no key appears here.
+ * VITE_STADIA_KEY exists as a fallback for a context the domain allow-list
+ * cannot cover; it is optional and normally unset.
+ */
 const TILE = {
-  light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-  dark:  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  light: 'https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png',
+  dark:  'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
 };
 
-// CARTO and OpenStreetMap both require attribution. Every map used to set
-// attributionControl:false, so none was ever shown.
-const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OSM</a> · © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>';
+const KEY = (typeof import.meta !== 'undefined' && import.meta.env
+  && import.meta.env.VITE_STADIA_KEY) || '';
+
+// Stadia, OpenMapTiles and OpenStreetMap all require attribution. Every map
+// used to set attributionControl:false, so none was ever shown.
+const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OSM</a> · © <a href="https://openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> · © <a href="https://stadiamaps.com/" target="_blank" rel="noopener">Stadia Maps</a>';
 
 export function currentTileUrl() {
   const dark = document.documentElement.getAttribute('data-theme') !== 'light';
-  return dark ? TILE.dark : TILE.light;
+  const base = dark ? TILE.dark : TILE.light;
+  return KEY ? base + '?api_key=' + encodeURIComponent(KEY) : base;
 }
 
 function tileLayer() {
   return L.tileLayer(currentTileUrl(), {
-    subdomains: 'abcd',
     // The URL carries {r}; without detectRetina Leaflet substitutes an empty
     // string and every phone gets 1x tiles. This is the single biggest
     // sharpness win available.
     detectRetina: true,
-    maxZoom: 19,
+    maxZoom: 20,
     attribution: ATTRIBUTION,
     className: 'basemap-tiles',
   });
@@ -54,7 +71,9 @@ export function createMap(el, opts = {}) {
     rotate: true,
     touchRotate: true,
     rotateControl: false,
-    maxZoom: 19,
+    // Matches the tile layer above; leaving this at 19 would cap the map one
+    // level below the imagery it can actually serve.
+    maxZoom: 20,
   });
   const tiles = tileLayer().addTo(map);
   // Bottom-right on every map: thumb reach on a phone, and out of the way of

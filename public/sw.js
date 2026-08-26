@@ -15,7 +15,11 @@
 const VERSION = new URL(self.location.href).searchParams.get('v') || 'dev';
 const SHELL_CACHE = 'shell-' + VERSION;
 const ASSET_CACHE = 'assets-' + VERSION;
-const TILE_CACHE  = 'tiles-v1';        // survives releases; tiles don't change
+// Survives releases, because tiles don't change — but the *provider* did.
+// v1 holds CARTO tiles, and the keyless ones among them carry a repeating
+// "API key required" watermark. cache-first would serve those forever, so the
+// name is bumped; the activate handler deletes any cache not named here.
+const TILE_CACHE  = 'tiles-v2';
 const TILE_LIMIT  = 400;               // ~15 MB of 256px PNGs
 
 const SHELL = ['./', './index.html', './install.html', './manifest.webmanifest', './icons/icon-192.png'];
@@ -97,7 +101,7 @@ self.addEventListener('fetch', e => {
 
   // Basemap tiles: immutable, and having them offline is most of what makes
   // the map useful in a tunnel.
-  if (url.hostname.endsWith('basemaps.cartocdn.com')) {
+  if (url.hostname === 'tiles.stadiamaps.com') {
     e.respondWith(cacheFirst(req, TILE_CACHE, trimTiles).catch(() => Response.error()));
     return;
   }

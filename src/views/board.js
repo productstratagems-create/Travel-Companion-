@@ -903,16 +903,28 @@ function _bindStrip(el) {
     }
 
     // A single train stands for one departure, so its row is unambiguous.
-    const row = document.querySelector('#dep-list .dep-row[data-jid="' + (window.CSS && CSS.escape
-      ? CSS.escape(g.dataset.jid) : g.dataset.jid) + '"]');
-    if (!row) return;
-    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const jid = g.dataset.jid;
+    const sel = '#dep-list .dep-row[data-jid="'
+      + (window.CSS && CSS.escape ? CSS.escape(jid) : jid) + '"]';
+    if (!document.querySelector(sel)) return;
+
     // The list is rebuilt every second, so a class set on the node here is
     // gone on the next tick and the timeout ends up clearing a detached
     // element. Hold it in state and let the row render re-apply it instead.
-    _flashJid = g.dataset.jid;
+    _flashJid = jid;
     _flashUntil = Date.now() + 1600;
     renderBoard();
+
+    // Scroll the list itself, never scrollIntoView. That scrolls every
+    // scrollable ancestor, and on a fixed board the ancestors are only hidden,
+    // not unscrollable — so it slid the header off a screen the reader had no
+    // way to scroll back. It also ran before the rebuild below, which then
+    // restored the old position, so the jump did nothing at all here.
+    const list = document.getElementById('dep-list');
+    const row = list && list.querySelector('.dep-row[data-jid="'
+      + (window.CSS && CSS.escape ? CSS.escape(jid) : jid) + '"]');
+    if (!list || !row) return;
+    list.scrollTop = Math.max(0, row.offsetTop - (list.clientHeight - row.offsetHeight) / 2);
   };
   el.addEventListener('click', e => act(e.target));
   el.addEventListener('keydown', e => {

@@ -456,3 +456,53 @@
   /* Reaching either end must not start dragging the page behind it. */
   overscroll-behavior:contain;
 }
+
+/* ── The board is a fixed screen ────────────────────────────────────────────
+   Everything down to and including the strip stays put; only the list scrolls.
+
+   This replaces sizing the list from window.innerHeight in JavaScript. On iOS
+   that value reports the height with the browser chrome collapsed — larger
+   than what is visible — so the list came out too tall, the document grew past
+   the visual viewport, and the page scrolled the header away. 100dvh exists
+   for exactly that problem. */
+html.view-board, html.view-board body{
+  height:100vh;          /* fallback first */
+  height:100dvh;
+  min-height:0;
+  overflow:hidden;
+}
+html.view-board .wrap{
+  height:100%;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+html.view-board #v-board{
+  flex:1 1 auto;
+  display:flex;
+  flex-direction:column;
+  /* Without this a flex child refuses to shrink below its content, and the
+     list would push the screen open again. */
+  min-height:0;
+}
+/* The one part that scrolls. */
+html.view-board #dep-list{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+}
+/* Everything above it holds its size. */
+html.view-board #v-board > *:not(#dep-list){ flex:0 0 auto }
+
+/* Expanding the map must grow it into the space that is there, not past the
+   bottom of a screen that can no longer scroll — overflow:hidden would clip
+   the list out of reach rather than let you scroll to it. */
+html.view-board .map-wrap.map-expanded{
+  flex:1 1 auto;
+  min-height:0;
+}
+html.view-board #board-map.expanded{
+  height:100%;
+  margin:0;
+  border-radius:0;
+}

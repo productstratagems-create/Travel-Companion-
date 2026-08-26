@@ -123,7 +123,14 @@ export function show(id) {
   closeBoardMenu();
   if (id !== 'v-selected') window._destroySelMap && window._destroySelMap();
   ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-prefs', 'v-saved', 'v-leisure'].forEach(v => {
-    document.getElementById(v).style.display = (v === id ? 'block' : 'none');
+    // Clear the inline style rather than stamping `block`. The board is a flex
+    // column under `html.view-board`, and an inline `display:block` beats that
+    // stylesheet rule on specificity — which collapsed the column, left the
+    // departure list sized to its own content inside a viewport that cannot
+    // scroll, and made the list unscrollable after any navigation back to the
+    // board. Every view is a plain div, so the empty string is `block` for
+    // the ones that want it.
+    document.getElementById(v).style.display = (v === id ? '' : 'none');
   });
   state.view = id.replace('v-', '');
   // The board is a fixed screen: everything above the departure list stays

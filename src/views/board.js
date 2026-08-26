@@ -1085,6 +1085,32 @@ export function _platformState(call, live, stopLL) {
  * @param {number} minSep  closest two anchors may sit, in strip units
  * @returns {Array<{pos:number, items:Array}>}
  */
+/**
+ * How much of the strip's width the approaching half gets.
+ *
+ * The strip used to run one linear scale across [lookback, lastStop], so space
+ * was handed out by *stop count* — which has nothing to do with where the
+ * trains are. On a fifteen-stop stretch that gave the approaching half 23% of
+ * the width to hold nine trains, while the half ahead took 77% to hold one.
+ *
+ * Each half now asks for what it needs: room for its trains, and in the half
+ * ahead, enough that its stop ticks stay apart. Bounded at both ends so one
+ * empty half can never collapse the other.
+ *
+ * @returns {number} 0..1
+ */
+export const _STRIP_MIN_SHARE = 0.28;
+export const _STRIP_MAX_SHARE = 0.58;
+const _STRIP_TICK_PX = 9;
+
+export function _stripShare(nAppr, nAhead, nStops) {
+  if (!nAppr) return _STRIP_MIN_SHARE;
+  const needAppr = nAppr * _STRIP_GLYPH_PX;
+  const needAhead = Math.max(nAhead * _STRIP_GLYPH_PX, (nStops || 1) * _STRIP_TICK_PX);
+  const raw = needAppr / (needAppr + needAhead);
+  return Math.min(_STRIP_MAX_SHARE, Math.max(_STRIP_MIN_SHARE, raw));
+}
+
 export function _clusterTrains(trains, minSep) {
   const out = [];
   (trains || []).forEach(t => {
@@ -1122,10 +1148,17 @@ function renderLineStrip(visibleDeps) {
   el.style.display = 'block';
 
   const end = Math.max(1, data.stops.length - 1);
-  // The scale runs from the furthest-back train to the destination.
-  const lo = Math.min(0, ...data.trains.map(t => t.pos));
-  const span = (end - lo) || 1;
-  const pct = (p) => ((p - lo) / span) * 100;
+  const lo = Math.min(0, ...data.trains.map(t => t.pos)) || -1;
+
+  // Two scales, not one. A single linear scale across [lo, end] handed out
+  // width by stop count, so a long stretch starved the half where all the
+  // choices are. Each half is now given the width its own contents need, and
+  // maps its own range onto that.
+  const nAppr = data.trains.filter(t => t.approaching).length;
+  const share = _stripShare(nAppr, data.trains.length - nAppr, data.stops.length);
+  const pct = (p) => (p <= 0
+    ? share * (1 - p / lo)
+    : share + (p / end) * (1 - share)) * 100;
 
   const ticks = data.stops.map((name, i) =>
     '<span class="ls-tick" style="left:' + pct(i).toFixed(2) + '%"></span>').join('');
@@ -1134,7 +1167,11 @@ function renderLineStrip(visibleDeps) {
   // how many pixels a glyph actually occupies, which only the rendered strip
   // knows. Width is read after display:block above.
   const width = el.clientWidth || 360;
-  const minSep = (_STRIP_GLYPH_PX / (width / span));
+  // Pixels per unit now differs between the halves, so each gets its own
+  // collapse threshold. One shared threshold would over-cluster whichever
+  // half happens to be narrower.
+  const sepAppr = _STRIP_GLYPH_PX / ((share * width) / -lo);
+  const sepAhead = _STRIP_GLYPH_PX / (((1 - share) * width) / end);
 
   // Approaching: cluster from the soonest outwards, so the countdown that
   // survives is the one you can still act on.
@@ -1160,14 +1197,13 @@ function renderLineStrip(visibleDeps) {
   };
 
   const trains =
-    _clusterTrains(apprSorted, minSep).map(cl => render(cl, true)).join('')
-    + _clusterTrains(aheadSorted, minSep).map(cl => render(cl, false)).join('');
+    _clusterTrains(apprSorted, sepAppr).map(cl => render(cl, true)).join('')
+    + _clusterTrains(aheadSorted, sepAhead).map(cl => render(cl, false)).join('');
 
   // Name the two halves, each caption centred over its own zone. A zone with
   // no trains gets no caption: with the in-flight request failing, the right
   // half is empty, and a label over an empty stretch is worse than silence.
   const originPct = pct(0);
-  const nAppr = data.trains.filter(t => t.approaching).length;
   const nAhead = data.trains.length - nAppr;
   const caption = (text, left, width) =>
     width < 14 ? ''
@@ -1200,6 +1236,13 @@ function renderLineStrip(visibleDeps) {
     + esc(data.from || '') + '</span>'
     + '<span class="ls-end-to">' + esc(data.to || '') + '</span>'
     + '</div>';
+  // A caption is only worth showing if it fits. The reported strip rendered
+  // "PÅ VEI TIL D…", which names nothing and costs a row. Wider zones fix the
+  // reported case; this catches any other configuration where it recurs.
+  el.querySelectorAll('.ls-cap').forEach(cap => {
+    if (cap.scrollWidth > cap.clientWidth + 1) cap.style.visibility = 'hidden';
+  });
+
   el.setAttribute('aria-label', _stripSummary(data));
   el.style.display = 'block';
 }

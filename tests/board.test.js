@@ -7,7 +7,7 @@ vi.mock('../src/ui/mapIcons.js', () => ({ makeStopIcon: vi.fn(), makeVehicleIcon
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
-import { dedupeDepartures, _headingDeg, _corridorProgress, _legIndices, _buildStrip, _stripSummary, _platformState, _clusterTrains } from '../src/views/board.js';
+import { dedupeDepartures, _headingDeg, _corridorProgress, _legIndices, _buildStrip, _stripSummary, _platformState, _clusterTrains, _stripShare, _STRIP_MIN_SHARE, _STRIP_MAX_SHARE } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -439,5 +439,42 @@ describe('_clusterTrains', () => {
     expect(_clusterTrains([T(0), T(0.1)], 0)).toHaveLength(2);
     expect(_clusterTrains([], 1)).toEqual([]);
     expect(_clusterTrains(null, 1)).toEqual([]);
+  });
+});
+
+describe('_stripShare — space follows content, not stop count', () => {
+  it('gives the crowded half most of the width', () => {
+    // The reported case: fifteen stops, nine trains coming, one ahead.
+    const s = _stripShare(9, 1, 15);
+    expect(s).toBeGreaterThan(0.5);
+    expect(s).toBeLessThanOrEqual(_STRIP_MAX_SHARE);
+  });
+
+  it('does not let a busy half swallow the strip', () => {
+    expect(_stripShare(40, 0, 20)).toBe(_STRIP_MAX_SHARE);
+  });
+
+  it('does not let an empty half collapse', () => {
+    expect(_stripShare(0, 6, 20)).toBe(_STRIP_MIN_SHARE);
+    expect(_stripShare(1, 40, 40)).toBe(_STRIP_MIN_SHARE);
+  });
+
+  it('keeps stop ticks apart even when nothing is ahead', () => {
+    // Many stops and no trains ahead still reserves room for the ticks, so
+    // the half ahead cannot be squeezed to a smear.
+    expect(_stripShare(4, 0, 30)).toBeLessThan(_stripShare(4, 0, 4));
+  });
+
+  it('grows with the number of trains coming', () => {
+    const a = _stripShare(2, 2, 10), b = _stripShare(6, 2, 10);
+    expect(b).toBeGreaterThan(a);
+  });
+
+  it('stays within bounds for any input', () => {
+    for (const [x, y, z] of [[0,0,0],[1,1,1],[50,50,50],[9,0,1],[0,9,30]]) {
+      const s = _stripShare(x, y, z);
+      expect(s).toBeGreaterThanOrEqual(_STRIP_MIN_SHARE);
+      expect(s).toBeLessThanOrEqual(_STRIP_MAX_SHARE);
+    }
   });
 });

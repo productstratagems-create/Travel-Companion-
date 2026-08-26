@@ -128,6 +128,9 @@ function _ensureMap(pos) {
   if (expandBtn) {
     expandBtn.onclick = () => {
       const exp = mapEl.classList.toggle('expanded');
+      // The wrapper is the flex child, so it is the one that has to claim the
+      // extra space — the map itself only fills what it is given.
+      if (mapEl.parentElement) mapEl.parentElement.classList.toggle('map-expanded', exp);
       expandBtn.textContent = exp ? '✕' : '⤢';
       expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
       expandBtn.title = exp ? 'Minimer kart' : 'Utvid kart';
@@ -466,8 +469,6 @@ export function _headingDeg(fromLat, fromLon, toLat, toLon) {
   const deg = Math.atan2(dLon, dLat) * 180 / Math.PI;
   return (deg + 360) % 360;
 }
-
-
 
 export function _stopsAway(calls, now) {
   if (!calls || calls.length < 2) return null;
@@ -969,7 +970,6 @@ export function _buildStrip(candidates, dir, selectedLine, now, livePos) {
   return out;
 }
 
-
 /**
  * What the strip says, in words.
  *
@@ -1089,7 +1089,6 @@ export function _relaxPositions(groups, minSep, min, max) {
   }
   return s;
 }
-
 
 export function _clusterTrains(trains, minSep) {
   const out = [];
@@ -1621,22 +1620,6 @@ export function renderBoard() {
   const keep = list.scrollTop;
   list.innerHTML = html;
   list.scrollTop = keep;
-  _fitDepList(list);
-}
-
-/**
- * Cap the list to whatever is left of the viewport below it.
- *
- * Not a calc() with a fixed offset: what sits above varies — the alert banner
- * comes and goes, the map expands to 72vh, the strip hides when it has nothing
- * to show. Measuring the list's own top covers all of it.
- */
-function _fitDepList(list) {
-  const top = list.getBoundingClientRect().top;
-  const bottom = parseFloat(getComputedStyle(document.body).paddingBottom) || 16;
-  // A floor, so an expanded map cannot squeeze the list to nothing. If what is
-  // above genuinely fills the screen the page scrolls again, which is right.
-  list.style.maxHeight = Math.max(160, window.innerHeight - top - bottom) + 'px';
 }
 
 /**
@@ -1661,18 +1644,11 @@ function _atPlatform(c) {
 // refetched and stale rows would just flicker.
 let _hydrated = false;
 
-let _fitBound = false;
-function _bindFit() {
-  if (_fitBound) return;
-  _fitBound = true;
-  window.addEventListener('resize', () => {
-    const l = document.getElementById('dep-list');
-    if (l && state.view === 'board') _fitDepList(l);
-  });
-}
-
 export function startBoard() {
-  _bindFit();
+  // show() only runs on navigation, and at startup the board is already the
+  // visible screen — so without this the fixed layout never applied on a cold
+  // load, which is the only load that matters most of the time.
+  document.documentElement.classList.add('view-board');
   state.deps = [];
   if (!_hydrated) {
     _hydrated = true;

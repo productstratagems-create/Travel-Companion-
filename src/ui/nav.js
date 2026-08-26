@@ -126,6 +126,10 @@ export function show(id) {
     document.getElementById(v).style.display = (v === id ? 'block' : 'none');
   });
   state.view = id.replace('v-', '');
+  // The board is a fixed screen: everything above the departure list stays
+  // put and only the list scrolls. Scoped to a body class so every other
+  // screen keeps scrolling as an ordinary page.
+  document.documentElement.classList.toggle('view-board', id === 'v-board');
   window.scrollTo(0, 0);
   // Move focus to the new screen so screen-reader users land at its top
   document.getElementById(id).focus({ preventScroll: true });

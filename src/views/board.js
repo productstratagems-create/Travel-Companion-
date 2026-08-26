@@ -15,7 +15,7 @@ import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops } from '../api/stops.js';
-import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
+import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, mapHalo } from '../ui/mapIcons.js';
 import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
 import { createMap, drawRoute } from '../ui/map.js';
@@ -93,14 +93,20 @@ function _makeBikeIcon(bikes, ebikes) {
   return L.divIcon({ className: '', html, iconSize: [28, 28], iconAnchor: [14, 14] });
 }
 
-function _makeStopIcon(mode, count) { return makeStopIcon(mode, count); }
+function _makeStopIcon(mode, count, primary) { return makeStopIcon(mode, count, { primary }); }
 
 function _makeDestIcon() {
-  const html = '<svg width="22" height="30" viewBox="0 0 22 30" xmlns="http://www.w3.org/2000/svg">'
-    + '<path d="M11 0C5 0 0 5 0 11c0 8.3 11 19 11 19S22 19.3 22 11C22 5 17 0 11 0z" fill="' + tokens().accent + '"/>'
-    + '<circle cx="11" cy="11" r="4.5" fill="#b8860b"/>'
+  // Same treatment as every other marker: accent fill, the halo outline that
+  // separates it from the basemap, and the eye punched in the halo colour
+  // rather than the hardcoded goldenrod it used to carry. Trimmed from 22x30,
+  // where it outweighed the vehicle it was meant to sit beside.
+  const halo = mapHalo();
+  const html = '<svg width="18" height="24" viewBox="0 0 22 30" xmlns="http://www.w3.org/2000/svg">'
+    + '<path d="M11 1.2C5.4 1.2 1.2 5.4 1.2 11c0 7.8 9.8 17.8 9.8 17.8S20.8 18.8 20.8 11C20.8 5.4 16.6 1.2 11 1.2z"'
+    + ' fill="' + tokens().accent + '" stroke="' + halo + '" stroke-width="2"/>'
+    + '<circle cx="11" cy="11" r="4" fill="' + halo + '"/>'
     + '</svg>';
-  return L.divIcon({ className: '', html, iconSize: [22, 30], iconAnchor: [11, 30] });
+  return L.divIcon({ className: '', html, iconSize: [18, 24], iconAnchor: [9, 24] });
 }
 
 const VENDOR_COLORS = { Bolt: '#22c55e', Voi: '#f87171', Tier: '#60a5fa' };
@@ -239,9 +245,9 @@ function renderBoardMap(pos, modes) {
         // Permanent label only for the single closest stop of the primary mode;
         // everything else reveals its name on tap.
         const isPrimary = transitModes[0] === mode && clusters.indexOf(cluster) === 0;
-        L.marker([lat, lon], { icon: _makeStopIcon(mode, cluster.length) })
+        L.marker([lat, lon], { icon: _makeStopIcon(mode, cluster.length, isPrimary) })
           .bindTooltip(name, {
-            permanent: isPrimary,
+            permanent: false,
             direction: 'top',
             offset: [0, -15],
             className: 'map-label',
@@ -317,7 +323,7 @@ function _drawWalkRoute(fromLL, toLL, destName) {
   }).bindTooltip('Avreisested', { className: 'map-label' }).addTo(_bLayer);
 
   L.marker([toLL.lat, toLL.lon], { icon: _makeDestIcon() })
-    .bindTooltip(destName, { permanent: true, direction: 'top', offset: [0, -32], className: 'map-label' })
+    .bindTooltip(destName, { permanent: false, direction: 'top', offset: [0, -32], className: 'map-label' })
     .addTo(_bLayer);
 
   if (!_bUserMoved) {
@@ -726,26 +732,26 @@ function renderLineRoute(visibleDeps) {
     L.polyline(pts, style).addTo(_bRouteLayer);
   }
 
-  stops.forEach((s, i) => {
+  stops.forEach((s) => {
     if (!s.name) return;
-    const isEndpoint = i === 0 || i === stops.length - 1;
     const marker = L.marker([s.lat, s.lon], { icon: makeRouteStopIcon(color) }).addTo(_bRouteLayer);
+    // Every stop names itself on tap, endpoints included. The endpoints used
+    // to be shown with _bMap.addLayer(tooltip), which displays a tooltip
+    // whatever its permanent flag says — and it attached them to the map
+    // rather than to the layer that is cleared each render, so they piled up:
+    // eight labels for two stop names, in twelve overlapping pairs.
     const tooltip = L.tooltip({
       className: 'map-label',
-      permanent: isEndpoint,
+      permanent: false,
       direction: 'top',
       offset: [0, -8],
     }).setLatLng([s.lat, s.lon]).setContent(esc(s.name));
-    if (isEndpoint) {
-      _bMap.addLayer(tooltip);
-    } else {
-      let hideTimer = null;
-      marker.on('click', () => {
-        if (hideTimer) clearTimeout(hideTimer);
-        _bMap.openTooltip(tooltip);
-        hideTimer = setTimeout(() => _bMap.closeTooltip(tooltip), _ROUTE_STOP_TOOLTIP_MS);
-      });
-    }
+    let hideTimer = null;
+    marker.on('click', () => {
+      if (hideTimer) clearTimeout(hideTimer);
+      _bMap.openTooltip(tooltip);
+      hideTimer = setTimeout(() => _bMap.closeTooltip(tooltip), _ROUTE_STOP_TOOLTIP_MS);
+    });
   });
 
   // Walking extension: dashed line from alighting stop to final destination venue.
@@ -756,7 +762,7 @@ function renderLineRoute(visibleDeps) {
     if (extKey !== _walkExtKey) {
       _walkExtKey = extKey;
       L.marker([destLL.lat, destLL.lon], { icon: _makeDestIcon() })
-        .bindTooltip(dir.to || 'Destinasjon', { permanent: true, direction: 'top', offset: [0, -32], className: 'map-label' })
+        .bindTooltip(dir.to || 'Destinasjon', { permanent: false, direction: 'top', offset: [0, -32], className: 'map-label' })
         .addTo(_bRouteLayer);
       const q = '{trip(from:{coordinates:{latitude:' + alightPt[0] + ',longitude:' + alightPt[1] + '}}'
         + 'to:{coordinates:{latitude:' + destLL.lat + ',longitude:' + destLL.lon + '}}'

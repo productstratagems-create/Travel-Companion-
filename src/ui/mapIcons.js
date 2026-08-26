@@ -19,6 +19,9 @@ const _TRAM_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" fill="white" 
 
 // A ring in the canvas ink's inverse. Markers carried only a drop shadow,
 // which disappears against dark tiles and leaves their edges muddy.
+/** The ring that separates a marker from whichever basemap is under it. */
+export function mapHalo() { return _halo(); }
+
 function _halo() {
   const ink = (typeof getComputedStyle !== 'undefined'
     ? (getComputedStyle(document.documentElement).getPropertyValue('--map-ink') || '').trim()
@@ -102,46 +105,59 @@ export function makeVehicleIcon(mode, color, opts = {}) {
   });
 }
 
-export function makeStopIcon(mode, count) {  const badge = (count > 1)
-    ? '<span style="position:absolute;top:-6px;right:-6px;background:' + _halo() + ';color:#111;'
-      + 'border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:800;'
-      + 'display:flex;align-items:center;justify-content:center;line-height:1;'
-      + 'box-shadow:0 1px 3px rgba(0,0,0,.4)">' + count + '</span>'
+// Transit brand colours, kept because they carry meaning rather than style.
+const _MODE_COLOUR = {
+  metro: '#f5a000',
+  tram:  '#7b3999',
+  bus:   '#e5006d',
+  rail:  '#5a6b7d',
+};
+
+/**
+ * A stop.
+ *
+ * This used to be a 28px disc with a white "T" set in Arial for metro, and
+ * rounded squares carrying 13px vehicle glyphs for bus and tram — three shape
+ * languages, four sizes across the map, and a typeface the app uses nowhere
+ * else. The letter told you nothing the colour and the mode filter above the
+ * map did not already say.
+ *
+ * Now it matches the vehicle marker: a filled shape with the same halo
+ * outline, no lettering, and one size scale. Mode is carried by colour alone.
+ *
+ * @param {string} mode  metro | tram | bus | rail
+ * @param {number} count how many modes this stop serves
+ * @param {{primary?:boolean}} [opts] the stop you are departing from
+ */
+export function makeStopIcon(mode, count, opts = {}) {
+  const colour = _MODE_COLOUR[mode] || _MODE_COLOUR.rail;
+  // Your own stop reads a step louder than the ones merely nearby.
+  const size = opts.primary ? 15 : 11;
+  const halo = _halo();
+
+  const badge = (count > 1)
+    ? '<span style="position:absolute;top:-5px;right:-7px;min-width:13px;height:13px;'
+      + 'padding:0 2px;background:' + halo + ';color:' + (halo === '#ffffff' ? '#1e293b' : '#f8fafc') + ';'
+      + 'border-radius:7px;font-size:9px;font-weight:700;line-height:13px;text-align:center;'
+      + 'font-family:\'JetBrains Mono\',ui-monospace,monospace;'
+      + 'box-sizing:border-box">' + count + '</span>'
     : '';
-  let inner, w, h;
-  if (mode === 'metro') {
-    w = 28; h = 28;
-    inner = '<div style="background:#f5a000;border:2px solid ' + _halo() + ';border-radius:50%;width:28px;height:28px;'
-      + 'display:flex;align-items:center;justify-content:center;'
-      + 'font-size:15px;font-weight:900;color:#fff;font-family:Arial,sans-serif;'
-      + 'box-shadow:0 1px 4px rgba(0,0,0,.5)">T</div>';
-  } else if (mode === 'bus') {
-    w = 26; h = 22;
-    inner = '<div style="background:#e5006d;border:2px solid ' + _halo() + ';border-radius:5px;width:26px;height:22px;'
-      + 'display:flex;align-items:center;justify-content:center;'
-      + 'box-shadow:0 1px 4px rgba(0,0,0,.5)">' + _BUS_SVG + '</div>';
-  } else if (mode === 'tram') {
-    w = 26; h = 22;
-    inner = '<div style="background:#7b3999;border:2px solid ' + _halo() + ';border-radius:5px;width:26px;height:22px;'
-      + 'display:flex;align-items:center;justify-content:center;'
-      + 'box-shadow:0 1px 4px rgba(0,0,0,.5)">' + _TRAM_SVG + '</div>';
-  } else {
-    w = 22; h = 22;
-    inner = '<div style="background:#555;border:2px solid ' + _halo() + ';border-radius:50%;width:22px;height:22px;'
-      + 'display:flex;align-items:center;justify-content:center;'
-      + 'font-size:10px;font-weight:700;color:#fff;'
-      + 'box-shadow:0 1px 3px rgba(0,0,0,.5)">?</div>';
-  }
-  const html = '<div style="position:relative;display:inline-block">' + inner + badge + '</div>';
-  return L.divIcon({ className: '', html, iconSize: [w, h], iconAnchor: [Math.round(w / 2), Math.round(h / 2)] });
+
+  const dot = '<span style="display:block;width:' + size + 'px;height:' + size + 'px;'
+    + 'background:' + colour + ';border-radius:50%;'
+    + 'border:1.7px solid ' + halo + ';box-sizing:border-box;'
+    + 'box-shadow:0 1px 3px rgba(0,0,0,.35)"></span>';
+
+  const html = '<div style="position:relative;display:block;line-height:0">' + dot + badge + '</div>';
+  return L.divIcon({ className: '', html, iconSize: [size, size],
+                     iconAnchor: [Math.round(size / 2), Math.round(size / 2)] });
 }
 
-// Small dot marking an intermediate stop on the selected line's route corridor.
 export function makeRouteStopIcon(color) {
   // Demoted: these are context, not decisions. Smaller and quieter than the
   // markers that answer a question.
   const size = 7;
   const html = '<div style="background:' + color + ';border-radius:50%;width:' + size + 'px;height:' + size + 'px;'
-    + 'opacity:.75;border:1.5px solid ' + _halo() + ';box-shadow:0 1px 2px rgba(0,0,0,.4)"></div>';
+    + 'opacity:.8;border:1.7px solid ' + _halo() + ';box-shadow:0 1px 2px rgba(0,0,0,.35)"></div>';
   return L.divIcon({ className: '', html, iconSize: [size, size], iconAnchor: [Math.round(size / 2), Math.round(size / 2)] });
 }

@@ -128,9 +128,10 @@ function _ensureMap(pos) {
   if (expandBtn) {
     expandBtn.onclick = () => {
       const exp = mapEl.classList.toggle('expanded');
-      // The wrapper is the flex child, so it is the one that has to claim the
-      // extra space — the map itself only fills what it is given.
-      if (mapEl.parentElement) mapEl.parentElement.classList.toggle('map-expanded', exp);
+      // An expanded map does not fit a fixed screen, and reshaping it to fit
+      // would change the map. The board yields instead: while it is open the
+      // page scrolls exactly as it did before the fixed layout existed.
+      document.documentElement.classList.toggle('map-open', exp);
       expandBtn.textContent = exp ? '✕' : '⤢';
       expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
       expandBtn.title = exp ? 'Minimer kart' : 'Utvid kart';

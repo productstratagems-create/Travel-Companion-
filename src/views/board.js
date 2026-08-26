@@ -892,6 +892,10 @@ function _refreshLivePositions(lineRef) {
 // How much room the approaching trains get, in stop-widths, behind the origin.
 const _STRIP_LOOKBACK = 4;
 
+// Widest a train glyph gets, plus breathing room. Two glyphs closer than this
+// would touch, so they collapse into one.
+const _STRIP_GLYPH_PX = 46;
+
 // The countdown a train shows on the strip must be the one its row shows in
 // the list, or the two pictures disagree and the strip is worse than nothing.
 // Same source and same rounding as the row render below.
@@ -1007,6 +1011,10 @@ export function _buildStrip(candidates, inflight, dir, selectedLine, now, livePo
   // their order on the strip is the order of the list.
   const appr = out.trains.filter(t => t.approaching);
   const maxMins = Math.max(1, ...appr.map(t => t.mins));
+  // Linear in time. A square-root axis was tried, to give near departures more
+  // room at rush hour — measured, it produced one glyph fewer there and
+  // over-clustered a sparse timetable into disagreeing with the list. The
+  // clustering below handles density on its own.
   appr.forEach(t => { t.pos = -_STRIP_LOOKBACK * (t.mins / maxMins); });
 
   out.trains.sort((a, b) => a.pos - b.pos);
@@ -1065,6 +1073,28 @@ export function _platformState(call, live, stopLL) {
   return null;
 }
 
+/**
+ * Collapse trains that would otherwise be drawn on top of each other.
+ *
+ * Greedy in the order given, anchored on the first member of each cluster —
+ * so the caller decides which end is the one worth keeping legible. For
+ * approaching trains that is the soonest, because its countdown is the useful
+ * one; the rest become "and this many behind it".
+ *
+ * @param {Array<{pos:number}>} trains  in the caller's preferred order
+ * @param {number} minSep  closest two anchors may sit, in strip units
+ * @returns {Array<{pos:number, items:Array}>}
+ */
+export function _clusterTrains(trains, minSep) {
+  const out = [];
+  (trains || []).forEach(t => {
+    const last = out[out.length - 1];
+    if (last && Math.abs(t.pos - last.pos) < minSep) { last.items.push(t); return; }
+    out.push({ pos: t.pos, items: [t] });
+  });
+  return out;
+}
+
 export function _stripSummary(data) {
   if (!data || !data.trains || !data.trains.length) return 'Ingen tog på strekningen nå';
   const appr = data.trains.filter(t => t.approaching).length;
@@ -1087,6 +1117,10 @@ function renderLineStrip(visibleDeps) {
     Date.now(), _livePos);
   if (!data.stops.length || !data.trains.length) { el.style.display = 'none'; return; }
 
+  // Displayed before measuring: a hidden element has no width, and the
+  // clustering threshold is derived from it.
+  el.style.display = 'block';
+
   const end = Math.max(1, data.stops.length - 1);
   // The scale runs from the furthest-back train to the destination.
   const lo = Math.min(0, ...data.trains.map(t => t.pos));
@@ -1096,12 +1130,38 @@ function renderLineStrip(visibleDeps) {
   const ticks = data.stops.map((name, i) =>
     '<span class="ls-tick" style="left:' + pct(i).toFixed(2) + '%"></span>').join('');
 
-  const trains = data.trains.map(t =>
-    '<span class="ls-train' + (t.approaching ? ' ls-appr' : ' ls-ahead')
-    + (t.live ? ' ls-live' : '') + '" style="left:' + pct(t.pos).toFixed(2) + '%"'
-    + ' title="' + esc(t.label) + '">'
-    + (t.approaching && t.mins != null ? '<b>' + (t.mins <= 0 ? 'nå' : t.mins) + '</b>' : '')
-    + '</span>').join('');
+  // Clustering happens here rather than in _buildStrip because it depends on
+  // how many pixels a glyph actually occupies, which only the rendered strip
+  // knows. Width is read after display:block above.
+  const width = el.clientWidth || 360;
+  const minSep = (_STRIP_GLYPH_PX / (width / span));
+
+  // Approaching: cluster from the soonest outwards, so the countdown that
+  // survives is the one you can still act on.
+  const apprSorted = data.trains.filter(t => t.approaching)
+    .slice().sort((a, b) => (a.mins == null ? 1e9 : a.mins) - (b.mins == null ? 1e9 : b.mins));
+  const aheadSorted = data.trains.filter(t => !t.approaching).slice().sort((a, b) => a.pos - b.pos);
+
+  const render = (cl, approaching) => {
+    const n = cl.items.length;
+    const lead = cl.items[0];
+    const live = cl.items.some(t => t.live);
+    const cls = 'ls-train ' + (approaching ? 'ls-appr' : 'ls-ahead')
+      + (live ? ' ls-live' : '') + (n > 1 ? ' ls-cluster' : '');
+    const body = approaching
+      ? '<b>' + (lead.mins != null && lead.mins <= 0 ? 'nå' : lead.mins) + '</b>'
+        + (n > 1 ? '<i>+' + (n - 1) + '</i>' : '')
+      : (n > 1 ? '<b>' + n + '</b>' : '');
+    const title = n > 1
+      ? n + ' tog' + (approaching && lead.mins != null ? ', neste om ' + lead.mins + ' min' : '')
+      : esc(lead.label);
+    return '<span class="' + cls + '" style="left:' + pct(cl.pos).toFixed(2) + '%"'
+      + ' title="' + esc(title) + '">' + body + '</span>';
+  };
+
+  const trains =
+    _clusterTrains(apprSorted, minSep).map(cl => render(cl, true)).join('')
+    + _clusterTrains(aheadSorted, minSep).map(cl => render(cl, false)).join('');
 
   // Name the two halves, each caption centred over its own zone. A zone with
   // no trains gets no caption: with the in-flight request failing, the right

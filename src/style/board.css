@@ -441,3 +441,18 @@
   font-size:9px;font-weight:700;
   display:flex;align-items:center;justify-content:center;
 }
+
+/* Clusters are controls: they jump to a row, or open up in place. */
+.ls-train[role="button"]{cursor:pointer}
+.ls-train:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Brief mark on the row a cluster sent you to, so the jump is visible even
+   when the row was already on screen. */
+@keyframes dep-flash{
+  0%,100%{ background:transparent }
+  25%,60%{ background:rgba(var(--accent-rgb),.16) }
+}
+.dep-row.dep-flash{animation:dep-flash 1.6s ease-in-out}
+@media (prefers-reduced-motion:reduce){
+  .dep-row.dep-flash{animation:none;background:rgba(var(--accent-rgb),.16)}
+}

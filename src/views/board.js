@@ -906,6 +906,45 @@ function _rowMins(c, fallbackIso, now) {
   return Math.floor(Math.max(0, diffSec) / 60);
 }
 
+// Which cluster ahead of you is currently opened up. Held across renders,
+// because the strip redraws every second and a tap must survive that.
+let _expandedAhead = null;
+let _stripBound = false;
+
+/**
+ * Clusters are controls, not decoration.
+ *
+ * Coming towards you, a cluster's trains all have rows below with platform,
+ * arrival and occupancy — so tapping jumps to the first of them rather than
+ * repeating a worse copy in a bubble. Ahead of you those trains appear
+ * nowhere else, so tapping opens the cluster in place.
+ */
+function _bindStrip(el) {
+  if (_stripBound) return;
+  _stripBound = true;
+  const act = (target) => {
+    const g = target.closest && target.closest('.ls-train');
+    if (!g || !g.dataset.jid) return;
+    if (g.dataset.role === 'ahead') {
+      _expandedAhead = _expandedAhead === g.dataset.jid ? null : g.dataset.jid;
+      renderBoard();
+      return;
+    }
+    const row = document.querySelector('#dep-list .dep-row[data-jid="' + (window.CSS && CSS.escape
+      ? CSS.escape(g.dataset.jid) : g.dataset.jid) + '"]');
+    if (!row) return;
+    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    row.classList.remove('dep-flash');
+    void row.offsetWidth;                       // restart the animation
+    row.classList.add('dep-flash');
+    setTimeout(() => row.classList.remove('dep-flash'), 1600);
+  };
+  el.addEventListener('click', e => act(e.target));
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(e.target); }
+  });
+}
+
 let _inflight = [];
 let _atStop = new Map();
 let _inflightAt = 0;
@@ -1000,8 +1039,12 @@ export function _buildStrip(candidates, inflight, dir, selectedLine, now, livePo
     const rel = p - idx.from;
     if (rel < 0) return;                          // hasn't reached us; not context
     if (rel > end + 0.2) return;                  // already past your destination
+    // Where it is, not where it is going: every train on this stretch shares a
+    // destination, so the frontText tells these ones apart from nothing.
+    const away = _stopsAway(calls, now);
     out.trains.push({ id: jid || 'b' + out.trains.length, pos: rel, end,
-                      approaching: false, live: !!live, mins: null, label });
+                      approaching: false, live: !!live, mins: null,
+                      label: away ? away.label : label });
   };
 
   candidates.forEach(c => add(c, true));
@@ -1190,15 +1233,27 @@ function renderLineStrip(visibleDeps) {
         + (n > 1 ? '<i>+' + (n - 1) + '</i>' : '')
       : (n > 1 ? '<b>' + n + '</b>' : '');
     const title = n > 1
-      ? n + ' tog' + (approaching && lead.mins != null ? ', neste om ' + lead.mins + ' min' : '')
-      : esc(lead.label);
+      ? (approaching
+        ? n + ' tog, neste om ' + lead.mins + ' min · trykk for å se dem i lista'
+        : n + ' tog · trykk for å se hvert av dem')
+      : (approaching ? esc(lead.label) + ' · trykk for å se raden' : esc(lead.label));
     return '<span class="' + cls + '" style="left:' + pct(cl.pos).toFixed(2) + '%"'
-      + ' title="' + esc(title) + '">' + body + '</span>';
+      + ' role="button" tabindex="0"'
+      + ' data-role="' + (approaching ? 'appr' : 'ahead') + '"'
+      + ' data-jid="' + esc(lead.id) + '"'
+      + ' title="' + esc(title) + '" aria-label="' + esc(title) + '">' + body + '</span>';
   };
+
+  // A cluster ahead that the user has opened is drawn as its members, so the
+  // trains it stood for become visible individually. They live nowhere else.
+  const aheadGroups = _clusterTrains(aheadSorted, sepAhead)
+    .flatMap(cl => (cl.items.length > 1 && cl.items[0].id === _expandedAhead)
+      ? cl.items.map(t => ({ pos: t.pos, items: [t] }))
+      : [cl]);
 
   const trains =
     _clusterTrains(apprSorted, sepAppr).map(cl => render(cl, true)).join('')
-    + _clusterTrains(aheadSorted, sepAhead).map(cl => render(cl, false)).join('');
+    + aheadGroups.map(cl => render(cl, false)).join('');
 
   // Name the two halves, each caption centred over its own zone. A zone with
   // no trains gets no caption: with the in-flight request failing, the right
@@ -1243,6 +1298,17 @@ function renderLineStrip(visibleDeps) {
     if (cap.scrollWidth > cap.clientWidth + 1) cap.style.visibility = 'hidden';
   });
 
+  // The origin name is centred on the divider and the destination is pinned
+  // right, so a long destination and a divider far along the strip collide —
+  // measured at 2px apart on a real trip. The origin loses, because it is
+  // already the page's headline and the divider is accented anyway.
+  const f = el.querySelector('.ls-end-from'), t2 = el.querySelector('.ls-end-to');
+  if (f && t2) {
+    const a = f.getBoundingClientRect(), b = t2.getBoundingClientRect();
+    if (b.left - a.right < 8) f.style.visibility = 'hidden';
+  }
+
+  _bindStrip(el);
   el.setAttribute('aria-label', _stripSummary(data));
   el.style.display = 'block';
 }
@@ -1632,6 +1698,9 @@ export function renderBoard() {
 
     const isClock = mins >= 60;
     html += '<div class="' + rowCls + '"'
+      // Lets the strip find this row: tapping a cluster jumps to the first
+      // departure inside it.
+      + ' data-jid="' + esc((c.serviceJourney && c.serviceJourney.id) || '') + '"'
       + (isCancelled
         ? ''
         : ' onclick="window.tapDepId(\'' + depId + '\')"'

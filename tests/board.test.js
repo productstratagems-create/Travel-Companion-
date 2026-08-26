@@ -7,7 +7,7 @@ vi.mock('../src/ui/mapIcons.js', () => ({ makeStopIcon: vi.fn(), makeVehicleIcon
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
-import { dedupeDepartures, _headingDeg, _corridorProgress, _legIndices, _buildStrip, _stripSummary, _platformState } from '../src/views/board.js';
+import { dedupeDepartures, _headingDeg, _corridorProgress, _legIndices, _buildStrip, _stripSummary, _platformState, _clusterTrains } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -396,5 +396,48 @@ describe('_platformState — three-valued, because "unknown" is not "no"', () =>
     expect(_platformState({ expectedDepartureTime: '2026-05-24T08:00:00Z' }, null, LL)).toBeNull();
     expect(_platformState({}, near, null)).toBeNull();
     expect(_platformState(null, near, LL)).toBeNull();
+  });
+});
+
+describe('_clusterTrains', () => {
+  const T = (pos, mins) => ({ pos, mins });
+
+  it('leaves well-separated trains alone', () => {
+    const c = _clusterTrains([T(0), T(2), T(4)], 1);
+    expect(c).toHaveLength(3);
+    expect(c.every(x => x.items.length === 1)).toBe(true);
+  });
+
+  it('absorbs anything closer than the separation into the running cluster', () => {
+    const c = _clusterTrains([T(0), T(0.3), T(0.6), T(5)], 1);
+    expect(c).toHaveLength(2);
+    expect(c[0].items).toHaveLength(3);
+    expect(c[1].items).toHaveLength(1);
+  });
+
+  it('anchors on the first member, so the caller picks which end survives', () => {
+    // Soonest-first is how the strip calls it: the countdown kept is the one
+    // still worth acting on.
+    const c = _clusterTrains([T(-1, 2), T(-1.3, 5), T(-1.6, 8)], 1);
+    expect(c).toHaveLength(1);
+    expect(c[0].pos).toBe(-1);
+    expect(c[0].items[0].mins).toBe(2);
+  });
+
+  it('never loses a train', () => {
+    const trains = Array.from({ length: 12 }, (_, i) => T(i * 0.2, i));
+    const c = _clusterTrains(trains, 1);
+    expect(c.reduce((n, x) => n + x.items.length, 0)).toBe(12);
+  });
+
+  it('measures distance both ways, so order of sign does not matter', () => {
+    expect(_clusterTrains([T(2), T(1.5)], 1)).toHaveLength(1);
+    expect(_clusterTrains([T(1.5), T(2)], 1)).toHaveLength(1);
+  });
+
+  it('does nothing with a separation of zero, and copes with an empty list', () => {
+    expect(_clusterTrains([T(0), T(0.1)], 0)).toHaveLength(2);
+    expect(_clusterTrains([], 1)).toEqual([]);
+    expect(_clusterTrains(null, 1)).toEqual([]);
   });
 });

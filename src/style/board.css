@@ -423,3 +423,21 @@
   font-weight:700;
   letter-spacing:.1em;
 }
+
+/* A cluster stands in for several trains too close together to draw apart.
+   It keeps the soonest countdown — the one still worth acting on — and says
+   how many are behind it. */
+.ls-cluster{padding:0 .28rem}
+.ls-cluster i{
+  font-style:normal;font-size:8px;font-weight:700;
+  margin-left:.12rem;opacity:.75;
+}
+.ls-ahead.ls-cluster{
+  width:auto;min-width:15px;height:15px;top:3px;margin-left:-7.5px;
+  border-radius:8px;
+  background:var(--accent);
+  color:var(--bg);
+  font-family:"JetBrains Mono",ui-monospace,monospace;
+  font-size:9px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+}

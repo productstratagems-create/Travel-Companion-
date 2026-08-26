@@ -1614,7 +1614,29 @@ export function renderBoard() {
       + '<div class="dep-spor' + (isRail ? ' dep-spor-rail' : '') + '"><div class="sl">spor</div><div class="sn">' + quay + '</div></div>'
       + '</div>';
   });
+  // The list is its own scroller now, and this rebuild happens every second.
+  // Page scroll survived that because it belongs to the document; an
+  // element's own scrollTop does not, so without this the list would jump to
+  // the top once a second and be impossible to scroll.
+  const keep = list.scrollTop;
   list.innerHTML = html;
+  list.scrollTop = keep;
+  _fitDepList(list);
+}
+
+/**
+ * Cap the list to whatever is left of the viewport below it.
+ *
+ * Not a calc() with a fixed offset: what sits above varies — the alert banner
+ * comes and goes, the map expands to 72vh, the strip hides when it has nothing
+ * to show. Measuring the list's own top covers all of it.
+ */
+function _fitDepList(list) {
+  const top = list.getBoundingClientRect().top;
+  const bottom = parseFloat(getComputedStyle(document.body).paddingBottom) || 16;
+  // A floor, so an expanded map cannot squeeze the list to nothing. If what is
+  // above genuinely fills the screen the page scrolls again, which is right.
+  list.style.maxHeight = Math.max(160, window.innerHeight - top - bottom) + 'px';
 }
 
 /**
@@ -1639,7 +1661,18 @@ function _atPlatform(c) {
 // refetched and stale rows would just flicker.
 let _hydrated = false;
 
+let _fitBound = false;
+function _bindFit() {
+  if (_fitBound) return;
+  _fitBound = true;
+  window.addEventListener('resize', () => {
+    const l = document.getElementById('dep-list');
+    if (l && state.view === 'board') _fitDepList(l);
+  });
+}
+
 export function startBoard() {
+  _bindFit();
   state.deps = [];
   if (!_hydrated) {
     _hydrated = true;

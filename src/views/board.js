@@ -838,6 +838,12 @@ const _STRIP_LOOKBACK = 4;
 // would touch, so they collapse into one.
 const _STRIP_GLYPH_PX = 46;
 
+// Where your stop sits across the rail, and where a departed train settles in
+// the room kept to its right.
+const _STRIP_ORIGIN = 0.86;
+const _STRIP_INSET = 0.045;   // so the furthest glyph does not poke off the left
+const _STRIP_GONE_AT = 0.5;
+
 // The countdown a train shows on the strip must be the one its row shows in
 // the list, or the two pictures disagree and the strip is worse than nothing.
 // Same source and same rounding as the row render below.
@@ -852,6 +858,8 @@ function _rowMins(c, fallbackIso, now) {
 // renders, because the strip redraws every second and a tap must survive that.
 let _expandedCluster = null;
 let _stripTouched = false;
+// Journeys whose departure slide has already played.
+const _departedSeen = new Set();
 let _flashJid = null;
 let _flashUntil = 0;
 let _stripBound = false;
@@ -956,9 +964,11 @@ export function _buildStrip(candidates, dir, selectedLine, now, livePos) {
     const mins = _rowMins(c, Array.isArray(calls) && calls.length ? _callTime(calls[0], false) : null, now);
     if (mins == null) return;
 
+    const iso = c.expectedDepartureTime || c.aimedDepartureTime;
     out.trains.push({
       id: jid || 'a' + out.trains.length,
       mins,
+      departed: !!iso && new Date(iso).getTime() - now <= 0,
       live: !!livePosition(livePos, jid, now),
       label: (c.destinationDisplay && c.destinationDisplay.frontText) || '',
     });
@@ -966,7 +976,10 @@ export function _buildStrip(candidates, dir, selectedLine, now, livePos) {
 
   // One axis, running from the furthest departure at -1 to your stop at 0.
   const maxMins = Math.max(1, ...out.trains.map(t => t.mins));
-  out.trains.forEach(t => { t.pos = -(t.mins / maxMins); });
+  // Past its time, a train sits beyond your stop rather than crushed against
+  // it. Before this, a "nå" glyph landed at the very edge of the rail and hung
+  // 8px over it.
+  out.trains.forEach(t => { t.pos = t.departed ? _STRIP_GONE_AT : -(t.mins / maxMins); });
   out.trains.sort((a, b) => a.pos - b.pos);
   return out;
 }
@@ -1124,8 +1137,13 @@ function renderLineStrip(visibleDeps) {
   el.style.display = 'block';
   const width = el.clientWidth || 360;
 
-  // One axis now: -1 is the furthest departure, 0 is your stop at the right.
-  const pct = (p) => (1 + p) * 100;
+  // One axis: -1 is the furthest departure, 0 is your stop. Your stop sits at
+  // 86% rather than the right edge, leaving room to its right for a train
+  // whose time has come — and an inset on the left so the furthest glyph is
+  // not half off the rail either.
+  const pct = (p) => 100 * (p <= 0
+    ? _STRIP_INSET + (1 + p) * (_STRIP_ORIGIN - _STRIP_INSET)
+    : _STRIP_ORIGIN + p * (1 - _STRIP_ORIGIN - _STRIP_INSET));
   const sep = _STRIP_GLYPH_PX / width;
 
   const sorted = data.trains.slice().sort((a, b) => a.mins - b.mins);
@@ -1141,18 +1159,28 @@ function renderLineStrip(visibleDeps) {
     clusters.flatMap(cl => (cl.items.length > 1 && cl.items[0].id === openId)
       ? _spreadCluster(cl.items, sep).map(t => ({ pos: t.pos, items: [t.item], group: openId }))
       : [cl]),
-    sep, -1, 0);
+    sep, -1, _STRIP_GONE_AT);
 
   const trains = groups.map(cl => {
     const n = cl.items.length;
     const lead = cl.items[0];
     // How deep the stack looks: the peripheral cue that more lie behind.
     const depth = n > 2 ? ' ls-stack2' : n > 1 ? ' ls-stack1' : '';
+    // The slide plays once, the first time we draw a train past its time. The
+    // strip is rebuilt every second, so without remembering it the animation
+    // would restart on every tick and never finish.
+    let gone = '';
+    if (lead.departed) {
+      gone = ' ls-gone';
+      if (!_departedSeen.has(lead.id)) { _departedSeen.add(lead.id); gone += ' ls-departing'; }
+    }
     const cls = 'ls-train ls-appr' + (lead.live ? ' ls-live' : '')
-      + (n > 1 ? ' ls-cluster' : '') + depth;
+      + (n > 1 ? ' ls-cluster' : '') + depth + gone;
     const body = '<b>' + (lead.mins <= 0 ? 'nå' : lead.mins) + '</b>'
       + (n > 1 ? '<i>+' + (n - 1) + '</i>' : '');
-    const title = n > 1
+    const title = lead.departed
+      ? 'gikk nettopp'
+      : n > 1
       ? n + ' tog, neste om ' + lead.mins + ' min · trykk for å se dem'
       : cl.group
         ? 'om ' + lead.mins + ' min · trykk for å lukke gruppen'
@@ -1167,11 +1195,11 @@ function renderLineStrip(visibleDeps) {
   el.innerHTML =
     '<div class="ls-caps"><span class="ls-cap ls-cap-wide">neste avganger</span></div>'
     + '<div class="ls-rail">'
-    + '<span class="ls-zone ls-zone-appr" style="width:100%"></span>'
+    + '<span class="ls-zone ls-zone-appr" style="width:' + pct(0).toFixed(2) + '%"></span>'
     + trains
-    + '<span class="ls-you" style="left:100%"></span>'
+    + '<span class="ls-you" style="left:' + pct(0).toFixed(2) + '%"></span>'
     + '</div>'
-    + '<div class="ls-ends"><span class="ls-end-from" style="left:100%">'
+    + '<div class="ls-ends"><span class="ls-end-from" style="left:' + pct(0).toFixed(2) + '%">'
     + esc(data.from || '') + '</span></div>';
 
   el.querySelectorAll('.ls-cap').forEach(cap => {

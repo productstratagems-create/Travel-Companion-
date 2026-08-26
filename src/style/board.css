@@ -513,3 +513,18 @@ html.view-board.map-open #dep-list{
   flex:none;
   overflow-y:visible;
 }
+
+/* A train whose time has come slides out past your stop and settles there,
+   in the room kept to the right of the origin. It plays once — see
+   _departedSeen — and it marks a real event rather than decorating one. */
+@keyframes ls-depart{
+  0%   { transform:translateX(-22px) scale(.9); opacity:.35 }
+  60%  { transform:translateX(3px)   scale(1.06); opacity:1 }
+  100% { transform:translateX(0)     scale(1); opacity:1 }
+}
+.ls-departing{animation:ls-depart .65s cubic-bezier(.34,1.3,.64,1) both}
+/* Gone, so no longer one of the choices. */
+.ls-gone{opacity:.6}
+@media (prefers-reduced-motion:reduce){
+  .ls-departing{animation:none}
+}

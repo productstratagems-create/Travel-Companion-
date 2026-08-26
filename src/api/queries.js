@@ -122,7 +122,7 @@ export function vehiclesGQL(lineRef) {
  * @param {number} backMins how far back to look
  */
 export function inflightGQL(id, backMins, fwdMins) {
-  const back = backMins || 40;
+  const back = backMins == null ? 5 : backMins;
   const fwd = fwdMins == null ? 25 : fwdMins;
   const startTime = new Date(Date.now() - back * 60000).toISOString();
   return '{stopPlace(id:"' + id + '"){'

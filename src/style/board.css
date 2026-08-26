@@ -120,7 +120,6 @@
 .dep-spor .sl{font-size:7px;text-transform:uppercase;letter-spacing:.2em;color:var(--text-soft-hi);margin-bottom:.15rem}
 .dep-spor .sn{font-family:"Bebas Neue",sans-serif;font-size:1.6rem;color:var(--accent);line-height:1;text-shadow:0 0 8px rgba(var(--accent-rgb),.7);background:rgba(30,58,138,.2);border-radius:3px;padding:0 4px}
 
-
 .board-more-btn{
   display:flex;align-items:center;justify-content:center;
   background:none;border:1px solid rgba(var(--border-rgb),.15);border-radius:8px;
@@ -358,7 +357,7 @@
 /* Tint behind each half, so the split reads before the captions are read. */
 .ls-zone{position:absolute;top:4px;height:14px;border-radius:3px}
 .ls-zone-appr{left:0;background:rgba(var(--accent-rgb),.07)}
-.ls-zone-ahead{background:rgba(var(--text-muted-rgb),.07)}
+
 /* Which way the line runs. One arrowhead for the whole rail. */
 .ls-arrow{
   position:absolute;right:0;top:6px;
@@ -367,10 +366,7 @@
   border-bottom:5px solid transparent;
   border-left:7px solid rgba(var(--text-muted-rgb),.6);
 }
-.ls-tick{
-  position:absolute;top:7px;width:2px;height:8px;margin-left:-1px;
-  background:rgba(var(--text-muted-rgb),.55);border-radius:1px;
-}
+
 /* Your stop: a divide between the two halves, not just another tick. */
 .ls-you{
   position:absolute;top:0;width:2px;height:22px;margin-left:-1px;
@@ -392,12 +388,7 @@
   padding:0 .3rem;
 }
 /* A train already ahead of you: context, not a choice. */
-.ls-ahead{
-  width:11px;min-width:11px;height:11px;top:5px;margin-left:-5.5px;
-  border-radius:50%;
-  background:rgba(var(--accent-rgb),.45);
-  border:1.5px solid var(--surface);
-}
+
 .ls-live{box-shadow:0 0 0 2px rgba(var(--accent-rgb),.25)}
 .ls-ends{
   position:relative;height:12px;
@@ -406,8 +397,7 @@
   color:var(--text-muted);margin-top:.2rem;
 }
 .ls-ends span{position:absolute;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46%}
-.ls-end-from{transform:translateX(-50%);color:var(--accent)}
-.ls-end-to{right:0;text-align:right}
+.ls-end-from{transform:translateX(-100%);color:var(--accent);padding-right:.15rem}
 
 /* "står på perrongen" — shown only when the operator reports an actual
    arrival with no actual departure, or a measured position sits at the stop.
@@ -432,15 +422,6 @@
   font-style:normal;font-size:8px;font-weight:700;
   margin-left:.12rem;opacity:.75;
 }
-.ls-ahead.ls-cluster{
-  width:auto;min-width:15px;height:15px;top:3px;margin-left:-7.5px;
-  border-radius:8px;
-  background:var(--accent);
-  color:var(--bg);
-  font-family:"JetBrains Mono",ui-monospace,monospace;
-  font-size:9px;font-weight:700;
-  display:flex;align-items:center;justify-content:center;
-}
 
 /* Clusters are controls: they jump to a row, or open up in place. */
 .ls-train[role="button"]{cursor:pointer}
@@ -456,3 +437,12 @@
 @media (prefers-reduced-motion:reduce){
   .dep-row.dep-flash{animation:none;background:rgba(var(--accent-rgb),.16)}
 }
+
+/* Spider sense: a collapsed cluster carries offset layers behind it, receding
+   leftwards — the direction the hidden departures lie. Peripheral, so you can
+   feel there are more without reading the count. */
+.ls-stack1{box-shadow:-3px 0 0 -1px rgba(var(--accent-rgb),.45)}
+.ls-stack2{box-shadow:-3px 0 0 -1px rgba(var(--accent-rgb),.5),
+                     -6px 0 0 -2px rgba(var(--accent-rgb),.3)}
+/* The one caption left names the whole strip rather than a half. */
+.ls-cap-wide{left:0;width:100%}

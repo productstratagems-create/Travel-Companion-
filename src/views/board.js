@@ -467,67 +467,7 @@ export function _headingDeg(fromLat, fromLon, toLat, toLon) {
   return (deg + 360) % 360;
 }
 
-/**
- * Where a journey sits along its own call list, as a fractional stop index.
- *
- * The strip is a schematic: stops are evenly spaced and position is measured
- * in stops, not metres. One scale for both sources — a timetable estimate and
- * a live position produce the same unit, so the strip never has to care which
- * one it is drawing.
- *
- * @param {Array} calls  the journey's estimatedCalls
- * @param {number} now
- * @returns {number|null} 0 = at the first call, 1.5 = halfway between the
- *   second and third. null when the journey has not started or has finished,
- *   so callers can leave it off the strip rather than pinning it to an end.
- */
-export function _corridorProgress(calls, now) {
-  if (!calls || calls.length < 2) return null;
-  const t = (v) => (v ? new Date(v).getTime() : null);
-  const pts = calls.map(c => ({ arr: t(_callTime(c, true)), dep: t(_callTime(c, false)) }))
-    .filter(c => c.arr && c.dep);
-  if (pts.length < 2) return null;
 
-  if (now < pts[0].dep) return null;                      // not yet away
-  if (now > pts[pts.length - 1].arr) return null;         // run finished
-
-  for (let i = 0; i < pts.length - 1; i++) {
-    // Dwelling at a stop counts as being exactly at it.
-    if (now >= pts[i].arr && now <= pts[i].dep) return i;
-    if (now > pts[i].dep && now < pts[i + 1].arr) {
-      const span = pts[i + 1].arr - pts[i].dep;
-      const frac = span > 0 ? (now - pts[i].dep) / span : 0;
-      return i + Math.min(1, Math.max(0, frac));
-    }
-  }
-  return pts.length - 1;
-}
-
-/**
- * Does this journey run our way, and where are its two ends in its call list?
- *
- * A line runs in both directions, so a journey belongs on the strip only if it
- * calls at the origin *before* the destination. Matching by name mirrors
- * findStopIdx in renderLineRoute — same normalisation, same fallbacks.
- *
- * @returns {{from:number, to:number}|null}
- */
-export function _legIndices(calls, fromName, toName) {
-  if (!calls || !calls.length || !fromName || !toName) return null;
-  const norm = s => String(s || '').toLowerCase().replace(/\s+t$/i, '').trim();
-  const names = calls.map(c => norm((c.quay && c.quay.stopPlace && c.quay.stopPlace.name) || ''));
-  const find = (want) => {
-    const n = norm(want);
-    let i = names.findIndex(s => s === n);
-    if (i === -1) i = names.findIndex(s => s && (s.includes(n) || n.includes(s)));
-    return i;
-  };
-  const from = find(fromName);
-  const to = find(toName);
-  if (from === -1 || to === -1) return null;
-  if (from >= to) return null;                            // opposite direction
-  return { from, to };
-}
 
 export function _stopsAway(calls, now) {
   if (!calls || calls.length < 2) return null;
@@ -909,6 +849,7 @@ function _rowMins(c, fallbackIso, now) {
 // Which cluster is currently opened up, by its lead train. Held across
 // renders, because the strip redraws every second and a tap must survive that.
 let _expandedCluster = null;
+let _stripTouched = false;
 let _flashJid = null;
 let _flashUntil = 0;
 let _stripBound = false;
@@ -933,11 +874,13 @@ function _bindStrip(el) {
     // the one departure that was already visible and left the ones the
     // cluster was hiding exactly as hidden.
     if (g.dataset.count && Number(g.dataset.count) > 1) {
+      _stripTouched = true;
       _expandedCluster = _expandedCluster === g.dataset.jid ? null : g.dataset.jid;
       renderBoard();
       return;
     }
-    if (g.dataset.group && g.dataset.group === _expandedCluster) {
+    if (g.dataset.group) {
+      _stripTouched = true;
       _expandedCluster = null;
       renderBoard();
       return;
@@ -993,104 +936,39 @@ function _refreshInflight(dir) {
  * Everything to draw on the strip, as fractional stop indices on a shared
  * scale where the origin is 0 and the destination is legIndices.to - from.
  */
-export function _buildStrip(candidates, inflight, dir, selectedLine, now, livePos) {
-  const out = { stops: [], trains: [], from: dir && dir.from, to: dir && dir.to };
-  const onLine = (c) => {
-    const ln = c.serviceJourney && c.serviceJourney.line;
-    return ln && ln.publicCode === selectedLine;
-  };
-
-  // The stop list comes from any journey that runs our way — they all share
-  // the same corridor, so the first usable one defines the scale.
-  let span = null;
-  const all = candidates.concat(inflight);
-  for (const c of all) {
-    if (!onLine(c)) continue;
-    const calls = c.serviceJourney && c.serviceJourney.estimatedCalls;
-    const idx = _legIndices(calls, dir.from, dir.to);
-    if (!idx) continue;
-    span = { calls, idx };
-    break;
-  }
-  if (!span) return out;
-
-  out.stops = span.calls.slice(span.idx.from, span.idx.to + 1)
-    .map(c => ((c.quay && c.quay.stopPlace && c.quay.stopPlace.name) || ''));
-
+export function _buildStrip(candidates, dir, selectedLine, now, livePos) {
+  const out = { trains: [], from: dir && dir.from };
   const seen = new Set();
-  const add = (c, approaching) => {
-    if (!onLine(c)) return;
+
+  candidates.forEach(c => {
     const sj = c.serviceJourney;
-    const calls = sj && sj.estimatedCalls;
-    const idx = _legIndices(calls, dir.from, dir.to);
-    if (!idx) return;                             // wrong direction, or not our stretch
+    const ln = sj && sj.line;
+    if (!ln || ln.publicCode !== selectedLine) return;
     const jid = sj.id;
     if (jid && seen.has(jid)) return;
     if (jid) seen.add(jid);
 
-    const end = idx.to - idx.from;
-    const live = livePosition(livePos, jid, now);
-    const label = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
+    // Same source and rounding as the row beneath, or the strip contradicts
+    // the list it sits on top of.
+    const calls = sj.estimatedCalls;
+    const mins = _rowMins(c, Array.isArray(calls) && calls.length ? _callTime(calls[0], false) : null, now);
+    if (mins == null) return;
 
-    if (approaching) {
-      // Behind your stop the axis is time, not stops. Positioning these by
-      // geography squashed several of them onto one point — a 9-minute and a
-      // 16-minute train both pinned at the lookback limit, overlapping and out
-      // of order. Time is also the thing being chosen between here.
-      const mins = _rowMins(c, _callTime(calls[idx.from], false), now);
-      if (mins == null) return;
-      out.trains.push({ id: jid || 'a' + out.trains.length, mins, end,
-                        approaching: true, live: !!live, label });
-      return;
-    }
+    out.trains.push({
+      id: jid || 'a' + out.trains.length,
+      mins,
+      live: !!livePosition(livePos, jid, now),
+      label: (c.destinationDisplay && c.destinationDisplay.frontText) || '',
+    });
+  });
 
-    // Ahead of your stop the axis is stops, because that is what "how far in
-    // front of me is it" means.
-    let p = _corridorProgress(calls, now);
-    if (live && Array.isArray(calls)) {
-      const snapped = _snapToCalls(calls, live.lat, live.lon);
-      if (snapped != null) p = snapped;
-    }
-    if (p == null) return;
-    const rel = p - idx.from;
-    if (rel < 0) return;                          // hasn't reached us; not context
-    if (rel > end + 0.2) return;                  // already past your destination
-    // Where it is, not where it is going: every train on this stretch shares a
-    // destination, so the frontText tells these ones apart from nothing.
-    const away = _stopsAway(calls, now);
-    out.trains.push({ id: jid || 'b' + out.trains.length, pos: rel, end,
-                      approaching: false, live: !!live, mins: null,
-                      label: away ? away.label : label });
-  };
-
-  candidates.forEach(c => add(c, true));
-  inflight.forEach(c => add(c, false));
-
-  // Spread the approaching trains across the lookback by their countdown, so
-  // their order on the strip is the order of the list.
-  const appr = out.trains.filter(t => t.approaching);
-  const maxMins = Math.max(1, ...appr.map(t => t.mins));
-  // Linear in time. A square-root axis was tried, to give near departures more
-  // room at rush hour — measured, it produced one glyph fewer there and
-  // over-clustered a sparse timetable into disagreeing with the list. The
-  // clustering below handles density on its own.
-  appr.forEach(t => { t.pos = -_STRIP_LOOKBACK * (t.mins / maxMins); });
-
+  // One axis, running from the furthest departure at -1 to your stop at 0.
+  const maxMins = Math.max(1, ...out.trains.map(t => t.mins));
+  out.trains.forEach(t => { t.pos = -(t.mins / maxMins); });
   out.trains.sort((a, b) => a.pos - b.pos);
   return out;
 }
 
-/** Nearest point on the call sequence to a live coordinate, as a fraction. */
-function _snapToCalls(calls, lat, lon) {
-  let best = null, bestD = Infinity;
-  for (let i = 0; i < calls.length; i++) {
-    const ll = quayLatLon(calls[i].quay);
-    if (!ll) continue;
-    const d = haver(lat, lon, ll.lat, ll.lon);
-    if (d < bestD) { bestD = d; best = i; }
-  }
-  return best;
-}
 
 /**
  * What the strip says, in words.
@@ -1176,9 +1054,14 @@ export function _spreadCluster(items, minSep) {
   const n = items.length;
   if (!n) return [];
   if (n === 1) return [{ pos: items[0].pos, item: items[0] }];
-  const mid = items.reduce((a, t) => a + t.pos, 0) / n;
+  // Laid out in axis order, not the order the caller happened to pass. The
+  // clustering above is anchored soonest-first on purpose; spreading with that
+  // same order put the soonest departure to the LEFT of a later one, which is
+  // backwards on an axis where time decreases towards your stop.
+  const byPos = items.slice().sort((a, b) => a.pos - b.pos);
+  const mid = byPos.reduce((a, t) => a + t.pos, 0) / n;
   const start = mid - (minSep * (n - 1)) / 2;
-  return items.map((item, i) => ({ pos: start + i * minSep, item }));
+  return byPos.map((item, i) => ({ pos: start + i * minSep, item }));
 }
 
 /**
@@ -1207,13 +1090,6 @@ export function _relaxPositions(groups, minSep, min, max) {
   return s;
 }
 
-export function _stripShare(nAppr, nAhead, nStops) {
-  if (!nAppr) return _STRIP_MIN_SHARE;
-  const needAppr = nAppr * _STRIP_GLYPH_PX;
-  const needAhead = Math.max(nAhead * _STRIP_GLYPH_PX, (nStops || 1) * _STRIP_TICK_PX);
-  const raw = needAppr / (needAppr + needAhead);
-  return Math.min(_STRIP_MAX_SHARE, Math.max(_STRIP_MIN_SHARE, raw));
-}
 
 export function _clusterTrains(trains, minSep) {
   const out = [];
@@ -1226,14 +1102,11 @@ export function _clusterTrains(trains, minSep) {
 }
 
 export function _stripSummary(data) {
-  if (!data || !data.trains || !data.trains.length) return 'Ingen tog på strekningen nå';
-  const appr = data.trains.filter(t => t.approaching).length;
-  const ahead = data.trains.length - appr;
+  if (!data || !data.trains || !data.trains.length) return 'Ingen avganger på linja nå';
   // 'tog' is invariant in Norwegian — no plural branch to get wrong.
-  const parts = [];
-  if (appr) parts.push(appr + ' tog på vei til ' + (data.from || 'stoppet ditt'));
-  if (ahead) parts.push(ahead + ' tog foran deg mot ' + (data.to || 'destinasjonen'));
-  return parts.join(', ');
+  const soonest = Math.min(...data.trains.map(t => t.mins));
+  return data.trains.length + ' tog på vei til ' + (data.from || 'stoppet ditt')
+    + ', neste om ' + soonest + ' min';
 }
 
 function renderLineStrip(visibleDeps) {
@@ -1243,148 +1116,70 @@ function renderLineStrip(visibleDeps) {
   if (!_selectedLine || !dir) { el.style.display = 'none'; return; }
   _refreshInflight(dir);
 
-  const data = _buildStrip(visibleDeps.map(d => d.c), _inflight, dir, _selectedLine,
-    Date.now(), _livePos);
-  if (!data.stops.length || !data.trains.length) { el.style.display = 'none'; return; }
+  const data = _buildStrip(visibleDeps.map(d => d.c), dir, _selectedLine, Date.now(), _livePos);
+  if (!data.trains.length) { el.style.display = 'none'; return; }
 
   // Displayed before measuring: a hidden element has no width, and the
   // clustering threshold is derived from it.
   el.style.display = 'block';
-
-  const end = Math.max(1, data.stops.length - 1);
-  const lo = Math.min(0, ...data.trains.map(t => t.pos)) || -1;
-
-  // Two scales, not one. A single linear scale across [lo, end] handed out
-  // width by stop count, so a long stretch starved the half where all the
-  // choices are. Each half is now given the width its own contents need, and
-  // maps its own range onto that.
-  const nAppr = data.trains.filter(t => t.approaching).length;
-  const share = _stripShare(nAppr, data.trains.length - nAppr, data.stops.length);
-  const pct = (p) => (p <= 0
-    ? share * (1 - p / lo)
-    : share + (p / end) * (1 - share)) * 100;
-
-  const ticks = data.stops.map((name, i) =>
-    '<span class="ls-tick" style="left:' + pct(i).toFixed(2) + '%"></span>').join('');
-
-  // Clustering happens here rather than in _buildStrip because it depends on
-  // how many pixels a glyph actually occupies, which only the rendered strip
-  // knows. Width is read after display:block above.
   const width = el.clientWidth || 360;
-  // Pixels per unit now differs between the halves, so each gets its own
-  // collapse threshold. One shared threshold would over-cluster whichever
-  // half happens to be narrower.
-  const sepAppr = _STRIP_GLYPH_PX / ((share * width) / -lo);
-  const sepAhead = _STRIP_GLYPH_PX / (((1 - share) * width) / end);
 
-  // Approaching: cluster from the soonest outwards, so the countdown that
-  // survives is the one you can still act on.
-  const apprSorted = data.trains.filter(t => t.approaching)
-    .slice().sort((a, b) => (a.mins == null ? 1e9 : a.mins) - (b.mins == null ? 1e9 : b.mins));
-  const aheadSorted = data.trains.filter(t => !t.approaching).slice().sort((a, b) => a.pos - b.pos);
+  // One axis now: -1 is the furthest departure, 0 is your stop at the right.
+  const pct = (p) => (1 + p) * 100;
+  const sep = _STRIP_GLYPH_PX / width;
 
-  const render = (cl, approaching) => {
+  const sorted = data.trains.slice().sort((a, b) => a.mins - b.mins);
+  const clusters = _clusterTrains(sorted, sep);
+
+  // The soonest group is open unless the reader has chosen otherwise. Its lead
+  // changes as departures go, so this is recomputed rather than latched.
+  const openId = _stripTouched
+    ? _expandedCluster
+    : (clusters.find(cl => cl.items.length > 1) || {}).items?.[0]?.id || null;
+
+  const groups = _relaxPositions(
+    clusters.flatMap(cl => (cl.items.length > 1 && cl.items[0].id === openId)
+      ? _spreadCluster(cl.items, sep).map(t => ({ pos: t.pos, items: [t.item], group: openId }))
+      : [cl]),
+    sep, -1, 0);
+
+  const trains = groups.map(cl => {
     const n = cl.items.length;
     const lead = cl.items[0];
-    const live = cl.items.some(t => t.live);
-    const cls = 'ls-train ' + (approaching ? 'ls-appr' : 'ls-ahead')
-      + (live ? ' ls-live' : '') + (n > 1 ? ' ls-cluster' : '');
-    const body = approaching
-      ? '<b>' + (lead.mins != null && lead.mins <= 0 ? 'nå' : lead.mins) + '</b>'
-        + (n > 1 ? '<i>+' + (n - 1) + '</i>' : '')
-      : (n > 1 ? '<b>' + n + '</b>' : '');
+    // How deep the stack looks: the peripheral cue that more lie behind.
+    const depth = n > 2 ? ' ls-stack2' : n > 1 ? ' ls-stack1' : '';
+    const cls = 'ls-train ls-appr' + (lead.live ? ' ls-live' : '')
+      + (n > 1 ? ' ls-cluster' : '') + depth;
+    const body = '<b>' + (lead.mins <= 0 ? 'nå' : lead.mins) + '</b>'
+      + (n > 1 ? '<i>+' + (n - 1) + '</i>' : '');
     const title = n > 1
-      ? (approaching
-        ? n + ' tog, neste om ' + lead.mins + ' min · trykk for å se dem i lista'
-        : n + ' tog · trykk for å se hvert av dem')
+      ? n + ' tog, neste om ' + lead.mins + ' min · trykk for å se dem'
       : cl.group
-        ? (approaching && lead.mins != null ? 'om ' + lead.mins + ' min' : esc(lead.label))
-          + ' · trykk for å lukke gruppen'
-        : (approaching ? esc(lead.label) + ' · trykk for å se raden' : esc(lead.label));
+        ? 'om ' + lead.mins + ' min · trykk for å lukke gruppen'
+        : esc(lead.label) + ' · trykk for å se raden';
     return '<span class="' + cls + '" style="left:' + pct(cl.pos).toFixed(2) + '%"'
-      + ' role="button" tabindex="0"'
-      + ' data-role="' + (approaching ? 'appr' : 'ahead') + '"'
-      + ' data-count="' + n + '"'
-      // Members of an opened cluster remember which one they came from, so a
-      // tap can close it again. Without this the opened state was a dead end:
-      // every member is a single train, so every tap fell through to the
-      // jump-to-row branch and nothing could shut it.
+      + ' role="button" tabindex="0" data-count="' + n + '"'
       + (cl.group ? ' data-group="' + esc(cl.group) + '"' : '')
       + ' data-jid="' + esc(lead.id) + '"'
       + ' title="' + esc(title) + '" aria-label="' + esc(title) + '">' + body + '</span>';
-  };
-
-  // An opened cluster is drawn as its members. They sit within one glyph of
-  // each other by definition, so they are spread apart around where the
-  // cluster stood — otherwise opening it just stacks them.
-  const open = (groups, sep) => groups.flatMap(cl =>
-    (cl.items.length > 1 && cl.items[0].id === _expandedCluster)
-      ? _spreadCluster(cl.items, sep).map(t => ({ pos: t.pos, items: [t.item],
-                                                  group: _expandedCluster }))
-      : [cl]);
-
-  const trains =
-    _relaxPositions(open(_clusterTrains(apprSorted, sepAppr), sepAppr), sepAppr, lo, 0)
-      .map(cl => render(cl, true)).join('')
-    + _relaxPositions(open(_clusterTrains(aheadSorted, sepAhead), sepAhead), sepAhead, 0, end)
-      .map(cl => render(cl, false)).join('');
-
-  // Name the two halves, each caption centred over its own zone. A zone with
-  // no trains gets no caption: with the in-flight request failing, the right
-  // half is empty, and a label over an empty stretch is worse than silence.
-  const originPct = pct(0);
-  const nAhead = data.trains.length - nAppr;
-  const caption = (text, left, width) =>
-    width < 14 ? ''
-      : '<span class="ls-cap" style="left:' + left.toFixed(2) + '%;width:' + width.toFixed(2) + '%">'
-        + text + '</span>';
-
-  const caps =
-    (nAppr && originPct > 0 ? caption('på vei til deg', 0, originPct) : '')
-    + (nAhead && originPct < 100 ? caption('foran deg', originPct, 100 - originPct) : '');
+  }).join('');
 
   el.innerHTML =
-    (caps ? '<div class="ls-caps">' + caps + '</div>' : '')
+    '<div class="ls-caps"><span class="ls-cap ls-cap-wide">neste avganger</span></div>'
     + '<div class="ls-rail">'
-    // Tint behind each half, so the split reads before the captions do.
-    + '<span class="ls-zone ls-zone-appr" style="width:' + originPct.toFixed(2) + '%"></span>'
-    + '<span class="ls-zone ls-zone-ahead" style="left:' + originPct.toFixed(2) + '%;'
-    + 'width:' + (100 - originPct).toFixed(2) + '%"></span>'
-    + '<span class="ls-you" style="left:' + originPct.toFixed(2) + '%"></span>'
-    + ticks + trains
-    // One arrowhead at the destination end settles which way the whole rail
-    // runs. Drawn, not a text glyph: a character outside the bundled font
-    // subset falls back silently, which is how the menu dots went wrong.
-    + '<span class="ls-arrow" aria-hidden="true"></span>'
+    + '<span class="ls-zone ls-zone-appr" style="width:100%"></span>'
+    + trains
+    + '<span class="ls-you" style="left:100%"></span>'
     + '</div>'
-    // The origin label sits under its own marker, not at the left edge — the
-    // space to its left belongs to the trains still on their way to you, and
-    // a name parked out there reads as if the stop were somewhere it isn't.
-    + '<div class="ls-ends">'
-    + '<span class="ls-end-from" style="left:' + pct(0).toFixed(2) + '%">'
-    + esc(data.from || '') + '</span>'
-    + '<span class="ls-end-to">' + esc(data.to || '') + '</span>'
-    + '</div>';
-  // A caption is only worth showing if it fits. The reported strip rendered
-  // "PÅ VEI TIL D…", which names nothing and costs a row. Wider zones fix the
-  // reported case; this catches any other configuration where it recurs.
+    + '<div class="ls-ends"><span class="ls-end-from" style="left:100%">'
+    + esc(data.from || '') + '</span></div>';
+
   el.querySelectorAll('.ls-cap').forEach(cap => {
     if (cap.scrollWidth > cap.clientWidth + 1) cap.style.visibility = 'hidden';
   });
 
-  // The origin name is centred on the divider and the destination is pinned
-  // right, so a long destination and a divider far along the strip collide —
-  // measured at 2px apart on a real trip. The origin loses, because it is
-  // already the page's headline and the divider is accented anyway.
-  const f = el.querySelector('.ls-end-from'), t2 = el.querySelector('.ls-end-to');
-  if (f && t2) {
-    const a = f.getBoundingClientRect(), b = t2.getBoundingClientRect();
-    if (b.left - a.right < 8) f.style.visibility = 'hidden';
-  }
-
   _bindStrip(el);
   el.setAttribute('aria-label', _stripSummary(data));
-  el.style.display = 'block';
 }
 
 function renderVehicleMarkers(visibleDeps) {

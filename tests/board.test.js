@@ -7,7 +7,8 @@ vi.mock('../src/ui/mapIcons.js', () => ({ makeStopIcon: vi.fn(), makeVehicleIcon
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
-import { dedupeDepartures, _headingDeg, _corridorProgress, _legIndices, _buildStrip, _stripSummary, _platformState, _clusterTrains, _stripShare, _STRIP_MIN_SHARE, _STRIP_MAX_SHARE, _spreadCluster, _relaxPositions } from '../src/views/board.js';
+import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
+  _platformState, _clusterTrains, _spreadCluster, _relaxPositions } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -170,197 +171,6 @@ const BASE = Date.UTC(2026, 4, 24, 8, 0, 0);
 const RUN = ['Vestli', 'Grorud', 'Økern', 'Tøyen', 'Jernbanetorget'].map((n, i) => stopCall(n, i * 2));
 const at = (mins) => BASE + mins * 60000;
 
-describe('_corridorProgress', () => {
-  it('is null before the run starts and after it ends', () => {
-    expect(_corridorProgress(RUN, at(-1))).toBeNull();
-    expect(_corridorProgress(RUN, at(9))).toBeNull();
-  });
-
-  it('reads whole numbers at stops', () => {
-    expect(_corridorProgress(RUN, at(0))).toBe(0);
-    expect(_corridorProgress(RUN, at(4))).toBe(2);
-    expect(_corridorProgress(RUN, at(8))).toBe(4);
-  });
-
-  it('interpolates between stops', () => {
-    expect(_corridorProgress(RUN, at(1))).toBeCloseTo(0.5, 5);
-    expect(_corridorProgress(RUN, at(5))).toBeCloseTo(2.5, 5);
-    expect(_corridorProgress(RUN, at(2.5))).toBeCloseTo(1.25, 5);
-  });
-
-  it('rises monotonically across the whole run', () => {
-    let prev = -1;
-    for (let m = 0; m <= 8; m += 0.25) {
-      const p = _corridorProgress(RUN, at(m));
-      expect(p).not.toBeNull();
-      expect(p).toBeGreaterThanOrEqual(prev);
-      prev = p;
-    }
-  });
-
-  it('returns null rather than guessing when there is nothing to interpolate', () => {
-    expect(_corridorProgress(null, at(1))).toBeNull();
-    expect(_corridorProgress([RUN[0]], at(1))).toBeNull();
-    expect(_corridorProgress([{ quay: { stopPlace: { name: 'X' } } }, { quay: {} }], at(1))).toBeNull();
-  });
-});
-
-describe('_legIndices — direction is what keeps foreign trains off the strip', () => {
-  it('finds both ends when the journey runs our way', () => {
-    expect(_legIndices(RUN, 'Grorud', 'Tøyen')).toEqual({ from: 1, to: 3 });
-  });
-
-  it('rejects a journey running the other way rather than mirroring it', () => {
-    expect(_legIndices(RUN, 'Tøyen', 'Grorud')).toBeNull();
-  });
-
-  it('rejects a journey that does not serve both ends', () => {
-    expect(_legIndices(RUN, 'Grorud', 'Majorstuen')).toBeNull();
-    expect(_legIndices(RUN, 'Majorstuen', 'Tøyen')).toBeNull();
-  });
-
-  it('rejects origin and destination being the same stop', () => {
-    expect(_legIndices(RUN, 'Grorud', 'Grorud')).toBeNull();
-  });
-
-  it('matches loosely enough for the "T" suffix and case Entur returns', () => {
-    expect(_legIndices(RUN, 'grorud', 'JERNBANETORGET')).toEqual({ from: 1, to: 4 });
-    expect(_legIndices(RUN, 'Grorud T', 'Tøyen')).toEqual({ from: 1, to: 3 });
-  });
-
-  it('is null with missing arguments', () => {
-    expect(_legIndices(RUN, null, 'Tøyen')).toBeNull();
-    expect(_legIndices(null, 'Grorud', 'Tøyen')).toBeNull();
-  });
-});
-
-describe('_buildStrip', () => {
-  const LINE = { id: 'RUT:Line:5', publicCode: '5', presentation: { colour: 'f5a000' } };
-  const DIR = { from: 'Grorud', to: 'Jernbanetorget' };
-  // RUN: Vestli(0) Grorud(2) Økern(4) Tøyen(6) Jernbanetorget(8), in minutes.
-  const dep = (offsetMin, id, frontText) => {
-    const calls = RUN.map(c => {
-      const t = new Date(new Date(c.aimedArrivalTime).getTime() + offsetMin * 60000).toISOString();
-      return { ...c, aimedArrivalTime: t, expectedArrivalTime: t,
-               aimedDepartureTime: t, expectedDepartureTime: t };
-    });
-    return {
-      expectedDepartureTime: calls[1].expectedDepartureTime,   // leaves Grorud
-      destinationDisplay: { frontText: frontText || 'Jernbanetorget' },
-      serviceJourney: { id, line: LINE, estimatedCalls: calls },
-    };
-  };
-  // now = 08:10. A run offset by +N has its Grorud departure at 08:02+N.
-  const NOW = at(10);
-
-  it('places the origin at 0 and lists stops from origin to destination', () => {
-    const s = _buildStrip([dep(10, 'a')], [], DIR, '5', NOW, new Map());
-    expect(s.stops).toEqual(['Grorud', 'Økern', 'Tøyen', 'Jernbanetorget']);
-    expect(s.from).toBe('Grorud');
-    expect(s.to).toBe('Jernbanetorget');
-  });
-
-  it('gives approaching trains the same countdown the list row shows', () => {
-    // Grorud departure at 08:02+10 = 08:12, i.e. 2 minutes after NOW.
-    const s = _buildStrip([dep(10, 'a')], [], DIR, '5', NOW, new Map());
-    const t = s.trains.find(x => x.approaching);
-    expect(t.mins).toBe(2);
-  });
-
-  it('truncates like the list does, not rounds', () => {
-    // 2 min 40 s away. The list floors this to 2; rounding would print 3 and
-    // the strip would contradict the row sitting directly beneath it.
-    const d = dep(10, 'a');
-    const shifted = new Date(new Date(d.expectedDepartureTime).getTime() + 40000).toISOString();
-    d.expectedDepartureTime = shifted;
-    const s = _buildStrip([d], [], DIR, '5', NOW, new Map());
-    expect(s.trains.find(t => t.approaching).mins).toBe(2);
-  });
-
-  it('orders approaching trains by countdown, furthest back first', () => {
-    const s = _buildStrip([dep(10, 'a'), dep(24, 'b'), dep(17, 'c')], [], DIR, '5', NOW, new Map());
-    const appr = s.trains.filter(t => t.approaching);
-    expect(appr.map(t => t.mins)).toEqual([16, 9, 2]);
-    // Strictly increasing position, so none can stack on top of another.
-    for (let i = 1; i < appr.length; i++) expect(appr[i].pos).toBeGreaterThan(appr[i - 1].pos);
-  });
-
-  it('puts a train that already left ahead of you, with no countdown', () => {
-    // Offset +4 puts its Grorud departure at 08:06 and its arrival at 08:12,
-    // so at 08:10 it is on the stretch, four minutes in front.
-    const s = _buildStrip([], [dep(4, 'past')], DIR, '5', NOW, new Map());
-    const t = s.trains[0];
-    expect(t.approaching).toBe(false);
-    expect(t.mins).toBeNull();
-    expect(t.pos).toBeGreaterThan(0);
-  });
-
-  it('drops a train running the opposite direction', () => {
-    const backwards = dep(4, 'wrong');
-    backwards.serviceJourney.estimatedCalls = backwards.serviceJourney.estimatedCalls.slice().reverse();
-    expect(_buildStrip([], [backwards], DIR, '5', NOW, new Map()).trains).toHaveLength(0);
-  });
-
-  it('drops a train already past your destination, though still running', () => {
-    // Alighting at Økern (08:08) while the train is at Tøyen (08:10): gone.
-    const shortHop = { from: 'Grorud', to: 'Økern' };
-    expect(_buildStrip([], [dep(4, 'gone')], shortHop, '5', NOW, new Map()).trains).toHaveLength(0);
-  });
-
-  it('ignores other lines', () => {
-    const other = dep(10, 'x');
-    other.serviceJourney.line = { id: 'RUT:Line:2', publicCode: '2' };
-    expect(_buildStrip([other], [], DIR, '5', NOW, new Map()).trains).toHaveLength(0);
-  });
-
-  it('never lists the same journey twice', () => {
-    const d = dep(10, 'same');
-    expect(_buildStrip([d, d], [d], DIR, '5', NOW, new Map()).trains).toHaveLength(1);
-  });
-
-  it('still works with no in-flight data at all', () => {
-    const s = _buildStrip([dep(10, 'a')], [], DIR, '5', NOW, new Map());
-    expect(s.trains).toHaveLength(1);
-    expect(s.stops.length).toBeGreaterThan(1);
-  });
-
-  it('returns nothing usable when no journey serves both ends', () => {
-    const s = _buildStrip([dep(10, 'a')], [], { from: 'Majorstuen', to: 'Ryen' }, '5', NOW, new Map());
-    expect(s.stops).toEqual([]);
-    expect(s.trains).toEqual([]);
-  });
-});
-
-describe('_stripSummary', () => {
-  const t = (approaching) => ({ approaching });
-  const D = (trains) => ({ trains, from: 'Økern', to: 'Jernbanetorget' });
-
-  it('names both halves when both have trains', () => {
-    expect(_stripSummary(D([t(true), t(true), t(true), t(false), t(false)])))
-      .toBe('3 tog på vei til Økern, 2 tog foran deg mot Jernbanetorget');
-  });
-
-  it('omits a half that is empty rather than saying zero', () => {
-    expect(_stripSummary(D([t(true), t(true)]))).toBe('2 tog på vei til Økern');
-    expect(_stripSummary(D([t(false)]))).toBe('1 tog foran deg mot Jernbanetorget');
-  });
-
-  it('keeps "tog" invariant, which is how the plural actually works', () => {
-    expect(_stripSummary(D([t(true)]))).toContain('1 tog på vei');
-    expect(_stripSummary(D([t(true), t(true)]))).toContain('2 tog på vei');
-  });
-
-  it('says so plainly when there is nothing to show', () => {
-    expect(_stripSummary(D([]))).toBe('Ingen tog på strekningen nå');
-    expect(_stripSummary(null)).toBe('Ingen tog på strekningen nå');
-  });
-
-  it('falls back to generic wording when the stops are unknown', () => {
-    expect(_stripSummary({ trains: [t(true), t(false)] }))
-      .toBe('1 tog på vei til stoppet ditt, 1 tog foran deg mot destinasjonen');
-  });
-});
-
 describe('_platformState — three-valued, because "unknown" is not "no"', () => {
   const LL = { lat: 59.9139, lon: 10.7522 };
   const near = { lat: 59.9141, lon: 10.7524 };     // ~28 m away
@@ -442,43 +252,6 @@ describe('_clusterTrains', () => {
   });
 });
 
-describe('_stripShare — space follows content, not stop count', () => {
-  it('gives the crowded half most of the width', () => {
-    // The reported case: fifteen stops, nine trains coming, one ahead.
-    const s = _stripShare(9, 1, 15);
-    expect(s).toBeGreaterThan(0.5);
-    expect(s).toBeLessThanOrEqual(_STRIP_MAX_SHARE);
-  });
-
-  it('does not let a busy half swallow the strip', () => {
-    expect(_stripShare(40, 0, 20)).toBe(_STRIP_MAX_SHARE);
-  });
-
-  it('does not let an empty half collapse', () => {
-    expect(_stripShare(0, 6, 20)).toBe(_STRIP_MIN_SHARE);
-    expect(_stripShare(1, 40, 40)).toBe(_STRIP_MIN_SHARE);
-  });
-
-  it('keeps stop ticks apart even when nothing is ahead', () => {
-    // Many stops and no trains ahead still reserves room for the ticks, so
-    // the half ahead cannot be squeezed to a smear.
-    expect(_stripShare(4, 0, 30)).toBeLessThan(_stripShare(4, 0, 4));
-  });
-
-  it('grows with the number of trains coming', () => {
-    const a = _stripShare(2, 2, 10), b = _stripShare(6, 2, 10);
-    expect(b).toBeGreaterThan(a);
-  });
-
-  it('stays within bounds for any input', () => {
-    for (const [x, y, z] of [[0,0,0],[1,1,1],[50,50,50],[9,0,1],[0,9,30]]) {
-      const s = _stripShare(x, y, z);
-      expect(s).toBeGreaterThanOrEqual(_STRIP_MIN_SHARE);
-      expect(s).toBeLessThanOrEqual(_STRIP_MAX_SHARE);
-    }
-  });
-});
-
 describe('_spreadCluster — opening a cluster has to separate its members', () => {
   const T = (pos, mins) => ({ pos, mins });
 
@@ -495,10 +268,15 @@ describe('_spreadCluster — opening a cluster has to separate its members', () 
     expect((out[0].pos + out[1].pos) / 2).toBeCloseTo(mid, 6);
   });
 
-  it('preserves order, so the soonest stays where it was relative to the rest', () => {
+  it('lays members out in axis order, not the order it was handed them', () => {
+    // Clustering anchors soonest-first, so items arrive as 6, 12, 18 while
+    // their positions run the other way. Spreading in that order put the
+    // soonest departure left of a later one — backwards on an axis where time
+    // decreases towards your stop.
     const items = [T(-1, 6), T(-1.1, 12), T(-1.2, 18)];
     const out = _spreadCluster(items, 1);
-    expect(out.map(x => x.item.mins)).toEqual([6, 12, 18]);
+    expect(out.map(x => x.item.mins)).toEqual([18, 12, 6]);
+    for (let i = 1; i < out.length; i++) expect(out[i].pos).toBeGreaterThan(out[i - 1].pos);
   });
 
   it('leaves a lone train exactly where it is', () => {
@@ -550,5 +328,71 @@ describe('_relaxPositions — an overlapping glyph swallows the taps beneath it'
 
   it('copes with an empty half', () => {
     expect(_relaxPositions([], 1, -1, 0)).toEqual([]);
+  });
+});
+
+// ── The strip as a departure timeline ───────────────────────────────────────
+describe('_buildStrip', () => {
+  const LINE = { id: 'RUT:Line:5', publicCode: '5' };
+  const DIR = { from: 'Grorud', to: 'Jernbanetorget' };
+  const NOW = Date.UTC(2026, 4, 24, 8, 0, 0);
+  const dep = (mins, id, line) => ({
+    expectedDepartureTime: new Date(NOW + mins * 60000).toISOString(),
+    destinationDisplay: { frontText: 'Jernbanetorget' },
+    serviceJourney: { id, line: line || LINE, estimatedCalls: [] },
+  });
+
+  it('keeps the countdown the list row shows', () => {
+    const s = _buildStrip([dep(6, 'a')], DIR, '5', NOW, new Map());
+    expect(s.trains[0].mins).toBe(6);
+  });
+
+  it('truncates like the list does, not rounds', () => {
+    const d = dep(0, 'a');
+    d.expectedDepartureTime = new Date(NOW + 2 * 60000 + 40000).toISOString();
+    expect(_buildStrip([d], DIR, '5', NOW, new Map()).trains[0].mins).toBe(2);
+  });
+
+  it('runs the axis from the furthest departure to your stop', () => {
+    const s = _buildStrip([dep(5, 'a'), dep(10, 'b'), dep(20, 'c')], DIR, '5', NOW, new Map());
+    // Sorted furthest first; the last one sits at your stop end.
+    expect(s.trains.map(t => t.mins)).toEqual([20, 10, 5]);
+    expect(s.trains[0].pos).toBeCloseTo(-1, 6);
+    expect(s.trains[2].pos).toBeCloseTo(-0.25, 6);
+  });
+
+  it('ignores other lines', () => {
+    const other = dep(6, 'x', { id: 'RUT:Line:2', publicCode: '2' });
+    expect(_buildStrip([other], DIR, '5', NOW, new Map()).trains).toHaveLength(0);
+  });
+
+  it('never lists the same journey twice', () => {
+    const d = dep(6, 'same');
+    expect(_buildStrip([d, d], DIR, '5', NOW, new Map()).trains).toHaveLength(1);
+  });
+
+  it('carries the origin, and copes with nothing to show', () => {
+    expect(_buildStrip([], DIR, '5', NOW, new Map())).toEqual({ trains: [], from: 'Grorud' });
+  });
+});
+
+describe('_stripSummary', () => {
+  const D = (mins) => ({ trains: mins.map(m => ({ mins: m })), from: 'Økern' });
+
+  it('counts the departures and names the soonest', () => {
+    expect(_stripSummary(D([6, 12, 21]))).toBe('3 tog på vei til Økern, neste om 6 min');
+  });
+
+  it('does not assume the list arrived sorted', () => {
+    expect(_stripSummary(D([21, 6, 12]))).toContain('neste om 6 min');
+  });
+
+  it('says so plainly when there is nothing', () => {
+    expect(_stripSummary(D([]))).toBe('Ingen avganger på linja nå');
+    expect(_stripSummary(null)).toBe('Ingen avganger på linja nå');
+  });
+
+  it('falls back when the stop is unknown', () => {
+    expect(_stripSummary({ trains: [{ mins: 4 }] })).toBe('1 tog på vei til stoppet ditt, neste om 4 min');
   });
 });

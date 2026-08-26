@@ -7,7 +7,7 @@ vi.mock('../src/ui/mapIcons.js', () => ({ makeStopIcon: vi.fn(), makeVehicleIcon
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
-import { dedupeDepartures, _headingDeg, _corridorProgress, _legIndices, _buildStrip, _stripSummary, _platformState, _clusterTrains, _stripShare, _STRIP_MIN_SHARE, _STRIP_MAX_SHARE } from '../src/views/board.js';
+import { dedupeDepartures, _headingDeg, _corridorProgress, _legIndices, _buildStrip, _stripSummary, _platformState, _clusterTrains, _stripShare, _STRIP_MIN_SHARE, _STRIP_MAX_SHARE, _spreadCluster, _relaxPositions } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -476,5 +476,79 @@ describe('_stripShare — space follows content, not stop count', () => {
       expect(s).toBeGreaterThanOrEqual(_STRIP_MIN_SHARE);
       expect(s).toBeLessThanOrEqual(_STRIP_MAX_SHARE);
     }
+  });
+});
+
+describe('_spreadCluster — opening a cluster has to separate its members', () => {
+  const T = (pos, mins) => ({ pos, mins });
+
+  it('spreads members a full separation apart', () => {
+    const out = _spreadCluster([T(-1, 6), T(-1.1, 12), T(-1.2, 18)], 1);
+    const gaps = out.slice(1).map((x, i) => x.pos - out[i].pos);
+    gaps.forEach(g => expect(g).toBeCloseTo(1, 6));
+  });
+
+  it('keeps the group centred where the cluster sat', () => {
+    const items = [T(-2, 6), T(-2.2, 12)];
+    const mid = (items[0].pos + items[1].pos) / 2;
+    const out = _spreadCluster(items, 1);
+    expect((out[0].pos + out[1].pos) / 2).toBeCloseTo(mid, 6);
+  });
+
+  it('preserves order, so the soonest stays where it was relative to the rest', () => {
+    const items = [T(-1, 6), T(-1.1, 12), T(-1.2, 18)];
+    const out = _spreadCluster(items, 1);
+    expect(out.map(x => x.item.mins)).toEqual([6, 12, 18]);
+  });
+
+  it('leaves a lone train exactly where it is', () => {
+    expect(_spreadCluster([T(-3, 9)], 1)).toEqual([{ pos: -3, item: { pos: -3, mins: 9 } }]);
+  });
+
+  it('copes with an empty cluster', () => {
+    expect(_spreadCluster([], 1)).toEqual([]);
+  });
+
+  it('never loses a member', () => {
+    const items = Array.from({ length: 5 }, (_, i) => T(-1 - i * 0.05, i));
+    expect(_spreadCluster(items, 1)).toHaveLength(5);
+  });
+});
+
+describe('_relaxPositions — an overlapping glyph swallows the taps beneath it', () => {
+  const G = (pos) => ({ pos });
+
+  it('pushes apart anything closer than the separation', () => {
+    const out = _relaxPositions([G(0), G(0.2), G(0.3)], 1, -10, 10);
+    for (let i = 1; i < out.length; i++) {
+      expect(out[i].pos - out[i - 1].pos).toBeGreaterThanOrEqual(1 - 1e-9);
+    }
+  });
+
+  it('leaves well-spaced groups untouched', () => {
+    const out = _relaxPositions([G(0), G(2), G(4)], 1, -10, 10);
+    expect(out.map(g => g.pos)).toEqual([0, 2, 4]);
+  });
+
+  it('slides the run back rather than spilling past the end', () => {
+    const out = _relaxPositions([G(-0.2), G(-0.1), G(0)], 1, -4, 0);
+    expect(out[out.length - 1].pos).toBeLessThanOrEqual(0 + 1e-9);
+    expect(out[0].pos).toBeGreaterThanOrEqual(-4 - 1e-9);
+  });
+
+  it('squeezes rather than spilling when the half is genuinely too small', () => {
+    // Three glyphs needing 2 units of room in a 1-unit half.
+    const out = _relaxPositions([G(-0.5), G(-0.4), G(-0.3)], 1, -1, 0);
+    expect(out[0].pos).toBeGreaterThanOrEqual(-1 - 1e-9);
+    expect(out).toHaveLength(3);
+  });
+
+  it('sorts by position and never loses a group', () => {
+    const out = _relaxPositions([G(3), G(1), G(2)], 0.1, -10, 10);
+    expect(out.map(g => g.pos)).toEqual([1, 2, 3]);
+  });
+
+  it('copes with an empty half', () => {
+    expect(_relaxPositions([], 1, -1, 0)).toEqual([]);
   });
 });

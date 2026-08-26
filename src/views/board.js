@@ -906,9 +906,11 @@ function _rowMins(c, fallbackIso, now) {
   return Math.floor(Math.max(0, diffSec) / 60);
 }
 
-// Which cluster ahead of you is currently opened up. Held across renders,
-// because the strip redraws every second and a tap must survive that.
-let _expandedAhead = null;
+// Which cluster is currently opened up, by its lead train. Held across
+// renders, because the strip redraws every second and a tap must survive that.
+let _expandedCluster = null;
+let _flashJid = null;
+let _flashUntil = 0;
 let _stripBound = false;
 
 /**
@@ -925,19 +927,33 @@ function _bindStrip(el) {
   const act = (target) => {
     const g = target.closest && target.closest('.ls-train');
     if (!g || !g.dataset.jid) return;
-    if (g.dataset.role === 'ahead') {
-      _expandedAhead = _expandedAhead === g.dataset.jid ? null : g.dataset.jid;
+
+    // A cluster opens, whichever half it is in. Jumping to the lead train's
+    // row instead — which this used to do on the approaching side — surfaced
+    // the one departure that was already visible and left the ones the
+    // cluster was hiding exactly as hidden.
+    if (g.dataset.count && Number(g.dataset.count) > 1) {
+      _expandedCluster = _expandedCluster === g.dataset.jid ? null : g.dataset.jid;
       renderBoard();
       return;
     }
+    if (g.dataset.group && g.dataset.group === _expandedCluster) {
+      _expandedCluster = null;
+      renderBoard();
+      return;
+    }
+
+    // A single train stands for one departure, so its row is unambiguous.
     const row = document.querySelector('#dep-list .dep-row[data-jid="' + (window.CSS && CSS.escape
       ? CSS.escape(g.dataset.jid) : g.dataset.jid) + '"]');
     if (!row) return;
     row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    row.classList.remove('dep-flash');
-    void row.offsetWidth;                       // restart the animation
-    row.classList.add('dep-flash');
-    setTimeout(() => row.classList.remove('dep-flash'), 1600);
+    // The list is rebuilt every second, so a class set on the node here is
+    // gone on the next tick and the timeout ends up clearing a detached
+    // element. Hold it in state and let the row render re-apply it instead.
+    _flashJid = g.dataset.jid;
+    _flashUntil = Date.now() + 1600;
+    renderBoard();
   };
   el.addEventListener('click', e => act(e.target));
   el.addEventListener('keydown', e => {
@@ -1146,6 +1162,51 @@ export const _STRIP_MIN_SHARE = 0.28;
 export const _STRIP_MAX_SHARE = 0.58;
 const _STRIP_TICK_PX = 9;
 
+/**
+ * Lay an opened cluster's members out so they can be told apart.
+ *
+ * Members are within one glyph of each other by definition — that is why they
+ * were clustered — so drawing them at their true positions would just stack
+ * them again. They are spread to a full separation apart, centred on where
+ * the cluster sat, so the group stays where the eye last saw it.
+ *
+ * @returns {Array<{pos:number, item:object}>} in the order given
+ */
+export function _spreadCluster(items, minSep) {
+  const n = items.length;
+  if (!n) return [];
+  if (n === 1) return [{ pos: items[0].pos, item: items[0] }];
+  const mid = items.reduce((a, t) => a + t.pos, 0) / n;
+  const start = mid - (minSep * (n - 1)) / 2;
+  return items.map((item, i) => ({ pos: start + i * minSep, item }));
+}
+
+/**
+ * Push apart anything still too close after a cluster has been opened.
+ *
+ * Opening a cluster widens it, which shoves it into its neighbours. That is
+ * not only untidy: an overlapping glyph sits on top of the one beneath and
+ * swallows its taps, so a train next to an opened cluster becomes unclickable.
+ *
+ * Sweeps left to right enforcing the separation, then slides the whole run
+ * back if it has spilled past the end of the half.
+ *
+ * @returns {Array} the same objects, repositioned, sorted by position
+ */
+export function _relaxPositions(groups, minSep, min, max) {
+  const s = groups.slice().sort((a, b) => a.pos - b.pos);
+  for (let i = 1; i < s.length; i++) {
+    if (s[i].pos - s[i - 1].pos < minSep) s[i].pos = s[i - 1].pos + minSep;
+  }
+  const over = s.length ? s[s.length - 1].pos - max : 0;
+  if (over > 0) {
+    // Only as far as the start of the half allows; a squeeze beats a spill.
+    const room = Math.min(over, s[0].pos - min);
+    if (room > 0) s.forEach(g => { g.pos -= room; });
+  }
+  return s;
+}
+
 export function _stripShare(nAppr, nAhead, nStops) {
   if (!nAppr) return _STRIP_MIN_SHARE;
   const needAppr = nAppr * _STRIP_GLYPH_PX;
@@ -1236,24 +1297,37 @@ function renderLineStrip(visibleDeps) {
       ? (approaching
         ? n + ' tog, neste om ' + lead.mins + ' min · trykk for å se dem i lista'
         : n + ' tog · trykk for å se hvert av dem')
-      : (approaching ? esc(lead.label) + ' · trykk for å se raden' : esc(lead.label));
+      : cl.group
+        ? (approaching && lead.mins != null ? 'om ' + lead.mins + ' min' : esc(lead.label))
+          + ' · trykk for å lukke gruppen'
+        : (approaching ? esc(lead.label) + ' · trykk for å se raden' : esc(lead.label));
     return '<span class="' + cls + '" style="left:' + pct(cl.pos).toFixed(2) + '%"'
       + ' role="button" tabindex="0"'
       + ' data-role="' + (approaching ? 'appr' : 'ahead') + '"'
+      + ' data-count="' + n + '"'
+      // Members of an opened cluster remember which one they came from, so a
+      // tap can close it again. Without this the opened state was a dead end:
+      // every member is a single train, so every tap fell through to the
+      // jump-to-row branch and nothing could shut it.
+      + (cl.group ? ' data-group="' + esc(cl.group) + '"' : '')
       + ' data-jid="' + esc(lead.id) + '"'
       + ' title="' + esc(title) + '" aria-label="' + esc(title) + '">' + body + '</span>';
   };
 
-  // A cluster ahead that the user has opened is drawn as its members, so the
-  // trains it stood for become visible individually. They live nowhere else.
-  const aheadGroups = _clusterTrains(aheadSorted, sepAhead)
-    .flatMap(cl => (cl.items.length > 1 && cl.items[0].id === _expandedAhead)
-      ? cl.items.map(t => ({ pos: t.pos, items: [t] }))
+  // An opened cluster is drawn as its members. They sit within one glyph of
+  // each other by definition, so they are spread apart around where the
+  // cluster stood — otherwise opening it just stacks them.
+  const open = (groups, sep) => groups.flatMap(cl =>
+    (cl.items.length > 1 && cl.items[0].id === _expandedCluster)
+      ? _spreadCluster(cl.items, sep).map(t => ({ pos: t.pos, items: [t.item],
+                                                  group: _expandedCluster }))
       : [cl]);
 
   const trains =
-    _clusterTrains(apprSorted, sepAppr).map(cl => render(cl, true)).join('')
-    + aheadGroups.map(cl => render(cl, false)).join('');
+    _relaxPositions(open(_clusterTrains(apprSorted, sepAppr), sepAppr), sepAppr, lo, 0)
+      .map(cl => render(cl, true)).join('')
+    + _relaxPositions(open(_clusterTrains(aheadSorted, sepAhead), sepAhead), sepAhead, 0, end)
+      .map(cl => render(cl, false)).join('');
 
   // Name the two halves, each caption centred over its own zone. A zone with
   // no trains gets no caption: with the in-flight request failing, the right
@@ -1595,7 +1669,9 @@ export function renderBoard() {
     const isCancelled = c.cancellation;
     const missed = rcls === 'missed';
     const tooEarlyForPlan = planMinDepTs !== null && depTs < planMinDepTs;
-    const rowCls = 'dep-row' + (isCancelled ? ' cancelled' : missed ? ' missed' : rcls ? ' ' + rcls : '') + (tooEarlyForPlan ? ' plan-early' : '');
+    const _jid = (c.serviceJourney && c.serviceJourney.id) || '';
+    const flashing = _flashJid && _jid === _flashJid && Date.now() < _flashUntil;
+    const rowCls = 'dep-row' + (isCancelled ? ' cancelled' : missed ? ' missed' : rcls ? ' ' + rcls : '') + (tooEarlyForPlan ? ' plan-early' : '') + (flashing ? ' dep-flash' : '');
     const showReach = walkActive && rcls && !missed && (rcls !== 'r-now' || !urgentShown);
     if (rcls === 'r-now') urgentShown = true;
 
@@ -1700,7 +1776,7 @@ export function renderBoard() {
     html += '<div class="' + rowCls + '"'
       // Lets the strip find this row: tapping a cluster jumps to the first
       // departure inside it.
-      + ' data-jid="' + esc((c.serviceJourney && c.serviceJourney.id) || '') + '"'
+      + ' data-jid="' + esc(_jid) + '"'
       + (isCancelled
         ? ''
         : ' onclick="window.tapDepId(\'' + depId + '\')"'

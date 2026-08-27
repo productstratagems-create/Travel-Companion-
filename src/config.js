@@ -23,6 +23,9 @@ export default {
   arrivalForecastMinMs: 15 * 60_000,
   storage: {
     dir: 't.dir',
+    // The active custom route, whole. Only the two names used to be kept, so
+    // every start re-derived ids and coordinates from them.
+    route: 't.route',
     journey: 't.jny',
     favs: 't.favs',
   },

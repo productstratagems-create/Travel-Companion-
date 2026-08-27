@@ -575,7 +575,7 @@ export function applyRoute() {
   const viaEntry = via ? _viaStopIds.get(via) : null;
   const viaId = viaEntry ? viaEntry.id : null;
 
-  config.dirs[2] = {
+  setActiveRoute({
     key: 'custom-out',
     from: dep,
     to:   arr,
@@ -592,8 +592,7 @@ export function applyRoute() {
     _fromLon: depLon,
     _toLat:   arrLat,
     _toLon:   arrLon,
-  };
-  state.dIdx = 2;
+  });
   saveDep(dep);
   saveDest(arr);
   saveVia(via);
@@ -615,7 +614,7 @@ export function applyRouteFromState(arr) {
   const depId  = depMatchesGps ? ns.id   : (depNearby ? depNearby.id  : null);
   const depLat = depMatchesGps ? ns.lat  : (depNearby ? depNearby.lat : null);
   const depLon = depMatchesGps ? ns.lon  : (depNearby ? depNearby.lon : null);
-  config.dirs[2] = {
+  setActiveRoute({
     key: 'custom-out',
     from: dep,
     to:   arr,
@@ -627,8 +626,7 @@ export function applyRouteFromState(arr) {
     line:     null,
     _fromLat: depLat,
     _fromLon: depLon,
-  };
-  state.dIdx = 2;
+  });
   return true;
 }
 
@@ -702,6 +700,52 @@ function _renderFreqRow(elId, role) {
  *
  * Lives here because this file owns the keys.
  */
+/**
+ * Set the route the board is showing — everywhere, and durably.
+ *
+ * config.dirs[2] is assigned from six places, and each had to remember the
+ * same four things: the route, the index, the form fields, and (now) storing
+ * it. Two of them forgot the fields in v1.33.0. Storing would have been
+ * forgotten just as reliably, so there is one door instead of six.
+ */
+export function setActiveRoute(dir) {
+  if (!dir) return;
+  config.dirs[2] = dir;
+  state.dIdx = 2;
+  storage.set(config.storage.dir, '2');
+  saveActiveRoute(dir);
+  syncRouteFields(dir);
+}
+
+/**
+ * The whole route, kept.
+ *
+ * Only t.dep/t.dest were stored, so applyRouteFromState rebuilt the route
+ * from two names on every start: toStopId was always dropped, coordinates
+ * with it, and stopId survived only if the name happened to match your
+ * nearest station. Measured against a favourite pointing at a venue, the
+ * destination came back as different coordinates under the same label — the
+ * app planned somewhere else and said nothing. It also cost four geocoder
+ * requests per cold start to re-derive what was already known.
+ *
+ * `filter` is null on every dirs[2] assignment, so this serialises cleanly;
+ * the RegExp fields config.js warns about belong to the two neutral dirs.
+ */
+export function saveActiveRoute(dir) {
+  try { storage.set(config.storage.route, JSON.stringify(dir)); } catch { /* ignore */ }
+}
+
+export function loadActiveRoute() {
+  try {
+    const v = storage.get(config.storage.route);
+    if (!v) return null;
+    const d = JSON.parse(v);
+    // A route without both ends cannot be shown; fall back rather than throw
+    // a half-route at the board.
+    return (d && d.from && d.to) ? d : null;
+  } catch { return null; }
+}
+
 export function syncRouteFields(dir) {
   if (!dir) return;
   if (dir.from) saveDep(dir.from);

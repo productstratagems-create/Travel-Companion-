@@ -2,7 +2,7 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { loadFavs, removeFav, favToDir, markFavUsed } from '../ui/favs.js';
 import { recordSmartTrip } from '../api/smart.js';
-import { syncRouteFields } from './settings.js';
+import { setActiveRoute } from './settings.js';
 import { storage } from '../storage.js';
 import { show, updateHeader } from '../ui/nav.js';
 import { confirmTap } from '../ui/confirm.js';
@@ -62,12 +62,8 @@ window._loadFavRoute = (id) => {
   recordSmartTrip(fav.from, fav.to, fav.toStopId || null,
     fav.toLat != null ? fav.toLat : null, fav.toLon != null ? fav.toLon : null,
     fav.stopId || null);
-  const favDir = favToDir(fav);
-  // The form has to agree with the route this just started.
-  syncRouteFields(favDir);
-  config.dirs[2] = favDir;
-  state.dIdx = 2;
-  storage.set(config.storage.dir, '2');
+  // One door: sets the route, the index, storage and the form fields.
+  setActiveRoute(favToDir(fav));
   updateHeader();
   state.deps = [];
   show('v-board');

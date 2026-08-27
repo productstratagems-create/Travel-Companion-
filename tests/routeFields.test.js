@@ -10,7 +10,7 @@ vi.mock('../src/storage.js', () => ({
   listProfiles: () => ['default'], getActiveProfile: () => 'default',
   createProfile: vi.fn(), switchProfile: vi.fn(), deleteProfile: vi.fn(),
 }));
-vi.mock('../src/config.js', () => ({ default: { dirs: [{ key: 'out', from: 'A', to: 'B' }], storage: {}, api: {} } }));
+vi.mock('../src/config.js', () => ({ default: { dirs: [{ key: 'out', from: 'A', to: 'B' }, {}, {}], storage: { dir: 't.dir', route: 't.route' }, api: {} } }));
 vi.mock('../src/api/http.js', () => ({ enturFetch: vi.fn() }));
 vi.mock('../src/api/smart.js', () => ({ recordSmartTrip: vi.fn(), tripCount: () => 0 }));
 vi.mock('../src/state.js', () => ({ state: { dIdx: 0, nearestStation: null, nearestStations: [] } }));
@@ -27,7 +27,10 @@ vi.mock('../src/ui/fmt.js', () => ({ makeSuggBtn: vi.fn(), esc: (x) => x, venueD
 vi.mock('../src/api/places.js', () => ({ fetchNearbyPlaces: vi.fn() }));
 vi.mock('../src/ui/favs.js', () => ({ loadFavs: () => [], topFavRoutes: () => [] }));
 
-const { syncRouteFields, loadDep, loadDest, loadVia } = await import('../src/views/settings.js');
+const { syncRouteFields, loadDep, loadDest, loadVia, setActiveRoute, loadActiveRoute } = await import('../src/views/settings.js');
+const config = (await import('../src/config.js')).default;
+const { state } = await import('../src/state.js');
+const storeRaw = (k, v) => { store['t.route'] = v; };
 
 beforeEach(() => { for (const k of Object.keys(store)) delete store[k]; });
 
@@ -69,5 +72,58 @@ describe('syncRouteFields', () => {
     syncRouteFields({ from: 'A', to: 'B' });
     syncRouteFields(null);
     expect(loadDep()).toBe('A');
+  });
+});
+
+/**
+ * Only t.dep/t.dest were stored, so applyRouteFromState rebuilt the route
+ * from two names on every start: toStopId was always dropped and coordinates
+ * with it. Measured against a favourite pointing at a venue, the destination
+ * came back as different coordinates under the same label — the app planned
+ * somewhere else and said nothing.
+ */
+describe('setActiveRoute / loadActiveRoute', () => {
+  const venue = {
+    key: 'custom-out', from: 'Bøler', to: 'Kaffebrenneriet Grünerløkka',
+    stopId: 'NSR:StopPlace:3', toStopId: null, filter: null,
+    geo: null, toGeo: 'Kaffebrenneriet Grünerløkka', line: null,
+    _fromLat: 59.877, _fromLon: 10.818, _toLat: 59.926, _toLon: 10.759,
+  };
+
+  it('brings the whole route back, ids and coordinates included', () => {
+    setActiveRoute(venue);
+    expect(loadActiveRoute()).toEqual(venue);
+  });
+
+  // The four things every one of the six call sites had to remember.
+  it('sets the route, the index, the stored copy and the form fields', () => {
+    setActiveRoute(venue);
+    expect(config.dirs[2]).toBe(venue);
+    expect(state.dIdx).toBe(2);
+    expect(loadActiveRoute().toStopId).toBeNull();
+    expect(loadDep()).toBe('Bøler');
+    expect(loadDest()).toBe('Kaffebrenneriet Grünerløkka');
+  });
+
+  it('keeps a via stop across the round trip', () => {
+    setActiveRoute({ ...venue, via: 'Helsfyr', viaStopId: 'NSR:StopPlace:9' });
+    expect(loadActiveRoute().via).toBe('Helsfyr');
+    expect(loadActiveRoute().viaStopId).toBe('NSR:StopPlace:9');
+  });
+
+  // Startup must be able to fall back, not crash, on anything unusable.
+  it('returns null rather than throwing on nothing usable', () => {
+    expect(loadActiveRoute()).toBeNull();
+    setActiveRoute(venue);
+    storeRaw('t.route', '{ ikke json');
+    expect(loadActiveRoute()).toBeNull();
+    storeRaw('t.route', JSON.stringify({ from: 'A' }));
+    expect(loadActiveRoute()).toBeNull();
+  });
+
+  it('ignores a call with no route at all', () => {
+    setActiveRoute(venue);
+    setActiveRoute(null);
+    expect(loadActiveRoute().from).toBe('Bøler');
   });
 });

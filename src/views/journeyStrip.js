@@ -1,7 +1,7 @@
 import { esc } from '../ui/fmt.js';
 import { haver } from '../geo.js';
 import { projectOnSegment } from '../ui/corridor.js';
-import { livePosition } from '../api/vehicles.js';
+import { SRC_LABEL } from './trainPosition.js';
 
 /**
  * The journey progress strip on the "underveis" screen.
@@ -133,9 +133,11 @@ export function _journeyProgress(calls, now, live) {
  * Draw it. Ticks are evenly spaced because this is a schematic — position is
  * by stop index, not by distance, exactly as on the board's strip.
  */
-export function renderJourneyStrip(el, calls, now, livePos, journeyId) {
+export function renderJourneyStrip(el, calls, now, pos) {
   if (!el) return null;
-  const p = _journeyProgress(calls, now, livePosition(livePos, journeyId, now));
+  // The same resolved position the map marker uses, so the two pictures of
+  // one train cannot disagree.
+  const p = _journeyProgress(calls, now, pos && pos.src !== 'rutetid' ? pos : null);
   if (!p) { el.style.display = 'none'; return null; }
   el.style.display = 'block';
 
@@ -150,24 +152,28 @@ export function renderJourneyStrip(el, calls, now, livePos, journeyId) {
     ticks += '<span class="' + cls + '" style="left:' + pct(i).toFixed(2) + '%"></span>';
   }
 
-  // The glyph carries no number.
+  // The glyph carries no number. It used to show the stops remaining, which
+  // read as a line code — a bare integer in a pill, directly below a line
+  // badge of the same shape, in the exact visual language the board's strip
+  // spends on minutes. Three meanings, one shape.
   //
-  // It used to show the stops remaining, which was read as a line code — a
-  // bare integer in a pill, directly below a line badge of the same shape,
-  // and in the exact visual language the board's strip spends on minutes.
-  // Three meanings, one shape. The count says the same thing in the caption,
-  // where it can carry its unit.
-  // "stopp" does not inflect, so there is no plural branch to get wrong.
-  const caption = p.left > 0 ? p.left + ' stopp igjen' : 'framme';
+  // The caption says it instead, with its unit, and names the sensor that
+  // placed the train. There are three now — your own fix while you are
+  // aboard, the operator's feed, and the timetable — and they are not equally
+  // good, so the reader is told which one this is. ("stopp" does not inflect,
+  // so there is no plural branch to get wrong.)
+  const src = (pos && pos.src) || 'rutetid';
+  const caption = (p.left > 0 ? p.left + ' stopp igjen' : 'framme')
+    + ' \u00b7 ' + SRC_LABEL[src];
   const title = (p.at ? 'ved ' + p.at : p.next ? 'neste stopp ' + p.next : 'framme')
-    + ' · ' + (p.live ? 'sanntid' : 'etter rutetid');
+    + ' \u00b7 ' + SRC_LABEL[src];
 
   el.innerHTML =
     '<div class="js-caps"><span class="js-cap">' + esc(caption) + '</span></div>'
     + '<div class="js-rail">'
     + '<span class="js-done" style="width:' + pct(p.frac).toFixed(2) + '%"></span>'
     + ticks
-    + '<span class="js-train' + (p.live ? ' js-live' : '') + (p.atStop ? ' js-at' : '') + '"'
+    + '<span class="js-train' + (src !== 'rutetid' ? ' js-live' : '') + (p.atStop ? ' js-at' : '') + '"'
     + ' style="left:' + pct(p.frac).toFixed(2) + '%"'
     + ' title="' + esc(title) + '"></span>'
     + '</div>'
@@ -176,18 +182,19 @@ export function renderJourneyStrip(el, calls, now, livePos, journeyId) {
     + '<span class="js-end-to">' + esc(p.to || '') + '</span>'
     + '</div>';
 
-  el.setAttribute('aria-label', _journeySummary(p));
+  el.setAttribute('aria-label', _journeySummary(p, src));
   return p;
 }
 
 /** What the strip says, in words. Pure, so the Norwegian is tested. */
-export function _journeySummary(p) {
+export function _journeySummary(p, src) {
   if (!p) return '';
+  const how = src ? ' Posisjon: ' + SRC_LABEL[src] + '.' : '';
   const where = p.at ? 'Ved ' + p.at : p.next ? 'Neste stopp ' + p.next : 'Framme';
-  if (p.left <= 0) return where + '. Du er framme.';
+  if (p.left <= 0) return where + '. Du er framme.' + how;
   // Naming the destination twice in one breath — "Neste stopp Jernbanetorget.
   // 1 stopp igjen til Jernbanetorget." — is what the last stop produces if the
   // two halves are written independently.
-  if (p.next && p.to && p.next === p.to) return where + '. Siste stopp.';
-  return where + '. ' + p.left + ' stopp igjen til ' + (p.to || 'endestasjonen') + '.';
+  if (p.next && p.to && p.next === p.to) return where + '. Siste stopp.' + how;
+  return where + '. ' + p.left + ' stopp igjen til ' + (p.to || 'endestasjonen') + '.' + how;
 }

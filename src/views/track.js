@@ -13,6 +13,7 @@ import { startBoard, _interpolateVehiclePos } from './board.js';
 import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
 import { makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
+import { _trainPosition, SRC_LABEL } from './trainPosition.js';
 import { renderJourneyStrip } from './journeyStrip.js';
 import { renderAlerts, activeSituations, situationText, sevClass } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
@@ -156,10 +157,12 @@ function _refreshTrackLive(lineRef) {
 
 // Redraw the icon only when something about it actually changed — rotation to
 // the nearest degree, or the live/estimated distinction.
-function _tVehKey(live, pos) {
-  const b = live ? live.bearing : pos.heading;
-  return (live ? 'L' : 'E') + ':' + (b == null ? '-' : Math.round(b));
+function _tVehKey(pos) {
+  return pos.src + ':' + (pos.heading == null ? '-' : Math.round(pos.heading));
 }
+
+// Which sensor placed the train this render, so the strip can say so.
+let _tPosSrc = null;
 
 // Live position of the vehicle the user is currently riding, shown on its
 // route corridor. Only relevant while actually riding — hidden during
@@ -255,25 +258,29 @@ function _renderTrackMap(now, cs, legs) {
 
   if (!_tMap) return;
   _refreshTrackLive(leg.lineRef);
-  const live = livePosition(_tLivePos, leg.journeyId, now);
-  const pos = live || _interpolateVehiclePos(_legRouteStops(leg), now);
+  const pos = _resolveTrainPos(now, cs, legs);
+  _tPosSrc = pos ? pos.src : null;
   if (pos) {
     const icon = makeVehicleIcon(leg.mode, leg.lineBg, {
-      bearing: live ? live.bearing : pos.heading,
-      estimated: !live,
+      bearing: pos.heading,
+      // A measured position, whichever sensor measured it.
+      estimated: pos.src === 'rutetid',
     });
     if (_tVehicleMarker) {
       _tVehicleMarker.setLatLng([pos.lat, pos.lon]);
       // The heading changes as the train rounds a curve, and live and
       // estimated look different — so the icon is re-set, not just the point.
-      if (_tVehIconKey !== _tVehKey(live, pos)) {
-        _tVehIconKey = _tVehKey(live, pos);
+      if (_tVehIconKey !== _tVehKey(pos)) {
+        _tVehIconKey = _tVehKey(pos);
         _tVehicleMarker.setIcon(icon);
       }
     } else {
-      _tVehIconKey = _tVehKey(live, pos);
+      _tVehIconKey = _tVehKey(pos);
       _tVehicleMarker = L.marker([pos.lat, pos.lon], { icon }).addTo(_tLayer);
     }
+    _tVehicleMarker.bindTooltip(
+      (pos.src === 'gps' ? 'Toget \u2014 der du er' : 'Toget') + ' \u00b7 ' + SRC_LABEL[pos.src],
+      { className: 'map-label' });
   } else if (_tVehicleMarker) {
     _tVehicleMarker.remove();
     _tVehicleMarker = null;
@@ -282,14 +289,19 @@ function _renderTrackMap(now, cs, legs) {
   // User's live position, snapped onto the line when close enough — while
   // riding this sits on the train; off the line (e.g. just before boarding)
   // it falls back to the raw GPS fix.
-  const userPos = state.homeLL || state.walkFromLL;
+  // While the train marker was placed from your own fix it already is you —
+  // a second dot on the same point says there are two things there.
+  const userPos = _tPosSrc === 'gps' ? null : (state.homeLL || state.walkFromLL);
   if (userPos) {
     const snapped = snapToCorridor(userPos, _tRoutePts, _tSnapDist) || userPos;
     if (_tUserMarker) {
       _tUserMarker.setLatLng([snapped.lat, snapped.lon]);
     } else {
       _tUserMarker = L.circleMarker([snapped.lat, snapped.lon], {
-        radius: 6, color: '#fff', fillColor: '#60a5fa', fillOpacity: 0.95, weight: 2,
+        // mapYou is reserved for "you". The literal here was simultaneously
+        // the Tier vendor colour and the blagra dark accent — flagged in the
+        // v1.8.0 audit, fixed in board.js, missed at this call site.
+        radius: 6, color: tokens().mapInk, fillColor: tokens().mapYou, fillOpacity: 0.95, weight: 2,
       }).bindTooltip('Din posisjon', { className: 'map-label' }).addTo(_tLayer);
     }
   } else if (_tUserMarker) {
@@ -1391,6 +1403,23 @@ export function renderTrack() {
 }
 
 /**
+ * One answer for both pictures.
+ *
+ * The map marker and the strip glyph are the same train. Letting each resolve
+ * its own position would let them disagree — which is exactly the fault this
+ * change exists to remove, since the map already drew the train twice.
+ */
+function _resolveTrainPos(now, cs, legs) {
+  const leg = cs.phase === 'riding' ? legs[cs.i] : legs[cs.i];
+  if (!leg) return null;
+  return _trainPosition({
+    calls: _legRouteStops(leg), routePts: _tRoutePts, snapDist: _tSnapDist,
+    now, phase: cs.phase, livePos: _tLivePos, journeyId: leg.journeyId,
+    userLL: state.homeLL, posAt: state.posAt,
+  });
+}
+
+/**
  * Where the train is on the leg being ridden, as stops rather than pixels.
  *
  * Only while riding, exactly like the map above it: during a platform wait
@@ -1404,7 +1433,7 @@ function _renderJourneyStrip(now, cs, legs) {
   if (!el) return;
   const leg = cs.phase === 'riding' ? legs[cs.i] : null;
   if (!leg) { el.style.display = 'none'; return; }
-  renderJourneyStrip(el, _legRouteStops(leg), now, _tLivePos, leg.journeyId);
+  renderJourneyStrip(el, _legRouteStops(leg), now, _resolveTrainPos(now, cs, legs));
 }
 
 export function buildTrackBar() {
@@ -1419,35 +1448,8 @@ export function buildTrackBar() {
     + (firstDep ? '<span class="tb-dep">avg <span>' + firstDep.clk + '</span></span>' : '')
     + (state.jny.arrival ? '<span class="tb-dep">ank <span>' + state.jny.arrival.clk + '</span></span>' : '');
 
-  const jidRow = document.getElementById('t-jid-row');
-  const jidVal = document.getElementById('t-jid-val');
-  if (jidRow && jidVal) {
-    if (state.lockedJourneyId) {
-      jidVal.textContent = state.lockedJourneyId;
-      jidRow.style.display = 'flex';
-    } else {
-      jidRow.style.display = 'none';
-    }
-  }
 }
 
-export function copyJourneyId() {
-  const jid = state.lockedJourneyId;
-  const msg = document.getElementById('t-jid-msg');
-  if (!jid || !msg) return;
-  const showMsg = text => {
-    msg.textContent = text;
-    msg.style.display = 'block';
-    setTimeout(() => { msg.style.display = 'none'; }, 2000);
-  };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(jid)
-      .then(() => showMsg('✓ kopiert'))
-      .catch(() => showMsg(jid));
-  } else {
-    showMsg(jid);
-  }
-}
 
 export function startTracking() {
   expanded = state.jny && state.jny.legs ? state.jny.legs.map(() => false) : [];

@@ -263,10 +263,6 @@ html[data-theme="light"] .train-bar { border-bottom-color: rgba(var(--border-rgb
 html[data-theme="light"] .train-bar .tb-dest { color: var(--text-dim); }
 html[data-theme="light"] .train-bar .tb-dep  { color: var(--text-muted); }
 html[data-theme="light"] .train-bar .tb-dep span { color: var(--accent); }
-html[data-theme="light"] .journey-id-row .jid-label { color: var(--text-muted); }
-html[data-theme="light"] .journey-id-row .jid-val { color: #57534e; }
-html[data-theme="light"] .jid-copy-btn { color: var(--accent); border-color: rgba(var(--accent-rgb),.25); }
-html[data-theme="light"] .jid-copy-btn:active { background: rgba(var(--accent-rgb),.1); }
 
 html[data-theme="light"] .sel-stop-label {
   background: var(--bg);

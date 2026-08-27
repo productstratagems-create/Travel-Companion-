@@ -20,6 +20,7 @@ import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
 import { createMap, drawRoute } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
+import { decodePolyline } from '../ui/polyline.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
 
@@ -330,18 +331,6 @@ function renderBoardMap(pos, modes) {
 let _walkRouteKey = null;
 
 // Google polyline decoder — OTP3 returns pointsOnLink.points in this format
-function _decodePoly(str) {
-  const out = []; let lat = 0, lng = 0, i = 0;
-  while (i < str.length) {
-    let b, s = 0, r = 0;
-    do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << s; s += 5; } while (b >= 0x20);
-    lat += (r & 1) ? ~(r >> 1) : (r >> 1); r = 0; s = 0;
-    do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << s; s += 5; } while (b >= 0x20);
-    lng += (r & 1) ? ~(r >> 1) : (r >> 1);
-    out.push([lat / 1e5, lng / 1e5]);
-  }
-  return out;
-}
 
 function _drawWalkRoute(fromLL, toLL, destName) {
   if (!_ensureMap(fromLL)) return;
@@ -380,7 +369,7 @@ function _drawWalkRoute(fromLL, toLL, destName) {
       const pts = pats && pats[0] && pats[0].legs && pats[0].legs[0] &&
                   pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
       if (!pts) throw new Error('no points');
-      const latlngs = _decodePoly(pts);
+      const latlngs = decodePolyline(pts);
       drawRoute(_bLayer, latlngs, { color: tokens().accent, weight: 3, opacity: 0.9, dashArray: '7 6' });
       if (!_bUserMoved) _bMap.fitBounds(latlngs, { padding: [44, 44], maxZoom: 17 });
     })
@@ -791,73 +780,20 @@ function renderLineRoute(visibleDeps, vehicles) {
 
   _bRouteLayer.clearLayers();
 
-  // For buses, snap the corridor to actual road geometry via OTP car routing.
-  // Metro/tram run on dedicated tracks — straight stop-to-stop lines are accurate enough.
-  if (isBus && pts.length >= 2) {
-    const segQueries = pts.slice(0, -1).map((p, i) => {
-      const n = pts[i + 1];
-      return 'seg' + i + ':trip(from:{coordinates:{latitude:' + p[0] + ',longitude:' + p[1] + '}}'
-        + 'to:{coordinates:{latitude:' + n[0] + ',longitude:' + n[1] + '}}'
-        + 'modes:{directMode:car}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}';
-    });
-    function _extractEncoded(d, i) {
-      const seg = d && d['seg' + i];
-      const leg = seg && seg.tripPatterns && seg.tripPatterns[0]
-        && seg.tripPatterns[0].legs && seg.tripPatterns[0].legs[0];
-      return (leg && leg.pointsOnLink && leg.pointsOnLink.points) || null;
-    }
-    function _buildSegQuery(mode, p, n, i) {
-      return 'seg' + i + ':trip(from:{coordinates:{latitude:' + p[0] + ',longitude:' + p[1] + '}}'
-        + 'to:{coordinates:{latitude:' + n[0] + ',longitude:' + n[1] + '}}'
-        + 'modes:{directMode:' + mode + '}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}';
-    }
-    function _postOtp(queries) {
-      return enturFetch(config.api.journeyPlanner, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: '{' + queries.join(' ') + '}' }),
-      }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
-    }
-    _postOtp(segQueries)
-      .then(data => {
-        if (!_bRouteLayer) return;
-        const d = data && data.data;
-        if (!d) throw new Error('no data');
-        const resolved = segQueries.map((_, i) => _extractEncoded(d, i));
-        const failedIdx = resolved.map((enc, i) => enc ? null : i).filter(i => i !== null);
-        if (!failedIdx.length) return resolved;
-        const retryQueries = failedIdx.map(i => _buildSegQuery('bicycle', pts[i], pts[i + 1], i));
-        return _postOtp(retryQueries).then(r2 => {
-          const d2 = r2 && r2.data;
-          failedIdx.forEach(i => {
-            const enc = _extractEncoded(d2, i);
-            if (enc) resolved[i] = enc;
-          });
-          return resolved;
-        }).catch(() => resolved);
-      })
-      .then(resolved => {
-        if (!_bRouteLayer || !resolved) return;
-        const allLatlngs = [];
-        resolved.forEach((enc, i) => {
-          if (enc) allLatlngs.push(..._decodePoly(enc));
-          else allLatlngs.push(pts[i], pts[i + 1]);
-        });
-        if (!allLatlngs.length) throw new Error('no points');
-        _bRoutePts = allLatlngs.map(ll => ({ lat: ll[0], lon: ll[1] }));
-        drawRoute(_bRouteLayer, allLatlngs, { color, weight: 3, opacity: 0.85 });
-        if (_bFitRouteRequested && !_bUserMoved) {
-          _bMap.fitBounds(allLatlngs, { padding: [30, 30], maxZoom: 15 });
-          _bFitRouteRequested = false;
-        }
-      })
-      .catch(() => {
-        if (!_bRouteLayer) return;
-        L.polyline(pts, style).addTo(_bRouteLayer);
-      });
-  } else if (pts.length >= 2) {
-    L.polyline(pts, style).addTo(_bRouteLayer);
-  }
+  // The corridor is drawn straight from `pts`.
+  //
+  // Buses used to stitch together CAR routes between each pair of stops to
+  // guess the road the bus takes — a guess, and fetched on every render tick
+  // with no guard, so the layer was cleared at the top of each tick and
+  // redrawn whenever the response landed. Measured on a bus route with
+  // realistic latency: the corridor was in the DOM for 3 of 15 samples, and
+  // it cost one POST per tick with a sub-query per stop pair.
+  //
+  // The leg's own pointsOnLink is the bus's actual service path, it is
+  // already in `pts` via legShape, and it arrives with the board query we
+  // make anyway. The guess is replaced by the answer, and the storm goes
+  // with it.
+  if (pts.length >= 2) L.polyline(pts, style).addTo(_bRouteLayer);
 
   // Every other selected line, as a corridor only. Deduped on geometry: on
   // shared track four lines would otherwise stack four identical strokes.
@@ -932,7 +868,7 @@ function renderLineRoute(visibleDeps, vehicles) {
           const encoded = pats && pats[0] && pats[0].legs && pats[0].legs[0]
             && pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
           if (!encoded) throw new Error('no points');
-          const latlngs = _decodePoly(encoded);
+          const latlngs = decodePolyline(encoded);
           drawRoute(_bRouteLayer, latlngs, { color: tokens().accent, weight: 3, opacity: 0.9, dashArray: '6 6' });
         })
         .catch(() => {
@@ -1732,11 +1668,11 @@ export function renderBoard() {
   const now = Date.now();
   const walkActive = isWalkActive(dir);
 
-  let visibleDeps = dedupeDepartures(state.deps);
+  let modeDeps = dedupeDepartures(state.deps);
   if (activeModes.length < 4) {
-    visibleDeps = visibleDeps.filter(({ c }) => activeModes.includes(_depMode(c)));
+    modeDeps = modeDeps.filter(({ c }) => activeModes.includes(_depMode(c)));
   }
-  if (!visibleDeps.length) {
+  if (!modeDeps.length) {
     list.innerHTML = '<div class="state-msg">Ingen avganger matcher filtrene. '
       + 'Det går avganger herfra, men ikke med transportmidlene som er valgt.</div>';
     renderLineFilter([]);
@@ -1744,7 +1680,26 @@ export function renderBoard() {
     if (_bVehicleLayer) _bVehicleLayer.clearLayers();
     return;
   }
-  renderLineFilter(visibleDeps);
+  // The pill row is built from the mode-filtered list, BEFORE the line filter
+  // is applied. Build it from the filtered list instead and a switched-off
+  // line loses its pill — and can then never be switched back on.
+  renderLineFilter(modeDeps);
+
+  // The line filter now reaches the departure list too, not just the strip
+  // and the map. A filter that visibly applies to half the screen is worse
+  // than no filter.
+  const visibleDeps = modeDeps.filter(({ c }) => {
+    const ln = c.serviceJourney && c.serviceJourney.line;
+    return !ln || _lineOn(ln.publicCode);
+  });
+  if (!visibleDeps.length) {
+    list.innerHTML = '<div class="state-msg">Ingen avganger på de valgte linjene. '
+      + 'Slå på flere linjer over for å se resten.</div>';
+    renderLineRoute([]);
+    if (_bVehicleLayer) _bVehicleLayer.clearLayers();
+    renderLineStrip([]);
+    return;
+  }
   // Decided once and used by both, so the drawn line and the things on it
   // cannot disagree — which is exactly how trains ended up off the corridor.
   const lineRef = (() => {

@@ -3,7 +3,7 @@ import { enturFetch } from '../api/http.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
 import { fetchJourneyMeta } from '../api/entur.js';
-import { quayLatLon } from '../api/adapt.js';
+import { quayLatLon, legShape } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 import { addLegToPlan, isLegInPlan } from '../api/plan.js';
@@ -110,7 +110,8 @@ function _depToRouteLegs(dep, fromName, toName) {
       }).filter(Boolean);
       if (stops.length < 2) continue;
       const ll = leg.serviceJourney && leg.serviceJourney.line;
-      legs.push({ stops, color: ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : null });
+      legs.push({ stops, shape: legShape(leg),
+                  color: ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : null });
     }
     return legs.length ? legs : null;
   }
@@ -131,7 +132,7 @@ function _depToRouteLegs(dep, fromName, toName) {
   if (stops.length < 2) return null;
   const sj = dep.serviceJourney;
   const color = sj && sj.line && sj.line.presentation && sj.line.presentation.colour ? '#' + sj.line.presentation.colour : null;
-  return [{ stops, color }];
+  return [{ stops, shape: legShape(dep._legs && dep._legs[0]), color }];
 }
 
 let _selMapKey = '';
@@ -175,9 +176,11 @@ function _renderSelMap(dep, fromName, toName) {
   const destIsVenue = dir._toLat && dir._toLon && !dir.toStopId;
   const pts = [];
 
-  legs.forEach(({ stops, color }, li) => {
+  legs.forEach(({ stops, shape, color }, li) => {
     const lc = color || tokens().accent;
-    drawRoute(_selLayer, stops.map(s => [s.lat, s.lon]), { color: lc, weight: 4, opacity: 0.85 });
+    // Real alignment where the leg carried one; the stop chain otherwise. The
+    // markers below still come from stops either way.
+    drawRoute(_selLayer, shape || stops.map(s => [s.lat, s.lon]), { color: lc, weight: 4, opacity: 0.85 });
     stops.forEach((s, i) => {
       pts.push([s.lat, s.lon]);
       const isFirst = li === 0 && i === 0;

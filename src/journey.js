@@ -108,6 +108,13 @@ export function doBoard() {
         arrTime:     arrT ? { time: arrT, clk: clk(arrT) } : null,
         quay:        (leg.fromEstimatedCall && leg.fromEstimatedCall.quay && leg.fromEstimatedCall.quay.publicCode) || null,
         stops:       [],
+        // The leg's real alignment, kept encoded. loadJny strips stops[] and
+        // the track view refills them from fetchTrack, which returns calls
+        // and no geometry — so without carrying this the underveis map would
+        // drop back to straight lines after every reload, which is exactly
+        // the underground case this app exists for. A few kB, and journeys
+        // expire after four hours.
+        shape:       (leg.pointsOnLink && leg.pointsOnLink.points) || null,
       });
     });
   } else {
@@ -129,6 +136,8 @@ export function doBoard() {
       arrTime:     arrT ? { time: arrT, clk: clk(arrT) } : null,
       quay:        (c.quay && c.quay.publicCode !== '?' && c.quay.publicCode) || null,
       stops:       sjc || [],
+      shape:       (c._legs && c._legs[0] && c._legs[0].pointsOnLink
+                    && c._legs[0].pointsOnLink.points) || null,
     });
   }
 

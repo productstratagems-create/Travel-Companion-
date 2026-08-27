@@ -1,3 +1,4 @@
+import { decodePolyline } from '../ui/polyline.js';
 // Quays carry their own coordinates (the actual platform), distinct from
 // their stopPlace's centroid. Prefer the quay-level point when present so
 // map markers land on the platform rather than the station's middle.
@@ -11,6 +12,30 @@ export function quayLatLon(quay) {
     return { lat: sp.latitude, lon: sp.longitude };
   }
   return null;
+}
+
+/**
+ * A leg's real alignment, decoded once.
+ *
+ * Every transit line on every map was a chord between platform coordinates —
+ * it cut across ridges, crossed water, and ignored every curve the train
+ * actually takes. OTP hands back the true geometry on the leg; this decodes
+ * it and caches the result on the leg object, because the render loop runs at
+ * 1 Hz and a full metro alignment is a few thousand points.
+ *
+ * Returns null whenever there is nothing usable, which is the signal for
+ * every caller to fall back to stop-to-stop points exactly as before.
+ */
+export function legShape(leg) {
+  if (!leg) return null;
+  if (leg._shape !== undefined) return leg._shape;
+  // Two shapes of leg reach here: a raw OTP leg carrying pointsOnLink, and a
+  // journey leg that persisted the encoded string as `shape`.
+  const enc = (leg.pointsOnLink && leg.pointsOnLink.points) || leg.shape;
+  const pts = enc ? decodePolyline(enc, 5) : [];
+  // One point is not a line, and would draw nothing at all.
+  leg._shape = pts.length >= 2 ? pts : null;
+  return leg._shape;
 }
 
 export function adaptTripPattern(tp) {

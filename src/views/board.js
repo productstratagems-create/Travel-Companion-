@@ -6,7 +6,7 @@ import { storage } from '../storage.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
 import { fetchBoard, fetchTrip, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
-import { adaptTripPattern, quayLatLon } from '../api/adapt.js';
+import { adaptTripPattern, quayLatLon, legShape } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
@@ -58,6 +58,7 @@ let _bFitRouteRequested = false;
 let _selectedLine = null;
 let _bRoutePts = null;
 let _bRouteSnapDist = null;
+let _shapeLogKey = null;
 
 function _destroyBoardMap() {
   if (_bMap) { _bMap.remove(); _bMap = null; _bLayer = null; }
@@ -643,8 +644,20 @@ function renderLineRoute(visibleDeps) {
   if (alightIdx === -1) alightIdx = allPts.length - 1;
   const lo = Math.min(boardIdx, alightIdx);
   const hi = Math.max(boardIdx, alightIdx);
-  const pts = allPts.slice(lo, hi + 1);
   const stops = allStops.slice(lo, hi + 1);
+  // The corridor is already clipped to boarding→alighting, which is exactly
+  // the span a leg's own geometry covers — so the real alignment drops
+  // straight in. No geometry (an old cached board, the no-destination path,
+  // or an API that does not return it) falls back to the stop chain.
+  const shape = legShape(c._legs && c._legs[0]);
+  const pts = shape || allPts.slice(lo, hi + 1);
+  // Whether Entur actually returns pointsOnLink cannot be checked from the
+  // sandbox this was written in, so one real trip settles it — same trick as
+  // the live-vehicle coverage line in v1.11.0.
+  if (shape && _shapeLogKey !== c.expectedDepartureTime) {
+    _shapeLogKey = c.expectedDepartureTime;
+    logMsg('sportrasé: ' + shape.length + ' punkter (' + (hi - lo + 1) + ' stopp)', 'ok');
+  }
 
   if (pts.length < 1) {
     _bRouteLayer.clearLayers();

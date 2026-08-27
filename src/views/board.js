@@ -55,7 +55,39 @@ let _bMapKey = null;
 let _bVehicleLayer = null;
 let _bRouteLayer = null;
 let _bFitRouteRequested = false;
-let _selectedLine = null;
+/**
+ * Which lines are on. Empty means all of them.
+ *
+ * This was a single string, so the strip showed one line while the departure
+ * list beneath it — which is filtered only by mode — showed every line that
+ * takes you there. On a route served by four lines you saw a quarter of your
+ * options, with nothing saying so. The strip contradicted the list it is a
+ * picture of, which is the one thing the strip must never do.
+ */
+let _selectedLines = new Set();
+
+/** Is this line drawn right now? An empty selection means all of them. */
+function _lineOn(code) {
+  return !_selectedLines.size || _selectedLines.has(code);
+}
+
+/**
+ * Toggle one line.
+ *
+ * Turning off the last one brings them all back, which is what you want — an
+ * empty filter is an empty strip with no explanation, and "none of them" is
+ * never the intent. That is not a separate rule though: it falls out of empty
+ * meaning all. A guard for it looked necessary and was an equivalent mutant,
+ * so it is not here.
+ */
+export function _toggleLine(selected, code, allCodes) {
+  const all = (allCodes || []).slice();
+  if (!all.includes(code)) return new Set(selected);
+  // An empty set already means all, so start from the explicit full set.
+  const cur = new Set((selected && selected.size) ? selected : all);
+  if (cur.has(code)) cur.delete(code); else cur.add(code);
+  return cur.size === all.length ? new Set() : cur;
+}
 let _bRoutePts = null;
 let _bRouteSnapDist = null;
 let _shapeLogKey = null;
@@ -414,27 +446,30 @@ function renderLineFilter(visibleDeps) {
   if (!lines.length) {
     el.innerHTML = '';
     _lineFilterKey = '';
-    _selectedLine = null;
+    _selectedLines = new Set();
     return;
   }
 
-  if (!_selectedLine || !lines.some(l => l.code === _selectedLine)) {
-    _selectedLine = lines[0].code;
-    _bFitRouteRequested = true;
-  }
+  // Drop selections that no longer exist on this route — otherwise switching
+  // route leaves a filter referring to lines that are not there, and the
+  // strip goes quietly empty.
+  const codes = lines.map(l => l.code);
+  const stale = [..._selectedLines].filter(c => !codes.includes(c));
+  if (stale.length) stale.forEach(c => _selectedLines.delete(c));
 
-  const key = lines.map(l => l.code + ':' + l.color).join(',') + '|' + _selectedLine;
+  const key = lines.map(l => l.code + ':' + l.color).join(',')
+    + '|' + [..._selectedLines].sort().join(',');
   if (key === _lineFilterKey) return;
   _lineFilterKey = key;
 
   el.innerHTML = lines.map(l =>
-    '<button class="line-pill' + (l.code === _selectedLine ? ' active' : '') + '" data-line="' + esc(l.code) + '">'
+    '<button class="line-pill' + (_lineOn(l.code) ? ' active' : '') + '" data-line="' + esc(l.code) + '">'
     + '<span class="line-badge" style="background:' + l.color + '">' + esc(l.code) + '</span>'
     + '</button>'
   ).join('');
   el.querySelectorAll('.line-pill').forEach(btn => {
     btn.addEventListener('click', () => {
-      _selectedLine = btn.dataset.line;
+      _selectedLines = _toggleLine(_selectedLines, btn.dataset.line, lines.map(l => l.code));
       _lineFilterKey = '';
       _bFitRouteRequested = true;
       renderBoard();
@@ -583,19 +618,67 @@ export function _stopsReadable(points, minGap) {
   return median >= (minGap == null ? ROUTE_STOP_MIN_GAP_PX : minGap);
 }
 
+/**
+ * The stop chain of one departure, clipped to boarding→alighting.
+ *
+ * Extracted so that lines other than the primary one can be drawn without
+ * going near the singular state renderLineRoute owns — the snap corridor, the
+ * walk extension and the map fit are all one-per-board by nature.
+ */
+export function _corridorStops(c, dir) {
+  const sjc = c && c.serviceJourney && c.serviceJourney.estimatedCalls;
+  if (!Array.isArray(sjc) || sjc.length < 2) return [];
+  const stops = [];
+  sjc.forEach(call => {
+    const sp = call.quay && call.quay.stopPlace;
+    const ll = quayLatLon(call.quay);
+    if (!ll) return;
+    const last = stops[stops.length - 1];
+    if (last && last.lat === ll.lat && last.lon === ll.lon) return;
+    stops.push({ lat: ll.lat, lon: ll.lon, name: (sp && sp.name) || '' });
+  });
+  if (stops.length < 2) return [];
+  const norm = (x) => String(x || '').toLowerCase().replace(/\s+t$/i, '').trim();
+  const idxOf = (name, lat, lon) => {
+    if (name) {
+      const n = norm(name);
+      const i = stops.findIndex(st => norm(st.name) === n
+        || norm(st.name).includes(n) || n.includes(norm(st.name)));
+      if (i !== -1) return i;
+    }
+    if (lat != null && lon != null) {
+      let best = -1, bestD = Infinity;
+      stops.forEach((st, i) => {
+        const d = haver(st.lat, st.lon, lat, lon);
+        if (d < bestD) { bestD = d; best = i; }
+      });
+      return best;
+    }
+    return -1;
+  };
+  let a = idxOf(dir && dir.from, dir && dir._fromLat, dir && dir._fromLon);
+  let b = idxOf(dir && dir.to, dir && dir._toLat, dir && dir._toLon);
+  if (a === -1) a = 0;
+  if (b === -1) b = stops.length - 1;
+  return stops.slice(Math.min(a, b), Math.max(a, b) + 1);
+}
+
 function renderLineRoute(visibleDeps, vehicles) {
   if (!_bMap) return;
-  if (!_selectedLine) {
-    if (_bRouteLayer) _bRouteLayer.clearLayers();
-    _bRoutePts = null;
-    return;
-  }
-
-  const match = visibleDeps.find(({ c }) => {
+  // One usable departure per selected line, soonest first. The first is the
+  // primary: it owns the snap corridor, the walk extension and the fit, all
+  // of which are one-per-board by nature. The rest are drawn as corridors
+  // only, so where lines share track they lie on top of each other and where
+  // they part you can see it.
+  const perLine = new Map();
+  visibleDeps.forEach(({ c }) => {
     const ln = c.serviceJourney && c.serviceJourney.line;
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
-    return ln && ln.publicCode === _selectedLine && sjc && sjc.length >= 2;
+    if (!ln || !sjc || sjc.length < 2) return;
+    if (!_lineOn(ln.publicCode) || perLine.has(ln.publicCode)) return;
+    perLine.set(ln.publicCode, { c });
   });
+  const match = perLine.values().next().value || null;
 
   if (!_bRouteLayer) _bRouteLayer = L.layerGroup().addTo(_bMap);
 
@@ -775,6 +858,21 @@ function renderLineRoute(visibleDeps, vehicles) {
   } else if (pts.length >= 2) {
     L.polyline(pts, style).addTo(_bRouteLayer);
   }
+
+  // Every other selected line, as a corridor only. Deduped on geometry: on
+  // shared track four lines would otherwise stack four identical strokes.
+  const drawn = new Set([JSON.stringify(pts)]);
+  [...perLine.values()].slice(1).forEach(({ c: oc }) => {
+    const ocStops = _corridorStops(oc, dir);
+    if (ocStops.length < 2) return;
+    const ocPts = ocStops.map(st => [st.lat, st.lon]);
+    const key = JSON.stringify(ocPts);
+    if (drawn.has(key)) return;
+    drawn.add(key);
+    const ol = oc.serviceJourney.line;
+    const ocColor = ol.presentation && ol.presentation.colour ? '#' + ol.presentation.colour : color;
+    L.polyline(ocPts, { ...style, color: ocColor, interactive: false }).addTo(_bRouteLayer);
+  });
 
   // Intermediate stops are hidden until there is room to read them.
   //
@@ -1038,14 +1136,19 @@ function _refreshInflight(dir) {
  * Everything to draw on the strip, as fractional stop indices on a shared
  * scale where the origin is 0 and the destination is legIndices.to - from.
  */
-export function _buildStrip(candidates, dir, selectedLine, now, livePos) {
+export function _buildStrip(candidates, dir, lineOn, now, livePos) {
+  // Accepts a predicate, a Set, or a single code — several lines can be on at
+  // once now, and the strip must show every line the list shows.
+  const on = typeof lineOn === 'function' ? lineOn
+    : lineOn && typeof lineOn.has === 'function' ? (c) => !lineOn.size || lineOn.has(c)
+    : (c) => c === lineOn;
   const out = { trains: [], from: dir && dir.from };
   const seen = new Set();
 
   candidates.forEach(c => {
     const sj = c.serviceJourney;
     const ln = sj && sj.line;
-    if (!ln || ln.publicCode !== selectedLine) return;
+    if (!ln || !on(ln.publicCode)) return;
     const jid = sj.id;
     if (jid && seen.has(jid)) return;
     if (jid) seen.add(jid);
@@ -1064,6 +1167,11 @@ export function _buildStrip(candidates, dir, selectedLine, now, livePos) {
       ago,
       departed: ago !== null,
       live: !!livePosition(livePos, jid, now),
+      line: ln.publicCode,
+      // With several lines interleaved on one time axis a glyph has to say
+      // which line it is. Same source as the badge in the list and the pill
+      // above, so the three never disagree.
+      colour: (ln.presentation && ln.presentation.colour) ? '#' + ln.presentation.colour : null,
       label: (c.destinationDisplay && c.destinationDisplay.frontText) || '',
     });
   });
@@ -1232,10 +1340,10 @@ function renderLineStrip(visibleDeps) {
   const el = document.getElementById('line-strip');
   if (!el) return;
   const dir = config.dirs[state.dIdx];
-  if (!_selectedLine || !dir) { el.style.display = 'none'; return; }
+  if (!dir) { el.style.display = 'none'; return; }
   _refreshInflight(dir);
 
-  const data = _buildStrip(visibleDeps.map(d => d.c), dir, _selectedLine, Date.now(), _livePos);
+  const data = _buildStrip(visibleDeps.map(d => d.c), dir, _lineOn, Date.now(), _livePos);
   if (!data.trains.length) { el.style.display = 'none'; return; }
 
   // Displayed before measuring: a hidden element has no width, and the
@@ -1316,11 +1424,18 @@ function renderLineStrip(visibleDeps) {
       ? (n > 1 ? n + ' tog har gått, siste ' : '')
         + (lead.ago < 1 ? (n > 1 ? 'nå' : 'går nå') : 'for ' + lead.ago + ' min siden')
       : n > 1
-      ? n + ' tog, neste om ' + lead.mins + ' min · trykk for å se dem'
+      ? (() => {
+          const codes = [...new Set(cl.items.map(t => t.line).filter(Boolean))];
+          const which = codes.length > 1 ? ' (linje ' + codes.join(', ') + ')' : '';
+          return n + ' tog' + which + ', neste om ' + lead.mins + ' min · trykk for å se dem';
+        })()
       : cl.group
         ? 'om ' + lead.mins + ' min · trykk for å lukke gruppen'
         : esc(lead.label) + ' · trykk for å se raden';
-    return '<span class="' + cls + '" style="left:' + cl.pos.toFixed(2) + '%"'
+    // Several lines can share the axis now, so a glyph carries its own line
+    // colour. Falls back to the accent when the operator gave none.
+    const tint = lead.colour ? 'background:' + lead.colour + ';border-color:' + lead.colour + ';' : '';
+    return '<span class="' + cls + '" style="' + tint + 'left:' + cl.pos.toFixed(2) + '%"'
       + ' role="button" tabindex="0" data-count="' + n + '"'
       + (cl.group ? ' data-group="' + esc(cl.group) + '"' : '')
       + ' data-jid="' + esc(lead.id) + '"'
@@ -1387,13 +1502,16 @@ export function _widenLo(allStops, boardIdx, vehicles) {
   return lo;
 }
 
-export function _approachingVehicles(visibleDeps, selectedLine, now, livePos) {
+export function _approachingVehicles(visibleDeps, lineOn, now, livePos) {
+  const on = typeof lineOn === 'function' ? lineOn
+    : lineOn && typeof lineOn.has === 'function' ? (c) => !lineOn.size || lineOn.has(c)
+    : (c) => c === lineOn;
   const out = [];
   const seen = new Set();
   (visibleDeps || []).forEach(({ c }) => {
     const sj = c.serviceJourney;
     const ln = sj && sj.line;
-    if (!ln || ln.publicCode !== selectedLine) return;
+    if (!ln || !on(ln.publicCode)) return;
     const jid = sj.id;
     if (jid) { if (seen.has(jid)) return; seen.add(jid); }
 
@@ -1425,7 +1543,7 @@ export function _approachingVehicles(visibleDeps, selectedLine, now, livePos) {
 }
 
 function renderVehicleMarkers(vehicles) {
-  if (!_bMap || !_selectedLine) return;
+  if (!_bMap) return;
   if (!_bVehicleLayer) _bVehicleLayer = L.layerGroup().addTo(_bMap);
   _bVehicleLayer.clearLayers();
 
@@ -1447,7 +1565,10 @@ function renderVehicleMarkers(vehicles) {
       bearing: live ? live.bearing : pos.heading,
       estimated: !live,
     }) })
-      .bindTooltip('Linje ' + esc(_selectedLine) + ' → ' + esc(dest) + eta + ' · ' + esc(where),
+      // The train's own line, not the global selection. With one line
+      // selected the two happened to agree; with several, every marker would
+      // have claimed to be the same line.
+      .bindTooltip('Linje ' + esc(ln.publicCode || '?') + ' → ' + esc(dest) + eta + ' · ' + esc(where),
         { className: 'map-label' })
       .addTo(_bVehicleLayer);
   });
@@ -1629,12 +1750,12 @@ export function renderBoard() {
   const lineRef = (() => {
     const m = visibleDeps.find(({ c }) => {
       const ln = c.serviceJourney && c.serviceJourney.line;
-      return ln && ln.publicCode === _selectedLine;
+      return ln && _lineOn(ln.publicCode);
     });
     return m && m.c.serviceJourney.line && m.c.serviceJourney.line.id;
   })();
   _refreshLivePositions(lineRef);
-  const vehicles = _approachingVehicles(visibleDeps, _selectedLine, now, _livePos);
+  const vehicles = _approachingVehicles(visibleDeps, _lineOn, now, _livePos);
   renderLineRoute(visibleDeps, vehicles);
   renderVehicleMarkers(vehicles);
   renderLineStrip(visibleDeps);

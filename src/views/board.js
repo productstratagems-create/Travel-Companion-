@@ -823,9 +823,7 @@ function renderLineRoute(visibleDeps, vehicles) {
   const ln = c.serviceJourney.line;
   const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
   const isBus = _depMode(c) === 'bus';
-  const style = isBus
-    ? { color, weight: 2, opacity: 0.55, dashArray: '1 7', interactive: false }
-    : { color, weight: 4, opacity: 0.7, lineCap: 'round', interactive: false };
+  const style = _corridorStyle(_depMode(c), color);
 
   _bRoutePts = pts;
   _bRouteSnapDist = isBus ? 25 : 50;
@@ -865,11 +863,7 @@ function renderLineRoute(visibleDeps, vehicles) {
     const ll = leg.serviceJourney && leg.serviceJourney.line;
     const lc = ll && ll.presentation && ll.presentation.colour
       ? '#' + ll.presentation.colour : color;
-    const legIsBus = leg.mode === 'bus';
-    L.polyline(lp, legIsBus
-      ? { color: lc, weight: 2, opacity: 0.55, dashArray: '1 7', interactive: false }
-      : { color: lc, weight: 4, opacity: 0.7, lineCap: 'round', interactive: false })
-      .addTo(_bRouteLayer);
+    L.polyline(lp, _corridorStyle(leg.mode, lc)).addTo(_bRouteLayer);
     restPts.push(...lp);
   });
 
@@ -885,7 +879,11 @@ function renderLineRoute(visibleDeps, vehicles) {
     drawn.add(key);
     const ol = oc.serviceJourney.line;
     const ocColor = ol.presentation && ol.presentation.colour ? '#' + ol.presentation.colour : color;
-    L.polyline(ocPts, { ...style, color: ocColor, interactive: false }).addTo(_bRouteLayer);
+    // Its own mode, not the primary line's. Spreading `style` here meant the
+    // bus corridor was drawn solid and 4px whenever a metro line happened to
+    // have the soonest departure — the same bus, two thicknesses, depending
+    // on what else was selected.
+    L.polyline(ocPts, _corridorStyle(_depMode(oc), ocColor)).addTo(_bRouteLayer);
   });
 
   // Intermediate stops are hidden until there is room to read them.
@@ -1391,11 +1389,15 @@ function renderLineStrip(visibleDeps) {
   const el = document.getElementById('line-strip');
   if (!el) return;
   const dir = config.dirs[state.dIdx];
-  if (!dir) { el.style.display = 'none'; return; }
+  // Hidden is not empty: leaving the old glyphs in the DOM means they are one
+  // style change away from reappearing, and anything inspecting the strip
+  // still finds departures that are no longer on the board.
+  const blank = () => { el.style.display = 'none'; el.innerHTML = ''; };
+  if (!dir) { blank(); return; }
   _refreshInflight(dir);
 
   const data = _buildStrip(visibleDeps.map(d => d.c), dir, _lineOn, Date.now(), _livePos);
-  if (!data.trains.length) { el.style.display = 'none'; return; }
+  if (!data.trains.length) { blank(); return; }
 
   // Displayed before measuring: a hidden element has no width, and the
   // clustering threshold is derived from it.
@@ -1591,6 +1593,37 @@ export function _approachingVehicles(visibleDeps, lineOn, now, livePos) {
     out.push({ c, jid, sjc, live, pos });
   });
   return out;
+}
+
+/**
+ * Everything on screen that stands for a departure, cleared at once.
+ *
+ * There are two ways the board can end up with nothing to show — every mode
+ * switched off, or every line — and each used to clear by hand. They drifted:
+ * the mode branch never called renderLineStrip, so switching all four
+ * transport modes off emptied the list and the map and left the strip
+ * standing with its old glyphs. One place to forget is better than two, and
+ * a third branch cannot now forget at all.
+ */
+/**
+ * How a corridor is drawn, by the mode that runs on it.
+ *
+ * Buses get a thin dashed line because they share the road and their
+ * alignment is the least exact thing on the map; rail modes get a solid
+ * stroke. Three places built these two objects by hand, and one of them
+ * spread the primary line's style over every other line — so a bus drawn
+ * beside a metro borrowed the metro's weight.
+ */
+export function _corridorStyle(mode, color) {
+  return mode === 'bus'
+    ? { color, weight: 2, opacity: 0.55, dashArray: '1 7', interactive: false }
+    : { color, weight: 4, opacity: 0.7, lineCap: 'round', interactive: false };
+}
+
+function _clearDepartureGraphics() {
+  renderLineRoute([]);
+  if (_bVehicleLayer) _bVehicleLayer.clearLayers();
+  renderLineStrip([]);
 }
 
 function renderVehicleMarkers(vehicles) {
@@ -1791,9 +1824,9 @@ export function renderBoard() {
     list.innerHTML = '<div class="state-msg">Ingen avganger matcher filtrene. '
       + 'Det går avganger herfra, men de bruker transportmidler du har slått av '
       + '\u2014 en reise kan kreve et bytte til noe som ikke er valgt.</div>';
+    // No departures at all, so the line pills have nothing to offer either.
     renderLineFilter([]);
-    renderLineRoute([]);
-    if (_bVehicleLayer) _bVehicleLayer.clearLayers();
+    _clearDepartureGraphics();
     return;
   }
   // The pill row is built from the mode-filtered list, BEFORE the line filter
@@ -1811,9 +1844,8 @@ export function renderBoard() {
   if (!visibleDeps.length) {
     list.innerHTML = '<div class="state-msg">Ingen avganger på de valgte linjene. '
       + 'Slå på flere linjer over for å se resten.</div>';
-    renderLineRoute([]);
-    if (_bVehicleLayer) _bVehicleLayer.clearLayers();
-    renderLineStrip([]);
+    // The pills stay: switching a line back on has to remain possible.
+    _clearDepartureGraphics();
     return;
   }
   // Decided once and used by both, so the drawn line and the things on it

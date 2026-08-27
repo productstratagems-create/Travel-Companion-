@@ -9,7 +9,7 @@ vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
-  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList } from '../src/views/board.js';
+  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -785,5 +785,41 @@ describe('_scrollRowIntoList', () => {
   it('copes with a list that does not scroll at all', () => {
     expect(_scrollRowIntoList(LIST, row(418), 0, 400, 400)).toBe(0);
     expect(_scrollRowIntoList(LIST, row(418), 0, CLIENT, 0)).toBe(0);
+  });
+});
+
+// ── Korridorstil ────────────────────────────────────────────────────────────
+//
+// Three places built these two style objects by hand, and the loop drawing
+// the non-primary lines spread the PRIMARY line's style over them. So the bus
+// corridor came out solid and 4px whenever a metro line happened to have the
+// soonest departure: the same bus, two thicknesses, depending on what else
+// was selected.
+describe('_corridorStyle', () => {
+  it('draws a bus thin and dashed', () => {
+    const s = _corridorStyle('bus', '#e5006d');
+    expect(s.weight).toBe(2);
+    expect(s.dashArray).toBe('1 7');
+    expect(s.color).toBe('#e5006d');
+  });
+
+  it('draws rail modes solid and thicker', () => {
+    ['metro', 'tram', 'rail'].forEach(m => {
+      const s = _corridorStyle(m, '#f5a000');
+      expect(s.weight).toBe(4);
+      expect(s.dashArray).toBeUndefined();
+    });
+  });
+
+  // The bug in one line: the style must come from the mode it is given, never
+  // from whichever line happened to be drawn first.
+  it('depends on nothing but the mode it is handed', () => {
+    expect(_corridorStyle('bus', '#000')).toEqual(_corridorStyle('bus', '#000'));
+    expect(_corridorStyle('bus', '#000').weight)
+      .not.toBe(_corridorStyle('metro', '#000').weight);
+  });
+
+  it('treats an unknown mode as rail rather than as a bus', () => {
+    expect(_corridorStyle(undefined, '#000').weight).toBe(4);
   });
 });

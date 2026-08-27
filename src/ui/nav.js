@@ -2,7 +2,7 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { addFav } from './favs.js';
 import { storage } from '../storage.js';
-import { renderBoardProfileSwitcher } from '../views/settings.js';
+import { renderBoardProfileSwitcher, syncRouteFields } from '../views/settings.js';
 import { saveWeekendMode } from '../geo.js';
 import { confirmTap } from './confirm.js';
 import { stopSelRefresh } from '../views/selected.js';
@@ -188,6 +188,10 @@ function toggleDir() {
     state.dIdx = state.dIdx === 0 ? 1 : 0;
   }
   storage.set(config.storage.dir, String(state.dIdx));
+  // Both branches above change the running route, so the form must follow —
+  // otherwise «velg rute» still shows the route from before the swap, and
+  // «bruk rute» would put it back.
+  syncRouteFields(config.dirs[state.dIdx]);
   updateHeader();
   state.deps = [];
   show('v-board');

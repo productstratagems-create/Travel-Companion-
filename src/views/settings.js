@@ -463,7 +463,14 @@ export function showSettings() {
 
   if (depEl) {
     const saved = loadDep();
-    depEl.value = (ns ? ns.name : null) || saved || (config.dirs[state.dIdx] ? config.dirs[state.dIdx].from : '');
+    // The active route first, since favourites and reversing now write it —
+    // the field should say where the route starts, not where you happen to
+    // stand. Nearest station stays as the fallback for a first run with no
+    // route saved: config.dirs[0] is a non-empty neutral placeholder
+    // («Jernbanetorget»), so putting it first would always win and no one
+    // would ever see their nearest station. The nearby list sits right below
+    // the field either way.
+    depEl.value = saved || (ns ? ns.name : null) || (config.dirs[state.dIdx] ? config.dirs[state.dIdx].from : '');
     if (ns) _depStopIds.set(ns.name, { id: ns.id, lat: ns.lat, lon: ns.lon });
     syncClear('set-dep', 'set-dep-clear');
   }
@@ -682,6 +689,26 @@ function _renderFreqRow(elId, role) {
       }
     });
   });
+}
+
+/**
+ * Make the route form agree with the route that is actually running.
+ *
+ * saveDep/saveDest were written from exactly two places — «bruk rute» and the
+ * deep link. Picking a favourite or reversing set config.dirs and started the
+ * board, so the live route was right, while t.dep/t.dest still held whatever
+ * was last typed. Open «velg rute» after either and the fields showed the old
+ * route — and pressing «bruk rute» put it back.
+ *
+ * Lives here because this file owns the keys.
+ */
+export function syncRouteFields(dir) {
+  if (!dir) return;
+  if (dir.from) saveDep(dir.from);
+  if (dir.to) saveDest(dir.to);
+  // favToDir carries no via, so an old one would otherwise stay behind and
+  // reappear the next time the form is used.
+  saveVia(dir.via || null);
 }
 
 export function loadDest() {

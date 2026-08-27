@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import { setActiveRoute } from './settings.js';
 import { createMap } from '../ui/map.js';
 import { state } from '../state.js';
 import { fetchNearbyPlaces, timeCategory, PLACE_CATS } from '../api/places.js';
@@ -290,7 +291,7 @@ function _cardHtml(v, i) {
 function _reisDit(venue) {
   const ns = state.nearestStation;
   const pos = _locOvr || state.homeLL;
-  config.dirs[2] = {
+  setActiveRoute({
     key: 'custom-out',
     from: ns ? ns.name : (_locOvr ? _locOvr.label : 'Min posisjon'),
     to: venue.name,
@@ -304,8 +305,7 @@ function _reisDit(venue) {
     _fromLon: ns ? ns.lon : (pos ? pos.lon : null),
     _toLat: venue.lat,
     _toLon: venue.lon,
-  };
-  state.dIdx = 2;
+  });
   updateHeader();
   _destroyLeisureMap();
   saveWeekendMode(false);

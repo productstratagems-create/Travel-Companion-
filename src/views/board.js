@@ -823,9 +823,7 @@ function renderLineRoute(visibleDeps, vehicles) {
   const ln = c.serviceJourney.line;
   const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
   const isBus = _depMode(c) === 'bus';
-  const style = isBus
-    ? { color, weight: 2, opacity: 0.55, dashArray: '1 7', interactive: false }
-    : { color, weight: 4, opacity: 0.7, lineCap: 'round', interactive: false };
+  const style = _corridorStyle(_depMode(c), color);
 
   _bRoutePts = pts;
   _bRouteSnapDist = isBus ? 25 : 50;
@@ -865,11 +863,7 @@ function renderLineRoute(visibleDeps, vehicles) {
     const ll = leg.serviceJourney && leg.serviceJourney.line;
     const lc = ll && ll.presentation && ll.presentation.colour
       ? '#' + ll.presentation.colour : color;
-    const legIsBus = leg.mode === 'bus';
-    L.polyline(lp, legIsBus
-      ? { color: lc, weight: 2, opacity: 0.55, dashArray: '1 7', interactive: false }
-      : { color: lc, weight: 4, opacity: 0.7, lineCap: 'round', interactive: false })
-      .addTo(_bRouteLayer);
+    L.polyline(lp, _corridorStyle(leg.mode, lc)).addTo(_bRouteLayer);
     restPts.push(...lp);
   });
 
@@ -885,7 +879,11 @@ function renderLineRoute(visibleDeps, vehicles) {
     drawn.add(key);
     const ol = oc.serviceJourney.line;
     const ocColor = ol.presentation && ol.presentation.colour ? '#' + ol.presentation.colour : color;
-    L.polyline(ocPts, { ...style, color: ocColor, interactive: false }).addTo(_bRouteLayer);
+    // Its own mode, not the primary line's. Spreading `style` here meant the
+    // bus corridor was drawn solid and 4px whenever a metro line happened to
+    // have the soonest departure — the same bus, two thicknesses, depending
+    // on what else was selected.
+    L.polyline(ocPts, _corridorStyle(_depMode(oc), ocColor)).addTo(_bRouteLayer);
   });
 
   // Intermediate stops are hidden until there is room to read them.
@@ -1607,6 +1605,21 @@ export function _approachingVehicles(visibleDeps, lineOn, now, livePos) {
  * standing with its old glyphs. One place to forget is better than two, and
  * a third branch cannot now forget at all.
  */
+/**
+ * How a corridor is drawn, by the mode that runs on it.
+ *
+ * Buses get a thin dashed line because they share the road and their
+ * alignment is the least exact thing on the map; rail modes get a solid
+ * stroke. Three places built these two objects by hand, and one of them
+ * spread the primary line's style over every other line — so a bus drawn
+ * beside a metro borrowed the metro's weight.
+ */
+export function _corridorStyle(mode, color) {
+  return mode === 'bus'
+    ? { color, weight: 2, opacity: 0.55, dashArray: '1 7', interactive: false }
+    : { color, weight: 4, opacity: 0.7, lineCap: 'round', interactive: false };
+}
+
 function _clearDepartureGraphics() {
   renderLineRoute([]);
   if (_bVehicleLayer) _bVehicleLayer.clearLayers();

@@ -1,6 +1,7 @@
 import config from '../config.js';
 import { state } from '../state.js';
-import { loadFavs, removeFav, favToDir } from '../ui/favs.js';
+import { loadFavs, removeFav, favToDir, markFavUsed } from '../ui/favs.js';
+import { recordSmartTrip } from '../api/smart.js';
 import { storage } from '../storage.js';
 import { show, updateHeader } from '../ui/nav.js';
 import { confirmTap } from '../ui/confirm.js';
@@ -53,6 +54,13 @@ export function renderFavs() {
 window._loadFavRoute = (id) => {
   const fav = loadFavs().find(f => f.id === id);
   if (!fav) return;
+  // Loading a favourite used to record nothing at all, so the routes people
+  // actually tap were invisible to the one mechanism measuring taps — and to
+  // the smart engine, which only ever heard about «bruk rute» and deep links.
+  markFavUsed(fav.id);
+  recordSmartTrip(fav.from, fav.to, fav.toStopId || null,
+    fav.toLat != null ? fav.toLat : null, fav.toLon != null ? fav.toLon : null,
+    fav.stopId || null);
   config.dirs[2] = favToDir(fav);
   state.dIdx = 2;
   storage.set(config.storage.dir, '2');

@@ -67,3 +67,56 @@ describe('fetchTrip — the retry when dateTime is rejected', () => {
     expect(onError).toHaveBeenCalled();
   });
 });
+
+/**
+ * Which situations reach the banner.
+ *
+ * Before this, they came from the origin stop place AND from its next five
+ * departures — whatever line or direction those ran — while the trip's own
+ * legs were never asked at all. So the alerts most likely to matter were
+ * absent and the ones least likely to were present.
+ */
+describe('fetchTrip — situations belong to the route, not the platform', () => {
+  const withSits = () => ({
+    ok: true, status: 200,
+    json: () => Promise.resolve({ data: {
+      stopPlace: { situations: [{ id: 'origin-stop', summary: [{ value: 'Heis ute av drift' }] }] },
+      dest: { situations: [{ id: 'dest-stop', summary: [{ value: 'Trapp stengt' }] }] },
+      trip: { tripPatterns: [{ duration: 1, legs: [{
+        situations: [{ id: 'leg', summary: [{ value: 'Forsinkelser linje 3' }] }],
+        serviceJourney: { situations: [{ id: 'journey', summary: [{ value: 'Innstilt avgang' }] }] },
+      }] }] },
+    } }),
+  });
+
+  it('takes both named stop places and the legs actually ridden', async () => {
+    fetchMock.mockReturnValue(Promise.resolve(withSits()));
+    const onSuccess = vi.fn();
+    fetchTrip(DIR, onSuccess, vi.fn());
+    await settle(); await settle(); await settle();
+    const ids = (onSuccess.mock.calls[0][1] || []).map(s => s.id).sort();
+    expect(ids).toEqual(['dest-stop', 'journey', 'leg', 'origin-stop']);
+  });
+
+  it('de-duplicates one situation reported in two places', async () => {
+    const dup = { id: 'same', summary: [{ value: 'x' }] };
+    fetchMock.mockReturnValue(Promise.resolve({ ok: true, status: 200,
+      json: () => Promise.resolve({ data: {
+        stopPlace: { situations: [dup] },
+        trip: { tripPatterns: [{ legs: [{ situations: [dup] }] }] },
+      } }) }));
+    const onSuccess = vi.fn();
+    fetchTrip(DIR, onSuccess, vi.fn());
+    await settle(); await settle(); await settle();
+    expect(onSuccess.mock.calls[0][1]).toHaveLength(1);
+  });
+
+  it('survives a response with no situations anywhere', async () => {
+    fetchMock.mockReturnValue(Promise.resolve({ ok: true, status: 200,
+      json: () => Promise.resolve({ data: { trip: { tripPatterns: [{ legs: [{}] }] } } }) }));
+    const onSuccess = vi.fn();
+    fetchTrip(DIR, onSuccess, vi.fn());
+    await settle(); await settle(); await settle();
+    expect(onSuccess.mock.calls[0][1]).toEqual([]);
+  });
+});

@@ -561,7 +561,29 @@ const _ROUTE_STOP_TOOLTIP_MS = 3000;
 
 let _walkExtKey = null;
 
-function renderLineRoute(visibleDeps) {
+/**
+ * Is there room to draw a marker at every stop?
+ *
+ * The gate is the median gap rather than the smallest: one pair of unusually
+ * close stops should not blank a corridor that is otherwise perfectly
+ * legible. ROUTE_STOP_MIN_GAP_PX is three times the 7px marker, so beads
+ * never touch.
+ */
+export const ROUTE_STOP_MIN_GAP_PX = 21;
+
+export function _stopsReadable(points, minGap) {
+  const pts = points || [];
+  if (pts.length < 3) return true;      // ends only; nothing to crowd
+  const gaps = [];
+  for (let i = 1; i < pts.length; i++) {
+    gaps.push(Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+  }
+  gaps.sort((a, b) => a - b);
+  const median = gaps[Math.floor(gaps.length / 2)];
+  return median >= (minGap == null ? ROUTE_STOP_MIN_GAP_PX : minGap);
+}
+
+function renderLineRoute(visibleDeps, vehicles) {
   if (!_bMap) return;
   if (!_selectedLine) {
     if (_bRouteLayer) _bRouteLayer.clearLayers();
@@ -642,15 +664,24 @@ function renderLineRoute(visibleDeps) {
   // Fall back to full corridor if we can't locate either end.
   if (boardIdx === -1) boardIdx = 0;
   if (alightIdx === -1) alightIdx = allPts.length - 1;
-  const lo = Math.min(boardIdx, alightIdx);
+  let lo = Math.min(boardIdx, alightIdx);
   const hi = Math.max(boardIdx, alightIdx);
+
+  lo = _widenLo(allStops, lo, vehicles);
+
   const stops = allStops.slice(lo, hi + 1);
   // The corridor is already clipped to boarding→alighting, which is exactly
   // the span a leg's own geometry covers — so the real alignment drops
   // straight in. No geometry (an old cached board, the no-destination path,
   // or an API that does not return it) falls back to the stop chain.
   const shape = legShape(c._legs && c._legs[0]);
-  const pts = shape || allPts.slice(lo, hi + 1);
+  // pointsOnLink covers the ridden leg only, so where the corridor has been
+  // widened behind your stop there is no alignment to follow. Straight behind
+  // you, true ahead of you — the honest split, rather than pretending either
+  // half is the other.
+  const behind = lo < boardIdx ? allPts.slice(lo, boardIdx) : [];
+  const ahead = shape || allPts.slice(Math.min(boardIdx, lo), hi + 1);
+  const pts = behind.length ? behind.concat(ahead) : ahead;
   // Whether Entur actually returns pointsOnLink cannot be checked from the
   // sandbox this was written in, so one real trip settles it — same trick as
   // the live-vehicle coverage line in v1.11.0.
@@ -745,8 +776,19 @@ function renderLineRoute(visibleDeps) {
     L.polyline(pts, style).addTo(_bRouteLayer);
   }
 
-  stops.forEach((s) => {
+  // Intermediate stops are hidden until there is room to read them.
+  //
+  // Deliberately measured rather than keyed to a zoom number: the default
+  // zoom comes from fitBounds, so a three-stop route fits at high zoom and a
+  // fixed threshold would show its beads immediately — defeating the point.
+  // Same reasoning as the strip's clustering: separation in pixels, on the
+  // screen the reader actually has.
+  const showIntermediate = _stopsReadable(stops.map(st => _bMap.latLngToContainerPoint([st.lat, st.lon])));
+  stops.forEach((s, i) => {
     if (!s.name) return;
+    // Start and stop are never hidden — they are what the corridor is for.
+    const isEnd = i === 0 || i === stops.length - 1;
+    if (!isEnd && !showIntermediate) return;
     const marker = L.marker([s.lat, s.lon], { icon: makeRouteStopIcon(color) }).addTo(_bRouteLayer);
     // Every stop names itself on tap, endpoints included. The endpoints used
     // to be shown with _bMap.addLayer(tooltip), which displays a tooltip
@@ -1303,35 +1345,92 @@ function renderLineStrip(visibleDeps) {
   el.setAttribute('aria-label', _stripSummary(data));
 }
 
-function renderVehicleMarkers(visibleDeps) {
+/**
+ * How far ahead a train is still worth drawing on the map.
+ *
+ * The board lists departures about 45 minutes out and a metro run takes about
+ * 40, so most of that list is trains that have not left their terminus yet.
+ * They were all drawn there, stacked on one point at the far end of the line
+ * — measured at 281px from a corridor on a 382px-wide map. "Parked somewhere
+ * else" is not information; these are the ones being chosen between.
+ */
+export const APPROACH_WINDOW_MS = 15 * 60_000;
+
+/**
+ * The trains worth drawing, decided once and used by both the corridor and
+ * the markers — so the drawn line and the things on it cannot disagree, which
+ * is the fault this replaces.
+ */
+/**
+ * How far back the drawn corridor has to reach to hold every train on it.
+ *
+ * The corridor is clipped to boarding→alighting; the trains coming to get you
+ * are behind that, so without widening they sit off the drawn line — which is
+ * what was reported.
+ *
+ * Nearest stop by distance, deliberately not _stopsAway's index: that counts
+ * a differently filtered array and would be quietly off by a few. Whole
+ * stops, so the left end steps as trains drop out of the window rather than
+ * creeping every second.
+ */
+export function _widenLo(allStops, boardIdx, vehicles) {
+  let lo = boardIdx;
+  (vehicles || []).forEach(({ pos }) => {
+    if (!pos) return;
+    let best = -1, bestD = Infinity;
+    (allStops || []).forEach((st, i) => {
+      const d = haver(st.lat, st.lon, pos.lat, pos.lon);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    if (best !== -1 && best < lo) lo = best;
+  });
+  return lo;
+}
+
+export function _approachingVehicles(visibleDeps, selectedLine, now, livePos) {
+  const out = [];
+  const seen = new Set();
+  (visibleDeps || []).forEach(({ c }) => {
+    const sj = c.serviceJourney;
+    const ln = sj && sj.line;
+    if (!ln || ln.publicCode !== selectedLine) return;
+    const jid = sj.id;
+    if (jid) { if (seen.has(jid)) return; seen.add(jid); }
+
+    const sjc = sj.estimatedCalls;
+    if (!Array.isArray(sjc) || sjc.length < 2) return;
+
+    // When it leaves YOUR stop — the thing the reader is choosing between.
+    const depIso = c.expectedDepartureTime || c.aimedDepartureTime;
+    if (!depIso) return;
+    if (new Date(depIso).getTime() - now > APPROACH_WINDOW_MS) return;
+
+    // No separate "has it started yet" guard. It looks necessary — trains
+    // parked at a far terminus were the reported symptom — but the window
+    // already covers it: a train reaching you within fifteen minutes is at
+    // most fifteen minutes of line behind you, terminus included, and the
+    // corridor is widened to hold it. Adding the guard emptied the map
+    // wherever the boarding stop is itself a terminus, which is where a
+    // waiting train is genuinely parked at your platform.
+
+    // Where the vehicle actually is, if anyone knows. Otherwise where the
+    // timetable says it should be — drawn differently, so the map never
+    // passes off an estimate as a measurement.
+    const live = livePosition(livePos, jid, now);
+    const pos = live || _interpolateVehiclePos(sjc, now);
+    if (!pos) return;
+    out.push({ c, jid, sjc, live, pos });
+  });
+  return out;
+}
+
+function renderVehicleMarkers(vehicles) {
   if (!_bMap || !_selectedLine) return;
   if (!_bVehicleLayer) _bVehicleLayer = L.layerGroup().addTo(_bMap);
   _bVehicleLayer.clearLayers();
 
   const now = Date.now();
-  const matches = visibleDeps.filter(({ c }) => {
-    const ln = c.serviceJourney && c.serviceJourney.line;
-    return ln && ln.publicCode === _selectedLine;
-  });
-
-  const lineRef = matches.length && matches[0].c.serviceJourney
-    && matches[0].c.serviceJourney.line && matches[0].c.serviceJourney.line.id;
-  _refreshLivePositions(lineRef);
-
-  const seen = new Set();
-  matches.forEach(({ c }) => {
-    const jid = c.serviceJourney && c.serviceJourney.id;
-    if (jid) {
-      if (seen.has(jid)) return;
-      seen.add(jid);
-    }
-    const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
-    // Where the vehicle actually is, if anyone knows. Otherwise where the
-    // timetable says it should be — drawn differently, so the map never
-    // passes off an estimate as a measurement.
-    const live = livePosition(_livePos, jid, now);
-    const pos = live || _interpolateVehiclePos(sjc, now);
-    if (!pos) return;
+  vehicles.forEach(({ c, sjc, live, pos }) => {
     const ln = c.serviceJourney.line;
     const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
     const mode = _depMode(c);
@@ -1525,8 +1624,19 @@ export function renderBoard() {
     return;
   }
   renderLineFilter(visibleDeps);
-  renderLineRoute(visibleDeps);
-  renderVehicleMarkers(visibleDeps);
+  // Decided once and used by both, so the drawn line and the things on it
+  // cannot disagree — which is exactly how trains ended up off the corridor.
+  const lineRef = (() => {
+    const m = visibleDeps.find(({ c }) => {
+      const ln = c.serviceJourney && c.serviceJourney.line;
+      return ln && ln.publicCode === _selectedLine;
+    });
+    return m && m.c.serviceJourney.line && m.c.serviceJourney.line.id;
+  })();
+  _refreshLivePositions(lineRef);
+  const vehicles = _approachingVehicles(visibleDeps, _selectedLine, now, _livePos);
+  renderLineRoute(visibleDeps, vehicles);
+  renderVehicleMarkers(vehicles);
   renderLineStrip(visibleDeps);
 
   // If this route continues from an unfinished plan leg's destination, flag

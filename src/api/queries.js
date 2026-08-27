@@ -17,14 +17,23 @@ export function lookbackISO(now) {
 export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal) {
   const sits = 'situations{id summary{language value} severity validityPeriod{startTime endTime}}';
   const fromIsCoord = fromId && typeof fromId === 'object';
-  const stopPlaceQuery = fromIsCoord ? '' : ('stopPlace(id:"' + fromId + '"){'
-    + sits + ' '
-    + 'estimatedCalls(numberOfDepartures:5,whiteListedModes:[metro,tram,bus,rail]){'
-    + sits + ' serviceJourney{' + sits + '}}} ');
+  // Only the stop places the reader actually named.
+  //
+  // This used to also pull situations from the origin's next five departures,
+  // whatever line or direction they ran — at an interchange those have
+  // nothing to do with the chosen journey, and they were most of the noise.
+  // What is certainly relevant, the trip's own legs, was never asked for at
+  // all; that now rides on the legs below.
+  const stopPlaceQuery = fromIsCoord ? '' : ('stopPlace(id:"' + fromId + '"){' + sits + '} ');
+  const toIsCoord = toId && typeof toId === 'object';
+  // «Hva bruker har lagt inn» is both ends, so the destination's own
+  // disruptions count too. Aliased, or it would collide with the origin.
+  const destQuery = (minimal || toIsCoord || !toId)
+    ? '' : ('dest: stopPlace(id:"' + toId + '"){' + sits + '} ');
   const fromField = fromIsCoord
     ? 'from:{coordinates:{latitude:' + fromId.lat + ',longitude:' + fromId.lon + '}} '
     : 'from:{place:"' + fromId + '"} ';
-  return '{ ' + stopPlaceQuery
+  return '{ ' + stopPlaceQuery + destQuery
     + 'trip('
     + fromField
     + (toId && typeof toId === 'object'
@@ -50,7 +59,11 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal) {
     // Optional by design: every consumer falls back to stop-to-stop points,
     // and fetchTrip retries without the optional fields if the API objects.
     + (minimal ? '' : ' pointsOnLink{points length}')
-    + ' serviceJourney{id line{id publicCode presentation{colour}} estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}}'
+    // The one set of situations that is certainly about this journey.
+    + (minimal ? '' : ' ' + sits)
+    + ' serviceJourney{id line{id publicCode presentation{colour}}'
+    + (minimal ? '' : ' ' + sits)
+    + ' estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}}'
     + ' aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime occupancyStatus quay{publicCode} destinationDisplay{frontText}}'
     + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime quay{publicCode}}'

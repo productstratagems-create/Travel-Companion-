@@ -246,3 +246,45 @@ describe('the lookback window — departures right up to now', () => {
     expect(q).toContain('toEstimatedCall');
   });
 });
+
+describe('trafikkmeldinger — only the stretches the reader named', () => {
+  const FROM = 'NSR:StopPlace:1', TO = 'NSR:StopPlace:2';
+
+  // The actual bug: situations were pulled from the origin's next five
+  // departures, whatever line or direction they ran. At an interchange that
+  // is most of the noise, and none of it is about the chosen journey.
+  it('no longer asks the origin for its next five departures', () => {
+    const q = tripGQL(FROM, TO, null, 12, 1.3, Date.now());
+    expect(q).not.toContain('numberOfDepartures:5');
+  });
+
+  it('asks the legs and their journeys for situations', () => {
+    const q = tripGQL(FROM, TO, null, 12, 1.3, Date.now());
+    const legPart = q.slice(q.indexOf('legs {'));
+    expect(legPart).toContain('situations{');
+    expect(legPart.match(/situations\{/g).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('asks the destination stop place too, aliased so it does not collide', () => {
+    const q = tripGQL(FROM, TO, null, 12, 1.3, Date.now());
+    expect(q).toContain('dest: stopPlace(id:"' + TO + '")');
+    expect(q).toContain('stopPlace(id:"' + FROM + '")');
+  });
+
+  // These field names cannot be checked against the live API from here, so
+  // they ride in the same opt-out the retry already drops.
+  it('drops them all on the retry, so the board cannot go dark', () => {
+    const q = tripGQL(FROM, TO, null, 12, 1.3, Date.now(), true);
+    expect(q).not.toContain('dest: stopPlace');
+    const legPart = q.slice(q.indexOf('legs {'));
+    expect(legPart).not.toContain('situations{');
+    // …while everything the board needs survives.
+    expect(q).toContain('numTripPatterns:12');
+    expect(q).toContain('fromEstimatedCall');
+  });
+
+  it('leaves the destination block out when the destination is a coordinate', () => {
+    const q = tripGQL(FROM, { lat: 59.9, lon: 10.7 }, null, 12, 1.3, Date.now());
+    expect(q).not.toContain('dest: stopPlace');
+  });
+});

@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { enturFetch } from '../api/http.js';
-import { recordSmartTrip } from '../api/smart.js';
+import { recordSmartTrip, tripCount } from '../api/smart.js';
 import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
@@ -8,6 +8,7 @@ import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
 import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
+import { loadFavs, topFavRoutes } from '../ui/favs.js';
 
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
@@ -432,6 +433,30 @@ export function initSettings() {
   initPrefs();
 }
 
+/**
+ * The two routes you actually use, as a shortcut past the whole form.
+ *
+ * Placed above «fra stasjon» because that is what a shortcut is for — seen
+ * before you start filling anything in. Reuses .nearby-btn, the row already
+ * standing directly below it, so the page gains no new shape to learn.
+ */
+function renderFavRouteShortcuts() {
+  const el = document.getElementById('set-fav-routes');
+  if (!el) return;
+  const top = topFavRoutes(loadFavs(), tripCount, 2);
+  if (!top.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.innerHTML = '<div class="set-label">ofte brukt</div>'
+    + top.map(f => '<button class="nearby-btn fav-route-btn" type="button" data-fav="' + esc(f.id) + '">'
+      + '<span class="nearby-name">' + esc(f.from) + ' → ' + esc(f.to) + '</span>'
+      + '</button>').join('');
+  el.querySelectorAll('.fav-route-btn').forEach(btn => {
+    // One path through the app: the same handler the «lagret» screen uses,
+    // which already sets the route and starts the board.
+    btn.addEventListener('click', () => window._loadFavRoute(btn.dataset.fav));
+  });
+}
+
 export function showSettings() {
   const ns = state.nearestStation;
   const depEl = document.getElementById('set-dep');
@@ -442,6 +467,8 @@ export function showSettings() {
     if (ns) _depStopIds.set(ns.name, { id: ns.id, lat: ns.lat, lon: ns.lon });
     syncClear('set-dep', 'set-dep-clear');
   }
+
+  renderFavRouteShortcuts();
 
   const nearbyList = document.getElementById('set-nearby-list');
   if (nearbyList) {

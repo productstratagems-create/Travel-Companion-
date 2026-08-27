@@ -8,7 +8,8 @@ vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
-  _platformState, _clusterTrains, _spreadCluster, _relaxPositions } from '../src/views/board.js';
+  _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
+  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -463,5 +464,136 @@ describe('_buildStrip — the lookback window', () => {
     const s = strip([at(-2, 'old'), at(0, 'justnow', -5), at(-1, 'mid')]);
     const gone = s.trains.filter(t => t.departed);
     expect(gone.map(t => t.id)).toEqual(['justnow', 'mid', 'old']);
+  });
+});
+
+// ── Which trains belong on the map ──────────────────────────────────────────
+//
+// Reported: the board map showed trains that were not on or between the
+// chosen stations. Two halves of one render disagreed — markers were placed
+// across the service journey's ENTIRE run while the corridor was clipped to
+// boarding→alighting. The board lists departures ~45 min out and a metro run
+// is ~40, so most of that list had not left its terminus yet and every one
+// was drawn parked there: measured at 281px from a 382px-wide map's corridor,
+// all sixteen on the same point.
+describe('_approachingVehicles', () => {
+  const LINE = { id: 'RUT:Line:3', publicCode: '3' };
+  const NOW = Date.UTC(2026, 4, 24, 8, 0, 0);
+  const T = (mins) => new Date(NOW + mins * 60000).toISOString();
+
+  // A run whose own first departure is `startMin` from now, calling at your
+  // stop `depMin` from now.
+  const dep = (depMin, startMin, id, line) => ({
+    c: {
+      expectedDepartureTime: T(depMin),
+      destinationDisplay: { frontText: 'Jernbanetorget' },
+      serviceJourney: {
+        id, line: line || LINE,
+        estimatedCalls: [0, 1, 2, 3].map(i => ({
+          quay: { stopPlace: { name: 'S' + i, latitude: 59.86 + i * 0.01, longitude: 10.83 } },
+          aimedArrivalTime: T(startMin + i * 10), expectedArrivalTime: T(startMin + i * 10),
+          aimedDepartureTime: T(startMin + i * 10), expectedDepartureTime: T(startMin + i * 10),
+        })),
+      },
+    },
+  });
+  const run = (deps) => _approachingVehicles(deps, '3', NOW, new Map());
+
+  it('draws a train that is on its way to you', () => {
+    expect(run([dep(8, -10, 'a')]).map(v => v.jid)).toEqual(['a']);
+  });
+
+  it('leaves out one still far up the line', () => {
+    expect(run([dep(40, -2, 'a')])).toEqual([]);
+    expect(APPROACH_WINDOW_MS).toBe(15 * 60_000);
+  });
+
+  // A train waiting at a terminus is genuinely there, and inside the window
+  // that terminus is at most fifteen minutes of line behind you — which the
+  // corridor is widened to hold. Excluding these emptied the map entirely
+  // wherever the boarding stop is itself a terminus.
+  it('keeps one waiting at a terminus inside the window', () => {
+    expect(run([dep(10, 5, 'a')]).map(v => v.jid)).toEqual(['a']);
+  });
+
+  it('keeps one that has just left your stop — it is on your stretch', () => {
+    expect(run([dep(-1, -20, 'a')]).map(v => v.jid)).toEqual(['a']);
+  });
+
+  it('ignores other lines and duplicate journeys', () => {
+    const other = dep(5, -10, 'x', { id: 'RUT:Line:2', publicCode: '2' });
+    expect(run([dep(5, -10, 'a'), other, dep(6, -10, 'a')]).map(v => v.jid)).toEqual(['a']);
+  });
+
+  it('carries a position for everything it returns, so the caller cannot draw a hole', () => {
+    run([dep(8, -10, 'a')]).forEach(v => {
+      expect(typeof v.pos.lat).toBe('number');
+      expect(typeof v.pos.lon).toBe('number');
+    });
+  });
+
+  it('returns nothing rather than throwing on junk', () => {
+    expect(_approachingVehicles(null, '3', NOW, new Map())).toEqual([]);
+    expect(run([{ c: {} }])).toEqual([]);
+    expect(run([{ c: { serviceJourney: { line: LINE, estimatedCalls: [] } } }])).toEqual([]);
+  });
+});
+
+describe('_widenLo — the corridor reaches back far enough to hold them', () => {
+  // A line running due north, one stop every ~1.1 km.
+  const stops = Array.from({ length: 15 }, (_, i) => ({ lat: 59.86 + i * 0.01, lon: 10.83 }));
+  const at = (i) => ({ pos: { lat: stops[i].lat, lon: stops[i].lon } });
+
+  it('reaches back to the furthest train behind you', () => {
+    expect(_widenLo(stops, 8, [at(2), at(5), at(9)])).toBe(2);
+  });
+
+  it('leaves the corridor alone when every train is already on it', () => {
+    expect(_widenLo(stops, 5, [at(7), at(9)])).toBe(5);
+  });
+
+  it('is unchanged with nothing to draw', () => {
+    expect(_widenLo(stops, 5, [])).toBe(5);
+    expect(_widenLo(stops, 5, null)).toBe(5);
+    expect(_widenLo(stops, 5, [{ pos: null }])).toBe(5);
+  });
+
+  it('snaps a train between two stops to the nearer one', () => {
+    const between = { pos: { lat: (stops[2].lat + stops[3].lat) / 2 + 0.004, lon: 10.83 } };
+    expect(_widenLo(stops, 8, [between])).toBe(3);
+  });
+});
+
+// ── Intermediate stops only when there is room to read them ─────────────────
+describe('_stopsReadable', () => {
+  // Evenly spaced along one axis, as the corridor is on screen.
+  const row = (n, gap) => Array.from({ length: n }, (_, i) => ({ x: i * gap, y: 0 }));
+
+  it('hides the beads when fifteen stops share a phone-width map', () => {
+    // 382px of map, fourteen gaps — about 27px… but the corridor is fitted
+    // with padding, so the real spacing is tighter than the map is wide.
+    expect(_stopsReadable(row(15, 12))).toBe(false);
+  });
+
+  it('shows them once there is room', () => {
+    expect(_stopsReadable(row(15, 40))).toBe(true);
+  });
+
+  it('uses the median, so one unusually close pair does not blank the rest', () => {
+    const pts = row(9, 40);
+    pts.splice(4, 0, { x: pts[4].x + 2, y: 0 });   // one near-duplicate stop
+    expect(_stopsReadable(pts)).toBe(true);
+  });
+
+  it('says yes when there is nothing between the ends to crowd', () => {
+    expect(_stopsReadable(row(2, 1))).toBe(true);
+    expect(_stopsReadable([])).toBe(true);
+    expect(_stopsReadable(null)).toBe(true);
+  });
+
+  it('measures in two dimensions, not just along x', () => {
+    const diag = Array.from({ length: 15 }, (_, i) => ({ x: i * 30, y: i * 30 }));
+    expect(_stopsReadable(diag)).toBe(true);          // ~42px apart
+    expect(_stopsReadable(diag, 60)).toBe(false);
   });
 });

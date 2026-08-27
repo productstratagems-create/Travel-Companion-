@@ -9,7 +9,7 @@ vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
-  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine, _legCorridorStops, _journeyModesAllowed } from '../src/views/board.js';
+  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -748,5 +748,42 @@ describe('_journeyModesAllowed', () => {
   it('hides everything when nothing is on', () => {
     expect(_journeyModesAllowed(['metro'], [])).toBe(false);
     expect(_journeyModesAllowed(['metro'], null)).toBe(false);
+  });
+});
+
+// ── Trykk på en perle skal treffe raden ─────────────────────────────────────
+//
+// The target was computed from row.offsetTop, which is relative to the
+// nearest POSITIONED ancestor. #dep-list is position:static, so offsetParent
+// was BODY and every target was off by the distance from the top of the page
+// down to the list — measured at 418px. The row got highlighted off-screen.
+describe('_scrollRowIntoList', () => {
+  const LIST = { top: 418, height: 318 };
+  const CLIENT = 318, SCROLL = 1280;
+  const row = (topOnScreen, height) => ({ top: topOnScreen, height: height == null ? 80 : height });
+
+  it('leaves the first row alone — centring it would mean scrolling above the top', () => {
+    // Its true offset in the list is 0; offsetTop would have said 418.
+    expect(_scrollRowIntoList(LIST, row(418), 0, CLIENT, SCROLL)).toBe(0);
+  });
+
+  it('centres a row further down', () => {
+    // 600px into the content, list scrolled to 0 → 600 - (318-80)/2 = 481.
+    expect(_scrollRowIntoList(LIST, row(418 + 600), 0, CLIENT, SCROLL)).toBe(481);
+  });
+
+  it('accounts for where the list is already scrolled to', () => {
+    // Same row, but the list has already moved 200px: on screen it sits 200
+    // higher, and the answer must not move with it.
+    expect(_scrollRowIntoList(LIST, row(418 + 400), 200, CLIENT, SCROLL)).toBe(481);
+  });
+
+  it('never scrolls past the end of the content', () => {
+    expect(_scrollRowIntoList(LIST, row(418 + 1260), 0, CLIENT, SCROLL)).toBe(SCROLL - CLIENT);
+  });
+
+  it('copes with a list that does not scroll at all', () => {
+    expect(_scrollRowIntoList(LIST, row(418), 0, 400, 400)).toBe(0);
+    expect(_scrollRowIntoList(LIST, row(418), 0, CLIENT, 0)).toBe(0);
   });
 });

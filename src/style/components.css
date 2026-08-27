@@ -92,6 +92,12 @@ body.jny-chip-visible .wrap { padding-bottom: calc(60px + env(safe-area-inset-bo
   display:inline-flex;align-items:center;justify-content:center;
   font-weight:700;font-size:11px;padding:0.15rem 0.45rem;
   color:#fff;border-radius:3px;min-width:1.4rem;flex-shrink:0;
+  /* Its own line box, never the parent's. .line-pill on the map zeroes
+     line-height for its own layout, and the badge inherited it: the coloured
+     capsule collapsed to 5px — padding alone — while the digits carried on
+     rendering 4px above and below it. The number was drawn outside the very
+     shape meant to carry it. */
+  line-height:1.2;
 }
 .nav-back{
   display:inline-flex;align-items:center;gap:.4rem;

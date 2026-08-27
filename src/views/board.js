@@ -1066,6 +1066,27 @@ let _flashUntil = 0;
 let _stripBound = false;
 
 /**
+ * Where the list has to scroll to centre one row.
+ *
+ * Measured against the list itself rather than via row.offsetTop, which is
+ * relative to the nearest POSITIONED ancestor. #dep-list is position:static,
+ * so offsetParent was BODY and every target was off by the distance from the
+ * top of the page down to the list — 418px on a phone, measured.
+ *
+ * Deliberately geometric rather than adding #dep-list{position:relative}:
+ * that would work, but it would leave correctness depending on a CSS rule
+ * nothing points at, which is the coupling that caused this.
+ *
+ * Pure, so the arithmetic is testable without standing up a strip.
+ */
+export function _scrollRowIntoList(listRect, rowRect, scrollTop, clientH, scrollH) {
+  const offsetInList = rowRect.top - listRect.top + scrollTop;
+  const target = offsetInList - (clientH - rowRect.height) / 2;
+  const max = Math.max(0, (scrollH || 0) - (clientH || 0));
+  return Math.max(0, Math.min(max, target));
+}
+
+/**
  * Clusters are controls, not decoration.
  *
  * Coming towards you, a cluster's trains all have rows below with platform,
@@ -1090,12 +1111,18 @@ function _bindStrip(el) {
       renderBoard();
       return;
     }
-    if (g.dataset.group) {
-      _stripTouched = true;
-      _expandedCluster = null;
-      renderBoard();
-      return;
-    }
+    // No glyph closes its group. Every single train is a departure, and
+    // tapping a departure jumps to its row — without exception.
+    //
+    // This branch first closed the group for ANY member, so no member ever
+    // scrolled. v1.34.0 narrowed it to the lead, which was still wrong in the
+    // way that mattered most: the lead of the open cluster is the NEXT
+    // departure, so the one glyph a reader reaches for first was the one that
+    // refused to move the list.
+    //
+    // Nothing anyone needs is lost. Tapping a different collapsed cluster
+    // still moves the focus there, and one group open is the resting state
+    // the strip was designed around — "none open" was never worth a tap.
 
     // A single train stands for one departure, so its row is unambiguous.
     const jid = g.dataset.jid;
@@ -1119,7 +1146,8 @@ function _bindStrip(el) {
     const row = list && list.querySelector('.dep-row[data-jid="'
       + (window.CSS && CSS.escape ? CSS.escape(jid) : jid) + '"]');
     if (!list || !row) return;
-    list.scrollTop = Math.max(0, row.offsetTop - (list.clientHeight - row.offsetHeight) / 2);
+    list.scrollTop = _scrollRowIntoList(list.getBoundingClientRect(), row.getBoundingClientRect(),
+      list.scrollTop, list.clientHeight, list.scrollHeight);
   };
   el.addEventListener('click', e => act(e.target));
   el.addEventListener('keydown', e => {

@@ -9,7 +9,7 @@ vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
-  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable } from '../src/views/board.js';
+  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -595,5 +595,73 @@ describe('_stopsReadable', () => {
     const diag = Array.from({ length: 15 }, (_, i) => ({ x: i * 30, y: i * 30 }));
     expect(_stopsReadable(diag)).toBe(true);          // ~42px apart
     expect(_stopsReadable(diag, 60)).toBe(false);
+  });
+});
+
+// ── Flere linjer samtidig ───────────────────────────────────────────────────
+//
+// The line filter was radio while the departure list beneath it is filtered
+// only by mode — so the list showed every line that takes you there and the
+// strip above it showed one. On a route served by four lines you saw a
+// quarter of your options with nothing saying so.
+describe('_toggleLine', () => {
+  const ALL = ['1', '2', '3'];
+
+  it('turns one off, leaving the rest on', () => {
+    expect([..._toggleLine(new Set(), '2', ALL)].sort()).toEqual(['1', '3']);
+  });
+
+  it('turns one back on', () => {
+    expect(_toggleLine(new Set(['1', '3']), '2', ALL).size).toBe(0);   // all → empty
+  });
+
+  // Turning off the last one turns them all back on: an empty filter is an
+  // empty strip with no explanation, and "none of them" is never the intent.
+  it('comes back to all when the last one is switched off', () => {
+    const one = _toggleLine(_toggleLine(new Set(), '2', ALL), '3', ALL);
+    expect([...one]).toEqual(['1']);
+    expect(_toggleLine(one, '1', ALL).size).toBe(0);
+  });
+
+  it('treats the full set as all, so the pills read as every line on', () => {
+    expect(_toggleLine(new Set(['1', '2']), '3', ALL).size).toBe(0);
+  });
+
+  it('ignores a code that is not on this route', () => {
+    expect(_toggleLine(new Set(['1']), '9', ALL)).toEqual(new Set(['1']));
+  });
+});
+
+describe('_buildStrip — several lines on one axis', () => {
+  const NOW = Date.UTC(2026, 4, 24, 8, 0, 0);
+  const DIR = { from: 'Grorud', to: 'Jernbanetorget' };
+  const line = (code, colour) => ({ id: 'RUT:Line:' + code, publicCode: code, presentation: { colour } });
+  const dep = (mins, id, code, colour) => ({
+    expectedDepartureTime: new Date(NOW + mins * 60000).toISOString(),
+    destinationDisplay: { frontText: 'Jernbanetorget' },
+    serviceJourney: { id, line: line(code, colour), estimatedCalls: [] },
+  });
+  const deps = [dep(4, 'a', '3', 'f5a000'), dep(7, 'b', '5', '00b9f2'), dep(11, 'c', '3', 'f5a000')];
+
+  it('shows every line that is on, interleaved by time', () => {
+    const s = _buildStrip(deps, DIR, new Set(), NOW, new Map());
+    expect(s.trains.map(t => t.mins)).toEqual([11, 7, 4]);   // furthest first, as the axis runs
+    expect(s.trains.map(t => t.line).sort()).toEqual(['3', '3', '5']);
+  });
+
+  it('gives each train its own line colour, so a glyph says which line it is', () => {
+    const s = _buildStrip(deps, DIR, new Set(), NOW, new Map());
+    expect(s.trains.find(t => t.line === '5').colour).toBe('#00b9f2');
+    expect(s.trains.find(t => t.line === '3').colour).toBe('#f5a000');
+  });
+
+  it('drops a line that has been switched off', () => {
+    const s = _buildStrip(deps, DIR, new Set(['3']), NOW, new Map());
+    expect(s.trains.map(t => t.line)).toEqual(['3', '3']);
+  });
+
+  // The old single-code form is still what the unit tests upstream pass.
+  it('still accepts a single line code', () => {
+    expect(_buildStrip(deps, DIR, '5', NOW, new Map()).trains.map(t => t.line)).toEqual(['5']);
   });
 });

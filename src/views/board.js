@@ -1111,18 +1111,18 @@ function _bindStrip(el) {
       renderBoard();
       return;
     }
-    // Only the glyph you opened the group with closes it again. Every other
-    // member is a departure like any other, and tapping a departure jumps to
-    // its row — which is the whole point of the strip. This branch used to
-    // close the group for ANY member, and since the soonest cluster is open
-    // by default that meant the most-tapped glyphs on the board never
-    // scrolled at all.
-    if (g.dataset.group && g.dataset.group === g.dataset.jid) {
-      _stripTouched = true;
-      _expandedCluster = null;
-      renderBoard();
-      return;
-    }
+    // No glyph closes its group. Every single train is a departure, and
+    // tapping a departure jumps to its row — without exception.
+    //
+    // This branch first closed the group for ANY member, so no member ever
+    // scrolled. v1.34.0 narrowed it to the lead, which was still wrong in the
+    // way that mattered most: the lead of the open cluster is the NEXT
+    // departure, so the one glyph a reader reaches for first was the one that
+    // refused to move the list.
+    //
+    // Nothing anyone needs is lost. Tapping a different collapsed cluster
+    // still moves the focus there, and one group open is the resting state
+    // the strip was designed around — "none open" was never worth a tap.
 
     // A single train stands for one departure, so its row is unambiguous.
     const jid = g.dataset.jid;

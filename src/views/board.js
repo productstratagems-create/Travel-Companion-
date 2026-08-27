@@ -1391,11 +1391,15 @@ function renderLineStrip(visibleDeps) {
   const el = document.getElementById('line-strip');
   if (!el) return;
   const dir = config.dirs[state.dIdx];
-  if (!dir) { el.style.display = 'none'; return; }
+  // Hidden is not empty: leaving the old glyphs in the DOM means they are one
+  // style change away from reappearing, and anything inspecting the strip
+  // still finds departures that are no longer on the board.
+  const blank = () => { el.style.display = 'none'; el.innerHTML = ''; };
+  if (!dir) { blank(); return; }
   _refreshInflight(dir);
 
   const data = _buildStrip(visibleDeps.map(d => d.c), dir, _lineOn, Date.now(), _livePos);
-  if (!data.trains.length) { el.style.display = 'none'; return; }
+  if (!data.trains.length) { blank(); return; }
 
   // Displayed before measuring: a hidden element has no width, and the
   // clustering threshold is derived from it.
@@ -1591,6 +1595,22 @@ export function _approachingVehicles(visibleDeps, lineOn, now, livePos) {
     out.push({ c, jid, sjc, live, pos });
   });
   return out;
+}
+
+/**
+ * Everything on screen that stands for a departure, cleared at once.
+ *
+ * There are two ways the board can end up with nothing to show — every mode
+ * switched off, or every line — and each used to clear by hand. They drifted:
+ * the mode branch never called renderLineStrip, so switching all four
+ * transport modes off emptied the list and the map and left the strip
+ * standing with its old glyphs. One place to forget is better than two, and
+ * a third branch cannot now forget at all.
+ */
+function _clearDepartureGraphics() {
+  renderLineRoute([]);
+  if (_bVehicleLayer) _bVehicleLayer.clearLayers();
+  renderLineStrip([]);
 }
 
 function renderVehicleMarkers(vehicles) {
@@ -1791,9 +1811,9 @@ export function renderBoard() {
     list.innerHTML = '<div class="state-msg">Ingen avganger matcher filtrene. '
       + 'Det går avganger herfra, men de bruker transportmidler du har slått av '
       + '\u2014 en reise kan kreve et bytte til noe som ikke er valgt.</div>';
+    // No departures at all, so the line pills have nothing to offer either.
     renderLineFilter([]);
-    renderLineRoute([]);
-    if (_bVehicleLayer) _bVehicleLayer.clearLayers();
+    _clearDepartureGraphics();
     return;
   }
   // The pill row is built from the mode-filtered list, BEFORE the line filter
@@ -1811,9 +1831,8 @@ export function renderBoard() {
   if (!visibleDeps.length) {
     list.innerHTML = '<div class="state-msg">Ingen avganger på de valgte linjene. '
       + 'Slå på flere linjer over for å se resten.</div>';
-    renderLineRoute([]);
-    if (_bVehicleLayer) _bVehicleLayer.clearLayers();
-    renderLineStrip([]);
+    // The pills stay: switching a line back on has to remain possible.
+    _clearDepartureGraphics();
     return;
   }
   // Decided once and used by both, so the drawn line and the things on it

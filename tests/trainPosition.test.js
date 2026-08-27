@@ -96,3 +96,35 @@ describe('SRC_LABEL — what the reader is told', () => {
     expect(SRC_LABEL.rutetid).toBe('etter rutetid');
   });
 });
+
+/**
+ * Real track geometry (v1.25.0) makes the corridor guard mean what it says.
+ *
+ * The corridor used to be a chord between platforms. A train on a curve is
+ * genuinely on the track and can still be hundreds of metres from that chord,
+ * so a perfectly good fix was rejected and the marker fell back to the
+ * timetable. Feeding the real alignment fixes the guard without touching it.
+ */
+describe('_trainPosition — the corridor guard against real geometry', () => {
+  // The line bows north between stops 1 and 2; the chord cuts straight across.
+  const BOW_LAT = LAT + 0.004;                       // ~440 m off the chord
+  const realPts = [
+    [LAT, LON0],
+    [LAT, LON0 + DLON],
+    [BOW_LAT, LON0 + 1.5 * DLON],
+    [LAT, LON0 + 2 * DLON],
+    [LAT, LON0 + 3 * DLON],
+  ];
+  const onTheBow = { lat: BOW_LAT, lon: LON0 + 1.5 * DLON };
+
+  it('rejects a fix on the curve when the corridor is a straight chord', () => {
+    const p = _trainPosition({ ...base, userLL: onTheBow });
+    expect(p.src).toBe('live');
+  });
+
+  it('accepts the same fix once the corridor follows the track', () => {
+    const p = _trainPosition({ ...base, userLL: onTheBow, routePts: realPts });
+    expect(p.src).toBe('gps');
+    expect(p.lat).toBeCloseTo(BOW_LAT, 4);
+  });
+});

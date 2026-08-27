@@ -14,7 +14,7 @@ export function lookbackISO(now) {
   return new Date((now == null ? Date.now() : now) - LOOKBACK_MINS * 60000).toISOString();
 }
 
-export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, noLookback) {
+export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal) {
   const sits = 'situations{id summary{language value} severity validityPeriod{startTime endTime}}';
   const fromIsCoord = fromId && typeof fromId === 'object';
   const stopPlaceQuery = fromIsCoord ? '' : ('stopPlace(id:"' + fromId + '"){'
@@ -34,9 +34,10 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, noLookback) {
     + 'numTripPatterns:' + (n || 12) + ' '
     // Plan from slightly in the past, or OTP plans from this instant and a
     // departure drops out of the board the moment its time passes.
-    // noLookback is the retry path in fetchTrip: if the argument is rejected
-    // the board must still render, so it asks again without it.
-    + (noLookback ? '' : 'dateTime:"' + lookbackISO(now) + '" ')
+    // `minimal` is the retry path in fetchTrip: if either of the optional
+    // extras is rejected the board must still render, so it asks again
+    // without them.
+    + (minimal ? '' : 'dateTime:"' + lookbackISO(now) + '" ')
     + 'walkSpeed:' + (walkSpeed || 1.3) + ' '
     + 'modes:{accessMode:foot,egressMode:foot,transportModes:[{transportMode:metro},{transportMode:bus},{transportMode:tram},{transportMode:rail}]}'
     + ') { tripPatterns { duration legs {'
@@ -44,6 +45,11 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, noLookback) {
     + ' toPlace{name latitude longitude}'
     + ' mode'
     + ' aimedStartTime expectedStartTime aimedEndTime expectedEndTime'
+    // The leg's real alignment, as a Google encoded polyline — the difference
+    // between drawing the track and drawing a chord between platforms.
+    // Optional by design: every consumer falls back to stop-to-stop points,
+    // and fetchTrip retries without the optional fields if the API objects.
+    + (minimal ? '' : ' pointsOnLink{points length}')
     + ' serviceJourney{id line{id publicCode presentation{colour}} estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}}'
     + ' aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime occupancyStatus quay{publicCode} destinationDisplay{frontText}}'

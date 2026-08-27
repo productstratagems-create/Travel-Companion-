@@ -1,18 +1,4 @@
-// Decode Valhalla encoded polyline (precision 6) → [[lat, lon], ...]
-function decodePolyline(enc) {
-  const pts = [];
-  let i = 0, lat = 0, lon = 0;
-  while (i < enc.length) {
-    let b, shift = 0, result = 0;
-    do { b = enc.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lat += (result & 1) ? ~(result >> 1) : result >> 1;
-    shift = 0; result = 0;
-    do { b = enc.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-    lon += (result & 1) ? ~(result >> 1) : result >> 1;
-    pts.push([lat / 1e6, lon / 1e6]);
-  }
-  return pts;
-}
+import { decodePolyline } from '../ui/polyline.js';
 
 // Fetch a walking route between two lat/lon points using Valhalla's pedestrian router.
 // Uses actual OSM footway/path data — follows pedestrian zones, footpaths, etc.
@@ -35,7 +21,7 @@ export async function fetchWalkRoute(fromLL, toLL) {
     const data = await r.json();
     const shape = data.trip && data.trip.legs && data.trip.legs[0] && data.trip.legs[0].shape;
     if (!shape) return null;
-    return decodePolyline(shape);
+    return decodePolyline(shape, 6);   // Valhalla is precision 6
   } catch {
     return null;
   }

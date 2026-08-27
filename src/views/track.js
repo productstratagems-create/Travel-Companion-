@@ -2,7 +2,7 @@ import config from '../config.js';
 import { state, intervals } from '../state.js';
 import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
-import { quayLatLon } from '../api/adapt.js';
+import { quayLatLon, legShape } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters } from '../api/scooters.js';
 import { fetchWeather, forecastAt, weatherAdvice, darknessNote } from '../api/weather.js';
@@ -112,6 +112,12 @@ function _legRouteStops(leg) {
 function _legRoutePts(leg) {
   const pts = [];
   const stops = [];
+  // The real alignment when the leg carried one; the stop chain otherwise.
+  // Stops are collected either way — they are drawn as their own markers and
+  // are what the corridor is labelled by. Passed the leg itself so legShape
+  // can cache on it: this runs inside a 1 Hz render and a full alignment is
+  // a few thousand points.
+  const shape = legShape(leg);
   _legRouteStops(leg).forEach(s => {
     const sp = s.quay && s.quay.stopPlace;
     const ll = quayLatLon(s.quay);
@@ -121,7 +127,7 @@ function _legRoutePts(leg) {
     pts.push([ll.lat, ll.lon]);
     if (sp && sp.name) stops.push({ lat: ll.lat, lon: ll.lon, name: sp.name });
   });
-  return { pts, stops };
+  return { pts: shape || pts, stops };
 }
 
 function _trackMapStructKey(legs, fromIdx) {

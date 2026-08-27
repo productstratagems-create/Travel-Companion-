@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tripGQL, boardGQL, trackGQL, arrBoardGQL } from '../src/api/queries.js';
+import { tripGQL, boardGQL, trackGQL, arrBoardGQL, LOOKBACK_MINS } from '../src/api/queries.js';
 
 // --- tripGQL ---
 
@@ -205,5 +205,44 @@ describe('tripGQL — arrival platform', () => {
   it('requests the quay you get off at, not just the one you board from', () => {
     const q = tripGQL('A', 'B', null, 12, 1.3);
     expect(q).toContain('toEstimatedCall{expectedArrivalTime aimedArrivalTime quay{publicCode}}');
+  });
+});
+
+describe('the lookback window — departures right up to now', () => {
+  const NOW = Date.parse('2026-08-27T20:00:00Z');
+  const back = (iso) => (NOW - Date.parse(iso)) / 60000;
+
+  // Both board paths used to ask from the current instant forward, and
+  // state.deps is replaced wholesale every poll — so a departure vanished the
+  // moment its time passed, taking a late train still at the platform with it.
+  it('asks trip() to plan from two minutes ago, not from now', () => {
+    const q = tripGQL('NSR:StopPlace:1', 'NSR:StopPlace:2', null, 12, 1.3, NOW);
+    const m = q.match(/dateTime:"([^"]+)"/);
+    expect(m).not.toBeNull();
+    expect(back(m[1])).toBe(LOOKBACK_MINS);
+    expect(LOOKBACK_MINS).toBe(2);
+  });
+
+  it('gives boardGQL the same window, from the same source', () => {
+    const q = boardGQL('NSR:StopPlace:1', 10, NOW);
+    const m = q.match(/startTime:"([^"]+)"/);
+    expect(m).not.toBeNull();
+    expect(back(m[1])).toBe(LOOKBACK_MINS);
+    // timeRange must cover the lookback as well as the forward window, or the
+    // past departures are requested and then immediately excluded.
+    const range = Number(q.match(/timeRange:(\d+)/)[1]);
+    expect(range).toBeGreaterThan(LOOKBACK_MINS * 60);
+  });
+
+  // fetchTrip retries without dateTime if the API rejects it. That retry is
+  // the only thing standing between a wrong argument name and a blank board,
+  // and it cannot be checked against the live API from here.
+  it('can build the same trip query without the lookback, for the retry', () => {
+    const q = tripGQL('NSR:StopPlace:1', 'NSR:StopPlace:2', null, 12, 1.3, NOW, true);
+    expect(q).not.toContain('dateTime');
+    // Everything else must survive, or the fallback board is a different board.
+    expect(q).toContain('numTripPatterns:12');
+    expect(q).toContain('walkSpeed:1.3');
+    expect(q).toContain('toEstimatedCall');
   });
 });

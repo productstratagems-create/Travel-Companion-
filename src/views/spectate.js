@@ -1,5 +1,5 @@
 import config from '../config.js';
-import { intervals } from '../state.js';
+import { state, intervals } from '../state.js';
 import { fetchJourneyMeta } from '../api/entur.js';
 import { joinJourney } from '../journey.js';
 import { logMsg } from '../ui/log.js';
@@ -11,8 +11,47 @@ function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.
 let _activePanel = null;
 let _lastMeta = null;
 
+/**
+ * Share your own journey.
+ *
+ * The reise-ID is not debug output: it exists so someone else can paste it
+ * into the form below and follow you. It used to hold a permanent row on the
+ * underveis screen showing 24 opaque characters, which is a lot of a screen
+ * read while walking for something used once in a while. It lives here now,
+ * beside the form it is meant to be pasted into — one place for both
+ * directions of the same feature.
+ */
+function _shareHtml() {
+  if (!state.lockedJourneyId) return '';
+  return '<div class="spec-share">'
+    + '<span class="spec-share-label">del reisen din</span>'
+    + '<button class="spec-go-btn" id="spec-share-btn" type="button">kopier reise-ID</button>'
+    + '<div id="spec-share-msg" role="status" class="status-ok-msg" style="display:none"></div>'
+    + '</div>';
+}
+
+/** Copy the reise-ID for someone else to paste into the form below. */
+function copyJourneyId(msgId) {
+  const jid = state.lockedJourneyId;
+  const msg = document.getElementById(msgId || 'spec-share-msg');
+  if (!jid || !msg) return;
+  const showMsg = text => {
+    msg.textContent = text;
+    msg.style.display = 'block';
+    setTimeout(() => { msg.style.display = 'none'; }, 2000);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(jid)
+      .then(() => showMsg('✓ kopiert'))
+      .catch(() => showMsg(jid));
+  } else {
+    showMsg(jid);
+  }
+}
+
 function _formHtml() {
-  return '<div class="spec-form">'
+  return _shareHtml()
+    + '<div class="spec-form">'
     + '<input class="spec-input" id="spec-input" placeholder="lim inn reise-ID" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">'
     + '<button class="spec-go-btn" id="spec-go" type="button">finn</button>'
     + '</div>'
@@ -88,6 +127,8 @@ function _populatePanel(panel) {
   panel.style.display = 'block';
   panel.innerHTML = _formHtml();
   document.getElementById('spec-go').addEventListener('click', _onSearch);
+  const shareBtn = document.getElementById('spec-share-btn');
+  if (shareBtn) shareBtn.addEventListener('click', () => copyJourneyId('spec-share-msg'));
   document.getElementById('spec-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') _onSearch();
   });

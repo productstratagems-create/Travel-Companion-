@@ -169,18 +169,36 @@ export function fetchTrip(dir, onSuccess, onError) {
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
       const label = p => (p && typeof p === 'object') ? p.lat + ',' + p.lon : p;
       logMsg('trip → ' + label(fromId) + (viaId ? ' via ' + viaId : '') + ' → ' + label(toId));
-      return enturFetch(config.api.journeyPlanner, {
+      const ask = (withLookback) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs) }),
+        body: JSON.stringify({
+          query: withLookback
+            ? tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs)
+            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, null, true),
+        }),
         signal,
-      });
-    })
-    .then(r => {
-      if (!r || signal.aborted) return;
-      logMsg('← ' + r.status);
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
+      })
+        .then(r => {
+          if (!r || signal.aborted) return null;
+          logMsg('← ' + r.status);
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(j => {
+          if (!j || signal.aborted) return j;
+          // The whole board rides on this one request. v1.12.0 put the
+          // in-flight window in its own query precisely so a misspelt
+          // argument could not take the departure list down; asking for
+          // dateTime here gives that isolation up, so buy it back — one
+          // retry without the lookback rather than an empty screen.
+          if (withLookback && !j.data && j.errors) {
+            logMsg('trip: dateTime avvist, prøver uten', 'err');
+            return ask(false);
+          }
+          return j;
+        });
+      return ask(true);
     })
     .then(j => {
       if (!j || signal.aborted) return;

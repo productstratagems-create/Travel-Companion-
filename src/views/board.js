@@ -3,7 +3,7 @@ import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
 import { fetchBoard, fetchTrip, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon } from '../api/adapt.js';
@@ -860,6 +860,25 @@ function _rowMins(c, fallbackIso, now) {
   return Math.floor(Math.max(0, diffSec) / 60);
 }
 
+/**
+ * How long ago a departure went, in whole minutes — null if it has not.
+ *
+ * The board now asks for a two-minute lookback, so a train whose time has
+ * passed stays on screen instead of vanishing at the next poll. _rowMins
+ * clamps at zero, which read as "NÅ" — fine when such a row lasted seconds,
+ * and a plain lie once it persists for two minutes.
+ *
+ * Kept separate from _rowMins rather than folded in as a sign: zero would
+ * then mean both "due now" and "gone thirty seconds ago", which are the two
+ * things a person on a platform most needs told apart.
+ */
+function _agoMins(c, fallbackIso, now) {
+  const iso = c.expectedDepartureTime || c.aimedDepartureTime || fallbackIso;
+  if (!iso) return null;
+  const agoSec = Math.floor((now - new Date(iso).getTime()) / 1000);
+  return agoSec < 0 ? null : Math.floor(agoSec / 60);
+}
+
 // Which cluster is currently opened up, by its lead train. Held across
 // renders, because the strip redraws every second and a tap must survive that.
 let _expandedCluster = null;
@@ -983,10 +1002,12 @@ export function _buildStrip(candidates, dir, selectedLine, now, livePos) {
     if (mins == null) return;
 
     const iso = c.expectedDepartureTime || c.aimedDepartureTime;
+    const ago = _agoMins(c, Array.isArray(calls) && calls.length ? _callTime(calls[0], false) : null, now);
     out.trains.push({
       id: jid || 'a' + out.trains.length,
       mins,
-      departed: !!iso && new Date(iso).getTime() - now <= 0,
+      ago,
+      departed: ago !== null,
       live: !!livePosition(livePos, jid, now),
       label: (c.destinationDisplay && c.destinationDisplay.frontText) || '',
     });
@@ -997,8 +1018,20 @@ export function _buildStrip(candidates, dir, selectedLine, now, livePos) {
   // Past its time, a train sits beyond your stop rather than crushed against
   // it. Before this, a "nå" glyph landed at the very edge of the rail and hung
   // 8px over it.
+  //
+  // The board now keeps departures for a couple of minutes rather than
+  // dropping them at the next poll, so there can be more than one of these at
+  // once. They still share one position, and cluster into a single glyph with
+  // a +N badge — because there is no room to do otherwise. The axis is not
+  // linear across the rail: the half left of your stop maps ~0.82 of the
+  // width onto one axis unit, the strip right of it ~0.19 onto the same unit,
+  // so a separation that looks generous in axis units is about 6px there
+  // against a 46px glyph. Spreading them produced overlapping glyphs, and an
+  // overlapping glyph swallows the taps of the one beneath it.
   out.trains.forEach(t => { t.pos = t.departed ? _STRIP_GONE_AT : -(t.mins / maxMins); });
-  out.trains.sort((a, b) => a.pos - b.pos);
+  // Most recently gone first, so it leads its cluster: of the trains that have
+  // left, the one that just left is the only one still worth a second look.
+  out.trains.sort((a, b) => a.pos - b.pos || (a.ago - b.ago));
   return out;
 }
 
@@ -1164,20 +1197,45 @@ function renderLineStrip(visibleDeps) {
     : _STRIP_ORIGIN + p * (1 - _STRIP_ORIGIN - _STRIP_INSET));
   const sep = _STRIP_GLYPH_PX / width;
 
-  const sorted = data.trains.slice().sort((a, b) => a.mins - b.mins);
+  // Same tiebreak as _buildStrip: departed trains all share mins 0, and the
+  // one that just left must lead its cluster rather than whichever happened
+  // to be first in the response.
+  const sorted = data.trains.slice().sort((a, b) => a.mins - b.mins || (a.ago - b.ago));
   const clusters = _clusterTrains(sorted, sep);
 
   // The soonest group is open unless the reader has chosen otherwise. Its lead
   // changes as departures go, so this is recomputed rather than latched.
+  //
+  // Skip the departed: they carry mins 0, so once the board started keeping a
+  // couple of minutes of them they sorted to the front and became the default
+  // focus — the strip opened up, by itself, on the trains you have already
+  // missed. They also have the least room on the rail, so spreading them
+  // overlapped the glyphs by 19px and swallowed each other's taps.
   const openId = _stripTouched
     ? _expandedCluster
-    : (clusters.find(cl => cl.items.length > 1) || {}).items?.[0]?.id || null;
+    : (clusters.find(cl => cl.items.length > 1 && !cl.items[0].departed) || {}).items?.[0]?.id || null;
 
+  // Relax in percent, not in axis units. The axis is not linear across your
+  // stop — the half left of it maps ~0.82 of the width onto one axis unit,
+  // the strip right of it ~0.19 onto the same unit — so one separation
+  // expressed in axis units is four times tighter on the right than on the
+  // left, and glyphs there still touched after relaxing. Percent is the space
+  // the overlap actually happens in.
+  const sepPct = 100 * _STRIP_GLYPH_PX / width;
   const groups = _relaxPositions(
-    clusters.flatMap(cl => (cl.items.length > 1 && cl.items[0].id === openId)
-      ? _spreadCluster(cl.items, sep).map(t => ({ pos: t.pos, items: [t.item], group: openId }))
-      : [cl]),
-    sep, -1, _STRIP_GONE_AT);
+    clusters
+      .flatMap(cl => (cl.items.length > 1 && cl.items[0].id === openId)
+        ? _spreadCluster(cl.items, sep).map(t => ({ pos: t.pos, items: [t.item], group: openId }))
+        : [cl])
+      .map(g => ({ ...g, pos: pct(g.pos) })),
+    sepPct, pct(-1), pct(_STRIP_GONE_AT));
+
+  // Relaxing can only slide the run back if the left end has slack, and on a
+  // full strip it has none — so the rightmost glyph ends up hanging over the
+  // rail. Keep every glyph's box inside the container as a last step; a
+  // slightly tighter gap at the right end beats one that pokes out.
+  const half = sepPct / 2;
+  groups.forEach(g => { g.pos = Math.max(half, Math.min(100 - half, g.pos)); });
 
   const trains = groups.map(cl => {
     const n = cl.items.length;
@@ -1194,16 +1252,20 @@ function renderLineStrip(visibleDeps) {
     }
     const cls = 'ls-train ls-appr' + (lead.live ? ' ls-live' : '')
       + (n > 1 ? ' ls-cluster' : '') + depth + gone;
-    const body = '<b>' + (lead.mins <= 0 ? 'nå' : lead.mins) + '</b>'
+    // The strip must read the same as the row beneath it. Both call it "nå"
+    // for the first minute past the scheduled time, and only then start
+    // counting how long ago it went.
+    const body = '<b>' + (lead.ago >= 1 ? '-' + lead.ago : lead.ago !== null || lead.mins <= 0 ? 'nå' : lead.mins) + '</b>'
       + (n > 1 ? '<i>+' + (n - 1) + '</i>' : '');
     const title = lead.departed
-      ? 'gikk nettopp'
+      ? (n > 1 ? n + ' tog har gått, siste ' : '')
+        + (lead.ago < 1 ? (n > 1 ? 'nå' : 'går nå') : 'for ' + lead.ago + ' min siden')
       : n > 1
       ? n + ' tog, neste om ' + lead.mins + ' min · trykk for å se dem'
       : cl.group
         ? 'om ' + lead.mins + ' min · trykk for å lukke gruppen'
         : esc(lead.label) + ' · trykk for å se raden';
-    return '<span class="' + cls + '" style="left:' + pct(cl.pos).toFixed(2) + '%"'
+    return '<span class="' + cls + '" style="left:' + cl.pos.toFixed(2) + '%"'
       + ' role="button" tabindex="0" data-count="' + n + '"'
       + (cl.group ? ' data-group="' + esc(cl.group) + '"' : '')
       + ' data-jid="' + esc(lead.id) + '"'
@@ -1307,7 +1369,14 @@ function renderWalkSummary() {
     const wf = state.walkFromLL ? loadWalkFrom() : null;
     const ns = state.nearestStation;
     const fromLabel = wf ? wf.label : (ns ? ns.name : null);
-    el.textContent = (fromLabel ? fromLabel + ' · ' : '') + wk.mins + ' min gange';
+    // Say when the position behind this number has gone old, the same way the
+    // board says it for departures. ACC_GATE discards any fix worse than
+    // ±40m once one exists, which is routine indoors and in a tunnel — so the
+    // walk time could quietly be computed from where you were ten minutes ago.
+    const stale = state.walkFromLL ? null : posAgeMins();
+    el.textContent = (fromLabel ? fromLabel + ' · ' : '') + wk.mins + ' min gange'
+      + (stale !== null ? ' · posisjon ' + stale + ' min gammel' : '');
+    el.className = stale !== null ? 'stale' : '';
     el.style.display = 'block';
   } else if (state.gpsError === 'denied' && dir.key === 'out') {
     el.textContent = 'posisjon: ikke tilgjengelig';
@@ -1493,7 +1562,16 @@ export function renderBoard() {
     const diffSec = Math.floor((depTs - now) / 1000);
     const mins = Math.floor(Math.max(0, diffSec) / 60);
     const secs = Math.max(0, diffSec) % 60;
-    const isNow = diffSec <= 0, urgent = diffSec > 0 && mins <= 2;
+    // Already gone, but still inside the lookback window — a train running a
+    // minute late is standing at the platform, and this is the row you run for.
+    const agoMins = _agoMins(c, null, now);
+    // "NÅ" keeps its old meaning and its old window — the first minute after
+    // the scheduled time, when the train is plausibly still at the platform.
+    // Only past that does the row start saying it has gone, which is the one
+    // state the lookback window actually adds.
+    const departed = agoMins !== null && agoMins >= 1;
+    const isNow = agoMins !== null && agoMins < 1;
+    const urgent = diffSec > 0 && mins <= 2;
     const ln = c.serviceJourney && c.serviceJourney.line;
     const lc = (ln && ln.publicCode) || '?';
     const lbg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
@@ -1508,7 +1586,9 @@ export function renderBoard() {
     const rcls = walkActive ? reachCls(mtl) : null;
     const isRail = _depMode(c) === 'rail';
     const isCancelled = c.cancellation;
-    const missed = rcls === 'missed';
+    // .missed already carries "you cannot make this one" (opacity .4, red
+    // edge) but was reachable only through reachCls, which needs walk data.
+    const missed = departed || rcls === 'missed';
     const tooEarlyForPlan = planMinDepTs !== null && depTs < planMinDepTs;
     const _jid = (c.serviceJourney && c.serviceJourney.id) || '';
     const flashing = _flashJid && _jid === _flashJid && Date.now() < _flashUntil;
@@ -1611,7 +1691,10 @@ export function renderBoard() {
     const xferCount = c._transfers && c._transfers.length;
 
     const minsLabel = isNow ? 'nå' : mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' t' + (mins % 60 > 0 ? ' ' + mins % 60 + ' m' : '');
-    const a11yLabel = lc + ' mot ' + dest + ', avgang om ' + minsLabel + (quay !== '?' ? ', spor ' + quay : '');
+    const a11yLabel = departed
+      ? lc + ' mot ' + dest + ', gikk ' + agoMins + ' min siden'
+        + (quay !== '?' ? ', spor ' + quay : '')
+      : lc + ' mot ' + dest + ', avgang om ' + minsLabel + (quay !== '?' ? ', spor ' + quay : '');
 
     const isClock = mins >= 60;
     html += '<div class="' + rowCls + '"'
@@ -1625,8 +1708,10 @@ export function renderBoard() {
           + ' aria-label="' + esc(a11yLabel) + '"'
           + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.tapDepId(\'' + depId + '\')}"'
       ) + '>'
-      + '<div class="dep-mins' + (urgent ? ' urgent' : '') + (isNow ? ' now' : '') + (isClock ? ' clock' : '') + '">'
+      + '<div class="dep-mins' + (urgent ? ' urgent' : '') + (isNow ? ' now' : '')
+        + (departed ? ' gone' : '') + (isClock ? ' clock' : '') + '">'
       + (() => {
+          if (departed) return '-' + agoMins + '<span class="unit">min</span>';
           if (isNow) return 'NÅ';
           if (diffSec < 60) return secs + '<span class="unit">sek</span>';
           if (mins < 60)    return mins + '<span class="unit">min</span>';

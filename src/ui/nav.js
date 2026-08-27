@@ -6,7 +6,6 @@ import { renderBoardProfileSwitcher } from '../views/settings.js';
 import { saveWeekendMode } from '../geo.js';
 import { confirmTap } from './confirm.js';
 import { stopSelRefresh } from '../views/selected.js';
-import { copyJourneyId } from '../views/track.js';
 import { toggleSpectatePanel, closeSpectatePanel } from '../views/spectate.js';
 
 export function closeBoardMenu() {
@@ -265,7 +264,6 @@ export function attachEventListeners() {
   document.getElementById('w-back').addEventListener('click', () =>
     goBack(state.sel ? 'v-selected' : 'v-board'));
 
-  document.getElementById('t-jid-copy').addEventListener('click', copyJourneyId);
 
   document.getElementById('alight-btn').addEventListener('click', (e) => {
     if (!confirmTap(e.currentTarget, 'sikker? trykk igjen', () => {

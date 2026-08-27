@@ -56,6 +56,11 @@ let _bMapKey = null;
 let _bVehicleLayer = null;
 let _bRouteLayer = null;
 let _bFitRouteRequested = false;
+// Identity of the journey currently drawn. The initial fit frames nearby
+// stops, and a route fit was only ever requested when a line pill was tapped
+// — so the route itself never framed the map. On a journey with a change that
+// left the second leg drawn outside the viewport and clipped to nothing.
+let _routeFitKey = null;
 /**
  * Which lines are on. Empty means all of them.
  *
@@ -608,14 +613,20 @@ export function _stopsReadable(points, minGap) {
 }
 
 /**
- * The stop chain of one departure, clipped to boarding→alighting.
+ * The stop chain of ONE transit leg, clipped to that leg's own ends.
  *
- * Extracted so that lines other than the primary one can be drawn without
- * going near the singular state renderLineRoute owns — the snap corridor, the
- * walk extension and the map fit are all one-per-board by nature.
+ * The board map used to build its whole corridor from the departure's
+ * serviceJourney — which adaptTripPattern sets to the FIRST leg. On a journey
+ * with a change that meant the corridor stopped at the interchange, and
+ * findStopIdx then failed to find the real destination among leg one's stops
+ * and fell back to the nearest point, landing there too. Mortensrud →
+ * Frognerseteren drew as far as the change and no further.
+ *
+ * Clipping per leg on its own fromPlace/toPlace is the rule selected.js has
+ * always used for the same job.
  */
-export function _corridorStops(c, dir) {
-  const sjc = c && c.serviceJourney && c.serviceJourney.estimatedCalls;
+export function _legCorridorStops(leg, dirFallback) {
+  const sjc = leg && leg.serviceJourney && leg.serviceJourney.estimatedCalls;
   if (!Array.isArray(sjc) || sjc.length < 2) return [];
   const stops = [];
   sjc.forEach(call => {
@@ -645,8 +656,12 @@ export function _corridorStops(c, dir) {
     }
     return -1;
   };
-  let a = idxOf(dir && dir.from, dir && dir._fromLat, dir && dir._fromLon);
-  let b = idxOf(dir && dir.to, dir && dir._toLat, dir && dir._toLon);
+  const d = dirFallback || {};
+  const fp = leg.fromPlace || {}, tp = leg.toPlace || {};
+  let a = idxOf(fp.name || d.from, fp.latitude != null ? fp.latitude : d._fromLat,
+                fp.longitude != null ? fp.longitude : d._fromLon);
+  let b = idxOf(tp.name || d.to, tp.latitude != null ? tp.latitude : d._toLat,
+                tp.longitude != null ? tp.longitude : d._toLon);
   if (a === -1) a = 0;
   if (b === -1) b = stops.length - 1;
   return stops.slice(Math.min(a, b), Math.max(a, b) + 1);
@@ -795,11 +810,37 @@ function renderLineRoute(visibleDeps, vehicles) {
   // with it.
   if (pts.length >= 2) L.polyline(pts, style).addTo(_bRouteLayer);
 
+  // Every leg after the first.
+  //
+  // The corridor above is built from the departure's serviceJourney, which
+  // adaptTripPattern sets to leg one — so on a journey with a change the map
+  // stopped at the interchange and said nothing. Leg one keeps everything
+  // that is one-per-board (the snap corridor, the widening, the walk
+  // extensions): those are about the stop you are standing at and the train
+  // you are catching, not the rest of the trip. Only the drawing and the fit
+  // go multi-leg.
+  const restPts = [];
+  ((c._legs || []).slice(1)).forEach(leg => {
+    const legStops = _legCorridorStops(leg, dir);
+    const legShapePts = legShape(leg);
+    const lp = legShapePts || legStops.map(st => [st.lat, st.lon]);
+    if (lp.length < 2) return;
+    const ll = leg.serviceJourney && leg.serviceJourney.line;
+    const lc = ll && ll.presentation && ll.presentation.colour
+      ? '#' + ll.presentation.colour : color;
+    const legIsBus = leg.mode === 'bus';
+    L.polyline(lp, legIsBus
+      ? { color: lc, weight: 2, opacity: 0.55, dashArray: '1 7', interactive: false }
+      : { color: lc, weight: 4, opacity: 0.7, lineCap: 'round', interactive: false })
+      .addTo(_bRouteLayer);
+    restPts.push(...lp);
+  });
+
   // Every other selected line, as a corridor only. Deduped on geometry: on
   // shared track four lines would otherwise stack four identical strokes.
   const drawn = new Set([JSON.stringify(pts)]);
   [...perLine.values()].slice(1).forEach(({ c: oc }) => {
-    const ocStops = _corridorStops(oc, dir);
+    const ocStops = _legCorridorStops((oc._legs && oc._legs[0]) || null, dir);
     if (ocStops.length < 2) return;
     const ocPts = ocStops.map(st => [st.lat, st.lon]);
     const key = JSON.stringify(ocPts);
@@ -882,7 +923,16 @@ function renderLineRoute(visibleDeps, vehicles) {
     _walkExtKey = null;
   }
 
-  const fitPts = [...pts];
+  // The whole journey, changes included — not just the leg you board.
+  const fitPts = [...pts, ...restPts];
+  // Frame it when the journey itself changes, not only when a pill is tapped.
+  const fitKey = fitPts.length
+    ? fitPts.length + ':' + fitPts[0].join(',') + ':' + fitPts[fitPts.length - 1].join(',')
+    : null;
+  if (fitKey && fitKey !== _routeFitKey) {
+    _routeFitKey = fitKey;
+    _bFitRouteRequested = true;
+  }
   if (destIsVenue && dir._toLat && dir._toLon) fitPts.push([dir._toLat, dir._toLon]);
 
   if (_bFitRouteRequested && !_bUserMoved) {

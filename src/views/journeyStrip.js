@@ -150,17 +150,26 @@ export function renderJourneyStrip(el, calls, now, livePos, journeyId) {
     ticks += '<span class="' + cls + '" style="left:' + pct(i).toFixed(2) + '%"></span>';
   }
 
-  const body = p.left > 0 ? '<b>' + p.left + '</b>' : '<b>&#10003;</b>';
+  // The glyph carries no number.
+  //
+  // It used to show the stops remaining, which was read as a line code — a
+  // bare integer in a pill, directly below a line badge of the same shape,
+  // and in the exact visual language the board's strip spends on minutes.
+  // Three meanings, one shape. The count says the same thing in the caption,
+  // where it can carry its unit.
+  // "stopp" does not inflect, so there is no plural branch to get wrong.
+  const caption = p.left > 0 ? p.left + ' stopp igjen' : 'framme';
   const title = (p.at ? 'ved ' + p.at : p.next ? 'neste stopp ' + p.next : 'framme')
     + ' · ' + (p.live ? 'sanntid' : 'etter rutetid');
 
   el.innerHTML =
-    '<div class="js-rail">'
+    '<div class="js-caps"><span class="js-cap">' + esc(caption) + '</span></div>'
+    + '<div class="js-rail">'
     + '<span class="js-done" style="width:' + pct(p.frac).toFixed(2) + '%"></span>'
     + ticks
     + '<span class="js-train' + (p.live ? ' js-live' : '') + (p.atStop ? ' js-at' : '') + '"'
     + ' style="left:' + pct(p.frac).toFixed(2) + '%"'
-    + ' title="' + esc(title) + '">' + body + '</span>'
+    + ' title="' + esc(title) + '"></span>'
     + '</div>'
     + '<div class="js-ends">'
     + '<span class="js-end-from">' + esc(p.from || '') + '</span>'

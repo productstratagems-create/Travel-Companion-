@@ -542,6 +542,17 @@ html.view-board.map-open #dep-list{
    below; without real air between them the two read as one block. */
 #j-strip{margin:.1rem 0 .8rem;padding:.35rem .4rem .3rem}
 
+/* Same caption idiom as the board's strip, and for the same reason: a number
+   on the rail with no unit is read as whatever the reader's eye reaches for
+   first — here, the line code sitting right above it. */
+.js-caps{position:relative;height:12px;margin-bottom:.1rem;text-align:center}
+.js-cap{
+  font-family:"JetBrains Mono",ui-monospace,monospace;
+  font-size:9px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--text-muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
 .js-rail{position:relative;height:22px}
 .js-rail::before{
   content:"";position:absolute;left:0;right:0;top:10px;height:2px;
@@ -565,14 +576,11 @@ html.view-board.map-open #dep-list{
 .js-past{border-color:rgba(var(--accent-rgb),.5);background:rgba(var(--accent-rgb),.5)}
 
 .js-train{
-  position:absolute;top:1px;margin-left:-10px;
-  min-width:20px;height:20px;border-radius:10px;
-  display:flex;align-items:center;justify-content:center;
-  font-family:"JetBrains Mono",ui-monospace,monospace;
-  font-size:10px;font-weight:700;line-height:1;
-  background:var(--accent);color:var(--bg);
-  border:1.5px solid var(--surface);
-  padding:0 .28rem;box-sizing:border-box;
+  position:absolute;top:4px;margin-left:-7px;
+  width:14px;height:14px;border-radius:50%;
+  background:var(--accent);
+  border:2.5px solid var(--surface);
+  box-sizing:border-box;
   /* The glyph is redrawn once a second with a new left; without this it jumps
      between stops instead of running between them. */
   transition:left .9s linear;

@@ -9,7 +9,7 @@ vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
-  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo } from '../src/views/board.js';
+  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -561,5 +561,39 @@ describe('_widenLo — the corridor reaches back far enough to hold them', () =>
   it('snaps a train between two stops to the nearer one', () => {
     const between = { pos: { lat: (stops[2].lat + stops[3].lat) / 2 + 0.004, lon: 10.83 } };
     expect(_widenLo(stops, 8, [between])).toBe(3);
+  });
+});
+
+// ── Intermediate stops only when there is room to read them ─────────────────
+describe('_stopsReadable', () => {
+  // Evenly spaced along one axis, as the corridor is on screen.
+  const row = (n, gap) => Array.from({ length: n }, (_, i) => ({ x: i * gap, y: 0 }));
+
+  it('hides the beads when fifteen stops share a phone-width map', () => {
+    // 382px of map, fourteen gaps — about 27px… but the corridor is fitted
+    // with padding, so the real spacing is tighter than the map is wide.
+    expect(_stopsReadable(row(15, 12))).toBe(false);
+  });
+
+  it('shows them once there is room', () => {
+    expect(_stopsReadable(row(15, 40))).toBe(true);
+  });
+
+  it('uses the median, so one unusually close pair does not blank the rest', () => {
+    const pts = row(9, 40);
+    pts.splice(4, 0, { x: pts[4].x + 2, y: 0 });   // one near-duplicate stop
+    expect(_stopsReadable(pts)).toBe(true);
+  });
+
+  it('says yes when there is nothing between the ends to crowd', () => {
+    expect(_stopsReadable(row(2, 1))).toBe(true);
+    expect(_stopsReadable([])).toBe(true);
+    expect(_stopsReadable(null)).toBe(true);
+  });
+
+  it('measures in two dimensions, not just along x', () => {
+    const diag = Array.from({ length: 15 }, (_, i) => ({ x: i * 30, y: i * 30 }));
+    expect(_stopsReadable(diag)).toBe(true);          // ~42px apart
+    expect(_stopsReadable(diag, 60)).toBe(false);
   });
 });

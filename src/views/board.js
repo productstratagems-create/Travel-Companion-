@@ -561,6 +561,28 @@ const _ROUTE_STOP_TOOLTIP_MS = 3000;
 
 let _walkExtKey = null;
 
+/**
+ * Is there room to draw a marker at every stop?
+ *
+ * The gate is the median gap rather than the smallest: one pair of unusually
+ * close stops should not blank a corridor that is otherwise perfectly
+ * legible. ROUTE_STOP_MIN_GAP_PX is three times the 7px marker, so beads
+ * never touch.
+ */
+export const ROUTE_STOP_MIN_GAP_PX = 21;
+
+export function _stopsReadable(points, minGap) {
+  const pts = points || [];
+  if (pts.length < 3) return true;      // ends only; nothing to crowd
+  const gaps = [];
+  for (let i = 1; i < pts.length; i++) {
+    gaps.push(Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+  }
+  gaps.sort((a, b) => a - b);
+  const median = gaps[Math.floor(gaps.length / 2)];
+  return median >= (minGap == null ? ROUTE_STOP_MIN_GAP_PX : minGap);
+}
+
 function renderLineRoute(visibleDeps, vehicles) {
   if (!_bMap) return;
   if (!_selectedLine) {
@@ -754,8 +776,19 @@ function renderLineRoute(visibleDeps, vehicles) {
     L.polyline(pts, style).addTo(_bRouteLayer);
   }
 
-  stops.forEach((s) => {
+  // Intermediate stops are hidden until there is room to read them.
+  //
+  // Deliberately measured rather than keyed to a zoom number: the default
+  // zoom comes from fitBounds, so a three-stop route fits at high zoom and a
+  // fixed threshold would show its beads immediately — defeating the point.
+  // Same reasoning as the strip's clustering: separation in pixels, on the
+  // screen the reader actually has.
+  const showIntermediate = _stopsReadable(stops.map(st => _bMap.latLngToContainerPoint([st.lat, st.lon])));
+  stops.forEach((s, i) => {
     if (!s.name) return;
+    // Start and stop are never hidden — they are what the corridor is for.
+    const isEnd = i === 0 || i === stops.length - 1;
+    if (!isEnd && !showIntermediate) return;
     const marker = L.marker([s.lat, s.lon], { icon: makeRouteStopIcon(color) }).addTo(_bRouteLayer);
     // Every stop names itself on tap, endpoints included. The endpoints used
     // to be shown with _bMap.addLayer(tooltip), which displays a tooltip

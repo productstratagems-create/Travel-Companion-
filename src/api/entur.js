@@ -204,14 +204,17 @@ export function fetchTrip(dir, onSuccess, onError) {
       if (!j || signal.aborted) return;
       if (!j.data) throw new Error((j.errors && j.errors[0] && j.errors[0].message) || 'No data');
       const patterns = (j.data.trip && j.data.trip.tripPatterns) || [];
-      const sitStop = j.data.stopPlace || {};
       const sitMap = new Map();
       const addSits = (arr) => (arr || []).forEach(s => s && s.id && sitMap.set(s.id, s));
-      addSits(sitStop.situations);
-      (sitStop.estimatedCalls || []).forEach(call => {
-        addSits(call.situations);
-        if (call.serviceJourney) addSits(call.serviceJourney.situations);
-      });
+      // Both ends the reader named…
+      addSits((j.data.stopPlace || {}).situations);
+      addSits((j.data.dest || {}).situations);
+      // …and the journeys they would actually ride. This used to come from
+      // the origin's next five departures instead, whatever line those ran.
+      patterns.forEach(tp => (tp.legs || []).forEach(leg => {
+        addSits(leg.situations);
+        if (leg.serviceJourney) addSits(leg.serviceJourney.situations);
+      }));
       setDot('ok');
       onSuccess(patterns, Array.from(sitMap.values()));
     })

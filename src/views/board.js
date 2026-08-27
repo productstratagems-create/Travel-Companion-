@@ -1066,6 +1066,27 @@ let _flashUntil = 0;
 let _stripBound = false;
 
 /**
+ * Where the list has to scroll to centre one row.
+ *
+ * Measured against the list itself rather than via row.offsetTop, which is
+ * relative to the nearest POSITIONED ancestor. #dep-list is position:static,
+ * so offsetParent was BODY and every target was off by the distance from the
+ * top of the page down to the list — 418px on a phone, measured.
+ *
+ * Deliberately geometric rather than adding #dep-list{position:relative}:
+ * that would work, but it would leave correctness depending on a CSS rule
+ * nothing points at, which is the coupling that caused this.
+ *
+ * Pure, so the arithmetic is testable without standing up a strip.
+ */
+export function _scrollRowIntoList(listRect, rowRect, scrollTop, clientH, scrollH) {
+  const offsetInList = rowRect.top - listRect.top + scrollTop;
+  const target = offsetInList - (clientH - rowRect.height) / 2;
+  const max = Math.max(0, (scrollH || 0) - (clientH || 0));
+  return Math.max(0, Math.min(max, target));
+}
+
+/**
  * Clusters are controls, not decoration.
  *
  * Coming towards you, a cluster's trains all have rows below with platform,
@@ -1090,7 +1111,13 @@ function _bindStrip(el) {
       renderBoard();
       return;
     }
-    if (g.dataset.group) {
+    // Only the glyph you opened the group with closes it again. Every other
+    // member is a departure like any other, and tapping a departure jumps to
+    // its row — which is the whole point of the strip. This branch used to
+    // close the group for ANY member, and since the soonest cluster is open
+    // by default that meant the most-tapped glyphs on the board never
+    // scrolled at all.
+    if (g.dataset.group && g.dataset.group === g.dataset.jid) {
       _stripTouched = true;
       _expandedCluster = null;
       renderBoard();
@@ -1119,7 +1146,8 @@ function _bindStrip(el) {
     const row = list && list.querySelector('.dep-row[data-jid="'
       + (window.CSS && CSS.escape ? CSS.escape(jid) : jid) + '"]');
     if (!list || !row) return;
-    list.scrollTop = Math.max(0, row.offsetTop - (list.clientHeight - row.offsetHeight) / 2);
+    list.scrollTop = _scrollRowIntoList(list.getBoundingClientRect(), row.getBoundingClientRect(),
+      list.scrollTop, list.clientHeight, list.scrollHeight);
   };
   el.addEventListener('click', e => act(e.target));
   el.addEventListener('keydown', e => {

@@ -30,6 +30,24 @@ export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon, fromSt
   storage.set(HIST_KEY, JSON.stringify(hist.slice(0, HIST_MAX)));
 }
 
+/**
+ * How many recorded trips match this from→to pair.
+ *
+ * The history is keyed by destination and time-of-day bucket, so one route
+ * spreads across several entries — summing them is what turns it back into a
+ * usage count for the route itself.
+ */
+export function tripCount(fromName, toName) {
+  if (!toName) return 0;
+  const to = String(toName).toLowerCase();
+  const from = fromName ? String(fromName).toLowerCase() : null;
+  return _load().reduce((n, e) => {
+    if (String(e.toName || '').toLowerCase() !== to) return n;
+    if (from && String(e.fromName || '').toLowerCase() !== from) return n;
+    return n + (e.count || 0);
+  }, 0);
+}
+
 export function smartHistLen() {
   return _load().length;
 }

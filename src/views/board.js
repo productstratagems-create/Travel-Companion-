@@ -39,10 +39,47 @@ function loadModes() {
   catch { return { ...DEFAULT_MODES }; }
 }
 function saveModes(m) { storage.set(MODES_KEY, JSON.stringify(m)); }
+/**
+ * What you board. Used for the icon, the row and the corridor's style — all
+ * of which are about the vehicle you step onto, so the first leg is right.
+ */
 function _depMode(dep) {
   if (dep._legs && dep._legs[0]) return dep._legs[0].mode;
   const ln = dep.serviceJourney && dep.serviceJourney.line;
   return (ln && ln.transportMode) || 'metro';
+}
+
+/**
+ * Every mode the journey uses.
+ *
+ * The mode pills filtered on _depMode — the FIRST leg — so a journey that is
+ * metro then bus counted as metro and nothing else: switching Buss off left
+ * all sixteen rows standing, and switching T-bane off removed every one of
+ * them. The pills promised to filter by transport mode and actually filtered
+ * by which mode you start with. On single-leg routes the two are the same,
+ * which is why it went unnoticed.
+ */
+function _depModes(dep) {
+  if (!dep) return [];
+  if (Array.isArray(dep._legs) && dep._legs.length) {
+    return [...new Set(dep._legs.map(l => l && l.mode).filter(Boolean))];
+  }
+  const m = _depMode(dep);
+  return m ? [m] : [];
+}
+
+/**
+ * Is this journey one you are willing to take?
+ *
+ * Every leg has to be a mode you left on — the pills mean "which transport am
+ * I willing to use", the reading Ruter, Entur and Google Maps all share. The
+ * alternative, "at least one leg", would leave the filter doing almost
+ * nothing on exactly the journeys it matters for.
+ */
+export function _journeyModesAllowed(modes, activeModes) {
+  const list = modes || [];
+  if (!list.length) return true;
+  return list.every(m => (activeModes || []).includes(m));
 }
 
 // ── Board map (single universal map for all modes) ──────────────────────────
@@ -1720,11 +1757,12 @@ export function renderBoard() {
 
   let modeDeps = dedupeDepartures(state.deps);
   if (activeModes.length < 4) {
-    modeDeps = modeDeps.filter(({ c }) => activeModes.includes(_depMode(c)));
+    modeDeps = modeDeps.filter(({ c }) => _journeyModesAllowed(_depModes(c), activeModes));
   }
   if (!modeDeps.length) {
     list.innerHTML = '<div class="state-msg">Ingen avganger matcher filtrene. '
-      + 'Det går avganger herfra, men ikke med transportmidlene som er valgt.</div>';
+      + 'Det går avganger herfra, men de bruker transportmidler du har slått av '
+      + '\u2014 en reise kan kreve et bytte til noe som ikke er valgt.</div>';
     renderLineFilter([]);
     renderLineRoute([]);
     if (_bVehicleLayer) _bVehicleLayer.clearLayers();

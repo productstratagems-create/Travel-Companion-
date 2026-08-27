@@ -9,7 +9,7 @@ vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
-  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine, _legCorridorStops } from '../src/views/board.js';
+  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine, _legCorridorStops, _journeyModesAllowed } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -717,5 +717,36 @@ describe('_legCorridorStops', () => {
     expect(all).toContain('Frognerseteren');
     // Leg one alone stops at the interchange — that was the whole map.
     expect(_legCorridorStops(legs[0]).map(s => s.name)).not.toContain('Frognerseteren');
+  });
+});
+
+// ── Modusfiltrene ser hele reisen ───────────────────────────────────────────
+//
+// _depMode returns the FIRST leg's mode, and the pills filtered on it. So a
+// journey that is metro then bus counted as metro alone: switching Buss off
+// left all sixteen rows standing, and switching T-bane off removed every one.
+describe('_journeyModesAllowed', () => {
+  const ALL = ['metro', 'tram', 'bus', 'rail'];
+
+  it('shows a single-mode journey when its mode is on', () => {
+    expect(_journeyModesAllowed(['metro'], ALL)).toBe(true);
+    expect(_journeyModesAllowed(['metro'], ['tram', 'bus', 'rail'])).toBe(false);
+  });
+
+  // The reported case, both directions.
+  it('hides a metro-and-bus journey when either mode is switched off', () => {
+    expect(_journeyModesAllowed(['metro', 'bus'], ALL)).toBe(true);
+    expect(_journeyModesAllowed(['metro', 'bus'], ['metro', 'tram', 'rail'])).toBe(false);
+    expect(_journeyModesAllowed(['metro', 'bus'], ['tram', 'bus', 'rail'])).toBe(false);
+  });
+
+  it('does not hide a journey whose modes are unknown', () => {
+    expect(_journeyModesAllowed([], ALL)).toBe(true);
+    expect(_journeyModesAllowed(null, ALL)).toBe(true);
+  });
+
+  it('hides everything when nothing is on', () => {
+    expect(_journeyModesAllowed(['metro'], [])).toBe(false);
+    expect(_journeyModesAllowed(['metro'], null)).toBe(false);
   });
 });

@@ -9,7 +9,7 @@ vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
-  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine } from '../src/views/board.js';
+  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine, _legCorridorStops, _journeyModesAllowed } from '../src/views/board.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -663,5 +663,90 @@ describe('_buildStrip — several lines on one axis', () => {
   // The old single-code form is still what the unit tests upstream pass.
   it('still accepts a single line code', () => {
     expect(_buildStrip(deps, DIR, '5', NOW, new Map()).trains.map(t => t.line)).toEqual(['5']);
+  });
+});
+
+// ── Hele reisen, også over bytte ────────────────────────────────────────────
+//
+// The board map built its whole corridor from the departure's serviceJourney,
+// which adaptTripPattern sets to the FIRST leg. On Mortensrud → Frognerseteren
+// that drew as far as the interchange and stopped — and findStopIdx, unable to
+// find the real destination among leg one's stops, fell back to the nearest
+// point and landed there too.
+describe('_legCorridorStops', () => {
+  const NAMES = ['Mortensrud', 'Bøler', 'Helsfyr', 'Stortinget', 'Majorstuen', 'Frognerseteren'];
+  const call = (i) => ({ quay: { stopPlace: { name: NAMES[i], latitude: 59.86 + i * 0.01, longitude: 10.83 - i * 0.01 } } });
+  const leg = (fromI, toI, callIdx) => ({
+    fromPlace: { name: NAMES[fromI], latitude: 59.86 + fromI * 0.01, longitude: 10.83 - fromI * 0.01 },
+    toPlace:   { name: NAMES[toI],   latitude: 59.86 + toI * 0.01,   longitude: 10.83 - toI * 0.01 },
+    serviceJourney: { estimatedCalls: callIdx.map(call) },
+  });
+
+  it('clips a leg to its own ends, not the journey’s', () => {
+    // Leg one runs Mortensrud→Stortinget on a service that continues further.
+    const l = leg(0, 3, [0, 1, 2, 3, 4]);
+    expect(_legCorridorStops(l).map(s => s.name)).toEqual(
+      ['Mortensrud', 'Bøler', 'Helsfyr', 'Stortinget']);
+  });
+
+  it('gives the second leg the stops the first one never had', () => {
+    const l2 = leg(3, 5, [3, 4, 5]);
+    const names = _legCorridorStops(l2).map(s => s.name);
+    expect(names[0]).toBe('Stortinget');
+    expect(names).toContain('Frognerseteren');
+  });
+
+  it('falls back to coordinates when the name does not match a stop', () => {
+    const l = leg(0, 3, [0, 1, 2, 3]);
+    l.toPlace = { name: 'Et sted uten treff', latitude: 59.88, longitude: 10.81 };
+    expect(_legCorridorStops(l).map(s => s.name)).toContain('Helsfyr');
+  });
+
+  it('returns nothing rather than throwing when there is no leg to clip', () => {
+    expect(_legCorridorStops(null)).toEqual([]);
+    expect(_legCorridorStops({})).toEqual([]);
+    expect(_legCorridorStops({ serviceJourney: { estimatedCalls: [call(0)] } })).toEqual([]);
+  });
+
+  // The bug in one assertion: a two-leg journey has to yield two corridors,
+  // and the second must reach the destination.
+  it('covers the destination across a change, which one leg alone cannot', () => {
+    const legs = [leg(0, 3, [0, 1, 2, 3]), leg(3, 5, [3, 4, 5])];
+    const all = legs.flatMap(l => _legCorridorStops(l).map(s => s.name));
+    expect(all).toContain('Mortensrud');
+    expect(all).toContain('Frognerseteren');
+    // Leg one alone stops at the interchange — that was the whole map.
+    expect(_legCorridorStops(legs[0]).map(s => s.name)).not.toContain('Frognerseteren');
+  });
+});
+
+// ── Modusfiltrene ser hele reisen ───────────────────────────────────────────
+//
+// _depMode returns the FIRST leg's mode, and the pills filtered on it. So a
+// journey that is metro then bus counted as metro alone: switching Buss off
+// left all sixteen rows standing, and switching T-bane off removed every one.
+describe('_journeyModesAllowed', () => {
+  const ALL = ['metro', 'tram', 'bus', 'rail'];
+
+  it('shows a single-mode journey when its mode is on', () => {
+    expect(_journeyModesAllowed(['metro'], ALL)).toBe(true);
+    expect(_journeyModesAllowed(['metro'], ['tram', 'bus', 'rail'])).toBe(false);
+  });
+
+  // The reported case, both directions.
+  it('hides a metro-and-bus journey when either mode is switched off', () => {
+    expect(_journeyModesAllowed(['metro', 'bus'], ALL)).toBe(true);
+    expect(_journeyModesAllowed(['metro', 'bus'], ['metro', 'tram', 'rail'])).toBe(false);
+    expect(_journeyModesAllowed(['metro', 'bus'], ['tram', 'bus', 'rail'])).toBe(false);
+  });
+
+  it('does not hide a journey whose modes are unknown', () => {
+    expect(_journeyModesAllowed([], ALL)).toBe(true);
+    expect(_journeyModesAllowed(null, ALL)).toBe(true);
+  });
+
+  it('hides everything when nothing is on', () => {
+    expect(_journeyModesAllowed(['metro'], [])).toBe(false);
+    expect(_journeyModesAllowed(['metro'], null)).toBe(false);
   });
 });

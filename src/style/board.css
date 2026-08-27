@@ -76,6 +76,10 @@
 }
 .dep-mins.urgent{color:var(--warn);text-shadow:0 0 18px rgba(var(--warn-rgb),.7)}
 .dep-mins.now{font-size:1.8rem}
+/* Already gone, but still inside the two-minute lookback — the row is kept
+   because a train running late is standing at the platform and is the one
+   you run for. Quieter than a countdown, since it is no longer counting. */
+.dep-mins.gone{font-size:1.5rem;opacity:.75}
 .dep-mins.clock{font-size:1.4rem;letter-spacing:.04em;text-shadow:none;color:#a89060}
 .dep-mins .unit{
   display:block;font-family:"JetBrains Mono",monospace;

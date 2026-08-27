@@ -396,3 +396,72 @@ describe('_stripSummary', () => {
     expect(_stripSummary({ trains: [{ mins: 4 }] })).toBe('1 tog på vei til stoppet ditt, neste om 4 min');
   });
 });
+
+// ── Departures that have already gone ───────────────────────────────────────
+//
+// The board now asks the API for a two-minute lookback, so a train whose time
+// has passed stays on screen instead of falling out at the next 20-second
+// poll. That is the whole point: a train running a minute late is standing at
+// the platform, and before this the app had already forgotten it.
+describe('_buildStrip — the lookback window', () => {
+  const LINE = { id: 'RUT:Line:5', publicCode: '5' };
+  const DIR = { from: 'Grorud', to: 'Jernbanetorget' };
+  const NOW = Date.UTC(2026, 4, 24, 8, 0, 0);
+  const at = (mins, id, secs) => ({
+    expectedDepartureTime: new Date(NOW + mins * 60000 + (secs || 0) * 1000).toISOString(),
+    destinationDisplay: { frontText: 'Jernbanetorget' },
+    serviceJourney: { id, line: LINE, estimatedCalls: [] },
+  });
+  const strip = (deps) => _buildStrip(deps, DIR, '5', NOW, new Map());
+
+  it('keeps a departure that has already gone, rather than dropping it', () => {
+    const s = strip([at(-2, 'gone'), at(4, 'next')]);
+    expect(s.trains.map(t => t.id).sort()).toEqual(['gone', 'next']);
+  });
+
+  it('counts how long ago it went, in whole minutes', () => {
+    expect(strip([at(-2, 'a')]).trains[0].ago).toBe(2);
+    expect(strip([at(-1, 'a', -30)]).trains[0].ago).toBe(1);
+    expect(strip([at(0, 'a', -30)]).trains[0].ago).toBe(0);
+  });
+
+  it('leaves ago null for a departure still to come, so the two states never blur', () => {
+    // A signed countdown would collapse "due now" and "gone thirty seconds
+    // ago" onto zero — the two things a person on a platform most needs told
+    // apart.
+    expect(strip([at(4, 'a')]).trains[0].ago).toBeNull();
+    expect(strip([at(4, 'a')]).trains[0].departed).toBe(false);
+    expect(strip([at(0, 'a', -1)]).trains[0].departed).toBe(true);
+  });
+
+  it('puts a departed train past your stop, and an upcoming one before it', () => {
+    const s = strip([at(-1, 'gone'), at(4, 'next')]);
+    const gone = s.trains.find(t => t.id === 'gone');
+    const next = s.trains.find(t => t.id === 'next');
+    expect(gone.pos).toBeGreaterThan(0);
+    expect(next.pos).toBeLessThan(0);
+  });
+
+  // They deliberately share one position so _clusterTrains merges them into a
+  // single glyph with a +N badge. Spreading them was tried and measured: the
+  // rail's axis is not linear across your stop — the strip right of it maps
+  // about 0.19 of the width onto an axis unit against ~0.82 on the left — so
+  // three "separated" glyphs landed 6px apart at 414px, against a 46px glyph.
+  // Overlapping glyphs swallow each other's taps.
+  it('gives every departed train the same position, so they cluster', () => {
+    const s = strip([at(-2, 'old'), at(-1, 'mid'), at(0, 'justnow', -5)]);
+    const pos = s.trains.filter(t => t.departed).map(t => t.pos);
+    expect(pos).toHaveLength(3);
+    expect(new Set(pos).size).toBe(1);
+    expect(pos[0]).toBe(0.5);   // _STRIP_GONE_AT
+  });
+
+  // Of the trains that have gone, the one that just went is the only one worth
+  // a second look — so it must lead the cluster rather than whichever happened
+  // to come first in the response.
+  it('orders the departed most-recent-first, so the cluster leads with it', () => {
+    const s = strip([at(-2, 'old'), at(0, 'justnow', -5), at(-1, 'mid')]);
+    const gone = s.trains.filter(t => t.departed);
+    expect(gone.map(t => t.id)).toEqual(['justnow', 'mid', 'old']);
+  });
+});

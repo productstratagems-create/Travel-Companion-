@@ -1,4 +1,20 @@
-export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
+/**
+ * How far into the past a departure board still reaches.
+ *
+ * Matches the app's own existing definition of still-boardable:
+ * selected.js keeps «reis →» enabled until depTs < now - 120000. Asking the
+ * API from now forward meant a train standing at the platform a minute late
+ * had already fallen out of the response — invisible at exactly the moment
+ * someone is running for it.
+ */
+export const LOOKBACK_MINS = 2;
+
+/** now - LOOKBACK_MINS, as the ISO string both queries below want. */
+export function lookbackISO(now) {
+  return new Date((now == null ? Date.now() : now) - LOOKBACK_MINS * 60000).toISOString();
+}
+
+export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, noLookback) {
   const sits = 'situations{id summary{language value} severity validityPeriod{startTime endTime}}';
   const fromIsCoord = fromId && typeof fromId === 'object';
   const stopPlaceQuery = fromIsCoord ? '' : ('stopPlace(id:"' + fromId + '"){'
@@ -16,6 +32,11 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed) {
       : 'to:{place:"' + toId + '"} ')
     + (viaId ? 'via:[{visit:{stopLocationIds:["' + viaId + '"]}}] ' : '')
     + 'numTripPatterns:' + (n || 12) + ' '
+    // Plan from slightly in the past, or OTP plans from this instant and a
+    // departure drops out of the board the moment its time passes.
+    // noLookback is the retry path in fetchTrip: if the argument is rejected
+    // the board must still render, so it asks again without it.
+    + (noLookback ? '' : 'dateTime:"' + lookbackISO(now) + '" ')
     + 'walkSpeed:' + (walkSpeed || 1.3) + ' '
     + 'modes:{accessMode:foot,egressMode:foot,transportModes:[{transportMode:metro},{transportMode:bus},{transportMode:tram},{transportMode:rail}]}'
     + ') { tripPatterns { duration legs {'
@@ -47,10 +68,15 @@ export function arrBoardGQL(id, n) {
     + 'serviceJourney{id ' + sits + ' line{publicCode transportMode presentation{colour}}}}}}';
 }
 
-export function boardGQL(id, n) {
+export function boardGQL(id, n, now) {
+  // startTime/timeRange rather than a bare numberOfDepartures, for the same
+  // reason as tripGQL above. These two argument names are already in
+  // production in inflightGQL, so unlike tripGQL's dateTime they are proven.
+  const back = LOOKBACK_MINS, fwd = 90;
   return '{stopPlace(id:"' + id + '"){id name latitude longitude '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
-    + 'estimatedCalls(numberOfDepartures:' + (n || 10) + ',whiteListedModes:[metro,tram,bus,rail]){'
+    + 'estimatedCalls(startTime:"' + lookbackISO(now) + '",timeRange:' + ((back + fwd) * 60)
+    + ',numberOfDepartures:' + (n || 10) + ',whiteListedModes:[metro,tram,bus,rail]){'
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation occupancyStatus '
     + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
     + 'destinationDisplay{frontText} quay{id publicCode name} '

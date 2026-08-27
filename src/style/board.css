@@ -163,6 +163,9 @@
 }
 
 #walk-summary{font-size:12px;color:var(--text-soft);padding:.3rem 0 .6rem;letter-spacing:.04em}
+/* The walk time is computed from a position that may have stopped updating.
+   Same treatment the board gives a stale departure stamp. */
+#walk-summary.stale{color:var(--err)}
 
 .map-wrap #mode-filter,.map-wrap #line-filter{
   position:absolute;left:.5rem;right:.5rem;

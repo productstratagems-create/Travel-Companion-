@@ -148,6 +148,7 @@ html[data-theme="light"] .bab-leisure { color: rgba(var(--accent-rgb),.55); }
 html[data-theme="light"] .bab-leisure:active { color: var(--accent); }
 
 html[data-theme="light"] #walk-summary { color: var(--text-muted); }
+html[data-theme="light"] #walk-summary.stale { color: var(--err); }
 
 html[data-theme="light"] .mode-pill {
   border-color: rgba(var(--border-rgb),.14);

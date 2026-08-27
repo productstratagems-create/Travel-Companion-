@@ -19,6 +19,10 @@ export const state = {
   walkOvr: null,
   walkFromLL: null,
   gpsError: null,
+  // When the accepted fix behind homeLL was taken. Without it the position
+  // could go stale silently — ACC_GATE discards noisy fixes, so the dot simply
+  // stopped moving and nothing could say why.
+  posAt: null,
   debugOpen: false,
   serviceAlerts: [],
   // The serviceJourney ID the user is currently focused on or riding.

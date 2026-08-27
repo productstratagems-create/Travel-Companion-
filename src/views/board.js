@@ -3,7 +3,7 @@ import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
 import { fetchBoard, fetchTrip, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon } from '../api/adapt.js';
@@ -1369,7 +1369,14 @@ function renderWalkSummary() {
     const wf = state.walkFromLL ? loadWalkFrom() : null;
     const ns = state.nearestStation;
     const fromLabel = wf ? wf.label : (ns ? ns.name : null);
-    el.textContent = (fromLabel ? fromLabel + ' · ' : '') + wk.mins + ' min gange';
+    // Say when the position behind this number has gone old, the same way the
+    // board says it for departures. ACC_GATE discards any fix worse than
+    // ±40m once one exists, which is routine indoors and in a tunnel — so the
+    // walk time could quietly be computed from where you were ten minutes ago.
+    const stale = state.walkFromLL ? null : posAgeMins();
+    el.textContent = (fromLabel ? fromLabel + ' · ' : '') + wk.mins + ' min gange'
+      + (stale !== null ? ' · posisjon ' + stale + ' min gammel' : '');
+    el.className = stale !== null ? 'stale' : '';
     el.style.display = 'block';
   } else if (state.gpsError === 'denied' && dir.key === 'out') {
     el.textContent = 'posisjon: ikke tilgjengelig';

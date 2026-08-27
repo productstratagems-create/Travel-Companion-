@@ -136,6 +136,24 @@ const ACC_GATE = 40;  // metres — skip updates noisier than this once we have 
 
 let _watchId = null;
 
+// Where findNearestStation was last called from — NOT the last fix.
+//
+// Drift used to be measured fix-to-fix, and fixes arrive about once a second
+// a metre or two apart, so the 200 m threshold never tripped while walking:
+// walk 800 m to a different station and the app still believed you were at
+// the old one, which isWalkActive() and the whole walk-time feature hang off.
+// It also fired mainly when accuracy was poor, since rejected fixes let the
+// fix-to-fix delta accumulate — re-resolving exactly when the position was
+// least trustworthy.
+let _stationAnchor = null;
+const STATION_REFRESH_M = 200;
+
+// A synchronous localStorage write on every accepted fix is ~60 main-thread
+// writes a minute while walking. The position is a convenience on next launch,
+// not a ledger.
+const SAVE_EVERY_MS = 10_000;
+let _savedAt = 0;
+
 function _ema(prev, next) {
   if (!prev) return { lat: next.lat, lon: next.lon };
   return {
@@ -152,45 +170,121 @@ export function locateUser(onFound, onFail) {
   }
   if (_watchId !== null) return; // single watch for the session lifetime
 
-  // Cached position: call onFound immediately so the UI doesn't wait for GPS warm-up.
-  // GPS will still run in background; significant drift (>200m) silently re-fetches stations.
-  const hasCachedPos = !!state.homeLL;
-  if (hasCachedPos) {
+  // Cached position: call onFound immediately so the UI doesn't wait for GPS
+  // warm-up. GPS still runs in the background and re-resolves stations once
+  // you have actually moved.
+  if (state.homeLL) {
+    _stationAnchor = { lat: state.homeLL.lat, lon: state.homeLL.lon };
     findNearestStation(state.homeLL.lat, state.homeLL.lon, onFound, onFail);
   }
 
+  _onFound = onFound;
+  _onFail = onFail;
+  _startWatch();
+  _bindVisibility();
+}
+
+let _onFound = null;
+let _onFail = null;
+
+function _handleFix(pos) {
+  const { latitude, longitude, accuracy } = pos.coords;
+  state.gpsError = null;
+
+  if (!state.homeLL || accuracy <= ACC_GATE) {
+    state.homeLL = _ema(state.homeLL, { lat: latitude, lon: longitude });
+    // Kept so staleness can be told. ACC_GATE silently discards anything worse
+    // than ±40m once a fix exists — routine indoors, in a tunnel or in an
+    // urban canyon — and without a timestamp the dot simply froze and nothing
+    // could say so.
+    state.posAt = pos.timestamp || Date.now();
+    const now = Date.now();
+    if (now - _savedAt >= SAVE_EVERY_MS) {
+      _savedAt = now;
+      storage.set(HOME_LL_KEY, JSON.stringify({ lat: state.homeLL.lat, lon: state.homeLL.lon }));
+    }
+    updateWalkDbg();
+  }
+
+  // Measured from the anchor, so a walk accumulates towards the threshold
+  // instead of resetting at every fix.
+  const drift = _stationAnchor
+    ? haver(_stationAnchor.lat, _stationAnchor.lon, latitude, longitude)
+    : Infinity;
+  if (drift <= STATION_REFRESH_M) return;
+
+  const first = !_stationAnchor;
+  _stationAnchor = { lat: latitude, lon: longitude };
+  if (first) {
+    logMsg('✓ posisjon ±' + Math.round(accuracy) + 'm', 'ok');
+    findNearestStation(latitude, longitude, _onFound || (() => {}), _onFail || (() => {}));
+  } else {
+    logMsg('posisjon oppdatert ±' + Math.round(accuracy) + 'm (' + Math.round(drift) + 'm drift)', 'ok');
+    findNearestStation(latitude, longitude, () => {}, () => {});
+  }
+}
+
+function _startWatch() {
+  if (_watchId !== null || !navigator.geolocation) return;
   _watchId = navigator.geolocation.watchPosition(
-    pos => {
-      const { latitude, longitude, accuracy } = pos.coords;
-      state.gpsError = null;
-      const prevLL = state.homeLL;
-      if (!prevLL || accuracy <= ACC_GATE) {
-        state.homeLL = _ema(state.homeLL, { lat: latitude, lon: longitude });
-        storage.set(HOME_LL_KEY, JSON.stringify({ lat: state.homeLL.lat, lon: state.homeLL.lon }));
-        updateWalkDbg();
-      }
-      const drift = prevLL ? haver(prevLL.lat, prevLL.lon, latitude, longitude) : Infinity;
-      if (!hasCachedPos) {
-        // First-ever fix: notify and find station
-        logMsg('✓ posisjon ±' + Math.round(accuracy) + 'm', 'ok');
-        findNearestStation(latitude, longitude, onFound, onFail);
-      } else if (drift > 200) {
-        // User is at a meaningfully different location — refresh stations silently
-        logMsg('posisjon oppdatert ±' + Math.round(accuracy) + 'm (' + Math.round(drift) + 'm drift)', 'ok');
-        findNearestStation(latitude, longitude, () => {}, () => {});
-      }
-    },
+    _handleFix,
     err => {
       if (err.code === 1) state.gpsError = 'denied';
       logMsg('posisjon: ' + err.message, 'err');
-      if (!state.homeLL && onFail) onFail(err.message);
+      if (!state.homeLL && _onFail) _onFail(err.message);
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
   );
 }
 
-// watchPosition keeps homeLL current — no periodic poll needed
-export function refreshPosition() {}
+/**
+ * Release the watch while the page is hidden.
+ *
+ * High-accuracy GPS ran for the whole session, on every screen and while the
+ * tab was in the background — by a wide margin the most power-hungry thing
+ * this app does. Deliberately not per-screen: re-acquiring a fix takes
+ * seconds and screen switching is frequent, so that churn would cost more
+ * than it saves.
+ */
+let _visBound = false;
+function _bindVisibility() {
+  if (_visBound || typeof document === 'undefined') return;
+  _visBound = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      if (_watchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(_watchId);
+        _watchId = null;
+      }
+      // The position outlives the watch; only the sensor stops.
+      _flushPosition();
+    } else {
+      _startWatch();
+    }
+  });
+  window.addEventListener('pagehide', _flushPosition);
+}
+
+function _flushPosition() {
+  if (!state.homeLL) return;
+  _savedAt = Date.now();
+  storage.set(HOME_LL_KEY, JSON.stringify({ lat: state.homeLL.lat, lon: state.homeLL.lon }));
+}
+
+/**
+ * Is the position old enough that it should not be presented as where you are?
+ *
+ * Same 60 seconds the board uses for departures and api/vehicles.js uses for
+ * vehicle positions, for the same reason: a reading that stopped arriving
+ * drifts silently, which is worse than admitting it is old.
+ */
+export const POS_STALE_MS = 60_000;
+
+export function posAgeMins(now) {
+  if (!state.posAt) return null;
+  const age = (now == null ? Date.now() : now) - state.posAt;
+  return age < POS_STALE_MS ? null : Math.floor(age / 60000);
+}
 
 export function updateWalkDbg() {
   const el = document.getElementById('walk-dbg');

@@ -14,8 +14,29 @@ export function lookbackISO(now) {
   return new Date((now == null ? Date.now() : now) - LOOKBACK_MINS * 60000).toISOString();
 }
 
+/**
+ * The situation fields every query asks for.
+ *
+ * `summary` is a HEADING — Entur puts "Anbefaling for reiser til Oslo
+ * sentrum" there and the recommendation itself in `description`, with any
+ * advice in `advice`. Asking for the heading alone meant the banner could
+ * never show what a message actually said; that was not a rendering bug but
+ * data we never requested.
+ *
+ * `basic` is the same fragment without the two text fields. Both tripGQL's
+ * existing minimal retry and fetchBoard's new one fall back to it, so an
+ * unknown field name cannot take the departure list down — which matters
+ * because these names cannot be checked against the live API from a
+ * sandbox that cannot reach it.
+ */
+export function sitsGQL(basic) {
+  return 'situations{id summary{language value}'
+    + (basic ? '' : ' description{language value} advice{language value}')
+    + ' severity validityPeriod{startTime endTime}}';
+}
+
 export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal) {
-  const sits = 'situations{id summary{language value} severity validityPeriod{startTime endTime}}';
+  const sits = sitsGQL(minimal);
   const fromIsCoord = fromId && typeof fromId === 'object';
   // Only the stop places the reader actually named.
   //
@@ -77,8 +98,8 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal) {
  * until now a closure at the far end of the trip was invisible. Same fragment
  * and same shape as boardGQL, so ui/alerts.js renders it unchanged.
  */
-export function arrBoardGQL(id, n) {
-  const sits = 'situations{id summary{language value} severity validityPeriod{startTime endTime}}';
+export function arrBoardGQL(id, n, basic) {
+  const sits = sitsGQL(basic);
   return '{stopPlace(id:"' + id + '"){name latitude longitude ' + sits + ' '
     + 'estimatedCalls(numberOfDepartures:' + (n || 8) + '){'
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation '
@@ -87,20 +108,20 @@ export function arrBoardGQL(id, n) {
     + 'serviceJourney{id ' + sits + ' line{publicCode transportMode presentation{colour}}}}}}';
 }
 
-export function boardGQL(id, n, now) {
+export function boardGQL(id, n, now, basic) {
+  const sits = sitsGQL(basic);
   // startTime/timeRange rather than a bare numberOfDepartures, for the same
   // reason as tripGQL above. These two argument names are already in
   // production in inflightGQL, so unlike tripGQL's dateTime they are proven.
   const back = LOOKBACK_MINS, fwd = 90;
-  return '{stopPlace(id:"' + id + '"){id name latitude longitude '
-    + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
+  return '{stopPlace(id:"' + id + '"){id name latitude longitude ' + sits + ' '
     + 'estimatedCalls(startTime:"' + lookbackISO(now) + '",timeRange:' + ((back + fwd) * 60)
     + ',numberOfDepartures:' + (n || 10) + ',whiteListedModes:[metro,tram,bus,rail]){'
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation occupancyStatus '
-    + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
+    + sits + ' '
     + 'destinationDisplay{frontText} quay{id publicCode name} '
     + 'serviceJourney{id line{id publicCode transportMode presentation{colour}} '
-    + 'situations{id summary{language value} severity validityPeriod{startTime endTime}} '
+    + sits + ' '
     + 'estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + '}'

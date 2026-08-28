@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tripGQL, boardGQL, trackGQL, arrBoardGQL, LOOKBACK_MINS } from '../src/api/queries.js';
+import { tripGQL, boardGQL, trackGQL, arrBoardGQL, sitsGQL, LOOKBACK_MINS } from '../src/api/queries.js';
 
 // --- tripGQL ---
 
@@ -286,5 +286,40 @@ describe('trafikkmeldinger — only the stretches the reader named', () => {
   it('leaves the destination block out when the destination is a coordinate', () => {
     const q = tripGQL(FROM, { lat: 59.9, lon: 10.7 }, null, 12, 1.3, Date.now());
     expect(q).not.toContain('dest: stopPlace');
+  });
+});
+
+// ── Asking for what the message says ────────────────────────────────────────
+describe('sitsGQL', () => {
+  it('asks for the text, not just the heading', () => {
+    const f = sitsGQL(false);
+    expect(f).toContain('summary{language value}');
+    expect(f).toContain('description{language value}');
+    expect(f).toContain('advice{language value}');
+  });
+
+  // The guard, and the reason this is safe to ship without being able to
+  // reach the API: both retry paths fall back to a fragment that has only
+  // fields already proven in production.
+  it('drops the two unproven fields in the basic form', () => {
+    const b = sitsGQL(true);
+    expect(b).toContain('summary{language value}');
+    expect(b).not.toContain('description');
+    expect(b).not.toContain('advice');
+    expect(b).toContain('severity');
+  });
+});
+
+describe('the situation text rides on every situation query', () => {
+  it('is in the full board and trip queries', () => {
+    expect(boardGQL('NSR:StopPlace:1', 10)).toContain('description{language value}');
+    expect(tripGQL('A', 'B', null, 12, 1.3)).toContain('description{language value}');
+    expect(arrBoardGQL('NSR:StopPlace:1', 8)).toContain('description{language value}');
+  });
+
+  it('is absent from every retry form', () => {
+    expect(boardGQL('NSR:StopPlace:1', 10, null, true)).not.toContain('description');
+    expect(tripGQL('A', 'B', null, 12, 1.3, null, true)).not.toContain('description');
+    expect(arrBoardGQL('NSR:StopPlace:1', 8, true)).not.toContain('description');
   });
 });

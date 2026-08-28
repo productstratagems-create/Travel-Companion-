@@ -15,7 +15,7 @@ import { makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _trainPosition, SRC_LABEL } from './trainPosition.js';
 import { renderJourneyStrip } from './journeyStrip.js';
-import { renderAlerts, activeSituations, situationText, sevClass } from '../ui/alerts.js';
+import { renderAlerts, activeSituations, alertHtml, bindAlertToggles } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
@@ -346,15 +346,14 @@ function _fetchArrBoardData() {
 function _destAlertsHtml() {
   const active = activeSituations(_destAlerts);
   if (!active.length) return '';
-  return active.map(s => {
-    const txt = situationText(s);
-    return txt ? '<div class="service-alert' + sevClass(s.severity) + '">' + esc(txt) + '</div>' : '';
-  }).filter(Boolean).join('');
+  return active.map(alertHtml).filter(Boolean).join('');
 }
 
 function _updateDestAlertsSection() {
   const el = document.getElementById('hn-dest-alerts');
-  if (el) el.innerHTML = _destAlertsHtml();
+  if (!el) return;
+  el.innerHTML = _destAlertsHtml();
+  bindAlertToggles(el);
 }
 
 function _renderArrBoardHtml() {

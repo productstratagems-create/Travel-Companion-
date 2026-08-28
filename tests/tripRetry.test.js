@@ -7,7 +7,7 @@ vi.mock('../src/api/adapt.js', () => ({ quayLatLon: () => null }));
 const fetchMock = vi.fn();
 vi.mock('../src/api/http.js', () => ({ enturFetch: (...a) => fetchMock(...a) }));
 
-const { fetchTrip } = await import('../src/api/entur.js');
+const { fetchTrip, fetchBoard } = await import('../src/api/entur.js');
 
 const DIR = { from: 'Grorud', to: 'Jernbanetorget', stopId: 'NSR:StopPlace:1', toStopId: 'NSR:StopPlace:2' };
 const ok = (patterns) => ({
@@ -118,5 +118,42 @@ describe('fetchTrip — situations belong to the route, not the platform', () =>
     fetchTrip(DIR, onSuccess, vi.fn());
     await settle(); await settle(); await settle();
     expect(onSuccess.mock.calls[0][1]).toEqual([]);
+  });
+});
+
+// ── The departure board's own retry ─────────────────────────────────────────
+//
+// fetchBoard had no way back from a rejected field at all: one unknown name
+// and the whole departure list goes blank. Asking for the situation text —
+// field names that cannot be checked against the live API from here — is
+// exactly the change that needs the insurance.
+describe('fetchBoard retries without the situation text', () => {
+  const stopOk = () => ({
+    ok: true, status: 200,
+    json: () => Promise.resolve({ data: { stopPlace: { id: 'X', name: 'Grorud', estimatedCalls: [] } } }),
+  });
+  const textRejected = () => ({
+    ok: true, status: 200,
+    json: () => Promise.resolve({ errors: [{ message: "Unknown field 'description'" }] }),
+  });
+
+  it('asks again without them, and still renders the board', async () => {
+    fetchMock.mockReturnValueOnce(Promise.resolve(textRejected()))
+             .mockReturnValueOnce(Promise.resolve(stopOk()));
+    const onSuccess = vi.fn(), onError = vi.fn();
+    fetchBoard(DIR, onSuccess, onError);
+    await settle(); await settle(); await settle(); await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(bodyOf(fetchMock.mock.calls[0])).toContain('description{language value}');
+    expect(bodyOf(fetchMock.mock.calls[1])).not.toContain('description');
+    expect(onSuccess).toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('does not retry when the first answer was fine', async () => {
+    fetchMock.mockReturnValue(Promise.resolve(stopOk()));
+    fetchBoard(DIR, vi.fn(), vi.fn());
+    await settle(); await settle(); await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

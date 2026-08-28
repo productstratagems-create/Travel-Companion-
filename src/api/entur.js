@@ -238,22 +238,36 @@ export function fetchBoard(dir, onSuccess, onError) {
     .then(id => {
       if (signal.aborted) return;
       logMsg('board → ' + id);
-      return enturFetch(config.api.journeyPlanner, {
+      // The whole departure list rides on this one request, and it has never
+      // had a way back from a rejected field — unlike fetchTrip, which has
+      // retried without its optional extras since v1.22.0. The situation
+      // text fields are unverifiable from here, so buy the same insurance:
+      // one retry with the basic fragment rather than an empty board.
+      const ask = (basic) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: boardGQL(id, count) }),
+        body: JSON.stringify({ query: boardGQL(id, count, null, basic) }),
         signal,
-      });
-    })
-    .then(r => {
-      if (!r || signal.aborted) return;
-      logMsg('← ' + r.status);
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
+      })
+        .then(r => {
+          if (!r || signal.aborted) return null;
+          logMsg('← ' + r.status);
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(j => {
+          if (!j || signal.aborted) return j;
+          if (!basic && !j.data && j.errors) {
+            logMsg('board: meldingstekst avvist, prøver uten', 'err');
+            return ask(true);
+          }
+          return j;
+        });
+      return ask(false);
     })
     .then(j => {
       if (!j || signal.aborted) return;
-      if (j.errors) throw new Error(j.errors[0].message);
+      if (j.errors && !j.data) throw new Error(j.errors[0].message);
       const stop = j.data && j.data.stopPlace;
       if (!stop) throw new Error('Ingen data');
       onSuccess(stop);

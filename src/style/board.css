@@ -295,6 +295,19 @@
 .service-alert.sev-slight{
   color:var(--text-muted);background:rgba(var(--text-muted-rgb),.05);border-color:rgba(var(--text-muted-rgb),.15);
 }
+/* An alert with a body is a button, so it needs the div's own box back. */
+button.service-alert{
+  display:block;width:100%;text-align:left;font:inherit;font-size:11px;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+.sa-title{display:block;font-weight:600}
+/* Two lines until tapped: a full Entur description can run several
+   sentences, and unclamped it would push the departures off the screen. */
+.sa-body{
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+  overflow:hidden;opacity:.85;
+}
+.sa-open .sa-body{-webkit-line-clamp:unset;overflow:visible}
 
 /* Staleness — "sist oppdatert HH:MM" under the header; rows dim when the
    data is old enough that the countdowns can no longer be trusted. */

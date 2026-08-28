@@ -4,6 +4,7 @@ import { addFav } from './favs.js';
 import { storage } from '../storage.js';
 import { renderBoardProfileSwitcher, setActiveRoute, syncRouteFields } from '../views/settings.js';
 import { saveWeekendMode } from '../geo.js';
+import { loadReturn, returnDir, returnWindow, shouldSwitch, skipToday, loadSkip } from '../api/returnTrip.js';
 import { confirmTap } from './confirm.js';
 import { stopSelRefresh } from '../views/selected.js';
 import { toggleSpectatePanel, closeSpectatePanel } from '../views/spectate.js';
@@ -203,6 +204,81 @@ function toggleDir() {
   state.deps = [];
   show('v-board');
   window._startBoard && window._startBoard();
+}
+
+// The route that was showing before the trip home took over, so «✕» has
+// somewhere to put you back.
+let _preReturnDir = null;
+
+/**
+ * Show the way home when the time comes.
+ *
+ * Called from the board's own poll rather than from a new timer — the same
+ * arrangement `window._updatePlanCtx` already uses. Switching goes through
+ * setActiveRoute WITHOUT `chosen`: the app is applying its own guess, and
+ * counting it would let that guess reinforce itself, exactly as
+ * `_applySmartRoute` notes.
+ *
+ * @returns {boolean} true when it changed the route.
+ */
+export function maybeSwitchToReturn() {
+  const r = loadReturn();
+  if (!r || !shouldSwitch(r, Date.now(), loadSkip())) {
+    if (!r || !returnWindow(r, Date.now()).active) renderReturnToast(null);
+    return false;
+  }
+  const dir = returnDir(r);
+  const cur = config.dirs[state.dIdx];
+  if (cur && cur.from === dir.from && cur.to === dir.to) {
+    renderReturnToast(r);
+    return false;
+  }
+  _preReturnDir = cur && cur.from && cur.to ? { ...cur } : null;
+  setActiveRoute(dir);
+  updateHeader();
+  state.deps = [];
+  renderReturnToast(r);
+  window._startBoard && window._startBoard();
+  return true;
+}
+
+/**
+ * The «hjem 16:20 ✕» line above the board.
+ *
+ * Reuses #smart-toast, which has been sitting in the markup fully styled —
+ * aria-live, a cancel button, a light-theme variant — with no JS referring to
+ * it since it was added.
+ */
+export function renderReturnToast(r) {
+  const el = document.getElementById('smart-toast');
+  if (!el) return;
+  if (!r) { el.style.display = 'none'; return; }
+  const dest = el.querySelector('.smart-toast-dest');
+  if (dest) dest.textContent = r.to + ' ' + r.atHHMM;
+  const label = el.querySelector('span');
+  if (label && !label.dataset.ret) {
+    label.dataset.ret = '1';
+    label.childNodes[0].nodeValue = '🏠 hjem → ';
+  }
+  if (!el._retBound) {
+    el._retBound = true;
+    const cancel = el.querySelector('.smart-toast-cancel');
+    if (cancel) {
+      cancel.addEventListener('click', () => {
+        // Declined for today. The flag is a date, so it expires by itself.
+        skipToday(Date.now());
+        el.style.display = 'none';
+        if (_preReturnDir) {
+          setActiveRoute(_preReturnDir);
+          _preReturnDir = null;
+          updateHeader();
+          state.deps = [];
+          window._startBoard && window._startBoard();
+        }
+      });
+    }
+  }
+  el.style.display = 'flex';
 }
 
 export function attachEventListeners() {

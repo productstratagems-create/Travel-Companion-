@@ -35,7 +35,7 @@ export function sitsGQL(basic) {
     + ' severity validityPeriod{startTime endTime}}';
 }
 
-export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal) {
+export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTime) {
   const sits = sitsGQL(minimal);
   const fromIsCoord = fromId && typeof fromId === 'object';
   // Only the stop places the reader actually named.
@@ -67,7 +67,11 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal) {
     // `minimal` is the retry path in fetchTrip: if either of the optional
     // extras is rejected the board must still render, so it asks again
     // without them.
-    + (minimal ? '' : 'dateTime:"' + lookbackISO(now) + '" ')
+    // The retry drops it — unless the caller asked for a SPECIFIC departure
+    // time and said to keep it. Answering a "what leaves at 16:20" question
+    // with departures going now would be the wrong answer presented as the
+    // right one, which is worse than an error.
+    + ((minimal && !keepTime) ? '' : 'dateTime:"' + lookbackISO(now) + '" ')
     + 'walkSpeed:' + (walkSpeed || 1.3) + ' '
     + 'modes:{accessMode:foot,egressMode:foot,transportModes:[{transportMode:metro},{transportMode:bus},{transportMode:tram},{transportMode:rail}]}'
     + ') { tripPatterns { duration legs {'

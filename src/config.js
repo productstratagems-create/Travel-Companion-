@@ -26,6 +26,11 @@ export default {
     // The active custom route, whole. Only the two names used to be kept, so
     // every start re-derived ids and coordinates from them.
     route: 't.route',
+    // The trip home, set in the morning: a route plus a wall-clock departure
+    // time. `retSkip` holds the day a switch was declined or overridden, so
+    // the decision expires on its own without a timer.
+    ret: 't.return',
+    retSkip: 't.returnSkip',
     journey: 't.jny',
     favs: 't.favs',
   },

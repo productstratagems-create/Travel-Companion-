@@ -156,7 +156,12 @@ export function resolveToPlace(dir, signal) {
   );
 }
 
-export function fetchTrip(dir, onSuccess, onError) {
+/**
+ * @param {number} [atMs] Plan from this instant instead of now — the trip
+ *   home, set hours earlier, wants the departures around when you actually
+ *   leave rather than the ones going now.
+ */
+export function fetchTrip(dir, onSuccess, onError, atMs) {
   if (tripController) tripController.abort();
   if (boardController) boardController.abort();
   tripController = new AbortController();
@@ -174,8 +179,8 @@ export function fetchTrip(dir, onSuccess, onError) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: withLookback
-            ? tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs)
-            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, null, true),
+            ? tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? undefined : atMs)
+            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null),
         }),
         signal,
       })

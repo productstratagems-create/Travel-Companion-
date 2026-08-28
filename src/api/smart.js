@@ -52,12 +52,25 @@ export function smartHistLen() {
   return _load().length;
 }
 
-// Return best prediction for current time, or null if no history.
-// Falls back to freqArr (no time dimension) if smart history is empty.
-export function predictDest() {
+/** The raw history, for callers that do their own scoring over it. */
+export function loadSmartHist() {
+  return _load();
+}
+
+/**
+ * Best prediction for a time of day — now by default.
+ *
+ * `at` exists so something other than the present can ask: the trip home is
+ * set in the morning and wants to know what you usually do at four, which a
+ * hardcoded `new Date()` could never answer. Omitted, the behaviour is exactly
+ * what it has always been.
+ *
+ * Falls back to freqArr (no time dimension) if smart history is empty.
+ */
+export function predictDest(at) {
   const hist = _load();
   if (hist.length) {
-    const now = new Date();
+    const now = at == null ? new Date() : new Date(at);
     const bucket = Math.floor(now.getHours() / 2);
     const isWeekend = now.getDay() === 0 || now.getDay() === 6;
     let best = null, bestScore = 0;

@@ -210,6 +210,24 @@
     <div id="dest-prev-cats" class="dest-prev-cats"></div>
     <div id="dest-prev-results" class="dest-prev-results"></div>
   </div>
+  <!-- The trip home, set while you are on your way out. Collapsed until
+       asked for, the same as the via stop above it. -->
+  <div id="set-ret-toggle" style="padding:.6rem 0 .2rem">
+    <button id="set-ret-add" class="set-via-add-btn" type="button">+ planlegg hjemreisen</button>
+  </div>
+  <div id="set-ret-wrap" class="set-section" style="display:none">
+    <div class="set-label">hjemreise</div>
+    <div class="ret-row">
+      <span class="ret-route" id="set-ret-route"></span>
+      <label class="ret-time-label" for="set-ret-time">går kl.</label>
+      <input id="set-ret-time" class="ret-time" type="time" step="300" aria-label="Avreisetid for hjemreisen">
+    </div>
+    <div class="ret-note" id="set-ret-note"></div>
+    <div style="margin-top:.5rem;display:flex;gap:.5rem">
+      <button class="cta-btn secondary" id="set-ret-save" type="button">Lagre hjemreise</button>
+      <button class="cta-btn secondary" id="set-ret-clear" type="button" style="display:none">Fjern</button>
+    </div>
+  </div>
   <div style="margin-top:1.5rem">
     <button class="cta-btn" id="set-apply">Bruk rute →</button>
   </div>

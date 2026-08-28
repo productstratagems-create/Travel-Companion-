@@ -6,6 +6,8 @@ import config from '../config.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { createMap, drawRoute } from '../ui/map.js';
+import { loadReturn, returnWindow } from '../api/returnTrip.js';
+import { esc } from '../ui/fmt.js';
 import { geocodePlace, fetchJourneyMeta } from '../api/entur.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -257,6 +259,24 @@ function _updatePlanCountdowns(legs, now) {
   });
 }
 
+/**
+ * The trip home, on the screen that is already about "your journey later".
+ *
+ * It is not a plan leg — no service journey, no platform, just a route and a
+ * time — so it sits above them as its own card rather than pretending to be
+ * one.
+ */
+function _returnCardHtml() {
+  const r = loadReturn();
+  if (!r) return '';
+  const w = returnWindow(r, Date.now());
+  const when = w.active ? 'nå' : 'kl. ' + r.atHHMM;
+  return '<div class="plan-return-card">'
+    + '<span class="prc-label">hjemreise · ' + esc(when) + '</span>'
+    + '<span class="prc-route">' + esc(r.from) + ' → ' + esc(r.to) + '</span>'
+    + '</div>';
+}
+
 export function renderPlan() {
   const el = document.getElementById('plan-content');
   if (!el) return;
@@ -266,8 +286,8 @@ export function renderPlan() {
 
   if (!legs.length) {
     _planStructKey = '';
-    el.innerHTML =
-      '<div class="plan-empty">'
+    el.innerHTML = _returnCardHtml()
+      + '<div class="plan-empty">'
       + 'Ingen etapper planlagt ennå.<br>'
       + 'Velg en avgang og trykk<br>'
       + '«legg til i reiseplan» for å starte.'

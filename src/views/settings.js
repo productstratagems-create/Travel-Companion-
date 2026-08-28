@@ -9,6 +9,8 @@ import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
 import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { loadFavs, topFavRoutes } from '../ui/favs.js';
+import { loadReturn, saveReturn, clearReturn, reverseOf, suggestHHMM, returnWindow, skipToday } from '../api/returnTrip.js';
+import { loadSmartHist } from '../api/smart.js';
 
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
@@ -357,6 +359,50 @@ export function initSettings() {
     });
   }
 
+  const retAddBtn = document.getElementById('set-ret-add');
+  if (retAddBtn) {
+    retAddBtn.addEventListener('click', () => {
+      const wrap = document.getElementById('set-ret-wrap');
+      const toggle = document.getElementById('set-ret-toggle');
+      if (wrap) wrap.style.display = 'block';
+      if (toggle) toggle.style.display = 'none';
+      renderReturnSection();
+      const t = document.getElementById('set-ret-time');
+      if (t) t.focus();
+    });
+  }
+
+  const retSaveBtn = document.getElementById('set-ret-save');
+  if (retSaveBtn) {
+    retSaveBtn.addEventListener('click', () => {
+      const timeEl = document.getElementById('set-ret-time');
+      const noteEl = document.getElementById('set-ret-note');
+      const back = _pendingReturnDir();
+      const hhmm = timeEl ? timeEl.value : '';
+      if (!back || !/^\d{2}:\d{2}$/.test(hhmm)) {
+        if (noteEl) noteEl.textContent = 'Sett et klokkeslett for når du går.';
+        return;
+      }
+      saveReturn({ ...back, atHHMM: hhmm });
+      renderReturnSection();
+      if (noteEl) noteEl.textContent = 'Hjemreisen står klar: ' + back.from + ' → ' + back.to + ' kl. ' + hhmm + '.';
+    });
+  }
+
+  const retClearBtn = document.getElementById('set-ret-clear');
+  if (retClearBtn) {
+    retClearBtn.addEventListener('click', () => {
+      clearReturn();
+      const timeEl = document.getElementById('set-ret-time');
+      if (timeEl) timeEl.value = '';
+      const wrap = document.getElementById('set-ret-wrap');
+      const toggle = document.getElementById('set-ret-toggle');
+      if (wrap) wrap.style.display = 'none';
+      if (toggle) toggle.style.display = 'block';
+      renderReturnSection();
+    });
+  }
+
   const wfAddBtn = document.getElementById('set-walkfrom-add');
   if (wfAddBtn) {
     wfAddBtn.addEventListener('click', () => {
@@ -457,6 +503,60 @@ function renderFavRouteShortcuts() {
   });
 }
 
+/**
+ * The trip home, filled in from the route you are setting.
+ *
+ * Prefilled rather than asked for twice: on a commute the return is the same
+ * two places the other way round, and the one thing the app cannot guess is
+ * when you leave. It suggests even that, from the reader's own history.
+ */
+function renderReturnSection() {
+  const wrap = document.getElementById('set-ret-wrap');
+  const toggle = document.getElementById('set-ret-toggle');
+  const routeEl = document.getElementById('set-ret-route');
+  const timeEl = document.getElementById('set-ret-time');
+  const noteEl = document.getElementById('set-ret-note');
+  const clearBtn = document.getElementById('set-ret-clear');
+  if (!wrap || !toggle || !routeEl || !timeEl) return;
+
+  const stored = loadReturn();
+  const back = _pendingReturnDir();
+  if (!back) {
+    // Nothing to reverse yet — no route, no trip home.
+    toggle.style.display = 'none';
+    wrap.style.display = 'none';
+    return;
+  }
+  routeEl.textContent = back.from + ' → ' + back.to;
+  if (!timeEl.value) {
+    timeEl.value = (stored && stored.atHHMM)
+      || suggestHHMM(loadSmartHist(), back.from, back.to);
+  }
+  if (noteEl) {
+    noteEl.textContent = stored
+      ? 'Tavla viser hjemreisen fra 45 min før, og til halvannen time etter. Velger du en annen rute i mellomtiden, står den ut dagen.'
+      : 'Settes nå, så står den klar i ettermiddag.';
+  }
+  if (clearBtn) clearBtn.style.display = stored ? 'inline-block' : 'none';
+  // Open when there is already one, exactly as the via field does.
+  wrap.style.display = stored ? 'block' : wrap.style.display;
+  toggle.style.display = wrap.style.display === 'block' ? 'none' : 'block';
+}
+
+/** The reverse of the route the form is currently describing. */
+function _pendingReturnDir() {
+  const dir = config.dirs[state.dIdx];
+  const from = loadDep() || (dir && dir.from);
+  const to = loadDest() || (dir && dir.to);
+  if (!from || !to) return null;
+  // Prefer the live route object, which carries ids and coordinates; the two
+  // names are only a fallback for a form that has not been applied yet.
+  const base = (dir && dir.from === from && dir.to === to)
+    ? dir
+    : { from, to, stopId: null, toStopId: null };
+  return reverseOf(base);
+}
+
 export function showSettings() {
   const ns = state.nearestStation;
   const depEl = document.getElementById('set-dep');
@@ -476,6 +576,7 @@ export function showSettings() {
   }
 
   renderFavRouteShortcuts();
+  renderReturnSection();
 
   const nearbyList = document.getElementById('set-nearby-list');
   if (nearbyList) {
@@ -715,7 +816,15 @@ export function setActiveRoute(dir, opts) {
   storage.set(config.storage.dir, '2');
   saveActiveRoute(dir);
   syncRouteFields(dir);
-  if (opts && opts.chosen) _recordChoice(dir);
+  if (opts && opts.chosen) {
+    _recordChoice(dir);
+    // A route the reader picked themselves stands for the rest of the day.
+    // An automatic switch that overrides a deliberate choice is worse than no
+    // automatic switch — so the one door that knows a choice happened is the
+    // one place to say so.
+    const r = loadReturn();
+    if (r && returnWindow(r, Date.now()).active) skipToday(Date.now());
+  }
 }
 
 /**

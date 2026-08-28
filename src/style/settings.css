@@ -235,3 +235,14 @@
 
 /* Frequent items inside autocomplete list */
 .freq-sugg{border-left:2px solid rgba(var(--border-rgb),.4) !important}
+
+/* Hjemreise — the return trip, set from the route form. */
+.ret-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.ret-route{flex:1 1 100%;font-size:.85rem;color:var(--text)}
+.ret-time-label{font-size:.75rem;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase}
+.ret-time{
+  padding:.35rem .5rem;font:inherit;font-size:.9rem;
+  color:var(--text);background:var(--surface-2);
+  border:1px solid rgba(var(--border-rgb),.25);border-radius:6px;
+}
+.ret-note{margin-top:.4rem;font-size:.75rem;color:var(--text-muted);line-height:1.45}

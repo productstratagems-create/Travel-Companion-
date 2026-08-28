@@ -24,6 +24,7 @@ import { _headingDeg, anchorDistances, pointAtDistance, projectOnPath } from '..
 import { decodePolyline } from '../ui/polyline.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
+import { loadReturn, returnWindow } from '../api/returnTrip.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -2296,8 +2297,25 @@ function _showBoardError(msg) {
   be.style.display = 'block';
 }
 
+/**
+ * The instant the board should plan from — the trip home's departure time
+ * while it is still ahead of us, otherwise nothing and the board means "now".
+ */
+function _returnDepartAt(dir) {
+  const r = loadReturn();
+  if (!r || !dir || dir.from !== r.from || dir.to !== r.to) return undefined;
+  const w = returnWindow(r, Date.now());
+  return (w.active && w.before) ? w.at : undefined;
+}
+
 function _fetchBoard() {
+  // The trip home takes over when its time comes. It restarts the board
+  // itself, so there is nothing left to fetch on this pass.
+  if (window._maybeReturnSwitch && window._maybeReturnSwitch()) return;
   const dir = config.dirs[state.dIdx];
+  // While the trip home is showing but has not left yet, ask for the
+  // departures around when you actually go, not the ones going now.
+  const at = _returnDepartAt(dir);
   if (dir.toGeo || dir.toStopId || (dir._toLat && dir._toLon)) {
     fetchTrip(dir, (patterns, situations) => {
       if (dir._fromLat && dir._fromLon) {
@@ -2314,7 +2332,7 @@ function _fetchBoard() {
       state.lastFetch = Date.now();
       saveBoardSnapshot(dir, adapted, state.lastFetch);
       document.getElementById('board-error').style.display = 'none';
-    }, _showBoardError);
+    }, _showBoardError, at);
     return;
   }
   fetchBoard(dir, (stop) => {

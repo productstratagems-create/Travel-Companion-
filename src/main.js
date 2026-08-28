@@ -14,7 +14,7 @@ import './style/leisure.css';
 import './style/plan.css';
 import './style/theme-light.css';
 
-import { attachEventListeners, updateHeader, show, initHistory, toggleBoardMenu } from './ui/nav.js';
+import { attachEventListeners, updateHeader, show, initHistory, toggleBoardMenu, maybeSwitchToReturn } from './ui/nav.js';
 import { initTheme } from './theme.js';
 import { registerServiceWorker, initOfflineBanner } from './pwa.js';
 import './views/favs.js';
@@ -129,6 +129,10 @@ window._smartMode = function() {
   logMsg(label + ': ' + config.dirs[2].from + ' → ' + dest.toName);
   window._startBoard && window._startBoard();
 };
+
+// The board's own poll asks this each time round, rather than a new timer —
+// the same arrangement window._updatePlanCtx already uses.
+window._maybeReturnSwitch = maybeSwitchToReturn;
 
 const _vEl = document.getElementById('board-version');
 if (_vEl) _vEl.textContent = 'v' + __APP_VERSION__;

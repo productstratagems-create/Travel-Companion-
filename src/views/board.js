@@ -20,6 +20,7 @@ import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
 import { createMap, drawRoute } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
+import { _headingDeg, anchorDistances, pointAtDistance, projectOnPath } from '../ui/path.js';
 import { decodePolyline } from '../ui/polyline.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
@@ -134,6 +135,18 @@ export function _toggleLine(selected, code, allCodes) {
 let _bRoutePts = null;
 let _bRouteSnapDist = null;
 let _shapeLogKey = null;
+let _bRoutePtsKey = null;
+// Same identity trick as the primary corridor, for every other line drawn:
+// an array rebuilt each tick would defeat the measurement cache behind it.
+const _legPaths = new Map();
+function _legPath(pts, key) {
+  const k = key || JSON.stringify(pts);
+  const hit = _legPaths.get(k);
+  if (hit && hit.length === pts.length) return hit;
+  if (_legPaths.size > 24) _legPaths.clear();
+  _legPaths.set(k, pts);
+  return pts;
+}
 
 function _destroyBoardMap() {
   if (_bMap) { _bMap.remove(); _bMap = null; _bLayer = null; }
@@ -508,6 +521,10 @@ function renderLineFilter(visibleDeps) {
   });
 }
 
+// Heading lives in ui/path.js now, beside the tangent maths that needs it.
+// Re-exported so the callers here — and the tests — keep one import.
+export { _headingDeg };
+
 // ── Vehicle position interpolation ──────────────────────────────────────────
 function _callTime(call, arrival) {
   if (arrival) return call.expectedArrivalTime || call.aimedArrivalTime || call.expectedDepartureTime || call.aimedDepartureTime;
@@ -525,25 +542,6 @@ function _callTime(call, arrival) {
  *
  * @returns {{idx:number, label:string}|null}
  */
-/**
- * Compass heading from one point to another, in degrees clockwise from north.
- *
- * A degree of longitude is much shorter than a degree of latitude this far
- * north, so the east-west component has to be scaled by cos(lat). Skipping
- * that skews a diagonal heading by roughly 25 degrees at Oslo's latitude —
- * wrong in a way that still looks plausible on a map.
- *
- * @returns {number|null} null when the two points coincide, so callers can
- *   leave the symbol unrotated rather than snapping it north.
- */
-export function _headingDeg(fromLat, fromLon, toLat, toLon) {
-  const dLat = toLat - fromLat;
-  const dLon = (toLon - fromLon) * Math.cos(((fromLat + toLat) / 2) * Math.PI / 180);
-  if (dLat === 0 && dLon === 0) return null;
-  const deg = Math.atan2(dLon, dLat) * 180 / Math.PI;
-  return (deg + 360) % 360;
-}
-
 export function _stopsAway(calls, now) {
   if (!calls || calls.length < 2) return null;
   const named = calls.map(call => ({
@@ -570,7 +568,7 @@ export function _stopsAway(calls, now) {
   return null;
 }
 
-export function _interpolateVehiclePos(calls, now) {
+function _callPoints(calls) {
   if (!calls || !calls.length) return null;
   const pts = calls.map(call => {
     const ll = quayLatLon(call.quay);
@@ -580,18 +578,17 @@ export function _interpolateVehiclePos(calls, now) {
     if (!arr || !dep) return null;
     return { lat: ll.lat, lon: ll.lon, arr: new Date(arr).getTime(), dep: new Date(dep).getTime() };
   }).filter(Boolean);
+  return pts.length >= 2 ? pts : null;
+}
 
-  if (pts.length < 2) return null;
-
-  // Vehicle hasn't left its starting terminus yet — show it parked there.
-  if (now <= pts[0].dep) {
+export function _interpolateVehiclePos(calls, now) {
+  const pts = _callPoints(calls);
+  if (!pts) return null;
+  if (now <= pts[0].dep) {            // parked at origin terminus
     return { lat: pts[0].lat, lon: pts[0].lon,
              heading: _headingDeg(pts[0].lat, pts[0].lon, pts[1].lat, pts[1].lon) };
   }
-
-  // Service has already finished its run — nothing to show.
-  if (now > pts[pts.length - 1].arr) return null;
-
+  if (now > pts[pts.length - 1].arr) return null;   // run finished
   for (let i = 0; i < pts.length - 1; i++) {
     const cur = pts[i], next = pts[i + 1];
     if (now >= cur.dep && now <= next.arr) {
@@ -601,18 +598,65 @@ export function _interpolateVehiclePos(calls, now) {
                lon: cur.lon + (next.lon - cur.lon) * frac,
                heading: _headingDeg(cur.lat, cur.lon, next.lat, next.lon) };
     }
-    // Standing at a stop: keep facing the way it is about to go.
-    if (now >= next.arr && now <= next.dep) {
+    if (now >= next.arr && now <= next.dep) {   // standing at a stop
       const after = pts[i + 2];
       return { lat: next.lat, lon: next.lon,
                heading: after ? _headingDeg(next.lat, next.lon, after.lat, after.lon)
                               : _headingDeg(cur.lat, cur.lon, next.lat, next.lon) };
     }
   }
-
   const last = pts[pts.length - 1], prev = pts[pts.length - 2];
   return { lat: last.lat, lon: last.lon,
            heading: _headingDeg(prev.lat, prev.lon, last.lat, last.lon) };
+}
+
+/**
+ * The same position, but measured along the line that is actually drawn.
+ *
+ * `_interpolateVehiclePos` slides between platform COORDINATES, so on a curve
+ * the marker cuts the corner and floats beside its own track — by the arc's
+ * sagitta, which on a metro alignment is hundreds of metres. Here each stop is
+ * placed once along the drawn path, the DISTANCE between two stops is
+ * interpolated with exactly the same time fractions, and the coordinate is
+ * read back off the path. Timing semantics are untouched; only the mapping
+ * from time to point changes.
+ *
+ * Distance rather than a perpendicular snap of the chord point, deliberately:
+ * a snap cuts corners too, and on a hairpin it lands on the returning limb and
+ * runs the train backwards.
+ *
+ * Falls back to `_interpolateVehiclePos` — identically, not approximately —
+ * whenever the path cannot carry the answer: no path, an uncovered stop, or
+ * anchors that do not advance. That fallback is what makes this safe for a
+ * board with no geometry at all.
+ */
+export function _interpolateOnPath(calls, now, path) {
+  const pts = _callPoints(calls);
+  if (!pts || !path || path.length < 2) return _interpolateVehiclePos(calls, now);
+  const d = anchorDistances(path, pts);
+  if (!d) return _interpolateVehiclePos(calls, now);
+  const at = (metres, fallbackFn) => {
+    const p = pointAtDistance(path, metres);
+    return p ? { lat: p.lat, lon: p.lon, heading: p.heading } : fallbackFn();
+  };
+  const bail = () => _interpolateVehiclePos(calls, now);
+
+  if (now <= pts[0].dep) return d[0] == null ? bail() : at(d[0], bail);
+  if (now > pts[pts.length - 1].arr) return null;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const cur = pts[i], next = pts[i + 1];
+    if (now >= cur.dep && now <= next.arr) {
+      if (d[i] == null || d[i + 1] == null) return bail();
+      const span = next.arr - cur.dep;
+      const frac = span > 0 ? Math.min(1, Math.max(0, (now - cur.dep) / span)) : 0;
+      return at(d[i] + (d[i + 1] - d[i]) * frac, bail);
+    }
+    if (now >= next.arr && now <= next.dep) {
+      return d[i + 1] == null ? bail() : at(d[i + 1], bail);
+    }
+  }
+  const lastD = d[d.length - 1];
+  return lastD == null ? bail() : at(lastD, bail);
 }
 
 // ── Line route corridor ──────────────────────────────────────────────────────
@@ -704,8 +748,18 @@ export function _legCorridorStops(leg, dirFallback) {
   return stops.slice(Math.min(a, b), Math.max(a, b) + 1);
 }
 
+/**
+ * Draws the corridors, and reports the line each vehicle should ride.
+ *
+ * @returns {Map<string, {path: Array, snapDist: number}>} keyed by line code.
+ *   Vehicles are placed on THEIR OWN line's path — with several lines
+ *   selected (v1.29.0), snapping everything to the primary would move line
+ *   2's trains onto line 3's track, which is a worse error than the one being
+ *   fixed here.
+ */
 function renderLineRoute(visibleDeps, vehicles) {
-  if (!_bMap) return;
+  const paths = new Map();
+  if (!_bMap) return paths;
   // One usable departure per selected line, soonest first. The first is the
   // primary: it owns the snap corridor, the walk extension and the fit, all
   // of which are one-per-board by nature. The rest are drawn as corridors
@@ -727,7 +781,7 @@ function renderLineRoute(visibleDeps, vehicles) {
     _bRouteLayer.clearLayers();
     _bRoutePts = null;
     _walkExtKey = null;
-    return;
+    return paths;
   }
 
   const { c } = match;
@@ -747,7 +801,7 @@ function renderLineRoute(visibleDeps, vehicles) {
     _bRouteLayer.clearLayers();
     _bRoutePts = null;
     _walkExtKey = null;
-    return;
+    return paths;
   }
 
   // Clip corridor to boarding→alighting segment only.
@@ -817,7 +871,7 @@ function renderLineRoute(visibleDeps, vehicles) {
   if (pts.length < 1) {
     _bRouteLayer.clearLayers();
     _bRoutePts = null;
-    return;
+    return paths;
   }
 
   const ln = c.serviceJourney.line;
@@ -825,8 +879,16 @@ function renderLineRoute(visibleDeps, vehicles) {
   const isBus = _depMode(c) === 'bus';
   const style = _corridorStyle(_depMode(c), color);
 
-  _bRoutePts = pts;
+  // The array's identity has to survive a tick, or the path measurement
+  // memoised in ui/path.js misses every second and we pay a full sweep of a
+  // few thousand points per line per second. Rebuild only when the corridor
+  // actually changed.
+  const ptsKey = lo + '|' + hi + '|' + (shape ? shape.length : 0) + '|'
+    + (c.serviceJourney.id || '') + '|' + pts.length;
+  if (ptsKey !== _bRoutePtsKey) { _bRoutePtsKey = ptsKey; _bRoutePts = pts; }
+
   _bRouteSnapDist = isBus ? 25 : 50;
+  paths.set(ln.publicCode, { path: _bRoutePts, snapDist: _bRouteSnapDist });
 
   _bRouteLayer.clearLayers();
 
@@ -843,7 +905,7 @@ function renderLineRoute(visibleDeps, vehicles) {
   // already in `pts` via legShape, and it arrives with the board query we
   // make anyway. The guess is replaced by the answer, and the storm goes
   // with it.
-  if (pts.length >= 2) L.polyline(pts, style).addTo(_bRouteLayer);
+  if (_bRoutePts.length >= 2) L.polyline(_bRoutePts, style).addTo(_bRouteLayer);
 
   // Every leg after the first.
   //
@@ -864,6 +926,12 @@ function renderLineRoute(visibleDeps, vehicles) {
     const lc = ll && ll.presentation && ll.presentation.colour
       ? '#' + ll.presentation.colour : color;
     L.polyline(lp, _corridorStyle(leg.mode, lc)).addTo(_bRouteLayer);
+    // First one wins, so a later leg on the same line never displaces the
+    // primary corridor the board is actually about.
+    if (ll && ll.publicCode && !paths.has(ll.publicCode)) {
+      paths.set(ll.publicCode, { path: _legPath(lp, 'leg|' + (leg.serviceJourney && leg.serviceJourney.id)),
+        snapDist: leg.mode === 'bus' ? 25 : 50 });
+    }
     restPts.push(...lp);
   });
 
@@ -871,9 +939,13 @@ function renderLineRoute(visibleDeps, vehicles) {
   // shared track four lines would otherwise stack four identical strokes.
   const drawn = new Set([JSON.stringify(pts)]);
   [...perLine.values()].slice(1).forEach(({ c: oc }) => {
-    const ocStops = _legCorridorStops((oc._legs && oc._legs[0]) || null, dir);
-    if (ocStops.length < 2) return;
-    const ocPts = ocStops.map(st => [st.lat, st.lon]);
+    const ocLeg = (oc._legs && oc._legs[0]) || null;
+    const ocStops = _legCorridorStops(ocLeg, dir);
+    // Their own alignment too, where it exists. These were drawn from stop
+    // chords alone, so a secondary line's corridor cut every curve the
+    // primary one follows — and its trains had nothing true to sit on.
+    const ocPts = legShape(ocLeg) || ocStops.map(st => [st.lat, st.lon]);
+    if (ocPts.length < 2) return;
     const key = JSON.stringify(ocPts);
     if (drawn.has(key)) return;
     drawn.add(key);
@@ -884,6 +956,10 @@ function renderLineRoute(visibleDeps, vehicles) {
     // have the soonest departure — the same bus, two thicknesses, depending
     // on what else was selected.
     L.polyline(ocPts, _corridorStyle(_depMode(oc), ocColor)).addTo(_bRouteLayer);
+    if (ol && ol.publicCode && !paths.has(ol.publicCode)) {
+      paths.set(ol.publicCode, { path: _legPath(ocPts, key),
+        snapDist: _depMode(oc) === 'bus' ? 25 : 50 });
+    }
   });
 
   // Intermediate stops are hidden until there is room to read them.
@@ -974,6 +1050,7 @@ function renderLineRoute(visibleDeps, vehicles) {
     _bMap.fitBounds(fitPts.length >= 2 ? fitPts : pts, { padding: [40, 40], maxZoom: 15 });
   }
   _bFitRouteRequested = false;
+  return paths;
 }
 
 // Live positions for the selected line, refreshed on their own cadence. The
@@ -1626,14 +1703,40 @@ function _clearDepartureGraphics() {
   renderLineStrip([]);
 }
 
-function renderVehicleMarkers(vehicles) {
+/**
+ * Puts each vehicle on the line drawn under it.
+ *
+ * The positions handed in by `_approachingVehicles` are coarse on purpose:
+ * they are computed before the corridor exists, because the corridor's extent
+ * depends on them (`_widenLo`). That circle is cut here — `_widenLo` only
+ * picks a whole stop index, which a few hundred metres cannot change, and by
+ * the time this runs the line has been drawn and can be ridden exactly.
+ */
+function renderVehicleMarkers(vehicles, paths) {
   if (!_bMap) return;
   if (!_bVehicleLayer) _bVehicleLayer = L.layerGroup().addTo(_bMap);
   _bVehicleLayer.clearLayers();
 
   const now = Date.now();
-  vehicles.forEach(({ c, sjc, live, pos }) => {
+  vehicles.forEach(({ c, sjc, live, pos: coarse }) => {
     const ln = c.serviceJourney.line;
+    const entry = paths && paths.get(ln.publicCode);
+    const path = entry && entry.path;
+    // A measured fix goes onto the track unconditionally: the train is on the
+    // rail, and this line is our drawing of that rail. A fix far from it is a
+    // matching or accuracy problem, and leaving the marker floating beside
+    // the track would be the very thing being fixed.
+    const snapped = live && path ? projectOnPath(live, path) : null;
+    const pos = live
+      ? (snapped ? { lat: snapped.lat, lon: snapped.lon } : live)
+      : (path ? _interpolateOnPath(sjc, now, path) : coarse) || coarse;
+    // Heading from the line the marker now sits on. A feed bearing that
+    // points away from the track it is drawn on reads as wrong even when the
+    // degrees are right.
+    const tangent = snapped ? (pointAtDistance(path, snapped.along) || {}).heading : null;
+    const bearing = live
+      ? (tangent != null ? tangent : live.bearing)
+      : (pos.heading != null ? pos.heading : coarse.heading);
     const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
     const mode = _depMode(c);
     const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
@@ -1646,7 +1749,7 @@ function renderVehicleMarkers(vehicles) {
       ? 'sanntid'
       : (away ? away.label : 'beregnet fra rutetabellen');
     L.marker([pos.lat, pos.lon], { icon: makeVehicleIcon(mode, color, {
-      bearing: live ? live.bearing : pos.heading,
+      bearing,
       estimated: !live,
     }) })
       // The train's own line, not the global selection. With one line
@@ -1872,8 +1975,8 @@ export function renderBoard() {
   })();
   _refreshLivePositions(lineRef);
   const vehicles = _approachingVehicles(visibleDeps, _lineOn, now, _livePos);
-  renderLineRoute(visibleDeps, vehicles);
-  renderVehicleMarkers(vehicles);
+  const linePaths = renderLineRoute(visibleDeps, vehicles);
+  renderVehicleMarkers(vehicles, linePaths);
   renderLineStrip(visibleDeps);
 
   // If this route continues from an unfinished plan leg's destination, flag

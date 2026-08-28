@@ -1728,12 +1728,24 @@ function _depKey(c, origIdx) {
 
 // Collapse the departure list for display, sorted ascending by departure time.
 //
-// Trip-planner results (have _legs) are bucketed per departure minute so a
-// single minute doesn't fill the board with variations of the same trip.
-// Within a bucket the EARLIEST DEPARTURE always wins — arrival time is only a
-// tiebreak between services leaving at the same instant. Ranking by arrival
-// instead let a service leaving at 10:05:55 evict one leaving at 10:05:05,
-// which silently hid the user's genuine next departure.
+// The trip planner returns several patterns for the SAME boarding — they
+// differ only in how you walk away at the far end — and the board must show
+// one row per departure, not one per variation. So the identity that decides
+// a duplicate is the journey you board: the first leg's serviceJourney id.
+//
+// It used to be the departure MINUTE, which is not an identity at all. On a
+// shared metro trunk two different lines leave within the same minute several
+// times an hour, and the later-by-seconds one was deleted outright — so the
+// reader lost a real, boardable departure, often the very next one. That is
+// the same symptom as the arrival-ranking bug this dedupe was extracted to
+// fix, from a second cause sitting one line above it.
+//
+// The minute bucket remains only where there is no id to key on, so a
+// response missing serviceJourney ids is no noisier than before.
+//
+// Within a key the EARLIEST DEPARTURE still wins — arrival time is only a
+// tiebreak between patterns leaving at the same instant. Ranking by arrival
+// let a service leaving at 10:05:55 evict one leaving at 10:05:05.
 //
 // Board results (no _legs) are distinct services; only exact duplicates merge.
 export function dedupeDepartures(deps) {
@@ -1745,8 +1757,9 @@ export function dedupeDepartures(deps) {
   indexed.forEach(({ c, origIdx }) => {
     const depMs = new Date(c.expectedDepartureTime).getTime();
     const arrMs = c._finalArrival ? new Date(c._finalArrival).getTime() : Infinity;
+    const sjId = c.serviceJourney && c.serviceJourney.id;
     const key = c._legs
-      ? Math.floor(depMs / 60000)
+      ? (sjId ? 'sj|' + sjId : 'min|' + Math.floor(depMs / 60000))
       : _depKey(c, origIdx);
     const cur = byKey.get(key);
     if (!cur || depMs < cur.depMs || (depMs === cur.depMs && arrMs < cur.arrMs)) {

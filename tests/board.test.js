@@ -30,24 +30,59 @@ const boardDep = (depIso, id) => ({
 const depTimes = rows => rows.map(r => r.c.expectedDepartureTime);
 const ids = rows => rows.map(r => (r.c.serviceJourney || {}).id);
 
+// Two patterns for the SAME boarding: the trip planner returns one per way of
+// walking away at the far end, so they share a service journey and differ only
+// in arrival. These are what dedupe exists to collapse.
+const variant = (dep, arr, id, tag) => ({
+  expectedDepartureTime: dep,
+  _finalArrival: arr,
+  _legs: [{ mode: 'metro', serviceJourney: { id } }],
+  serviceJourney: { id },
+  _tag: tag,
+});
+const tags = rows => rows.map(r => r.c._tag);
+
 describe('dedupeDepartures — trip-planner results', () => {
-  it('keeps the EARLIEST departure when two share a minute, even if the later one arrives sooner', () => {
+  it('keeps the EARLIEST departure among variants of one journey, even if the later one arrives sooner', () => {
     // The regression: ranking by arrival let 10:05:55 evict 10:05:05.
     const out = dedupeDepartures([
-      trip(iso(10, 5, 5),  iso(10, 40, 0), 'slow-but-first'),
-      trip(iso(10, 5, 55), iso(10, 30, 0), 'fast-but-later'),
+      variant(iso(10, 5, 5),  iso(10, 40, 0), 'SJ:1', 'slow-but-first'),
+      variant(iso(10, 5, 55), iso(10, 30, 0), 'SJ:1', 'fast-but-later'),
     ]);
     expect(out).toHaveLength(1);
-    expect(ids(out)).toEqual(['slow-but-first']);
+    expect(tags(out)).toEqual(['slow-but-first']);
   });
 
   it('breaks a true tie (identical departure instant) by earliest arrival', () => {
     const out = dedupeDepartures([
-      trip(iso(10, 5, 0), iso(10, 40, 0), 'slower'),
-      trip(iso(10, 5, 0), iso(10, 30, 0), 'faster'),
+      variant(iso(10, 5, 0), iso(10, 40, 0), 'SJ:1', 'slower'),
+      variant(iso(10, 5, 0), iso(10, 30, 0), 'SJ:1', 'faster'),
     ]);
     expect(out).toHaveLength(1);
-    expect(ids(out)).toEqual(['faster']);
+    expect(tags(out)).toEqual(['faster']);
+  });
+
+  // The reported bug, and the reason the key is an identity rather than a
+  // clock minute: on a shared trunk two lines leave seconds apart, and the
+  // minute bucket deleted one of them — usually the reader's next departure.
+  it('keeps two DIFFERENT journeys that leave within the same minute', () => {
+    const out = dedupeDepartures([
+      trip(iso(10, 5, 5),  iso(10, 40, 0), 'SJ:line-3'),
+      trip(iso(10, 5, 50), iso(10, 30, 0), 'SJ:line-2'),
+    ]);
+    expect(ids(out)).toEqual(['SJ:line-3', 'SJ:line-2']);
+  });
+
+  // Without an id there is no identity to key on, so the old minute bucket
+  // still guards against a minute full of variations of one trip.
+  it('falls back to the departure minute when the journey has no id', () => {
+    const noId = (dep, arr) => ({
+      expectedDepartureTime: dep, _finalArrival: arr,
+      _legs: [{ mode: 'metro' }], serviceJourney: {},
+    });
+    const out = dedupeDepartures([noId(iso(10, 5, 5), iso(10, 40, 0)), noId(iso(10, 5, 55), iso(10, 30, 0))]);
+    expect(out).toHaveLength(1);
+    expect(depTimes(out)).toEqual([iso(10, 5, 5)]);
   });
 
   it('keeps departures that fall in different minutes', () => {
@@ -70,10 +105,11 @@ describe('dedupeDepartures — trip-planner results', () => {
 
   it('does not drop an early departure that has no known arrival time', () => {
     const out = dedupeDepartures([
-      { expectedDepartureTime: iso(10, 5, 5), _finalArrival: null, _legs: [{ mode: 'metro' }], serviceJourney: { id: 'no-arrival' } },
-      trip(iso(10, 5, 55), iso(10, 30, 0), 'later-with-arrival'),
+      { expectedDepartureTime: iso(10, 5, 5), _finalArrival: null, _legs: [{ mode: 'metro' }], serviceJourney: { id: 'SJ:1' } },
+      variant(iso(10, 5, 55), iso(10, 30, 0), 'SJ:1', 'later-with-arrival'),
     ]);
-    expect(ids(out)).toEqual(['no-arrival']);
+    expect(ids(out)).toEqual(['SJ:1']);
+    expect(depTimes(out)).toEqual([iso(10, 5, 5)]);
   });
 });
 

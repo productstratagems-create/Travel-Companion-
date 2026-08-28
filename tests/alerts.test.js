@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { activeSituations, situationText, situationTitle, situationBody, alertHtml, sevClass, SEVERITY_RANK } from '../src/ui/alerts.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { activeSituations, situationText, situationTitle, situationBody, alertHtml,
+  sevClass, SEVERITY_RANK, sevRank, visibleAlerts, hiddenLabel, hiddenRowHtml,
+  loadHidden, hideAlert, unhideAll, pruneHidden } from '../src/ui/alerts.js';
 
 const sit = (id, severity, value, validityPeriod = {}) => ({
   id, severity, validityPeriod,
@@ -142,10 +144,21 @@ describe('alertHtml', () => {
     expect(h).toContain('Brødtekst.');
   });
 
-  it('leaves a body-less alert exactly as it was — a plain div, no button', () => {
+  it('gives a body-less alert no expander, but still a way to put it away', () => {
     const h = alertHtml(full('Bare overskrift'));
     expect(h).toContain('<div class="service-alert');
-    expect(h).not.toContain('<button');
+    expect(h).not.toContain('sa-more');
+    expect(h).toContain('sa-hide');
+  });
+
+  // The alert used to BE the button. Nesting ✕ inside it would be invalid
+  // HTML and would give the two controls one unpredictable tap target.
+  it('keeps ✕ outside the text button rather than nested in it', () => {
+    const h = alertHtml(full('Overskrift', 'Brødtekst.'));
+    const more = h.indexOf('sa-more');
+    const closeMore = h.indexOf('</button>', more);
+    const hide = h.indexOf('sa-hide');
+    expect(hide).toBeGreaterThan(closeMore);
   });
 
   it('escapes both halves, since this is third-party text', () => {
@@ -156,5 +169,85 @@ describe('alertHtml', () => {
 
   it('renders nothing at all when there is no text', () => {
     expect(alertHtml(full(null))).toBe('');
+  });
+});
+
+// ── Putting a message away, and getting it back ─────────────────────────────
+const sit2 = (id, severity) => ({ id, severity, validityPeriod: {},
+  summary: [{ language: 'no', value: 'Melding ' + id }] });
+
+beforeEach(() => { localStorage.clear(); localStorage.setItem('__activeProfile', 'default'); });
+
+describe('visibleAlerts', () => {
+  const A = sit2('s1', 'normal'), B = sit2('s2', 'slight'), C = sit2('s3', 'severe');
+
+  it('shows everything when nothing has been put away', () => {
+    const { shown, hiddenCount } = visibleAlerts([A, B, C], {});
+    expect(shown).toHaveLength(3);
+    expect(hiddenCount).toBe(0);
+  });
+
+  it('leaves out what was put away, and counts it', () => {
+    const { shown, hiddenCount } = visibleAlerts([A, B, C], { s2: sevRank('slight') });
+    expect(shown.map(s => s.id)).toEqual(['s1', 's3']);
+    expect(hiddenCount).toBe(1);
+  });
+
+  // The sharp edge: a message that got worse is a new thing to say.
+  it('brings a message back when it gets more severe, and forgets it', () => {
+    const worse = sit2('s2', 'verySevere');
+    const { shown, hiddenCount, escalated } = visibleAlerts([worse], { s2: sevRank('slight') });
+    expect(shown.map(s => s.id)).toEqual(['s2']);
+    expect(hiddenCount).toBe(0);
+    expect(escalated).toEqual(['s2']);
+  });
+
+  it('keeps it hidden when it stays the same or gets milder', () => {
+    expect(visibleAlerts([sit2('s2', 'slight')], { s2: sevRank('slight') }).hiddenCount).toBe(1);
+    expect(visibleAlerts([sit2('s2', 'noImpact')], { s2: sevRank('slight') }).hiddenCount).toBe(1);
+  });
+
+  it('treats an unknown severity as the mildest rather than throwing', () => {
+    expect(sevRank('vrøvl')).toBe(9);
+    expect(visibleAlerts([sit2('s2', 'vrøvl')], { s2: 9 }).hiddenCount).toBe(1);
+  });
+
+  it('survives a message with no id at all', () => {
+    const { shown } = visibleAlerts([{ severity: 'normal', summary: [] }], { s1: 0 });
+    expect(shown).toHaveLength(1);
+  });
+});
+
+describe('hiddenLabel', () => {
+  // Norwegian agreement is exactly the sort of thing that goes quietly wrong.
+  it('agrees in number, and says nothing at zero', () => {
+    expect(hiddenLabel(0)).toBe('');
+    expect(hiddenLabel(1)).toBe('1 melding skjult');
+    expect(hiddenLabel(2)).toBe('2 meldinger skjult');
+    expect(hiddenRowHtml(0)).toBe('');
+    expect(hiddenRowHtml(3)).toContain('3 meldinger skjult');
+  });
+});
+
+describe('the hidden set in storage', () => {
+  it('remembers the severity it was hidden at, and can be emptied', () => {
+    hideAlert('s1', 'normal');
+    expect(loadHidden()).toEqual({ s1: sevRank('normal') });
+    unhideAll();
+    expect(loadHidden()).toEqual({});
+  });
+
+  it('forgets entries for messages that are gone, so it cannot grow forever', () => {
+    hideAlert('s1', 'normal');
+    hideAlert('s2', 'slight');
+    pruneHidden([{ id: 's2' }]);
+    expect(Object.keys(loadHidden())).toEqual(['s2']);
+  });
+
+  it('reads corrupt storage as empty rather than throwing', () => {
+    localStorage.setItem('default::t.alertHid', '{nope');
+    expect(loadHidden()).toEqual({});
+    localStorage.setItem('default::t.alertHid', '[1,2]');
+    expect(loadHidden()).toEqual({});
   });
 });

@@ -30,6 +30,9 @@ export default {
     // time. `retSkip` holds the day a switch was declined or overridden, so
     // the decision expires on its own without a timer.
     ret: 't.return',
+    // Traffic messages the reader has put away: id → the severity it had at
+    // the time, so an escalation can bring it back.
+    alertHid: 't.alertHid',
     retSkip: 't.returnSkip',
     journey: 't.jny',
     favs: 't.favs',

@@ -15,7 +15,7 @@ import { makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _trainPosition, SRC_LABEL } from './trainPosition.js';
 import { renderJourneyStrip } from './journeyStrip.js';
-import { renderAlerts, activeSituations, alertHtml, bindAlertToggles } from '../ui/alerts.js';
+import { renderAlerts, renderAlertsInto } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
@@ -343,17 +343,14 @@ function _fetchArrBoardData() {
   }).catch(() => {});
 }
 
-function _destAlertsHtml() {
-  const active = activeSituations(_destAlerts);
-  if (!active.length) return '';
-  return active.map(alertHtml).filter(Boolean).join('');
-}
-
 function _updateDestAlertsSection() {
-  const el = document.getElementById('hn-dest-alerts');
-  if (!el) return;
-  el.innerHTML = _destAlertsHtml();
-  bindAlertToggles(el);
+  // Same renderer as the board's banner, so "put away" means the same thing
+  // on both screens rather than two implementations drifting apart.
+  renderAlertsInto(
+    document.getElementById('hn-dest-alerts'),
+    _destAlerts,
+    _updateDestAlertsSection,
+  );
 }
 
 function _renderArrBoardHtml() {

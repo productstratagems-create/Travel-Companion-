@@ -1,7 +1,6 @@
 import config from '../config.js';
 import { state } from '../state.js';
 import { loadFavs, removeFav, favToDir, markFavUsed } from '../ui/favs.js';
-import { recordSmartTrip } from '../api/smart.js';
 import { setActiveRoute } from './settings.js';
 import { storage } from '../storage.js';
 import { show, updateHeader } from '../ui/nav.js';
@@ -59,11 +58,10 @@ window._loadFavRoute = (id) => {
   // actually tap were invisible to the one mechanism measuring taps — and to
   // the smart engine, which only ever heard about «bruk rute» and deep links.
   markFavUsed(fav.id);
-  recordSmartTrip(fav.from, fav.to, fav.toStopId || null,
-    fav.toLat != null ? fav.toLat : null, fav.toLon != null ? fav.toLon : null,
-    fav.stopId || null);
-  // One door: sets the route, the index, storage and the form fields.
-  setActiveRoute(favToDir(fav));
+  // One door: the route, the index, storage, the form fields — and, because
+  // a favourite is a deliberate choice, the autocomplete and the prediction
+  // engine. Only the latter used to hear about favourites.
+  setActiveRoute(favToDir(fav), { chosen: true });
   updateHeader();
   state.deps = [];
   show('v-board');

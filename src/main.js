@@ -26,10 +26,10 @@ import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
 import config from './config.js';
-import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, loadDep, saveDep, saveDest, renderBoardProfileSwitcher, trackPlace, setActiveRoute, loadActiveRoute } from './views/settings.js';
+import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, loadDep, saveDep, saveDest, renderBoardProfileSwitcher, setActiveRoute, loadActiveRoute } from './views/settings.js';
 import { getActiveProfile, storage } from './storage.js';
 import { state } from './state.js';
-import { recordSmartTrip, predictDest } from './api/smart.js';
+import { predictDest } from './api/smart.js';
 
 const prefilledRoute = (function applyPrefillFromQuery() {
   const params = new URLSearchParams(window.location.search);
@@ -66,11 +66,8 @@ const prefilledRoute = (function applyPrefillFromQuery() {
       _fromLon: fromLon ? Number(fromLon) : null,
       _toLat: toLat ? Number(toLat) : null,
       _toLon: toLon ? Number(toLon) : null,
-    });
+    }, { chosen: true });
     applied = true;
-    trackPlace('dep', from, { lat: fromLat ? Number(fromLat) : null, lon: fromLon ? Number(fromLon) : null, stopId: fromStopId || null });
-    trackPlace('arr', to,   { lat: toLat   ? Number(toLat)   : null, lon: toLon   ? Number(toLon)   : null, stopId: toStopId   || null });
-    recordSmartTrip(from, to, toStopId || null, toLat ? Number(toLat) : null, toLon ? Number(toLon) : null, fromStopId || null);
   }
 
   if (from || to || travelTime) {
@@ -108,6 +105,8 @@ function _applySmartRoute(ns, dest) {
     line: null,
     _fromLat: dep ? dep.lat : null,
     _fromLon: dep ? dep.lon : null,
+    // No `chosen`: the smart engine is applying its own guess, and counting
+    // it would let the prediction reinforce itself.
   });
   updateHeader();
   state.deps = [];
@@ -174,6 +173,7 @@ if (restored) {
   const stored = loadActiveRoute();
   const savedDest = loadDest();
   if (stored) {
+    // No `chosen`: restoring, not choosing.
     setActiveRoute(stored);
     updateHeader();
     startBoard();

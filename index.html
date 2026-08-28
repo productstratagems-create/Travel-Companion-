@@ -45,14 +45,16 @@
           <span class="station-dest" id="dir-dest"></span>
         </button>
         <span id="via-label" style="display:none"></span>
-        <button type="button" id="header-profile-chip" class="header-profile-chip"
-          aria-label="Aktiv profil — åpne meny"></button>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:.5rem;flex-shrink:0">
-      <button class="board-more-btn dir-btn" id="dir-btn" type="button" aria-label="Bytt retning">⇄</button>
-      <button class="board-more-btn board-refresh-btn" id="board-refresh-btn" type="button" aria-label="Oppdater avganger" title="Oppdater">↻</button>
-      <button class="board-more-btn" id="board-more-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋯</button>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.35rem;flex-shrink:0">
+      <button type="button" id="header-profile-chip" class="header-profile-chip"
+        aria-haspopup="true" aria-expanded="false" aria-label="Aktiv profil — vis meny"></button>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <button class="board-more-btn dir-btn" id="dir-btn" type="button" aria-label="Bytt retning">⇄</button>
+        <button class="board-more-btn board-refresh-btn" id="board-refresh-btn" type="button" aria-label="Oppdater avganger" title="Oppdater">↻</button>
+        <button class="board-more-btn" id="board-more-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋯</button>
+      </div>
     </div>
   </div>
   <div id="board-more-menu" class="board-more-menu" style="display:none" role="menu">

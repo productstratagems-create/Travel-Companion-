@@ -14,7 +14,7 @@ import './style/leisure.css';
 import './style/plan.css';
 import './style/theme-light.css';
 
-import { attachEventListeners, updateHeader, show, initHistory } from './ui/nav.js';
+import { attachEventListeners, updateHeader, show, initHistory, toggleBoardMenu } from './ui/nav.js';
 import { initTheme } from './theme.js';
 import { registerServiceWorker, initOfflineBanner } from './pwa.js';
 import './views/favs.js';
@@ -26,7 +26,7 @@ import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
 import config from './config.js';
-import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, loadDep, saveDep, saveDest, renderBoardProfileSwitcher, setActiveRoute, loadActiveRoute } from './views/settings.js';
+import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, loadDep, saveDep, saveDest, setActiveRoute, loadActiveRoute } from './views/settings.js';
 import { getActiveProfile, storage } from './storage.js';
 import { state } from './state.js';
 import { predictDest } from './api/smart.js';
@@ -149,12 +149,8 @@ if (_profileChip) {
     _profileChip.textContent = _prof;
     _profileChip.style.display = 'inline-block';
   }
-  _profileChip.addEventListener('click', () => {
-    renderBoardProfileSwitcher();
-    const menu = document.getElementById('board-more-menu');
-    const btn  = document.getElementById('board-more-btn');
-    if (menu) { menu.style.display = 'flex'; if (btn) btn.setAttribute('aria-expanded', 'true'); }
-  });
+  // Samme veksling som ⋯ — chipen må også kunne lukke menyen den åpnet.
+  _profileChip.addEventListener('click', toggleBoardMenu);
 }
 
 const restored = loadJny();

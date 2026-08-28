@@ -14,7 +14,7 @@ vi.mock('../src/views/spectate.js', () => ({
 
 const VIEWS = ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-prefs', 'v-saved', 'v-leisure'];
 
-const { show } = await import('../src/ui/nav.js');
+const { show, toggleBoardMenu } = await import('../src/ui/nav.js');
 
 beforeEach(() => {
   document.body.innerHTML = VIEWS
@@ -50,5 +50,30 @@ describe('show', () => {
     expect(document.documentElement.classList.contains('view-board')).toBe(true);
     show('v-saved');
     expect(document.documentElement.classList.contains('view-board')).toBe(false);
+  });
+});
+
+// Chipen med brukernavnet styrer den samme menyen som ⋯, så den må kunne
+// lukke den igjen — og begge kontrollene må si det samme om tilstanden.
+describe('toggleBoardMenu', () => {
+  beforeEach(() => {
+    document.body.innerHTML +=
+      '<button id="header-profile-chip" aria-expanded="false"></button>';
+  });
+
+  it('veksler menyen og holder aria-expanded i takt på begge kontrollene', () => {
+    const menu = document.getElementById('board-more-menu');
+    const chip = document.getElementById('header-profile-chip');
+    const btn = document.getElementById('board-more-btn');
+
+    toggleBoardMenu();
+    expect(menu.style.display).toBe('flex');
+    expect(chip.getAttribute('aria-expanded')).toBe('true');
+    expect(btn.getAttribute('aria-expanded')).toBe('true');
+
+    toggleBoardMenu();
+    expect(menu.style.display).toBe('none');
+    expect(chip.getAttribute('aria-expanded')).toBe('false');
+    expect(btn.getAttribute('aria-expanded')).toBe('false');
   });
 });

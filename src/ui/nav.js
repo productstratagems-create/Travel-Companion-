@@ -22,6 +22,9 @@ export function toggleBoardMenu() {
   const open = menu.style.display === 'none' || !menu.style.display;
   menu.style.display = open ? 'flex' : 'none';
   btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  // Chipen styrer samme meny, så den bærer samme tilstand.
+  const chip = document.getElementById('header-profile-chip');
+  if (chip) chip.setAttribute('aria-expanded', open ? 'true' : 'false');
   if (open) renderBoardProfileSwitcher();
 }
 

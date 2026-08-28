@@ -295,11 +295,33 @@
 .service-alert.sev-slight{
   color:var(--text-muted);background:rgba(var(--text-muted-rgb),.05);border-color:rgba(var(--text-muted-rgb),.15);
 }
-/* An alert with a body is a button, so it needs the div's own box back. */
-button.service-alert{
-  display:block;width:100%;text-align:left;font:inherit;font-size:11px;
+/* The alert is a box holding two controls: the text, which expands, and ✕,
+   which puts the message away. They are siblings rather than nested, so each
+   has its own tap target. */
+.service-alert{display:flex;align-items:flex-start;gap:.5rem}
+.sa-more{
+  flex:1;min-width:0;
+  display:block;text-align:left;font:inherit;font-size:11px;color:inherit;
+  background:none;border:none;padding:0;
   cursor:pointer;-webkit-tap-highlight-color:transparent;
 }
+.sa-hide{
+  flex-shrink:0;background:none;border:none;color:inherit;opacity:.55;
+  font-size:.95rem;line-height:1;padding:.1rem .15rem;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.sa-hide:hover,.sa-hide:focus-visible{opacity:1}
+/* One line saying something is put away — never let a hidden message be
+   invisible, or a closed line could pass unnoticed. */
+.alerts-hidden{
+  display:block;width:100%;text-align:left;
+  padding:.3rem .75rem;margin:.25rem 0;
+  font:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-muted);background:none;
+  border:1px dashed rgba(var(--text-muted-rgb),.3);border-radius:4px;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+.ah-show{color:var(--accent);margin-left:.3rem}
 .sa-title{display:block;font-weight:600}
 /* Two lines until tapped: a full Entur description can run several
    sentences, and unclamped it would push the departures off the screen. */

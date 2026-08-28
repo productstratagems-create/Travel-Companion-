@@ -8,7 +8,7 @@ import { fetchBoard, fetchTrip, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
-import { renderAlerts } from '../ui/alerts.js';
+import { renderAlerts, pruneHidden } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
 import { fmtMins, esc } from '../ui/fmt.js';
 import L from 'leaflet';
@@ -2323,6 +2323,9 @@ function _fetchBoard() {
         window._updateWalkDbg && window._updateWalkDbg();
       }
       state.serviceAlerts = situations || [];
+      // Forget put-away entries for messages that are no longer reported, so
+      // the key cannot grow over months of use.
+      pruneHidden(state.serviceAlerts);
       logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);
       const adapted = patterns.map(adaptTripPattern).filter(Boolean);
       const dropped = patterns.length - adapted.length;
@@ -2344,6 +2347,7 @@ function _fetchBoard() {
       if (call.serviceJourney) addSits(call.serviceJourney.situations);
     });
     state.serviceAlerts = Array.from(sitMap.values());
+    pruneHidden(state.serviceAlerts);
     logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);
     if (stop.latitude && stop.longitude) {
       state.statLL[dir.key] = { lat: stop.latitude, lon: stop.longitude };

@@ -1,7 +1,8 @@
 import { snapToCorridor } from '../ui/corridor.js';
+import { pointAtDistance, projectOnPath } from '../ui/path.js';
 import { livePosition } from '../api/vehicles.js';
 import { POS_STALE_MS } from '../geo.js';
-import { _interpolateVehiclePos, _headingDeg } from './board.js';
+import { _interpolateOnPath } from './board.js';
 
 /**
  * Where the train is, and — just as importantly — how we know.
@@ -50,10 +51,24 @@ export function _trainPosition(o) {
   // 2. The operator's own measurement. livePosition applies the staleness
   //    rule, so a feed that stopped falls through rather than drifting.
   const live = livePosition(livePos, journeyId, now);
-  if (live) return { lat: live.lat, lon: live.lon, heading: live.bearing, src: 'live' };
+  if (live) {
+    // Onto the drawn line, like the board's markers: the train is on the
+    // rail, and this polyline is our drawing of that rail. Its tangent also
+    // gives a better heading than a feed bearing that points off the track.
+    const on = projectOnPath(live, routePts);
+    const tangent = on ? (pointAtDistance(routePts, on.along) || {}).heading : null;
+    return {
+      lat: on ? on.lat : live.lat,
+      lon: on ? on.lon : live.lon,
+      heading: tangent != null ? tangent : live.bearing,
+      src: 'live',
+    };
+  }
 
-  // 3. The timetable, as before — an estimate, and labelled as one.
-  const est = _interpolateVehiclePos(calls, now);
+  // 3. The timetable, as before — an estimate, and labelled as one. It now
+  //    runs along the drawn alignment instead of cutting between platforms;
+  //    with no alignment it degrades to exactly the old answer.
+  const est = _interpolateOnPath(calls, now, routePts);
   if (est) return { lat: est.lat, lon: est.lon, heading: est.heading, src: 'rutetid' };
 
   return null;
@@ -65,18 +80,15 @@ export function _trainPosition(o) {
  * A phone at walking-to-metro speed reports a bearing that is mostly noise,
  * and often none at all — but the segment the train is standing on knows
  * which way it points.
+ *
+ * This used to pick the segment by distance to its midpoint in raw degrees:
+ * no cos-lat scaling, and wrong on a long segment, where the midpoint can be
+ * further from the point than a neighbouring segment's. The shared projection
+ * answers the same question exactly.
  */
 function _headingAt(pts, p) {
-  if (!pts || pts.length < 2) return null;
-  let best = null;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const [ay, ax] = pts[i], [by, bx] = pts[i + 1];
-    // Distance from p to the segment's midpoint is enough to pick the segment
-    // it was snapped onto; p is already on the line by construction.
-    const my = (ay + by) / 2, mx = (ax + bx) / 2;
-    const d = (p.lat - my) * (p.lat - my) + (p.lon - mx) * (p.lon - mx);
-    if (!best || d < best.d) best = { d, i };
-  }
-  const [ay, ax] = pts[best.i], [by, bx] = pts[best.i + 1];
-  return _headingDeg(ay, ax, by, bx);
+  const on = projectOnPath(p, pts);
+  if (!on) return null;
+  const at = pointAtDistance(pts, on.along);
+  return at ? at.heading : null;
 }

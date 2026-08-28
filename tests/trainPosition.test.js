@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { _trainPosition, SRC_LABEL } from '../src/views/trainPosition.js';
-import { POS_STALE_MS } from '../src/geo.js';
+import { POS_STALE_MS, haver } from '../src/geo.js';
 
 const NOW = 1_700_000_000_000;
 // A straight leg running east along one parallel, so "on the corridor" and
@@ -126,5 +126,65 @@ describe('_trainPosition — the corridor guard against real geometry', () => {
     const p = _trainPosition({ ...base, userLL: onTheBow, routePts: realPts });
     expect(p.src).toBe('gps');
     expect(p.lat).toBeCloseTo(BOW_LAT, 4);
+  });
+});
+
+// ── The train rides the line that is drawn ──────────────────────────────────
+//
+// Same quarter-circle as tests/path.test.js: a chord between its ends misses
+// the arc by ~293 m.
+const TR = 1000, TC = { lat: 59.9139, lon: 10.7522 };
+const T_LAT = 111320, T_LON = 111320 * Math.cos(TC.lat * Math.PI / 180);
+const tAt = deg => {
+  const r = deg * Math.PI / 180;
+  return [TC.lat + (TR * Math.cos(r)) / T_LAT, TC.lon + (TR * Math.sin(r)) / T_LON];
+};
+const TARC = [];
+for (let d = 0; d <= 90; d += 5) TARC.push(tAt(d));
+const TA = TARC[0], TB = TARC[TARC.length - 1];
+const TT0 = Date.parse('2026-05-24T10:00:00+02:00');
+const tCall = (ll, ms) => ({
+  quay: { latitude: ll[0], longitude: ll[1] },
+  aimedArrivalTime: new Date(ms).toISOString(),
+  expectedArrivalTime: new Date(ms).toISOString(),
+  aimedDepartureTime: new Date(ms).toISOString(),
+  expectedDepartureTime: new Date(ms).toISOString(),
+});
+const TCALLS = [tCall(TA, TT0), tCall(TB, TT0 + 600000)];
+
+describe('_trainPosition — on the drawn line', () => {
+  it('places a live fix on the track, not beside it', () => {
+    const mid = tAt(45);
+    const off = { lat: mid[0] + 120 / T_LAT, lon: mid[1] + 120 / T_LON };
+    const p = _trainPosition({
+      calls: TCALLS, routePts: TARC, snapDist: 50, now: TT0 + 300000, phase: 'riding',
+      livePos: new Map([['J1', { lat: off.lat, lon: off.lon, bearing: 12, lastUpdated: TT0 + 300000 }]]),
+      journeyId: 'J1',
+    });
+    expect(p.src).toBe('live');
+    // On the arc — and its heading comes from the track, not the feed's 12°.
+    expect(haver(p.lat, p.lon, mid[0], mid[1])).toBeLessThan(15);
+    expect(haver(p.lat, p.lon, off.lat, off.lon)).toBeGreaterThan(100);
+    expect(Math.abs(p.heading - 135)).toBeLessThan(6);
+  });
+
+  it('leaves a live fix alone when there is no line to put it on', () => {
+    const raw = { lat: 59.95, lon: 10.80 };
+    const p = _trainPosition({
+      calls: TCALLS, routePts: null, now: TT0 + 300000, phase: 'platform',
+      livePos: new Map([['J1', { ...raw, bearing: 12, lastUpdated: TT0 + 300000 }]]),
+      journeyId: 'J1',
+    });
+    expect(p).toEqual({ lat: raw.lat, lon: raw.lon, heading: 12, src: 'live' });
+  });
+
+  it('runs the timetable estimate along the arc, not across it', () => {
+    const p = _trainPosition({
+      calls: TCALLS, routePts: TARC, now: TT0 + 300000, phase: 'riding', livePos: new Map(),
+    });
+    expect(p.src).toBe('rutetid');
+    expect(haver(p.lat, p.lon, tAt(45)[0], tAt(45)[1])).toBeLessThan(10);
+    const chordMid = { lat: (TA[0] + TB[0]) / 2, lon: (TA[1] + TB[1]) / 2 };
+    expect(haver(p.lat, p.lon, chordMid.lat, chordMid.lon)).toBeGreaterThan(250);
   });
 });

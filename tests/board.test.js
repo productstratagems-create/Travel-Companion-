@@ -9,7 +9,9 @@ vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
-  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle } from '../src/views/board.js';
+  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle, _interpolateVehiclePos, _interpolateOnPath } from '../src/views/board.js';
+import { measurePath } from '../src/ui/path.js';
+import { haver } from '../src/geo.js';
 
 const iso = (hh, mm, ss) => `2026-05-24T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}+02:00`;
 
@@ -857,5 +859,99 @@ describe('_corridorStyle', () => {
 
   it('treats an unknown mode as rail rather than as a bus', () => {
     expect(_corridorStyle(undefined, '#000').weight).toBe(4);
+  });
+});
+
+// ── Vehicles on the drawn line ───────────────────────────────────────────────
+//
+// The same quarter-circle as tests/path.test.js: a chord between its ends
+// misses the arc by R(1 − cos45°) ≈ 293 m, which is exactly how far a marker
+// used to float from the track drawn beneath it.
+const VR = 1000, VC = { lat: 59.9139, lon: 10.7522 };
+const V_LAT = 111320, V_LON = 111320 * Math.cos(VC.lat * Math.PI / 180);
+const vAt = deg => {
+  const r = deg * Math.PI / 180;
+  return [VC.lat + (VR * Math.cos(r)) / V_LAT, VC.lon + (VR * Math.sin(r)) / V_LON];
+};
+const VARC = [];
+for (let d = 0; d <= 90; d += 5) VARC.push(vAt(d));
+const VA = VARC[0], VB = VARC[VARC.length - 1];
+const VCHORD_MID = { lat: (VA[0] + VB[0]) / 2, lon: (VA[1] + VB[1]) / 2 };
+
+const T0 = Date.parse('2026-05-24T10:00:00+02:00');
+const vCall = (ll, arrMs, depMs) => ({
+  quay: { latitude: ll[0], longitude: ll[1] },
+  aimedArrivalTime: new Date(arrMs).toISOString(),
+  expectedArrivalTime: new Date(arrMs).toISOString(),
+  aimedDepartureTime: new Date(depMs).toISOString(),
+  expectedDepartureTime: new Date(depMs).toISOString(),
+});
+// Two stops, ten minutes apart: the ends of the arc.
+const VCALLS = [vCall(VA, T0, T0), vCall(VB, T0 + 600000, T0 + 600000)];
+
+describe('_interpolateOnPath', () => {
+  it('puts the vehicle on the drawn line, not on the chord between platforms', () => {
+    const mid = T0 + 300000;
+    const onPath = _interpolateOnPath(VCALLS, mid, VARC);
+    const onChord = _interpolateVehiclePos(VCALLS, mid);
+    // What the old code answers, stated as a number so the size of the bug is
+    // on the record: the chord midpoint, ~293 m from the track.
+    expect(haver(onChord.lat, onChord.lon, VCHORD_MID.lat, VCHORD_MID.lon)).toBeLessThan(1);
+    expect(haver(onChord.lat, onChord.lon, vAt(45)[0], vAt(45)[1])).toBeGreaterThan(250);
+    // What it answers now: on the arc.
+    expect(haver(onPath.lat, onPath.lon, vAt(45)[0], vAt(45)[1])).toBeLessThan(10);
+    expect(haver(onPath.lat, onPath.lon, VCHORD_MID.lat, VCHORD_MID.lon)).toBeGreaterThan(250);
+  });
+
+  it('keeps the timetable semantics exactly — the ends, the wait, and the end of the run', () => {
+    expect(haver(_interpolateOnPath(VCALLS, T0, VARC).lat, _interpolateOnPath(VCALLS, T0, VARC).lon,
+      VA[0], VA[1])).toBeLessThan(1);
+    expect(haver(_interpolateOnPath(VCALLS, T0 + 600000, VARC).lat,
+      _interpolateOnPath(VCALLS, T0 + 600000, VARC).lon, VB[0], VB[1])).toBeLessThan(1);
+    // Before the first departure it is parked; after the last arrival the run
+    // is over and there is nothing to draw — same as before.
+    expect(_interpolateOnPath(VCALLS, T0 - 60000, VARC)).not.toBeNull();
+    expect(_interpolateOnPath(VCALLS, T0 + 600001, VARC)).toBeNull();
+    expect(_interpolateVehiclePos(VCALLS, T0 + 600001)).toBeNull();
+  });
+
+  it('advances along the line and never doubles back', () => {
+    let prev = -1;
+    for (let f = 0; f <= 1.0001; f += 0.05) {
+      const p = _interpolateOnPath(VCALLS, T0 + 600000 * f, VARC);
+      const along = haver(VA[0], VA[1], p.lat, p.lon);
+      expect(along).toBeGreaterThanOrEqual(prev - 1);
+      prev = along;
+    }
+    // And it really travelled the arc, not the chord.
+    expect(measurePath(VARC).total).toBeGreaterThan(haver(VA[0], VA[1], VB[0], VB[1]) + 150);
+  });
+
+  it('takes its heading from the line it is on', () => {
+    const q = _interpolateOnPath(VCALLS, T0 + 150000, VARC);
+    // A quarter of the way along, the tangent is 22.5° off the chord — which
+    // is the direction the old marker pointed while sitting on the curve.
+    expect(Math.abs(q.heading - 112.5)).toBeLessThan(5);
+    expect(Math.abs(_interpolateVehiclePos(VCALLS, T0 + 150000).heading - 135)).toBeLessThan(3);
+  });
+
+  // The guarantee that makes this safe to ship: without geometry, nothing
+  // changes at all. Asserted against the old function rather than literals.
+  it('degrades to exactly the old answer with no usable path', () => {
+    const t = T0 + 200000;
+    const old = _interpolateVehiclePos(VCALLS, t);
+    expect(_interpolateOnPath(VCALLS, t, null)).toEqual(old);
+    expect(_interpolateOnPath(VCALLS, t, [])).toEqual(old);
+    expect(_interpolateOnPath(VCALLS, t, [VA])).toEqual(old);
+    // A path belonging to some other line entirely: the stops are nowhere
+    // near it, so hanging the train on it would be worse than the chord.
+    const elsewhere = [[60.5, 11.5], [60.6, 11.6]];
+    expect(_interpolateOnPath(VCALLS, t, elsewhere)).toEqual(old);
+  });
+
+  it('has nothing to say about calls it cannot read, same as before', () => {
+    expect(_interpolateOnPath(null, T0, VARC)).toBeNull();
+    expect(_interpolateOnPath([], T0, VARC)).toBeNull();
+    expect(_interpolateOnPath([VCALLS[0]], T0, VARC)).toBeNull();
   });
 });

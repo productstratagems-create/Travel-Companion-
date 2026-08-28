@@ -12,7 +12,10 @@ vi.mock('../src/storage.js', () => ({
 }));
 vi.mock('../src/config.js', () => ({ default: { dirs: [{ key: 'out', from: 'A', to: 'B' }, {}, {}], storage: { dir: 't.dir', route: 't.route' }, api: {} } }));
 vi.mock('../src/api/http.js', () => ({ enturFetch: vi.fn() }));
-vi.mock('../src/api/smart.js', () => ({ recordSmartTrip: vi.fn(), tripCount: () => 0 }));
+const smartCalls = [];
+vi.mock('../src/api/smart.js', () => ({
+  recordSmartTrip: (...a) => smartCalls.push(a), tripCount: () => 0,
+}));
 vi.mock('../src/state.js', () => ({ state: { dIdx: 0, nearestStation: null, nearestStations: [] } }));
 vi.mock('../src/geo.js', () => ({
   haver: () => 0, loadWalkSpeed: () => 'middels', saveWalkSpeed: vi.fn(),
@@ -28,11 +31,12 @@ vi.mock('../src/api/places.js', () => ({ fetchNearbyPlaces: vi.fn() }));
 vi.mock('../src/ui/favs.js', () => ({ loadFavs: () => [], topFavRoutes: () => [] }));
 
 const { syncRouteFields, loadDep, loadDest, loadVia, setActiveRoute, loadActiveRoute } = await import('../src/views/settings.js');
+const freq = (k) => { try { return JSON.parse(store[k] || '[]'); } catch { return []; } };
 const config = (await import('../src/config.js')).default;
 const { state } = await import('../src/state.js');
 const storeRaw = (k, v) => { store['t.route'] = v; };
 
-beforeEach(() => { for (const k of Object.keys(store)) delete store[k]; });
+beforeEach(() => { for (const k of Object.keys(store)) delete store[k]; smartCalls.length = 0; });
 
 /**
  * saveDep/saveDest were written from «bruk rute» and the deep link only.
@@ -125,5 +129,52 @@ describe('setActiveRoute / loadActiveRoute', () => {
     setActiveRoute(venue);
     setActiveRoute(null);
     expect(loadActiveRoute().from).toBe('Bøler');
+  });
+});
+
+/**
+ * trackPlace feeds the autocomplete's frequent places; recordSmartTrip feeds
+ * the prediction engine. They were two mechanisms with different holes —
+ * favourites recorded only the second, «reis dit» and ⇄ recorded neither —
+ * so autocomplete never learned from the routes people reach for most.
+ */
+describe('setActiveRoute — når bruk telles', () => {
+  const rute = {
+    key: 'custom-out', from: 'Bøler', to: 'Tøyen',
+    stopId: 'NSR:StopPlace:3', toStopId: 'NSR:StopPlace:12', filter: null,
+    _fromLat: 59.877, _fromLon: 10.818, _toLat: 59.915, _toLon: 10.772,
+  };
+
+  it('teller begge ender når ruta er valgt', () => {
+    setActiveRoute(rute, { chosen: true });
+    expect(freq('t.freqDep').map(p => p.name)).toEqual(['Bøler']);
+    expect(freq('t.freqArr').map(p => p.name)).toEqual(['Tøyen']);
+    expect(smartCalls).toHaveLength(1);
+  });
+
+  // The guard that protects startup: trackPlace increments, so counting every
+  // launch would crown the last route used as the most used.
+  it('teller ingenting uten flagget', () => {
+    setActiveRoute(rute);
+    expect(freq('t.freqDep')).toEqual([]);
+    expect(freq('t.freqArr')).toEqual([]);
+    expect(smartCalls).toHaveLength(0);
+  });
+
+  it('teller én gang per valg, ikke to', () => {
+    setActiveRoute(rute, { chosen: true });
+    expect(freq('t.freqDep')[0].count).toBe(1);
+    setActiveRoute(rute, { chosen: true });
+    expect(freq('t.freqDep')[0].count).toBe(2);
+  });
+
+  // The arguments used to be reassembled at every call site, which is how the
+  // two mechanisms drifted apart. They come off the route now.
+  it('henter ID-er og koordinater fra ruta selv', () => {
+    setActiveRoute(rute, { chosen: true });
+    expect(freq('t.freqArr')[0]).toMatchObject({
+      stopId: 'NSR:StopPlace:12', lat: 59.915, lon: 10.772,
+    });
+    expect(smartCalls[0]).toEqual(['Bøler', 'Tøyen', 'NSR:StopPlace:12', 59.915, 10.772, 'NSR:StopPlace:3']);
   });
 });

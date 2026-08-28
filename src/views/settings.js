@@ -592,13 +592,10 @@ export function applyRoute() {
     _fromLon: depLon,
     _toLat:   arrLat,
     _toLon:   arrLon,
-  });
+  }, { chosen: true });
   saveDep(dep);
   saveDest(arr);
   saveVia(via);
-  trackPlace('dep', dep, { lat: depLat, lon: depLon, stopId: depId });
-  trackPlace('arr', arr, { lat: arrLat, lon: arrLon, stopId: arrId });
-  recordSmartTrip(dep, arr, arrId, arrLat, arrLon, depId);
   return true;
 }
 
@@ -626,6 +623,9 @@ export function applyRouteFromState(arr) {
     line:     null,
     _fromLat: depLat,
     _fromLon: depLon,
+    // No `chosen`: this rebuilds an already-chosen route at startup, and
+    // trackPlace increments — counting every launch would crown the last
+    // route used as the most used.
   });
   return true;
 }
@@ -708,13 +708,39 @@ function _renderFreqRow(elId, role) {
  * it. Two of them forgot the fields in v1.33.0. Storing would have been
  * forgotten just as reliably, so there is one door instead of six.
  */
-export function setActiveRoute(dir) {
+export function setActiveRoute(dir, opts) {
   if (!dir) return;
   config.dirs[2] = dir;
   state.dIdx = 2;
   storage.set(config.storage.dir, '2');
   saveActiveRoute(dir);
   syncRouteFields(dir);
+  if (opts && opts.chosen) _recordChoice(dir);
+}
+
+/**
+ * A human just picked this route, so it counts as use.
+ *
+ * trackPlace feeds the autocomplete's frequent places and recordSmartTrip
+ * feeds the prediction engine. They were two parallel mechanisms with
+ * different holes: favourites recorded only the second, and «reis dit» and
+ * the ⇄ swap recorded neither. Autocomplete therefore never learned anything
+ * from the routes people reach for most.
+ *
+ * Opt-in rather than automatic, because three callers must NOT count:
+ * restoring at startup and applyRouteFromState are the same already-chosen
+ * route arriving again — and trackPlace increments a counter, so counting
+ * every launch would crown whatever you used last as your "most used". The
+ * smart engine applying its own prediction must not count either, or the
+ * prediction feeds itself.
+ *
+ * Arguments come off the route rather than being reassembled per call site.
+ * That reassembly is how the two drifted apart in the first place.
+ */
+function _recordChoice(dir) {
+  trackPlace('dep', dir.from, { lat: dir._fromLat, lon: dir._fromLon, stopId: dir.stopId || null });
+  trackPlace('arr', dir.to,   { lat: dir._toLat,   lon: dir._toLon,   stopId: dir.toStopId || null });
+  recordSmartTrip(dir.from, dir.to, dir.toStopId || null, dir._toLat, dir._toLon, dir.stopId || null);
 }
 
 /**

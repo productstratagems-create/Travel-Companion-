@@ -305,7 +305,7 @@ function _reisDit(venue) {
     _fromLon: ns ? ns.lon : (pos ? pos.lon : null),
     _toLat: venue.lat,
     _toLon: venue.lon,
-  });
+  }, { chosen: true });
   updateHeader();
   _destroyLeisureMap();
   saveWeekendMode(false);

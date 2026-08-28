@@ -2,7 +2,7 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { addFav } from './favs.js';
 import { storage } from '../storage.js';
-import { renderBoardProfileSwitcher, syncRouteFields } from '../views/settings.js';
+import { renderBoardProfileSwitcher, setActiveRoute, syncRouteFields } from '../views/settings.js';
 import { saveWeekendMode } from '../geo.js';
 import { confirmTap } from './confirm.js';
 import { stopSelRefresh } from '../views/selected.js';
@@ -173,7 +173,10 @@ export function updateHeader() {
 function toggleDir() {
   const dir = config.dirs[state.dIdx];
   if (dir.key === 'custom-out') {
-    config.dirs[state.dIdx] = {
+    // Reversing a real route is a choice like any other: you are travelling
+    // B→A now, so the form, the storage, the autocomplete and the prediction
+    // engine all follow.
+    setActiveRoute({
       key: 'custom-out',
       from: dir.to, to: dir.from,
       stopId: null, toStopId: null,
@@ -183,15 +186,16 @@ function toggleDir() {
       via: dir.via || null,
       viaStopId: dir.viaStopId || null,
       viaGeo: dir.viaGeo || null,
-    };
+    }, { chosen: true });
   } else {
+    // The neutral pair is a placeholder, only reachable before a route has
+    // been set. It must not go through setActiveRoute: that would promote a
+    // default nobody picked into the saved route, and count «Jernbanetorget
+    // → Nationaltheatret» among the places this person uses.
     state.dIdx = state.dIdx === 0 ? 1 : 0;
+    storage.set(config.storage.dir, String(state.dIdx));
+    syncRouteFields(config.dirs[state.dIdx]);
   }
-  storage.set(config.storage.dir, String(state.dIdx));
-  // Both branches above change the running route, so the form must follow —
-  // otherwise «velg rute» still shows the route from before the swap, and
-  // «bruk rute» would put it back.
-  syncRouteFields(config.dirs[state.dIdx]);
   updateHeader();
   state.deps = [];
   show('v-board');

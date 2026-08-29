@@ -9,7 +9,8 @@ vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
-  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle, _interpolateVehiclePos, _interpolateOnPath } from '../src/views/board.js';
+  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle, _interpolateVehiclePos, _interpolateOnPath,
+  _nextPageAt, _mergePage, MAX_ROWS } from '../src/views/board.js';
 import { measurePath } from '../src/ui/path.js';
 import { haver } from '../src/geo.js';
 
@@ -953,5 +954,66 @@ describe('_interpolateOnPath', () => {
     expect(_interpolateOnPath(null, T0, VARC)).toBeNull();
     expect(_interpolateOnPath([], T0, VARC)).toBeNull();
     expect(_interpolateOnPath([VCALLS[0]], T0, VARC)).toBeNull();
+  });
+});
+
+// ── Infinite scroll ─────────────────────────────────────────────────────────
+const pdep = (iso, id) => ({ expectedDepartureTime: iso, serviceJourney: { id } });
+
+describe('_nextPageAt', () => {
+  // OTP has no page cursor, so the horizon IS the time — one minute past the
+  // last departure held. Asking from the same instant returns the same page
+  // forever, which is the loop this avoids.
+  it('is one minute past the latest departure held', () => {
+    const deps = [pdep(iso(10, 5, 0), 'a'), pdep(iso(10, 21, 0), 'c'), pdep(iso(10, 9, 0), 'b')];
+    expect(_nextPageAt(deps)).toBe(Date.parse(iso(10, 21, 0)) + 60000);
+  });
+
+  it('has no horizon without departures, and does not produce NaN from junk', () => {
+    expect(_nextPageAt([])).toBeNull();
+    expect(_nextPageAt(null)).toBeNull();
+    expect(_nextPageAt([{ expectedDepartureTime: 'tull' }])).toBeNull();
+  });
+});
+
+describe('_mergePage', () => {
+  const near = [pdep(iso(10, 5, 0), 'a'), pdep(iso(10, 9, 0), 'b')];
+
+  it('adds what is new and says how much', () => {
+    const r = _mergePage([], near, [pdep(iso(10, 25, 0), 'c'), pdep(iso(10, 31, 0), 'd')]);
+    expect(r.added).toBe(2);
+    expect(r.pages.map(c => c.serviceJourney.id)).toEqual(['c', 'd']);
+  });
+
+  it('ignores journeys already held, in the near window or an earlier page', () => {
+    const r = _mergePage([pdep(iso(10, 25, 0), 'c')], near,
+      [pdep(iso(10, 5, 0), 'a'), pdep(iso(10, 25, 0), 'c'), pdep(iso(10, 40, 0), 'e')]);
+    expect(r.added).toBe(1);
+    expect(r.pages.map(c => c.serviceJourney.id)).toEqual(['c', 'e']);
+  });
+
+  // A page that repeats what we have is how the end of the line announces
+  // itself; without noticing it the list would ask forever.
+  it('adds nothing when the page only repeats what is held', () => {
+    expect(_mergePage([], near, near).added).toBe(0);
+  });
+
+  it('falls back to the departure time when a journey has no id', () => {
+    const noId = { expectedDepartureTime: iso(10, 45, 0) };
+    expect(_mergePage([], near, [noId, { ...noId }]).added).toBe(1);
+  });
+
+  it('survives an empty or missing page rather than throwing', () => {
+    expect(_mergePage([], near, []).added).toBe(0);
+    expect(_mergePage([], near, null).added).toBe(0);
+  });
+});
+
+describe('the row cap', () => {
+  // Set from measurement — the list is rebuilt at 1 Hz, and that is the cost
+  // that decides how far scrolling can go.
+  it('is a real number, comfortably above one screenful', () => {
+    expect(MAX_ROWS).toBeGreaterThan(24);
+    expect(MAX_ROWS).toBeLessThanOrEqual(120);
   });
 });

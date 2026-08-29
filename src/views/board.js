@@ -4,7 +4,7 @@ import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
-import { fetchBoard, fetchTrip, geocodePlace } from '../api/entur.js';
+import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
@@ -1852,6 +1852,74 @@ function _depKey(c, origIdx) {
 // let a service leaving at 10:05:55 evict one leaving at 10:05:05.
 //
 // Board results (no _legs) are distinct services; only exact duplicates merge.
+// ── Infinite scroll ─────────────────────────────────────────────────────────
+//
+// Departures loaded beyond the near window. They live here rather than in the
+// DOM because the list is rebuilt with innerHTML every second — anything
+// appended to the element would be gone on the next tick.
+let _pages = [];
+let _pagesAt = null;      // when they were fetched, for the honest divider
+let _pageBusy = false;    // one request at a time, or a nudge at the bottom
+let _pageDone = false;    // a page that adds nothing means there is no more
+let _pageCapped = false;  // we stopped, which is not the same as no more
+let _pageErr = false;
+
+/** How many rows to stop at. Set from measurement, not from a guess. */
+export const MAX_ROWS = 60;
+const PAGE_SIZE = 12;
+
+export function resetPages() {
+  _pages = [];
+  _pagesAt = null;
+  _pageBusy = false;
+  _pageDone = false;
+  _pageCapped = false;
+  _pageErr = false;
+}
+
+/**
+ * The instant the next page should plan from.
+ *
+ * OTP has no page cursor — `dateTime` is the only handle — so the horizon is
+ * one minute past the last departure already loaded. A minute rather than a
+ * second because the trip planner buckets on minutes; asking from the same
+ * instant returns the same page forever.
+ */
+export function _nextPageAt(deps) {
+  let last = null;
+  (deps || []).forEach(c => {
+    const t = new Date((c && c.expectedDepartureTime) || NaN).getTime();
+    if (!isNaN(t) && (last == null || t > last)) last = t;
+  });
+  return last == null ? null : last + 60000;
+}
+
+/**
+ * Merge a freshly loaded page into what is already held.
+ *
+ * Returns the new page array and whether anything was actually added — a
+ * page that only repeats what we have is how the end of the line announces
+ * itself, and without noticing that the list would ask forever.
+ */
+export function _mergePage(existing, near, incoming) {
+  const seen = new Set();
+  const key = c => {
+    const sj = c && c.serviceJourney && c.serviceJourney.id;
+    return sj || (c && c.expectedDepartureTime) || '';
+  };
+  near.concat(existing).forEach(c => seen.add(key(c)));
+  // Added to `seen` as we go, not just seeded from it: a page that repeats a
+  // journey within itself would otherwise be let through twice.
+  const added = (incoming || []).filter(c => {
+    if (!c) return false;
+    const k = key(c);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  return { pages: existing.concat(added), added: added.length };
+}
+
 export function dedupeDepartures(deps) {
   const indexed = (deps || []).map((c, i) => ({ c, origIdx: i }));
   indexed.sort((a, b) =>
@@ -1933,10 +2001,21 @@ export function renderBoard() {
   const now = Date.now();
   const walkActive = isWalkActive(dir);
 
-  let modeDeps = dedupeDepartures(state.deps);
-  if (activeModes.length < 4) {
-    modeDeps = modeDeps.filter(({ c }) => _journeyModesAllowed(_depModes(c), activeModes));
-  }
+  // Two lists, one board.
+  //
+  // `state.deps` is the near window, refetched every 20 s. `_pages` holds
+  // what infinite scrolling has loaded beyond it. Only the ROWS get both:
+  // the strip normalises its axis to the furthest departure, so feeding it
+  // three hours would squeeze the next few trains — the ones the reader is
+  // actually choosing between — into nothing. The map, the vehicles and the
+  // line pills stay near-window for the same reason.
+  const applyModes = list_ => (activeModes.length < 4
+    ? list_.filter(({ c }) => _journeyModesAllowed(_depModes(c), activeModes))
+    : list_);
+  const modeDeps = applyModes(dedupeDepartures(state.deps));
+  const modeAll = _pages.length
+    ? applyModes(dedupeDepartures(state.deps.concat(_pages)))
+    : modeDeps;
   if (!modeDeps.length) {
     list.innerHTML = '<div class="state-msg">Ingen avganger matcher filtrene. '
       + 'Det går avganger herfra, men de bruker transportmidler du har slått av '
@@ -1954,10 +2033,13 @@ export function renderBoard() {
   // The line filter now reaches the departure list too, not just the strip
   // and the map. A filter that visibly applies to half the screen is worse
   // than no filter.
-  const visibleDeps = modeDeps.filter(({ c }) => {
+  const onSelectedLine = ({ c }) => {
     const ln = c.serviceJourney && c.serviceJourney.line;
     return !ln || _lineOn(ln.publicCode);
-  });
+  };
+  const visibleDeps = modeDeps.filter(onSelectedLine);
+  // The rows, and only the rows, see the loaded pages.
+  const rowDeps = _pages.length ? modeAll.filter(onSelectedLine) : visibleDeps;
   if (!visibleDeps.length) {
     list.innerHTML = '<div class="state-msg">Ingen avganger på de valgte linjene. '
       + 'Slå på flere linjer over for å se resten.</div>';
@@ -2016,11 +2098,19 @@ export function renderBoard() {
   // Key must be unique per rendered row: two board-path services can share an
   // ISO departure time, and keying on that alone made a tap open the wrong one.
   _depMap.clear();
-  visibleDeps.forEach(v => _depMap.set(_depKey(v.c, v.origIdx), v.c));
+  rowDeps.forEach(v => _depMap.set(_depKey(v.c, v.origIdx), v.c));
 
+  // Where the loaded pages begin. One honest line: they are not refreshed by
+  // the 20-second poll, so the board says when they were fetched rather than
+  // letting them look as live as the three at the top.
+  const nearCount = visibleDeps.length;
   let html = '';
   let urgentShown = false;
-  visibleDeps.forEach(({ c, origIdx }) => {
+  rowDeps.forEach(({ c, origIdx }, rowIdx) => {
+    if (_pages.length && rowIdx === nearCount) {
+      html += '<div class="dep-more-sep">senere avganger'
+        + (_pagesAt ? ' · hentet ' + clk(_pagesAt) : '') + '</div>';
+    }
     const depId = _depKey(c, origIdx);
     const depTs = new Date(c.expectedDepartureTime).getTime();
     const diffSec = Math.floor((depTs - now) / 1000);
@@ -2213,9 +2303,20 @@ export function renderBoard() {
   // Page scroll survived that because it belongs to the document; an
   // element's own scrollTop does not, so without this the list would jump to
   // the top once a second and be impossible to scroll.
+  // The foot of the list says what it is doing, so scrolling into nothing
+  // never looks like a dead end.
+  if (_pageBusy) html += '<div class="dep-more-msg">henter flere avganger …</div>';
+  else if (_pageErr) html += '<div class="dep-more-msg">fikk ikke hentet flere. rull litt opp og ned for å prøve igjen.</div>';
+  // Two different endings, and saying the wrong one would be a small lie:
+  // one means Entur has no more to give, the other means we stopped.
+  else if (_pageDone) html += '<div class="dep-more-msg">det er alt Entur har herfra.</div>';
+  else if (_pageCapped) html += '<div class="dep-more-msg">viser de første ' + MAX_ROWS
+    + ' avgangene. sett en senere avreisetid for å se lenger fram.</div>';
+
   const keep = list.scrollTop;
   list.innerHTML = html;
   list.scrollTop = keep;
+  _bindInfiniteScroll(list);
 }
 
 /**
@@ -2246,6 +2347,8 @@ export function startBoard() {
   // load, which is the only load that matters most of the time.
   document.documentElement.classList.add('view-board');
   state.deps = [];
+  // A new route, or a refresh, starts from the near window again.
+  resetPages();
   if (!_hydrated) {
     _hydrated = true;
     const snap = loadBoardSnapshot(config.dirs[state.dIdx]);
@@ -2306,6 +2409,66 @@ function _returnDepartAt(dir) {
   if (!r || !dir || dir.from !== r.from || dir.to !== r.to) return undefined;
   const w = returnWindow(r, Date.now());
   return (w.active && w.before) ? w.at : undefined;
+}
+
+/**
+ * Load the next page, when the reader has scrolled to the bottom.
+ *
+ * Guarded three ways, each against a concrete failure: one request at a time
+ * (a few pixels of scrolling would otherwise fire a burst), a stop once a
+ * page adds nothing (or it would ask forever), and a row cap (the list is
+ * rebuilt at 1 Hz, and that cost is what sets the ceiling).
+ */
+function _loadNextPage() {
+  if (_pageBusy || _pageDone || _pageCapped || _pageErr) return;
+  const near = state.deps || [];
+  if (!near.length) return;
+  if (near.length + _pages.length >= MAX_ROWS) { _pageCapped = true; return; }
+  const at = _nextPageAt(near.concat(_pages));
+  if (at == null) return;
+  const dir = config.dirs[state.dIdx];
+  _pageBusy = true;
+  renderBoard();
+
+  const done = (rows) => {
+    _pageBusy = false;
+    const { pages, added } = _mergePage(_pages, near, rows);
+    // Trim to the cap rather than overshooting by up to a whole page.
+    _pages = pages.slice(0, Math.max(0, MAX_ROWS - near.length));
+    if (_pages.length < pages.length) _pageCapped = true;
+    if (_pagesAt == null) _pagesAt = Date.now();
+    // Nothing new came back: this is the end of what Entur will tell us.
+    if (!added) _pageDone = true;
+    logMsg('side: +' + added + ' avganger (' + (near.length + _pages.length) + ' totalt)',
+      added ? 'ok' : null);
+    renderBoard();
+  };
+  const failed = () => { _pageBusy = false; _pageErr = true; renderBoard(); };
+
+  if (dir.toGeo || dir.toStopId || (dir._toLat && dir._toLon)) {
+    fetchTripPage(dir, at, PAGE_SIZE,
+      patterns => done(patterns.map(adaptTripPattern).filter(Boolean)), failed);
+  } else {
+    fetchBoardPage(dir, at, PAGE_SIZE,
+      calls => done(calls.filter(c => !dir.line || (c.serviceJourney
+        && c.serviceJourney.line && c.serviceJourney.line.publicCode === dir.line))), failed);
+  }
+}
+
+/**
+ * Bound once to the container, not to a sentinel element.
+ *
+ * A sentinel row would sit inside the innerHTML that is replaced every
+ * second, so an IntersectionObserver on it would have to be re-attached on
+ * every tick. The listener on the scroller itself survives the rebuild.
+ */
+function _bindInfiniteScroll(list) {
+  if (!list || list._infBound) return;
+  list._infBound = true;
+  list.addEventListener('scroll', () => {
+    const left = list.scrollHeight - list.scrollTop - list.clientHeight;
+    if (left < 240) _loadNextPage();
+  }, { passive: true });
 }
 
 function _fetchBoard() {

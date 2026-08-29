@@ -228,8 +228,10 @@ describe('venue detail tags (already in the response, previously discarded)', ()
   it('keeps the raw opening_hours spec so it can be re-evaluated at arrival time', () => {
     const [p] = parseOverpassElements([el({ name: 'Kafe', amenity: 'cafe', opening_hours: 'Mo-Fr 08:00-16:00' })], 59.91, 10.75);
     expect(p.rawHours).toBe('Mo-Fr 08:00-16:00');
-    // and the parsed form is still there for callers that just want a label
-    expect(p.hours).not.toBeNull();
+    // The parsed form is still there for callers that just want a label —
+    // asked about a weekday, since a Mo-Fr rule is legitimately null on a
+    // Saturday and this test used to fail two days out of seven.
+    expect(parseOpeningHours(p.rawHours, new Date(2026, 4, 26, 10, 0))).not.toBeNull();
   });
 
   it('extracts contact, accessibility and amenity tags', () => {

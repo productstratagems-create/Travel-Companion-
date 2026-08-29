@@ -231,6 +231,84 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
     });
 }
 
+// Paging has its own controller, and touches neither of the other two.
+//
+// fetchTrip and fetchBoard each abort BOTH of the others, and swallow
+// AbortError silently — so a "load more" sent through them would be killed by
+// the next 20-second poll, and would kill that poll in return, with nothing
+// on screen to say so.
+let pageController = null;
+
+/**
+ * One page of departures beyond what the board already has.
+ *
+ * @param {number} atMs Plan from this instant — the horizon, since OTP has no
+ *   page cursor and `dateTime` is the only handle there is.
+ */
+export function fetchTripPage(dir, atMs, n, onSuccess, onError) {
+  if (pageController) pageController.abort();
+  pageController = new AbortController();
+  const signal = pageController.signal;
+  Promise.all([resolveStop(dir, signal), resolveToPlace(dir, signal), resolveViaStop(dir, signal)])
+    .then(([fromId, toId, viaId]) => {
+      if (signal.aborted) return null;
+      const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
+      return enturFetch(config.api.journeyPlanner, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: tripGQL(fromId, toId, viaId || null, n || 12, walkSpeedMs, atMs) }),
+        signal,
+      }).then(r => {
+        if (!r || signal.aborted) return null;
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      });
+    })
+    .then(j => {
+      if (!j || signal.aborted) return;
+      if (!j.data) throw new Error((j.errors && j.errors[0] && j.errors[0].message) || 'No data');
+      onSuccess(((j.data.trip && j.data.trip.tripPatterns) || []));
+    })
+    .catch(err => {
+      if (err.name === 'AbortError') return;
+      logMsg('✗ side: ' + err.message, 'err');
+      if (onError) onError(err.message);
+    });
+}
+
+/** The same, for a board with no destination set. */
+export function fetchBoardPage(dir, atMs, n, onSuccess, onError) {
+  if (pageController) pageController.abort();
+  pageController = new AbortController();
+  const signal = pageController.signal;
+  resolveStop(dir, signal)
+    .then(id => {
+      if (signal.aborted) return null;
+      // The window has to move with the horizon, not just the row count.
+      return enturFetch(config.api.journeyPlanner, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: boardGQL(id, n || 12, atMs, false, 180) }),
+        signal,
+      }).then(r => {
+        if (!r || signal.aborted) return null;
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      });
+    })
+    .then(j => {
+      if (!j || signal.aborted) return;
+      const stop = j.data && j.data.stopPlace;
+      if (!stop) throw new Error('Ingen data');
+      onSuccess(stop.estimatedCalls || []);
+    })
+    .catch(err => {
+      if (err.name === 'AbortError') return;
+      logMsg('✗ side: ' + err.message, 'err');
+      if (onError) onError(err.message);
+    });
+}
+
 export function fetchBoard(dir, onSuccess, onError) {
   if (boardController) boardController.abort();
   if (tripController) tripController.abort();

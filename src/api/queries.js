@@ -112,12 +112,18 @@ export function arrBoardGQL(id, n, basic) {
     + 'serviceJourney{id ' + sits + ' line{publicCode transportMode presentation{colour}}}}}}';
 }
 
-export function boardGQL(id, n, now, basic) {
+/**
+ * @param {number} [fwdMins] How far forward to look, in minutes. Raising
+ *   `numberOfDepartures` alone changes nothing once the 92-minute window is
+ *   exhausted, so a later page has to widen the window as well as ask for
+ *   more rows.
+ */
+export function boardGQL(id, n, now, basic, fwdMins) {
   const sits = sitsGQL(basic);
   // startTime/timeRange rather than a bare numberOfDepartures, for the same
   // reason as tripGQL above. These two argument names are already in
   // production in inflightGQL, so unlike tripGQL's dateTime they are proven.
-  const back = LOOKBACK_MINS, fwd = 90;
+  const back = LOOKBACK_MINS, fwd = fwdMins || 90;
   return '{stopPlace(id:"' + id + '"){id name latitude longitude ' + sits + ' '
     + 'estimatedCalls(startTime:"' + lookbackISO(now) + '",timeRange:' + ((back + fwd) * 60)
     + ',numberOfDepartures:' + (n || 10) + ',whiteListedModes:[metro,tram,bus,rail]){'

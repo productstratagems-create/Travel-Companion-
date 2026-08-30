@@ -30,6 +30,10 @@
 <div id="offline-banner" style="display:none"
   role="status" aria-live="polite">Ingen nett — viser sist hentede data.</div>
 
+<!-- Says the board is an example and how to make it yours. Hidden until
+     there is an example to explain, and gone the moment a route is set. -->
+<button id="demo-note" class="demo-note" type="button" style="display:none"></button>
+
 <div id="service-alerts" style="display:none"
   role="region" aria-label="Servicevarsler" aria-live="polite"></div>
 
@@ -66,9 +70,6 @@
     <button id="leisure-btn" class="board-more-item bab-leisure" type="button" role="menuitem"><span class="bmi-ic">🌟</span>utforsk</button>
     <button id="spectate-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">🔗</span>finn reise</button>
     <button id="prefs-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">⚙</span>innstillinger</button>
-    <!-- Hidden unless a support link is configured, and gone for good once
-         tapped: asking a second time someone who already gave is nagging. -->
-    <button id="support-btn" class="board-more-item" type="button" role="menuitem" style="display:none"><span class="bmi-ic">♡</span>støtt appen</button>
     <div class="board-more-version" id="board-version"></div>
   </div>
   <div id="smart-toast" class="smart-toast" style="display:none" role="status" aria-live="polite">
@@ -286,8 +287,6 @@
       <button class="pref-btn" data-val="bluegrey">Blågrå</button>
     </div>
   </div>
-  <!-- Filled in from config.support; hidden entirely when no link is set. -->
-  <div class="set-section" id="set-support" style="display:none"></div>
   <div class="set-section">
     <div class="set-label">om appen</div>
     <a class="set-link" href="privacy.html">personvern</a>

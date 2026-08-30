@@ -24,6 +24,7 @@ import { _headingDeg, anchorDistances, pointAtDistance, projectOnPath } from '..
 import { decodePolyline } from '../ui/polyline.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
+import { isExample } from '../firstRun.js';
 import { loadReturn, returnWindow } from '../api/returnTrip.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -1941,7 +1942,32 @@ export function dedupeDepartures(deps) {
   return Array.from(byKey.values());
 }
 
+/**
+ * The line that admits the board is an example.
+ *
+ * Without it the first screen would quietly claim to be about the reader —
+ * showing real departures for a route they never chose. One tap goes to the
+ * form, which is where they were being dumped before.
+ */
+function renderDemoNote() {
+  const el = document.getElementById('demo-note');
+  if (!el) return;
+  const dir = config.dirs[state.dIdx];
+  if (!isExample(dir)) { el.style.display = 'none'; return; }
+  // Once GPS has moved the origin, half of this board is genuinely about the
+  // reader — say which half rather than calling the whole thing an example.
+  el.innerHTML = dir._fromGps
+    ? '<strong>fra ditt nærmeste stopp</strong> · ' + esc(dir.to)
+      + ' er et eksempel — trykk for å velge hvor du skal'
+    : '<strong>eksempel</strong> · ' + esc(dir.from) + ' → ' + esc(dir.to)
+      + ' — trykk for å sette din egen rute';
+  el.style.display = 'block';
+  // The tap is bound in ui/nav.js beside every other navigation button —
+  // board.js is the lower layer and importing nav here would make a cycle.
+}
+
 export function renderBoard() {
+  renderDemoNote();
   renderAlerts();
   renderWalkSummary();
   renderModeFilter();

@@ -16,45 +16,6 @@ export default {
     // between a quota and a credit card.
     geoapifyKey: import.meta.env.VITE_GEOAPIFY_KEY || '',
   },
-  /**
-   * Supporting the app is voluntary, and buys nothing.
-   *
-   * A static host cannot keep a secret or verify anything, so a paywall here
-   * would be theatre — every gate would live in a bundle the reader can read
-   * and edit. What it CAN do honestly is say what the thing costs to run and
-   * offer a way to help. No account, no badge, no unlocked feature: a status
-   * the app cannot check is exactly the dishonesty the rest of it removes.
-   *
-   * Empty by default, and the whole section stays hidden until a link is set.
-   */
-  support: {
-    /**
-     * The ways to give, in the order they are offered.
-     *
-     * A list rather than fixed fields, so adding or swapping one is a config
-     * line and not a code change — which matters because the Vipps artefact
-     * itself is not settled: WHICH kind of Vipps link is available depends on
-     * whether there is an organisation number behind it. Vipps-nummer, Vipps
-     * på nett and the business QR all assume a company; without one there is
-     * only a personal number or «Min QR», which publishes a private phone
-     * number and is written for splitting bills rather than ongoing public
-     * collection. Settle that before the link goes live — then paste it here.
-     *
-     * `qr` is inline SVG for the same URL, and only shown where tapping
-     * cannot work. Generate it with:  node scripts/make-qr.mjs "<url>"
-     */
-    rails: [
-      // { id: 'vipps', label: 'Vipps', url: 'https://qr.vipps.no/…', qr: '<svg …>' },
-    ],
-    // What it actually costs to run, in kroner per month. Concrete beats a
-    // generic tip jar, and it is the same honesty as «ikke sanntid nå».
-    costs: [
-      { what: 'kartfliser', nok: 0 },
-      { what: 'steds-oppslag', nok: 0 },
-      { what: 'domene', nok: 0 },
-    ],
-  },
-
   // Fallback line label when a departure carries no publicCode.
   line: '',
   defaultWalkMinutes: 8,

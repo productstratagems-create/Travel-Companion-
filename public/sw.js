@@ -22,7 +22,7 @@ const ASSET_CACHE = 'assets-' + VERSION;
 const TILE_CACHE  = 'tiles-v2';
 const TILE_LIMIT  = 400;               // ~15 MB of 256px PNGs
 
-const SHELL = ['./', './index.html', './install.html', './manifest.webmanifest', './icons/icon-192.png'];
+const SHELL = ['./', './index.html', './install.html', './privacy.html', './manifest.webmanifest', './icons/icon-192.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(

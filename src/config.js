@@ -28,8 +28,24 @@ export default {
    * Empty by default, and the whole section stays hidden until a link is set.
    */
   support: {
-    vipps: '',            // e.g. 'https://qr.vipps.no/…'
-    sponsor: '',          // e.g. 'https://github.com/sponsors/…'
+    /**
+     * The ways to give, in the order they are offered.
+     *
+     * A list rather than fixed fields, so adding or swapping one is a config
+     * line and not a code change — which matters because the Vipps artefact
+     * itself is not settled: WHICH kind of Vipps link is available depends on
+     * whether there is an organisation number behind it. Vipps-nummer, Vipps
+     * på nett and the business QR all assume a company; without one there is
+     * only a personal number or «Min QR», which publishes a private phone
+     * number and is written for splitting bills rather than ongoing public
+     * collection. Settle that before the link goes live — then paste it here.
+     *
+     * `qr` is inline SVG for the same URL, and only shown where tapping
+     * cannot work. Generate it with:  node scripts/make-qr.mjs "<url>"
+     */
+    rails: [
+      // { id: 'vipps', label: 'Vipps', url: 'https://qr.vipps.no/…', qr: '<svg …>' },
+    ],
     // What it actually costs to run, in kroner per month. Concrete beats a
     // generic tip jar, and it is the same honesty as «ikke sanntid nå».
     costs: [

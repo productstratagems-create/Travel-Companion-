@@ -1,9 +1,11 @@
 {
   "name": "travel-companion",
-  "version": "1.42.0",
+  "version": "1.43.0",
   "private": true,
   "license": "MIT",
   "scripts": {
+    "qr": "node scripts/make-qr.mjs",
+    "qr:verify": "node scripts/verify-qr.mjs",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
@@ -12,6 +14,8 @@
   },
   "devDependencies": {
     "jsdom": "^30.0.1",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
     "vite": "^5.4.0",
     "vitest": "^2.1.0"
   },

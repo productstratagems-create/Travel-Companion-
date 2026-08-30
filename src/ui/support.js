@@ -16,11 +16,28 @@ import { esc } from './fmt.js';
 const ASKED_KEY = 't.supported';
 
 export function supportLinks() {
-  const s = (config.support || {});
-  return [
-    { id: 'vipps', label: 'Vipps', url: s.vipps || '' },
-    { id: 'sponsor', label: 'GitHub Sponsors', url: s.sponsor || '' },
-  ].filter(l => l.url);
+  const rails = (config.support && config.support.rails) || [];
+  return rails
+    .filter(r => r && r.url)
+    .map(r => ({
+      id: String(r.id || r.label || 'støtt'),
+      label: String(r.label || 'Støtt'),
+      url: String(r.url),
+      qr: r.qr || '',
+    }));
+}
+
+/**
+ * Wide enough that this is probably not a phone.
+ *
+ * A QR beside a link you can simply tap is noise, and the ask is meant to be
+ * quiet. But the guide is read on laptops, and a Vipps link there is a dead
+ * end — so the code appears exactly where the tap cannot work.
+ */
+export const QR_MIN_WIDTH = 700;
+
+export function showQr(width) {
+  return (width || 0) >= QR_MIN_WIDTH;
 }
 
 /** Has the reader already been to one of the links? Local, and self-declared. */
@@ -67,6 +84,7 @@ export function supportHtml() {
       + '<tr><td>i måneden</td><td>' + Math.round(total) + ' kr</td></tr>'
       + '</table>'
     : '';
+  const wide = typeof window !== 'undefined' && showQr(window.innerWidth);
   return '<div class="set-label">støtt appen</div>'
     + '<p class="sup-lead">Appen er gratis, og blir det. '
     + (named.length
@@ -78,8 +96,16 @@ export function supportHtml() {
     + links.map(l => '<a class="sup-btn" href="' + esc(l.url) + '" target="_blank" rel="noopener"'
       + ' data-support="' + esc(l.id) + '">' + esc(l.label) + '</a>').join('')
     + '</div>'
-    + '<p class="sup-note">Støtte er frivillig og låser ikke opp noe — '
-    + 'alle funksjoner er med uansett. Appen får ikke vite hvem som gir.</p>';
+    // The code, only on a screen where tapping the link cannot work. The SVG
+    // comes from config and is written by whoever deploys the app, not by a
+    // third party — the URL beside it is escaped as usual.
+    + (wide ? links.filter(l => l.qr).map(l =>
+      '<div class="sup-qr">' + l.qr
+      + '<span class="sup-qr-cap">skann med ' + esc(l.label) + ' på telefonen</span></div>').join('') : '')
+    + '<p class="sup-note">Beløpet er ditt valg, og det er en engangssum — '
+    + 'ingen avtale, ingenting som trekkes igjen. '
+    + 'Støtte låser ikke opp noe: alle funksjoner er med uansett, '
+    + 'og appen får ikke vite hvem som gir.</p>';
 }
 
 /**

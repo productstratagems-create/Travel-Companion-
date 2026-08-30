@@ -21,6 +21,7 @@ import './views/favs.js';
 import './views/plan.js';
 import { renderLeisure } from './views/leisure.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
+import { exampleDir, isExample, upgradeToNearest } from './firstRun.js';
 import { locateUser, updateWalkDbg, loadWeekendMode } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
@@ -181,8 +182,22 @@ if (restored) {
     updateHeader();
     startBoard();
   } else {
-    showSettings();
-    show('v-settings');
+    // Nothing stored: open a working board rather than an empty form.
+    //
+    // Assigned directly instead of through setActiveRoute, on purpose — the
+    // example is not a choice the reader made, so it must not be saved as
+    // their route, counted among their places, or fed to the smart engine.
+    // The next visit is still a first visit until they pick something.
+    const ex = exampleDir();
+    if (ex) {
+      config.dirs[2] = ex;
+      state.dIdx = 2;
+      updateHeader();
+      startBoard();
+    } else {
+      showSettings();
+      show('v-settings');
+    }
   }
 }
 
@@ -193,4 +208,16 @@ initHistory();
 // GPS runs in the background and only feeds walk time. It must never gate
 // which route is shown: a slow or blocked fix used to mean startBoard() was
 // never reached, leaving the board empty on a stale default route.
-locateUser(() => {}, () => {});
+// The example board opens instantly; this upgrades it to the reader's own
+// nearest stop once a fix arrives. Only while it is still the example — the
+// moment they choose something themselves, that choice stands.
+locateUser(() => {
+  const cur = config.dirs[state.dIdx];
+  if (!isExample(cur)) return;
+  const up = upgradeToNearest(cur, state.nearestStation);
+  if (!up) return;
+  config.dirs[state.dIdx] = up;
+  updateHeader();
+  state.deps = [];
+  startBoard();
+}, () => {});

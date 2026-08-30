@@ -10,7 +10,6 @@ import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { loadFavs, topFavRoutes } from '../ui/favs.js';
 import { loadReturn, saveReturn, clearReturn, reverseOf, suggestHHMM, returnWindow, skipToday } from '../api/returnTrip.js';
-import { renderSupport } from '../ui/support.js';
 import { loadSmartHist } from '../api/smart.js';
 
 const DEST_KEY = 't.dest';
@@ -640,7 +639,6 @@ export function showSettings() {
 }
 
 export function showPrefs() {
-  renderSupport(document.getElementById('set-support'), showPrefs);
   _highlightPrefs();
 }
 

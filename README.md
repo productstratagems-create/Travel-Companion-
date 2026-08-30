@@ -7,7 +7,7 @@ Ikke bare når banen går, men når du må gå — og hva som venter deg framme.
 
 A Vite single-page app with no backend. Departures come from
 [Entur](https://developer.entur.org/), weather from
-[Open-Meteo](https://open-meteo.com/), maps from OpenStreetMap via CARTO.
+[Open-Meteo](https://open-meteo.com/), maps from OpenStreetMap via Stadia Maps.
 It installs as a PWA and keeps the last departure board readable underground.
 
 ```

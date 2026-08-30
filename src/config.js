@@ -6,10 +6,39 @@ export default {
     // Live vehicle positions (SIRI-VM). Separate service from the journey
     // planner, same ET-Client-Name requirement.
     vehicles: 'https://api.entur.io/realtime/v1/vehicles/graphql',
-    // Free Geoapify key — sign up at geoapify.com (no credit card, 3 000 req/day)
-    // Set via VITE_GEOAPIFY_KEY env var (or replace '' here, but don't commit the key)
+    // Geoapify key. Set via VITE_GEOAPIFY_KEY; CI injects it at build time.
+    //
+    // IT IS NOT A SECRET, and cannot be made one: Vite inlines the value, so
+    // it ships as a plaintext string in the bundle on a static host — checked,
+    // not assumed (a build with a dummy key contains the literal once).
+    // The only real protection is to restrict the key to this domain in the
+    // Geoapify console. On a paid plan that restriction is the difference
+    // between a quota and a credit card.
     geoapifyKey: import.meta.env.VITE_GEOAPIFY_KEY || '',
   },
+  /**
+   * Supporting the app is voluntary, and buys nothing.
+   *
+   * A static host cannot keep a secret or verify anything, so a paywall here
+   * would be theatre — every gate would live in a bundle the reader can read
+   * and edit. What it CAN do honestly is say what the thing costs to run and
+   * offer a way to help. No account, no badge, no unlocked feature: a status
+   * the app cannot check is exactly the dishonesty the rest of it removes.
+   *
+   * Empty by default, and the whole section stays hidden until a link is set.
+   */
+  support: {
+    vipps: '',            // e.g. 'https://qr.vipps.no/…'
+    sponsor: '',          // e.g. 'https://github.com/sponsors/…'
+    // What it actually costs to run, in kroner per month. Concrete beats a
+    // generic tip jar, and it is the same honesty as «ikke sanntid nå».
+    costs: [
+      { what: 'kartfliser', nok: 0 },
+      { what: 'steds-oppslag', nok: 0 },
+      { what: 'domene', nok: 0 },
+    ],
+  },
+
   // Fallback line label when a departure carries no publicCode.
   line: '',
   defaultWalkMinutes: 8,

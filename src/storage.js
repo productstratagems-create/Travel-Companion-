@@ -2,7 +2,7 @@
 const ALL_KEYS = [
   't.dest', 't.dep', 't.via', 't.walkSpeed', 't.walkBuf', 't.walkFrom',
   't.weekendMode', 't.theme', 't.dir', 't.jny', 't.favs', 't.plan',
-  't.modes', 't.recentDests', 't.lastBoard', 't.route', 't.return', 't.returnSkip', 't.alertHid',
+  't.modes', 't.recentDests', 't.lastBoard', 't.route', 't.return', 't.returnSkip', 't.alertHid', 't.supported',
 ];
 
 const PROFILES_KEY = '__profiles';

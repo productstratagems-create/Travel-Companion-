@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Hva reisefølge for Oslo gjør med posisjonen din, og hvem den snakker med.">
+<title>Personvern · reisefølge for oslo</title>
+<style>
+  :root {
+    --bg: #f7f5f2; --ink: #2b2724; --ink-soft: #6b625b;
+    --rule: rgba(43,39,36,.14); --accent: #b05800;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0a0806; --ink: #e8e2db; --ink-soft: #8c857f;
+            --rule: rgba(232,226,219,.14); --accent: #f5b840; }
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 2.5rem 1.25rem 4rem;
+  }
+  main { max-width: 34rem; margin: 0 auto; }
+  h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 .35rem; }
+  .sub { color: var(--ink-soft); margin: 0 0 2rem; font-size: .95rem; }
+  h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; }
+  p { margin: 0 0 .9rem; }
+  ul { margin: 0 0 .9rem; padding-left: 1.2rem; }
+  li { margin-bottom: .35rem; }
+  code { font-size: .9em; background: var(--rule); padding: .1em .35em; border-radius: 3px; }
+  a { color: var(--accent); }
+  .foot { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--rule);
+          color: var(--ink-soft); font-size: .85rem; }
+  table { width: 100%; border-collapse: collapse; margin: 0 0 .9rem; font-size: .92rem; }
+  th, td { text-align: left; padding: .45rem .5rem .45rem 0; border-bottom: 1px solid var(--rule);
+           vertical-align: top; }
+  th { font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Personvern</h1>
+  <p class="sub">Kort, fordi det er lite å fortelle.</p>
+
+  <h2>Det finnes ingen konto, og ingen server</h2>
+  <p>
+    Appen er en nettside uten innlogging. Den har ingen brukerkonto, ingen
+    database og ingen server som lagrer noe om deg. Rutene, favorittene og
+    innstillingene dine ligger i nettleserens eget lager på telefonen din, og
+    forlater den ikke. Sletter du nettleserdata, er de borte — også for oss,
+    som aldri hadde dem.
+  </p>
+
+  <h2>Posisjonen din</h2>
+  <p>
+    Om du gir tillatelse, brukes GPS-posisjonen til å regne ut gangtid til
+    stoppet, finne nærmeste stasjon og vise hvor du er på kartet. Den lagres
+    lokalt, og appen virker uten den — da må du bare skrive avreisestedet selv.
+  </p>
+  <p>
+    For å hente avganger, vær og steder må appen spørre andre tjenester, og
+    da følger koordinater eller stoppested med i spørsmålet. Det er
+    uunngåelig: det er slik man spør «når går neste bane herfra». Hvem som
+    får vite hva:
+  </p>
+
+  <table>
+    <tr><th>Tjeneste</th><th>Får</th><th>Til hva</th></tr>
+    <tr><td>Entur</td><td>stoppested eller koordinater</td><td>avganger, sanntid, søk etter stopp, by- og sparkesykler</td></tr>
+    <tr><td>Open-Meteo</td><td>koordinater</td><td>vær ved avreise og framme</td></tr>
+    <tr><td>OpenStreetMap (Overpass)</td><td>koordinater</td><td>steder rundt destinasjonen</td></tr>
+    <tr><td>Valhalla (OpenStreetMap)</td><td>koordinater</td><td>gangrute til stoppet</td></tr>
+    <tr><td>Geoapify</td><td>koordinater</td><td>steder rundt destinasjonen</td></tr>
+    <tr><td>Stadia Maps</td><td>hvilke kartruter du ser på</td><td>kartbakgrunnen</td></tr>
+  </table>
+
+  <p>
+    Hver av dem har sine egne vilkår. Appen sender ikke navn, e-post eller
+    noe annet som peker på deg — den har det ikke.
+  </p>
+
+  <h2>Ingen sporing</h2>
+  <p>
+    Ingen analyse, ingen informasjonskapsler for sporing, ingen annonser,
+    ingen tredjepartsskript. Nettsiden lastes fra GitHub Pages, som ser
+    forespørslene sine slik enhver vertstjeneste gjør.
+  </p>
+
+  <h2>Om du støtter appen</h2>
+  <p>
+    Støtte er frivillig og gir ingen ekstra funksjoner. Betalingen skjer hos
+    Vipps eller GitHub — appen ser den ikke, og får ikke vite hvem som har
+    gitt. Den husker bare lokalt at du har trykket, så den slutter å spørre.
+  </p>
+
+  <div class="foot">
+    <p>
+      Spørsmål? Ta kontakt via
+      <a href="https://github.com/productstratagems-create/Travel-Companion-">repoet på GitHub</a>.
+      <br><a href="./">Tilbake til appen</a>
+    </p>
+  </div>
+</main>
+</body>
+</html>

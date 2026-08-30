@@ -5,6 +5,7 @@ import { storage } from '../storage.js';
 import { renderBoardProfileSwitcher, setActiveRoute, syncRouteFields } from '../views/settings.js';
 import { saveWeekendMode } from '../geo.js';
 import { loadReturn, returnDir, returnWindow, shouldSwitch, skipToday, loadSkip } from '../api/returnTrip.js';
+import { shouldAsk } from './support.js';
 import { confirmTap } from './confirm.js';
 import { stopSelRefresh } from '../views/selected.js';
 import { toggleSpectatePanel, closeSpectatePanel } from '../views/spectate.js';
@@ -307,6 +308,17 @@ export function attachEventListeners() {
     window._showPrefs && window._showPrefs();
     show('v-prefs');
   });
+
+  // Only offered when there is somewhere to send it, and never again once
+  // followed — the item disappears rather than sitting there asking.
+  const supBtn = document.getElementById('support-btn');
+  if (supBtn) {
+    supBtn.style.display = shouldAsk() ? 'flex' : 'none';
+    supBtn.addEventListener('click', () => {
+      window._showPrefs && window._showPrefs();
+      show('v-prefs');
+    });
+  }
 
   document.getElementById('fav-btn').addEventListener('click', () => {
     show('v-saved');

@@ -1,4 +1,5 @@
 import { haver } from '../geo.js';
+import { ET_CLIENT_NAME } from './http.js';
 
 // Per-operator GBFS free_bike_status endpoints (GET, more browser-friendly than GraphQL POST)
 const SYSTEMS = [
@@ -7,7 +8,10 @@ const SYSTEMS = [
   { id: 'tieroslo',  name: 'Tier' },
 ];
 const BASE = 'https://api.entur.io/mobility/v2/gbfs';
-const HDR  = { headers: { 'ET-Client-Name': 'travel-companion-oslo' } };
+// One name for the whole app. These calls used to send a second, different
+// one, so half the traffic could not be attributed to us — which matters
+// exactly when Entur throttles or someone asks who is calling.
+const HDR  = { headers: { 'ET-Client-Name': ET_CLIENT_NAME } };
 
 let _cache = null;
 

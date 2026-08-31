@@ -10,10 +10,52 @@
   "orientation": "portrait",
   "background_color": "#0a0806",
   "theme_color": "#0a0806",
-  "categories": ["travel", "navigation", "utilities"],
+  "categories": [
+    "travel",
+    "navigation",
+    "utilities"
+  ],
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "shots/board-narrow.png",
+      "sizes": "828x1520",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Avgangstavla: neste avgang, hele linja på kartet"
+    },
+    {
+      "src": "shots/journey-narrow.png",
+      "sizes": "828x1520",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "En avgang: når den går, når du er framme, og været der"
+    },
+    {
+      "src": "shots/og.png",
+      "sizes": "2400x1260",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "T-bane — reisefølge for Oslo"
+    }
   ]
 }

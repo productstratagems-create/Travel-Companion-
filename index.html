@@ -6,17 +6,30 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0806">
-<title>T-bane</title>
-<meta name="description" content="Ikke bare når banen går, men når du må gå — og hva som venter deg framme.">
+<title>T-bane — sanntid for Oslo og Viken</title>
+<meta name="description" content="Sanntids avganger for T-bane, buss, trikk og tog i Oslo og Viken — når du må gå hjemmefra, hele traseen på kartet, og hva som venter deg framme.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="canonical" href="https://productstratagems-create.github.io/Travel-Companion-/">
+<!-- Link previews. Absolute URLs on purpose: every scraper resolves og:image
+     against nothing, so a relative path here means no picture at all — which
+     is what a shared board looked like before v1.47.0. The card itself is
+     built by scripts/make-shots.mjs and checked in. -->
 <meta property="og:type" content="website">
-<meta property="og:title" content="T-bane — reisefølge for Oslo">
+<meta property="og:site_name" content="T-bane">
+<meta property="og:url" content="https://productstratagems-create.github.io/Travel-Companion-/">
+<meta property="og:title" content="T-bane — sanntid for Oslo og Viken">
 <meta property="og:description" content="Ikke bare når banen går, men når du må gå — og hva som venter deg framme.">
-<meta property="og:image" content="icons/icon-512.png">
+<meta property="og:image" content="https://productstratagems-create.github.io/Travel-Companion-/shots/og.png">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:alt" content="Avgangstavle med neste avgang om tre minutter, linjen tegnet på kartet.">
 <meta property="og:locale" content="nb_NO">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="T-bane — sanntid for Oslo og Viken">
+<meta name="twitter:description" content="Ikke bare når banen går, men når du må gå — og hva som venter deg framme.">
+<meta name="twitter:image" content="https://productstratagems-create.github.io/Travel-Companion-/shots/og.png">
 <script>
 /* Paint the right theme before first render. Keys are profile-scoped by
    storage.js, so they must be read with the same prefix — reading the bare

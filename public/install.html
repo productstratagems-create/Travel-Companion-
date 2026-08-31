@@ -5,13 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0a0806">
 <meta name="color-scheme" content="light dark">
-<meta name="description" content="Ikke bare når banen går, men når du må gå — og hva som venter deg framme.">
+<meta name="description" content="Slik legger du T-bane — sanntids avganger for Oslo og Viken — på hjemskjermen på iPhone og Android. Ingen app-butikk, ingen konto.">
+<link rel="canonical" href="https://productstratagems-create.github.io/Travel-Companion-/install.html">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="T-bane">
+<meta property="og:url" content="https://productstratagems-create.github.io/Travel-Companion-/install.html">
 <meta property="og:title" content="T-bane på hjemskjermen">
 <meta property="og:description" content="Ikke bare når banen går, men når du må gå — og hva som venter deg framme.">
-<meta property="og:image" content="https://productstratagems-create.github.io/Travel-Companion-/icons/icon-512.png">
+<meta property="og:image" content="https://productstratagems-create.github.io/Travel-Companion-/shots/og.png">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:alt" content="Avgangstavle med neste avgang om tre minutter, linjen tegnet på kartet.">
 <meta property="og:locale" content="nb_NO">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="T-bane på hjemskjermen">
+<meta name="twitter:description" content="Ikke bare når banen går, men når du må gå — og hva som venter deg framme.">
+<meta name="twitter:image" content="https://productstratagems-create.github.io/Travel-Companion-/shots/og.png">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <style>
   *, *::before, *::after { box-sizing: border-box; }
@@ -191,6 +200,19 @@
     .plate { align-self: center; }
   }
 
+  /* — what the app looks like ——————————————————————
+     The page argued for the app without showing it. Two screenshots, side by
+     side on a phone as well, because they are portrait and narrow already. */
+  .shots { display: flex; gap: 1rem; justify-content: center; align-items: flex-start; }
+  .shots figure { margin: 0; flex: 1 1 0; max-width: 15rem; }
+  .shots img {
+    width: 100%; height: auto; display: block; border-radius: 14px;
+    border: 1px solid var(--rule-firm); box-shadow: var(--shadow);
+  }
+  .shots figcaption {
+    font-size: .8rem; color: var(--ink-mute); text-align: center; margin-top: .55rem;
+  }
+
   .pick {
     font-size: .95rem;
     color: var(--ink-mute);
@@ -258,6 +280,7 @@
     <h1>T-bane på hjemskjermen</h1>
     <p class="pitch">Ikke bare når banen går, men når du må gå — og hva som venter deg framme.</p>
     <p class="lead">Appen er en nettside, men den kan bli et ikon på telefonen — med egen oppstart, uten adressefelt, og med den siste avgangstavla i behold når du står under bakken.</p>
+    <p class="lead">Den viser sanntids avganger for T-bane, buss, trikk og tog i Oslo og Viken, på data fra Entur — samme kilde som Ruter. Ingen app-butikk, ingen konto, ingen sporing.</p>
   </header>
 
   <div class="address">
@@ -270,6 +293,19 @@
       <span class="plate-cap">skann med kameraet</span>
       <p class="qr-stale" id="qr-stale" hidden>QR-koden peker et annet sted enn adressen. Bruk lenken.</p>
     </div>
+  </div>
+
+  <div class="shots">
+    <figure>
+      <img src="shots/board-narrow.png" width="828" height="1520" loading="lazy"
+        alt="Avgangstavla: Mortensrud mot Nationaltheatret, neste avgang om tre minutter, og linja tegnet på kartet.">
+      <figcaption>tavla: når det går, og hvor det går</figcaption>
+    </figure>
+    <figure>
+      <img src="shots/journey-narrow.png" width="828" height="1520" loading="lazy"
+        alt="En valgt avgang: avgang 15:44, ankomst 16:04, spor, og været ved ankomst.">
+      <figcaption>en avgang: når du er framme</figcaption>
+    </figure>
   </div>
 
   <p class="pick">Videre trenger du bare avsnittet for din egen telefon.</p>

@@ -1,11 +1,12 @@
 {
   "name": "travel-companion",
-  "version": "1.46.0",
+  "version": "1.47.0",
   "private": true,
   "license": "MIT",
   "scripts": {
     "qr": "node scripts/make-qr.mjs",
     "qr:verify": "node scripts/verify-qr.mjs",
+    "shots": "node scripts/make-shots.mjs",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",

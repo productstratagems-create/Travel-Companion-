@@ -1,0 +1,6 @@
+# Alt her er offentlig og ment å bli funnet. Appen har ingen backend og
+# ingen brukerdata på serveren — det er ingenting å holde utenfor.
+User-agent: *
+Allow: /
+
+Sitemap: https://productstratagems-create.github.io/Travel-Companion-/sitemap.xml

@@ -31,62 +31,150 @@ function _halo() {
 }
 
 /**
- * A vehicle, not a map pin.
+ * A vehicle, seen from above, with its nose pointing the way it is going.
  *
- * This used to be a 28px saturated disc with the line code stamped across it,
- * pulsing white every 2.4 seconds. Three things were wrong with that: it read
- * as an abstract marker rather than a train, several departures on one line
- * rendered as a string of identical beads, and the pulse asserted liveness for
- * a position that is usually computed from a timetable.
+ * Two earlier shapes are worth knowing about, because this one is answering
+ * both. First a 28px saturated disc with the line code stamped across it,
+ * pulsing white every 2.4 seconds — an abstract marker, not a train, and the
+ * pulse asserted liveness for a position that is usually computed. Then a
+ * plain rounded rectangle: honest, oriented, and — reported — boring. Four
+ * transport modes rendered as two capsules, metro and rail identical.
  *
- * The code is gone from the marker because it is redundant by construction —
- * the board only ever draws vehicles for the selected line, and the track map
- * only ever draws the leg being ridden. It still appears in the tooltip.
+ * The old comment here claimed a per-mode pictogram was invisible detail at
+ * this size. That was true at 22×10. At 26×12, with the map now drawing about
+ * three vehicles instead of fifteen (v1.48.0), it is not: two cross-lines and
+ * a windscreen are the difference between "a pill" and "an articulated
+ * vehicle facing north".
  *
- * @param {string} mode  metro | rail | tram | bus
- * @param {string} color line colour
+ * PLAN VIEW is forced, not chosen. The marker is rotated to the heading by
+ * CSS, so a side-on bus would lie on its side heading east. Everything here
+ * is what you would see looking straight down: the roof, the windscreen, and
+ * the joints between carriages.
+ *
+ * Every detail is drawn INSIDE the body's silhouette. `.veh-live` animates
+ * `filter: drop-shadow(...)`, which traces the union of everything rendered,
+ * so anything sticking out would grow its own halo.
+ *
+ * @param {string} mode  metro | rail | tram | bus — anything else gets metro
+ * @param {string} color line colour; falls back to the mode's own when the
+ *   caller has none (track.js passes leg.lineBg, which can be empty)
  * @param {{bearing?:number|null, estimated?:boolean}} [opts]
  *   bearing is degrees clockwise from north; the body is drawn pointing north,
- *   so it maps straight onto a CSS rotation. estimated draws the hollow
+ *   so it maps straight onto a CSS rotation. estimated draws the quieter
  *   variant, for a position derived from the timetable rather than measured.
  */
-const _VEH_BOX = 26;   // room for the body plus its rotation
+const _VEH_BOX = 30;   // room for the longest body plus its outline
 
+/**
+ * What each mode looks like from above.
+ *
+ * `long`/`wide` are the body; `rx` carries most of the character (a bus is
+ * boxy, a train is streamlined); `cars` is how many carriages the divider
+ * lines cut the body into — the single strongest "this is a vehicle, not a
+ * blob" cue at this size, and the reason a tram reads as a tram.
+ */
+const _VEH_SHAPE = {
+  //                                     nose = how far back the taper runs
+  metro: { long: 27, wide: 11.5, rx: 3,   nose: 6.5, cars: 3 },
+  rail:  { long: 28, wide: 11.5, rx: 3,   nose: 9,   cars: 4 },
+  tram:  { long: 25, wide: 10.5, rx: 2.5, nose: 4.5, cars: 4 },
+  bus:   { long: 19, wide: 13,   rx: 2.5, nose: 2.5, cars: 1 },
+};
+
+/**
+ * The body: a box with a tapered nose, drawn pointing north.
+ *
+ * A rounded rectangle was tried first and rejected by looking at it. Both ends
+ * were identical, so the only thing saying which way the vehicle faced was a
+ * 2.6px band that read as one more joint line — and every mode came out as the
+ * same capsule at a different length. Silhouette does at 27px what interior
+ * detail cannot: the eye finds a pointed end before it finds anything drawn
+ * inside a shape this small.
+ *
+ * `nose` is how far back the taper runs, and it is most of the character:
+ * 9px on rail is streamlined, 2.5px on a bus is a flat front with mirrors'
+ * worth of shoulder.
+ */
+function _bodyPath(x, y, w, long, rx, nose) {
+  const r = (n) => Math.round(n * 100) / 100;
+  const right = x + w, bottom = y + long;
+  return 'M' + r(x + w / 2) + ' ' + r(y)
+    + 'Q' + r(right) + ' ' + r(y) + ' ' + r(right) + ' ' + r(y + nose)
+    + 'L' + r(right) + ' ' + r(bottom - rx)
+    + 'Q' + r(right) + ' ' + r(bottom) + ' ' + r(right - rx) + ' ' + r(bottom)
+    + 'L' + r(x + rx) + ' ' + r(bottom)
+    + 'Q' + r(x) + ' ' + r(bottom) + ' ' + r(x) + ' ' + r(bottom - rx)
+    + 'L' + r(x) + ' ' + r(y + nose)
+    + 'Q' + r(x) + ' ' + r(y) + ' ' + r(x + w / 2) + ' ' + r(y)
+    + 'Z';
+}
 export function makeVehicleIcon(mode, color, opts = {}) {
   const { bearing = null, estimated = false } = opts;
 
-  // Proportions only — at this size a per-mode pictogram is invisible detail.
-  const long = mode === 'bus' ? 18 : mode === 'tram' ? 19 : 22;
-  const wide = mode === 'bus' ? 11 : 10;
-  const radius = mode === 'bus' ? 3 : wide / 2;
+  const shape = _VEH_SHAPE[mode] || _VEH_SHAPE.metro;
+  const { long, wide, rx, nose, cars } = shape;
+  // An empty colour reaches here from track.js, where leg.lineBg is '' for a
+  // line with no presentation colour — and `fill=""` renders as black.
+  const body = color || _MODE_COLOUR[mode] || _MODE_COLOUR.rail;
 
   const halo = _halo();
   // Both variants are filled. v1.11.0 drew the estimated one as a hollow
   // dashed outline in the line's own colour, directly on top of a corridor
   // drawn in that same colour: correctly placed, in the DOM, and invisible on
   // a phone. Since metro has no live feed, that was the only variant anyone
-  // saw. The distinction is spent on fill strength and the nose band instead,
+  // saw. The distinction is spent on fill strength and the headlights instead,
   // never on whether the thing is drawn at all.
-  const fillOpacity = estimated ? 0.7 : 1;
+  const fillOpacity = estimated ? 0.72 : 1;
 
-  // The leading end carries a band in the halo colour — dark on a light
-  // canvas, light on a dark one — so the front reads at a glance whichever
-  // basemap is under it. That is the whole point of orienting the body.
-  const nose = estimated
-    ? ''
-    : '<rect x="' + ((_VEH_BOX - wide) / 2 + 1.4) + '" y="' + ((_VEH_BOX - long) / 2 + 2)
-      + '" width="' + (wide - 2.8) + '" height="3.2" rx="1.2" fill="' + halo + '" opacity=".85"/>';
+  const x = (_VEH_BOX - wide) / 2;
+  const y = (_VEH_BOX - long) / 2;
+  const r = (n) => Math.round(n * 100) / 100;
+
+  // The windscreen, sitting in the taper where the cab actually is, and cut to
+  // the width the body has at that point so it reads as glass in a nose rather
+  // than a stripe laid across a box. On BOTH variants: a timetable position
+  // still points somewhere, so it should look like something facing that way.
+  // Stripping the front off the estimated variant is what left metro — which
+  // has no live feed at all, so is always estimated — with the emptiest marker
+  // in the app.
+  const wsY = y + nose * 0.55 + 1.4;
+  const wsW = wide - 3.6;
+  const windscreen = '<rect class="veh-glass" x="' + r(x + (wide - wsW) / 2) + '" y="' + r(wsY) + '"'
+    + ' width="' + r(wsW) + '" height="2.9" rx="1.3"'
+    + ' fill="' + halo + '" opacity="' + (estimated ? '.72' : '.9') + '"/>';
+
+  // The joints between carriages: thin, and deliberately quieter than the
+  // windscreen. When they carried the same weight the marker read as a ladder
+  // with no front.
+  const jointTop = wsY + 3.6;
+  const jointSpan = (y + long) - jointTop - 1.5;
+  let joints = '';
+  for (let i = 1; i < cars; i++) {
+    joints += '<rect class="veh-joint" x="' + r(x + 0.7) + '" y="' + r(jointTop + (jointSpan * i) / cars) + '"'
+      + ' width="' + r(wide - 1.4) + '" height="0.9" rx="0.45"'
+      + ' fill="' + halo + '" opacity="' + (estimated ? '.32' : '.45') + '"/>';
+  }
+
+  // Headlights, and only on a measured position. This is what the nose band
+  // used to be — but it is now an ADDITION to a front that both variants have,
+  // rather than the only thing separating a vehicle from a capsule.
+  const lightW = wide - nose * 0.5 - 4.5;
+  const lights = estimated ? ''
+    : '<rect class="veh-lamp" x="' + r(x + (wide - lightW) / 2) + '" y="' + r(y + nose * 0.16 + 0.6) + '"'
+      + ' width="' + r(lightW) + '" height="1.5" rx="0.75"'
+      + ' fill="' + halo + '"/>';
 
   // The halo outline is what separates the body from the corridor beneath it,
   // which is drawn in the same colour — so it stays solid and full strength
   // for both variants.
   const svg = '<svg width="' + _VEH_BOX + '" height="' + _VEH_BOX + '" viewBox="0 0 ' + _VEH_BOX + ' ' + _VEH_BOX + '"'
     + ' xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
-    + '<rect x="' + ((_VEH_BOX - wide) / 2) + '" y="' + ((_VEH_BOX - long) / 2) + '"'
-    + ' width="' + wide + '" height="' + long + '" rx="' + radius + '"'
-    + ' fill="' + color + '" fill-opacity="' + fillOpacity + '"'
-    + ' stroke="' + halo + '" stroke-width="1.7"/>'
-    + nose
+    + '<path class="veh-body" d="' + _bodyPath(x, y, wide, long, rx, nose) + '"'
+    + ' fill="' + body + '" fill-opacity="' + fillOpacity + '"'
+    + ' stroke="' + halo + '" stroke-width="1.7" stroke-linejoin="round"/>'
+    + windscreen
+    + joints
+    + lights
     + '</svg>';
 
   // Unrotated when the heading is unknown, rather than snapped north — a

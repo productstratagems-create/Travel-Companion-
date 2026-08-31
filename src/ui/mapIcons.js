@@ -41,10 +41,10 @@ function _halo() {
  * transport modes rendered as two capsules, metro and rail identical.
  *
  * The old comment here claimed a per-mode pictogram was invisible detail at
- * this size. That was true at 22×10. At 26×12, with the map now drawing about
- * three vehicles instead of fifteen (v1.48.0), it is not: two cross-lines and
- * a windscreen are the difference between "a pill" and "an articulated
- * vehicle facing north".
+ * this size. That was true of a 22×10 capsule. At around 27×12, with the map
+ * now drawing about three vehicles instead of fifteen (v1.48.0), it is not: a
+ * tapered nose and two cross-lines are the difference between "a pill" and
+ * "an articulated vehicle facing that way".
  *
  * PLAN VIEW is forced, not chosen. The marker is rotated to the heading by
  * CSS, so a side-on bus would lie on its side heading east. Everything here
@@ -68,10 +68,10 @@ const _VEH_BOX = 30;   // room for the longest body plus its outline
 /**
  * What each mode looks like from above.
  *
- * `long`/`wide` are the body; `rx` carries most of the character (a bus is
- * boxy, a train is streamlined); `cars` is how many carriages the divider
- * lines cut the body into — the single strongest "this is a vehicle, not a
- * blob" cue at this size, and the reason a tram reads as a tram.
+ * `long`/`wide` are the body and `rx` rounds its tail. The character is in the
+ * other two: `nose` is how far back the front tapers, and `cars` is how many
+ * carriages the divider lines cut the body into. A bus is short, wide and
+ * blunt with no joints; a train is long, streamlined and in four parts.
  */
 const _VEH_SHAPE = {
   //                                     nose = how far back the taper runs

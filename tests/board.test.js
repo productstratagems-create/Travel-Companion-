@@ -9,7 +9,7 @@ vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
-  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _toggleLine, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle, _interpolateVehiclePos, _interpolateOnPath,
+  _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _isolateLine, _corridorKey, CORRIDOR_MAX_M, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle, _interpolateVehiclePos, _interpolateOnPath,
   _nextPageAt, _mergePage, MAX_ROWS } from '../src/views/board.js';
 import { measurePath } from '../src/ui/path.js';
 import { haver } from '../src/geo.js';
@@ -578,16 +578,24 @@ describe('_approachingVehicles', () => {
   });
 });
 
-describe('_widenLo — the corridor reaches back far enough to hold them', () => {
+describe('_widenLo — the corridor reaches back to the NEXT train', () => {
   // A line running due north, one stop every ~1.1 km.
   const stops = Array.from({ length: 15 }, (_, i) => ({ lat: 59.86 + i * 0.01, lon: 10.83 }));
   const at = (i) => ({ pos: { lat: stops[i].lat, lon: stops[i].lon } });
 
-  it('reaches back to the furthest train behind you', () => {
-    expect(_widenLo(stops, 8, [at(2), at(5), at(9)])).toBe(2);
+  // The reported bug, as one assertion. `vehicles` arrives soonest-first, so
+  // the train at stop 8 is the one you would actually catch; the ones at 5
+  // and 2 are behind it and used to drag the drawn line back with them. On a
+  // five-line trunk that reached across the city for a two-minute ride.
+  it('stops at the soonest train, ignoring the ones behind it', () => {
+    expect(_widenLo(stops, 8, [at(8), at(5), at(2)])).toBe(8);
   });
 
-  it('leaves the corridor alone when every train is already on it', () => {
+  it('still reaches all the way back for a lone distant one — the bus case', () => {
+    expect(_widenLo(stops, 8, [at(2)])).toBe(2);
+  });
+
+  it('leaves the corridor alone when the next train is already on it', () => {
     expect(_widenLo(stops, 5, [at(7), at(9)])).toBe(5);
   });
 
@@ -595,11 +603,58 @@ describe('_widenLo — the corridor reaches back far enough to hold them', () =>
     expect(_widenLo(stops, 5, [])).toBe(5);
     expect(_widenLo(stops, 5, null)).toBe(5);
     expect(_widenLo(stops, 5, [{ pos: null }])).toBe(5);
+    expect(_widenLo([{ lat: 59.9, lon: 10.7 }], 5, [at(0)])).toBe(5);
   });
 
-  it('snaps a train between two stops to the nearer one', () => {
-    const between = { pos: { lat: (stops[2].lat + stops[3].lat) / 2 + 0.004, lon: 10.83 } };
-    expect(_widenLo(stops, 8, [between])).toBe(3);
+  // Rounding to the NEAREST stop would put the train that widened the
+  // corridor just off the end of it — and renderVehicleMarkers now declines
+  // to draw anything that far off, so the map would come out empty.
+  it('reaches the stop BEHIND the train, not the nearest one', () => {
+    const justPast = { pos: { lat: stops[3].lat + 0.0009, lon: 10.83 } };  // nearest is 3
+    expect(_widenLo(stops, 8, [justPast])).toBe(3);
+    const nearlyThere = { pos: { lat: stops[4].lat - 0.0009, lon: 10.83 } }; // nearest is 4
+    expect(_widenLo(stops, 8, [nearlyThere])).toBe(3);
+  });
+});
+
+// ── Same stops in the same order means one piece of track ───────────────────
+describe('_corridorKey', () => {
+  const st = (id, name) => ({ id, name, lat: 59.9, lon: 10.7 });
+
+  // The failure this replaces: the dedupe compared JSON of the decoded point
+  // arrays. Five metro lines through one tunnel return five encoded
+  // polylines that decode to five nearly-identical arrays, so nothing ever
+  // matched and five identical orange strokes stacked into one fat band.
+  it('is equal for lines calling at the same stops, whatever the geometry', () => {
+    const a = [st('NSR:1', 'Nationaltheatret'), st('NSR:2', 'Majorstuen')];
+    const b = [st('NSR:1', 'Nationaltheatret'), st('NSR:2', 'Majorstuen')];
+    expect(_corridorKey(a)).toBe(_corridorKey(b));
+  });
+
+  it('differs the moment a line goes somewhere else', () => {
+    const trunk = [st('NSR:1', 'A'), st('NSR:2', 'B')];
+    expect(_corridorKey(trunk)).not.toBe(_corridorKey([st('NSR:1', 'A'), st('NSR:9', 'C')]));
+    // Order is part of it: the same two stops the other way round is the
+    // other direction, not the same corridor.
+    expect(_corridorKey(trunk)).not.toBe(_corridorKey([st('NSR:2', 'B'), st('NSR:1', 'A')]));
+  });
+
+  it('falls back to the name, then the coordinate, when there is no id', () => {
+    expect(_corridorKey([st('', 'Ryen')])).toBe('Ryen');
+    expect(_corridorKey([{ lat: 59.9, lon: 10.7 }])).toBe('59.9,10.7');
+    expect(_corridorKey([])).toBe('');
+    expect(_corridorKey(null)).toBe('');
+  });
+});
+
+describe('CORRIDOR_MAX_M', () => {
+  // Doing a different job from snapDist (25/50 m): that asks whether a fix is
+  // precise enough to put on the rail, this asks whether the train is on the
+  // drawn stretch at all. A stop apart on a metro is about a kilometre, so
+  // the two must not be near each other.
+  it('is far larger than the snapping tolerance, and well under one stop', () => {
+    expect(CORRIDOR_MAX_M).toBeGreaterThan(50);
+    expect(CORRIDOR_MAX_M).toBeLessThan(1000);
   });
 });
 
@@ -643,31 +698,43 @@ describe('_stopsReadable', () => {
 // only by mode — so the list showed every line that takes you there and the
 // strip above it showed one. On a route served by four lines you saw a
 // quarter of your options with nothing saying so.
-describe('_toggleLine', () => {
+describe('_isolateLine', () => {
   const ALL = ['1', '2', '3'];
 
-  it('turns one off, leaving the rest on', () => {
-    expect([..._toggleLine(new Set(), '2', ALL)].sort()).toEqual(['1', '3']);
+  // The change: this was a switch-off model, so getting down to one line on
+  // the five-line metro trunk took four taps, and every pill read as "on"
+  // at rest with nothing to suggest tapping did anything.
+  it('shows only the line you tapped', () => {
+    expect([..._isolateLine(new Set(), '2', ALL)]).toEqual(['2']);
+    expect([..._isolateLine(new Set(['1']), '2', ALL)]).toEqual(['2']);
   });
 
-  it('turns one back on', () => {
-    expect(_toggleLine(new Set(['1', '3']), '2', ALL).size).toBe(0);   // all → empty
+  // An empty set means ALL everywhere that reads the filter, so this is the
+  // way back — and it is one tap, not four.
+  it('brings them all back on the second tap', () => {
+    expect(_isolateLine(new Set(['2']), '2', ALL).size).toBe(0);
   });
 
-  // Turning off the last one turns them all back on: an empty filter is an
-  // empty strip with no explanation, and "none of them" is never the intent.
-  it('comes back to all when the last one is switched off', () => {
-    const one = _toggleLine(_toggleLine(new Set(), '2', ALL), '3', ALL);
-    expect([...one]).toEqual(['1']);
-    expect(_toggleLine(one, '1', ALL).size).toBe(0);
+  // The way back is tapping the line that is ALONE, not any line that
+  // happens to be in the selection — otherwise a stored multi-line filter
+  // would clear itself on the first tap instead of isolating.
+  it('isolates rather than clearing when the tapped line is not alone', () => {
+    expect([..._isolateLine(new Set(['1', '2']), '1', ALL)]).toEqual(['1']);
   });
 
-  it('treats the full set as all, so the pills read as every line on', () => {
-    expect(_toggleLine(new Set(['1', '2']), '3', ALL).size).toBe(0);
+  it('never represents "none of them"', () => {
+    let cur = new Set();
+    ALL.forEach(c => { cur = _isolateLine(cur, c, ALL); expect(cur.size).toBe(1); });
   });
 
   it('ignores a code that is not on this route', () => {
-    expect(_toggleLine(new Set(['1']), '9', ALL)).toEqual(new Set(['1']));
+    expect(_isolateLine(new Set(['1']), '9', ALL)).toEqual(new Set(['1']));
+  });
+
+  // Isolating the only line is not a filter, and marking it as one would dim
+  // every other pill on a route that has none.
+  it('leaves a one-line route unfiltered', () => {
+    expect(_isolateLine(new Set(), '1', ['1']).size).toBe(0);
   });
 });
 

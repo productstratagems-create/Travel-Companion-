@@ -5,6 +5,7 @@ import { storage } from '../storage.js';
 import { renderBoardProfileSwitcher, setActiveRoute, syncRouteFields } from '../views/settings.js';
 import { saveWeekendMode } from '../geo.js';
 import { loadReturn, returnDir, returnWindow, shouldSwitch, skipToday, loadSkip } from '../api/returnTrip.js';
+import { routeShareUrl, canShare } from './shareRoute.js';
 import { confirmTap } from './confirm.js';
 import { stopSelRefresh } from '../views/selected.js';
 import { toggleSpectatePanel, closeSpectatePanel } from '../views/spectate.js';
@@ -26,7 +27,53 @@ export function toggleBoardMenu() {
   // Chipen styrer samme meny, så den bærer samme tilstand.
   const chip = document.getElementById('header-profile-chip');
   if (chip) chip.setAttribute('aria-expanded', open ? 'true' : 'false');
-  if (open) renderBoardProfileSwitcher();
+  if (open) {
+    renderBoardProfileSwitcher();
+    // Decided on each opening rather than once: the route changes, and an
+    // item that quietly does nothing is worse than no item.
+    const share = document.getElementById('share-btn');
+    if (share) share.style.display = canShare(config.dirs[state.dIdx]) ? 'flex' : 'none';
+    const msg = document.getElementById('share-msg');
+    if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+  }
+}
+
+/**
+ * Hand the board to someone else.
+ *
+ * Three ways down, in the order that respects the platform: the phone's own
+ * share sheet when it has one — that is where the reader picks between SMS,
+ * Signal and the rest — then the clipboard with the same «✓ kopiert» wording
+ * copyJourneyId already uses, then the address itself so it can still be
+ * copied by hand. The last one is not a nicety: a clipboard write can be
+ * refused, and a share button that fails silently is worse than a plain URL.
+ */
+function shareBoard() {
+  const dir = config.dirs[state.dIdx];
+  const url = routeShareUrl(dir);
+  const msg = document.getElementById('share-msg');
+  const show = (text) => {
+    if (!msg) return;
+    msg.textContent = text;
+    msg.style.display = 'block';
+  };
+  if (!url) { show('Sett en destinasjon først.'); return; }
+
+  const title = dir.from + ' → ' + dir.to;
+  if (navigator.share) {
+    navigator.share({ title, text: title, url })
+      // A cancelled share sheet rejects, and that is not a failure — the
+      // reader changed their mind, and telling them so would be noise.
+      .catch(() => {});
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url)
+      .then(() => show('✓ lenke kopiert'))
+      .catch(() => show(url));
+    return;
+  }
+  show(url);
 }
 
 /**
@@ -300,6 +347,9 @@ export function attachEventListeners() {
   });
 
   document.getElementById('board-more-btn').addEventListener('click', toggleBoardMenu);
+
+  const shareBtn = document.getElementById('share-btn');
+  if (shareBtn) shareBtn.addEventListener('click', shareBoard);
 
   const refreshBtn = document.getElementById('board-refresh-btn');
   if (refreshBtn) {

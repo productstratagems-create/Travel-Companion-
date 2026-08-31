@@ -682,3 +682,12 @@ html.view-board.map-open #dep-list{
   cursor:pointer;-webkit-tap-highlight-color:transparent;
 }
 .demo-note strong{font-weight:600}
+
+/* Sharing confirmation, in the ⋯ menu beside the item that produced it.
+   Doubles as the last resort: with neither the share sheet nor the clipboard
+   available it holds the address itself, so it can still be copied by hand. */
+.board-more-msg{
+  padding:.35rem .75rem .5rem;
+  font-size:10px;line-height:1.5;color:var(--text-muted);
+  word-break:break-all;
+}

@@ -69,6 +69,11 @@
     <button id="plan-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">📋</span>reiseplan</button>
     <button id="leisure-btn" class="board-more-item bab-leisure" type="button" role="menuitem"><span class="bmi-ic">🌟</span>utforsk</button>
     <button id="spectate-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">🔗</span>finn reise</button>
+    <!-- Hidden until the board has both ends: the receiver applies a route
+         only when from AND to are present, so a link from a board with no
+         destination would open the app and do nothing. -->
+    <button id="share-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">↗</span>del denne tavla</button>
+    <div class="board-more-msg" id="share-msg" role="status" aria-live="polite" style="display:none"></div>
     <button id="prefs-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">⚙</span>innstillinger</button>
     <div class="board-more-version" id="board-version"></div>
   </div>

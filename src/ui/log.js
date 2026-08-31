@@ -24,8 +24,15 @@ export function setDot(s) {
 }
 
 export function initDebugToggle() {
-  document.getElementById('status-dot').addEventListener('click', () => {
-    state.debugOpen = !state.debugOpen;
-    document.getElementById('debug-panel').style.display = state.debugOpen ? 'block' : 'none';
-  });
+  const panel = () => document.getElementById('debug-panel');
+  const set = (open) => {
+    state.debugOpen = open;
+    const p = panel();
+    if (p) p.style.display = open ? 'block' : 'none';
+  };
+  document.getElementById('status-dot').addEventListener('click', () => set(!state.debugOpen));
+  // On the board the panel is a sheet over the content, so the dot that
+  // opened it is underneath — it needs its own way out.
+  const close = document.getElementById('dbg-close');
+  if (close) close.addEventListener('click', () => set(false));
 }

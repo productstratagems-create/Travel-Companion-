@@ -622,7 +622,11 @@ html[data-theme="light"] .plan-empty { color: var(--text-muted); }
 
 /* ── DEBUG ── */
 html[data-theme="light"] .debug-panel {
-  background: rgba(var(--accent-rgb),.03);
+  /* `background` used to be repeated here, byte-identical to the base rule
+     in debug.css — dead weight from before the token layer, but with equal
+     specificity and a later import, so it silently beat the board's sheet
+     rule and left the panel 3% opaque over the map. The tokens already vary
+     by theme; the declaration only had to go. */
   border-color: rgba(var(--accent-rgb),.1);
   color: var(--text-muted);
 }

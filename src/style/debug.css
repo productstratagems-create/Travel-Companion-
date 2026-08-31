@@ -5,6 +5,40 @@
   border:1px solid rgba(var(--border-rgb),.1);
   border-radius:6px;font-size:10px;color:var(--text-muted);line-height:1.6;
 }
+
+/* On the board the panel had nowhere to go, and two separate things made it
+   unreadable.
+   
+   It is the last child of .wrap, which the board turns into a fixed-height
+   flex column with the page scroll switched off. Opening it squeezed the
+   board to 103px and let the map paint across it — measured — with no way to
+   scroll to the part underneath.
+   
+   And its background is 3% accent: fine over a page, invisible over a map.
+   
+   So on the board it becomes a sheet: fixed to the bottom, its own scroll,
+   and an opaque surface, because it is read in a hurry on a platform. */
+html.view-board .debug-panel{
+  position:fixed;left:0;right:0;bottom:0;
+  z-index:1100;                 /* over the map's own controls (1000) */
+  margin:0;border-radius:10px 10px 0 0;
+  max-height:70dvh;overflow-y:auto;overscroll-behavior:contain;
+  background:var(--surface);
+  border:1px solid rgba(var(--border-rgb),.25);
+  box-shadow:0 -8px 24px rgba(0,0,0,.28);
+  padding-bottom:calc(.85rem + env(safe-area-inset-bottom, 0px));
+}
+/* The status dot that opens it sits behind the sheet, so the sheet carries
+   its own way out. */
+.dbg-close{
+  position:sticky;top:0;float:right;
+  margin:-.35rem -.35rem 0 0;padding:.2rem .5rem;
+  font:inherit;font-size:14px;line-height:1;
+  color:var(--text-muted);background:var(--surface);
+  border:1px solid rgba(var(--border-rgb),.25);border-radius:6px;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
+html:not(.view-board) .dbg-close{display:none}
 .debug-label{font-size:9px;text-transform:uppercase;letter-spacing:.2em;opacity:.6;margin-bottom:.4rem}
 .log-wrap{max-height:10rem;overflow-y:auto}
 .le{word-break:break-word;font-size:9.5px}.le .ts{opacity:.4}

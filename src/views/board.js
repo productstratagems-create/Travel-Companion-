@@ -718,19 +718,6 @@ export function _stopsReadable(points, minGap) {
 }
 
 /**
- * The stop chain of ONE transit leg, clipped to that leg's own ends.
- *
- * The board map used to build its whole corridor from the departure's
- * serviceJourney — which adaptTripPattern sets to the FIRST leg. On a journey
- * with a change that meant the corridor stopped at the interchange, and
- * findStopIdx then failed to find the real destination among leg one's stops
- * and fell back to the nearest point, landing there too. Mortensrud →
- * Frognerseteren drew as far as the change and no further.
- *
- * Clipping per leg on its own fromPlace/toPlace is the rule selected.js has
- * always used for the same job.
- */
-/**
  * What makes two drawn corridors the same corridor.
  *
  * The stops you ride between, in order — by id where the response carries
@@ -745,6 +732,19 @@ export function _corridorKey(stops) {
     .join('>');
 }
 
+/**
+ * The stop chain of ONE transit leg, clipped to that leg's own ends.
+ *
+ * The board map used to build its whole corridor from the departure's
+ * serviceJourney — which adaptTripPattern sets to the FIRST leg. On a journey
+ * with a change that meant the corridor stopped at the interchange, and
+ * findStopIdx then failed to find the real destination among leg one's stops
+ * and fell back to the nearest point, landing there too. Mortensrud →
+ * Frognerseteren drew as far as the change and no further.
+ *
+ * Clipping per leg on its own fromPlace/toPlace is the rule selected.js has
+ * always used for the same job.
+ */
 export function _legCorridorStops(leg, dirFallback) {
   const sjc = leg && leg.serviceJourney && leg.serviceJourney.estimatedCalls;
   if (!Array.isArray(sjc) || sjc.length < 2) return [];

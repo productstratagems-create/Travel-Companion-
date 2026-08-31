@@ -196,9 +196,12 @@
   backdrop-filter:blur(2px);
   cursor:pointer;min-height:32px;line-height:0;
   transition:border-color .1s,opacity .1s;
-  opacity:.55;
 }
-.line-pill.active{border-color:rgba(var(--border-rgb),.5);opacity:1}
+/* Three states. At rest a pill is simply itself: the resting opacity used to
+   be .55, which with no filter set made every line read as switched OFF.
+   `.active` and `.muted` appear only while one line is isolated. */
+.line-pill.active{border-color:rgba(var(--border-rgb),.5)}
+.line-pill.muted{opacity:.35}
 .line-pill:active{opacity:.85}
 
 /* Only a measured position animates. The old marker glowed white every 2.4s

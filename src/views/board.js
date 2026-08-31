@@ -121,21 +121,30 @@ function _lineOn(code) {
 }
 
 /**
- * Toggle one line.
+ * Show one line, or show them all again.
  *
- * Turning off the last one brings them all back, which is what you want — an
- * empty filter is an empty strip with no explanation, and "none of them" is
- * never the intent. That is not a separate rule though: it falls out of empty
- * meaning all. A guard for it looked necessary and was an equivalent mutant,
- * so it is not here.
+ * This was a switch-off model: everything on, tap to remove. On a route with
+ * one or two lines that is the same thing as isolating. On the shared metro
+ * trunk it is not — getting down to line 3 alone took four taps, and every
+ * pill rendered as "on" at rest, so nothing suggested tapping did anything at
+ * all.
+ *
+ * Tapping a line now shows only that line; tapping it again brings them all
+ * back. Removing one line from a group of five is the rarer want, and it is
+ * still reachable — isolate, then the strip and the list say what you have.
+ *
+ * An empty set keeps meaning ALL, which is what every reader of the filter
+ * already assumes (`_lineOn`), so "none of them" stays unrepresentable
+ * rather than being guarded against.
  */
-export function _toggleLine(selected, code, allCodes) {
+export function _isolateLine(selected, code, allCodes) {
   const all = (allCodes || []).slice();
   if (!all.includes(code)) return new Set(selected);
-  // An empty set already means all, so start from the explicit full set.
-  const cur = new Set((selected && selected.size) ? selected : all);
-  if (cur.has(code)) cur.delete(code); else cur.add(code);
-  return cur.size === all.length ? new Set() : cur;
+  const cur = selected || new Set();
+  // Already alone: the second tap is the way back.
+  if (cur.size === 1 && cur.has(code)) return new Set();
+  // One line on a one-line route is every line on it.
+  return all.length === 1 ? new Set() : new Set([code]);
 }
 let _bRoutePts = null;
 let _bRouteSnapDist = null;
@@ -511,14 +520,24 @@ function renderLineFilter(visibleDeps) {
   if (key === _lineFilterKey) return;
   _lineFilterKey = key;
 
+  // Three states, not two. Drawing "all on" as every pill active left no
+  // difference between "no filter" and "everything picked", and nothing to
+  // suggest a pill was worth tapping. At rest they are simply themselves;
+  // once one is isolated it is marked and the others recede.
+  const filtered = _selectedLines.size > 0;
   el.innerHTML = lines.map(l =>
-    '<button class="line-pill' + (_lineOn(l.code) ? ' active' : '') + '" data-line="' + esc(l.code) + '">'
+    '<button class="line-pill'
+    + (filtered ? (_lineOn(l.code) ? ' active' : ' muted') : '')
+    + '" data-line="' + esc(l.code) + '"'
+    + ' aria-pressed="' + (filtered && _lineOn(l.code) ? 'true' : 'false') + '"'
+    + ' aria-label="' + (filtered && _lineOn(l.code)
+      ? 'Vis alle linjer igjen' : 'Vis bare linje ' + esc(l.code)) + '">'
     + '<span class="line-badge" style="background:' + l.color + '">' + esc(l.code) + '</span>'
     + '</button>'
   ).join('');
   el.querySelectorAll('.line-pill').forEach(btn => {
     btn.addEventListener('click', () => {
-      _selectedLines = _toggleLine(_selectedLines, btn.dataset.line, lines.map(l => l.code));
+      _selectedLines = _isolateLine(_selectedLines, btn.dataset.line, lines.map(l => l.code));
       _lineFilterKey = '';
       _bFitRouteRequested = true;
       renderBoard();
@@ -699,6 +718,21 @@ export function _stopsReadable(points, minGap) {
 }
 
 /**
+ * What makes two drawn corridors the same corridor.
+ *
+ * The stops you ride between, in order — by id where the response carries
+ * one, by name otherwise, by coordinate as a last resort. Not the geometry:
+ * five metro lines through one tunnel return five encoded polylines that
+ * decode to five nearly-identical point arrays, and comparing those found no
+ * duplicates at all.
+ */
+export function _corridorKey(stops) {
+  return (stops || [])
+    .map(st => st.id || st.name || (st.lat + ',' + st.lon))
+    .join('>');
+}
+
+/**
  * The stop chain of ONE transit leg, clipped to that leg's own ends.
  *
  * The board map used to build its whole corridor from the departure's
@@ -721,7 +755,8 @@ export function _legCorridorStops(leg, dirFallback) {
     if (!ll) return;
     const last = stops[stops.length - 1];
     if (last && last.lat === ll.lat && last.lon === ll.lon) return;
-    stops.push({ lat: ll.lat, lon: ll.lon, name: (sp && sp.name) || '' });
+    stops.push({ lat: ll.lat, lon: ll.lon, name: (sp && sp.name) || '',
+      id: (sp && sp.id) || '' });
   });
   if (stops.length < 2) return [];
   const norm = (x) => String(x || '').toLowerCase().replace(/\s+t$/i, '').trim();
@@ -800,7 +835,8 @@ function renderLineRoute(visibleDeps, vehicles) {
     const last = allPts[allPts.length - 1];
     if (last && last[0] === ll.lat && last[1] === ll.lon) return;
     allPts.push([ll.lat, ll.lon]);
-    allStops.push({ lat: ll.lat, lon: ll.lon, name: (sp && sp.name) || '' });
+    allStops.push({ lat: ll.lat, lon: ll.lon, name: (sp && sp.name) || '',
+      id: (sp && sp.id) || '' });
   });
   if (allPts.length < 2) {
     _bRouteLayer.clearLayers();
@@ -940,9 +976,26 @@ function renderLineRoute(visibleDeps, vehicles) {
     restPts.push(...lp);
   });
 
-  // Every other selected line, as a corridor only. Deduped on geometry: on
-  // shared track four lines would otherwise stack four identical strokes.
-  const drawn = new Set([JSON.stringify(pts)]);
+  // Every other selected line, as a corridor only — each piece of track drawn
+  // ONCE.
+  //
+  // The dedupe used to compare `JSON.stringify` of the point arrays, and
+  // could never match: the primary's array has the widened prefix glued on
+  // and the others' does not, and each line's own `pointsOnLink` decodes to
+  // its own rounding anyway. So on the shared tunnel five lines stacked five
+  // identical orange strokes into one fat band — the reported symptom.
+  //
+  // Compare the STOPS instead. Two lines calling at the same stops in the
+  // same order between your boarding and your alighting are on the same
+  // track; that is what "same corridor" means, and stop ids are the most
+  // stable part of the response. Where a line genuinely diverges the
+  // sequence differs and it still gets its own stroke.
+  //
+  // The failure mode is the safe one: if the sequences disagree when they
+  // should not, we draw two strokes — today's behaviour, nothing worse.
+  const ridden = allStops.slice(Math.min(boardIdx, hi), hi + 1);
+  const primaryEntry = paths.get(ln.publicCode);
+  const drawn = new Map([[_corridorKey(ridden), primaryEntry]]);
   [...perLine.values()].slice(1).forEach(({ c: oc }) => {
     const ocLeg = (oc._legs && oc._legs[0]) || null;
     const ocStops = _legCorridorStops(ocLeg, dir);
@@ -951,20 +1004,27 @@ function renderLineRoute(visibleDeps, vehicles) {
     // primary one follows — and its trains had nothing true to sit on.
     const ocPts = legShape(ocLeg) || ocStops.map(st => [st.lat, st.lon]);
     if (ocPts.length < 2) return;
-    const key = JSON.stringify(ocPts);
-    if (drawn.has(key)) return;
-    drawn.add(key);
     const ol = oc.serviceJourney.line;
+    const key = _corridorKey(ocStops);
+    const shared = drawn.get(key);
+    if (shared) {
+      // Same track: nothing new to draw, and its trains ride the stroke that
+      // is already there. That is a correction in itself — they used to ride
+      // their own slightly differently decoded copy of the same rail, so two
+      // trains on one track could drift apart on screen.
+      if (ol && ol.publicCode && !paths.has(ol.publicCode)) paths.set(ol.publicCode, shared);
+      return;
+    }
     const ocColor = ol.presentation && ol.presentation.colour ? '#' + ol.presentation.colour : color;
     // Its own mode, not the primary line's. Spreading `style` here meant the
     // bus corridor was drawn solid and 4px whenever a metro line happened to
     // have the soonest departure — the same bus, two thicknesses, depending
     // on what else was selected.
     L.polyline(ocPts, _corridorStyle(_depMode(oc), ocColor)).addTo(_bRouteLayer);
-    if (ol && ol.publicCode && !paths.has(ol.publicCode)) {
-      paths.set(ol.publicCode, { path: _legPath(ocPts, key),
-        snapDist: _depMode(oc) === 'bus' ? 25 : 50 });
-    }
+    const entry = { path: _legPath(ocPts, key),
+      snapDist: _depMode(oc) === 'bus' ? 25 : 50 };
+    drawn.set(key, entry);
+    if (ol && ol.publicCode && !paths.has(ol.publicCode)) paths.set(ol.publicCode, entry);
   });
 
   // Intermediate stops are hidden until there is room to read them.
@@ -1607,34 +1667,65 @@ function renderLineStrip(visibleDeps) {
 export const APPROACH_WINDOW_MS = 15 * 60_000;
 
 /**
+ * How far off the drawn corridor a vehicle may be and still be drawn on it.
+ *
+ * Generous on purpose, and doing a different job from `snapDist` (25 m / 50 m)
+ * — that one asks "is this fix precise enough to put on the rail", this one
+ * asks "is this train on the stretch I have drawn at all". A train one stop
+ * beyond the corridor's end is a kilometre away on a metro, so anything in
+ * the low hundreds separates the two cleanly; 300 m also leaves room for the
+ * gap between a timetable position interpolated along stop chords and the
+ * real alignment those chords cut the corners of.
+ */
+export const CORRIDOR_MAX_M = 300;
+
+/** Close enough to a platform to count as standing at it. */
+const AT_STOP_M = 30;
+
+/**
  * The trains worth drawing, decided once and used by both the corridor and
  * the markers — so the drawn line and the things on it cannot disagree, which
  * is the fault this replaces.
  */
 /**
- * How far back the drawn corridor has to reach to hold every train on it.
+ * How far back the drawn corridor reaches: to the NEXT train, and no further.
  *
- * The corridor is clipped to boarding→alighting; the trains coming to get you
- * are behind that, so without widening they sit off the drawn line — which is
- * what was reported.
+ * The corridor is clipped to boarding→alighting; the train coming to get you
+ * is behind that, so without widening it sits off the drawn line — which is
+ * what was reported, and why this exists.
  *
- * Nearest stop by distance, deliberately not _stopsAway's index: that counts
- * a differently filtered array and would be quietly off by a few. Whole
- * stops, so the left end steps as trains drop out of the window rather than
- * creeping every second.
+ * It used to reach back for the FURTHEST train in the fifteen-minute window.
+ * That is fine on a bus every half hour and absurd on a shared metro trunk:
+ * Nationaltheatret → Majorstuen is a two-minute ride west, and five lines at
+ * one-minute headways put thirteen trains in the window, so the drawn line
+ * ran east past Ryen — right off the map, in the wrong direction, for a
+ * journey that goes the other way.
+ *
+ * Reaching for the soonest one instead needs no threshold and no constant: it
+ * scales itself with the frequency. A bus twelve minutes out still pulls the
+ * corridor twelve minutes back. A train one stop away pulls it one stop.
+ *
+ * The stop BEHIND the train, not the nearest one. Nearest rounds inward half
+ * the time, which would leave the very train the corridor was widened for
+ * hanging off its end — and `renderVehicleMarkers` now declines to draw
+ * anything that far off, so rounding the wrong way would empty the map.
+ * `projectOnPath` already answers "which segment is this on"; asking it is
+ * both shorter and the same arithmetic the markers are judged by.
  */
 export function _widenLo(allStops, boardIdx, vehicles) {
-  let lo = boardIdx;
-  (vehicles || []).forEach(({ pos }) => {
-    if (!pos) return;
-    let best = -1, bestD = Infinity;
-    (allStops || []).forEach((st, i) => {
-      const d = haver(st.lat, st.lon, pos.lat, pos.lon);
-      if (d < bestD) { bestD = d; best = i; }
-    });
-    if (best !== -1 && best < lo) lo = best;
-  });
-  return lo;
+  const first = (vehicles || []).find(v => v && v.pos);
+  if (!first) return boardIdx;
+  const chain = (allStops || []).map(st => [st.lat, st.lon]);
+  if (chain.length < 2) return boardIdx;
+  const p = projectOnPath(first.pos, chain);
+  if (!p) return boardIdx;
+  // A train standing at a platform is AT that stop, not on the segment
+  // leading into it — but a projection lands an endpoint on the segment that
+  // ends there, which would draw one stop more than anyone needs. Dwelling
+  // at a stop is the ordinary case on a metro, not an edge one.
+  const next = chain[p.segIdx + 1];
+  const dwelling = next && haver(first.pos.lat, first.pos.lon, next[0], next[1]) <= AT_STOP_M;
+  return Math.min(boardIdx, p.segIdx + (dwelling ? 1 : 0));
 }
 
 export function _approachingVehicles(visibleDeps, lineOn, now, livePos) {
@@ -1727,11 +1818,32 @@ function renderVehicleMarkers(vehicles, paths) {
     const ln = c.serviceJourney.line;
     const entry = paths && paths.get(ln.publicCode);
     const path = entry && entry.path;
-    // A measured fix goes onto the track unconditionally: the train is on the
-    // rail, and this line is our drawing of that rail. A fix far from it is a
-    // matching or accuracy problem, and leaving the marker floating beside
-    // the track would be the very thing being fixed.
-    const snapped = live && path ? projectOnPath(live, path) : null;
+
+    // Is this vehicle on the drawn stretch at all?
+    //
+    // Judged on where it actually is — the measured fix, or the timetable's
+    // answer — before any of the drawing maths gets a chance to move it onto
+    // the line. `projectOnPath` clamps a point beyond the corridor's end to
+    // that end, so a train four stops behind it answers in kilometres.
+    //
+    // Without this the map drew every train in the fifteen-minute window
+    // wherever it happened to be, which on a shared trunk is a dozen capsules
+    // strung across the city. The corridor and the things on it now agree by
+    // construction, which is what this code has claimed since v1.12.0.
+    const ref = live || coarse;
+    if (path && ref) {
+      const on = projectOnPath(ref, path);
+      if (on && on.dist > CORRIDOR_MAX_M) return;
+    }
+
+    // A measured fix near the rail goes onto it: the train is on the track,
+    // and this line is our drawing of that track. Further off than the
+    // snapping tolerance and it is drawn where it actually is — `snapDist`
+    // has been computed in three places and read in none since it was
+    // introduced, so until now every fix was snapped however far it was,
+    // which is how a marker ends up on a rail it is not on.
+    const projected = live && path ? projectOnPath(live, path) : null;
+    const snapped = projected && projected.dist <= (entry.snapDist || 0) ? projected : null;
     const pos = live
       ? (snapped ? { lat: snapped.lat, lon: snapped.lon } : live)
       : (path ? _interpolateOnPath(sjc, now, path) : coarse) || coarse;

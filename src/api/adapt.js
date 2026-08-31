@@ -38,19 +38,42 @@ export function legShape(leg) {
   return leg._shape;
 }
 
+/**
+ * Why the last batch of patterns was dropped.
+ *
+ * Six paths return null here, and the board reported only a count — so a
+ * discarded journey was invisible except as a number. Each one now says which
+ * rule rejected it, which is the difference between "1 forkastet" and "1
+ * forkastet: bytte uten navn".
+ */
+let _reasons = [];
+export function takeDropReasons() {
+  const out = _reasons;
+  _reasons = [];
+  return out;
+}
+function drop(reason) {
+  _reasons.push(reason);
+  if (_reasons.length > 40) _reasons.shift();
+  return null;
+}
+
 export function adaptTripPattern(tp) {
   try {
-    if (!tp || !tp.legs) return null;
+    if (!tp || !tp.legs) return drop('uten bein');
     const legs = tp.legs.filter(l => l.mode !== 'foot');
-    if (!legs.length) return null;
+    // OTP routinely offers a walk-only itinerary when the destination is
+    // close. It is not a departure, but it does consume one of the twelve
+    // slots we asked for — worth seeing in the record.
+    if (!legs.length) return drop('kun gange');
     const first = legs[0], last = legs[legs.length - 1];
     const firstDepTime = first.fromEstimatedCall
       ? (first.fromEstimatedCall.expectedDepartureTime || first.fromEstimatedCall.aimedDepartureTime)
       : (first.expectedStartTime || first.aimedStartTime);
-    if (!firstDepTime) return null;
-    if (!last.toPlace || !last.toPlace.name) return null;
+    if (!firstDepTime) return drop('uten avgangstid');
+    if (!last.toPlace || !last.toPlace.name) return drop('siste bein uten navn');
     const lastAny = tp.legs[tp.legs.length - 1];
-    if (lastAny.mode !== 'foot' && (!lastAny.toPlace || !lastAny.toPlace.name)) return null;
+    if (lastAny.mode !== 'foot' && (!lastAny.toPlace || !lastAny.toPlace.name)) return drop('siste bein uten navn');
     const transfers = legs.slice(0, -1).map((leg, i) => ({
       at:        (leg.toPlace && leg.toPlace.name) || null,
       platform:  (legs[i+1].fromEstimatedCall && legs[i+1].fromEstimatedCall.quay && legs[i+1].fromEstimatedCall.quay.publicCode) || null,
@@ -58,7 +81,7 @@ export function adaptTripPattern(tp) {
       depTime:   (legs[i+1].fromEstimatedCall && (legs[i+1].fromEstimatedCall.expectedDepartureTime || legs[i+1].fromEstimatedCall.aimedDepartureTime))
                  || legs[i+1].expectedStartTime || legs[i+1].aimedStartTime || null,
     }));
-    if (transfers.some(t => !t.at)) return null;
+    if (transfers.some(t => !t.at)) return drop('bytte uten navn');
     return {
       expectedDepartureTime: firstDepTime,
       aimedDepartureTime:    first.fromEstimatedCall ? first.fromEstimatedCall.aimedDepartureTime : (first.aimedStartTime || firstDepTime),
@@ -104,6 +127,6 @@ export function adaptTripPattern(tp) {
     if (typeof console !== 'undefined' && console.warn) {
       console.warn('adaptTripPattern dropped a pattern:', err && err.message);
     }
-    return null;
+    return drop('feil: ' + ((err && err.message) || 'ukjent'));
   }
 }

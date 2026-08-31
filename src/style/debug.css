@@ -22,3 +22,13 @@ input[type=text]{
 }
 .sbtn:active{background:rgba(var(--accent-rgb),.25)}
 .dbg-sec{margin-top:.75rem;padding-top:.75rem;border-top:1px solid rgba(var(--border-rgb),.08)}
+
+/* The pipeline record. Fixed width on purpose: the columns are meant to be
+   compared down the page, and it is read once, in a hurry, on a platform. */
+.dbg-diag{
+  margin:.2rem 0 .6rem;padding:.5rem .6rem;
+  font-family:ui-monospace,"JetBrains Mono",monospace;font-size:10px;line-height:1.5;
+  white-space:pre;overflow-x:auto;
+  color:var(--text-muted);background:rgba(var(--text-muted-rgb),.06);
+  border:1px solid rgba(var(--border-rgb),.18);border-radius:4px;
+}

@@ -4,7 +4,7 @@ import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
-import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, geocodePlace } from '../api/entur.js';
+import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, fetchStopBoardEarliest, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
@@ -25,7 +25,10 @@ import { decodePolyline } from '../ui/polyline.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
 import { isExample } from '../firstRun.js';
-import { loadReturn, returnWindow } from '../api/returnTrip.js';
+import { newRecord, stage, showRecord, takeLookbackLost } from '../api/diagnose.js';
+import { LOOKBACK_MINS } from '../api/queries.js';
+import { takeDropReasons } from '../api/adapt.js';
+import { loadReturn, returnWindow, loadSkip, dayKey } from '../api/returnTrip.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
@@ -2038,7 +2041,9 @@ export function renderBoard() {
   const applyModes = list_ => (activeModes.length < 4
     ? list_.filter(({ c }) => _journeyModesAllowed(_depModes(c), activeModes))
     : list_);
+  if (_diag) stage(_diag, 'dedup', dedupeDepartures(state.deps).map(d => d.c));
   const modeDeps = applyModes(dedupeDepartures(state.deps));
+  if (_diag) stage(_diag, 'modus', modeDeps.map(d => d.c));
   const modeAll = _pages.length
     ? applyModes(dedupeDepartures(state.deps.concat(_pages)))
     : modeDeps;
@@ -2066,6 +2071,11 @@ export function renderBoard() {
   const visibleDeps = modeDeps.filter(onSelectedLine);
   // The rows, and only the rows, see the loaded pages.
   const rowDeps = _pages.length ? modeAll.filter(onSelectedLine) : visibleDeps;
+  if (_diag) {
+    stage(_diag, 'linje', visibleDeps.map(d => d.c));
+    stage(_diag, 'rader', rowDeps.map(d => d.c));
+    showRecord(_diag);
+  }
   if (!visibleDeps.length) {
     list.innerHTML = '<div class="state-msg">Ingen avganger på de valgte linjene. '
       + 'Slå på flere linjer over for å se resten.</div>';
@@ -2365,6 +2375,11 @@ function _atPlatform(c) {
 // cold start with no signal shows something. Every later call — a back
 // navigation, a direction swap — blanks as before; the data is about to be
 // refetched and stale rows would just flicker.
+// The last fetch's record. Written by _fetchBoard, completed by renderBoard
+// (which is where the filters live), and painted into the debug panel.
+let _diag = null;
+export function _lastDiagnosis() { return _diag; }
+
 let _hydrated = false;
 
 export function startBoard() {
@@ -2430,9 +2445,16 @@ function _showBoardError(msg) {
  * The instant the board should plan from — the trip home's departure time
  * while it is still ahead of us, otherwise nothing and the board means "now".
  */
-function _returnDepartAt(dir) {
+export function _returnDepartAt(dir) {
   const r = loadReturn();
   if (!r || !dir || dir.from !== r.from || dir.to !== r.to) return undefined;
+  // Declining the switch has to mean declining the question too. `shouldSwitch`
+  // honours the skip flag; this did not, so after tapping ✕ the board kept
+  // asking Entur for departures around the RETURN time — up to 45 minutes in
+  // the future — while the reader stood on the platform now. Every imminent
+  // departure is then legitimately absent from the response, with nothing on
+  // screen to say why.
+  if (loadSkip() === dayKey(Date.now())) return undefined;
   const w = returnWindow(r, Date.now());
   return (w.active && w.before) ? w.at : undefined;
 }
@@ -2497,6 +2519,27 @@ function _bindInfiniteScroll(list) {
   }, { passive: true });
 }
 
+/**
+ * Ask the stop board the same question Ruter asks.
+ *
+ * Ruter shows every departure from the stop; this app asks the trip planner
+ * for journeys, and OTP legitimately omits an itinerary it considers
+ * dominated. That difference is invisible from inside, and it is why two
+ * rounds of dedupe fixes did not stop the reports. One extra query settles
+ * which of the two lost the departure.
+ *
+ * Only while the debug panel is open: the answer is a diagnostic, and a
+ * second request per poll for everyone would be a cost with no reader.
+ */
+function _askStopBoard(dir) {
+  if (!state.debugOpen || !dir || !dir.stopId) return;
+  fetchStopBoardEarliest(dir.stopId).then(ms => {
+    if (!_diag) return;
+    _diag.stopBoard = ms;
+    showRecord(_diag);
+  }).catch(() => {});
+}
+
 function _fetchBoard() {
   // The trip home takes over when its time comes. It restarts the board
   // itself, so there is nothing left to fetch on this pass.
@@ -2505,6 +2548,14 @@ function _fetchBoard() {
   // While the trip home is showing but has not left yet, ask for the
   // departures around when you actually go, not the ones going now.
   const at = _returnDepartAt(dir);
+
+  // One record per fetch. The whole reason it exists: this symptom has been
+  // reported three times and mis-diagnosed twice, so the board now shows
+  // where the earliest departure stopped being the earliest.
+  _diag = newRecord(Date.now());
+  _diag.askedFor = at != null ? at : Date.now() - LOOKBACK_MINS * 60000;
+  _diag.askedFuture = at != null && at > Date.now();
+
   if (dir.toGeo || dir.toStopId || (dir._toLat && dir._toLon)) {
     fetchTrip(dir, (patterns, situations) => {
       if (dir._fromLat && dir._fromLon) {
@@ -2516,8 +2567,30 @@ function _fetchBoard() {
       // the key cannot grow over months of use.
       pruneHidden(state.serviceAlerts);
       logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);
+      if (_diag) {
+        stage(_diag, 'svar', patterns, tp => {
+          const l = (tp.legs || []).find(x => x.mode !== 'foot');
+          return l && ((l.fromEstimatedCall && (l.fromEstimatedCall.expectedDepartureTime
+            || l.fromEstimatedCall.aimedDepartureTime)) || l.expectedStartTime || l.aimedStartTime);
+        });
+      }
       const adapted = patterns.map(adaptTripPattern).filter(Boolean);
       const dropped = patterns.length - adapted.length;
+      if (_diag) {
+        // Read AFTER resolution: resolveStop fills in dir.stopId, and which of
+        // the two it ended up as is the point — coordinates make OTP add walk
+        // time to the platform and drop departures it judges unreachable.
+        // Before this it reported the pre-resolution value, which on the very
+        // first fetch — the one at startup, when this is reported — was the
+        // place name and told the reader nothing.
+        _diag.origin = dir.stopId
+          ? dir.stopId
+          : ((dir._fromLat && dir._fromLon) ? 'koordinater — OTP legger på gangtid' : (dir.geo || '?'));
+        _diag.dropped = takeDropReasons();
+        _diag.lookbackLost = takeLookbackLost();
+        stage(_diag, 'adaptert', adapted);
+        _askStopBoard(dir);
+      }
       logMsg('✓ ' + adapted.length + '/' + patterns.length + ' trip patterns'
         + (dropped ? ' (' + dropped + ' forkastet)' : ''), dropped ? null : 'ok');
       state.deps = adapted;

@@ -3,6 +3,7 @@ import { enturFetch } from './http.js';
 import { arrBoardGQL, boardGQL, inflightGQL, journeyGQL, trackGQL, tripGQL } from './queries.js';
 import { quayLatLon } from './adapt.js';
 import { logMsg, setDot } from '../ui/log.js';
+import { noteLookbackLost } from './diagnose.js';
 import { loadWalkSpeed } from '../geo.js';
 const WALK_MPS = { rolig: 41.67 / 60, middels: 83.33 / 60, rask: 116.67 / 60 };
 
@@ -180,6 +181,12 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
         body: JSON.stringify({
           query: withLookback
             ? tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? undefined : atMs)
+            // The retry deliberately drops dateTime: it is the argument that
+            // could never be verified against the live API, so it is the one
+            // the fallback exists to shed. The cost is real — this poll loses
+            // the two-minute lookback, and with it a train standing at the
+            // platform a minute late — so the diagnostic records that it
+            // happened rather than trading a silent loss for a silent outage.
             : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null),
         }),
         signal,
@@ -198,7 +205,8 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
           // dateTime here gives that isolation up, so buy it back — one
           // retry without the lookback rather than an empty screen.
           if (withLookback && !j.data && j.errors) {
-            logMsg('trip: dateTime avvist, prøver uten', 'err');
+            logMsg('trip: dateTime avvist, prøver uten — tilbakeblikket tapt for denne pollen', 'err');
+            noteLookbackLost();
             return ask(false);
           }
           return j;
@@ -306,6 +314,33 @@ export function fetchBoardPage(dir, atMs, n, onSuccess, onError) {
       if (err.name === 'AbortError') return;
       logMsg('✗ side: ' + err.message, 'err');
       if (onError) onError(err.message);
+    });
+}
+
+/**
+ * The earliest departure the STOP BOARD reports — the same question Ruter
+ * answers, asked so the two can be compared.
+ *
+ * Its own request, unguarded by the shared controllers: a diagnostic must not
+ * be able to cancel the board it is diagnosing.
+ *
+ * @returns {Promise<number|null>} epoch ms, or null when nothing came back.
+ */
+export function fetchStopBoardEarliest(stopId) {
+  return enturFetch(config.api.journeyPlanner, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: boardGQL(stopId, 5, null, true) }),
+  })
+    .then(r => (r && r.ok ? r.json() : null))
+    .then(j => {
+      const calls = (j && j.data && j.data.stopPlace && j.data.stopPlace.estimatedCalls) || [];
+      let best = null;
+      calls.forEach(c => {
+        const t = new Date(c.expectedDepartureTime || c.aimedDepartureTime || NaN).getTime();
+        if (!isNaN(t) && (best == null || t < best)) best = t;
+      });
+      return best;
     });
 }
 

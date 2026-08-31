@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   RETURN_LEAD_MS, RETURN_TAIL_MS, loadReturn, saveReturn, clearReturn,
   reverseOf, returnDir, returnWindow, shouldSwitch, skipToday, loadSkip,
@@ -161,5 +161,44 @@ describe('suggestHHMM', () => {
     expect(suggestHHMM([], 'A', 'B')).toBe('');
     expect(suggestHHMM(null, 'A', 'B')).toBe('');
     expect(suggestHHMM(hist, 'A', 'B')).toBe('');
+  });
+});
+
+// ── The board must not ask for a future time after you declined ────────────
+import { _returnDepartAt } from '../src/views/board.js';
+import config from '../src/config.js';
+import { state } from '../src/state.js';
+
+describe('_returnDepartAt', () => {
+  const R = { from: 'Nationaltheatret', to: 'Mortensrud', atHHMM: '16:20' };
+  const setDir = d => { config.dirs[2] = d; state.dIdx = 2; };
+
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem('__activeProfile', 'default');
+    saveReturn(R);
+    setDir({ key: 'custom-out', from: R.from, to: R.to });
+  });
+
+  it('asks for the return time while the window is open and it is still ahead', () => {
+    vi.setSystemTime(at(15, 40));
+    expect(_returnDepartAt(config.dirs[2])).toBe(at(16, 20));
+  });
+
+  // The bug: declining the switch stopped the board changing route, but it
+  // kept asking Entur for departures around the RETURN time — up to 45
+  // minutes in the future — so every imminent departure was legitimately
+  // absent from the response, with nothing on screen to say why.
+  it('asks for nothing once the reader has declined for today', () => {
+    vi.setSystemTime(at(15, 40));
+    skipToday(at(15, 40));
+    expect(_returnDepartAt(config.dirs[2])).toBeUndefined();
+  });
+
+  it('asks for nothing outside the window, or on another route', () => {
+    vi.setSystemTime(at(9, 0));
+    expect(_returnDepartAt(config.dirs[2])).toBeUndefined();
+    vi.setSystemTime(at(15, 40));
+    expect(_returnDepartAt({ from: 'Annet', to: 'Sted' })).toBeUndefined();
   });
 });

@@ -373,6 +373,11 @@ export function attachEventListeners() {
     window._renderSaved && window._renderSaved('favs');
   });
 
+  document.getElementById('set-fav-open').addEventListener('click', () => {
+    show('v-saved');
+    window._renderSaved && window._renderSaved('favs');
+  });
+
   document.getElementById('plan-btn').addEventListener('click', () => {
     show('v-saved');
     window._renderSaved && window._renderSaved('plan');

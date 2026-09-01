@@ -51,21 +51,31 @@ export function renderFavs() {
   el.innerHTML = html;
 }
 
-window._loadFavRoute = (id) => {
-  const fav = loadFavs().find(f => f.id === id);
-  if (!fav) return;
+/**
+ * Take a route and go.
+ *
+ * One door: the route, the index, storage, the form fields — and, because
+ * choosing a shortcut is a deliberate choice, the autocomplete and the
+ * prediction engine. `favId` is optional; a shortcut drawn from the history
+ * has no favourite to mark as used.
+ */
+window._useRouteDir = (dir, favId) => {
+  if (!dir) return;
   // Loading a favourite used to record nothing at all, so the routes people
   // actually tap were invisible to the one mechanism measuring taps — and to
   // the smart engine, which only ever heard about «bruk rute» and deep links.
-  markFavUsed(fav.id);
-  // One door: the route, the index, storage, the form fields — and, because
-  // a favourite is a deliberate choice, the autocomplete and the prediction
-  // engine. Only the latter used to hear about favourites.
-  setActiveRoute(favToDir(fav), { chosen: true });
+  if (favId) markFavUsed(favId);
+  setActiveRoute(dir, { chosen: true });
   updateHeader();
   state.deps = [];
   show('v-board');
   window._startBoard && window._startBoard();
+};
+
+window._loadFavRoute = (id) => {
+  const fav = loadFavs().find(f => f.id === id);
+  if (!fav) return;
+  window._useRouteDir(favToDir(fav), fav.id);
 };
 
 window._deleteFav = (btn, id) => {

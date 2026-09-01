@@ -8,7 +8,7 @@ import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
 import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
-import { loadFavs, topFavRoutes } from '../ui/favs.js';
+import { loadFavs, routeShortcuts } from '../ui/favs.js';
 import { loadReturn, saveReturn, clearReturn, reverseOf, suggestHHMM, returnWindow, skipToday } from '../api/returnTrip.js';
 import { loadSmartHist } from '../api/smart.js';
 
@@ -486,20 +486,27 @@ export function initSettings() {
  * before you start filling anything in. Reuses .nearby-btn, the row already
  * standing directly below it, so the page gains no new shape to learn.
  */
+let _shortcutDirs = new Map();
+
 function renderFavRouteShortcuts() {
   const el = document.getElementById('set-fav-routes');
   if (!el) return;
-  const top = topFavRoutes(loadFavs(), tripCount, 2);
+  const top = routeShortcuts(loadFavs(), loadSmartHist(), tripCount, 2);
+  _shortcutDirs = new Map(top.map(t => [t.key, t]));
   if (!top.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = 'block';
   el.innerHTML = '<div class="set-label">ofte brukt</div>'
-    + top.map(f => '<button class="nearby-btn fav-route-btn" type="button" data-fav="' + esc(f.id) + '">'
-      + '<span class="nearby-name">' + esc(f.from) + ' → ' + esc(f.to) + '</span>'
+    + top.map(t => '<button class="nearby-btn fav-route-btn" type="button" data-key="' + esc(t.key) + '">'
+      + '<span class="nearby-name">' + esc(t.from) + ' → ' + esc(t.to) + '</span>'
+      + (t.saved ? '<span class="nearby-meta">★</span>' : '')
       + '</button>').join('');
   el.querySelectorAll('.fav-route-btn').forEach(btn => {
     // One path through the app: the same handler the «lagret» screen uses,
-    // which already sets the route and starts the board.
-    btn.addEventListener('click', () => window._loadFavRoute(btn.dataset.fav));
+    // which already sets the route, records the choice and starts the board.
+    btn.addEventListener('click', () => {
+      const t = _shortcutDirs.get(btn.dataset.key);
+      if (t) window._useRouteDir(t.dir, t.favId);
+    });
   });
 }
 

@@ -2447,7 +2447,11 @@ export function renderBoard() {
       + '</div>'
       + '<div class="dep-info">'
       + '<span class="dep-dest">' + esc(dest) + '</span>'
-      + (walkMins ? '<span class="dep-tag dep-tag-walk">+ ' + walkMins + ' min gange</span>' : '')
+      // Plain `.dep-tag`, the same treatment "1 bytte" gets — it is the same
+      // kind of statement: a fact about the shape of this journey, not a
+      // warning. The two modifier classes that exist (-soft, -at) each carry
+      // a rule; a third with no rule would be a dead hook.
+      + (walkMins ? '<span class="dep-tag">+ ' + walkMins + ' min gange</span>' : '')
       + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
       + (delayed ? '<span class="dep-tag">+' + delayMins + ' min</span>' : '')
       + (_atPlatform(c) ? '<span class="dep-tag dep-tag-at">står på perrongen</span>' : '')

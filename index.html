@@ -229,9 +229,18 @@
     <div id="arr-sugg" class="stop-sugg" hidden></div>
     <button id="set-quick-osl" class="set-via-add-btn" type="button">✈ Oslo lufthavn (Gardermoen)</button>
   </div>
+  <!-- Collapsed until asked for, the same as the via stop and the trip home.
+       It used to open itself the moment a destination was picked and fetch
+       straight away, so a screen whose whole job is choosing a route could
+       answer with "Kunne ikke laste steder." -->
+  <div id="dest-prev-toggle" style="display:none;padding:.6rem 0 .2rem">
+    <button id="dest-prev-open" class="set-via-add-btn" type="button">+ hva er det der?</button>
+  </div>
   <div id="dest-preview" style="display:none;margin-top:1rem">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
       <span class="dest-prev-title">hva er det der?</span>
+      <button id="dest-prev-close" class="set-via-add-btn" type="button"
+        aria-label="Skjul steder ved destinasjonen">skjul</button>
     </div>
     <div id="dest-prev-cats" class="dest-prev-cats"></div>
     <div id="dest-prev-results" class="dest-prev-results"></div>

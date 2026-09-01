@@ -1,5 +1,4 @@
 import config from '../config.js';
-import { enturFetch } from '../api/http.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
 import { fetchJourneyMeta } from '../api/entur.js';

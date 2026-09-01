@@ -955,21 +955,19 @@ function renderLineRoute(visibleDeps, vehicles) {
   // with it.
   if (_bRoutePts.length >= 2) L.polyline(_bRoutePts, style).addTo(_bRouteLayer);
 
-  // Every leg after the first.
+  // Every other leg of the journey — changes and walks alike.
   //
   // The corridor above is built from the departure's serviceJourney, which
-  // adaptTripPattern sets to leg one — so on a journey with a change the map
-  // stopped at the interchange and said nothing. Leg one keeps everything
-  // that is one-per-board (the snap corridor, the widening, the walk
-  // extensions): those are about the stop you are standing at and the train
-  // you are catching, not the rest of the trip. Only the drawing and the fit
-  // go multi-leg.
-  // Walks included. `_legs` has had the foot legs filtered out (adapt.js:94)
-  // and every map in the app iterated it, so a bus → 3 min on foot → tram
-  // journey drew as two disconnected corridors with a hole in the middle,
-  // and the walk to your actual destination was drawn by a SEPARATE query
-  // that then got wiped (see below). `_allLegs` is the whole journey, and
-  // `legShape` never looked at `leg.mode` — the geometry was always usable.
+  // adaptTripPattern sets to leg one, so leg one keeps everything that is
+  // one-per-board: the snap corridor, the widening, the fit. Only the drawing
+  // goes multi-leg.
+  //
+  // It iterates `_allLegs`, not `_legs`. `_legs` has had the foot legs
+  // filtered out (adapt.js:94) and every map in the app read it, so a
+  // bus → 3 min on foot → tram journey drew as two disconnected corridors
+  // with a hole in the middle, and the walk to your actual destination was
+  // drawn by a SEPARATE query that then got wiped (see below). `legShape`
+  // never looked at `leg.mode` — the geometry was always usable.
   const restPts = [];
   const primary = (c._legs || [])[0];
   ((c._allLegs || c._legs || [])).forEach(leg => {

@@ -1,5 +1,4 @@
 import config from '../config.js';
-import { enturFetch } from '../api/http.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
 import { fetchJourneyMeta } from '../api/entur.js';
@@ -15,7 +14,7 @@ import { startBoard } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
-import { createMap, drawRoute } from '../ui/map.js';
+import { createMap, drawRoute, drawWalk } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -73,17 +72,11 @@ function _selWeatherHtml(arrT) {
 // ── Route map ────────────────────────────────────────────────
 let _selMap = null, _selLayer = null;
 
-function _decodePoly(str) {
-  const out = []; let lat = 0, lng = 0, i = 0;
-  while (i < str.length) {
-    let b, s = 0, r = 0;
-    do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << s; s += 5; } while (b >= 0x20);
-    lat += (r & 1) ? ~(r >> 1) : (r >> 1); r = 0; s = 0;
-    do { b = str.charCodeAt(i++) - 63; r |= (b & 0x1f) << s; s += 5; } while (b >= 0x20);
-    lng += (r & 1) ? ~(r >> 1) : (r >> 1);
-    out.push([lat / 1e5, lng / 1e5]);
-  }
-  return out;
+/** A foot leg's two ends, for when the response carried no geometry for it. */
+function _legEnds(leg) {
+  const a = leg && leg.fromPlace, b = leg && leg.toPlace;
+  if (!a || !b || a.latitude == null || b.latitude == null) return [];
+  return [[a.latitude, a.longitude], [b.latitude, b.longitude]];
 }
 
 function _ns(s) { return (s || '').toLowerCase().replace(/,.*$/, '').replace(/\s+t$/i, '').trim(); }
@@ -222,33 +215,27 @@ function _renderSelMap(dep, fromName, toName) {
     }).bindTooltip(dir.to || 'Destinasjon', { permanent: true, direction: 'top', offset: [0, -30], className: 'sel-stop-label' })
       .addTo(_selLayer);
 
-    if (alightStop) {
-      // Try real walking polyline, fall back to straight dashed line
-      const q = '{trip(from:{coordinates:{latitude:' + alightStop.lat + ',longitude:' + alightStop.lon + '}}'
-        + 'to:{coordinates:{latitude:' + destLL.lat + ',longitude:' + destLL.lon + '}}'
-        + 'modes:{directMode:foot}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}}';
-      enturFetch(config.api.journeyPlanner, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: q }),
-      })
-        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-        .then(data => {
-          if (!_selLayer) return;
-          const pats = data.data && data.data.trip && data.data.trip.tripPatterns;
-          const encoded = pats && pats[0] && pats[0].legs && pats[0].legs[0]
-            && pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
-          if (!encoded) throw new Error('no points');
-          const latlngs = _decodePoly(encoded);
-          drawRoute(_selLayer, latlngs, { color: tokens().accent, weight: 3, opacity: 0.9, dashArray: '6 6' });
-          if (_selMap) _selMap.fitBounds([...pts, ...latlngs], { padding: [40, 40], maxZoom: 16 });
-        })
-        .catch(() => {
-          if (!_selLayer) return;
-          L.polyline([[alightStop.lat, alightStop.lon], [destLL.lat, destLL.lon]], {
-            color: tokens().accent, weight: 2, opacity: 0.55, dashArray: '6 7',
-          }).addTo(_selLayer);
-        });
+    // The walk itself comes from the itinerary, not from a second query.
+    //
+    // What was here fetched `directMode:foot` for geometry the trip response
+    // already carried on its foot leg, decoded it with a private copy of the
+    // polyline decoder, and refitted the map inside the `.then` — racing the
+    // synchronous `fitBounds` twenty lines below. Drawing what we already
+    // have removes the query, the copy and the race together.
+    const feet = (dep._allLegs || []).filter(l => l.mode === 'foot');
+    let drew = false;
+    feet.forEach(leg => {
+      const wp = legShape(leg) || _legEnds(leg);
+      if (wp.length < 2) return;
+      drawWalk(_selLayer, wp);
+      pts.push(...wp);
+      drew = true;
+    });
+    // No foot leg in this response — an old cached board, or the minimal
+    // retry that drops pointsOnLink from every leg. Say the walk exists
+    // rather than leaving the pin unconnected.
+    if (!drew && alightStop) {
+      drawWalk(_selLayer, [[alightStop.lat, alightStop.lon], [destLL.lat, destLL.lon]]);
     }
   }
 

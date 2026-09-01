@@ -9,7 +9,9 @@ vi.mock('../src/config.js', () => ({
 }));
 vi.mock('../src/ui/log.js', () => ({ logMsg: vi.fn() }));
 
-import { haver, reachCls, findArr } from '../src/geo.js';
+import { haver, reachCls, findArr, walkInfo } from '../src/geo.js';
+import { state } from '../src/state.js';
+import { saveWalkDist } from '../src/api/walkDist.js';
 
 // --- haver (Haversine distance) ---
 
@@ -123,5 +125,72 @@ describe('findArr()', () => {
       { quay: { stopPlace: { name: 'Ekebergsletta' } }, expectedArrivalTime: '2026-05-24T08:05:00+02:00' },
     ];
     expect(findArr(sparse, 'Ekebergsletta')).not.toBeNull();
+  });
+});
+
+
+// --- walkInfo: the number people plan their morning by --------------------
+
+describe('walkInfo()', () => {
+  // ~930 m apart. The estimate is crow × 1.3 ÷ speed; the measurement, when
+  // there is one, is the length of the route the app drew.
+  const HOME = { lat: 59.8617, lon: 10.8285 };
+  const STOP = { lat: 59.8700, lon: 10.8300 };
+  const ROUTE = [[59.8617, 10.8285], [59.8650, 10.8300], [59.8700, 10.8300]];
+
+  const setup = () => {
+    localStorage.clear();
+    localStorage.setItem('__activeProfile', 'default');
+    state.walkOvr = null;
+    state.walkFromLL = null;
+    state.homeLL = HOME;
+    state.statLL = { out: STOP };
+    state.dIdx = 0;
+  };
+
+  it('estimates from crow-flight × 1.3 when nothing has been measured', () => {
+    setup();
+    const w = walkInfo();
+    expect(w.src).toBe('beregnet');
+    const crow = haver(HOME.lat, HOME.lon, STOP.lat, STOP.lon);
+    expect(w.dist).toBe(Math.round(crow * 1.3));
+  });
+
+  // The change. A measured route beats a multiplier, and `src` says which one
+  // you got — so the debug panel can tell you why the number moved.
+  it('uses the measured route when there is one, and says so', () => {
+    setup();
+    const crow = haver(HOME.lat, HOME.lon, STOP.lat, STOP.lon);
+    const saved = saveWalkDist(HOME, STOP, ROUTE, crow);
+    const w = walkInfo();
+    expect(w.src).toBe('gangrute');
+    expect(w.dist).toBe(saved);
+    expect(w.dist).toBeLessThan(Math.round(crow * 1.3));   // the real path is straighter here
+  });
+
+  // The guard that keeps a bad route from moving when the app says to leave.
+  it('falls back to the estimate when the stored length is not believable', () => {
+    setup();
+    const crow = haver(HOME.lat, HOME.lon, STOP.lat, STOP.lon);
+    saveWalkDist(HOME, STOP, ROUTE, crow);
+    // The reader has moved; the same stored entry is now absurd for this pair.
+    localStorage.setItem('default::t.walkDist',
+      JSON.stringify({ [Object.keys(JSON.parse(localStorage.getItem('default::t.walkDist')))[0]]: 50 }));
+    const w = walkInfo();
+    expect(w.src).toBe('beregnet');
+  });
+
+  it('a manual override still wins over everything', () => {
+    setup();
+    saveWalkDist(HOME, STOP, ROUTE, haver(HOME.lat, HOME.lon, STOP.lat, STOP.lon));
+    state.walkOvr = 4;
+    expect(walkInfo()).toEqual({ mins: 4, src: 'manuelt' });
+    state.walkOvr = null;
+  });
+
+  it('falls back to the default with no position at all', () => {
+    setup();
+    state.homeLL = null;
+    expect(walkInfo().src).toBe('standard');
   });
 });

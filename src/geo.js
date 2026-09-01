@@ -3,6 +3,7 @@ import config from './config.js';
 import { enturFetch } from './api/http.js';
 import { logMsg } from './ui/log.js';
 import { storage } from './storage.js';
+import { getWalkDist } from './api/walkDist.js';
 
 const WALK_SPEED_KEY  = 't.walkSpeed';
 const WALK_BUF_KEY    = 't.walkBuf';
@@ -55,15 +56,36 @@ export function haver(la1, lo1, la2, lo2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/**
+ * How long it takes you to reach your stop.
+ *
+ * The `× 1.3` is a detour multiplier: streets are not straight lines, and you
+ * cannot walk through buildings. It is a reasonable guess and it has been the
+ * only number here since the beginning — but the app also draws the REAL
+ * walking route on the walk map, and now keeps its length (api/walkDist.js).
+ * When that length exists it is used, because a measured route beats a
+ * multiplier, and `src` says which one you got.
+ *
+ * Note the estimate is not deleted. The measurement arrives only after a
+ * route has been fetched and drawn once, and the sanity band in `walkDist`
+ * rejects a nonsense one — so `× 1.3` remains the answer on a first run, on a
+ * new pair of points, and whenever the router says something impossible.
+ */
 export function walkInfo() {
   if (state.walkOvr !== null) return { mins: state.walkOvr, src: 'manuelt' };
   const pos = state.walkFromLL || state.homeLL;
   const sc = state.statLL[config.dirs[state.dIdx].key];
   if (pos && sc) {
-    const d = haver(pos.lat, pos.lon, sc.lat, sc.lon);
     const spd = SPEED_MPN[loadWalkSpeed()] || 83.33;
     const buf = loadWalkBuffer();
-    return { mins: Math.max(1, Math.ceil(d * 1.3 / spd)) + buf, dist: Math.round(d), src: state.walkFromLL ? 'sted' : 'beregnet' };
+    const crow = haver(pos.lat, pos.lon, sc.lat, sc.lon);
+    const measured = getWalkDist(pos, sc, crow);
+    const d = measured != null ? measured : crow * 1.3;
+    return {
+      mins: Math.max(1, Math.ceil(d / spd)) + buf,
+      dist: Math.round(d),
+      src: measured != null ? 'gangrute' : (state.walkFromLL ? 'sted' : 'beregnet'),
+    };
   }
   return { mins: config.defaultWalkMinutes, src: 'standard' };
 }

@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import { addCompass } from './mapCompass.js';
-import { onThemeChange } from './themeTokens.js';
+import { onThemeChange, tokens } from './themeTokens.js';
 
 /**
  * One place that owns basemap tiles, map init options and the live-map
@@ -107,6 +107,25 @@ export function drawRoute(layer, latlngs, opts = {}) {
     color, weight, opacity, dashArray,
     lineCap: 'round', lineJoin: 'round', interactive,
   }).addTo(layer);
+}
+
+/**
+ * A walk, drawn the one way a walk is drawn.
+ *
+ * There were five places drawing a walking line, between them two routers
+ * (Entur's `directMode:foot` and Valhalla), two copies of the polyline
+ * decoder, and four dash patterns — `'5 5'`, `'6 6'`, `'6 7'`, `'7 6'` — at
+ * three weights and four opacities. Nobody chose that; it accumulated. The
+ * same walk looked like a different thing depending on which map you were on.
+ *
+ * Dashed on purpose, and lighter than a transit corridor: this is the part of
+ * the journey you cover yourself, and it should read as the connective tissue
+ * between the lines rather than as another line.
+ */
+export function drawWalk(layer, latlngs) {
+  return drawRoute(layer, latlngs, {
+    color: tokens().accent, weight: 3, opacity: 0.85, dashArray: '2 7',
+  });
 }
 
 /** Swap every live map onto the tile set matching the current theme. */

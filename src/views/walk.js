@@ -1,13 +1,14 @@
 import config from '../config.js';
 import { state } from '../state.js';
-import { walkInfo, findArr, isWalkActive } from '../geo.js';
+import { walkInfo, findArr, isWalkActive, haver } from '../geo.js';
 import { show } from '../ui/nav.js';
 import { startBoard } from './board.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
-import { createMap } from '../ui/map.js';
+import { createMap, drawWalk } from '../ui/map.js';
 import { fetchWalkRoute } from '../api/route.js';
+import { saveWalkDist } from '../api/walkDist.js';
 import { fetchWeather } from '../api/weather.js';
 import { stopSelRefresh } from './selected.js';
 import { logMsg } from '../ui/log.js';
@@ -62,9 +63,15 @@ function _initWalkMap(fromLL, toLL) {
   _wMap.fitBounds([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], { padding: [30, 30] });
 
   fetchWalkRoute(fromLL, toLL).then(pts => {
-    if (!_wMap || !pts) return;
+    if (!pts) return;
+    // Keep the length, not just the shape. This is the one place in the app
+    // that already knows how far the walk to your stop really is, and it used
+    // to read the geometry and drop the rest — while `walkInfo()` went on
+    // multiplying the crow-flight distance by 1.3.
+    saveWalkDist(fromLL, toLL, pts, haver(fromLL.lat, fromLL.lon, toLL.lat, toLL.lon));
+    if (!_wMap) return;
     _routeLine.remove();
-    _routeLine = L.polyline(pts, { color: tokens().accent, weight: 3, opacity: 0.8 }).addTo(_wMap);
+    _routeLine = drawWalk(_wMap, pts);
     if (!_wUserMoved) _wMap.fitBounds(pts, { padding: [30, 30] });
   }).catch(() => {});
 

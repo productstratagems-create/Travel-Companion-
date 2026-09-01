@@ -18,7 +18,7 @@ import { fetchNearbyStops } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, mapHalo } from '../ui/mapIcons.js';
 import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
-import { createMap, drawRoute } from '../ui/map.js';
+import { createMap, drawRoute, drawWalk } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _headingDeg, anchorDistances, pointAtDistance, projectOnPath } from '../ui/path.js';
 import { decodePolyline } from '../ui/polyline.js';
@@ -439,14 +439,12 @@ function _drawWalkRoute(fromLL, toLL, destName) {
                   pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
       if (!pts) throw new Error('no points');
       const latlngs = decodePolyline(pts);
-      drawRoute(_bLayer, latlngs, { color: tokens().accent, weight: 3, opacity: 0.9, dashArray: '7 6' });
+      drawWalk(_bLayer, latlngs);
       if (!_bUserMoved) _bMap.fitBounds(latlngs, { padding: [44, 44], maxZoom: 17 });
     })
     .catch(() => {
       if (!_bLayer) return;
-      L.polyline([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], {
-        color: tokens().accent, weight: 2, opacity: 0.45, dashArray: '6 7',
-      }).addTo(_bLayer);
+      drawWalk(_bLayer, [[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]]);
     });
 }
 
@@ -693,7 +691,6 @@ export function _interpolateOnPath(calls, now, path) {
 // on a phone, short enough not to clutter a corridor with many stops.
 const _ROUTE_STOP_TOOLTIP_MS = 3000;
 
-let _walkExtKey = null;
 
 /**
  * Is there room to draw a marker at every stop?
@@ -745,6 +742,13 @@ export function _corridorKey(stops) {
  * Clipping per leg on its own fromPlace/toPlace is the rule selected.js has
  * always used for the same job.
  */
+/** A foot leg's two ends, for when the response carried no geometry for it. */
+function _legEnds(leg) {
+  const a = leg && leg.fromPlace, b = leg && leg.toPlace;
+  if (!a || !b || a.latitude == null || b.latitude == null) return [];
+  return [[a.latitude, a.longitude], [b.latitude, b.longitude]];
+}
+
 export function _legCorridorStops(leg, dirFallback) {
   const sjc = leg && leg.serviceJourney && leg.serviceJourney.estimatedCalls;
   if (!Array.isArray(sjc) || sjc.length < 2) return [];
@@ -820,7 +824,6 @@ function renderLineRoute(visibleDeps, vehicles) {
   if (!match) {
     _bRouteLayer.clearLayers();
     _bRoutePts = null;
-    _walkExtKey = null;
     return paths;
   }
 
@@ -841,7 +844,6 @@ function renderLineRoute(visibleDeps, vehicles) {
   if (allPts.length < 2) {
     _bRouteLayer.clearLayers();
     _bRoutePts = null;
-    _walkExtKey = null;
     return paths;
   }
 
@@ -962,8 +964,28 @@ function renderLineRoute(visibleDeps, vehicles) {
   // extensions): those are about the stop you are standing at and the train
   // you are catching, not the rest of the trip. Only the drawing and the fit
   // go multi-leg.
+  // Walks included. `_legs` has had the foot legs filtered out (adapt.js:94)
+  // and every map in the app iterated it, so a bus → 3 min on foot → tram
+  // journey drew as two disconnected corridors with a hole in the middle,
+  // and the walk to your actual destination was drawn by a SEPARATE query
+  // that then got wiped (see below). `_allLegs` is the whole journey, and
+  // `legShape` never looked at `leg.mode` — the geometry was always usable.
   const restPts = [];
-  ((c._legs || []).slice(1)).forEach(leg => {
+  const primary = (c._legs || [])[0];
+  ((c._allLegs || c._legs || [])).forEach(leg => {
+    // Leg one owns the corridor drawn above, with all its clipping and
+    // widening; drawing it twice would double its weight.
+    if (leg === primary) return;
+    if (leg.mode === 'foot') {
+      // Its own alignment when the response carried one, the chord between
+      // its ends otherwise — the retry path asks with `minimal:true`, which
+      // drops pointsOnLink from every leg, so this is a real branch.
+      const wp = legShape(leg) || _legEnds(leg);
+      if (wp.length < 2) return;
+      drawWalk(_bRouteLayer, wp);
+      restPts.push(...wp);
+      return;
+    }
     const legStops = _legCorridorStops(leg, dir);
     const legShapePts = legShape(leg);
     const lp = legShapePts || legStops.map(st => [st.lat, st.lon]);
@@ -1065,43 +1087,29 @@ function renderLineRoute(visibleDeps, vehicles) {
     });
   });
 
-  // Walking extension: dashed line from alighting stop to final destination venue.
-  if (destIsVenue && alightIdx !== -1) {
-    const alightPt = allPts[alightIdx];
-    const destLL = { lat: dir._toLat, lon: dir._toLon };
-    const extKey = alightPt[0] + ',' + alightPt[1] + '→' + destLL.lat + ',' + destLL.lon;
-    if (extKey !== _walkExtKey) {
-      _walkExtKey = extKey;
-      L.marker([destLL.lat, destLL.lon], { icon: _makeDestIcon() })
-        .bindTooltip(dir.to || 'Destinasjon', { permanent: false, direction: 'top', offset: [0, -32], className: 'map-label' })
-        .addTo(_bRouteLayer);
-      const q = '{trip(from:{coordinates:{latitude:' + alightPt[0] + ',longitude:' + alightPt[1] + '}}'
-        + 'to:{coordinates:{latitude:' + destLL.lat + ',longitude:' + destLL.lon + '}}'
-        + 'modes:{directMode:foot}numTripPatterns:1){tripPatterns{legs{pointsOnLink{points}}}}}';
-      enturFetch(config.api.journeyPlanner, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: q }),
-      })
-        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-        .then(data => {
-          if (!_bRouteLayer) return;
-          const pats = data.data && data.data.trip && data.data.trip.tripPatterns;
-          const encoded = pats && pats[0] && pats[0].legs && pats[0].legs[0]
-            && pats[0].legs[0].pointsOnLink && pats[0].legs[0].pointsOnLink.points;
-          if (!encoded) throw new Error('no points');
-          const latlngs = decodePolyline(encoded);
-          drawRoute(_bRouteLayer, latlngs, { color: tokens().accent, weight: 3, opacity: 0.9, dashArray: '6 6' });
-        })
-        .catch(() => {
-          if (!_bRouteLayer) return;
-          L.polyline([alightPt, [destLL.lat, destLL.lon]], {
-            color: tokens().accent, weight: 2, opacity: 0.55, dashArray: '6 7',
-          }).addTo(_bRouteLayer);
-        });
+  // The destination pin.
+  //
+  // What used to be here: a `directMode:foot` query for a walking route we
+  // already had, drawn on the `.then`. It was never visible. `renderLineRoute`
+  // clears its layer on every render — once a second — while a cache key
+  // stopped the block re-running, so the line and this pin were wiped on the
+  // next tick and never redrawn. Measured on a fixture: zero walk lines on
+  // screen at 1.2 s and at 6.2 s, with the query fired and answered.
+  //
+  // Drawing from the itinerary's own foot leg fixes that by construction: it
+  // is synchronous, so it survives the clear like everything else, and its
+  // points can go into the fit below instead of arriving after the map has
+  // already been framed.
+  if (destIsVenue && dir._toLat && dir._toLon) {
+    L.marker([dir._toLat, dir._toLon], { icon: _makeDestIcon() })
+      .bindTooltip(dir.to || 'Destinasjon', { permanent: false, direction: 'top', offset: [0, -32], className: 'map-label' })
+      .addTo(_bRouteLayer);
+    // No foot leg in this response — an old cached board, or the minimal
+    // retry. Say the walk exists rather than leaving the pin unconnected.
+    const walked = (c._allLegs || []).some(l => l.mode === 'foot');
+    if (!walked && alightIdx !== -1) {
+      drawWalk(_bRouteLayer, [allPts[alightIdx], [dir._toLat, dir._toLon]]);
     }
-  } else {
-    _walkExtKey = null;
   }
 
   // The whole journey, changes included — not just the leg you board.

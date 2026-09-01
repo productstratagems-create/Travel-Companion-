@@ -20,7 +20,7 @@ import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { fetchWalkRoute } from '../api/route.js';
-import { createMap, drawRoute } from '../ui/map.js';
+import { createMap, drawRoute, drawWalk } from '../ui/map.js';
 import { storage } from '../storage.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -503,7 +503,7 @@ function _updateArrMapWalkPin(arrLL) {
   fetchWalkRoute(arrLL, _walkDestLL).then(pts => {
     if (!_arrMap || !pts) return;
     if (_arrRouteLine) _arrRouteLine.remove();
-    _arrRouteLine = drawRoute(_arrMap, pts, { color: tokens().mapYou, weight: 3, opacity: 0.9 });
+    _arrRouteLine = drawWalk(_arrMap, pts);
     if (!_arrUserMoved) _arrMap.fitBounds(pts, { padding: [24, 24] });
   }).catch(() => {});
 }

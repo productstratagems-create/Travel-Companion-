@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { adaptTripPattern } from '../src/api/adapt.js';
+import { adaptTripPattern, _rowDest } from '../src/api/adapt.js';
 import {
   oneLeMetro,
   twoLegTransfer,
@@ -261,6 +261,25 @@ describe('adaptTripPattern — metro then walk to destination', () => {
     expect(result.expectedDepartureTime).toBe('2026-05-25T16:03:00+02:00');
   });
 
+  // v1.50.0. Reported: a board with destination "Aker brygge, Oslo" showed a
+  // metro line 3 row reading "Aker brygge". The metro does not go there — you
+  // ride to Nationaltheatret and walk. Here: ride to Hellerud, walk to Tveita.
+  it('_alightName is the stop you get off at, not the place you walk to', () => {
+    expect(result._alightName).toBe('Hellerud');
+  });
+
+  it('_alightWalkMins is the walk that follows, from the foot legs own times', () => {
+    expect(result._alightWalkMins).toBe(13);
+  });
+
+  // The fix adds a field rather than redefining one. `frontText` is read on
+  // the live stop-board path as the vehicle's real front text, and the test
+  // above pins today's value on purpose — breaking it would be trading one
+  // wrong claim for another.
+  it('leaves frontText exactly as it was', () => {
+    expect(result.destinationDisplay.frontText).toBe('Tveita T');
+  });
+
   it('_transfers is empty (no transit-to-transit transfer)', () => {
     expect(result._transfers).toHaveLength(0);
   });
@@ -414,5 +433,60 @@ describe('arrival platform (_arrQuay)', () => {
     const a = adaptTripPattern(withArrQuay({ publicCode: '3' }));
     expect(a.quay.publicCode).toBe('1');   // where you board
     expect(a._arrQuay).toBe('3');          // where you alight
+  });
+});
+
+// --- Where you get off, and whether to say so ------------------------------
+
+describe('_alightWalkMins on journeys that do not end on foot', () => {
+  // null, not 0: "does not end on foot" and "ends on a walk too short to
+  // round up" are different facts, and _rowDest needs to tell them apart.
+  it('is null for a plain one-leg ride', () => {
+    expect(adaptTripPattern(oneLeMetro)._alightWalkMins).toBeNull();
+  });
+
+  it('is null when the last leg is transit, even with a walk in the middle', () => {
+    const r = adaptTripPattern(metroFootBus);
+    expect(r._alightWalkMins).toBeNull();
+    expect(r._alightName).toBe('Tveita');   // the bus's arrival, not the mid walk
+  });
+});
+
+describe('_rowDest', () => {
+  const row = (over) => _rowDest({
+    destinationDisplay: { frontText: 'Aker brygge' },
+    _alightName: 'Nationaltheatret',
+    _alightWalkMins: 8,
+    ...over,
+  });
+
+  // The reported case. The heading above the list already says where you are
+  // going; what the row has to say is where to get off.
+  it('names the alighting stop when the journey ends on foot somewhere else', () => {
+    expect(row()).toEqual({ text: 'Nationaltheatret', walkMins: 8 });
+  });
+
+  // No minute threshold: a two-minute walk is still a place the train does
+  // not reach, and a threshold would let that claim through.
+  it('says so even when the walk is short', () => {
+    expect(row({ _alightWalkMins: 1 })).toEqual({ text: 'Nationaltheatret', walkMins: 1 });
+    expect(row({ _alightWalkMins: 0 }).text).toBe('Nationaltheatret');
+  });
+
+  it('changes nothing when the vehicle actually reaches the destination', () => {
+    expect(row({ _alightWalkMins: null })).toEqual({ text: 'Aker brygge', walkMins: 0 });
+  });
+
+  // A walk that ends where the transit leg ended is OTP tidying, not a
+  // journey step worth renaming the row for.
+  it('changes nothing when the walk ends at the same name', () => {
+    expect(row({ _alightName: 'Aker brygge' })).toEqual({ text: 'Aker brygge', walkMins: 0 });
+  });
+
+  // The live stop-board path has none of these fields.
+  it('falls back to the front text, and survives nothing at all', () => {
+    expect(_rowDest({ destinationDisplay: { frontText: 'Kolsås' } }).text).toBe('Kolsås');
+    expect(_rowDest({})).toEqual({ text: '', walkMins: 0 });
+    expect(_rowDest(null)).toEqual({ text: '', walkMins: 0 });
   });
 });

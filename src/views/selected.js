@@ -3,7 +3,7 @@ import { enturFetch } from '../api/http.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
 import { fetchJourneyMeta } from '../api/entur.js';
-import { quayLatLon, legShape } from '../api/adapt.js';
+import { quayLatLon, legShape, _rowDest } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 import { addLegToPlan, isLegInPlan } from '../api/plan.js';
@@ -283,7 +283,10 @@ export function renderSelected() {
   const ln = c.serviceJourney && c.serviceJourney.line;
   const lc = (ln && ln.publicCode) || config.line;
   const lbg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
-  const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
+  // The same name the board row shows. This chip sits directly under the
+  // line badge, so `frontText` put "3  Aker brygge" at the top of the detail
+  // view too — the reported claim, one tap deeper.
+  const dest = _rowDest(c).text;
   const quay = (c.quay && c.quay.publicCode) || '?';
   const depTs = new Date(c.expectedDepartureTime).getTime();
   const departed = depTs < now;
@@ -300,7 +303,14 @@ export function renderSelected() {
   const urgMsg = leaveByMsg(rcls, mtl);
 
   const walkActive = isWalkActive(dir);
-  const isTransfer = c._isTransfer && c._legs && c._legs.length >= 2;
+  // `_isTransfer` is already "there is more here than one train" — it is
+  // `legs.length > 1 || lastAny.mode === 'foot'`. Requiring two TRANSIT legs
+  // on top of that meant a single train plus a walk to your destination fell
+  // through to the plain avgår/ankommer grid, which showed the post-walk
+  // arrival time beside the alighting platform and never mentioned the walk.
+  // So the one journey whose shape most needs explaining was the one journey
+  // with no itinerary at all.
+  const isTransfer = c._isTransfer && c._legs && c._legs.length >= 1;
 
   // Build line badge(s) for train chip
   const chipBadges = isTransfer

@@ -6,7 +6,7 @@ import { storage } from '../storage.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, fetchStopBoardEarliest, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
-import { adaptTripPattern, quayLatLon, legShape } from '../api/adapt.js';
+import { adaptTripPattern, quayLatLon, legShape, _rowDest } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
 import { renderAlerts, pruneHidden } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
@@ -867,7 +867,12 @@ function renderLineRoute(visibleDeps, vehicles) {
   }
 
   let boardIdx = findStopIdx(dir.from, dir._fromLat, dir._fromLon);
-  let alightIdx = findStopIdx(dir.to, dir._toLat, dir._toLon);
+  // Ask for the stop OTP says you alight at, not for the place you are
+  // heading to. With a venue destination those are different, and matching on
+  // "Aker brygge, Oslo" against the stop names of a metro line is a loose
+  // substring search for a name that is not among them — it can land on a
+  // stop nobody meant before the coordinate fallback below ever runs.
+  let alightIdx = findStopIdx(c._alightName || dir.to, dir._toLat, dir._toLon);
 
   // If destination is a venue (not a stop), find the stop nearest to it for alighting.
   const destIsVenue = dir._toLat && dir._toLon && !dir.toStopId;
@@ -1856,7 +1861,10 @@ function renderVehicleMarkers(vehicles, paths) {
       : (pos.heading != null ? pos.heading : coarse.heading);
     const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
     const mode = _depMode(c);
-    const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
+    // The same name the row uses. "Linje 3 → Aker brygge" was the reported
+    // claim in tooltip form: line 3 does not go there. The stop you alight at
+    // is both true and the direction you are actually travelling.
+    const dest = _rowDest(c).text;
     const lastCall = sjc[sjc.length - 1];
     const finalArr = lastCall && _callTime(lastCall, true);
     const mins = finalArr ? Math.max(0, Math.round((new Date(finalArr).getTime() - now) / 60000)) : null;
@@ -2277,7 +2285,9 @@ export function renderBoard() {
     const ln = c.serviceJourney && c.serviceJourney.line;
     const lc = (ln && ln.publicCode) || '?';
     const lbg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
-    const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || '';
+    const rowDest = _rowDest(c);
+    const dest = rowDest.text;
+    const walkMins = rowDest.walkMins;
     const quay = (c.quay && c.quay.publicCode) || (c.quay && c.quay.name ? c.quay.name.replace(/^.*?\s/, '') : '?');
     const delayMins = c.realtime ? Math.round((depTs - new Date(c.aimedDepartureTime).getTime()) / 60000) : 0;
     const delayed = delayMins > 1;
@@ -2393,10 +2403,16 @@ export function renderBoard() {
     const xferCount = c._transfers && c._transfers.length;
 
     const minsLabel = isNow ? 'nå' : mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' t' + (mins % 60 > 0 ? ' ' + mins % 60 + ' m' : '');
+    // "av på X" rather than "mot X" when the row names the alighting stop —
+    // otherwise a screen reader is told the line goes somewhere it does not,
+    // which is the whole bug, said out loud.
+    const destPhrase = walkMins
+      ? ' av på ' + dest + ' og ' + walkMins + ' min gange'
+      : ' mot ' + dest;
     const a11yLabel = departed
-      ? lc + ' mot ' + dest + ', gikk ' + agoMins + ' min siden'
+      ? lc + destPhrase + ', gikk ' + agoMins + ' min siden'
         + (quay !== '?' ? ', spor ' + quay : '')
-      : lc + ' mot ' + dest + ', avgang om ' + minsLabel + (quay !== '?' ? ', spor ' + quay : '');
+      : lc + destPhrase + ', avgang om ' + minsLabel + (quay !== '?' ? ', spor ' + quay : '');
 
     const isClock = mins >= 60;
     html += '<div class="' + rowCls + '"'
@@ -2431,6 +2447,7 @@ export function renderBoard() {
       + '</div>'
       + '<div class="dep-info">'
       + '<span class="dep-dest">' + esc(dest) + '</span>'
+      + (walkMins ? '<span class="dep-tag dep-tag-walk">+ ' + walkMins + ' min gange</span>' : '')
       + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
       + (delayed ? '<span class="dep-tag">+' + delayMins + ' min</span>' : '')
       + (_atPlatform(c) ? '<span class="dep-tag dep-tag-at">står på perrongen</span>' : '')

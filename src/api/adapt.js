@@ -58,6 +58,36 @@ function drop(reason) {
   return null;
 }
 
+/**
+ * What the row says under the line badge, and whether to admit a walk.
+ *
+ * Reported: a board with destination "Aker brygge, Oslo" — a place, not a
+ * stop — showed a metro line 3 row reading "Aker brygge". Line 3 does not go
+ * there; you ride to Nationaltheatret and walk. The row was printing
+ * `frontText`, which `adaptTripPattern` sets from the last leg INCLUDING the
+ * final walk.
+ *
+ * The heading above the list already names the destination, so repeating it
+ * on every row was both wrong and redundant. What differs BETWEEN rows — and
+ * what you need while sitting on the train — is which stop you get off at.
+ * In the reported case that is exactly what separated the metro row from the
+ * bus 74 → tram 12 row: the tram runs all the way, the metro does not, and
+ * the two rows looked identical.
+ *
+ * No minute threshold. The rule is structural: if the journey ends on foot
+ * somewhere with another name, we name the stop. A threshold would have let
+ * a two-minute walk go on lying.
+ */
+export function _rowDest(c) {
+  const front = (c && c.destinationDisplay && c.destinationDisplay.frontText) || '';
+  const alight = (c && c._alightName) || '';
+  // null means "does not end on foot"; 0 means "it does, but briefly".
+  const walk = c ? c._alightWalkMins : null;
+  const endsOnFoot = walk !== null && walk !== undefined;
+  const offEarlier = endsOnFoot && !!alight && alight !== front;
+  return { text: offEarlier ? alight : front, walkMins: offEarlier ? walk : 0 };
+}
+
 export function adaptTripPattern(tp) {
   try {
     if (!tp || !tp.legs) return drop('uten bein');
@@ -98,6 +128,34 @@ export function adaptTripPattern(tp) {
       // never this one, even though it rides along in the same response.
       _arrQuay:          (last.toEstimatedCall && last.toEstimatedCall.quay
                           && last.toEstimatedCall.quay.publicCode) || null,
+
+      // Where you get off, BY NAME — and how long you then walk.
+      //
+      // `frontText` above is where the JOURNEY ends, walk included. When the
+      // destination is a place rather than a stop ("Aker brygge") that is
+      // somewhere the vehicle does not go, and the board printed it beside
+      // the line badge: metro 3 → Aker brygge, which the metro does not do.
+      //
+      // The honest name was already here, one variable away: `last` is the
+      // final TRANSIT leg, so `last.toPlace.name` is the platform you step
+      // onto. It is added beside `frontText` rather than replacing it,
+      // because the live stop-board path uses that same field for the real
+      // front text of the vehicle, and adapt.test.js pins today's value.
+      //
+      // `_alightWalkMins` is null when the journey does not end on foot —
+      // distinct from 0, which means "it does, but it rounds to nothing".
+      // The reader of this decides what to show; the adapter only reports.
+      _alightName:       last.toPlace.name,
+      _alightWalkMins:   (() => {
+        if (lastAny.mode !== 'foot') return null;
+        const a = lastAny.expectedStartTime || lastAny.aimedStartTime;
+        const b = lastAny.expectedEndTime || lastAny.aimedEndTime;
+        if (!a || !b) return null;
+        // OTP has already applied the reader's own walking speed to this leg
+        // (walkSpeed goes out with every trip query), so the minutes are
+        // theirs, not a second guess at them.
+        return Math.max(0, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000));
+      })(),
       _toLat:            last.toPlace && last.toPlace.latitude,
       _toLon:            last.toPlace && last.toPlace.longitude,
       _allLegs:          tp.legs,

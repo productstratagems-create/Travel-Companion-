@@ -498,7 +498,7 @@ function renderFavRouteShortcuts() {
   el.innerHTML = '<div class="set-label">ofte brukt</div>'
     + top.map(t => '<button class="nearby-btn fav-route-btn" type="button" data-key="' + esc(t.key) + '">'
       + '<span class="nearby-name">' + esc(t.from) + ' → ' + esc(t.to) + '</span>'
-      + (t.saved ? '<span class="nearby-meta">★</span>' : '')
+      + (t.saved ? '<span class="nearby-dist">★</span>' : '')
       + '</button>').join('');
   el.querySelectorAll('.fav-route-btn').forEach(btn => {
     // One path through the app: the same handler the «lagret» screen uses,

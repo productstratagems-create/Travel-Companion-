@@ -71,22 +71,6 @@ export function addTimedFav(dep, dir) {
 }
 
 /**
- * The favourites you actually use, most-used first.
- *
- * "Most used" did not exist before this: a favourite stored only createdAt,
- * and recordSmartTrip — the app's one usage signal — was never called when a
- * favourite was loaded. So the routes people tap were invisible to the only
- * thing measuring taps.
- *
- * Scored on both sources deliberately. A fresh counter starts at zero for
- * everyone, which would make the top two arbitrary for weeks; the trip
- * history already holds real counts from «bruk rute», so the list is
- * meaningful immediately and sharpens as favourites get used.
- *
- * @param {function} histCount  (from, to) => number, injected so the ranking
- *                              stays pure and testable without storage.
- */
-/**
  * A star is an explicit statement; a trip in the history is an inference.
  *
  * So a starred route outranks one you have merely taken a couple of times,

@@ -156,13 +156,60 @@ function initPrefs() {
   });
 }
 
+const DEST_PEEK_KEY = 't.destPeek';
+
+/**
+ * Is the reader interested in what is at the other end?
+ *
+ * Reported: this section should be collapsed so the reader can decide whether
+ * it is relevant. It used to open itself the instant a destination was picked
+ * and fetch immediately — so a screen whose whole job is choosing a route
+ * spent height on five category chips and, when the places API was
+ * unreachable, answered with "Kunne ikke laste steder."
+ *
+ * The answer is remembered, because being asked to choose the same thing
+ * every time is not really choosing. Opening it once is a standing yes.
+ */
+function _destPeekOn() {
+  return storage.get(DEST_PEEK_KEY) === '1';
+}
+function _setDestPeek(on) {
+  if (on) storage.set(DEST_PEEK_KEY, '1'); else storage.remove(DEST_PEEK_KEY);
+}
+
+/**
+ * A destination now has coordinates: offer the section, or open it if the
+ * reader has already said yes once.
+ *
+ * Nothing is fetched here. `_openDestPreview` is the only thing that reaches
+ * the network, and it only runs when someone has asked to see this.
+ */
 function _showDestPreview(lat, lon) {
   _destPreviewLL = { lat, lon };
+  const toggle = document.getElementById('dest-prev-toggle');
+  if (toggle) toggle.style.display = _destPeekOn() ? 'none' : 'block';
+  if (_destPeekOn()) _openDestPreview();
+  else {
+    const panel = document.getElementById('dest-preview');
+    if (panel) panel.style.display = 'none';
+  }
+}
+
+function _openDestPreview() {
   const panel = document.getElementById('dest-preview');
-  if (!panel) return;
+  if (!panel || !_destPreviewLL) return;
   panel.style.display = 'block';
+  const toggle = document.getElementById('dest-prev-toggle');
+  if (toggle) toggle.style.display = 'none';
   _renderDestPills();
   _fetchDestVenues();
+}
+
+function _hideDestPreview() {
+  const panel = document.getElementById('dest-preview');
+  const toggle = document.getElementById('dest-prev-toggle');
+  if (panel) panel.style.display = 'none';
+  if (toggle) toggle.style.display = _destPreviewLL ? 'block' : 'none';
 }
 
 function _renderDestPills() {
@@ -182,7 +229,11 @@ function _renderDestPills() {
 }
 
 function _fetchDestVenues() {
-  if (!_destPreviewLL) return;
+  // The guard sits at the network call, not at the call sites. "Nothing is
+  // fetched until the reader asks" is the property that matters here, and a
+  // property enforced by remembering to call things in the right order is a
+  // property that lasts until the next caller.
+  if (!_destPreviewLL || !_destPeekOn()) return;
   const res = document.getElementById('dest-prev-results');
   if (!res) return;
   res.innerHTML = '<div class="dest-prev-loading">laster steder…</div>';
@@ -339,13 +390,21 @@ export function initSettings() {
         if (sugg) { sugg.hidden = true; sugg.innerHTML = ''; }
         if (id === 'arr') {
           _destPreviewLL = null;
-          const preview = document.getElementById('dest-preview');
-          if (preview) preview.style.display = 'none';
+          _hideDestPreview();
         }
         inp.focus();
       });
     }
   });
+
+  const destOpenBtn = document.getElementById('dest-prev-open');
+  if (destOpenBtn) {
+    destOpenBtn.addEventListener('click', () => { _setDestPeek(true); _openDestPreview(); });
+  }
+  const destCloseBtn = document.getElementById('dest-prev-close');
+  if (destCloseBtn) {
+    destCloseBtn.addEventListener('click', () => { _setDestPeek(false); _hideDestPreview(); });
+  }
 
   const viaAddBtn = document.getElementById('set-via-add');
   if (viaAddBtn) {
@@ -640,8 +699,7 @@ export function showSettings() {
   if (prevDir && prevDir._toLat && prevDir._toLon && loadDest()) {
     _showDestPreview(prevDir._toLat, prevDir._toLon);
   } else if (!_destPreviewLL) {
-    const preview = document.getElementById('dest-preview');
-    if (preview) preview.style.display = 'none';
+    _hideDestPreview();
   }
 }
 

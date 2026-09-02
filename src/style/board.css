@@ -564,6 +564,7 @@ html.view-board #dep-list{
   min-height:0;
   overflow-y:auto;
 }
+
 /* Everything above it holds its size. */
 html.view-board #v-board > *:not(#dep-list){ flex:0 0 auto }
 

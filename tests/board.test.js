@@ -10,7 +10,7 @@ vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
   _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _isolateLine, _corridorKey, CORRIDOR_MAX_M, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle, _interpolateVehiclePos, _interpolateOnPath,
-  _nextPageAt, _mergePage, MAX_ROWS } from '../src/views/board.js';
+  _nextPageAt, _mergePage, MAX_ROWS, _rowQuay } from '../src/views/board.js';
 import { measurePath } from '../src/ui/path.js';
 import { haver } from '../src/geo.js';
 
@@ -1082,5 +1082,63 @@ describe('the row cap', () => {
   it('is a real number, comfortably above one screenful', () => {
     expect(MAX_ROWS).toBeGreaterThan(24);
     expect(MAX_ROWS).toBeLessThanOrEqual(120);
+  });
+});
+
+
+// ── Which platform the row shows ───────────────────────────────────────────
+//
+// Reported: "du viser kun avganger fra ett av sporene (spor 2)". The board
+// takes its platform from the TRIP PLANNER; the stop's own board carries the
+// one the stop announces, and the realtime feed updates that one. At a
+// terminus, where trains alternate between platforms, the two disagree — and
+// sending someone to the wrong platform loses them the train.
+
+const dep = (planned, sjId) => ({
+  quay: { publicCode: planned },
+  serviceJourney: sjId ? { id: sjId } : null,
+});
+
+describe('_rowQuay', () => {
+  it('keeps the planned platform when the stop agrees', () => {
+    const r = _rowQuay(dep('2', 'RUT:ServiceJourney:3-1'), { 'RUT:ServiceJourney:3-1': '2' });
+    expect(r).toEqual({ quay: '2', changed: false });
+  });
+
+  // The reported case: the trip planner says 2, the stop says 1.
+  it('shows the stop’s platform when they disagree, and says it changed', () => {
+    const r = _rowQuay(dep('2', 'RUT:ServiceJourney:3-1'), { 'RUT:ServiceJourney:3-1': '1' });
+    expect(r).toEqual({ quay: '1', changed: true });
+  });
+
+  // The one that would have switched the whole feature off in silence: the
+  // realtime feed hands back a lowercase codespace where the trip planner
+  // uses the NeTEx one. Match the raw strings and NOTHING lines up, which
+  // reads as "these two never disagree" rather than as a bug.
+  it('matches across the codespace casing the realtime feed uses', () => {
+    const r = _rowQuay(dep('2', 'RUT:ServiceJourney:3-1'), { 'RUT:ServiceJourney:3-1': '1' });
+    const lower = _rowQuay(dep('2', 'rut:ServiceJourney:3-1'), { 'RUT:ServiceJourney:3-1': '1' });
+    expect(lower).toEqual(r);
+    expect(lower.changed).toBe(true);
+  });
+
+  it('changes nothing for a journey the stop says nothing about', () => {
+    expect(_rowQuay(dep('2', 'RUT:ServiceJourney:9'), { 'RUT:ServiceJourney:3-1': '1' }))
+      .toEqual({ quay: '2', changed: false });
+    expect(_rowQuay(dep('2', 'RUT:ServiceJourney:3-1'), null))
+      .toEqual({ quay: '2', changed: false });
+    expect(_rowQuay(dep('2', null), { 'x': '1' })).toEqual({ quay: '2', changed: false });
+  });
+
+  // An unlabelled platform is not a correction. Treating "?" as a
+  // disagreement would tag every row on a stop whose board omits the field.
+  it('never treats an unknown platform as a change', () => {
+    expect(_rowQuay(dep('2', 'A'), { A: '?' })).toEqual({ quay: '2', changed: false });
+  });
+
+  // The stop is still the better answer when we had no plan at all — it just
+  // is not a *change*, because there was nothing to change from.
+  it('adopts the stop’s platform without crying change when we had none', () => {
+    expect(_rowQuay(dep(undefined, 'A'), { A: '1' })).toEqual({ quay: '1', changed: false });
   });
 });

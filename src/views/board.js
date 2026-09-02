@@ -15,7 +15,7 @@ import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops } from '../api/stops.js';
-import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, mapHalo } from '../ui/mapIcons.js';
+import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX } from '../ui/mapIcons.js';
 import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
 import { createMap, drawRoute, drawWalk } from '../ui/map.js';
@@ -1288,7 +1288,10 @@ const _STRIP_LOOKBACK = 4;
 
 // Widest a train glyph gets, plus breathing room. Two glyphs closer than this
 // would touch, so they collapse into one.
-const _STRIP_GLYPH_PX = 46;
+// The widest silhouette, plus room for a "+N" when a cluster is stacked.
+// This feeds the clustering threshold, so it has to track the glyph: too
+// small and they overlap instead of stacking.
+const _STRIP_GLYPH_PX = SIDE_VEHICLE_MAX_PX + 16;
 
 // Where your stop sits across the rail, and where a departed train settles in
 // the room kept to its right.
@@ -1493,6 +1496,10 @@ export function _buildStrip(candidates, dir, lineOn, now, livePos) {
       // which line it is. Same source as the badge in the list and the pill
       // above, so the three never disagree.
       colour: (ln.presentation && ln.presentation.colour) ? '#' + ln.presentation.colour : null,
+      // Which silhouette the strip draws. The line's own mode, not the
+      // board's filter: a tram and a metro on one axis should not be the
+      // same shape just because both are switched on.
+      mode: ln.transportMode || 'metro',
       label: (c.destinationDisplay && c.destinationDisplay.frontText) || '',
     });
   });
@@ -1743,7 +1750,12 @@ function renderLineStrip(visibleDeps) {
     // The strip must read the same as the row beneath it. Both call it "nå"
     // for the first minute past the scheduled time, and only then start
     // counting how long ago it went.
-    const body = '<b>' + (lead.ago >= 1 ? '-' + lead.ago : lead.ago !== null || lead.mins <= 0 ? 'nå' : lead.mins) + '</b>'
+    // The minutes ride on the vehicle's flank. Same silhouettes and the same
+    // colour rule as the map — see sideVehicleSvg — so the strip and the map
+    // read as one thing rather than two languages for the same train.
+    const mins = lead.ago >= 1 ? '-' + lead.ago
+      : (lead.ago !== null || lead.mins <= 0) ? 'nå' : String(lead.mins);
+    const body = sideVehicleSvg(lead.mode, lead.colour, mins, !!lead.departed)
       + (n > 1 ? '<i>+' + (n - 1) + '</i>' : '');
     const title = lead.departed
       ? (n > 1 ? n + ' tog har gått, siste ' : '')
@@ -1757,10 +1769,10 @@ function renderLineStrip(visibleDeps) {
       : cl.group
         ? 'om ' + lead.mins + ' min · trykk for å lukke gruppen'
         : esc(lead.label) + ' · trykk for å se raden';
-    // Several lines can share the axis now, so a glyph carries its own line
-    // colour. Falls back to the accent when the operator gave none.
-    const tint = lead.colour ? 'background:' + lead.colour + ';border-color:' + lead.colour + ';' : '';
-    return '<span class="' + cls + '" style="' + tint + 'left:' + cl.pos.toFixed(2) + '%"'
+    // The line colour is on the vehicle itself now, so the glyph carries no
+    // background of its own — a coloured pill behind a coloured train would
+    // say the same thing twice, in two shades.
+    return '<span class="' + cls + '" style="left:' + cl.pos.toFixed(2) + '%"'
       + ' role="button" tabindex="0" data-count="' + n + '"'
       + (cl.group ? ' data-group="' + esc(cl.group) + '"' : '')
       + ' data-jid="' + esc(lead.id) + '"'

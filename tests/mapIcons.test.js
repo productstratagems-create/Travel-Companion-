@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 // divIcon just returns its options, so the generated markup can be inspected.
 vi.mock('leaflet', () => ({ default: { divIcon: (opts) => opts } }));
 
-import { makeVehicleIcon } from '../src/ui/mapIcons.js';
+import { makeVehicleIcon, sideVehicleSvg, SIDE_VEHICLE_MAX_PX } from '../src/ui/mapIcons.js';
 
 const html = (mode, opts) => makeVehicleIcon(mode, '#f5a000', opts).html;
 // The body is the tapered silhouette, named rather than found by position —
@@ -142,5 +142,97 @@ describe('makeVehicleIcon', () => {
 
   it('carries no line code — the map only ever draws one line at a time', () => {
     expect(html('metro', { bearing: 90 })).not.toMatch(/>\s*\d+\s*</);
+  });
+});
+
+// v1.59.0. The strip's countdown pills became side views of the same vehicles
+// the map draws in plan view, with the minutes on the flank. Two rules carry
+// it, and both fail silently: a shape that clips outside the viewBox simply
+// vanishes, and a mode that falls through to the wrong silhouette still looks
+// like a vehicle — just the wrong one.
+describe('sideVehicleSvg', () => {
+  const svg = (mode, colour, label, dim) => sideVehicleSvg(mode, colour, label, dim);
+  const num = (s, name) => Number(s.match(new RegExp('\\s' + name + '="([^"]*)"'))[1]);
+
+  it('gives each mode its own silhouette', () => {
+    const widths = ['metro', 'rail', 'tram', 'bus'].map(m => num(svg(m, null, '5'), 'width'));
+    expect(new Set(widths).size).toBe(4);
+  });
+
+  it('draws wheels under the road and street modes only', () => {
+    const circles = (m) => (svg(m, null, '5').match(/<circle/g) || []).length;
+    expect(circles('tram')).toBe(2);
+    expect(circles('bus')).toBe(2);
+    expect(circles('metro')).toBe(0);
+    expect(circles('rail')).toBe(0);
+  });
+
+  it('falls back to the metro silhouette for a mode it does not know', () => {
+    expect(svg('water', null, '5')).toBe(svg('metro', null, '5'));
+  });
+
+  // track.js passes leg.lineBg, which entur.js can leave as an empty string.
+  // Without the guard that reaches the DOM as fill="", an invisible vehicle.
+  it('falls back to the mode colour when the operator gave none', () => {
+    expect(svg('tram', '', '5')).not.toContain('fill=""');
+    expect(svg('tram', '', '5')).toContain('#7b3999');
+  });
+
+  it('writes the label on the flank', () => {
+    expect(svg('metro', null, 'nå')).toContain('>nå</text>');
+    expect(svg('metro', null, '-3', true)).toContain('>-3</text>');
+  });
+
+  // A vehicle drawn past the viewBox is cropped by the browser with no error
+  // and no warning — the wheels sat 0.4px outside before this test existed.
+  it('keeps everything it draws inside its own viewBox', () => {
+    ['metro', 'rail', 'tram', 'bus'].forEach(m => {
+      const s = svg(m, null, '12');
+      const w = num(s, 'width'), h = num(s, 'height');
+      const nums = (s.match(/<path d="([^"]*)"/)[1].match(/-?\d+(\.\d+)?/g) || []).map(Number);
+      // The path alternates x and y after the leading M, so bound both by the
+      // larger dimension rather than pairing them up — a coordinate outside
+      // the box fails either way, and this cannot mis-pair on a Q command.
+      nums.forEach(n => { expect(n).toBeGreaterThanOrEqual(0); expect(n).toBeLessThanOrEqual(w); });
+      (s.match(/<circle[^>]*>/g) || []).forEach(c => {
+        const cy = num(c, 'cy'), r = num(c, 'r'), cx = num(c, 'cx');
+        expect(cy + r).toBeLessThanOrEqual(h);
+        expect(cx + r).toBeLessThanOrEqual(w);
+        expect(cx - r).toBeGreaterThanOrEqual(0);
+      });
+    });
+  });
+
+  // The whole point of the redesign: the strip and the map say the same thing
+  // about the same train. If the strip stopped honouring the line's colour it
+  // would still look right — just no longer connected to the map.
+  it('wears the line colour it is given', () => {
+    expect(svg('metro', '#00b0ff', '5')).toContain('#00b0ff');
+  });
+
+  it('quiets, rather than strips, the vehicle that has already gone', () => {
+    const gone = svg('metro', null, '-3', true);
+    const here = svg('metro', null, '3', false);
+    // Same parts, less presence — a departed train is context, not absence.
+    expect((gone.match(/<rect/g) || []).length).toBe((here.match(/<rect/g) || []).length);
+    expect(gone).toContain('fill-opacity=".55"');
+    expect(here).toContain('fill-opacity="1"');
+  });
+});
+
+// The strip sizes its clustering threshold from this, so a silhouette that
+// grows without the constant growing means glyphs that overlap.
+describe('SIDE_VEHICLE_MAX_PX', () => {
+  // board.test.js stubs this module and hardcodes the number, because the
+  // strip reads it at module scope. Pinned here so a wider silhouette fails
+  // in the one place that can see both sides.
+  it('is 48 — the number board.test.js stubs', () => {
+    expect(SIDE_VEHICLE_MAX_PX).toBe(48);
+  });
+
+  it('is the widest silhouette any mode draws', () => {
+    const widths = ['metro', 'rail', 'tram', 'bus']
+      .map(m => Number(sideVehicleSvg(m, null, '5').match(/\swidth="([^"]*)"/)[1]));
+    expect(SIDE_VEHICLE_MAX_PX).toBe(Math.max(...widths));
   });
 });

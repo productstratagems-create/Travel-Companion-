@@ -26,7 +26,7 @@ import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
 import { isExample } from '../firstRun.js';
 import { newRecord, stage, showRecord, takeLookbackLost } from '../api/diagnose.js';
-import { LOOKBACK_MINS, normJid } from '../api/queries.js';
+import { BOARD_MODES, LOOKBACK_MINS, normJid } from '../api/queries.js';
 import { takeDropReasons } from '../api/adapt.js';
 import { loadReturn, returnWindow, loadSkip, dayKey } from '../api/returnTrip.js';
 
@@ -2735,7 +2735,13 @@ window._askStopBoard = () => _askStopBoard(config.dirs[state.dIdx]);
  */
 function _askStopBoard(dir) {
   if (!dir || !dir.stopId) return;
-  stopBoardSummary(dir.stopId).then(res => {
+  // Ask only for the modes the reader has on. `numberOfDepartures` caps the
+  // whole board, so at a bus hub like Mortensrud a mode-blind request spends
+  // its twenty slots on buses: measured 3 metro and 17 bus, which left most
+  // rows with no platform to cross-check against.
+  const on = loadModes();
+  const modes = BOARD_MODES.filter(m => on[m]);
+  stopBoardSummary(dir.stopId, modes).then(res => {
     if (!res) return;
     _stopQuays = res.byJourney || null;
     if (_diag) {

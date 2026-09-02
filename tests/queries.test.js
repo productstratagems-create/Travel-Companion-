@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tripGQL, boardGQL, trackGQL, arrBoardGQL, sitsGQL, LOOKBACK_MINS } from '../src/api/queries.js';
+import { tripGQL, boardGQL, trackGQL, arrBoardGQL, sitsGQL, LOOKBACK_MINS, BOARD_MODES } from '../src/api/queries.js';
 
 // --- tripGQL ---
 
@@ -321,5 +321,38 @@ describe('the situation text rides on every situation query', () => {
     expect(boardGQL('NSR:StopPlace:1', 10, null, true)).not.toContain('description');
     expect(tripGQL('A', 'B', null, 12, 1.3, null, true)).not.toContain('description');
     expect(arrBoardGQL('NSR:StopPlace:1', 8, true)).not.toContain('description');
+  });
+});
+
+
+// ── Which modes the stop board is asked for ────────────────────────────────
+//
+// Reported, twice: departures missing from platform 1 at Mortensrud.
+// `numberOfDepartures` caps the WHOLE board, so a mode-blind request at a bus
+// hub spends its twenty slots on buses — measured 3 metro against 17 bus,
+// which left most rows with nothing to cross-check against. Asking only for
+// the modes in play is what makes the twenty slots useful.
+
+describe('boardGQL — whiteListedModes', () => {
+  const modesIn = (q) => (q.match(/whiteListedModes:\[([^\]]*)\]/) || [])[1];
+
+  it('asks for every mode when it is not told otherwise', () => {
+    expect(modesIn(boardGQL('NSR:1', 20))).toBe(BOARD_MODES.join(','));
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, []))).toBe(BOARD_MODES.join(','));
+  });
+
+  // The fix: twenty metro departures instead of three metro and seventeen bus.
+  it('asks for only what it was given', () => {
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['metro']))).toBe('metro');
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus', 'rail']))).toBe('bus,rail');
+  });
+
+  // These go into the query as bare GraphQL enums, unquoted. Anything that is
+  // not one of the four must not reach it.
+  it('lets nothing but the four known modes into the query', () => {
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['metro', 'sykkel']))).toBe('metro');
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus] evil {'])))
+      .toBe(BOARD_MODES.join(','));
+    expect(boardGQL('NSR:1', 20, null, true, null, ['bus] evil {'])).not.toContain('evil');
   });
 });

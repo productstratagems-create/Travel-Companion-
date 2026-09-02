@@ -1,0 +1,298 @@
+/**
+ * Auto-reise: you are here, this leaves from here, where do you want to go?
+ *
+ * What the ⚡ button used to be (main.js): a one-shot that GUESSED your
+ * destination from history and refused to do anything without it —
+ * "Ikke nok reisehistorikk ennå — reis manuelt noen ganger først." So the
+ * feature was unusable on day one, exactly when a new reader needs it most.
+ *
+ * This trades the guess for a choice. Your position gives the stop, the stop
+ * board gives the directions, and a direction gives the stops along it — and
+ * every one of those already exists in the app. There is no new query here:
+ * `boardGQL` already asks for `serviceJourney{estimatedCalls{...}}`, so the
+ * stops along a direction, with their arrival times, are in the same response
+ * that produced the directions.
+ *
+ * The prediction is not deleted, it is demoted: with history, the direction
+ * you usually take at this hour is marked. Without it, the screen works
+ * exactly as well. That is the difference between an engine that locks you
+ * out and one that helps.
+ */
+import { esc } from '../ui/fmt.js';
+import config from '../config.js';
+import { state } from '../state.js';
+import { fetchBoard } from '../api/entur.js';
+import { predictDest } from '../api/smart.js';
+import { logMsg } from '../ui/log.js';
+
+const MIN = 60000;
+/** As far as it is worth walking to a different stop instead. */
+const ALT_STOP_MAX_M = 1000;
+
+function _callTime(c) {
+  const t = c && (c.expectedDepartureTime || c.aimedDepartureTime);
+  const ms = t ? new Date(t).getTime() : NaN;
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * The directions that leave this stop, soonest first.
+ *
+ * A direction is the front text — what is written on the front of the
+ * vehicle and on the platform sign. That is deliberate: it is the one label
+ * the reader can check against the world while standing there, and the app
+ * already models it (`dir.filter` is a regex tested against exactly this
+ * field, board.js:2761).
+ *
+ * Grouped by front text, NOT by line: two lines that both run to
+ * Nationaltheatret are one choice with two badges, because "which of these
+ * two comes first" is the board's job, not this screen's. The same line in
+ * both directions is correctly two rows — the front texts differ.
+ */
+export function groupDirections(calls, now) {
+  const t0 = now == null ? Date.now() : now;
+  const byText = new Map();
+  (calls || []).forEach(c => {
+    const front = ((c.destinationDisplay && c.destinationDisplay.frontText) || '').trim();
+    if (!front) return;
+    const ms = _callTime(c);
+    if (ms == null) return;
+    const ln = c.serviceJourney && c.serviceJourney.line;
+    const code = (ln && ln.publicCode) || null;
+    const colour = (ln && ln.presentation && ln.presentation.colour) || null;
+    const prev = byText.get(front);
+    if (!prev) {
+      byText.set(front, {
+        frontText: front,
+        lines: code ? [{ code, colour }] : [],
+        nextMs: ms,
+        call: c,
+      });
+      return;
+    }
+    if (code && !prev.lines.some(l => l.code === code)) prev.lines.push({ code, colour });
+    // The soonest call owns the row — and it is the one whose onward stops
+    // the reader will see, so it must be the same call the time came from.
+    if (ms < prev.nextMs) { prev.nextMs = ms; prev.call = c; }
+  });
+  return [...byText.values()]
+    .sort((a, b) => a.nextMs - b.nextMs)
+    .map(d => ({ ...d, mins: Math.max(0, Math.round((d.nextMs - t0) / MIN)) }));
+}
+
+/**
+ * Where that departure goes after your stop.
+ *
+ * Only after. A journey's calls include the stops it has already made, and
+ * offering one of those as a destination would send the reader backwards —
+ * the single worst thing this screen could do, and silent, because a stop
+ * behind you looks exactly like a stop ahead of you in a list.
+ *
+ * The cut is made on the first call whose name matches yours, not on
+ * position, because the board's own stop is the anchor we have.
+ */
+export function stopsAhead(call, fromName, now) {
+  const t0 = now == null ? Date.now() : now;
+  const sjc = (call && call.serviceJourney && call.serviceJourney.estimatedCalls) || [];
+  const norm = s => String(s || '').toLowerCase().replace(/\s+t$/i, '').trim();
+  const me = norm(fromName);
+  let seen = false;
+  const out = [];
+  sjc.forEach(c => {
+    const sp = c.quay && c.quay.stopPlace;
+    const name = (sp && sp.name) || '';
+    if (!seen) { if (me && norm(name) === me) seen = true; return; }
+    const t = c.expectedArrivalTime || c.aimedArrivalTime;
+    const ms = t ? new Date(t).getTime() : null;
+    out.push({
+      name,
+      id: (sp && sp.id) || null,
+      lat: sp && sp.latitude != null ? sp.latitude : (c.quay && c.quay.latitude),
+      lon: sp && sp.longitude != null ? sp.longitude : (c.quay && c.quay.longitude),
+      mins: ms ? Math.max(0, Math.round((ms - t0) / MIN)) : null,
+    });
+  });
+  return out;
+}
+
+/**
+ * A stop pair as a route the rest of the app already understands.
+ *
+ * Ids in both ends wherever they exist. A coordinate origin makes OTP add
+ * walking time to the platform and drop departures it judges unreachable —
+ * that cost us the very next departure once already (v1.4.1) — and a bare
+ * name has to be geocoded back into the id we are holding right here.
+ */
+export function autoRoute(from, to) {
+  if (!from || !to || !from.name || !to.name) return null;
+  return {
+    key: 'custom-out',
+    from: from.name,
+    to: to.name,
+    stopId: from.id || null,
+    toStopId: to.id || null,
+    filter: null,
+    geo: from.id ? null : from.name,
+    toGeo: to.id ? null : to.name,
+    line: null,
+    _fromLat: from.lat != null ? from.lat : null,
+    _fromLon: from.lon != null ? from.lon : null,
+    _toLat: to.lat != null ? to.lat : null,
+    _toLon: to.lon != null ? to.lon : null,
+  };
+}
+
+/** One line badge, the same shape the board and the shortcuts already use. */
+export function badgeHtml(l) {
+  return '<span class="line-badge" style="background:#'
+    + esc(l.colour || '7c2d12') + '">' + esc(l.code || '?') + '</span>';
+}
+
+
+// ── The screen ─────────────────────────────────────────────────────────────
+
+let _stop = null;      // { name, id, lat, lon }
+let _dirs = [];        // groupDirections output for _stop
+let _open = null;      // the direction whose stops are showing
+
+function _el(id) { return document.getElementById(id); }
+
+/**
+ * Where the reader is, in the order the answers actually arrive.
+ *
+ * A live fix if geo.js has one, the last one it saw otherwise. Never a
+ * blank screen: a position-first mode that cannot find a position still has
+ * to say something, and "skriv hvor du skal" is always below.
+ */
+function _stops() {
+  const list = (state.nearestStations && state.nearestStations.length)
+    ? state.nearestStations
+    : (state.nearestStation ? [state.nearestStation] : []);
+  return list;
+}
+
+function _renderWhere() {
+  const el = _el('auto-where');
+  if (!el) return;
+  const list = _stops();
+  if (!_stop && list.length) _stop = list[0];
+  if (!_stop) {
+    el.innerHTML = '<div class="set-label">du er ved</div>'
+      + '<div class="dest-prev-empty">Finner ikke posisjonen din ennå.</div>';
+    return;
+  }
+  // Other stops you could actually walk to instead. geo.js searches 5 km to
+  // be sure of finding *a* station; offering one of those as an alternative
+  // is not an alternative, it is another journey. A kilometre is about twelve
+  // minutes at the app's own default pace.
+  const others = list
+    .filter(s => s.id !== _stop.id && (s.distM == null || s.distM <= ALT_STOP_MAX_M))
+    .slice(0, 4);
+  el.innerHTML = '<div class="set-label">du er ved</div>'
+    + '<div class="auto-stop">' + esc(_stop.name)
+    + (_stop.distM != null ? '<span class="nearby-dist">' + _stop.distM + ' m</span>' : '')
+    + '</div>'
+    + others.map(s => '<button class="nearby-btn auto-alt" type="button" data-id="' + esc(s.id) + '">'
+      + '<span class="nearby-name">' + esc(s.name) + '</span>'
+      + '<span class="nearby-dist">' + (s.distM != null ? s.distM + ' m' : '') + '</span>'
+      + '</button>').join('');
+  el.querySelectorAll('.auto-alt').forEach(b => {
+    b.addEventListener('click', () => {
+      _stop = list.find(s => s.id === b.dataset.id) || _stop;
+      _open = null; _dirs = [];
+      renderAuto();
+      _load();
+    });
+  });
+}
+
+/**
+ * The one fetch this screen makes.
+ *
+ * A stop board, with no destination — the same call the board itself falls
+ * back to when a route has no `to`. Everything after this (the directions,
+ * their lines, the stops along each one and their arrival times) is read out
+ * of this single response.
+ */
+function _load() {
+  if (!_stop) return;
+  const body = _el('auto-body');
+  if (body) body.innerHTML = '<div class="dest-prev-loading">henter avganger…</div>';
+  fetchBoard({ key: 'custom-out', from: _stop.name, stopId: _stop.id, to: '', line: null, filter: null },
+    (stop) => {
+      _dirs = groupDirections(stop.estimatedCalls || []);
+      _renderBody();
+    },
+    (err) => {
+      logMsg('auto-reise: ' + err, 'err');
+      if (body) body.innerHTML = '<div class="dest-prev-empty">Fikk ikke avganger herfra.</div>';
+    });
+}
+
+function _renderBody() {
+  const body = _el('auto-body');
+  if (!body) return;
+  if (_open) { _renderStops(body); return; }
+  // "We do not know where you are" and "nothing leaves from here" are
+  // different facts, and saying the second when the first is true is a lie
+  // the reader cannot see through — there ARE departures, we just have no
+  // position. Measured on the GPS-denied run, which said exactly that.
+  if (!_stop) {
+    body.innerHTML = '<div class="dest-prev-empty">'
+      + 'Uten posisjon vet ikke appen hvilket stopp du står ved. '
+      + 'Slå på stedstjenester, eller skriv hvor du skal nedenfor.</div>';
+    return;
+  }
+  if (!_dirs.length) {
+    body.innerHTML = '<div class="dest-prev-empty">Ingen avganger herfra nå.</div>';
+    return;
+  }
+  // The prediction, demoted from gatekeeper to hint: with history the
+  // direction you usually take at this hour is marked, and without it every
+  // row behaves the same.
+  const guess = predictDest();
+  const usual = guess && guess.toName ? String(guess.toName).toLowerCase() : null;
+  body.innerHTML = '<div class="set-label">hvor skal du?</div>'
+    + _dirs.map((d, i) => {
+      const hint = usual && d.frontText.toLowerCase() === usual;
+      return '<button class="nearby-btn auto-dir' + (hint ? ' auto-usual' : '') + '"'
+        + ' type="button" data-i="' + i + '">'
+        + '<span class="auto-badges">' + d.lines.map(badgeHtml).join('') + '</span>'
+        + '<span class="nearby-name">mot ' + esc(d.frontText) + '</span>'
+        + '<span class="nearby-dist">' + (d.mins === 0 ? 'nå' : d.mins + ' min') + '</span>'
+        + '</button>';
+    }).join('');
+  body.querySelectorAll('.auto-dir').forEach(b => {
+    b.addEventListener('click', () => { _open = _dirs[Number(b.dataset.i)]; _renderBody(); });
+  });
+}
+
+function _renderStops(body) {
+  const stops = stopsAhead(_open.call, _stop.name);
+  body.innerHTML = '<button class="set-via-add-btn auto-back-dir" type="button">← alle retninger</button>'
+    + '<div class="set-label">' + _open.lines.map(badgeHtml).join('')
+    + ' mot ' + esc(_open.frontText) + '</div>'
+    + (stops.length
+      ? stops.map((s, i) => '<button class="nearby-btn auto-stop-btn" type="button" data-i="' + i + '">'
+        + '<span class="nearby-name">' + esc(s.name) + '</span>'
+        + '<span class="nearby-dist">' + (s.mins != null ? s.mins + ' min' : '') + '</span>'
+        + '</button>').join('')
+      : '<div class="dest-prev-empty">Vet ikke hvor denne stopper.</div>');
+  body.querySelector('.auto-back-dir').addEventListener('click', () => { _open = null; _renderBody(); });
+  body.querySelectorAll('.auto-stop-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      const dir = autoRoute(_stop, stops[Number(b.dataset.i)]);
+      // The one door the favourites and the shortcuts already use: it sets
+      // the route, records the choice and starts the board.
+      if (dir) window._useRouteDir(dir, null);
+    });
+  });
+}
+
+export function renderAuto() {
+  _renderWhere();
+  if (!_dirs.length && _stop) _load(); else _renderBody();
+}
+
+/** Fresh screen when the mode is entered, so it never opens on a stale stop. */
+export function resetAuto() { _stop = null; _dirs = []; _open = null; }

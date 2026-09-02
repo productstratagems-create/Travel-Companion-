@@ -3,7 +3,7 @@ import { state } from '../state.js';
 import { addFav } from './favs.js';
 import { storage } from '../storage.js';
 import { renderBoardProfileSwitcher, setActiveRoute, syncRouteFields } from '../views/settings.js';
-import { saveWeekendMode } from '../geo.js';
+import { saveWeekendMode, loadAutoMode, saveAutoMode } from '../geo.js';
 import { loadReturn, returnDir, returnWindow, shouldSwitch, skipToday, loadSkip } from '../api/returnTrip.js';
 import { routeShareUrl, canShare } from './shareRoute.js';
 import { confirmTap } from './confirm.js';
@@ -123,6 +123,7 @@ const _enter = {
   'v-prefs':    () => window._showPrefs && window._showPrefs(),
   'v-saved':    () => window._renderSaved && window._renderSaved(),
   'v-leisure':  () => window._renderLeisure && window._renderLeisure(),
+  'v-auto':     () => window._renderAuto && window._renderAuto(),
 };
 
 function _restore(id) {
@@ -172,7 +173,7 @@ export function show(id) {
   closeSpectatePanel();
   closeBoardMenu();
   if (id !== 'v-selected') window._destroySelMap && window._destroySelMap();
-  ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-prefs', 'v-saved', 'v-leisure'].forEach(v => {
+  ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-prefs', 'v-saved', 'v-leisure', 'v-auto'].forEach(v => {
     // Clear the inline style rather than stamping `block`. The board is a flex
     // column under `html.view-board`, and an inline `display:block` beats that
     // stylesheet rule on specificity — which collapsed the column, left the
@@ -180,7 +181,12 @@ export function show(id) {
     // scroll, and made the list unscrollable after any navigation back to the
     // board. Every view is a plain div, so the empty string is `block` for
     // the ones that want it.
-    document.getElementById(v).style.display = (v === id ? '' : 'none');
+    // Guarded: a name in this list with no markup behind it used to throw
+    // here and take the whole navigation down with it — every screen, not
+    // just the missing one. A view that is not in the document is simply not
+    // a view to hide.
+    const el = document.getElementById(v);
+    if (el) el.style.display = (v === id ? '' : 'none');
   });
   state.view = id.replace('v-', '');
   // The board is a fixed screen: everything above the departure list stays
@@ -358,9 +364,33 @@ export function attachEventListeners() {
     refreshBtn.addEventListener('click', () => location.reload());
   }
 
+  // A mode, not a one-shot. The item carries its own state so the menu can be
+  // read rather than remembered.
+  const _syncSmart = () => {
+    const b = document.getElementById('smart-btn');
+    if (b) b.innerHTML = '<span class="bmi-ic">⚡</span>auto-reise'
+      + '<span class="bmi-state">' + (loadAutoMode() ? 'på' : 'av') + '</span>';
+  };
+  _syncSmart();
   document.getElementById('smart-btn').addEventListener('click', () => {
     closeBoardMenu();
-    window._smartMode && window._smartMode();
+    const on = !loadAutoMode();
+    saveAutoMode(on);
+    _syncSmart();
+    if (on) { window._resetAuto && window._resetAuto(); show('v-auto'); }
+    else { show('v-board'); window._startBoard && window._startBoard(); }
+  });
+
+  document.getElementById('auto-back').addEventListener('click', () => goBack('v-board'));
+  document.getElementById('auto-off').addEventListener('click', () => {
+    saveAutoMode(false);
+    _syncSmart();
+    show('v-board');
+    window._startBoard && window._startBoard();
+  });
+  document.getElementById('auto-manual').addEventListener('click', () => {
+    window._showSettings && window._showSettings();
+    show('v-settings');
   });
 
   document.getElementById('prefs-btn').addEventListener('click', () => {

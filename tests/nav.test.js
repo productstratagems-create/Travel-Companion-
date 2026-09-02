@@ -12,7 +12,7 @@ vi.mock('../src/views/spectate.js', () => ({
   toggleSpectatePanel: () => {}, closeSpectatePanel: () => {},
 }));
 
-const VIEWS = ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-prefs', 'v-saved', 'v-leisure'];
+const VIEWS = ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-prefs', 'v-saved', 'v-leisure', 'v-auto'];
 
 const { show, toggleBoardMenu } = await import('../src/ui/nav.js');
 

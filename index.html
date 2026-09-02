@@ -325,6 +325,21 @@
   </div>
 </div>
 
+<!-- ══ AUTO-REISE ══ Position first: your stop, what leaves it, and where
+     those go. A mode, not a button — see src/views/auto.js. -->
+<div id="v-auto" tabindex="-1" style="display:none">
+  <div class="screen-header">
+    <button class="nav-back" id="auto-back">← tavla</button>
+    <span class="screen-label" role="heading" aria-level="2">auto-reise</span>
+    <button class="nav-plan-btn" id="auto-off" aria-label="Slå av auto-reise">⚡</button>
+  </div>
+  <div id="auto-where" class="set-section"></div>
+  <div id="auto-body"></div>
+  <div class="set-section">
+    <button id="auto-manual" class="set-via-add-btn" type="button">skriv hvor du skal →</button>
+  </div>
+</div>
+
 <!-- ══ 6: LAGRET (favoritter / reiseplan / finn reise) ══ -->
 <div id="v-saved" tabindex="-1" style="display:none">
   <div class="screen-header">

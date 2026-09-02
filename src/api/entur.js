@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { enturFetch } from './http.js';
-import { arrBoardGQL, boardGQL, inflightGQL, journeyGQL, trackGQL, tripGQL } from './queries.js';
+import { arrBoardGQL, boardGQL, inflightGQL, journeyGQL, normJid, trackGQL, tripGQL } from './queries.js';
 import { quayLatLon } from './adapt.js';
 import { logMsg, setDot } from '../ui/log.js';
 import { noteLookbackLost } from './diagnose.js';
@@ -347,14 +347,55 @@ export function fetchStopBoardSummary(stopId) {
       const calls = (j && j.data && j.data.stopPlace && j.data.stopPlace.estimatedCalls) || [];
       let best = null;
       const quays = {};
+      const byJourney = {};
+      const modes = {};
+      // Which mode is seen at each platform, so a caller can compare like
+      // with like. Without it the tally sets bus bays against a metro-only
+      // board and reports platforms we are "missing" that carry buses the
+      // reader has switched off. First seen wins; a bay serving two modes is
+      // rare enough that naming one of them beats naming none.
+      const quayModes = {};
       calls.forEach(c => {
         const t = new Date(c.expectedDepartureTime || c.aimedDepartureTime || NaN).getTime();
         if (!isNaN(t) && (best == null || t < best)) best = t;
         const q = (c.quay && c.quay.publicCode) || '?';
         quays[q] = (quays[q] || 0) + 1;
+        const sj = c.serviceJourney;
+        const ln = sj && sj.line;
+        if (ln && ln.transportMode && !quayModes[q]) quayModes[q] = ln.transportMode;
+        // Normalised, because the realtime feed hands back a lowercase
+        // codespace ("rut:ServiceJourney:…") where the trip planner uses the
+        // NeTEx one ("RUT:…"). Match on the raw strings and NOTHING lines up,
+        // which reads as "these two never agree" rather than as a bug.
+        if (sj && sj.id) {
+          const id = normJid(sj.id);
+          byJourney[id] = q;
+          modes[id] = (ln && ln.transportMode) || null;
+        }
       });
-      return { earliest: best, n: calls.length, quays };
+      return { earliest: best, n: calls.length, quays, quayModes, byJourney, modes };
     });
+}
+
+/**
+ * The same answer, at most once a minute per stop.
+ *
+ * The platform cross-check needs this on every board render, and the board
+ * polls every 20 s — three times the requests for an answer that changes when
+ * a dispatcher reassigns a platform, not three times a minute. The debug
+ * panel shares the same cache rather than making its own call, so opening it
+ * now costs nothing.
+ */
+const _sbCache = new Map();
+const SB_TTL_MS = 60_000;
+
+export function stopBoardSummary(stopId) {
+  if (!stopId) return Promise.resolve(null);
+  const hit = _sbCache.get(stopId);
+  if (hit && Date.now() - hit.ts < SB_TTL_MS) return hit.p;
+  const p = fetchStopBoardSummary(stopId).catch(() => null);
+  _sbCache.set(stopId, { ts: Date.now(), p });
+  return p;
 }
 
 export function fetchBoard(dir, onSuccess, onError) {

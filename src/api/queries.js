@@ -143,7 +143,7 @@ export function boardGQL(id, n, now, basic, fwdMins) {
 // indexes ServiceJourney by its NeTEx ID with an uppercase codespace
 // ("RUT:ServiceJourney:..."). Uppercase the prefix so serviceJourney(id:)
 // lookups can resolve IDs copied straight from board/track data.
-function normJid(jid) {
+export function normJid(jid) {
   return String(jid || '').replace(/^([a-z]+):/, m => m.toUpperCase());
 }
 

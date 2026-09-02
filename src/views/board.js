@@ -4,7 +4,7 @@ import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
-import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, fetchStopBoardSummary, geocodePlace } from '../api/entur.js';
+import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, _rowDest } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
@@ -26,7 +26,7 @@ import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
 import { isExample } from '../firstRun.js';
 import { newRecord, stage, showRecord, takeLookbackLost } from '../api/diagnose.js';
-import { LOOKBACK_MINS } from '../api/queries.js';
+import { LOOKBACK_MINS, normJid } from '../api/queries.js';
 import { takeDropReasons } from '../api/adapt.js';
 import { loadReturn, returnWindow, loadSkip, dayKey } from '../api/returnTrip.js';
 
@@ -49,6 +49,35 @@ function saveModes(m) { storage.set(MODES_KEY, JSON.stringify(m)); }
  * What you board. Used for the icon, the row and the corridor's style — all
  * of which are about the vehicle you step onto, so the first leg is right.
  */
+/**
+ * Which platform to put on the row.
+ *
+ * Reported: "du viser kun avganger fra ett av sporene (spor 2)". The board's
+ * platform comes from the TRIP PLANNER's `fromEstimatedCall.quay`, which is
+ * the planned platform. The stop's own board carries the one the stop is
+ * actually announcing, and the realtime feed updates that one — so at a
+ * terminus, where trains alternate between platforms, the two can disagree
+ * and we were showing the wrong half of the answer.
+ *
+ * Matched per JOURNEY, not per tally: "we do not show platform 1" was a claim
+ * about counts, and counts at a multimodal stop are mostly buses. "This train
+ * leaves from 1, not 2" is a claim about a departure the reader can act on.
+ *
+ * The stop wins when the two differ, and the row says so — a platform that
+ * changed silently is exactly how someone ends up on the wrong side of the
+ * tracks. When the stop has nothing to say about this journey, nothing
+ * changes.
+ */
+export function _rowQuay(c, byJourney) {
+  const planned = (c && c.quay && c.quay.publicCode)
+    || (c && c.quay && c.quay.name ? c.quay.name.replace(/^.*?\s/, '') : '?');
+  const sjId = c && c.serviceJourney && c.serviceJourney.id;
+  if (!sjId || !byJourney) return { quay: planned, changed: false };
+  const actual = byJourney[normJid(sjId)];
+  if (!actual || actual === '?' || actual === planned) return { quay: planned, changed: false };
+  return { quay: actual, changed: planned !== '?' };
+}
+
 function _depMode(dep) {
   if (dep._legs && dep._legs[0]) return dep._legs[0].mode;
   const ln = dep.serviceJourney && dep.serviceJourney.line;
@@ -146,6 +175,13 @@ export function _isolateLine(selected, code, allCodes) {
   // One line on a one-line route is every line on it.
   return all.length === 1 ? new Set() : new Set([code]);
 }
+/**
+ * The stop's own platform answers for the departures we are showing, keyed by
+ * normalised journey id. Refreshed at most once a minute (see entur.js), and
+ * read by `_rowQuay`.
+ */
+let _stopQuays = null;
+
 let _bRoutePts = null;
 let _bRouteSnapDist = null;
 let _shapeLogKey = null;
@@ -2203,9 +2239,12 @@ export function renderBoard() {
     // Which platforms our own rows board at. Compared against the stop
     // board's tally below, this answers "are we only showing one of the
     // platforms" without anyone having to guess.
+    // What the rows SHOW, not what the trip planner planned — otherwise the
+    // diagnosis contradicts the screen it is diagnosing, and reports
+    // platforms as missing that the rows are already displaying.
     _diag.ourQuays = {};
     rowDeps.forEach(({ c }) => {
-      const q = (c.quay && c.quay.publicCode) || '?';
+      const q = _rowQuay(c, _stopQuays).quay || '?';
       _diag.ourQuays[q] = (_diag.ourQuays[q] || 0) + 1;
     });
     showRecord(_diag);
@@ -2302,7 +2341,8 @@ export function renderBoard() {
     const rowDest = _rowDest(c);
     const dest = rowDest.text;
     const walkMins = rowDest.walkMins;
-    const quay = (c.quay && c.quay.publicCode) || (c.quay && c.quay.name ? c.quay.name.replace(/^.*?\s/, '') : '?');
+    const rq = _rowQuay(c, _stopQuays);
+    const quay = rq.quay;
     const delayMins = c.realtime ? Math.round((depTs - new Date(c.aimedDepartureTime).getTime()) / 60000) : 0;
     const delayed = delayMins > 1;
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
@@ -2465,6 +2505,7 @@ export function renderBoard() {
       // kind of statement: a fact about the shape of this journey, not a
       // warning. The two modifier classes that exist (-soft, -at) each carry
       // a rule; a third with no rule would be a dead hook.
+      + (rq.changed ? '<span class="dep-tag">spor endret</span>' : '')
       + (walkMins ? '<span class="dep-tag">+ ' + walkMins + ' min gange</span>' : '')
       + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
       + (delayed ? '<span class="dep-tag">+' + delayMins + ' min</span>' : '')
@@ -2683,14 +2724,39 @@ function _bindInfiniteScroll(list) {
 // for could be twenty seconds late.
 window._askStopBoard = () => _askStopBoard(config.dirs[state.dIdx]);
 
+/**
+ * The stop's own answer, asked once a minute and used for two things.
+ *
+ * It used to run only while the debug panel was open. Now the platform on
+ * every row depends on it, so it runs always — but through the shared cache
+ * in entur.js, so the panel no longer adds a request of its own. With the
+ * panel open this is FEWER calls than before, not more.
+ */
 function _askStopBoard(dir) {
-  if (!state.debugOpen || !dir || !dir.stopId) return;
-  fetchStopBoardSummary(dir.stopId).then(res => {
-    if (!_diag || !res) return;
-    _diag.stopBoard = res.earliest;
-    _diag.stopBoardN = res.n;
-    _diag.stopBoardQuays = res.quays;
-    showRecord(_diag);
+  if (!dir || !dir.stopId) return;
+  stopBoardSummary(dir.stopId).then(res => {
+    if (!res) return;
+    _stopQuays = res.byJourney || null;
+    if (_diag) {
+      _diag.stopBoard = res.earliest;
+      _diag.stopBoardN = res.n;
+      // Only the platforms carrying modes the reader has switched on. The
+      // tally used to set bus bays A–F against a metro-only board and report
+      // them as "platforms we do not show" — an accusation about buses the
+      // reader had filtered out, which sent the next reader hunting for a bug
+      // that was not there.
+      const on = loadModes();
+      const qm = res.quayModes || {};
+      const shown = {};
+      Object.entries(res.quays || {}).forEach(([q, n]) => {
+        const m = qm[q];
+        if (!m || on[m]) shown[q] = n;
+      });
+      _diag.stopBoardQuays = shown;
+      if (state.debugOpen) showRecord(_diag);
+    }
+    // The rows carry the platform, so a fresher answer has to reach them.
+    renderBoard();
   }).catch(() => {});
 }
 

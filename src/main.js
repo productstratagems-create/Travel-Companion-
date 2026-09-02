@@ -20,9 +20,10 @@ import { registerServiceWorker, initOfflineBanner } from './pwa.js';
 import './views/favs.js';
 import './views/plan.js';
 import { renderLeisure } from './views/leisure.js';
+import { renderAuto, resetAuto } from './views/auto.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
 import { exampleDir, isExample, upgradeToNearest } from './firstRun.js';
-import { locateUser, updateWalkDbg, loadWeekendMode } from './geo.js';
+import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
@@ -114,22 +115,11 @@ function _applySmartRoute(ns, dest) {
   return true;
 }
 
-window._smartMode = function() {
-  const ns = state.nearestStation;
-  const dest = predictDest();
-  if (!dest) {
-    logMsg('Ikke nok reisehistorikk ennå — reis manuelt noen ganger først.', 'err');
-    return;
-  }
-  if (!_applySmartRoute(ns, dest)) {
-    logMsg('Finner ikke posisjon. Aktiver GPS og prøv igjen.', 'err');
-    return;
-  }
-  show('v-board');
-  const label = dest.source === 'smart' ? '⚡ auto' : '⚡ hyppigst';
-  logMsg(label + ': ' + config.dirs[2].from + ' → ' + dest.toName);
-  window._startBoard && window._startBoard();
-};
+// Auto-reise is a mode now (see src/views/auto.js and the ⚡ item in nav.js).
+// What used to live here guessed your destination from history and refused to
+// do anything without it, so the feature was unusable on day one.
+window._renderAuto = renderAuto;
+window._resetAuto = resetAuto;
 
 // The board's own poll asks this each time round, rather than a new timer —
 // the same arrangement window._updatePlanCtx already uses.
@@ -165,6 +155,10 @@ if (restored) {
 } else if (prefilledRoute) {
   updateHeader();
   startBoard();
+} else if (loadAutoMode()) {
+  resetAuto();
+  renderAuto();
+  show('v-auto');
 } else if (loadWeekendMode()) {
   renderLeisure();
   show('v-leisure');
@@ -212,6 +206,12 @@ initHistory();
 // nearest stop once a fix arrives. Only while it is still the example — the
 // moment they choose something themselves, that choice stands.
 locateUser(() => {
+  // Auto-reise is a position-first screen, and a position that arrives after
+  // the screen did is the ordinary case, not an edge one: GPS takes a second
+  // or two and the app opens immediately. Without this the mode landed on
+  // "Ingen avganger herfra nå" and stayed there — measured on the very first
+  // end-to-end run.
+  if (loadAutoMode()) { renderAuto(); return; }
   const cur = config.dirs[state.dIdx];
   if (!isExample(cur)) return;
   const up = upgradeToNearest(cur, state.nearestStation);

@@ -252,3 +252,25 @@
   display:block;padding:.45rem 0;font-size:.9rem;
   color:var(--accent);text-decoration:none;
 }
+
+/* ── auto-reise ─────────────────────────────────────────────────────────
+   Reuses .nearby-btn wholesale — the row that already means "a place you can
+   tap" everywhere else in the app — so this screen adds no new shape. */
+#v-auto .auto-stop {
+  display: flex; align-items: baseline; justify-content: space-between;
+  font-size: 1.35rem; font-weight: 700; letter-spacing: .02em;
+  margin: .1rem 0 .7rem;
+}
+#v-auto .auto-badges { display: inline-flex; gap: 3px; margin-right: .55rem; }
+/* The name belongs beside its badges, not floating in the middle of the row:
+   .nearby-btn is space-between, and a third child pushes the label adrift. */
+#v-auto .auto-dir .nearby-name { margin-right: auto; text-align: left; }
+#v-auto .nearby-btn { width: 100%; }
+/* The prediction is a hint, not a decision: a marked edge, never a
+   pre-selection that has to be undone. */
+#v-auto .auto-usual { border-color: rgba(var(--accent-rgb), .55); }
+#v-auto .auto-back-dir { padding-left: 0; }
+.bmi-state {
+  margin-left: auto; font-size: 10px; letter-spacing: .16em;
+  text-transform: uppercase; opacity: .6;
+}

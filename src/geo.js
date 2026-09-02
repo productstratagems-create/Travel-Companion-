@@ -40,6 +40,21 @@ export function clearWalkFrom() {
   storage.remove(WALK_FROM_KEY);
 }
 
+/**
+ * Auto-reise: position first.
+ *
+ * Beside the weekend mode on purpose — these are the two flags that decide
+ * which screen the app opens on, and one place to look for them is worth more
+ * than a tidy file boundary.
+ */
+const AUTO_MODE_KEY = 't.autoMode';
+export function loadAutoMode() {
+  return storage.get(AUTO_MODE_KEY) === '1';
+}
+export function saveAutoMode(v) {
+  if (v) storage.set(AUTO_MODE_KEY, '1'); else storage.remove(AUTO_MODE_KEY);
+}
+
 const WEEKEND_MODE_KEY = 't.weekendMode';
 export function loadWeekendMode() {
   return storage.get(WEEKEND_MODE_KEY) === '1';

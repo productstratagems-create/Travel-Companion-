@@ -18,21 +18,37 @@ import config from './config.js';
 export const EXAMPLE_KEY = 'example';
 
 /**
- * Which of the six landing paths applies.
+ * Which landing path applies. The ONE copy of the ladder.
  *
- * The order is the one main.js already had; only the last rung changes, from
- * "give up and show the form" to "show something that works".
+ * It was a pure mirror of main.js, and it had already drifted: the auto-reise
+ * rung main.js grew in v1.54.0 never reached here, so the tests pinned a
+ * ladder the app did not have. main.js now branches on this instead of
+ * carrying its own, which is the only way a mirror stops drifting.
  *
- * @returns {'journey'|'deeplink'|'leisure'|'stored'|'legacy'|'example'}
+ * Two rungs are auto-reise, and they are different things:
+ *
+ * - `autoPref === 'on'` is a CHOICE, and sits where main.js has always put
+ *   it: above the other mode flag, below a journey and a shared link.
+ * - the LAST rung is the DEFAULT (v1.61.0). It replaces the example board,
+ *   which is to say it applies exactly where the app has nothing of the
+ *   reader's — no journey, no link, no mode, no route, no destination. That
+ *   needs no separate definition of "no history to go on"; this ladder
+ *   already is one, and one that cannot drift from itself.
+ *
+ * The example board stays for the reader who turned auto-reise off. Absence
+ * of a preference is not that — see autoModePref in geo.js.
+ *
+ * @returns {'journey'|'deeplink'|'auto'|'leisure'|'stored'|'legacy'|'example'}
  */
 export function landingChoice(o) {
   const s = o || {};
   if (s.hasJourney) return 'journey';
   if (s.hasDeepLink) return 'deeplink';
+  if (s.autoPref === 'on') return 'auto';
   if (s.weekend) return 'leisure';
   if (s.storedRoute) return 'stored';
   if (s.savedDest) return 'legacy';
-  return 'example';
+  return s.autoPref === 'off' ? 'example' : 'auto';
 }
 
 /**

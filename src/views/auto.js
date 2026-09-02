@@ -164,6 +164,48 @@ function _el(id) { return document.getElementById(id); }
  * blank screen: a position-first mode that cannot find a position still has
  * to say something, and "skriv hvor du skal" is always below.
  */
+/**
+ * What to say when there is no position — and it matters WHICH nothing.
+ *
+ * "Finner ikke posisjonen din ennå" is true while the fix is on its way and a
+ * lie once the reader has denied permission: it reads as still-looking, so a
+ * position-first screen sits there implying it is about to work. The two
+ * cases need different words and, more to the point, different next steps —
+ * one is "wait", the other is "this will never arrive, do the other thing".
+ *
+ * Pure, and exported, because it is the whole content of the screen in the
+ * case a position-first mode is most likely to fail.
+ *
+ * `cta` relabels the button at the bottom, because without a position the
+ * useful thing to type is no longer where you are GOING. The nearby-stop
+ * buttons come from the position too, so they are not there to point at —
+ * an earlier draft said "velg et stopp nedenfor" under an empty screen.
+ *
+ * @param {string|null} gpsError state.gpsError — 'denied' when refused
+ * @returns {{where: string, body: string, cta: string}}
+ */
+export function noPosText(gpsError) {
+  return gpsError === 'denied'
+    ? {
+      where: 'Stedstjenester er avslått.',
+      body: 'Uten posisjon vet ikke appen hvilket stopp du står ved. '
+        + 'Slå på stedstjenester for denne siden, eller sett stoppet selv.',
+      cta: 'sett hvor du er →',
+    }
+    : {
+      where: 'Finner ikke posisjonen din ennå.',
+      body: 'Leter etter posisjonen din. Du kan sette stoppet selv mens du venter.',
+      cta: 'sett hvor du er →',
+    };
+}
+
+/** The button at the bottom, which is the only way on when there is no fix. */
+const MANUAL_CTA = 'skriv hvor du skal →';
+function _setManual(label) {
+  const b = _el('auto-manual');
+  if (b) b.textContent = label;
+}
+
 function _stops() {
   const list = (state.nearestStations && state.nearestStations.length)
     ? state.nearestStations
@@ -178,7 +220,7 @@ function _renderWhere() {
   if (!_stop && list.length) _stop = list[0];
   if (!_stop) {
     el.innerHTML = '<div class="set-label">du er ved</div>'
-      + '<div class="dest-prev-empty">Finner ikke posisjonen din ennå.</div>';
+      + '<div class="dest-prev-empty">' + esc(noPosText(state.gpsError).where) + '</div>';
     return;
   }
   // Other stops you could actually walk to instead. geo.js searches 5 km to
@@ -238,11 +280,12 @@ function _renderBody() {
   // the reader cannot see through — there ARE departures, we just have no
   // position. Measured on the GPS-denied run, which said exactly that.
   if (!_stop) {
-    body.innerHTML = '<div class="dest-prev-empty">'
-      + 'Uten posisjon vet ikke appen hvilket stopp du står ved. '
-      + 'Slå på stedstjenester, eller skriv hvor du skal nedenfor.</div>';
+    const t = noPosText(state.gpsError);
+    body.innerHTML = '<div class="dest-prev-empty">' + esc(t.body) + '</div>';
+    _setManual(t.cta);
     return;
   }
+  _setManual(MANUAL_CTA);
   if (!_dirs.length) {
     body.innerHTML = '<div class="dest-prev-empty">Ingen avganger herfra nå.</div>';
     return;

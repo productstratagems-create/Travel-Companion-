@@ -22,8 +22,8 @@ import './views/plan.js';
 import { renderLeisure } from './views/leisure.js';
 import { renderAuto, resetAuto } from './views/auto.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
-import { exampleDir, isExample, upgradeToNearest } from './firstRun.js';
-import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode } from './geo.js';
+import { landingChoice, exampleDir, isExample, upgradeToNearest } from './firstRun.js';
+import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode, autoModePref, saveAutoMode } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
@@ -117,50 +117,75 @@ if (_profileChip) {
   _profileChip.addEventListener('click', toggleBoardMenu);
 }
 
+// One ladder, in firstRun.js, so this cannot drift from the pure function
+// that tests it — it already did once: the auto-reise rung added here in
+// v1.54.0 never reached landingChoice, and the tests went on pinning a
+// ladder the app did not have. This branches on the decision; it does not
+// re-make it.
 const restored = loadJny();
-if (restored) {
+const stored = restored ? null : loadActiveRoute();
+const savedDest = restored ? null : loadDest();
+const landing = landingChoice({
+  hasJourney: !!restored,
+  hasDeepLink: prefilledRoute,
+  autoPref: autoModePref(),
+  weekend: loadWeekendMode(),
+  storedRoute: !!stored,
+  savedDest,
+});
+
+if (landing === 'journey') {
   state.jny = restored;
   activateTracking();
-} else if (prefilledRoute) {
+} else if (landing === 'deeplink') {
   updateHeader();
   startBoard();
-} else if (loadAutoMode()) {
+} else if (landing === 'auto') {
+  // Landing here by DEFAULT makes it a choice, and writes it down.
+  //
+  // Not bookkeeping: everything downstream — the ⋯ menu's on/off state, the
+  // GPS callbacks in this file that keep a position-first screen alive — asks
+  // loadAutoMode(), which knows only an explicit '1'. Left unwritten, the
+  // default would put a new reader on the screen and then let nothing feed
+  // it: measured, the first end-to-end run landed on auto-reise and sat on
+  // "finner ikke posisjonen din" with the fix already in hand.
+  //
+  // It is also what was asked for — the mode stays on until the reader turns
+  // it off — and it makes the menu tell the truth about the screen they are
+  // looking at.
+  if (autoModePref() === null) saveAutoMode(true);
   resetAuto();
   renderAuto();
   show('v-auto');
-} else if (loadWeekendMode()) {
+} else if (landing === 'leisure') {
   renderLeisure();
   show('v-leisure');
+} else if (landing === 'stored') {
+  // No `chosen`: restoring, not choosing.
+  setActiveRoute(stored);
+  updateHeader();
+  startBoard();
+} else if (landing === 'legacy' && applyRouteFromState(savedDest)) {
+  // The old path that rebuilds a route from two names, dropping ids and
+  // coordinates on the way. It can still fail, and then the example answers.
+  updateHeader();
+  startBoard();
 } else {
-  // The whole route if we kept one, and only then the old path that rebuilds
-  // it from two names — which drops ids and coordinates on the way.
-  const stored = loadActiveRoute();
-  const savedDest = loadDest();
-  if (stored) {
-    // No `chosen`: restoring, not choosing.
-    setActiveRoute(stored);
-    updateHeader();
-    startBoard();
-  } else if (savedDest && applyRouteFromState(savedDest)) {
+  // Nothing stored: open a working board rather than an empty form.
+  //
+  // Assigned directly instead of through setActiveRoute, on purpose — the
+  // example is not a choice the reader made, so it must not be saved as
+  // their route, counted among their places, or fed to the smart engine.
+  // The next visit is still a first visit until they pick something.
+  const ex = exampleDir();
+  if (ex) {
+    config.dirs[2] = ex;
+    state.dIdx = 2;
     updateHeader();
     startBoard();
   } else {
-    // Nothing stored: open a working board rather than an empty form.
-    //
-    // Assigned directly instead of through setActiveRoute, on purpose — the
-    // example is not a choice the reader made, so it must not be saved as
-    // their route, counted among their places, or fed to the smart engine.
-    // The next visit is still a first visit until they pick something.
-    const ex = exampleDir();
-    if (ex) {
-      config.dirs[2] = ex;
-      state.dIdx = 2;
-      updateHeader();
-      startBoard();
-    } else {
-      showSettings();
-      show('v-settings');
-    }
+    showSettings();
+    show('v-settings');
   }
 }
 
@@ -189,4 +214,10 @@ locateUser(() => {
   updateHeader();
   state.deps = [];
   startBoard();
-}, () => {});
+}, () => {
+  // A denial has to reach the screen too. Auto-reise is position-first, so
+  // "no position" is not a silent non-event there — it is the whole content
+  // of the screen, and it has to say so rather than sit on "finner ikke
+  // posisjonen din ennå" forever, which reads as still-looking.
+  if (loadAutoMode()) renderAuto();
+});

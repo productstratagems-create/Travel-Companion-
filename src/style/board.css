@@ -409,15 +409,17 @@
 }
 
 .ls-rail{
-  position:relative;height:22px;
+  /* Room for a vehicle rather than a pill: a side view needs a window band
+     AND its minutes, and 22px could carry only one of them legibly. */
+  position:relative;height:28px;
   border-radius:2px;
 }
 .ls-rail::before{
-  content:"";position:absolute;left:0;right:0;top:10px;height:2px;
+  content:"";position:absolute;left:0;right:0;top:13px;height:2px;
   background:rgba(var(--text-muted-rgb),.35);border-radius:1px;
 }
 /* Tint behind each half, so the split reads before the captions are read. */
-.ls-zone{position:absolute;top:4px;height:14px;border-radius:3px}
+.ls-zone{position:absolute;top:5px;height:18px;border-radius:3px}
 .ls-zone-appr{left:0;background:rgba(var(--accent-rgb),.07)}
 
 /* Which way the line runs. One arrowhead for the whole rail. */
@@ -431,27 +433,36 @@
 
 /* Your stop: a divide between the two halves, not just another tick. */
 .ls-you{
-  position:absolute;top:0;width:2px;height:22px;margin-left:-1px;
+  position:absolute;top:0;width:2px;height:28px;margin-left:-1px;
   background:var(--accent);border-radius:1px;
   box-shadow:0 0 0 3px rgba(var(--accent-rgb),.12);
 }
 .ls-train{
-  position:absolute;top:1px;margin-left:-9px;
-  min-width:18px;height:20px;border-radius:10px;
-  display:flex;align-items:center;justify-content:center;
+  position:absolute;top:0;
+  /* Anchored on its centre, like the pill it replaces, so the axis maths
+     upstream needs no change. */
+  transform:translateX(-50%);
+  height:26px;
+  display:flex;align-items:center;
   font-family:"JetBrains Mono",ui-monospace,monospace;
   font-size:10px;font-weight:700;line-height:1;
   box-sizing:border-box;
 }
-/* A train you can still catch. */
-.ls-appr{
-  background:var(--accent);color:var(--bg);
-  border:1.5px solid var(--surface);
-  padding:0 .3rem;
-}
+/* The glyph IS the vehicle now — no pill behind it. Side view rather than the
+   map's plan view: the map rotates its markers to a heading, the strip is a
+   time axis with none, and a vehicle on a timeline is something you watch go
+   past. The minutes are written on the flank; see sideVehicleSvg. */
+.ls-veh{ flex:0 0 auto; display:block }
+.ls-appr{ background:none;border:0;padding:0 }
 /* A train already ahead of you: context, not a choice. */
 
-.ls-live{box-shadow:0 0 0 2px rgba(var(--accent-rgb),.25)}
+/* A measured position, glowing along its own outline. A box-shadow ring was
+   right when the glyph was a pill and its box WAS its shape; on an SVG
+   vehicle it drew a rectangle around the silhouette instead of round it. */
+.ls-live{
+  filter:drop-shadow(0 0 2px rgba(var(--accent-rgb),.9))
+         drop-shadow(0 0 4px rgba(var(--accent-rgb),.45));
+}
 .ls-ends{
   position:relative;height:12px;
   font-family:"JetBrains Mono",ui-monospace,monospace;

@@ -193,6 +193,84 @@ export function makeVehicleIcon(mode, color, opts = {}) {
   });
 }
 
+/**
+ * The same vehicle, seen from the SIDE, with its minutes written on the flank.
+ *
+ * The departure strip is a time axis, not a map: it has no heading to rotate
+ * to, and a train on a timeline is something you watch go past. So the map's
+ * plan view would be wrong here, and the rounded countdown pill this replaces
+ * said nothing about what was coming — bus, tram and metro were one shape in
+ * one accent colour. The silhouettes and the colour rule are the map's, so the
+ * strip and the map say the same thing about the same train.
+ *
+ * @param {string} mode  metro | rail | tram | bus — anything else gets metro
+ * @param {string} color line colour; the mode's own when the caller has none
+ * @param {string} label what to write on the flank
+ * @param {boolean} [dim] the quieter treatment for a train already gone
+ */
+const _SIDE = {
+  //        nose = how far the front rakes back    wheels for road/street rail
+  metro: { len: 46, nose: 12, wheels: false },
+  rail:  { len: 48, nose: 16, wheels: false },
+  tram:  { len: 44, nose: 10, wheels: true },
+  bus:   { len: 40, nose: 7,  wheels: true },
+};
+
+export function sideVehicleSvg(mode, color, label, dim) {
+  // Resolve the mode ONCE. Looking the shape and the colour up separately
+  // gave an unknown mode a metro body in rail grey — a vehicle that belongs
+  // to neither mode, and nothing on screen would have said so.
+  const m = _SIDE[mode] ? mode : 'metro';
+  const sh = _SIDE[m];
+  const body = color || _MODE_COLOUR[m];
+  const w = sh.len, h = 26;
+  const bh = sh.wheels ? 20 : 22;           // wheels need room beneath
+  const y = 1;
+  const r = (n) => Math.round(n * 100) / 100;
+  // Nose to the RIGHT: the strip runs left to right towards your stop, so the
+  // vehicle faces the way it is travelling and the way the reader is reading.
+  // The rake is the whole silhouette at this size — a subtle one was tried
+  // first, and read as a rounded rectangle with a dot on it.
+  const d = 'M0 ' + (y + 3)
+    + 'Q0 ' + y + ' 3 ' + y
+    + 'L' + r(w - sh.nose) + ' ' + y
+    + 'Q' + r(w - sh.nose * 0.15) + ' ' + r(y + 0.5) + ' ' + w + ' ' + r(y + bh * 0.45)
+    + 'L' + w + ' ' + r(y + bh - 3)
+    + 'Q' + w + ' ' + r(y + bh) + ' ' + r(w - 3) + ' ' + r(y + bh)
+    + 'L3 ' + r(y + bh) + 'Q0 ' + r(y + bh) + ' 0 ' + r(y + bh - 3) + 'Z';
+  // A window band along the roof, cut into panes — the same job the carriage
+  // joints do in the plan view: it says "vehicle" before anything is read.
+  const bandY = y + 2, bandH = 4.6;
+  const bandEnd = w - sh.nose * 0.55;
+  const panes = [];
+  const paneW = 6.2;
+  for (let x = 2.6; x + paneW < bandEnd; x += paneW + 1.5) {
+    panes.push('<rect x="' + r(x) + '" y="' + r(bandY) + '" width="' + paneW
+      + '" height="' + bandH + '" rx="1.2" fill="#fff" opacity="' + (dim ? '.4' : '.6') + '"/>');
+  }
+  const wheels = sh.wheels
+    ? '<circle cx="' + r(w * 0.26) + '" cy="' + r(y + bh + 1.9) + '" r="2.4" fill="' + body + '"'
+      + ' fill-opacity="' + (dim ? '.55' : '1') + '"/>'
+      + '<circle cx="' + r(w * 0.72) + '" cy="' + r(y + bh + 1.9) + '" r="2.4" fill="' + body + '"'
+      + ' fill-opacity="' + (dim ? '.55' : '1') + '"/>'
+    : '';
+  // The minutes sit on the body's floor rather than under the band: "nå" has a
+  // ring over the å, and band-relative placement put it through the windows.
+  return '<svg class="ls-veh" width="' + w + '" height="' + h + '"'
+    + ' viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true" focusable="false">'
+    + '<path d="' + d + '" fill="' + body + '" fill-opacity="' + (dim ? '.55' : '1') + '"/>'
+    + panes.join('')
+    + '<text x="' + r((w - sh.nose * 0.7) / 2) + '" y="' + r(y + bh - 3.5) + '"'
+    + ' text-anchor="middle" font-family="JetBrains Mono, ui-monospace, monospace"'
+    + ' font-size="11" font-weight="700" fill="#fff"'
+    + ' opacity="' + (dim ? '.85' : '1') + '">' + label + '</text>'
+    + wheels
+    + '</svg>';
+}
+
+/** How wide the widest glyph is, so the strip can space them without guessing. */
+export const SIDE_VEHICLE_MAX_PX = Math.max(...Object.values(_SIDE).map(v => v.len));
+
 // Transit brand colours, kept because they carry meaning rather than style.
 const _MODE_COLOUR = {
   metro: '#f5a000',

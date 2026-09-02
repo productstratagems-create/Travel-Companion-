@@ -3,7 +3,15 @@ import { describe, it, expect, vi } from 'vitest';
 // board.js pulls in Leaflet, maps and a lot of sibling views. Stub the heavy
 // edges so the pure display helpers can be exercised on their own.
 vi.mock('leaflet', () => ({ default: {} }));
-vi.mock('../src/ui/mapIcons.js', () => ({ makeStopIcon: vi.fn(), makeVehicleIcon: vi.fn(), makeRouteStopIcon: vi.fn() }));
+// The real module reaches Leaflet, so it is stubbed — but SIDE_VEHICLE_MAX_PX
+// is read at module scope to size the strip's clustering threshold, so the
+// stub has to carry the real number or the clustering tests below measure a
+// board nobody ships. mapIcons.test.js pins it to this same 48.
+vi.mock('../src/ui/mapIcons.js', () => ({
+  makeStopIcon: vi.fn(), makeVehicleIcon: vi.fn(), makeRouteStopIcon: vi.fn(),
+  mapHalo: vi.fn(() => '#fff'), sideVehicleSvg: vi.fn(() => '<svg/>'),
+  SIDE_VEHICLE_MAX_PX: 48,
+}));
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 

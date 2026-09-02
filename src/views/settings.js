@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { enturFetch } from '../api/http.js';
-import { recordSmartTrip, tripCount } from '../api/smart.js';
+import { recordSmartTrip } from '../api/smart.js';
 import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
@@ -8,7 +8,7 @@ import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
 import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
-import { loadFavs, routeShortcuts } from '../ui/favs.js';
+import { renderRouteShortcuts } from '../ui/favs.js';
 import { loadReturn, saveReturn, clearReturn, reverseOf, suggestHHMM, returnWindow, skipToday } from '../api/returnTrip.js';
 import { loadSmartHist } from '../api/smart.js';
 
@@ -545,28 +545,8 @@ export function initSettings() {
  * before you start filling anything in. Reuses .nearby-btn, the row already
  * standing directly below it, so the page gains no new shape to learn.
  */
-let _shortcutDirs = new Map();
-
 function renderFavRouteShortcuts() {
-  const el = document.getElementById('set-fav-routes');
-  if (!el) return;
-  const top = routeShortcuts(loadFavs(), loadSmartHist(), tripCount, 2);
-  _shortcutDirs = new Map(top.map(t => [t.key, t]));
-  if (!top.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
-  el.style.display = 'block';
-  el.innerHTML = '<div class="set-label">ofte brukt</div>'
-    + top.map(t => '<button class="nearby-btn fav-route-btn" type="button" data-key="' + esc(t.key) + '">'
-      + '<span class="nearby-name">' + esc(t.from) + ' → ' + esc(t.to) + '</span>'
-      + (t.saved ? '<span class="nearby-dist">★</span>' : '')
-      + '</button>').join('');
-  el.querySelectorAll('.fav-route-btn').forEach(btn => {
-    // One path through the app: the same handler the «lagret» screen uses,
-    // which already sets the route, records the choice and starts the board.
-    btn.addEventListener('click', () => {
-      const t = _shortcutDirs.get(btn.dataset.key);
-      if (t) window._useRouteDir(t.dir, t.favId);
-    });
-  });
+  renderRouteShortcuts('set-fav-routes', 2);
 }
 
 /**

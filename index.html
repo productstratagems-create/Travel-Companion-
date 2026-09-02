@@ -335,6 +335,10 @@
   </div>
   <div id="auto-where" class="set-section"></div>
   <div id="auto-body"></div>
+  <!-- Outside #auto-where and #auto-body on purpose: both have their innerHTML
+       replaced on every render, and a GPS fix landing after the screen does
+       triggers exactly such a render. Anything placed inside them is wiped. -->
+  <div id="auto-fav-routes" class="set-section" style="display:none"></div>
   <div class="set-section">
     <button id="auto-manual" class="set-via-add-btn" type="button">skriv hvor du skal →</button>
   </div>

@@ -23,6 +23,7 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { fetchBoard } from '../api/entur.js';
 import { predictDest } from '../api/smart.js';
+import { renderRouteShortcuts } from '../ui/favs.js';
 import { logMsg } from '../ui/log.js';
 
 const MIN = 60000;
@@ -350,6 +351,12 @@ function _renderStops(body) {
 }
 
 export function renderAuto() {
+  // Your usual routes, under the directions and above "skriv hvor du skal":
+  // from where you are, to where the line goes, to where you usually go, to
+  // typing something of your own. Shared with «velg rute» — one row, one
+  // definition of "ofte brukt", and it hides itself when there is nothing,
+  // which for a brand-new reader is always.
+  renderRouteShortcuts('auto-fav-routes', 2);
   _renderWhere();
   if (!_dirs.length && _stop) _load(); else _renderBody();
 }

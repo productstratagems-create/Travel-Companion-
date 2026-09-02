@@ -1,5 +1,7 @@
 import config from '../config.js';
 import { storage } from '../storage.js';
+import { esc } from './fmt.js';
+import { loadSmartHist, tripCount } from '../api/smart.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -206,4 +208,46 @@ export function favToDir(fav) {
     _toLat:   fav.toLat   || null,
     _toLon:   fav.toLon   || null,
   };
+}
+
+/**
+ * Draw the «ofte brukt» row into a container.
+ *
+ * Lives here, beside the data it shows, because it now has TWO homes: «velg
+ * rute» and the auto-reise screen. A second copy of this markup is exactly
+ * the shape of mistake this codebase keeps making — something that has to be
+ * remembered in several places and gets remembered in one — and the symptom
+ * would be two lists showing different things, or a star that only appears on
+ * one screen.
+ *
+ * Hidden AND emptied when there is nothing: auto-reise is where a brand-new
+ * reader lands, and a new reader has no history by definition, so an empty
+ * heading would greet exactly the person it cannot help.
+ *
+ * The click goes through `window._useRouteDir` — the same global the «lagret»
+ * screen uses, which sets the route, records the choice and starts the board.
+ * A global rather than an import, so this module stays independent of views.
+ *
+ * @param {Element|string} elOrId container, or its id
+ * @param {number} [n] how many to show (routeShortcuts defaults to 2)
+ */
+export function renderRouteShortcuts(elOrId, n) {
+  const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+  if (!el) return;
+  const top = routeShortcuts(loadFavs(), loadSmartHist(), tripCount, n);
+  if (!top.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.innerHTML = '<div class="set-label">ofte brukt</div>'
+    + top.map(t => '<button class="nearby-btn fav-route-btn" type="button" data-key="' + esc(t.key) + '">'
+      + '<span class="nearby-name">' + esc(t.from) + ' → ' + esc(t.to) + '</span>'
+      + (t.saved ? '<span class="nearby-dist">★</span>' : '')
+      + '</button>').join('');
+  const byKey = new Map(top.map(t => [t.key, t]));
+  el.querySelectorAll('.fav-route-btn').forEach(btn => {
+    // Captured per render. innerHTML above replaced the nodes, so the old
+    // buttons and their listeners are already gone — no module-level map to
+    // keep in step with the DOM.
+    const t = byKey.get(btn.dataset.key);
+    btn.addEventListener('click', () => { if (t) window._useRouteDir(t.dir, t.favId); });
+  });
 }

@@ -159,12 +159,48 @@ describe('sideVehicleSvg', () => {
     expect(new Set(widths).size).toBe(4);
   });
 
-  it('draws wheels under the road and street modes only', () => {
-    const circles = (m) => (svg(m, null, '5').match(/<circle/g) || []).length;
-    expect(circles('tram')).toBe(2);
-    expect(circles('bus')).toBe(2);
-    expect(circles('metro')).toBe(0);
-    expect(circles('rail')).toBe(0);
+  // v1.65.0, and the rule that replaced the wheels-and-windows one. Reported:
+  // "ikonene på strip er mindre og enklere - slik at betydningen kommer
+  // tydeligere frem". The window band and the wheels worked — you could tell a
+  // bus from a train — but they were what you saw FIRST, and the minutes are
+  // what you act on. Body, colour, number; nothing else. Without this test the
+  // decoration creeps back one detail at a time.
+  it('draws nothing but a body and its number', () => {
+    ['metro', 'rail', 'tram', 'bus'].forEach(m => {
+      const s = svg(m, null, '12');
+      expect((s.match(/<path/g) || []).length).toBe(1);
+      expect((s.match(/<text/g) || []).length).toBe(1);
+      expect(s).not.toContain('<circle');   // wheels
+      expect(s).not.toContain('<rect');     // window panes
+      expect(s).not.toContain('<line');
+    });
+  });
+
+  // With the decoration gone the nose is the ONLY shape left to separate the
+  // modes, so it has to carry a real spread — rendered in one colour, a gentle
+  // rake on all four made them the same lozenge. A rail set rakes back nearly
+  // half its length; a bus front is square.
+  it('spends its whole shape budget on the nose', () => {
+    const nose = (m) => {
+      const d = svg(m, null, '12').match(/<path d="([^"]*)"/)[1];
+      const w = Number(svg(m, null, '12').match(/\swidth="([^"]*)"/)[1]);
+      // The straight roof runs to (w - nose) before the rake begins.
+      return w - Number(d.match(/L([\d.]+) 2/)[1]);
+    };
+    expect(nose('bus')).toBe(0);
+    expect(nose('rail')).toBeGreaterThan(12);
+    expect(nose('rail')).toBeGreaterThan(nose('metro'));
+    expect(nose('metro')).toBeGreaterThan(nose('tram'));
+    expect(nose('tram')).toBeGreaterThan(nose('bus'));
+  });
+
+  // The number is why the glyph shrank at all: the body lost a quarter of its
+  // width while the label kept its size, which inverts the two. If the label
+  // ever shrinks with the body, the change has undone itself.
+  it('keeps the number at full size while the body is small', () => {
+    const s = svg('bus', null, '-12');
+    expect(s).toContain('font-size="11"');
+    expect(Number(s.match(/\swidth="([^"]*)"/)[1])).toBeLessThanOrEqual(38);
   });
 
   it('falls back to the metro silhouette for a mode it does not know', () => {
@@ -214,7 +250,10 @@ describe('sideVehicleSvg', () => {
     const gone = svg('metro', null, '-3', true);
     const here = svg('metro', null, '3', false);
     // Same parts, less presence — a departed train is context, not absence.
-    expect((gone.match(/<rect/g) || []).length).toBe((here.match(/<rect/g) || []).length);
+    // Compared on the parts that exist: the pane count this used to compare
+    // is zero on both sides now, which would pass without asserting anything.
+    expect((gone.match(/<path/g) || []).length).toBe((here.match(/<path/g) || []).length);
+    expect(gone).toContain('>-3</text>');
     expect(gone).toContain('fill-opacity=".55"');
     expect(here).toContain('fill-opacity="1"');
   });
@@ -226,8 +265,8 @@ describe('SIDE_VEHICLE_MAX_PX', () => {
   // board.test.js stubs this module and hardcodes the number, because the
   // strip reads it at module scope. Pinned here so a wider silhouette fails
   // in the one place that can see both sides.
-  it('is 48 — the number board.test.js stubs', () => {
-    expect(SIDE_VEHICLE_MAX_PX).toBe(48);
+  it('is 38 — the number board.test.js stubs', () => {
+    expect(SIDE_VEHICLE_MAX_PX).toBe(38);
   });
 
   it('is the widest silhouette any mode draws', () => {

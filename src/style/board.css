@@ -409,22 +409,22 @@
 }
 
 .ls-rail{
-  /* Room for a vehicle rather than a pill: a side view needs a window band
-     AND its minutes, and 22px could carry only one of them legibly. */
-  position:relative;height:28px;
+  /* 28px in v1.59.0, to carry a window band AND the minutes. The band is
+     gone (the decoration was what you saw first), so the height goes back. */
+  position:relative;height:22px;
   border-radius:2px;
 }
 .ls-rail::before{
-  content:"";position:absolute;left:0;right:0;top:13px;height:2px;
+  content:"";position:absolute;left:0;right:0;top:10px;height:2px;
   background:rgba(var(--text-muted-rgb),.35);border-radius:1px;
 }
 /* Tint behind each half, so the split reads before the captions are read. */
-.ls-zone{position:absolute;top:5px;height:18px;border-radius:3px}
+.ls-zone{position:absolute;top:3px;height:16px;border-radius:3px}
 .ls-zone-appr{left:0;background:rgba(var(--accent-rgb),.07)}
 
 /* Which way the line runs. One arrowhead for the whole rail. */
 .ls-arrow{
-  position:absolute;right:0;top:6px;
+  position:absolute;right:0;top:4px;
   width:0;height:0;
   border-top:5px solid transparent;
   border-bottom:5px solid transparent;
@@ -433,7 +433,7 @@
 
 /* Your stop: a divide between the two halves, not just another tick. */
 .ls-you{
-  position:absolute;top:0;width:2px;height:28px;margin-left:-1px;
+  position:absolute;top:0;width:2px;height:22px;margin-left:-1px;
   background:var(--accent);border-radius:1px;
   box-shadow:0 0 0 3px rgba(var(--accent-rgb),.12);
 }
@@ -442,7 +442,7 @@
   /* Anchored on its centre, like the pill it replaces, so the axis maths
      upstream needs no change. */
   transform:translateX(-50%);
-  height:26px;
+  height:22px;
   display:flex;align-items:center;
   font-family:"JetBrains Mono",ui-monospace,monospace;
   font-size:10px;font-weight:700;line-height:1;
@@ -592,7 +592,7 @@ html.view-board.map-open #dep-list{
    in the room kept to the right of the origin. It plays once — see
    _departedSeen — and it marks a real event rather than decorating one. */
 @keyframes ls-depart{
-  0%   { transform:translateX(-22px) scale(.9); opacity:.35 }
+  0%   { transform:translateX(-16px) scale(.9); opacity:.35 }
   60%  { transform:translateX(3px)   scale(1.06); opacity:1 }
   100% { transform:translateX(0)     scale(1); opacity:1 }
 }

@@ -3,7 +3,7 @@ import { enturFetch } from '../api/http.js';
 import { recordSmartTrip } from '../api/smart.js';
 import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
-import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom } from '../geo.js';
+import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, landingPref, saveLandingPref } from '../geo.js';
 import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
 import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
@@ -139,6 +139,10 @@ function _highlightPrefs() {
   document.querySelectorAll('#pref-palette .pref-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.val === palette);
   });
+  const landing = landingPref();
+  document.querySelectorAll('#pref-landing .pref-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === landing);
+  });
 }
 
 function initPrefs() {
@@ -153,6 +157,12 @@ function initPrefs() {
   });
   document.querySelectorAll('#pref-palette .pref-btn').forEach(btn => {
     btn.addEventListener('click', () => { setPalette(btn.dataset.val); _highlightPrefs(); });
+  });
+  // The one place that decides which screen the app opens on. It used to be
+  // written as a side effect of navigating, from two different buttons, and
+  // was visible nowhere.
+  document.querySelectorAll('#pref-landing .pref-btn').forEach(btn => {
+    btn.addEventListener('click', () => { saveLandingPref(btn.dataset.val); _highlightPrefs(); });
   });
 }
 

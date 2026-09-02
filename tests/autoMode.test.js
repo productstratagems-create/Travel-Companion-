@@ -9,7 +9,7 @@ vi.mock('../src/config.js', () => ({
 }));
 vi.mock('../src/ui/log.js', () => ({ logMsg: vi.fn() }));
 
-import { loadAutoMode, saveAutoMode, autoModePref } from '../src/geo.js';
+import { loadAutoMode, saveAutoMode, autoModePref, landingPref, saveLandingPref } from '../src/geo.js';
 
 // ── The flag that decides the first screen ─────────────────────────────────
 //
@@ -64,5 +64,82 @@ describe('auto-reise mode flag', () => {
     localStorage.setItem('default::t.autoMode', 'yes');
     expect(autoModePref()).toBe(null);
     expect(loadAutoMode()).toBe(false);
+  });
+});
+
+// ── Which screen the app opens on ──────────────────────────────────────────
+//
+// Reported: «utforsk» in the ⋯ menu turned weekend mode on just to show that
+// screen, and the ⚡ on auto-reise turned the mode off just to reach the
+// board — "det at auto-reise slås av går unevnt for bruker". Navigation was
+// writing down a preference nobody could see or find.
+//
+// It spans TWO flags, and they have to agree: landingChoice reads auto before
+// weekend, so "utforsk" chosen while auto is still on picks a screen that can
+// never appear. That is the bug this function exists to make impossible.
+describe('landingPref', () => {
+  beforeEach(() => { localStorage.clear(); });
+
+  it('is the board until someone chooses otherwise', () => {
+    expect(landingPref()).toBe('tavla');
+  });
+
+  it('round-trips every choice', () => {
+    ['auto', 'utforsk', 'tavla'].forEach(v => {
+      saveLandingPref(v);
+      expect(landingPref()).toBe(v);
+    });
+  });
+
+  // The one that carries the whole thing. Auto outranks weekend in the
+  // landing ladder, so leaving auto on would make "utforsk" a setting that
+  // changes nothing — and nothing on screen would say so.
+  it('clears auto-reise when you choose utforsk', () => {
+    saveLandingPref('auto');
+    saveLandingPref('utforsk');
+    expect(autoModePref()).toBe('off');
+    expect(landingPref()).toBe('utforsk');
+  });
+
+  it('clears BOTH when you choose the board', () => {
+    saveLandingPref('utforsk');
+    saveLandingPref('tavla');
+    expect(autoModePref()).toBe('off');
+    expect(localStorage.getItem('default::t.weekendMode')).toBe(null);
+    expect(landingPref()).toBe('tavla');
+  });
+
+  // Choosing the board is a DECISION, not a return to the blank slate — or
+  // the v1.61.0 default would land a reader back on auto-reise next time.
+  it('remembers the board as a choice, not as absence', () => {
+    saveLandingPref('tavla');
+    expect(autoModePref()).toBe('off');
+  });
+
+  // The upgrade path, and the reason the read order is not arbitrary. Before
+  // v1.64.0 both flags could be set at once: auto-reise on, and «utforsk» in
+  // the ⋯ menu had written weekend mode too, just to show that screen. The
+  // setting has to report what the app ACTUALLY does — landingChoice reads
+  // auto before weekend — or it highlights a screen the reader never sees.
+  it('agrees with the landing ladder when both flags are set', () => {
+    localStorage.setItem('default::t.autoMode', '1');
+    localStorage.setItem('default::t.weekendMode', '1');
+    expect(landingPref()).toBe('auto');
+  });
+
+  // And choosing again from that state must leave it consistent, rather than
+  // clearing one flag and leaving the other to surface later.
+  it('untangles both flags when a choice is made from that state', () => {
+    localStorage.setItem('default::t.autoMode', '1');
+    localStorage.setItem('default::t.weekendMode', '1');
+    saveLandingPref('utforsk');
+    expect(autoModePref()).toBe('off');
+    expect(landingPref()).toBe('utforsk');
+  });
+
+  it('leaves weekend mode alone when you choose auto-reise', () => {
+    saveLandingPref('auto');
+    expect(localStorage.getItem('default::t.weekendMode')).toBe(null);
+    expect(landingPref()).toBe('auto');
   });
 });

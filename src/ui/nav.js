@@ -3,7 +3,7 @@ import { state } from '../state.js';
 import { addFav } from './favs.js';
 import { storage } from '../storage.js';
 import { renderBoardProfileSwitcher, setActiveRoute, syncRouteFields } from '../views/settings.js';
-import { saveWeekendMode, loadAutoMode, saveAutoMode } from '../geo.js';
+import { loadAutoMode, saveAutoMode } from '../geo.js';
 import { loadReturn, returnDir, returnWindow, shouldSwitch, skipToday, loadSkip } from '../api/returnTrip.js';
 import { routeShareUrl, canShare } from './shareRoute.js';
 import { confirmTap } from './confirm.js';
@@ -455,10 +455,11 @@ export function attachEventListeners() {
 
   // A mode, not a one-shot. The item carries its own state so the menu can be
   // read rather than remembered.
+  // No on/off label any more: this is a door, not a switch. Which screen the
+  // app OPENS on lives in innstillinger under «appen åpner på».
   const _syncSmart = () => {
     const b = document.getElementById('smart-btn');
-    if (b) b.innerHTML = '<span class="bmi-ic">⚡</span>auto-reise'
-      + '<span class="bmi-state">' + (loadAutoMode() ? 'på' : 'av') + '</span>';
+    if (b) b.innerHTML = '<span class="bmi-ic">⚡</span>auto-reise';
   };
   _syncSmart();
   document.getElementById('smart-btn').addEventListener('click', () => {
@@ -468,8 +469,11 @@ export function attachEventListeners() {
     // the reason there was no route back to the screen at all. Turning it off
     // lives on ⚡ in the auto-reise header, where it says so.
     if (loadAutoMode()) { navTo('v-auto'); return; }
-    const on = true;
-    saveAutoMode(on);
+    // Switching it on from here is still a choice — you asked for this screen
+    // and get it next time too. Switching it OFF is not this button's job;
+    // that is a preference, and the else branch that used to do it here has
+    // been unreachable since v1.62.0.
+    saveAutoMode(true);
     _syncSmart();
     // show() does NOT call _enter — that map is for history restore — so the
     // screen has to be told to draw itself. Without this the first time you
@@ -483,12 +487,15 @@ export function attachEventListeners() {
     else { show('v-board'); window._startBoard && window._startBoard(); }
   });
 
-  document.getElementById('auto-back').addEventListener('click', () => goBack('v-board'));
-  document.getElementById('auto-off').addEventListener('click', () => {
-    saveAutoMode(false);
-    _syncSmart();
-    show('v-board');
-    window._startBoard && window._startBoard();
+  // Re-fetch, not reload. resetAuto + renderAuto is the same pair the history
+  // restore uses: it drops the cached stop and directions so renderAuto asks
+  // for the nearest stop and its departures again. The board's own ↻ is a
+  // location.reload(), which here would throw away the position and wait for
+  // GPS all over again.
+  const refresh = document.getElementById('auto-refresh');
+  if (refresh) refresh.addEventListener('click', () => {
+    window._resetAuto && window._resetAuto();
+    window._renderAuto && window._renderAuto();
   });
   document.getElementById('auto-manual').addEventListener('click', () => {
     window._showSettings && window._showSettings();
@@ -529,7 +536,8 @@ export function attachEventListeners() {
   });
 
   document.getElementById('leisure-btn').addEventListener('click', () => {
-    saveWeekendMode(true);
+    // No saveWeekendMode: going to a screen is not choosing it as the one the
+    // app opens on. Reported — this entry silently rewrote that preference.
     show('v-leisure');
     window._renderLeisure && window._renderLeisure();
   });

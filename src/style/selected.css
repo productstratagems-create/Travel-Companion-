@@ -6,6 +6,13 @@
 }
 .screen-label{font-size:10px;text-transform:uppercase;letter-spacing:.25em;color:var(--text-muted)}
 
+/* A header with no back button: the fixed menu carries «tavla», so auto-reise
+   has only a title and one action. space-between would push the title hard
+   left against the edge and leave it reading as a stray label rather than a
+   heading; this keeps it centred where every other screen has it. */
+.screen-header-solo{ justify-content:center; position:relative }
+.screen-header-solo > .nav-plan-btn{ position:absolute; right:0; top:50%; transform:translateY(-50%) }
+
 /* Train summary chip */
 .train-chip{
   display:flex;align-items:center;gap:.6rem;

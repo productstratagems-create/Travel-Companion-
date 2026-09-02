@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newRecord, earliestOf, stage, lostAt, formatRecord, STAGES } from '../src/api/diagnose.js';
+import { newRecord, earliestOf, stage, lostAt, formatRecord, STAGES, _missingQuay } from '../src/api/diagnose.js';
 
 const iso = (h, m) => new Date(2026, 4, 26, h, m, 0, 0).toISOString();
 const dep = (h, m) => ({ expectedDepartureTime: iso(h, m) });
@@ -108,5 +108,62 @@ describe('formatRecord', () => {
   it('renders nothing for nothing', () => {
     expect(formatRecord(null)).toEqual([]);
     expect(formatRecord(newRecord(0))).toEqual([]);
+  });
+});
+
+
+// ── Which platforms we board at ────────────────────────────────────────────
+//
+// Reported: "det ser ut som at du kun viser avganger fra ett av sporene
+// (spor 2) på avganger fra Mortensrud på linje 3". Nothing in the app filters
+// by platform, so the question can only be settled by putting our own tally
+// next to the stop's own — which is what these two pin.
+
+describe('_missingQuay', () => {
+  it('spots a platform the stop has and our rows never use', () => {
+    expect(_missingQuay({ '2': 8 }, { '1': 6, '2': 8 })).toBe(true);
+  });
+
+  it('says nothing when we cover every platform the stop reports', () => {
+    expect(_missingQuay({ '1': 3, '2': 8 }, { '1': 6, '2': 8 })).toBe(false);
+    expect(_missingQuay({ '2': 8 }, { '2': 14 })).toBe(false);
+  });
+
+  // An unknown platform is not a platform we are failing to show — it is a
+  // departure the response did not label, and accusing ourselves of dropping
+  // it would send the next reader hunting for a bug that is not there.
+  it('does not count an unlabelled platform as a missing one', () => {
+    expect(_missingQuay({ '2': 8 }, { '2': 8, '?': 3 })).toBe(false);
+  });
+
+  it('claims nothing without both tallies', () => {
+    expect(_missingQuay(null, { '1': 1 })).toBe(false);
+    expect(_missingQuay({ '2': 1 }, null)).toBe(false);
+  });
+});
+
+describe('formatRecord — platforms', () => {
+  const rec = () => {
+    const r = newRecord(ms(16, 0));
+    stage(r, 'rader', [dep(16, 4)]);
+    r.ourQuays = { '2': 8 };
+    r.stopBoard = ms(16, 4);
+    r.stopBoardN = 14;
+    r.stopBoardQuays = { '2': 8, '1': 6 };
+    return r;
+  };
+
+  it('puts the two tallies where they can be compared, and names the gap', () => {
+    const txt = formatRecord(rec()).join('\n');
+    expect(txt).toContain('spor       2×8');
+    expect(txt).toContain('2×8, 1×6');
+    expect(txt).toContain('← spor vi ikke viser');
+    expect(txt).toContain('14 avganger');
+  });
+
+  it('does not accuse us when the platforms match', () => {
+    const r = rec();
+    r.ourQuays = { '2': 8, '1': 6 };
+    expect(formatRecord(r).join('\n')).not.toContain('spor vi ikke viser');
   });
 });

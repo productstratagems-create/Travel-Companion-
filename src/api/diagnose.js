@@ -45,6 +45,9 @@ export function newRecord(at) {
     stages: {},          // stage → { n, earliest }
     dropped: [],         // reasons from adaptTripPattern
     stopBoard: null,     // earliest the stop board reports, when asked
+    stopBoardN: null,    // how many departures that board held
+    stopBoardQuays: null, // and how they split across platforms
+    ourQuays: null,      // the same split for the rows we ended up showing
     lookbackLost: false, // the retry shed the 2-minute lookback this poll
   };
 }
@@ -117,12 +120,23 @@ export function formatRecord(rec) {
     if (name === lost) line += '   ← MISTET HER';
     out.push(line);
   });
+  // Which platforms we ended up boarding at. Reported as "you only show
+  // departures from one of the platforms" — and the app filters nothing by
+  // platform, so the only way to tell "Entur offers just this one" from "we
+  // drop the rest" is to put the two tallies next to each other.
+  if (rec.ourQuays) out.push('spor       ' + _quays(rec.ourQuays));
   if (rec.stopBoard !== null) {
     const ours = rec.stages.rader ? rec.stages.rader.earliest : null;
     out.push('───────────────────────────────');
     out.push('stopptavle     ' + hhmm(rec.stopBoard)
+      + (rec.stopBoardN != null ? '   ' + rec.stopBoardN + ' avganger' : '')
       + (ours != null && rec.stopBoard != null && rec.stopBoard < ours - 30000
         ? '   ← Entur har en tidligere' : ''));
+    if (rec.stopBoardQuays) {
+      out.push('  spor     ' + _quays(rec.stopBoardQuays)
+        + (_missingQuay(rec.ourQuays, rec.stopBoardQuays)
+          ? '   ← spor vi ikke viser' : ''));
+    }
   }
   return out;
 }
@@ -139,4 +153,23 @@ export function showRecord(rec) {
   if (!el) return;
   const lines = formatRecord(rec);
   el.textContent = lines.length ? lines.join('\n') : '—';
+}
+
+/** "2×8, 1×6" — a platform tally, busiest first. */
+function _quays(map) {
+  return Object.entries(map || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([q, n]) => q + '×' + n)
+    .join(', ') || '—';
+}
+
+/**
+ * Does the stop board have a platform our rows never use?
+ *
+ * The whole point of the two tallies. A platform Entur reports and we never
+ * show is the reported symptom, stated as a fact rather than an impression.
+ */
+export function _missingQuay(ours, board) {
+  if (!ours || !board) return false;
+  return Object.keys(board).some(q => q !== '?' && !ours[q]);
 }

@@ -29,6 +29,9 @@ export function initDebugToggle() {
     state.debugOpen = open;
     const p = panel();
     if (p) p.style.display = open ? 'block' : 'none';
+    // The stop-board comparison is only asked for while the panel is open, so
+    // ask the moment it opens rather than at the next poll twenty seconds on.
+    if (open) window._askStopBoard && window._askStopBoard();
   };
   document.getElementById('status-dot').addEventListener('click', () => set(!state.debugOpen));
   // On the board the panel is a sheet over the content, so the dot that

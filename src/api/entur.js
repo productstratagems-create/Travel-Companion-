@@ -389,6 +389,18 @@ export function fetchStopBoardSummary(stopId, modes) {
 const _sbCache = new Map();
 const SB_TTL_MS = 60_000;
 
+/**
+ * Drop it, for an explicit refresh.
+ *
+ * The 60-second life is right for a board that polls itself — a dispatcher
+ * reassigns a platform, not three times a minute. It is wrong when someone
+ * has just TAPPED refresh: a cache that answers instantly with the same thing
+ * makes the button look broken, which is exactly what it would be.
+ */
+export function _resetStopBoardCache() {
+  _sbCache.clear();
+}
+
 export function stopBoardSummary(stopId, modes) {
   if (!stopId) return Promise.resolve(null);
   // The modes are part of the identity: asking for metro and asking for

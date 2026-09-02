@@ -448,9 +448,14 @@ export function attachEventListeners() {
 
   const refreshBtn = document.getElementById('board-refresh-btn');
   if (refreshBtn) {
-    // Full page reload, same as the browser's refresh button. Route, journey
-    // and preferences all live in localStorage, so they survive the reload.
-    refreshBtn.addEventListener('click', () => location.reload());
+    // NOT a page reload. Since v1.61.0 a reload re-runs the landing ladder,
+    // so with auto-reise as the landing screen the board's own refresh button
+    // navigated away from the board — reported, and exactly backwards.
+    refreshBtn.addEventListener('click', () => {
+      refreshBtn.classList.add('is-busy');
+      setTimeout(() => refreshBtn.classList.remove('is-busy'), 700);
+      window._refreshBoard && window._refreshBoard();
+    });
   }
 
   // A mode, not a one-shot. The item carries its own state so the menu can be

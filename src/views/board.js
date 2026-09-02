@@ -4,7 +4,7 @@ import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
-import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace } from '../api/entur.js';
+import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, _rowDest } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
@@ -14,9 +14,9 @@ import { fmtMins, esc } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
-import { fetchNearbyStops } from '../api/stops.js';
+import { fetchNearbyStops, _resetNearbyCache } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX } from '../ui/mapIcons.js';
-import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
+import { fetchVehiclePositions, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
 import { createMap, drawRoute, drawWalk } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
@@ -2739,6 +2739,31 @@ export function startBoard() {
   _fetchBoard();
   intervals.board = setInterval(_fetchBoard, config.boardRefreshMs);
   window._updatePlanCtx && window._updatePlanCtx();
+}
+
+/**
+ * What the ↻ on the board does.
+ *
+ * Reported: "Refresh på tavla tar meg til auto-reise. Det blir feil." It was
+ * a `location.reload()` — honest enough when the board was the only screen
+ * the app could open on. Since v1.61.0 a reload re-runs the landing ladder,
+ * and with auto-reise as your landing screen that is where a reload puts you.
+ * The button did not refresh the board; it restarted the app.
+ *
+ * So: refresh in place, and refresh everything the screen is made of. The
+ * list and the strip both come from `state.deps`, and the map's route and
+ * vehicles are redrawn from the same render — but three short-lived caches
+ * sit in front of the network and would answer instantly with what is already
+ * on screen. A refresh button that returns the same answer is indistinguish-
+ * able from one that does nothing, so an explicit tap drops them.
+ */
+export function refreshBoard() {
+  _resetStopBoardCache();   // platforms and the departures the trip search missed
+  _resetVehicleCache();     // the vehicles drawn on the map
+  _resetNearbyCache();      // the stops around you
+  _stopQuays = null;
+  _stopCalls = null;
+  startBoard();
 }
 
 export function stopBoard() {

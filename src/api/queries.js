@@ -88,7 +88,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
     + (minimal ? '' : ' ' + sits)
     + ' serviceJourney{id line{id publicCode presentation{colour}}'
     + (minimal ? '' : ' ' + sits)
-    + ' estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}}'
+    + ' estimatedCalls{quay{latitude longitude stopPlace{id name latitude longitude}}'
     + ' aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime occupancyStatus quay{publicCode} destinationDisplay{frontText}}'
     + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime quay{publicCode}}'
@@ -147,7 +147,7 @@ export function boardGQL(id, n, now, basic, fwdMins, modes) {
     + 'destinationDisplay{frontText} quay{id publicCode name} '
     + 'serviceJourney{id line{id publicCode transportMode presentation{colour}} '
     + sits + ' '
-    + 'estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}} '
+    + 'estimatedCalls{quay{latitude longitude stopPlace{id name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + '}'
     + '}}';
@@ -164,7 +164,7 @@ export function normJid(jid) {
 
 export function trackGQL(jid) {
   return '{serviceJourney(id:"' + normJid(jid) + '"){'
-    + 'estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}} '
+    + 'estimatedCalls{quay{latitude longitude stopPlace{id name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime realtime}}}';
 }
 
@@ -176,7 +176,7 @@ export function journeyGQL(jid) {
     + 'estimatedCalls{'
     + 'cancellation realtime '
     + 'destinationDisplay{frontText} '
-    + 'quay{publicCode latitude longitude stopPlace{name latitude longitude}} '
+    + 'quay{publicCode latitude longitude stopPlace{id name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime '
     + 'aimedDepartureTime expectedDepartureTime'
     + '}}}';
@@ -228,7 +228,7 @@ export function inflightGQL(id, backMins, fwdMins) {
     + 'actualArrivalTime actualDepartureTime '
     + 'destinationDisplay{frontText} '
     + 'serviceJourney{id line{id publicCode transportMode presentation{colour}} '
-    + 'estimatedCalls{quay{latitude longitude stopPlace{name latitude longitude}} '
+    + 'estimatedCalls{quay{latitude longitude stopPlace{id name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + '}}}';
 }

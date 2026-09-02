@@ -248,3 +248,46 @@ describe('noPosText', () => {
     expect(noPosText(undefined)).toEqual(noPosText(null));
   });
 });
+
+// ── A stop is a stop, not a point on the map ───────────────────────────────
+//
+// Reported with a screenshot: Mortensrud → Skøyenåsen — a real metro stop on
+// the same line — and the itinerary ended with a walking leg to somewhere
+// called "destination", drawn on the map as a dotted loop round a block.
+// "destination" is the name OTP gives a COORDINATE.
+//
+// The chain: stopsAhead reads `quay.stopPlace.id`, no query asked for it, so
+// the id was null; autoRoute fell back to lat/lon; resolveToPlace prefers a
+// coordinate over geocoding; and OTP walked the reader from the platform to
+// that point. These tests hold the two ends of it.
+describe('a destination that is a stop', () => {
+  const withId = { name: 'Skøyenåsen', id: 'NSR:StopPlace:6273', lat: 59.89, lon: 10.83 };
+  const here   = { name: 'Mortensrud', id: 'NSR:StopPlace:6270', lat: 59.87, lon: 10.83 };
+
+  it('travels to the stop, not to its coordinates', () => {
+    const d = autoRoute(here, withId);
+    expect(d.toStopId).toBe('NSR:StopPlace:6273');
+    // No name to geocode either: the id is the precise answer, and geocoding
+    // a name back into an id we are already holding is how coordinates crept
+    // in the first time (v1.4.1).
+    expect(d.toGeo).toBe(null);
+  });
+
+  // The coordinates stay — the map pins the destination with them — but they
+  // must never be the thing the journey is planned to when an id exists.
+  // resolveToPlace reads toStopId first; this pins that order from our side.
+  it('keeps the coordinates for the map without planning to them', () => {
+    const d = autoRoute(here, withId);
+    expect(d._toLat).toBe(59.89);
+    expect(d._toLon).toBe(10.83);
+    expect(d.toStopId).toBeTruthy();
+  });
+
+  // The honest fallback: a place with no id really is only a point, and then
+  // a walking leg at the end is correct rather than nonsense.
+  it('still falls back to a point for somewhere that is not a stop', () => {
+    const d = autoRoute(here, { name: 'Aker brygge', id: null, lat: 59.91, lon: 10.73 });
+    expect(d.toStopId).toBe(null);
+    expect(d.toGeo).toBe('Aker brygge');
+  });
+});

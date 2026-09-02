@@ -28,10 +28,9 @@ import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard } from './views/board.js';
 import config from './config.js';
-import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, loadDep, saveDep, saveDest, setActiveRoute, loadActiveRoute } from './views/settings.js';
+import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, saveDep, saveDest, setActiveRoute, loadActiveRoute } from './views/settings.js';
 import { getActiveProfile, storage } from './storage.js';
 import { state } from './state.js';
-import { predictDest } from './api/smart.js';
 
 const prefilledRoute = (function applyPrefillFromQuery() {
   const params = new URLSearchParams(window.location.search);
@@ -84,36 +83,6 @@ window._showSettings = showSettings;
 window._showPrefs = showPrefs;
 window._applyRoute = applyRoute;
 window._renderLeisure = renderLeisure;
-
-function _applySmartRoute(ns, dest) {
-  // Prefer a nearby station that matches the historically-used departure stop;
-  // fall back to the GPS-nearest station, then to the saved departure name.
-  const nearby = state.nearestStations || (ns ? [ns] : []);
-  const preferred = dest.fromStopId
-    ? nearby.find(s => s.id === dest.fromStopId) || ns
-    : ns;
-  const dep = preferred || ns;
-  const from = (dep && dep.name) || dest.fromName || loadDep();
-  if (!from) return false;
-  setActiveRoute({
-    key: 'custom-out',
-    from,
-    to: dest.toName,
-    stopId: dep ? dep.id : (dest.fromStopId || null),
-    toStopId: dest.toStopId || null,
-    filter: null,
-    geo: (dep || dest.fromStopId) ? null : from,
-    toGeo: dest.toStopId ? null : dest.toName,
-    line: null,
-    _fromLat: dep ? dep.lat : null,
-    _fromLon: dep ? dep.lon : null,
-    // No `chosen`: the smart engine is applying its own guess, and counting
-    // it would let the prediction reinforce itself.
-  });
-  updateHeader();
-  state.deps = [];
-  return true;
-}
 
 // Auto-reise is a mode now (see src/views/auto.js and the ⚡ item in nav.js).
 // What used to live here guessed your destination from history and refused to

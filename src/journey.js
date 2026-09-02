@@ -80,7 +80,6 @@ export function joinJourney(meta, toIdx) {
 export function doBoard() {
   const c = state.sel;
   if (!c) return;
-  window._stopWalk && window._stopWalk();
   const dir = config.dirs[state.dIdx];
   const sj = c.serviceJourney;
   const lbg = sj && sj.line && sj.line.presentation && sj.line.presentation.colour;

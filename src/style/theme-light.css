@@ -350,17 +350,7 @@ html[data-theme="light"] .dest-prev-hours.closed { color: var(--text-dim); }
 /* ── WALK ── */
 html[data-theme="light"] #w-map { background: #e5e7eb; }
 
-html[data-theme="light"] .walk-num.info,
-html[data-theme="light"] .walk-num.behind { color: var(--accent); text-shadow: none; }
-html[data-theme="light"] .walk-num.here   { color: #15803d; text-shadow: none; }
-html[data-theme="light"] .walk-label.info,
-html[data-theme="light"] .walk-label.behind { color: var(--text-muted); }
-html[data-theme="light"] .walk-label.here { color: rgba(21,128,61,.7); }
 
-html[data-theme="light"] .walk-context { color: var(--text-muted); }
-html[data-theme="light"] .walk-context .wc-hl  { color: var(--accent); }
-html[data-theme="light"] .walk-context .wc-arr  { color: var(--warn); }
-html[data-theme="light"] .walk-context .wc-src  { color: var(--text-dim); }
 
 html[data-theme="light"] #w-dep-list { border-top-color: rgba(var(--border-rgb),.08); }
 html[data-theme="light"] .w-dep-row  { border-bottom-color: rgba(var(--border-rgb),.05); }

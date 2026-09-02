@@ -191,3 +191,34 @@ describe('the board refresh button', () => {
     expect(code).not.toContain('location.reload');
   });
 });
+
+// ── The retired gangtid screen ─────────────────────────────────────────────
+//
+// v1.67.0 folded it into avgangsdetaljer. Someone with the app open still has
+// history entries pointing at v-walk, and a browser Back must not drop them on
+// a blank screen — nor may the view list keep hiding an element that is gone.
+describe('after gangtid was folded away', () => {
+  it('is no longer one of the app\'s screens', () => {
+    const src = fs.readFileSync('src/ui/nav.js', 'utf8');
+    const list = src.match(/\[('v-[^\]]*)\]\.forEach/);
+    expect(list).toBeTruthy();
+    expect(list[1]).not.toContain('v-walk');
+  });
+
+  it('sends an old history entry to the screen its content moved to', () => {
+    const src = fs.readFileSync('src/ui/nav.js', 'utf8');
+    expect(src).toMatch(/id === 'v-walk'[\s\S]{0,90}'v-selected'/);
+  });
+
+  // The listeners for a screen that no longer exists throw on an unguarded
+  // getElementById(...).addEventListener — and this file wires them all at
+  // startup, so one of them takes every screen down with it. Measured: that
+  // is exactly what happened while this change was being made.
+  it('wires no button belonging to the removed screen', () => {
+    const code = fs.readFileSync('src/ui/nav.js', 'utf8')
+      .split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
+    ['w-back', 'w-plan-btn', 'w-spec-btn', 'w-map-expand'].forEach(id => {
+      expect(code).not.toContain("'" + id + "'");
+    });
+  });
+});

@@ -106,10 +106,6 @@ let _depth = 0;
 function _reachable(id) {
   if (id === 'v-selected') return !!state.sel;
   if (id === 'v-track')    return !!state.jny;
-  // Walk runs a loop that only selected.js can start, so it is deliberately
-  // not re-enterable by going forward. Backing *out* of it works, which is
-  // the direction that matters.
-  if (id === 'v-walk')     return false;
   return true;
 }
 
@@ -214,10 +210,12 @@ function _restore(id) {
   // Leaving cleanup, same as the back buttons do.
   const from = 'v-' + state.view;
   if (from === 'v-selected') stopSelRefresh();
-  if (from === 'v-walk') window._stopWalk && window._stopWalk();
 
   let target = _reachable(id) ? id : HISTORY_FALLBACK;
-  if (id === 'v-walk' && state.sel) target = 'v-selected';
+  // An entry for the retired gangtid screen can still be in someone's
+  // history — the app was open when it was there. Send it where its content
+  // went rather than to the fallback.
+  if (id === 'v-walk') target = state.sel ? 'v-selected' : HISTORY_FALLBACK;
   if (target === 'v-board') { stopSelRefresh(); state.sel = null; }
 
   _pushEnabled = false;
@@ -261,7 +259,7 @@ export function show(id) {
   closeSpectatePanel();
   closeBoardMenu();
   if (id !== 'v-selected') window._destroySelMap && window._destroySelMap();
-  ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-prefs', 'v-saved', 'v-leisure', 'v-auto'].forEach(v => {
+  ['v-board', 'v-selected', 'v-track', 'v-settings', 'v-prefs', 'v-saved', 'v-leisure', 'v-auto'].forEach(v => {
     // Clear the inline style rather than stamping `block`. The board is a flex
     // column under `html.view-board`, and an inline `display:block` beats that
     // stylesheet rule on specificity — which collapsed the column, left the
@@ -527,7 +525,7 @@ export function attachEventListeners() {
     window._renderSaved && window._renderSaved('plan');
   });
 
-  ['s-plan-btn', 'w-plan-btn', 't-plan-btn', 'set-plan-btn'].forEach(id => {
+  ['s-plan-btn', 't-plan-btn', 'set-plan-btn'].forEach(id => {
     document.getElementById(id).addEventListener('click', () => {
       show('v-saved');
       window._renderSaved && window._renderSaved('plan');
@@ -551,15 +549,11 @@ export function attachEventListeners() {
     show('v-saved');
     window._renderSaved && window._renderSaved('find');
   });
-  document.getElementById('w-spec-btn').addEventListener('click', () => toggleSpectatePanel('follow-jny-panel-walk'));
   document.getElementById('t-spec-btn').addEventListener('click', () => toggleSpectatePanel('follow-jny-panel-track'));
 
   document.getElementById('saved-back').addEventListener('click', () => goBack('v-board'));
 
   document.getElementById('s-back').addEventListener('click', () => goBack('v-board'));
-
-  document.getElementById('w-back').addEventListener('click', () =>
-    goBack(state.sel ? 'v-selected' : 'v-board'));
 
 
   document.getElementById('alight-btn').addEventListener('click', (e) => {

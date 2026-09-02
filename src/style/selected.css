@@ -68,6 +68,40 @@
 .leaveby-time.lt-now{color:var(--urgent);text-shadow:0 0 32px rgba(249,115,22,.6),0 0 70px rgba(249,115,22,.2)}
 .leaveby-time.lt-late{color:#dc2626;text-shadow:0 0 20px rgba(220,38,38,.4)}
 .leaveby-sub{font-size:12px;margin-top:.5rem}
+/* The unit rides with the number rather than under it, so "45 sek" and
+   "12 min" occupy one line and the digits stay the tallest thing. */
+.leaveby-time .lt-unit{
+  font-family:"JetBrains Mono",monospace;
+  font-size:.9rem;letter-spacing:.1em;margin-left:.25rem;
+  opacity:.75;text-shadow:none;
+}
+
+/* It is time to go.
+   The screen changes weight rather than changing screen: the countdown grows
+   to what the retired gangtid screen showed, and the itinerary folds away
+   below. Nothing moves except the size, so the thing you were reading is
+   still where you left it. */
+.leaveby-hero.is-focus{margin-bottom:1.25rem}
+.leaveby-hero.is-focus .leaveby-time{font-size:clamp(4.2rem,22vw,6.5rem);line-height:.9}
+.leaveby-hero.is-focus .leaveby-time .lt-unit{font-size:1.1rem}
+.leaveby-hero.is-focus .leaveby-label{font-size:11px;letter-spacing:.35em}
+
+/* The folded itinerary. A <details>, so it opens on tap, takes keyboard
+   focus and is announced — none of which a div of our own would do. */
+.itin-fold{margin-bottom:1rem}
+.itin-fold > summary{
+  cursor:pointer;list-style:none;
+  font-family:"JetBrains Mono",monospace;
+  font-size:10px;text-transform:uppercase;letter-spacing:.2em;
+  color:var(--text-muted);
+  padding:.6rem .2rem;
+  border-top:1px solid rgba(var(--border-rgb),.08);
+  border-bottom:1px solid rgba(var(--border-rgb),.08);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.itin-fold > summary::-webkit-details-marker{display:none}
+.itin-fold > summary::after{content:" ▾";opacity:.6}
+.itin-fold[open] > summary::after{content:" ▴"}
 
 /* Journey detail grid */
 .journey-detail{

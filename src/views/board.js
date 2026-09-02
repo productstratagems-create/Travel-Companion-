@@ -2200,6 +2200,14 @@ export function renderBoard() {
   if (_diag) {
     stage(_diag, 'linje', visibleDeps.map(d => d.c));
     stage(_diag, 'rader', rowDeps.map(d => d.c));
+    // Which platforms our own rows board at. Compared against the stop
+    // board's tally below, this answers "are we only showing one of the
+    // platforms" without anyone having to guess.
+    _diag.ourQuays = {};
+    rowDeps.forEach(({ c }) => {
+      const q = (c.quay && c.quay.publicCode) || '?';
+      _diag.ourQuays[q] = (_diag.ourQuays[q] || 0) + 1;
+    });
     showRecord(_diag);
   }
   if (!visibleDeps.length) {
@@ -2670,11 +2678,18 @@ function _bindInfiniteScroll(list) {
  * Only while the debug panel is open: the answer is a diagnostic, and a
  * second request per poll for everyone would be a cost with no reader.
  */
+// Opening the panel is the moment the reader wants the comparison, and the
+// board polls every 20 s — so without this the one line you opened the panel
+// for could be twenty seconds late.
+window._askStopBoard = () => _askStopBoard(config.dirs[state.dIdx]);
+
 function _askStopBoard(dir) {
   if (!state.debugOpen || !dir || !dir.stopId) return;
-  fetchStopBoardEarliest(dir.stopId).then(ms => {
-    if (!_diag) return;
-    _diag.stopBoard = ms;
+  fetchStopBoardEarliest(dir.stopId).then(res => {
+    if (!_diag || !res) return;
+    _diag.stopBoard = res.earliest;
+    _diag.stopBoardN = res.n;
+    _diag.stopBoardQuays = res.quays;
     showRecord(_diag);
   }).catch(() => {});
 }

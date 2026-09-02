@@ -326,21 +326,37 @@ export function fetchBoardPage(dir, atMs, n, onSuccess, onError) {
  *
  * @returns {Promise<number|null>} epoch ms, or null when nothing came back.
  */
+/**
+ * What the stop itself is showing — the same question Ruter answers.
+ *
+ * Reported: "det ser ut som du kun viser avganger fra ett av sporene". The app
+ * asks the trip planner for JOURNEYS A→B, and the platform each one boards at
+ * is whatever OTP picked. Nothing in the app filters by platform — but the
+ * only way to tell "Entur only offers this one" from "we drop the others" is
+ * to ask the stop board and compare, which is exactly what this is for.
+ *
+ * Twenty rather than five: five departures on a trunk stop is one platform's
+ * worth, which would make the comparison useless on precisely the stops where
+ * the question comes up.
+ */
 export function fetchStopBoardEarliest(stopId) {
   return enturFetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: boardGQL(stopId, 5, null, true) }),
+    body: JSON.stringify({ query: boardGQL(stopId, 20, null, true) }),
   })
     .then(r => (r && r.ok ? r.json() : null))
     .then(j => {
       const calls = (j && j.data && j.data.stopPlace && j.data.stopPlace.estimatedCalls) || [];
       let best = null;
+      const quays = {};
       calls.forEach(c => {
         const t = new Date(c.expectedDepartureTime || c.aimedDepartureTime || NaN).getTime();
         if (!isNaN(t) && (best == null || t < best)) best = t;
+        const q = (c.quay && c.quay.publicCode) || '?';
+        quays[q] = (quays[q] || 0) + 1;
       });
-      return best;
+      return { earliest: best, n: calls.length, quays };
     });
 }
 

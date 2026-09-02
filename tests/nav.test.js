@@ -14,13 +14,17 @@ vi.mock('../src/views/spectate.js', () => ({
 
 const VIEWS = ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-prefs', 'v-saved', 'v-leisure', 'v-auto'];
 
-const { show, toggleBoardMenu } = await import('../src/ui/nav.js');
+const { state } = await import('../src/state.js');
+const { show, toggleBoardMenu, navTo, NAV_ITEMS, navActive, navHidden } = await import('../src/ui/nav.js');
 
 beforeEach(() => {
   document.body.innerHTML = VIEWS
     .map(v => `<div id="${v}" tabindex="-1"${v === 'v-board' ? '' : ' style="display:none"'}></div>`)
     .join('') + '<div id="board-more-menu"></div><button id="board-more-btn"></button>';
   document.documentElement.className = '';
+  // state is a module singleton, so the view leaks between tests — and navTo
+  // deliberately refuses to move to the screen you are already on.
+  state.view = 'board';
 });
 
 describe('show', () => {
@@ -75,5 +79,84 @@ describe('toggleBoardMenu', () => {
     expect(menu.style.display).toBe('none');
     expect(chip.getAttribute('aria-expanded')).toBe('false');
     expect(btn.getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+// ── The fixed menu between the main screens ────────────────────────────────
+//
+// Reported: "savner å kunne navigere tilbake til auto-reise boardet". There
+// was no way back. With the mode ON and the reader on the board, the ⋯ entry
+// called `saveAutoMode(!loadAutoMode())` — so the thing that looked like a
+// door was a switch, and tapping it turned the mode OFF.
+//
+// Underneath that: the app conflated GOING to a screen with CHOOSING it as
+// the screen the app opens on. These tests hold the two apart.
+describe('the fixed navigation menu', () => {
+  it('offers the four main screens, board first', () => {
+    expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto', 'v-saved', 'v-leisure']);
+    NAV_ITEMS.forEach(i => expect(i.label).toBeTruthy());
+  });
+
+  it('marks the screen you are on', () => {
+    expect(navActive('board')).toBe('v-board');
+    expect(navActive('auto')).toBe('v-auto');
+    expect(navActive('saved')).toBe('v-saved');
+    expect(navActive('leisure')).toBe('v-leisure');
+  });
+
+  // A screen that is not in the menu leaves every entry unmarked, rather than
+  // lighting up the first one and claiming you are on the board.
+  it('marks nothing on a screen that is not in it', () => {
+    ['settings', 'prefs', 'selected', 'track', 'walk'].forEach(v => {
+      expect(navActive(v)).toBe(null);
+    });
+  });
+
+  // "Underveis" and the walking route are screens you FOLLOW, not screens you
+  // navigate from — they carry their own avslutt/tilbake, and a menu there
+  // invites leaving a journey by accident.
+  // The invariant the whole change rests on: MOVING to a screen must never
+  // write down which screen the app opens on. The reported bug was exactly
+  // that conflation — the ⋯ entry computed `!loadAutoMode()`, so switching
+  // screens switched the mode off, and there was no way back at all.
+  it('never writes a mode flag when it navigates', () => {
+    const before = { ...localStorage };
+    NAV_ITEMS.forEach(i => navTo(i.view));
+    expect({ ...localStorage }).toEqual(before);
+  });
+
+  it('takes you to the screen you asked for', () => {
+    navTo('v-leisure');
+    expect(document.getElementById('v-leisure').style.display).toBe('');
+    expect(document.getElementById('v-board').style.display).toBe('none');
+  });
+
+  // Chosen deliberately: coming back to auto-reise shows FRESH directions
+  // from where you are now, not the stop you were at when you left with times
+  // that have aged. Reset then render — the order matters, and the restore
+  // path used to render without resetting at all.
+  it('opens auto-reise fresh, resetting before it renders', () => {
+    const order = [];
+    window._resetAuto = () => order.push('reset');
+    window._renderAuto = () => order.push('render');
+    navTo('v-auto');
+    expect(order).toEqual(['reset', 'render']);
+  });
+
+  it('does nothing when you tap the screen you are already on', () => {
+    navTo('v-auto');
+    const order = [];
+    window._resetAuto = () => order.push('reset');
+    window._renderAuto = () => order.push('render');
+    navTo('v-auto');
+    expect(order).toEqual([]);
+  });
+
+  it('is hidden on the journey and walking screens, and nowhere else', () => {
+    expect(navHidden('track')).toBe(true);
+    expect(navHidden('walk')).toBe(true);
+    ['board', 'auto', 'saved', 'leisure', 'settings', 'prefs', 'selected'].forEach(v => {
+      expect(navHidden(v)).toBe(false);
+    });
   });
 });

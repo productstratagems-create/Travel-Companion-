@@ -402,6 +402,11 @@
 <!-- ══ GLOBAL: Sticky journey chip — shown on all screens during active journey ══ -->
 <div id="onboard-chip" role="group" aria-label="Reise underveis" class="onboard-chip-bar"></div>
 
+<!-- ══ GLOBAL: Fixed navigation between the four main screens ══════════════
+     Filled and kept in sync by nav.js (NAV_ITEMS). Hidden on "underveis" and
+     the walking route — screens you follow rather than navigate from. -->
+<nav id="app-nav" class="app-nav" aria-label="Hovedmeny" hidden></nav>
+
 </main><!-- .wrap -->
 
 <script type="module" src="/src/main.js"></script>

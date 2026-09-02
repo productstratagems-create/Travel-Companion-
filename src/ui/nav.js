@@ -123,8 +123,92 @@ const _enter = {
   'v-prefs':    () => window._showPrefs && window._showPrefs(),
   'v-saved':    () => window._renderSaved && window._renderSaved(),
   'v-leisure':  () => window._renderLeisure && window._renderLeisure(),
-  'v-auto':     () => window._renderAuto && window._renderAuto(),
+  // Reset first, like both other doors into this screen already do. Without
+  // it a restore repainted the stop you were at when you left, with times
+  // that had aged — and this screen's whole claim is "from where you are".
+  'v-auto':     () => {
+    window._resetAuto && window._resetAuto();
+    window._renderAuto && window._renderAuto();
+  },
 };
+
+/**
+ * The four screens the fixed menu moves between.
+ *
+ * Reported: "savner å kunne navigere tilbake til auto-reise boardet". There
+ * was no way back — the ⋯ entry that looked like a door was a switch, and
+ * with the mode already on, tapping it turned auto-reise OFF.
+ *
+ * Underneath that, the app conflated two different things: GOING to a screen,
+ * and CHOOSING it as the one the app opens on. While navigation wrote itself
+ * down as a preference, you could not move around without changing how the
+ * app would greet you next time. This menu only navigates. The mode flags
+ * keep their meaning — which screen the app OPENS on — and are set where they
+ * belong: ⚡ on the auto-reise screen turns that mode off.
+ */
+export const NAV_ITEMS = [
+  { view: 'v-board',   icon: '🚉', label: 'tavla' },
+  { view: 'v-auto',    icon: '⚡', label: 'auto-reise' },
+  { view: 'v-saved',   icon: '★',  label: 'lagret' },
+  { view: 'v-leisure', icon: '🌟', label: 'utforsk' },
+];
+
+/** Which entry is lit for a given `state.view`, or null when none of them. */
+export function navActive(view) {
+  const id = 'v-' + String(view || '');
+  return NAV_ITEMS.some(i => i.view === id) ? id : null;
+}
+
+/**
+ * Screens you FOLLOW rather than navigate from.
+ *
+ * "Underveis" and the walking route both carry their own avslutt/tilbake, and
+ * a menu across the bottom of them is an invitation to leave a journey by
+ * accident — over the map, at the moment you are least able to spare it.
+ */
+export function navHidden(view) {
+  return view === 'track' || view === 'walk';
+}
+
+/** Move to one of the four. Navigation only — no mode flag is written. */
+export function navTo(id) {
+  if (!id || 'v-' + state.view === id) return;
+  closeBoardMenu();
+  show(id);
+  if (_enter[id]) _enter[id]();
+}
+
+function _buildNav() {
+  const el = document.getElementById('app-nav');
+  if (!el || el.dataset.built) return;
+  el.dataset.built = '1';
+  el.innerHTML = NAV_ITEMS.map(i =>
+    '<button class="app-nav-btn" type="button" data-view="' + i.view + '">'
+    + '<span class="app-nav-ic" aria-hidden="true">' + i.icon + '</span>'
+    + '<span class="app-nav-lb">' + i.label + '</span></button>').join('');
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('.app-nav-btn');
+    if (b) navTo(b.dataset.view);
+  });
+}
+
+function _renderNav() {
+  const el = document.getElementById('app-nav');
+  if (!el) return;
+  _buildNav();
+  el.hidden = navHidden(state.view);
+  const active = navActive(state.view);
+  el.querySelectorAll('.app-nav-btn').forEach(b => {
+    const on = b.dataset.view === active;
+    b.classList.toggle('is-active', on);
+    // aria-current, not aria-selected: these are links between pages, not
+    // options in a set.
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  // The board is a fixed screen and the journey chip is already pinned to the
+  // bottom; both need to know the bar is there so nothing hides under it.
+  document.body.classList.toggle('app-nav-visible', !el.hidden);
+}
 
 function _restore(id) {
   // Leaving cleanup, same as the back buttons do.
@@ -163,6 +247,10 @@ export function goBack(fallbackId) {
 export function initHistory() {
   try { history.replaceState({ v: 'v-' + state.view }, ''); } catch {}
   _pushEnabled = true;
+  // Boot does not always go through show(): the board is visible in the
+  // markup, so the 'stored' and 'deeplink' rungs simply start it. This runs
+  // once the landing view is settled, whichever rung chose it.
+  _renderNav();
   window.addEventListener('popstate', e => {
     if (_depth > 0) _depth--;
     _restore((e.state && e.state.v) || HISTORY_FALLBACK);
@@ -193,6 +281,7 @@ export function show(id) {
   // put and only the list scrolls. Scoped to a body class so every other
   // screen keeps scrolling as an ordinary page.
   document.documentElement.classList.toggle('view-board', id === 'v-board');
+  _renderNav();
   window.scrollTo(0, 0);
   // Move focus to the new screen so screen-reader users land at its top
   document.getElementById(id).focus({ preventScroll: true });
@@ -374,7 +463,12 @@ export function attachEventListeners() {
   _syncSmart();
   document.getElementById('smart-btn').addEventListener('click', () => {
     closeBoardMenu();
-    const on = !loadAutoMode();
+    // Already on: this is a way IN, not a way out. It used to compute
+    // `!loadAutoMode()` and so switched the mode off — the reported bug, and
+    // the reason there was no route back to the screen at all. Turning it off
+    // lives on ⚡ in the auto-reise header, where it says so.
+    if (loadAutoMode()) { navTo('v-auto'); return; }
+    const on = true;
     saveAutoMode(on);
     _syncSmart();
     // show() does NOT call _enter — that map is for history restore — so the

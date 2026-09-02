@@ -123,8 +123,8 @@ if (_profileChip) {
 // ladder the app did not have. This branches on the decision; it does not
 // re-make it.
 const restored = loadJny();
-const stored = restored ? null : loadActiveRoute();
-const savedDest = restored ? null : loadDest();
+const stored = loadActiveRoute();
+const savedDest = loadDest();
 const landing = landingChoice({
   hasJourney: !!restored,
   hasDeepLink: prefilledRoute,
@@ -134,12 +134,41 @@ const landing = landingChoice({
   savedDest,
 });
 
+// THE ROUTE IS APP STATE, NOT A LANDING DECISION — settled before the branch.
+//
+// It used to be applied only on the rung that opened the board, so a reader
+// whose app opened on auto-reise or utforsk had a board still holding
+// config.dirs[0]: Jernbanetorget → Nationaltheatret, a stranger's route. That
+// was invisible while there was no way to the board except one that rebuilt
+// it — and the fixed menu is exactly such a way, so "tavla" would have shown
+// someone else's departures. Found by seeding a saved route in the
+// end-to-end run and reading the header.
+//
+// The deep link has already set the route, with `chosen`, so it is left alone.
+let hasRoute = prefilledRoute;
+if (!hasRoute && stored) {
+  setActiveRoute(stored);   // no `chosen`: restoring, not choosing
+  hasRoute = true;
+} else if (!hasRoute && savedDest) {
+  // The old path that rebuilds a route from two names, dropping ids and
+  // coordinates on the way. It can still fail, and then the example answers.
+  hasRoute = applyRouteFromState(savedDest);
+}
+if (!hasRoute) {
+  // Open a working board rather than an empty form.
+  //
+  // Assigned directly instead of through setActiveRoute, on purpose — the
+  // example is not a choice the reader made, so it must not be saved as
+  // their route, counted among their places, or fed to the smart engine.
+  // The next visit is still a first visit until they pick something.
+  const ex = exampleDir();
+  if (ex) { config.dirs[2] = ex; state.dIdx = 2; hasRoute = true; }
+}
+updateHeader();
+
 if (landing === 'journey') {
   state.jny = restored;
   activateTracking();
-} else if (landing === 'deeplink') {
-  updateHeader();
-  startBoard();
 } else if (landing === 'auto') {
   // Landing here by DEFAULT makes it a choice, and writes it down.
   //
@@ -160,33 +189,12 @@ if (landing === 'journey') {
 } else if (landing === 'leisure') {
   renderLeisure();
   show('v-leisure');
-} else if (landing === 'stored') {
-  // No `chosen`: restoring, not choosing.
-  setActiveRoute(stored);
-  updateHeader();
-  startBoard();
-} else if (landing === 'legacy' && applyRouteFromState(savedDest)) {
-  // The old path that rebuilds a route from two names, dropping ids and
-  // coordinates on the way. It can still fail, and then the example answers.
-  updateHeader();
+} else if (hasRoute) {
+  // deeplink, stored, legacy and example all open the same screen.
   startBoard();
 } else {
-  // Nothing stored: open a working board rather than an empty form.
-  //
-  // Assigned directly instead of through setActiveRoute, on purpose — the
-  // example is not a choice the reader made, so it must not be saved as
-  // their route, counted among their places, or fed to the smart engine.
-  // The next visit is still a first visit until they pick something.
-  const ex = exampleDir();
-  if (ex) {
-    config.dirs[2] = ex;
-    state.dIdx = 2;
-    updateHeader();
-    startBoard();
-  } else {
-    showSettings();
-    show('v-settings');
-  }
+  showSettings();
+  show('v-settings');
 }
 
 // Only now is the landing screen settled, so this is where the first history

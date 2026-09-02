@@ -9,7 +9,7 @@ vi.mock('../src/config.js', () => ({
 }));
 vi.mock('../src/ui/log.js', () => ({ logMsg: vi.fn() }));
 
-import { haver, reachCls, findArr, walkInfo } from '../src/geo.js';
+import { haver, reachCls, findArr, walkInfo, walkFocus, WALK_FOCUS_MINS } from '../src/geo.js';
 import { state } from '../src/state.js';
 import { saveWalkDist } from '../src/api/walkDist.js';
 
@@ -192,5 +192,38 @@ describe('walkInfo()', () => {
     setup();
     state.homeLL = null;
     expect(walkInfo().src).toBe('standard');
+  });
+});
+
+// ── Is it time to go? ──────────────────────────────────────────────────────
+//
+// v1.67.0 folded the gangtid screen into the departure screen. The two screens
+// duplicated four things and the second added two: a live countdown and the
+// walking route. Rather than a screen you navigate to, the departure screen
+// now changes SHAPE when it is time to leave — and this is the one function
+// that decides when, because the hero, the itinerary and the map all read it.
+describe('walkFocus', () => {
+  it('is quiet while there is still time', () => {
+    expect(walkFocus(20)).toBe(false);
+    expect(walkFocus(WALK_FOCUS_MINS + 1)).toBe(false);
+  });
+
+  // Three minutes, not zero: at zero the screen would only become useful once
+  // you were already late — the moment you are least able to read it.
+  it('wakes up a few minutes before you have to go', () => {
+    expect(walkFocus(WALK_FOCUS_MINS)).toBe(true);
+    expect(walkFocus(1)).toBe(true);
+    expect(walkFocus(0)).toBe(true);
+  });
+
+  // A countdown that stopped mattering the moment it matters most would be
+  // the wrong way round.
+  it('stays awake once you are late', () => {
+    expect(walkFocus(-1)).toBe(true);
+    expect(walkFocus(-30)).toBe(true);
+  });
+
+  it('says no rather than guessing when there is no number', () => {
+    [null, undefined, NaN, Infinity, 'snart'].forEach(v => expect(walkFocus(v)).toBe(false));
   });
 });

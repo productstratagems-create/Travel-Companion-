@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus } from '../geo.js';
 import { fetchJourneyMeta } from '../api/entur.js';
 import { quayLatLon, legShape, _rowDest } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
@@ -245,6 +245,20 @@ function _renderSelMap(dep, fromName, toName) {
     L.circleMarker([userPos.lat, userPos.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2 })
       .bindTooltip('Din posisjon', { className: 'sel-stop-label' })
       .addTo(_selLayer);
+
+    // The walk TO the stop — the half of the journey only the gangtid screen
+    // used to draw, on a second map of its own. Without it this map showed
+    // the ride and the walk at the far end, and left the reader to imagine
+    // how they reached the platform.
+    //
+    // A straight dashed line, as gangtid drew it: the route from a position
+    // to a platform is not in the trip response — we ask from a stop id on
+    // purpose (v1.4.1) — so a drawn path here would be invented.
+    const board = legs[0] && legs[0].stops && legs[0].stops[0];
+    if (board && board.lat != null && board.lon != null) {
+      drawWalk(_selLayer, [[userPos.lat, userPos.lon], [board.lat, board.lon]]);
+      pts.push([userPos.lat, userPos.lon], [board.lat, board.lon]);
+    }
   }
 
   if (pts.length) _selMap.fitBounds(pts, { padding: [40, 40], maxZoom: 15 });
@@ -290,6 +304,28 @@ export function renderSelected() {
   const urgMsg = leaveByMsg(rcls, mtl);
 
   const walkActive = isWalkActive(dir);
+  // Is it time to go? One question, three consequences — see walkFocus.
+  const focus = walkActive && !departed && walkFocus(mtl);
+
+  // The countdown the gangtid screen used to be.
+  //
+  // Seconds under a minute, because that is the stretch where a minute-
+  // resolution number is a lie you act on. renderSelected already runs every
+  // second (scheduler.js), so this needs no timer of its own — it needed a
+  // screen, and that was the only reason gangtid was one.
+  const secsToLeave = Math.floor((leaveByTs - now) / 1000);
+  let heroNum, heroUnit, heroLbl;
+  if (secsToLeave < 0) {
+    heroNum = Math.max(0, Math.floor((depTs - now) / 60000)); heroUnit = 'min';
+    heroLbl = 'til avgang';
+  } else if (secsToLeave < 60) {
+    heroNum = secsToLeave; heroUnit = 'sek'; heroLbl = 'til du bør gå';
+  } else if (secsToLeave < 3600) {
+    heroNum = Math.floor(secsToLeave / 60); heroUnit = 'min'; heroLbl = 'til du bør gå';
+  } else {
+    const h = Math.floor(secsToLeave / 3600), rm = Math.floor((secsToLeave % 3600) / 60);
+    heroNum = h + 't'; heroUnit = rm > 0 ? rm + 'm' : ''; heroLbl = 'til du bør gå';
+  }
   // `_isTransfer` is already "there is more here than one train" — it is
   // `legs.length > 1 || lastAny.mode === 'foot'`. Requiring two TRANSIT legs
   // on top of that meant a single train plus a walk to your destination fell
@@ -411,13 +447,22 @@ export function renderSelected() {
     + (departed
       ? '<div class="departed-banner">avgikk ' + clk(depTs) + ' · reisen er i gang</div>'
       : walkActive
-        ? '<div class="leaveby-hero">'
-          + '<div class="leaveby-label">gå senest</div>'
-          + '<div class="leaveby-time ' + ltCls + '">' + clk(leaveByTs) + '</div>'
-          + '<div class="leaveby-sub soft">' + urgMsg + '</div>'
+        ? '<div class="leaveby-hero' + (focus ? ' is-focus' : '') + '" aria-live="polite">'
+          + '<div class="leaveby-label">' + heroLbl + '</div>'
+          + '<div class="leaveby-time ' + ltCls + '">' + heroNum
+          + '<span class="lt-unit">' + heroUnit + '</span></div>'
+          + '<div class="leaveby-sub soft">gå senest ' + clk(leaveByTs) + ' · ' + urgMsg + '</div>'
           + '</div>'
         : '')
-    + journeyDetail;
+    // Folded once it is time to go. The itinerary is what you read while
+    // DECIDING; the countdown is what you read while walking, and on a phone
+    // held at arm's length the two cannot both be first. <details> rather
+    // than a toggle of our own: it opens on tap, it is reachable by keyboard,
+    // and a screen reader announces it — none of which we would get for free.
+    + (focus
+      ? '<details class="itin-fold"><summary>reiseplan · ' + esc(dest) + '</summary>'
+        + journeyDetail + '</details>'
+      : journeyDetail);
 
   // Rebuild CTAs
   const existingCtas = document.getElementById('s-ctas');
@@ -434,14 +479,6 @@ export function renderSelected() {
       state.sel = null;
       show('v-board');
       startBoard();
-    };
-  } else if (walkActive) {
-    primaryBtn.textContent = 'gangtid →';
-    primaryBtn.disabled = depTs < now - 120000;
-    primaryBtn.onclick = () => {
-      show('v-walk');
-      window._buildWalkBar && window._buildWalkBar();
-      window._renderWalk && window._renderWalk();
     };
   } else {
     primaryBtn.textContent = 'reis →';

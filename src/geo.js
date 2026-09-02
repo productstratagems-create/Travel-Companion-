@@ -158,6 +158,35 @@ export function isWalkActive(dir) {
   return ns !== null && dir.stopId === ns.id;
 }
 
+/**
+ * How close to leaving before the screen changes shape.
+ *
+ * Three minutes rather than zero: at zero the screen only becomes useful once
+ * you are already late, which is the moment you are least able to read it.
+ */
+export const WALK_FOCUS_MINS = 3;
+
+/**
+ * Is it time to go?
+ *
+ * `isWalkActive` answers whether a walk applies AT ALL. This answers whether
+ * it is happening now — a different question, and the one that decides how
+ * the departure screen is weighted: the countdown grows, the itinerary folds
+ * to one line, and the map opens.
+ *
+ * One function because three things read it. Three places computing the same
+ * threshold is how they drift apart, and the drift would show as a screen
+ * that is half in focus and half not.
+ *
+ * Stays true once you are late — a countdown that stops mattering the moment
+ * it matters most would be the wrong way round.
+ *
+ * @param {number} minsToLeave from mToLeave()
+ */
+export function walkFocus(minsToLeave) {
+  return Number.isFinite(minsToLeave) && minsToLeave <= WALK_FOCUS_MINS;
+}
+
 export function mToLeave(depTs) {
   const w = walkInfo();
   return Math.floor((depTs - w.mins * 60000 - Date.now()) / 60000);

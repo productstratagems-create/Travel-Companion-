@@ -5,7 +5,6 @@ import './style/base.css';
 import './style/components.css';
 import './style/board.css';
 import './style/selected.css';
-import './style/walk.css';
 import './style/track.css';
 import './style/debug.css';
 import './style/settings.css';

@@ -46,10 +46,6 @@ function loadModes() {
 }
 function saveModes(m) { storage.set(MODES_KEY, JSON.stringify(m)); }
 /**
- * What you board. Used for the icon, the row and the corridor's style — all
- * of which are about the vehicle you step onto, so the first leg is right.
- */
-/**
  * Which platform to put on the row.
  *
  * Reported: "du viser kun avganger fra ett av sporene (spor 2)". The board's
@@ -78,6 +74,10 @@ export function _rowQuay(c, byJourney) {
   return { quay: actual, changed: planned !== '?' };
 }
 
+/**
+ * What you board. Used for the icon, the row and the corridor's style — all
+ * of which are about the vehicle you step onto, so the first leg is right.
+ */
 function _depMode(dep) {
   if (dep._legs && dep._legs[0]) return dep._legs[0].mode;
   const ln = dep.serviceJourney && dep.serviceJourney.line;
@@ -2236,10 +2236,11 @@ export function renderBoard() {
   if (_diag) {
     stage(_diag, 'linje', visibleDeps.map(d => d.c));
     stage(_diag, 'rader', rowDeps.map(d => d.c));
-    // Which platforms our own rows board at. Compared against the stop
-    // board's tally below, this answers "are we only showing one of the
-    // platforms" without anyone having to guess.
-    // What the rows SHOW, not what the trip planner planned — otherwise the
+    // Which platforms our own rows board at, compared against the stop
+    // board's tally below — so "are we only showing one of the platforms" is
+    // answered rather than guessed at.
+    //
+    // What the rows SHOW, not what the trip planner planned: otherwise the
     // diagnosis contradicts the screen it is diagnosing, and reports
     // platforms as missing that the rows are already displaying.
     _diag.ourQuays = {};

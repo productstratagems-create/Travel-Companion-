@@ -81,6 +81,34 @@ export function saveWeekendMode(v) {
   if (v) storage.set(WEEKEND_MODE_KEY, '1'); else storage.remove(WEEKEND_MODE_KEY);
 }
 
+/**
+ * WHICH SCREEN THE APP OPENS ON — one choice, spanning two flags.
+ *
+ * It was never a setting anyone could see. Both flags were written as a side
+ * effect of navigating: «utforsk» in the ⋯ menu turned weekend mode on in
+ * order to show that screen, and the ⚡ on the auto-reise header turned
+ * auto-reise off in order to reach the board. Reported, exactly right: "at
+ * auto-reise slås av går unevnt for bruker".
+ *
+ * The two flags must AGREE, and that is the whole reason this is a function
+ * rather than two calls at each site. landingChoice (firstRun.js) reads auto
+ * BEFORE weekend, so choosing "utforsk" while auto is still on picks a screen
+ * that can never appear — a setting that silently does nothing.
+ *
+ * @returns {'tavla'|'auto'|'utforsk'}
+ */
+export function landingPref() {
+  if (autoModePref() === 'on') return 'auto';
+  if (loadWeekendMode()) return 'utforsk';
+  return 'tavla';
+}
+
+/** Set it, keeping both flags consistent with the answer. */
+export function saveLandingPref(v) {
+  saveAutoMode(v === 'auto');
+  saveWeekendMode(v === 'utforsk');
+}
+
 export function haver(la1, lo1, la2, lo2) {
   const R = 6371000, r = Math.PI / 180;
   const dL = (la2 - la1) * r, dN = (lo2 - lo1) * r;

@@ -304,6 +304,14 @@
     </div>
   </div>
   <div class="set-section">
+    <div class="set-label">appen åpner på</div>
+    <div class="pref-group" id="pref-landing">
+      <button class="pref-btn" data-val="tavla">Tavla</button>
+      <button class="pref-btn" data-val="auto">Auto-reise</button>
+      <button class="pref-btn" data-val="utforsk">Utforsk</button>
+    </div>
+  </div>
+  <div class="set-section">
     <div class="set-label">utseende</div>
     <div class="pref-group" id="pref-theme">
       <button class="pref-btn" data-val="light">Lys</button>
@@ -328,10 +336,13 @@
 <!-- ══ AUTO-REISE ══ Position first: your stop, what leaves it, and where
      those go. A mode, not a button — see src/views/auto.js. -->
 <div id="v-auto" tabindex="-1" style="display:none">
-  <div class="screen-header">
-    <button class="nav-back" id="auto-back">← tavla</button>
+  <!-- No back button: the fixed menu below carries «tavla», and no ⚡ either
+       — turning auto-reise off is a preference, and it lives in innstillinger
+       under «appen åpner på». A mode switch sitting where a reader expects
+       navigation is how it got switched off without anyone noticing. -->
+  <div class="screen-header screen-header-solo">
     <span class="screen-label" role="heading" aria-level="2">auto-reise</span>
-    <button class="nav-plan-btn" id="auto-off" aria-label="Slå av auto-reise">⚡</button>
+    <button class="nav-plan-btn" id="auto-refresh" aria-label="Hent posisjon og avganger på nytt">↻</button>
   </div>
   <div id="auto-where" class="set-section"></div>
   <div id="auto-body"></div>

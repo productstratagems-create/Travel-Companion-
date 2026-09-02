@@ -123,10 +123,13 @@ function _buildHtml(pos) {
 function _attachListeners(el, pos) {
   document.getElementById('lei-commute-btn').addEventListener('click', () => {
     _destroyLeisureMap();
+    // Navigation only. This used to clear weekend mode on the way out — and
+    // only when no journey was running, so whether leaving this screen
+    // changed which screen the app opens on depended on something unrelated.
+    // That choice lives in innstillinger under «appen åpner på».
     if (state.jny) {
       show('v-track');
     } else {
-      saveWeekendMode(false);
       show('v-board');
       window._startBoard && window._startBoard();
     }

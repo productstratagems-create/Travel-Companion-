@@ -377,7 +377,15 @@ export function attachEventListeners() {
     const on = !loadAutoMode();
     saveAutoMode(on);
     _syncSmart();
-    if (on) { window._resetAuto && window._resetAuto(); show('v-auto'); }
+    // show() does NOT call _enter — that map is for history restore — so the
+    // screen has to be told to draw itself. Without this the first time you
+    // ever switched the mode on you got an empty screen, which is now the
+    // main way in rather than a corner of the menu.
+    if (on) {
+      window._resetAuto && window._resetAuto();
+      show('v-auto');
+      window._renderAuto && window._renderAuto();
+    }
     else { show('v-board'); window._startBoard && window._startBoard(); }
   });
 

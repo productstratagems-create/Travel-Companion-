@@ -51,8 +51,26 @@ const AUTO_MODE_KEY = 't.autoMode';
 export function loadAutoMode() {
   return storage.get(AUTO_MODE_KEY) === '1';
 }
+
+/**
+ * THREE states, not two: on, off, and never asked.
+ *
+ * Off used to be stored by deleting the key, which made "I turned this off"
+ * and "I have never seen this" the same value. That was harmless while the
+ * default was off — and became the one thing standing between the app and a
+ * default that is ON for a reader with no history (v1.61.0). Reading absence
+ * as "on" would have turned the mode back on for someone who had just turned
+ * it off: a screen that comes back after you dismissed it.
+ *
+ * @returns {'on'|'off'|null} null when the reader has never chosen.
+ */
+export function autoModePref() {
+  const v = storage.get(AUTO_MODE_KEY);
+  return v === '1' ? 'on' : v === '0' ? 'off' : null;
+}
+
 export function saveAutoMode(v) {
-  if (v) storage.set(AUTO_MODE_KEY, '1'); else storage.remove(AUTO_MODE_KEY);
+  storage.set(AUTO_MODE_KEY, v ? '1' : '0');
 }
 
 const WEEKEND_MODE_KEY = 't.weekendMode';

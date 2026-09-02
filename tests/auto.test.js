@@ -5,7 +5,7 @@
  * platform with a train coming.
  */
 import { describe, it, expect } from 'vitest';
-import { groupDirections, stopsAhead, autoRoute } from '../src/views/auto.js';
+import { groupDirections, stopsAhead, autoRoute, noPosText } from '../src/views/auto.js';
 
 const NOW = Date.UTC(2026, 4, 26, 15, 0, 0);
 const at = (min) => new Date(NOW + min * 60000).toISOString();
@@ -131,5 +131,55 @@ describe('autoRoute', () => {
   it('refuses half a route', () => {
     expect(autoRoute(A, null)).toBeNull();
     expect(autoRoute({ id: 'x' }, B)).toBeNull();
+  });
+});
+
+// ── No position, and which nothing it is ───────────────────────────────────
+//
+// v1.61.0 makes auto-reise the screen a new reader lands on, so "GPS denied"
+// stops being a corner case and becomes one of the two ways the very first
+// screen can go. "Finner ikke posisjonen din ennå" is true while a fix is on
+// its way and a lie once permission has been refused: it reads as
+// still-looking, so the screen sits there implying it is about to work.
+describe('noPosText', () => {
+  it('says the position is refused, and what to do instead', () => {
+    const t = noPosText('denied');
+    expect(t.where).toMatch(/avslått/i);
+    // Refused means it will never arrive on its own, so the way forward has
+    // to be named. Both escape hatches are on the screen already.
+    expect(t.body).toMatch(/stedstjenester/i);
+    expect(t.body).toMatch(/stoppet selv/i);
+  });
+
+  // The screen must not point at something that is not on it. The nearby-stop
+  // buttons are built from the position, so with no position there is nothing
+  // below to choose from — an earlier draft said "velg et stopp nedenfor"
+  // under an empty screen, and the button still said "skriv hvor du SKAL".
+  it('points only at the one control that is actually there', () => {
+    ['denied', null].forEach(e => {
+      expect(noPosText(e).body).not.toMatch(/nedenfor/i);
+      expect(noPosText(e).cta).toMatch(/hvor du er/i);
+    });
+  });
+
+  it('says it is still looking when nothing has failed yet', () => {
+    const t = noPosText(null);
+    expect(t.where).toMatch(/ennå/i);
+    expect(t.body).toMatch(/leter/i);
+    // The one thing it must NOT do is tell someone to change a setting they
+    // have not touched and that is not the problem.
+    expect(t.body).not.toMatch(/avslått/i);
+  });
+
+  it('never gives the same words to the two cases', () => {
+    expect(noPosText('denied').where).not.toBe(noPosText(null).where);
+    expect(noPosText('denied').body).not.toBe(noPosText(null).body);
+  });
+
+  // An unknown error code is not a denial — treating it as one would tell the
+  // reader to change a permission that is already granted.
+  it('treats an unknown failure as still looking, not as a refusal', () => {
+    expect(noPosText('timeout')).toEqual(noPosText(null));
+    expect(noPosText(undefined)).toEqual(noPosText(null));
   });
 });

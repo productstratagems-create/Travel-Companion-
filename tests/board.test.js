@@ -6,11 +6,11 @@ vi.mock('leaflet', () => ({ default: {} }));
 // The real module reaches Leaflet, so it is stubbed — but SIDE_VEHICLE_MAX_PX
 // is read at module scope to size the strip's clustering threshold, so the
 // stub has to carry the real number or the clustering tests below measure a
-// board nobody ships. mapIcons.test.js pins it to this same 48.
+// board nobody ships. mapIcons.test.js pins it to this same 38.
 vi.mock('../src/ui/mapIcons.js', () => ({
   makeStopIcon: vi.fn(), makeVehicleIcon: vi.fn(), makeRouteStopIcon: vi.fn(),
   mapHalo: vi.fn(() => '#fff'), sideVehicleSvg: vi.fn(() => '<svg/>'),
-  SIDE_VEHICLE_MAX_PX: 48,
+  SIDE_VEHICLE_MAX_PX: 38,
 }));
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
@@ -494,7 +494,8 @@ describe('_buildStrip — the lookback window', () => {
   // single glyph with a +N badge. Spreading them was tried and measured: the
   // rail's axis is not linear across your stop — the strip right of it maps
   // about 0.19 of the width onto an axis unit against ~0.82 on the left — so
-  // three "separated" glyphs landed 6px apart at 414px, against a 46px glyph.
+  // three "separated" glyphs landed 6px apart at 414px, against a glyph
+  // 46px wide at the time (38px since v1.65.0).
   // Overlapping glyphs swallow each other's taps.
   it('gives every departed train the same position, so they cluster', () => {
     const s = strip([at(-2, 'old'), at(-1, 'mid'), at(0, 'justnow', -5)]);

@@ -1565,7 +1565,7 @@ export function _buildStrip(candidates, dir, lineOn, now, livePos) {
   // linear across the rail: the half left of your stop maps ~0.82 of the
   // width onto one axis unit, the strip right of it ~0.19 onto the same unit,
   // so a separation that looks generous in axis units is about 6px there
-  // against a 46px glyph. Spreading them produced overlapping glyphs, and an
+  // against a glyph that was 46px wide then and is 38px now. Spreading them produced overlapping glyphs, and an
   // overlapping glyph swallows the taps of the one beneath it.
   out.trains.forEach(t => { t.pos = t.departed ? _STRIP_GONE_AT : -(t.mins / maxMins); });
   // Most recently gone first, so it leads its cluster: of the trains that have

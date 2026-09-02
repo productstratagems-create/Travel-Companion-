@@ -209,11 +209,14 @@ export function makeVehicleIcon(mode, color, opts = {}) {
  * @param {boolean} [dim] the quieter treatment for a train already gone
  */
 const _SIDE = {
-  //        nose = how far the front rakes back    wheels for road/street rail
-  metro: { len: 46, nose: 12, wheels: false },
-  rail:  { len: 48, nose: 16, wheels: false },
-  tram:  { len: 44, nose: 10, wheels: true },
-  bus:   { len: 40, nose: 7,  wheels: true },
+  // With the panes and wheels gone, the nose is the ONLY shape left to tell
+  // the modes apart, so it carries the whole spread: a rail set rakes back
+  // half its length, a bus front is square. Checked by rendering all four in
+  // one colour — at 34/36/32/30 with a gentle rake they were the same lozenge.
+  metro: { len: 34, nose: 10 },
+  rail:  { len: 38, nose: 16 },
+  tram:  { len: 32, nose: 6 },
+  bus:   { len: 30, nose: 0 },
 };
 
 export function sideVehicleSvg(mode, color, label, dim) {
@@ -223,48 +226,37 @@ export function sideVehicleSvg(mode, color, label, dim) {
   const m = _SIDE[mode] ? mode : 'metro';
   const sh = _SIDE[m];
   const body = color || _MODE_COLOUR[m];
-  const w = sh.len, h = 26;
-  const bh = sh.wheels ? 20 : 22;           // wheels need room beneath
-  const y = 1;
+  const w = sh.len, h = 22;
+  const bh = 18;
+  const y = 2;
   const r = (n) => Math.round(n * 100) / 100;
   // Nose to the RIGHT: the strip runs left to right towards your stop, so the
   // vehicle faces the way it is travelling and the way the reader is reading.
-  // The rake is the whole silhouette at this size — a subtle one was tried
-  // first, and read as a rounded rectangle with a dot on it.
+  // The rake is gentler than v1.59.0's — at this size a hard wedge reads as a
+  // shape being clever rather than as a front.
   const d = 'M0 ' + (y + 3)
     + 'Q0 ' + y + ' 3 ' + y
     + 'L' + r(w - sh.nose) + ' ' + y
-    + 'Q' + r(w - sh.nose * 0.15) + ' ' + r(y + 0.5) + ' ' + w + ' ' + r(y + bh * 0.45)
+    + 'Q' + r(w - sh.nose * 0.2) + ' ' + r(y + 0.5) + ' ' + w + ' ' + r(y + bh * 0.55)
     + 'L' + w + ' ' + r(y + bh - 3)
     + 'Q' + w + ' ' + r(y + bh) + ' ' + r(w - 3) + ' ' + r(y + bh)
     + 'L3 ' + r(y + bh) + 'Q0 ' + r(y + bh) + ' 0 ' + r(y + bh - 3) + 'Z';
-  // A window band along the roof, cut into panes — the same job the carriage
-  // joints do in the plan view: it says "vehicle" before anything is read.
-  const bandY = y + 2, bandH = 4.6;
-  const bandEnd = w - sh.nose * 0.55;
-  const panes = [];
-  const paneW = 6.2;
-  for (let x = 2.6; x + paneW < bandEnd; x += paneW + 1.5) {
-    panes.push('<rect x="' + r(x) + '" y="' + r(bandY) + '" width="' + paneW
-      + '" height="' + bandH + '" rx="1.2" fill="#fff" opacity="' + (dim ? '.4' : '.6') + '"/>');
-  }
-  const wheels = sh.wheels
-    ? '<circle cx="' + r(w * 0.26) + '" cy="' + r(y + bh + 1.9) + '" r="2.4" fill="' + body + '"'
-      + ' fill-opacity="' + (dim ? '.55' : '1') + '"/>'
-      + '<circle cx="' + r(w * 0.72) + '" cy="' + r(y + bh + 1.9) + '" r="2.4" fill="' + body + '"'
-      + ' fill-opacity="' + (dim ? '.55' : '1') + '"/>'
-    : '';
-  // The minutes sit on the body's floor rather than under the band: "nå" has a
-  // ring over the å, and band-relative placement put it through the windows.
+  // Body, colour, number. Nothing else.
+  //
+  // v1.59.0 had a window band cut into panes and wheels under the road modes,
+  // and they worked — you could tell a bus from a train. Reported since: they
+  // are what you see FIRST, and the minutes are what you act on. So the body
+  // shrank by a quarter while the number stayed 11px, which inverts the two
+  // without making the number any harder to read; and the decoration went,
+  // because at 30px it was texture rather than information. Mode is still
+  // carried by length, by the rake of the nose, and above all by colour.
   return '<svg class="ls-veh" width="' + w + '" height="' + h + '"'
     + ' viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true" focusable="false">'
     + '<path d="' + d + '" fill="' + body + '" fill-opacity="' + (dim ? '.55' : '1') + '"/>'
-    + panes.join('')
-    + '<text x="' + r((w - sh.nose * 0.7) / 2) + '" y="' + r(y + bh - 3.5) + '"'
+    + '<text x="' + r((w - sh.nose * 0.7) / 2) + '" y="' + r(y + bh / 2 + 3.9) + '"'
     + ' text-anchor="middle" font-family="JetBrains Mono, ui-monospace, monospace"'
     + ' font-size="11" font-weight="700" fill="#fff"'
     + ' opacity="' + (dim ? '.85' : '1') + '">' + label + '</text>'
-    + wheels
     + '</svg>';
 }
 

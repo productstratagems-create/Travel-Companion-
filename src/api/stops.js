@@ -13,6 +13,11 @@ const TRANSIT_CATS = Object.keys(CAT_MODE);
 
 let _cache = null;
 
+/** Drop it, so an explicit refresh really asks again. See entur.js. */
+export function _resetNearbyCache() {
+  _cache = null;
+}
+
 export function fetchNearbyStops(lat, lon) {
   const now = Date.now();
   if (_cache && now - _cache.ts < 120000 && haver(lat, lon, _cache.lat, _cache.lon) < 100)

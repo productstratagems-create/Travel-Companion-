@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import fs from 'node:fs';
 
 // nav.js reaches into most of the app on import; none of it matters for the
 // question here, which is purely what show() leaves on the view elements.
@@ -158,5 +159,35 @@ describe('the fixed navigation menu', () => {
     ['board', 'auto', 'saved', 'leisure', 'settings', 'prefs', 'selected'].forEach(v => {
       expect(navHidden(v)).toBe(false);
     });
+  });
+});
+
+// ── The board's own refresh ────────────────────────────────────────────────
+//
+// Reported: "Refresh på tavla tar meg til auto-reise. Det blir feil." It was
+// a location.reload(), which was honest while the board was the only screen
+// the app could open on — and since v1.61.0 a reload re-runs the landing
+// ladder, so with auto-reise as the landing screen the board's refresh button
+// navigated off the board and emptied it.
+describe('the board refresh button', () => {
+  it('refreshes the board in place, and never reloads the page', () => {
+    document.body.insertAdjacentHTML('beforeend',
+      '<button id="board-refresh-btn"></button>');
+    const src = fs.readFileSync('src/ui/nav.js', 'utf8');
+    const i = src.indexOf("getElementById('board-refresh-btn')");
+    expect(i).toBeGreaterThan(-1);
+    const block = src.slice(i, i + 700);
+    expect(block).toContain('_refreshBoard');
+    expect(block).not.toContain('location.reload');
+  });
+
+  // Nothing else in the chrome may reload either — same trap, different
+  // button. Comments are stripped first: the auto-reise refresh explains in
+  // prose why it is NOT a reload, and matching that would be matching the
+  // documentation rather than the code.
+  it('leaves no page reload anywhere in the navigation code', () => {
+    const code = fs.readFileSync('src/ui/nav.js', 'utf8')
+      .split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
+    expect(code).not.toContain('location.reload');
   });
 });

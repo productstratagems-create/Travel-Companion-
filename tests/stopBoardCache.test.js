@@ -24,10 +24,10 @@ vi.mock('../src/api/http.js', () => ({
 vi.mock('../src/ui/log.js', () => ({ logMsg: vi.fn(), setDot: vi.fn() }));
 vi.mock('../src/api/diagnose.js', () => ({ noteLookbackLost: vi.fn() }));
 
-const { stopBoardSummary } = await import('../src/api/entur.js');
+const { stopBoardSummary, _resetStopBoardCache } = await import('../src/api/entur.js');
 const modesOf = (q) => (q.match(/whiteListedModes:\[([^\]]*)\]/) || [])[1];
 
-beforeEach(() => { calls = []; });
+beforeEach(() => { calls = []; _resetStopBoardCache(); });
 
 describe('stopBoardSummary', () => {
   it('asks once for a stop and reuses the answer', async () => {
@@ -58,5 +58,43 @@ describe('stopBoardSummary', () => {
     expect(calls).toHaveLength(2);
     expect(await stopBoardSummary(null, ['metro'])).toBeNull();
     expect(calls).toHaveLength(2);
+  });
+});
+
+// ── An explicit refresh must actually ask again ────────────────────────────
+//
+// Reported: "Refresh på tavla tar meg til auto-reise. Det blir feil. Jeg vil
+// her refreshe kart, strip og liste." The button was a location.reload(),
+// which since v1.61.0 re-runs the landing ladder and so navigates away from
+// the board. Refreshing in place is the fix — but only if the caches sitting
+// in front of the network let the request through. A minute of cached answers
+// is right for a board that polls itself, and wrong the moment someone taps.
+describe('_resetStopBoardCache', () => {
+  it('lets the very next call reach the network again', async () => {
+    await stopBoardSummary('NSR:A', ['metro']);
+    await stopBoardSummary('NSR:A', ['metro']);
+    expect(calls).toHaveLength(1);
+    _resetStopBoardCache();
+    await stopBoardSummary('NSR:A', ['metro']);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('drops every stop, not just the one last asked for', async () => {
+    await stopBoardSummary('NSR:A', ['metro']);
+    await stopBoardSummary('NSR:B', ['metro']);
+    _resetStopBoardCache();
+    await stopBoardSummary('NSR:A', ['metro']);
+    await stopBoardSummary('NSR:B', ['metro']);
+    expect(calls).toHaveLength(4);
+  });
+
+  // Dropping the cache must not disable it — the board polls every 20s, and a
+  // cache that stopped holding would triple the traffic for an answer that
+  // changes when a dispatcher reassigns a platform.
+  it('leaves the cache working afterwards', async () => {
+    _resetStopBoardCache();
+    await stopBoardSummary('NSR:A', ['metro']);
+    await stopBoardSummary('NSR:A', ['metro']);
+    expect(calls).toHaveLength(1);
   });
 });

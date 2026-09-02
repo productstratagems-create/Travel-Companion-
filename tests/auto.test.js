@@ -70,6 +70,71 @@ describe('groupDirections', () => {
   });
 });
 
+// ── A departure that has gone is not a choice ──────────────────────────────
+//
+// Reported with a photograph from Bogerud: three rows saying "nå" at once.
+// The stop board is asked with a two-minute LOOKBACK on purpose (queries.js
+// LOOKBACK_MINS) — a train standing at the platform a minute late is exactly
+// what someone running for it needs to see — and this screen then clamped the
+// countdown with Math.max(0, …), so anything up to two minutes GONE rendered
+// as "nå".
+//
+// The board can afford that honestly, because it says "-3". This screen is a
+// list of choices, and a departure you cannot catch is not one. So it goes.
+describe('groupDirections and departures already gone', () => {
+  it('drops a departure that has already left', () => {
+    const out = groupDirections([call('Mortensrud', '3', -1.5)], NOW);
+    expect(out).toEqual([]);
+  });
+
+  // The whole photograph: three rows reading "nå", at least one of them a
+  // vehicle that had gone. Against the old code all three survived.
+  it('keeps only the ones still to come when the board looks back', () => {
+    const out = groupDirections([
+      call('Mortensrud', '3', -1.8),
+      call('Kolsås', '3', -0.4),
+      call('Åsbråten', '79', 0.3),
+      call('Stortinget', '3', 5),
+    ], NOW);
+    expect(out.map(d => d.frontText)).toEqual(['Åsbråten', 'Stortinget']);
+  });
+
+  // A direction must not disappear because its FIRST vehicle has gone — the
+  // next one is still a choice, and it is the one the row should carry.
+  it('keeps the direction and moves to its next departure', () => {
+    const out = groupDirections([
+      call('Mortensrud', '3', -1.5),
+      call('Mortensrud', '3', 7),
+    ], NOW);
+    expect(out).toHaveLength(1);
+    expect(out[0].mins).toBe(7);
+    // The row's onward stops must come from the call the time came from.
+    expect(out[0].call.expectedDepartureTime).toBe(at(7));
+  });
+
+  // "nå" still has to mean now. A vehicle 20 seconds out is one you catch by
+  // walking, and rounding it to zero is the right answer — that is the case
+  // the clamp was there for, and it survives.
+  it('still says nå for one that is about to leave', () => {
+    const out = groupDirections([call('Kolsås', '3', 0.33)], NOW);
+    expect(out).toHaveLength(1);
+    expect(out[0].mins).toBe(0);
+  });
+
+  it('treats this instant as still catchable, not as gone', () => {
+    expect(groupDirections([call('Kolsås', '3', 0)], NOW)).toHaveLength(1);
+  });
+
+  // Pinned rather than changed: the countdown rounds to nearest, so 4:36 is
+  // "5 min". Unchanged behaviour, but nothing held it before — and rounding
+  // is exactly the kind of thing that drifts to floor in a later edit and
+  // quietly makes every row a minute more optimistic.
+  it('rounds the countdown to the nearest minute', () => {
+    expect(groupDirections([call('Kolsås', '3', 4.6)], NOW)[0].mins).toBe(5);
+    expect(groupDirections([call('Kolsås', '3', 4.4)], NOW)[0].mins).toBe(4);
+  });
+});
+
 describe('stopsAhead', () => {
   const c = call('Nationaltheatret', '3', 2, [
     stop('Mortensrud', -6), stop('Ryen', -2),

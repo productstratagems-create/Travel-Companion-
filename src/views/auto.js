@@ -57,6 +57,19 @@ export function groupDirections(calls, now) {
     if (!front) return;
     const ms = _callTime(c);
     if (ms == null) return;
+    // Gone is not a choice.
+    //
+    // The stop board is asked with a two-minute lookback on purpose
+    // (queries.js LOOKBACK_MINS): a train standing at the platform a minute
+    // late is exactly what someone running for it needs to see. The board can
+    // carry that honestly because it says "-3". This screen is a LIST OF
+    // CHOICES, and it clamped the countdown with Math.max(0, …) below — so
+    // everything up to two minutes gone arrived here reading "nå".
+    //
+    // Reported from Bogerud: three rows saying "nå" at once, on the screen a
+    // new reader meets first. Dropped here rather than clamped, so the
+    // direction keeps its NEXT departure instead of losing the row.
+    if (ms < t0) return;
     const ln = c.serviceJourney && c.serviceJourney.line;
     const code = (ln && ln.publicCode) || null;
     const colour = (ln && ln.presentation && ln.presentation.colour) || null;
@@ -77,7 +90,11 @@ export function groupDirections(calls, now) {
   });
   return [...byText.values()]
     .sort((a, b) => a.nextMs - b.nextMs)
-    .map(d => ({ ...d, mins: Math.max(0, Math.round((d.nextMs - t0) / MIN)) }));
+    // No clamp. Every call here left the filter above with nextMs >= t0, so
+    // the rounding cannot go negative — and a Math.max(0, …) that can never
+    // fire, sitting where one used to hide departed vehicles behind "nå", is
+    // worse than none: it tells the next reader that negatives get here.
+    .map(d => ({ ...d, mins: Math.round((d.nextMs - t0) / MIN) }));
 }
 
 /**

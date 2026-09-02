@@ -10,7 +10,7 @@ vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
   _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _isolateLine, _corridorKey, CORRIDOR_MAX_M, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle, _interpolateVehiclePos, _interpolateOnPath,
-  _nextPageAt, _mergePage, MAX_ROWS, _rowQuay } from '../src/views/board.js';
+  _nextPageAt, _mergePage, MAX_ROWS, _rowQuay, stopBoardExtras } from '../src/views/board.js';
 import { measurePath } from '../src/ui/path.js';
 import { haver } from '../src/geo.js';
 
@@ -1140,5 +1140,68 @@ describe('_rowQuay', () => {
   // is not a *change*, because there was nothing to change from.
   it('adopts the stop’s platform without crying change when we had none', () => {
     expect(_rowQuay(dep(undefined, 'A'), { A: '1' })).toEqual({ quay: '1', changed: false });
+  });
+});
+
+
+// ── Departures the trip planner did not offer ──────────────────────────────
+//
+// Reported four times, ending with "slutt å filtrere bort avganger fra et
+// spor". Nothing filtered by platform — we were asking the wrong question.
+// `numTripPatterns:12` came back with 10, so OTP was not truncated by us; it
+// simply does not offer every departure as a journey. The stop board is the
+// other question: everything that leaves.
+
+const sbCall = (code, front, mins, quay, jid) => ({
+  expectedDepartureTime: new Date(Date.UTC(2026, 4, 26, 7, mins, 0)).toISOString(),
+  destinationDisplay: { frontText: front },
+  quay: { publicCode: quay },
+  serviceJourney: { id: jid, line: { publicCode: code, transportMode: 'metro' } },
+});
+const tripDep = (code, front, jid) => ({
+  serviceJourney: { id: jid },
+  _legs: [{ line: { publicCode: code }, fromEstimatedCall: { destinationDisplay: { frontText: front } } }],
+});
+const SB0 = Date.UTC(2026, 4, 26, 7, 0, 0);
+
+describe('stopBoardExtras', () => {
+  const ours = [tripDep('3', 'Jernbanetorget', 'RUT:ServiceJourney:3-1')];
+
+  it('puts back a departure the stop has and the journey search did not', () => {
+    const out = stopBoardExtras(ours, [sbCall('3', 'Jernbanetorget', 20, '1', 'RUT:ServiceJourney:3-2')], SB0);
+    expect(out).toHaveLength(1);
+    expect(out[0].quay.publicCode).toBe('1');
+    expect(out[0]._fromStopBoard).toBe(true);
+    // We know when it leaves. We do NOT know when it arrives, and inventing
+    // that number would be worse than the omission it fixes.
+    expect(out[0]._finalArrival).toBeNull();
+  });
+
+  it('never adds one we already have, whatever the codespace casing', () => {
+    expect(stopBoardExtras(ours, [sbCall('3', 'Jernbanetorget', 20, '1', 'RUT:ServiceJourney:3-1')], SB0)).toEqual([]);
+    expect(stopBoardExtras(ours, [sbCall('3', 'Jernbanetorget', 20, '1', 'rut:ServiceJourney:3-1')], SB0)).toEqual([]);
+  });
+
+  // The one mistake on this screen that actively sends someone backwards.
+  it('refuses the same line running the other way', () => {
+    expect(stopBoardExtras(ours, [sbCall('3', 'Mortensrud', 20, '1', 'RUT:ServiceJourney:3-9')], SB0)).toEqual([]);
+  });
+
+  it('refuses a line the results never had', () => {
+    expect(stopBoardExtras(ours, [sbCall('4', 'Jernbanetorget', 20, '1', 'RUT:ServiceJourney:4-1')], SB0)).toEqual([]);
+  });
+
+  // The board looks two minutes back on purpose; older than that has gone,
+  // and putting it back is not a fix.
+  it('leaves what has already gone where it is', () => {
+    expect(stopBoardExtras(ours, [sbCall('3', 'Jernbanetorget', -10, '1', 'RUT:ServiceJourney:3-5')], SB0)).toEqual([]);
+    expect(stopBoardExtras(ours, [sbCall('3', 'Jernbanetorget', 1, '1', 'RUT:ServiceJourney:3-6')], SB0)).toHaveLength(1);
+  });
+
+  // With no results to take a direction from, every stop-board departure is a
+  // coin flip on which way it goes.
+  it('adds nothing when it has no direction to trust', () => {
+    expect(stopBoardExtras([], [sbCall('3', 'Jernbanetorget', 20, '1', 'X')], SB0)).toEqual([]);
+    expect(stopBoardExtras(ours, null, SB0)).toEqual([]);
   });
 });

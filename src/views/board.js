@@ -46,6 +46,73 @@ function loadModes() {
 }
 function saveModes(m) { storage.set(MODES_KEY, JSON.stringify(m)); }
 /**
+ * Departures the stop has and the trip planner did not offer.
+ *
+ * Reported four times, in different words, ending with: "slutt å filtrere
+ * bort avganger fra et spor". The honest reading of the panel is that we were
+ * never filtering — we were ASKING THE WRONG QUESTION. `numTripPatterns:12`
+ * came back with 10, so OTP was not truncated by us; it simply does not offer
+ * every departure as a journey. A train it judges dominated — one that leaves
+ * sooner and arrives no earlier — is omitted, entirely legitimately, and no
+ * amount of looking at our own filters was ever going to find it.
+ *
+ * The stop board is the other question: everything that leaves, full stop. We
+ * already fetch it for the platform cross-check, so the departures are in
+ * hand. This puts back the ones the journey search left out.
+ *
+ * Two guards, because adding rows is riskier than dropping them:
+ *
+ * - Only lines and front texts that already appear in the results. Without
+ *   that we would add the same line running the OTHER way — the one mistake
+ *   on this screen that actively sends someone backwards.
+ * - No arrival time, and marked. We know when it leaves; we do NOT know when
+ *   it reaches your destination, and inventing that number would be worse
+ *   than the omission it fixes.
+ */
+export function stopBoardExtras(adapted, calls, now) {
+  const t0 = now == null ? Date.now() : now;
+  const dirs = new Set();
+  const have = new Set();
+  (adapted || []).forEach(c => {
+    const leg = c._legs && c._legs[0];
+    const fec = leg && leg.fromEstimatedCall;
+    const ft = fec && fec.destinationDisplay && fec.destinationDisplay.frontText;
+    const code = leg && leg.line && leg.line.publicCode;
+    if (ft && code) dirs.add(code + '|' + String(ft).trim().toLowerCase());
+    const id = c.serviceJourney && c.serviceJourney.id;
+    if (id) have.add(normJid(id));
+  });
+  if (!dirs.size) return [];
+  const out = [];
+  (calls || []).forEach(c => {
+    const sj = c.serviceJourney;
+    const ln = sj && sj.line;
+    const code = ln && ln.publicCode;
+    const ft = c.destinationDisplay && c.destinationDisplay.frontText;
+    if (!sj || !sj.id || !code || !ft) return;
+    if (!dirs.has(code + '|' + String(ft).trim().toLowerCase())) return;
+    if (have.has(normJid(sj.id))) return;
+    const dep = c.expectedDepartureTime || c.aimedDepartureTime;
+    const ms = dep ? new Date(dep).getTime() : NaN;
+    // The board looks two minutes back on purpose; anything older than that
+    // has gone, and putting it back is not a fix.
+    if (!Number.isFinite(ms) || ms < t0 - 2 * 60000) return;
+    out.push({
+      expectedDepartureTime: dep,
+      aimedDepartureTime: c.aimedDepartureTime || dep,
+      realtime: !!c.realtime,
+      cancellation: !!c.cancellation,
+      destinationDisplay: { frontText: ft },
+      quay: { publicCode: (c.quay && c.quay.publicCode) || '?' },
+      serviceJourney: { id: sj.id, line: ln, estimatedCalls: sj.estimatedCalls || [] },
+      _finalArrival: null,
+      _fromStopBoard: true,
+    });
+  });
+  return out;
+}
+
+/**
  * Which platform to put on the row.
  *
  * Reported: "du viser kun avganger fra ett av sporene (spor 2)". The board's
@@ -181,6 +248,22 @@ export function _isolateLine(selected, code, allCodes) {
  * read by `_rowQuay`.
  */
 let _stopQuays = null;
+/** The stop's own departures, and the trip planner's, kept apart so either
+ *  arriving can rebuild the list without waiting for the other. */
+let _stopCalls = null;
+let _tripDeps = null;
+
+/**
+ * The list the board shows: what the journey search found, plus what the stop
+ * has that it did not offer. Called from both sides, because the two answers
+ * arrive independently and whichever is second must not be the only one used.
+ */
+function _applyDeps() {
+  if (!_tripDeps) return;
+  const extra = stopBoardExtras(_tripDeps, _stopCalls, Date.now());
+  if (extra.length) logMsg('stopptavla hadde ' + extra.length + ' avgang(er) reisesøket ikke ga', 'ok');
+  state.deps = extra.length ? _tripDeps.concat(extra) : _tripDeps;
+}
 
 let _bRoutePts = null;
 let _bRouteSnapDist = null;
@@ -2496,7 +2579,11 @@ export function renderBoard() {
       + lineBadges
       + '<div class="dep-times">'
       + '<span class="dep-dep">' + clk(depTs) + '</span>'
-      + (arrT ? '<span class="dep-arr">ank. ' + clk(arrT) + '</span>' : '')
+      + (arrT ? '<span class="dep-arr">ank. ' + clk(arrT) + '</span>'
+        // Recovered from the stop board, which the journey search did not
+        // offer. We know when it leaves; we do not know when it arrives, and
+        // the honest place to say so is exactly where that number would be.
+        : (c._fromStopBoard ? '<span class="dep-arr dep-tag-soft">ank. ukjent</span>' : ''))
       + (railDuration ? '<span class="dep-arr dep-rail-dur">' + railDuration + '</span>' : '')
       + '</div>'
       + '</div>'
@@ -2744,6 +2831,8 @@ function _askStopBoard(dir) {
   stopBoardSummary(dir.stopId, modes).then(res => {
     if (!res) return;
     _stopQuays = res.byJourney || null;
+    _stopCalls = res.calls || null;
+    _applyDeps();
     if (_diag) {
       _diag.stopBoard = res.earliest;
       _diag.stopBoardN = res.n;
@@ -2820,9 +2909,10 @@ function _fetchBoard() {
       }
       logMsg('✓ ' + adapted.length + '/' + patterns.length + ' trip patterns'
         + (dropped ? ' (' + dropped + ' forkastet)' : ''), dropped ? null : 'ok');
-      state.deps = adapted;
+      _tripDeps = adapted;
+      _applyDeps();
       state.lastFetch = Date.now();
-      saveBoardSnapshot(dir, adapted, state.lastFetch);
+      saveBoardSnapshot(dir, state.deps, state.lastFetch);
       document.getElementById('board-error').style.display = 'none';
     }, _showBoardError, at);
     return;
@@ -2848,6 +2938,7 @@ function _fetchBoard() {
       : raw;
     const byD = dir.filter ? byL.filter(c => dir.filter.test((c.destinationDisplay && c.destinationDisplay.frontText) || '')) : byL;
     logMsg('✓ ' + byD.length + '/' + raw.length + (dir.line ? ' L' + dir.line : ' alle linjer'), 'ok');
+    _tripDeps = null;
     state.deps = byD;
     state.lastFetch = Date.now();
     saveBoardSnapshot(dir, byD, state.lastFetch);

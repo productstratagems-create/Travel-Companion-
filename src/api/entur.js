@@ -373,7 +373,7 @@ export function fetchStopBoardSummary(stopId, modes) {
           modes[id] = (ln && ln.transportMode) || null;
         }
       });
-      return { earliest: best, n: calls.length, quays, quayModes, byJourney, modes };
+      return { earliest: best, n: calls.length, quays, quayModes, byJourney, modes, calls };
     });
 }
 

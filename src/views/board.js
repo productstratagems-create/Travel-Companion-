@@ -62,23 +62,63 @@ function saveModes(m) { storage.set(MODES_KEY, JSON.stringify(m)); }
  *
  * Two guards, because adding rows is riskier than dropping them:
  *
- * - Only lines and front texts that already appear in the results. Without
- *   that we would add the same line running the OTHER way — the one mistake
+ * - Only lines already in the results, and only running OUR WAY. Without the
+ *   second we would add the same line going the OTHER way — the one mistake
  *   on this screen that actively sends someone backwards.
  * - No arrival time, and marked. We know when it leaves; we do NOT know when
  *   it reaches your destination, and inventing that number would be worse
  *   than the omission it fixes.
+ *
+ * WHICH WAY is asked structurally, of the journey's own onward calls, and not
+ * of its front text. Reported: the departures go missing at Mortensrud — a
+ * TERMINUS with two platforms serving the same direction — and are all there
+ * one stop later. A front-text match is a fine proxy where a direction has
+ * one platform, but a terminus is exactly where it stops being one: put a
+ * short-turn on the second platform and every train on it carries a
+ * destination that appears nowhere in the results, so a guard meant only to
+ * exclude the opposite direction excluded a whole platform. Two vehicles
+ * leaving the same stop and calling at any of the same stops afterwards are
+ * going the same way; that is true of a short-turn and false of the return
+ * working, which is the whole distinction the guard is for.
  */
+/**
+ * The stops a vehicle reaches AFTER it leaves here.
+ *
+ * Split on time rather than on the stop's name: the name would have to match
+ * across two different API responses, and the departure time is already the
+ * thing that says "this is the moment it leaves". Returns an empty set when
+ * the journey carries no calls, so callers can fall back rather than treat
+ * "we cannot tell" as "not our direction".
+ */
+export function _onwardStops(sj, fromMs) {
+  const out = new Set();
+  const calls = (sj && sj.estimatedCalls) || [];
+  calls.forEach(c => {
+    const t = new Date(c.expectedArrivalTime || c.aimedArrivalTime
+      || c.expectedDepartureTime || c.aimedDepartureTime || NaN).getTime();
+    const nm = c.quay && c.quay.stopPlace && c.quay.stopPlace.name;
+    // Strictly after: the origin's own call is not somewhere it is going.
+    if (nm && Number.isFinite(t) && Number.isFinite(fromMs) && t > fromMs) out.add(nm);
+  });
+  return out;
+}
+
 export function stopBoardExtras(adapted, calls, now) {
   const t0 = now == null ? Date.now() : now;
   const dirs = new Set();
+  const lines = new Set();
+  const ahead = new Set();
   const have = new Set();
   (adapted || []).forEach(c => {
     const leg = c._legs && c._legs[0];
     const fec = leg && leg.fromEstimatedCall;
     const ft = fec && fec.destinationDisplay && fec.destinationDisplay.frontText;
     const code = leg && leg.line && leg.line.publicCode;
+    if (code) lines.add(code);
     if (ft && code) dirs.add(code + '|' + String(ft).trim().toLowerCase());
+    const startMs = new Date((fec && (fec.expectedDepartureTime || fec.aimedDepartureTime))
+      || (leg && (leg.expectedStartTime || leg.aimedStartTime)) || NaN).getTime();
+    _onwardStops(leg && leg.serviceJourney, startMs).forEach(n => ahead.add(n));
     const id = c.serviceJourney && c.serviceJourney.id;
     if (id) have.add(normJid(id));
   });
@@ -90,10 +130,18 @@ export function stopBoardExtras(adapted, calls, now) {
     const code = ln && ln.publicCode;
     const ft = c.destinationDisplay && c.destinationDisplay.frontText;
     if (!sj || !sj.id || !code || !ft) return;
-    if (!dirs.has(code + '|' + String(ft).trim().toLowerCase())) return;
+    const depMs = new Date(c.expectedDepartureTime || c.aimedDepartureTime || NaN).getTime();
+    // Same line, and demonstrably going our way. The front-text match stays
+    // as one way of showing that — it is what every departure a terminus does
+    // NOT complicate will match on — with the onward calls as the other.
+    const sameFront = dirs.has(code + '|' + String(ft).trim().toLowerCase());
+    const onward = _onwardStops(sj, depMs);
+    const goesOurWay = sameFront
+      || (lines.has(code) && [...onward].some(n => ahead.has(n)));
+    if (!goesOurWay) return;
     if (have.has(normJid(sj.id))) return;
     const dep = c.expectedDepartureTime || c.aimedDepartureTime;
-    const ms = dep ? new Date(dep).getTime() : NaN;
+    const ms = depMs;
     // The board looks two minutes back on purpose; anything older than that
     // has gone, and putting it back is not a fix.
     if (!Number.isFinite(ms) || ms < t0 - 2 * 60000) return;

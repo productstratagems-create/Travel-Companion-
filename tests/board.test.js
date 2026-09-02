@@ -18,7 +18,7 @@ vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
   _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _isolateLine, _corridorKey, CORRIDOR_MAX_M, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle, _interpolateVehiclePos, _interpolateOnPath,
-  _nextPageAt, _mergePage, MAX_ROWS, _rowQuay, stopBoardExtras } from '../src/views/board.js';
+  _nextPageAt, _mergePage, MAX_ROWS, _rowQuay, stopBoardExtras, _onwardStops } from '../src/views/board.js';
 import { measurePath } from '../src/ui/path.js';
 import { haver } from '../src/geo.js';
 
@@ -1211,5 +1211,126 @@ describe('stopBoardExtras', () => {
   it('adds nothing when it has no direction to trust', () => {
     expect(stopBoardExtras([], [sbCall('3', 'Jernbanetorget', 20, '1', 'X')], SB0)).toEqual([]);
     expect(stopBoardExtras(ours, null, SB0)).toEqual([]);
+  });
+});
+
+// ── The terminus, which is where this actually goes wrong ──────────────────
+//
+// Reported, and it is the clue that cracked it: "feilen opptrer kun på
+// start/endestasjonen, som har to spor for samme retning. På neste stopp
+// oppgir du alle avgangene, også de du mister sett fra Mortensrud."
+//
+// A front-text match was a fine proxy for "same direction" at a stop where a
+// direction has one platform. A terminus is exactly where it stops being one:
+// the second platform can run a short-turn, so every train on it carries a
+// destination that appears nowhere in the trip planner's answer — and a guard
+// written only to exclude the OPPOSITE direction excluded a whole platform.
+
+// A journey that leaves at :mm and then calls at these stops, in order.
+const sbJourney = (code, front, mins, quay, jid, stops) => ({
+  expectedDepartureTime: new Date(Date.UTC(2026, 4, 26, 7, mins, 0)).toISOString(),
+  destinationDisplay: { frontText: front },
+  quay: { publicCode: quay },
+  serviceJourney: {
+    id: jid,
+    line: { publicCode: code, transportMode: 'metro' },
+    estimatedCalls: stops.map((nm, i) => ({
+      quay: { stopPlace: { name: nm } },
+      expectedArrivalTime: new Date(Date.UTC(2026, 4, 26, 7, mins + i, 0)).toISOString(),
+    })),
+  },
+});
+const tripJourney = (code, front, mins, jid, stops) => ({
+  serviceJourney: { id: jid },
+  _legs: [{
+    line: { publicCode: code },
+    fromEstimatedCall: {
+      destinationDisplay: { frontText: front },
+      expectedDepartureTime: new Date(Date.UTC(2026, 4, 26, 7, mins, 0)).toISOString(),
+    },
+    serviceJourney: {
+      estimatedCalls: stops.map((nm, i) => ({
+        quay: { stopPlace: { name: nm } },
+        expectedArrivalTime: new Date(Date.UTC(2026, 4, 26, 7, mins + i, 0)).toISOString(),
+      })),
+    },
+  }],
+});
+
+describe('stopBoardExtras at a terminus with two platforms one way', () => {
+  // Platform 2 runs through to Nationaltheatret; platform 1 short-turns at
+  // Helsfyr. Both leave Mortensrud towards town and share every stop as far
+  // as Helsfyr — but only platform 2's destination is one the trip planner
+  // ever named.
+  const ours = [tripJourney('3', 'Nationaltheatret', 4, 'RUT:ServiceJourney:3-A',
+    ['Ryen', 'Helsfyr', 'Jernbanetorget', 'Nationaltheatret'])];
+  const shortTurn = sbJourney('3', 'Helsfyr', 6, '1', 'RUT:ServiceJourney:3-B',
+    ['Ryen', 'Helsfyr']);
+  // The return working: same line, same stop, leaving the other way.
+  const backwards = sbJourney('3', 'Mortensrud', 7, '1', 'RUT:ServiceJourney:3-C',
+    ['Skullerud', 'Bogerud']);
+
+  it('puts back the other platform’s short-turn, whose destination we never named', () => {
+    const out = stopBoardExtras(ours, [shortTurn], SB0);
+    expect(out).toHaveLength(1);
+    expect(out[0].quay.publicCode).toBe('1');
+    expect(out[0]._fromStopBoard).toBe(true);
+    // Still honest about what we do not know.
+    expect(out[0]._finalArrival).toBe(null);
+  });
+
+  // The one mistake on this screen that actively sends someone backwards.
+  it('still refuses the same line running the other way', () => {
+    expect(stopBoardExtras(ours, [backwards], SB0)).toHaveLength(0);
+  });
+
+  it('takes the short-turn and leaves the return working, given both at once', () => {
+    const out = stopBoardExtras(ours, [shortTurn, backwards], SB0);
+    expect(out.map(o => o.serviceJourney.id)).toEqual(['RUT:ServiceJourney:3-B']);
+  });
+
+  // A line the reader is not being shown at all is not "our way" just because
+  // it happens to pass through a stop ours also visits.
+  it('does not admit a line that is not already on the board', () => {
+    const other = sbJourney('4', 'Bergkrystallen', 6, '1', 'RUT:ServiceJourney:4-A',
+      ['Ryen', 'Helsfyr']);
+    expect(stopBoardExtras(ours, [other], SB0)).toHaveLength(0);
+  });
+
+  // "We cannot tell" must not be read as "not our direction" — the retry path
+  // in fetchTrip asks without the optional fields and gets no onward calls.
+  it('falls back to the front text when a journey carries no onward calls', () => {
+    const bare = sbCall('3', 'Nationaltheatret', 6, '1', 'RUT:ServiceJourney:3-D');
+    expect(stopBoardExtras(ours, [bare], SB0)).toHaveLength(1);
+  });
+});
+
+describe('_onwardStops', () => {
+  const sj = {
+    estimatedCalls: [
+      { quay: { stopPlace: { name: 'Mortensrud' } }, expectedArrivalTime: '2026-05-26T07:04:00.000Z' },
+      { quay: { stopPlace: { name: 'Ryen' } },       expectedArrivalTime: '2026-05-26T07:08:00.000Z' },
+    ],
+  };
+  const at = (h, m) => Date.UTC(2026, 4, 26, h, m, 0);
+
+  // The stop you are standing at is not somewhere the train is going. Include
+  // it and the return working shares a stop with every departure there is.
+  it('excludes the call you are leaving from', () => {
+    expect([..._onwardStops(sj, at(7, 4))]).toEqual(['Ryen']);
+  });
+
+  it('is empty rather than wrong when the journey carries no calls', () => {
+    expect(_onwardStops(null, at(7, 4)).size).toBe(0);
+    expect(_onwardStops({ estimatedCalls: [] }, at(7, 4)).size).toBe(0);
+  });
+
+  // Without a departure time there is no "after", so every stop on the line
+  // would count as ahead of you — including the ones behind you, which is
+  // exactly how the return working would sneak back onto the board. Not
+  // knowing has to mean an empty answer, so the caller falls back.
+  it('is empty when we do not know when it leaves', () => {
+    expect(_onwardStops(sj, NaN).size).toBe(0);
+    expect(_onwardStops(sj, undefined).size).toBe(0);
   });
 });

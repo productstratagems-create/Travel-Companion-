@@ -147,9 +147,14 @@ describe('trackGQL(jid)', () => {
     expect(q).toContain('RUT:ServiceJourney:3-123456');
   });
 
-  it('requests estimatedCalls with stopPlace name and coordinates', () => {
+  it('requests estimatedCalls with the stop id, name and coordinates', () => {
     expect(q).toContain('estimatedCalls');
-    expect(q).toContain('stopPlace{name latitude longitude}');
+    // By field rather than by literal selection string: this used to pin
+    // `stopPlace{name latitude longitude}` exactly, which meant adding the id
+    // — the field whose absence sent readers on a walk to a coordinate —
+    // broke a test that had no opinion about the id at all.
+    const sp = q.slice(q.indexOf('stopPlace{'), q.indexOf('stopPlace{') + 60);
+    ['id', 'name', 'latitude', 'longitude'].forEach(f => expect(sp).toContain(f));
   });
 
   it('requests both aimed and expected arrival times', () => {
@@ -354,5 +359,51 @@ describe('boardGQL — whiteListedModes', () => {
     expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus] evil {'])))
       .toBe(BOARD_MODES.join(','));
     expect(boardGQL('NSR:1', 20, null, true, null, ['bus] evil {'])).not.toContain('evil');
+  });
+});
+
+// ── The stop ids the onward calls have to carry ────────────────────────────
+//
+// Reported, with a screenshot: Mortensrud → Skøyenåsen, a real metro stop on
+// the same line, and the itinerary ended with a 2-minute walk to a place
+// called "destination". That name is what OTP calls a COORDINATE.
+//
+// The chain: auto-reise builds a route from stopsAhead(), which reads
+// `quay.stopPlace.id` — and no query ever asked for it. So the id was always
+// null, autoRoute fell back to lat/lon, resolveToPlace planned to a point,
+// and OTP dutifully walked the reader from the platform to that point.
+//
+// tests/auto.test.js fed stopsAhead fixtures WITH ids, so it passed against
+// data the app never actually receives. Asserted on the query instead, which
+// is the layer that was wrong.
+describe('stop ids in the onward calls', () => {
+  const calls = (q) => {
+    const i = q.indexOf('estimatedCalls{quay{');
+    expect(i).toBeGreaterThan(-1);
+    return q.slice(i, i + 120);
+  };
+
+  it('boardGQL asks for the id of every stop the journey calls at', () => {
+    expect(calls(boardGQL('NSR:StopPlace:6270', 10, null, true, null, ['metro'])))
+      .toMatch(/stopPlace\{[^}]*\bid\b/);
+  });
+
+  it('tripGQL asks for it too', () => {
+    expect(calls(tripGQL('NSR:StopPlace:5687', 'NSR:StopPlace:58366', null, 5)))
+      .toMatch(/stopPlace\{[^}]*\bid\b/);
+  });
+
+  it('trackGQL asks for it too', () => {
+    expect(calls(trackGQL('RUT:ServiceJourney:1')))
+      .toMatch(/stopPlace\{[^}]*\bid\b/);
+  });
+
+  // The name is what the id falls back to, and it has to stay: the corridor
+  // dedupe keys on id-or-name, and a stop board with neither would draw every
+  // line as one stroke.
+  it('still asks for the name and the coordinates', () => {
+    const c = calls(boardGQL('NSR:StopPlace:6270', 10, null, true, null, ['metro']));
+    expect(c).toMatch(/stopPlace\{[^}]*\bname\b/);
+    expect(c).toMatch(/quay\{[^}]*latitude/);
   });
 });

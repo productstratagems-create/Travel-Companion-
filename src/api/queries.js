@@ -118,15 +118,30 @@ export function arrBoardGQL(id, n, basic) {
  *   exhausted, so a later page has to widen the window as well as ask for
  *   more rows.
  */
-export function boardGQL(id, n, now, basic, fwdMins) {
+/** The only modes the app ever asks for. Also a whitelist: these go into the
+ *  query as bare GraphQL enums, so nothing else may reach it. */
+export const BOARD_MODES = ['metro', 'tram', 'bus', 'rail'];
+
+/**
+ * @param {string[]} [modes] which modes to ask for. Defaults to all four.
+ *
+ * It matters more than it looks. `numberOfDepartures` is a cap on the WHOLE
+ * board, so at a multimodal stop the twenty departures you asked for are
+ * mostly whatever runs most often there. Measured at Mortensrud: 20
+ * departures, of which 3 were metro and 17 were buses from bays A–F. Anything
+ * comparing against that board saw almost none of the mode it cared about.
+ */
+export function boardGQL(id, n, now, basic, fwdMins, modes) {
   const sits = sitsGQL(basic);
+  const wl = (Array.isArray(modes) ? modes.filter(m => BOARD_MODES.includes(m)) : []);
+  const modeList = (wl.length ? wl : BOARD_MODES).join(',');
   // startTime/timeRange rather than a bare numberOfDepartures, for the same
   // reason as tripGQL above. These two argument names are already in
   // production in inflightGQL, so unlike tripGQL's dateTime they are proven.
   const back = LOOKBACK_MINS, fwd = fwdMins || 90;
   return '{stopPlace(id:"' + id + '"){id name latitude longitude ' + sits + ' '
     + 'estimatedCalls(startTime:"' + lookbackISO(now) + '",timeRange:' + ((back + fwd) * 60)
-    + ',numberOfDepartures:' + (n || 10) + ',whiteListedModes:[metro,tram,bus,rail]){'
+    + ',numberOfDepartures:' + (n || 10) + ',whiteListedModes:[' + modeList + ']){'
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation occupancyStatus '
     + sits + ' '
     + 'destinationDisplay{frontText} quay{id publicCode name} '

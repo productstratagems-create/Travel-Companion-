@@ -336,11 +336,11 @@ export function fetchBoardPage(dir, atMs, n, onSuccess, onError) {
  *
  * @returns {Promise<{earliest:number|null, n:number, quays:Object}|null>}
  */
-export function fetchStopBoardSummary(stopId) {
+export function fetchStopBoardSummary(stopId, modes) {
   return enturFetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: boardGQL(stopId, 20, null, true) }),
+    body: JSON.stringify({ query: boardGQL(stopId, 20, null, true, null, modes) }),
   })
     .then(r => (r && r.ok ? r.json() : null))
     .then(j => {
@@ -389,12 +389,16 @@ export function fetchStopBoardSummary(stopId) {
 const _sbCache = new Map();
 const SB_TTL_MS = 60_000;
 
-export function stopBoardSummary(stopId) {
+export function stopBoardSummary(stopId, modes) {
   if (!stopId) return Promise.resolve(null);
-  const hit = _sbCache.get(stopId);
+  // The modes are part of the identity: asking for metro and asking for
+  // everything give different boards, and a cache that ignored that would
+  // serve one as the other.
+  const key = stopId + '|' + (Array.isArray(modes) ? modes.slice().sort().join(',') : '');
+  const hit = _sbCache.get(key);
   if (hit && Date.now() - hit.ts < SB_TTL_MS) return hit.p;
-  const p = fetchStopBoardSummary(stopId).catch(() => null);
-  _sbCache.set(stopId, { ts: Date.now(), p });
+  const p = fetchStopBoardSummary(stopId, modes).catch(() => null);
+  _sbCache.set(key, { ts: Date.now(), p });
   return p;
 }
 

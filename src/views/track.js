@@ -343,14 +343,37 @@ function _fetchArrBoardData() {
   }).catch(() => {});
 }
 
+/**
+ * Where the destination's disruptions go.
+ *
+ * An empty slot rather than markup, on purpose. The alerts are drawn by
+ * `renderAlertsInto` — the same renderer as the board's banner — so «legg
+ * bort» means the same thing on both screens, and the toggles are bound
+ * rather than inert. Producing the markup here instead would be a second
+ * implementation of the banner, and the comment below already promises there
+ * is only one.
+ *
+ * This function did not exist. It was called from three places and defined
+ * nowhere, so every render of the tracking screen threw a ReferenceError —
+ * taking the destination disruptions, the arrival card and the arrived card
+ * down with it, quietly, because a throw inside a render tick just ends that
+ * tick. tests/trackDefined.test.js now fails on a `_helper(` that is neither
+ * declared nor imported in the file that calls it.
+ */
+function _destAlertsHtml() {
+  return '<div class="hn-dest-alerts-slot"></div>';
+}
+
 function _updateDestAlertsSection() {
   // Same renderer as the board's banner, so "put away" means the same thing
-  // on both screens rather than two implementations drifting apart.
-  renderAlertsInto(
+  // on both screens rather than two implementations drifting apart. Every
+  // slot is filled: the panel keeps its own id, and the alight/arrived cards
+  // carry a slot each, all showing the same far-end disruptions.
+  const els = [
     document.getElementById('hn-dest-alerts'),
-    _destAlerts,
-    _updateDestAlertsSection,
-  );
+    ...document.querySelectorAll('.hn-dest-alerts-slot'),
+  ].filter(Boolean);
+  els.forEach(el => renderAlertsInto(el, _destAlerts, _updateDestAlertsSection));
 }
 
 function _renderArrBoardHtml() {
@@ -908,7 +931,7 @@ function renderNextPanel() {
     + '</div>'
     // Disruptions at the far end of the trip. Deliberately near the top:
     // if the destination stop is closed, nothing below it matters.
-    + '<div id="hn-dest-alerts">' + _destAlertsHtml() + '</div>'
+    + '<div id="hn-dest-alerts"></div>'
     + '<div class="map-wrap"><div id="hn-map"></div><button class="map-expand-btn" id="hn-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
     // The single question this screen exists to answer, and directly beneath
     // it the one ranked answer — walking, bike and scooter in the same list
@@ -933,6 +956,9 @@ function renderNextPanel() {
     + '</div>';
 
   if (_walkDestLL) _applyWalkResult();
+
+  // The panel was just rebuilt, so its alert container is empty again.
+  _updateDestAlertsSection();
 
   const inp = document.getElementById('t-walk-dest');
   if (inp) {
@@ -1386,6 +1412,8 @@ export function renderTrack() {
   if (cards !== _tCardsHtml) {
     _tCardsHtml = cards;
     document.getElementById('t-cards').innerHTML = cards;
+    // The rebuild just emptied whatever slots these cards carry.
+    _updateDestAlertsSection();
     const explBtn = document.getElementById('t-explore-btn');
     if (explBtn) explBtn.addEventListener('click', () => {
       window._exploreDestination && window._exploreDestination(

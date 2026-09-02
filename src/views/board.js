@@ -314,6 +314,25 @@ function _applyDeps() {
 }
 
 let _bRoutePts = null;
+/**
+ * The corridor and the key that says which corridor it is — always together.
+ *
+ * They used to be set in different places: the key only where the corridor
+ * was rebuilt, the points also at four early returns that cleared them and
+ * left the key behind. So after a render with nothing to draw, the pair
+ * disagreed — and when the SAME route came back, the key still matched, the
+ * rebuild was skipped as unnecessary, and `_bRoutePts.length` read null.
+ *
+ * That threw inside renderBoard, before the departure list was written, so
+ * the list froze on whatever it last showed. Reported as: "lista forsvinner,
+ * ↻ hjelper ikke, jeg må reversere ruta og reversere tilbake" — reversing
+ * changes the route, which changes the key, which is the only thing that
+ * ever made them agree again.
+ */
+function _setRoutePts(pts, key) {
+  _bRoutePts = pts;
+  _bRoutePtsKey = key;
+}
 let _bRouteSnapDist = null;
 let _shapeLogKey = null;
 let _bRoutePtsKey = null;
@@ -338,7 +357,7 @@ function _destroyBoardMap() {
   _bVehicleLayer = null;
   _bRouteLayer = null;
   _bFitRouteRequested = false;
-  _bRoutePts = null;
+  _setRoutePts(null, null);
   _bRouteSnapDist = null;
 }
 
@@ -990,7 +1009,7 @@ function renderLineRoute(visibleDeps, vehicles) {
 
   if (!match) {
     _bRouteLayer.clearLayers();
-    _bRoutePts = null;
+    _setRoutePts(null, null);
     return paths;
   }
 
@@ -1010,7 +1029,7 @@ function renderLineRoute(visibleDeps, vehicles) {
   });
   if (allPts.length < 2) {
     _bRouteLayer.clearLayers();
-    _bRoutePts = null;
+    _setRoutePts(null, null);
     return paths;
   }
 
@@ -1085,7 +1104,7 @@ function renderLineRoute(visibleDeps, vehicles) {
 
   if (pts.length < 1) {
     _bRouteLayer.clearLayers();
-    _bRoutePts = null;
+    _setRoutePts(null, null);
     return paths;
   }
 
@@ -1100,7 +1119,7 @@ function renderLineRoute(visibleDeps, vehicles) {
   // actually changed.
   const ptsKey = lo + '|' + hi + '|' + (shape ? shape.length : 0) + '|'
     + (c.serviceJourney.id || '') + '|' + pts.length;
-  if (ptsKey !== _bRoutePtsKey) { _bRoutePtsKey = ptsKey; _bRoutePts = pts; }
+  if (ptsKey !== _bRoutePtsKey) _setRoutePts(pts, ptsKey);
 
   _bRouteSnapDist = isBus ? 25 : 50;
   paths.set(ln.publicCode, { path: _bRoutePts, snapDist: _bRouteSnapDist });

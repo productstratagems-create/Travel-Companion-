@@ -318,28 +318,25 @@ export function fetchBoardPage(dir, atMs, n, onSuccess, onError) {
 }
 
 /**
- * The earliest departure the STOP BOARD reports — the same question Ruter
- * answers, asked so the two can be compared.
+ * What the STOP BOARD itself is showing — the same question Ruter answers,
+ * asked so the two can be compared.
  *
  * Its own request, unguarded by the shared controllers: a diagnostic must not
  * be able to cancel the board it is diagnosing.
- *
- * @returns {Promise<number|null>} epoch ms, or null when nothing came back.
- */
-/**
- * What the stop itself is showing — the same question Ruter answers.
  *
  * Reported: "det ser ut som du kun viser avganger fra ett av sporene". The app
  * asks the trip planner for JOURNEYS A→B, and the platform each one boards at
  * is whatever OTP picked. Nothing in the app filters by platform — but the
  * only way to tell "Entur only offers this one" from "we drop the others" is
- * to ask the stop board and compare, which is exactly what this is for.
+ * to ask the stop and compare, which is what the platform tally is for.
  *
  * Twenty rather than five: five departures on a trunk stop is one platform's
  * worth, which would make the comparison useless on precisely the stops where
  * the question comes up.
+ *
+ * @returns {Promise<{earliest:number|null, n:number, quays:Object}|null>}
  */
-export function fetchStopBoardEarliest(stopId) {
+export function fetchStopBoardSummary(stopId) {
   return enturFetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

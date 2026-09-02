@@ -4,7 +4,7 @@ import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
-import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, fetchStopBoardEarliest, geocodePlace } from '../api/entur.js';
+import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, fetchStopBoardSummary, geocodePlace } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, _rowDest } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
@@ -2685,7 +2685,7 @@ window._askStopBoard = () => _askStopBoard(config.dirs[state.dIdx]);
 
 function _askStopBoard(dir) {
   if (!state.debugOpen || !dir || !dir.stopId) return;
-  fetchStopBoardEarliest(dir.stopId).then(res => {
+  fetchStopBoardSummary(dir.stopId).then(res => {
     if (!_diag || !res) return;
     _diag.stopBoard = res.earliest;
     _diag.stopBoardN = res.n;

@@ -131,7 +131,20 @@ export const BOARD_MODES = ['metro', 'tram', 'bus', 'rail'];
  * departures, of which 3 were metro and 17 were buses from bays A–F. Anything
  * comparing against that board saw almost none of the mode it cared about.
  */
-export function boardGQL(id, n, now, basic, fwdMins, modes) {
+/**
+ * @param {number} [perLine] adds `numberOfDeparturesPerLineAndDestinationDisplay`.
+ *
+ * `numberOfDepartures` caps the WHOLE stop, so at a busy interchange one
+ * frequent line can eat the budget and a quieter direction shows a single
+ * time. This argument is the answer to exactly that — N per line and
+ * destination — but its name cannot be checked from here: the proxy reaches
+ * neither api.entur.io nor Entur's docs.
+ *
+ * So it is OPT-IN, and only fetchBoard passes it. `fetchBoardPage` and
+ * `fetchStopBoardSummary` never inspect `j.errors` at all, so a rejected
+ * argument there would be a silently empty board rather than a fallback.
+ */
+export function boardGQL(id, n, now, basic, fwdMins, modes, perLine) {
   const sits = sitsGQL(basic);
   const wl = (Array.isArray(modes) ? modes.filter(m => BOARD_MODES.includes(m)) : []);
   const modeList = (wl.length ? wl : BOARD_MODES).join(',');
@@ -141,7 +154,9 @@ export function boardGQL(id, n, now, basic, fwdMins, modes) {
   const back = LOOKBACK_MINS, fwd = fwdMins || 90;
   return '{stopPlace(id:"' + id + '"){id name latitude longitude ' + sits + ' '
     + 'estimatedCalls(startTime:"' + lookbackISO(now) + '",timeRange:' + ((back + fwd) * 60)
-    + ',numberOfDepartures:' + (n || 10) + ',whiteListedModes:[' + modeList + ']){'
+    + ',numberOfDepartures:' + (n || 10)
+    + (perLine ? ',numberOfDeparturesPerLineAndDestinationDisplay:' + perLine : '')
+    + ',whiteListedModes:[' + modeList + ']){'
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation occupancyStatus '
     + sits + ' '
     + 'destinationDisplay{frontText} quay{id publicCode name} '

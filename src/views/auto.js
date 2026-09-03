@@ -38,6 +38,15 @@ const MIN = 60000;
  */
 const AUTO_BOARD_DEPARTURES = 30;
 
+/**
+ * …and how many per line and direction, if Entur will have it.
+ *
+ * Three, because three is what the row shows. When the argument is honoured
+ * this does the work and the 30 above is only a ceiling; when it is turned
+ * down we are exactly where v1.69.0 left us.
+ */
+const AUTO_PER_LINE = 3;
+
 /** As far as it is worth walking to a different stop instead. */
 const ALT_STOP_MAX_M = 1000;
 
@@ -321,7 +330,7 @@ function _load() {
       logMsg('auto-reise: ' + err, 'err');
       if (body) body.innerHTML = '<div class="dest-prev-empty">Fikk ikke avganger herfra.</div>';
     },
-    AUTO_BOARD_DEPARTURES);
+    AUTO_BOARD_DEPARTURES, AUTO_PER_LINE);
 }
 
 /**

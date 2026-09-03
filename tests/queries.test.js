@@ -407,3 +407,39 @@ describe('stop ids in the onward calls', () => {
     expect(c).toMatch(/quay\{[^}]*latitude/);
   });
 });
+
+// ── The per-line cap is opt-in, and that is a safety property ──────────────
+//
+// `numberOfDeparturesPerLineAndDestinationDisplay` is the right answer to
+// "three per direction" — numberOfDepartures caps the whole stop, so one
+// frequent line can eat the budget. But its name cannot be verified from
+// here, and only `fetchBoard` inspects `j.errors` and retries.
+// `fetchBoardPage` and `fetchStopBoardSummary` do not: a rejected argument
+// there is a silently empty board, not a fallback. So it must never appear
+// unless a caller asks for it.
+describe('boardGQL and the per-line cap', () => {
+  const ARG = 'numberOfDeparturesPerLineAndDestinationDisplay';
+
+  it('is absent unless asked for', () => {
+    expect(boardGQL('NSR:StopPlace:1', 30)).not.toContain(ARG);
+    expect(boardGQL('NSR:StopPlace:1', 30, null, false, null, ['metro'])).not.toContain(ARG);
+  });
+
+  it('is there when asked for, beside the overall cap', () => {
+    const q = boardGQL('NSR:StopPlace:1', 30, null, false, null, null, 3);
+    expect(q).toContain(ARG + ':3');
+    // The whole-stop ceiling stays: the per-line cap narrows, it does not
+    // replace, and a stop with forty directions still has a bound.
+    expect(q).toContain('numberOfDepartures:30');
+  });
+
+  // The exact shapes the two unguarded callers send. If either of these ever
+  // changes, the argument has leaked into a query that cannot recover from a
+  // rejection.
+  it('leaves the queries that cannot retry exactly as they were', () => {
+    // fetchBoardPage
+    expect(boardGQL('NSR:StopPlace:1', 12, 1780000000000, false, 180)).not.toContain(ARG);
+    // fetchStopBoardSummary
+    expect(boardGQL('NSR:StopPlace:1', 20, null, true, null, ['metro'])).not.toContain(ARG);
+  });
+});

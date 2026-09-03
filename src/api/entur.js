@@ -421,7 +421,19 @@ export function stopBoardSummary(stopId, modes) {
  *   Tveita-shaped stop (five directions, 4–20 min headways): at 12 only three
  *   of five directions had three departures to show; at 30, all five did.
  */
-export function fetchBoard(dir, onSuccess, onError, want) {
+/**
+ * Has the per-line cap been turned down in this session?
+ *
+ * In memory only. A page load probes again, which is what makes this a probe
+ * rather than a permanent surrender — and what keeps the cost at one extra
+ * request per session instead of one per poll.
+ */
+let _perLineRejected = false;
+
+/** Test seam. */
+export function _resetPerLineProbe() { _perLineRejected = false; }
+
+export function fetchBoard(dir, onSuccess, onError, want, perLine) {
   if (boardController) boardController.abort();
   if (tripController) tripController.abort();
   boardController = new AbortController();
@@ -438,10 +450,21 @@ export function fetchBoard(dir, onSuccess, onError, want) {
       // retried without its optional extras since v1.22.0. The situation
       // text fields are unverifiable from here, so buy the same insurance:
       // one retry with the basic fragment rather than an empty board.
-      const ask = (basic) => enturFetch(config.api.journeyPlanner, {
+      //
+      // Three rungs now, not two, because the per-line cap is a SECOND
+      // unverifiable argument. The order is deliberate: the newest and least
+      // proven thing falls first, so a rejected per-line cap does not also
+      // cost the reader the message text.
+      //
+      //   1. per-line cap + full text
+      //   2. no cap + full text
+      //   3. no cap + basic text   (what this did before)
+      const ask = (wantPerLine, basic) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: boardGQL(id, count, null, basic) }),
+        body: JSON.stringify({
+          query: boardGQL(id, count, null, basic, null, null, wantPerLine || undefined),
+        }),
         signal,
       })
         .then(r => {
@@ -452,13 +475,25 @@ export function fetchBoard(dir, onSuccess, onError, want) {
         })
         .then(j => {
           if (!j || signal.aborted) return j;
-          if (!basic && !j.data && j.errors) {
-            logMsg('board: meldingstekst avvist, prøver uten', 'err');
-            return ask(true);
+          if (!j.data && j.errors) {
+            if (wantPerLine) {
+              // Remembered for the session, not for ever: a new load probes
+              // again, so the day Entur supports it this starts working
+              // without anyone touching the code. Remembering matters —
+              // without it the board would pay two requests every 20 seconds
+              // for the rest of the day.
+              _perLineRejected = true;
+              logMsg('board: per-linje-tak avvist, prøver uten', 'err');
+              return ask(0, basic);
+            }
+            if (!basic) {
+              logMsg('board: meldingstekst avvist, prøver uten', 'err');
+              return ask(0, true);
+            }
           }
           return j;
         });
-      return ask(false);
+      return ask(_perLineRejected ? 0 : perLine, false);
     })
     .then(j => {
       if (!j || signal.aborted) return;

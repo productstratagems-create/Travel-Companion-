@@ -128,11 +128,16 @@ export function groupDirections(calls, now) {
       return {
         ...rest,
         mins: Math.round((d.nextMs - t0) / MIN),
-        // The next three, soonest first. Fewer when fewer run — chosen
-        // deliberately: a row with one time means one departure, and padding
-        // it would say something the stop board never said.
-        times: all.slice().sort((a, b) => a - b).slice(0, 3)
-          .map(ms => Math.round((ms - t0) / MIN)),
+        // The next three, soonest first, as ABSOLUTE times. Fewer when fewer
+        // run — a row with one time means one departure, and padding it would
+        // say something the stop board never said.
+        //
+        // Absolute rather than minutes, because the screen redraws long after
+        // this ran and minutes computed here would be a snapshot. Two
+        // representations that must agree is exactly the bug v1.68.0 fixed
+        // (_bRoutePts against _bRoutePtsKey); one value, converted where it
+        // is shown.
+        times: all.slice().sort((a, b) => a - b).slice(0, 3),
       };
     });
 }
@@ -340,8 +345,51 @@ function _load() {
  * not equals — you act on the first and glance at the others to know whether
  * missing it matters.
  */
-function _timesHtml(d) {
-  const times = (d.times && d.times.length) ? d.times : [d.mins];
+/**
+ * Which platform, in the word that mode uses.
+ *
+ * Taken from the SOONEST departure — the one the first time refers to and the
+ * one a tap opens. At a terminus like Mortensrud the metro alternates between
+ * platforms, so the three departures on a row need not share one; showing the
+ * first one's is the only answer that is true of the departure you are going
+ * to catch.
+ *
+ * "Spor" is what the app says everywhere, and it is wrong for a bus bay —
+ * Ruter calls those plattform. The stop board is the authoritative source
+ * here, unlike the departure board, which has to reconcile the trip planner's
+ * PLANNED platform against the stop's actual one (v1.56.0).
+ *
+ * Nothing rather than "spor ?" when the answer is missing: a row without a
+ * platform is honest, a row with a question mark is noise.
+ *
+ * @returns {string|null}
+ */
+export function quayLabel(call) {
+  const q = call && call.quay;
+  const code = (q && q.publicCode)
+    // Some quays carry only a name like "Mortensrud E" — the trailing token
+    // is the bay. Same fallback _rowQuay uses on the departure board.
+    || (q && q.name ? String(q.name).trim().split(/\s+/).pop() : null);
+  if (!code || code === '?') return null;
+  const mode = call.serviceJourney && call.serviceJourney.line
+    && call.serviceJourney.line.transportMode;
+  const word = (mode === 'metro' || mode === 'rail') ? 'spor' : 'plattform';
+  return word + ' ' + code;
+}
+
+export function _minsUntil(ms, now) {
+  return Math.round((ms - (now == null ? Date.now() : now)) / MIN);
+}
+
+function _timesHtml(d, now) {
+  const mins = (d.times && d.times.length)
+    ? d.times.map(ms => _minsUntil(ms, now))
+    : [d.mins];
+  // A departure that went while you were looking at the screen is not a
+  // choice either — the same rule groupDirections applies when it builds the
+  // row, applied again now that the row is allowed to age.
+  const times = mins.filter(m => m >= 0);
+  if (!times.length) return '';
   const label = (m) => (m === 0 ? 'nå' : String(m));
   const rest = times.slice(1);
   return '<span class="auto-t-next">' + label(times[0]) + '</span>'
@@ -373,19 +421,42 @@ function _renderBody() {
   // row behaves the same.
   const guess = predictDest();
   const usual = guess && guess.toName ? String(guess.toName).toLowerCase() : null;
+  // Read once, so every row on the screen agrees about what time it is.
+  const now = Date.now();
+  // A direction whose departures have all gone while you watched is not a
+  // choice any more. The screen counts down now (v1.71.0), so rows can age
+  // past their own contents — and a row naming a direction with no time
+  // beside it promises something the stop board is not saying.
+  const live = _dirs.map((d, i) => ({ d, i })).filter(({ d }) => _timesHtml(d, now));
+  if (!live.length) {
+    body.innerHTML = '<div class="dest-prev-empty">Ingen avganger herfra nå.</div>';
+    return;
+  }
   body.innerHTML = '<div class="set-label">hvor skal du?</div>'
-    + _dirs.map((d, i) => {
+    + live.map(({ d, i }) => {
       const hint = usual && d.frontText.toLowerCase() === usual;
+      const q = quayLabel(d.call);
+      // The destination is the part that gives way, so the whole of it has to
+      // survive somewhere: aria-label for a screen reader, title for a long
+      // press. A row reading "mot Jernb…" must still be able to say what it is.
+      const full = 'mot ' + d.frontText + (q ? ', ' + q : '');
       return '<button class="nearby-btn auto-dir' + (hint ? ' auto-usual' : '') + '"'
-        + ' type="button" data-i="' + i + '">'
+        + ' type="button" data-i="' + i + '"'
+        + ' title="' + esc(full) + '" aria-label="' + esc(full) + '">'
         + '<span class="auto-badges">' + d.lines.map(badgeHtml).join('') + '</span>'
         + '<span class="nearby-name">mot ' + esc(d.frontText) + '</span>'
+        // Its own element, not part of the name: a long destination and the
+        // platform on one line wrapped the row to two on a 414px screen —
+        // measured. The name is the flexible one and gives way first; the
+        // platform is two characters and must never be the part that
+        // truncates, because it is the part you cannot guess.
+        + (q ? '<span class="auto-quay" aria-hidden="true">' + esc(q) + '</span>' : '')
         // "2 · 12 · 22 min": the one you might catch, then the fallbacks.
         //
         // Text inside the existing span, not new children. settings.css:267
         // warns in plain words that a third child pushes the label adrift
         // under space-between — and that warning is there because it happened.
-        + '<span class="nearby-dist">' + _timesHtml(d) + '</span>'
+        + '<span class="nearby-dist">' + _timesHtml(d, now) + '</span>'
         + '</button>';
     }).join('');
   body.querySelectorAll('.auto-dir').forEach(b => {
@@ -415,6 +486,16 @@ function _renderStops(body) {
   });
 }
 
+/**
+ * The stop we have already asked about.
+ *
+ * renderAuto now runs on the render loop, and it fetches when it has no
+ * directions. A stop with no departures has no directions for ever — so
+ * without this it would ask the network once a second, all day. Fetching
+ * belongs to opening the screen and to ↻; the tick only draws.
+ */
+let _askedFor = null;
+
 export function renderAuto() {
   // Your usual routes, under the directions and above "skriv hvor du skal":
   // from where you are, to where the line goes, to where you usually go, to
@@ -423,8 +504,10 @@ export function renderAuto() {
   // which for a brand-new reader is always.
   renderRouteShortcuts('auto-fav-routes', 2);
   _renderWhere();
-  if (!_dirs.length && _stop) _load(); else _renderBody();
+  const need = _stop && !_dirs.length && _askedFor !== _stop.id;
+  if (need) { _askedFor = _stop.id; _load(); } else _renderBody();
 }
 
 /** Fresh screen when the mode is entered, so it never opens on a stale stop. */
-export function resetAuto() { _stop = null; _dirs = []; _open = null; }
+export function resetAuto() {
+  _askedFor = null; _stop = null; _dirs = []; _open = null; }

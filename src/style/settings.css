@@ -271,6 +271,37 @@
    new flex children: the rule above exists because a third child pushed the
    label adrift under space-between. */
 #v-auto .auto-dir .auto-t-more { opacity: .55; }
+/* Where to stand, beside which way you are going — two halves of the same
+   question. Quieter than the destination, which is what you scan for.
+   Never shrinks: the destination is the long, variable part and gives way
+   first, because a truncated platform is the one thing you cannot guess. */
+#v-auto .auto-dir .auto-quay {
+  font-weight: 400;
+  opacity: .6;
+  flex-shrink: 0;
+  margin-left: .45rem;
+  white-space: nowrap;
+}
+/* The gap goes AFTER the platform, not before it.
+   With margin-right:auto on the name (the rule above), the platform was
+   pushed right and sat flush against the first time: "spor 2 2 · 17 · 32",
+   which reads as platform 22. Where you stand belongs with which way you are
+   going; the times keep the far edge to themselves. */
+#v-auto .auto-dir .nearby-name { margin-right: 0; }
+#v-auto .auto-dir .nearby-dist { margin-left: auto; padding-left: .75rem; }
+#v-auto .auto-dir .nearby-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The times do not wrap either — "3 · 33 · 63 min" breaking after the last
+   number is what actually grew the row to 52px, not the destination.
+   Exactly one child of this row is allowed to give way, and it is the name. */
+#v-auto .auto-dir .nearby-dist {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 /* The prediction is a hint, not a decision: a marked edge, never a
    pre-selection that has to be undone. */
 #v-auto .auto-usual { border-color: rgba(var(--accent-rgb), .55); }

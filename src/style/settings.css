@@ -266,6 +266,11 @@
    .nearby-btn is space-between, and a third child pushes the label adrift. */
 #v-auto .auto-dir .nearby-name { margin-right: auto; text-align: left; }
 #v-auto .nearby-btn { width: 100%; }
+/* Three times, and not three equal weights — the first is the one you act on,
+   the rest tell you what missing it costs. Text in the same span rather than
+   new flex children: the rule above exists because a third child pushed the
+   label adrift under space-between. */
+#v-auto .auto-dir .auto-t-more { opacity: .55; }
 /* The prediction is a hint, not a decision: a marked edge, never a
    pre-selection that has to be undone. */
 #v-auto .auto-usual { border-color: rgba(var(--accent-rgb), .55); }

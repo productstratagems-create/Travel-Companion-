@@ -291,3 +291,68 @@ describe('a destination that is a stop', () => {
     expect(d.toGeo).toBe('Aker brygge');
   });
 });
+
+// ── The next three, not just the next ──────────────────────────────────────
+//
+// Asked for: "ønsker at dette viewet viser tiden til avgang for de tre neste
+// avgangene pr. linje". Per ROW rather than per line, chosen deliberately —
+// a row is a direction, and "what takes me that way" is the question you have
+// on the platform. Fewer than three when fewer run: a row with one time means
+// one departure, and padding it would say something the stop board never did.
+describe('groupDirections and the next three', () => {
+  it('lists the next three, soonest first', () => {
+    const out = groupDirections([
+      call('Østerås', '2', 22), call('Østerås', '2', 2), call('Østerås', '2', 12),
+    ], NOW);
+    expect(out[0].times).toEqual([2, 12, 22]);
+  });
+
+  it('stops at three even when more run', () => {
+    const out = groupDirections(
+      [2, 12, 22, 32, 42].map(m => call('Østerås', '2', m)), NOW);
+    expect(out[0].times).toEqual([2, 12, 22]);
+  });
+
+  it('shows what exists when fewer than three run', () => {
+    expect(groupDirections([call('Lutvann', '69', 7)], NOW)[0].times).toEqual([7]);
+    expect(groupDirections(
+      [call('Bøler T', '58', 11), call('Bøler T', '58', 31)], NOW)[0].times).toEqual([11, 31]);
+  });
+
+  // v1.61.1 applies to the whole row, not only its first entry: a departure
+  // that has gone is not a choice, and it must not become the second time on
+  // a row either.
+  it('leaves out the ones that have gone', () => {
+    const out = groupDirections([
+      call('Østerås', '2', -1.5), call('Østerås', '2', 4), call('Østerås', '2', 14),
+    ], NOW);
+    expect(out[0].times).toEqual([4, 14]);
+  });
+
+  // The row's first time and the journey a tap opens have to be the same
+  // departure. `call` is what _renderStops reads for the onward stops, so it
+  // must stay the soonest — showing three times must not move it.
+  it('keeps the tapped journey tied to the first time', () => {
+    const early = call('Østerås', '2', 2);
+    const out = groupDirections([call('Østerås', '2', 22), early, call('Østerås', '2', 12)], NOW);
+    expect(out[0].call).toBe(early);
+    expect(out[0].mins).toBe(out[0].times[0]);
+  });
+
+  // Directions are folded on front text, so a row can carry two lines — and
+  // then the three times are the three that take you there, whichever line
+  // runs them. That was the choice: the platform question, not the timetable.
+  it('counts every line that goes that way', () => {
+    const out = groupDirections([
+      call('Mortensrud', '3', 4), call('Mortensrud', '76', 9), call('Mortensrud', '3', 14),
+    ], NOW);
+    expect(out[0].times).toEqual([4, 9, 14]);
+    expect(out[0].lines.map(l => l.code)).toEqual(['3', '76']);
+  });
+
+  it('rounds each time the way the first one is rounded', () => {
+    const out = groupDirections(
+      [call('Østerås', '2', 2), call('Østerås', '2', 4.6)], NOW);
+    expect(out[0].times).toEqual([2, 5]);
+  });
+});

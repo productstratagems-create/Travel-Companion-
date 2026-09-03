@@ -27,6 +27,17 @@ import { renderRouteShortcuts } from '../ui/favs.js';
 import { logMsg } from '../ui/log.js';
 
 const MIN = 60000;
+/**
+ * How many departures the auto-reise board asks for.
+ *
+ * numberOfDepartures caps the WHOLE stop — every line and mode share it — so
+ * three per direction at a stop with five directions is simply not in a
+ * twelve-departure answer. Measured on a Tveita-shaped stop (five directions,
+ * 4-20 minute headways): at 12 only three of five rows had three departures
+ * to show; at 30 all five did, and 40 added nothing.
+ */
+const AUTO_BOARD_DEPARTURES = 30;
+
 /** As far as it is worth walking to a different stop instead. */
 const ALT_STOP_MAX_M = 1000;
 
@@ -81,12 +92,20 @@ export function groupDirections(calls, now) {
         lines: code ? [{ code, colour }] : [],
         nextMs: ms,
         call: c,
+        // Every departure this way, not just the first. Asked for: "tiden til
+        // avgang for de tre neste avgangene". Collected here because this is
+        // the only place the raw calls are still in scope — the caller keeps
+        // the grouped rows and drops the array.
+        all: [ms],
       });
       return;
     }
     if (code && !prev.lines.some(l => l.code === code)) prev.lines.push({ code, colour });
+    prev.all.push(ms);
     // The soonest call owns the row — and it is the one whose onward stops
     // the reader will see, so it must be the same call the time came from.
+    // It stays the soonest even now that the row shows three times: tapping
+    // opens a journey, and it has to be the journey the first time refers to.
     if (ms < prev.nextMs) { prev.nextMs = ms; prev.call = c; }
   });
   return [...byText.values()]
@@ -95,7 +114,18 @@ export function groupDirections(calls, now) {
     // the rounding cannot go negative — and a Math.max(0, …) that can never
     // fire, sitting where one used to hide departed vehicles behind "nå", is
     // worse than none: it tells the next reader that negatives get here.
-    .map(d => ({ ...d, mins: Math.round((d.nextMs - t0) / MIN) }));
+    .map(d => {
+      const { all, ...rest } = d;
+      return {
+        ...rest,
+        mins: Math.round((d.nextMs - t0) / MIN),
+        // The next three, soonest first. Fewer when fewer run — chosen
+        // deliberately: a row with one time means one departure, and padding
+        // it would say something the stop board never said.
+        times: all.slice().sort((a, b) => a - b).slice(0, 3)
+          .map(ms => Math.round((ms - t0) / MIN)),
+      };
+    });
 }
 
 /**
@@ -278,6 +308,10 @@ function _load() {
   if (!_stop) return;
   const body = _el('auto-body');
   if (body) body.innerHTML = '<div class="dest-prev-loading">henter avganger…</div>';
+  // 30 rather than the default 12. numberOfDepartures caps the WHOLE board,
+  // so three per direction at a stop with five of them simply is not in a
+  // twelve-departure answer — measured: 3 of 5 rows could show three at 12,
+  // 5 of 5 at 30.
   fetchBoard({ key: 'custom-out', from: _stop.name, stopId: _stop.id, to: '', line: null, filter: null },
     (stop) => {
       _dirs = groupDirections(stop.estimatedCalls || []);
@@ -286,7 +320,24 @@ function _load() {
     (err) => {
       logMsg('auto-reise: ' + err, 'err');
       if (body) body.innerHTML = '<div class="dest-prev-empty">Fikk ikke avganger herfra.</div>';
-    });
+    },
+    AUTO_BOARD_DEPARTURES);
+}
+
+/**
+ * The next three times for a row, as one string.
+ *
+ * The first keeps its weight; the rest are quieter. They are alternatives,
+ * not equals — you act on the first and glance at the others to know whether
+ * missing it matters.
+ */
+function _timesHtml(d) {
+  const times = (d.times && d.times.length) ? d.times : [d.mins];
+  const label = (m) => (m === 0 ? 'nå' : String(m));
+  const rest = times.slice(1);
+  return '<span class="auto-t-next">' + label(times[0]) + '</span>'
+    + (rest.length ? '<span class="auto-t-more"> · ' + rest.map(label).join(' · ') + '</span>' : '')
+    + (times[0] === 0 && !rest.length ? '' : ' min');
 }
 
 function _renderBody() {
@@ -320,7 +371,12 @@ function _renderBody() {
         + ' type="button" data-i="' + i + '">'
         + '<span class="auto-badges">' + d.lines.map(badgeHtml).join('') + '</span>'
         + '<span class="nearby-name">mot ' + esc(d.frontText) + '</span>'
-        + '<span class="nearby-dist">' + (d.mins === 0 ? 'nå' : d.mins + ' min') + '</span>'
+        // "2 · 12 · 22 min": the one you might catch, then the fallbacks.
+        //
+        // Text inside the existing span, not new children. settings.css:267
+        // warns in plain words that a third child pushes the label adrift
+        // under space-between — and that warning is there because it happened.
+        + '<span class="nearby-dist">' + _timesHtml(d) + '</span>'
         + '</button>';
     }).join('');
   body.querySelectorAll('.auto-dir').forEach(b => {

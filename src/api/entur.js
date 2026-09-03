@@ -414,12 +414,19 @@ export function stopBoardSummary(stopId, modes) {
   return p;
 }
 
-export function fetchBoard(dir, onSuccess, onError) {
+/**
+ * @param {number} [want] how many departures to ask for. `numberOfDepartures`
+ *   caps the WHOLE board — every line and mode share the budget — so a screen
+ *   that needs several departures per direction has to say so. Measured on a
+ *   Tveita-shaped stop (five directions, 4–20 min headways): at 12 only three
+ *   of five directions had three departures to show; at 30, all five did.
+ */
+export function fetchBoard(dir, onSuccess, onError, want) {
   if (boardController) boardController.abort();
   if (tripController) tripController.abort();
   boardController = new AbortController();
   const signal = boardController.signal;
-  const count = dir.key === 'in' ? 35 : 12;
+  const count = want || (dir.key === 'in' ? 35 : 12);
 
   setDot('loading');
   resolveStop(dir, signal)

@@ -7,7 +7,7 @@ vi.mock('../src/api/adapt.js', () => ({ quayLatLon: () => null }));
 const fetchMock = vi.fn();
 vi.mock('../src/api/http.js', () => ({ enturFetch: (...a) => fetchMock(...a) }));
 
-const { fetchTrip, fetchBoard } = await import('../src/api/entur.js');
+const { fetchTrip, fetchBoard, _resetPerLineProbe } = await import('../src/api/entur.js');
 
 const DIR = { from: 'Grorud', to: 'Jernbanetorget', stopId: 'NSR:StopPlace:1', toStopId: 'NSR:StopPlace:2' };
 const ok = (patterns) => ({
@@ -155,5 +155,123 @@ describe('fetchBoard retries without the situation text', () => {
     fetchBoard(DIR, vi.fn(), vi.fn());
     await settle(); await settle(); await settle();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── The per-line cap: a probe, and what it costs when the answer is no ─────
+//
+// `numberOfDeparturesPerLineAndDestinationDisplay` is exactly the right
+// argument for "three departures per direction" — numberOfDepartures caps the
+// WHOLE stop, so one frequent line can eat the budget. Its name cannot be
+// checked from here: the proxy reaches neither api.entur.io nor Entur's docs.
+//
+// So it ships as a probe, and these are the two worlds it has to work in.
+describe('fetchBoard and the per-line cap', () => {
+  const PER = 'numberOfDeparturesPerLineAndDestinationDisplay:3';
+  const stopOk = () => ({
+    ok: true, status: 200,
+    json: () => Promise.resolve({ data: { stopPlace: { id: 'X', name: 'Grorud', estimatedCalls: [] } } }),
+  });
+  const gqlNo = (msg) => ({
+    ok: true, status: 200,
+    json: () => Promise.resolve({ errors: [{ message: msg }] }),
+  });
+  const argRejected = () => gqlNo("Unknown argument 'numberOfDeparturesPerLineAndDestinationDisplay'");
+  const textRejected = () => gqlNo("Unknown field 'description'");
+
+  beforeEach(() => { _resetPerLineProbe(); });
+
+  it('asks for it when the caller wants it', async () => {
+    fetchMock.mockReturnValue(Promise.resolve(stopOk()));
+    fetchBoard(DIR, vi.fn(), vi.fn(), 30, 3);
+    await settle(); await settle(); await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(bodyOf(fetchMock.mock.calls[0])).toContain(PER);
+  });
+
+  it('never asks for it unless a caller does', async () => {
+    fetchMock.mockReturnValue(Promise.resolve(stopOk()));
+    fetchBoard(DIR, vi.fn(), vi.fn());
+    await settle(); await settle(); await settle();
+    expect(bodyOf(fetchMock.mock.calls[0])).not.toContain('PerLineAndDestinationDisplay');
+  });
+
+  // The order matters: the newest, least proven thing falls first. Dropping
+  // the message text as well would make a rejected cap cost the reader
+  // something it has nothing to do with.
+  it('drops the cap before it drops the message text', async () => {
+    fetchMock.mockReturnValueOnce(Promise.resolve(argRejected()))
+             .mockReturnValueOnce(Promise.resolve(stopOk()));
+    const onSuccess = vi.fn(), onError = vi.fn();
+    fetchBoard(DIR, onSuccess, onError, 30, 3);
+    await settle(); await settle(); await settle(); await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(bodyOf(fetchMock.mock.calls[1])).not.toContain('PerLineAndDestinationDisplay');
+    expect(bodyOf(fetchMock.mock.calls[1])).toContain('description{language value}');
+    expect(onSuccess).toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('falls all the way to the basic text if both are refused', async () => {
+    fetchMock.mockReturnValueOnce(Promise.resolve(argRejected()))
+             .mockReturnValueOnce(Promise.resolve(textRejected()))
+             .mockReturnValueOnce(Promise.resolve(stopOk()));
+    const onSuccess = vi.fn(), onError = vi.fn();
+    fetchBoard(DIR, onSuccess, onError, 30, 3);
+    await settle(); await settle(); await settle(); await settle(); await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(bodyOf(fetchMock.mock.calls[2])).not.toContain('PerLineAndDestinationDisplay');
+    expect(bodyOf(fetchMock.mock.calls[2])).not.toContain('description');
+    expect(onSuccess).toHaveBeenCalled();
+  });
+
+  // fetchBoard has never had this test, unlike fetchTrip. Without it a
+  // three-rung ladder is one edit away from being an infinite one.
+  //
+  // The server relents after five refusals rather than refusing for ever. A
+  // mock that always says no turns an endless ladder into an endless
+  // microtask loop, and the test HANGS instead of failing — measured, twice,
+  // while writing this. A hang in CI takes the whole suite with it and says
+  // nothing about which rung broke; a count says exactly.
+  it('stops rather than retrying for ever', async () => {
+    let n = 0;
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(++n <= 5 ? gqlNo('nope') : stopOk()));
+    const onError = vi.fn();
+    fetchBoard(DIR, vi.fn(), onError, 30, 3);
+    for (let i = 0; i < 10; i++) await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(onError).toHaveBeenCalled();
+  });
+
+  // The whole difference between a probe and a permanent double cost: after
+  // one no, the board must stop asking for the rest of the session.
+  it('remembers the no, so the next poll asks once', async () => {
+    fetchMock.mockReturnValueOnce(Promise.resolve(argRejected()))
+             .mockReturnValue(Promise.resolve(stopOk()));
+    fetchBoard(DIR, vi.fn(), vi.fn(), 30, 3);
+    await settle(); await settle(); await settle(); await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    fetchMock.mockClear();
+    fetchBoard(DIR, vi.fn(), vi.fn(), 30, 3);
+    await settle(); await settle(); await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(bodyOf(fetchMock.mock.calls[0])).not.toContain('PerLineAndDestinationDisplay');
+  });
+
+  // A new page load is a new probe — otherwise the day Entur adds support,
+  // nothing would ever start using it.
+  it('probes again in a fresh session', async () => {
+    fetchMock.mockReturnValueOnce(Promise.resolve(argRejected()))
+             .mockReturnValue(Promise.resolve(stopOk()));
+    fetchBoard(DIR, vi.fn(), vi.fn(), 30, 3);
+    await settle(); await settle(); await settle(); await settle();
+
+    _resetPerLineProbe();
+    fetchMock.mockClear();
+    fetchBoard(DIR, vi.fn(), vi.fn(), 30, 3);
+    await settle(); await settle();
+    expect(bodyOf(fetchMock.mock.calls[0])).toContain(PER);
   });
 });

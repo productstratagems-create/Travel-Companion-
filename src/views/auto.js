@@ -24,6 +24,7 @@ import { state } from '../state.js';
 import { fetchBoard } from '../api/entur.js';
 import { predictDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
+import { ensureHubs, loadHubs, isHub } from '../api/hubs.js';
 import { logMsg } from '../ui/log.js';
 
 const MIN = 60000;
@@ -464,18 +465,40 @@ function _renderBody() {
   });
 }
 
+// Which line's stops the register has already been asked about. The screen
+// redraws every second (v1.71.0), so without this the lookup would fire on
+// every tick — one request per line, not one per frame.
+let _hubsAskedFor = null;
+
 function _renderStops(body) {
   const stops = stopsAhead(_open.call, _stop.name);
+  const hubs = loadHubs();
+  // The list is drawn now, from whatever the register already knows. Asking
+  // is a background errand: an anchor is worth having, and worth nothing at
+  // all if the reader waits for it.
+  const key = _open.frontText + '|' + _open.lines.map(l => l.code).join(',');
+  if (_hubsAskedFor !== key) {
+    _hubsAskedFor = key;
+    ensureHubs(stops.map(s => s.id)).then(next => {
+      // Redraw only if the answer actually told us something, and only if the
+      // reader is still looking at this list.
+      if (_open && _hubsAskedFor === key
+        && stops.some(s => s.id && next[s.id] && !hubs[s.id])) _renderBody();
+    });
+  }
   body.innerHTML = '<button class="set-via-add-btn auto-back-dir" type="button">← alle retninger</button>'
     + '<div class="set-label">' + _open.lines.map(badgeHtml).join('')
     + ' mot ' + esc(_open.frontText) + '</div>'
     + (stops.length
-      ? stops.map((s, i) => '<button class="nearby-btn auto-stop-btn" type="button" data-i="' + i + '">'
+      ? stops.map((s, i) => '<button class="nearby-btn auto-stop-btn'
+        + (isHub(hubs[s.id]) ? ' auto-hub' : '') + '" type="button" data-i="' + i + '">'
         + '<span class="nearby-name">' + esc(s.name) + '</span>'
         + '<span class="nearby-dist">' + (s.mins != null ? s.mins + ' min' : '') + '</span>'
         + '</button>').join('')
       : '<div class="dest-prev-empty">Vet ikke hvor denne stopper.</div>');
-  body.querySelector('.auto-back-dir').addEventListener('click', () => { _open = null; _renderBody(); });
+  body.querySelector('.auto-back-dir').addEventListener('click', () => {
+    _open = null; _hubsAskedFor = null; _renderBody();
+  });
   body.querySelectorAll('.auto-stop-btn').forEach(b => {
     b.addEventListener('click', () => {
       const dir = autoRoute(_stop, stops[Number(b.dataset.i)]);

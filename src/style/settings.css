@@ -265,6 +265,17 @@
    floor the destination started 5px further left on the metro row than on the
    bus rows — measured. Everything else on this screen lines up in a column;
    the thing you read first should too. */
+/* Somewhere you can change, in a list of somewhere you cannot.
+   The whole line stays, in its own order — nothing is removed and nothing is
+   reordered. The anchors are there so you stop reading a 27-row list line by
+   line and start finding your place in it. */
+#v-auto .auto-stop-btn { opacity: .72; }
+#v-auto .auto-stop-btn.auto-hub {
+  opacity: 1;
+  border-color: rgba(var(--border-rgb),.32);
+}
+#v-auto .auto-stop-btn.auto-hub .nearby-name { font-weight: 700; }
+
 #v-auto .auto-badges {
   display: inline-flex;
   gap: 3px;

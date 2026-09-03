@@ -173,6 +173,27 @@ export function boardGQL(id, n, now, basic, fwdMins, modes, perLine) {
 // indexes ServiceJourney by its NeTEx ID with an uppercase codespace
 // ("RUT:ServiceJourney:..."). Uppercase the prefix so serviceJourney(id:)
 // lookups can resolve IDs copied straight from board/track data.
+/**
+ * What kind of place these stops are — asked once per line, never per poll.
+ *
+ * The stops list needs to tell an interchange from a request stop, and the
+ * departure response carries nothing that says so: `id name latitude
+ * longitude` and four timestamps, and that is all of it. Widening the nested
+ * estimatedCalls selection would have bought the answer at the price of these
+ * fields for EVERY stop on EVERY one of thirty departures, on a query that
+ * runs every twenty seconds. This asks separately, for the stops of one line,
+ * and the answer is kept.
+ *
+ * `quays` and `transportMode` on StopPlace cannot be checked from here — the
+ * proxy reaches neither api.entur.io nor Entur's docs. So this is a probe,
+ * and its caller drops it and remembers on a rejection, exactly as fetchBoard
+ * does for the per-line cap (v1.70.0).
+ */
+export function stopPlacesGQL(ids) {
+  const list = (ids || []).map(id => '"' + String(id).replace(/"/g, '') + '"').join(',');
+  return '{stopPlaces(ids:[' + list + ']){id transportMode quays{id}}}';
+}
+
 export function normJid(jid) {
   return String(jid || '').replace(/^([a-z]+):/, m => m.toUpperCase());
 }

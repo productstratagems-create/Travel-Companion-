@@ -8,6 +8,9 @@ const ALL_KEYS = [
   // exactly when there is no history. A key that picks the first screen has
   // to travel with the profile and be deleted with it.
   't.autoMode', 't.smartHist',
+  // The interchange register: learned per device, and worth keeping with the
+  // profile so a switch does not inherit another reader's answers.
+  't.hubs',
 ];
 
 const PROFILES_KEY = '__profiles';

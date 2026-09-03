@@ -3,6 +3,7 @@ import { state } from './state.js';
 import { logMsg } from './ui/log.js';
 import { renderBoard } from './views/board.js';
 import { renderSelected } from './views/selected.js';
+import { renderAuto } from './views/auto.js';
 import { renderTrack } from './views/track.js';
 
 /**
@@ -23,6 +24,10 @@ function render() {
     switch (state.view) {
       case 'board':    renderBoard();    break;
       case 'selected': renderSelected(); break;
+      // Auto-reise counts down too. Without this its times were frozen from
+      // the moment the screen opened: measured, five minutes on screen and
+      // the rows still said "3 · 16 · 31" for a departure that had gone.
+      case 'auto':     renderAuto();     break;
       case 'track':    renderTrack();    break;
     }
   } catch (err) {

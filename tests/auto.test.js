@@ -5,7 +5,7 @@
  * platform with a train coming.
  */
 import { describe, it, expect } from 'vitest';
-import { groupDirections, stopsAhead, autoRoute, noPosText } from '../src/views/auto.js';
+import { groupDirections, stopsAhead, autoRoute, noPosText, quayLabel, _minsUntil } from '../src/views/auto.js';
 
 const NOW = Date.UTC(2026, 4, 26, 15, 0, 0);
 const at = (min) => new Date(NOW + min * 60000).toISOString();
@@ -300,23 +300,28 @@ describe('a destination that is a stop', () => {
 // on the platform. Fewer than three when fewer run: a row with one time means
 // one departure, and padding it would say something the stop board never did.
 describe('groupDirections and the next three', () => {
+  // times are ABSOLUTE now — a snapshot of minutes would go stale the moment
+  // the screen sat still, which is exactly what it did (v1.71.0). Read here
+  // through the same conversion the row uses.
+  const mins = (row) => row.times.map(ms => _minsUntil(ms, NOW));
+
   it('lists the next three, soonest first', () => {
     const out = groupDirections([
       call('Østerås', '2', 22), call('Østerås', '2', 2), call('Østerås', '2', 12),
     ], NOW);
-    expect(out[0].times).toEqual([2, 12, 22]);
+    expect(mins(out[0])).toEqual([2, 12, 22]);
   });
 
   it('stops at three even when more run', () => {
     const out = groupDirections(
       [2, 12, 22, 32, 42].map(m => call('Østerås', '2', m)), NOW);
-    expect(out[0].times).toEqual([2, 12, 22]);
+    expect(mins(out[0])).toEqual([2, 12, 22]);
   });
 
   it('shows what exists when fewer than three run', () => {
-    expect(groupDirections([call('Lutvann', '69', 7)], NOW)[0].times).toEqual([7]);
-    expect(groupDirections(
-      [call('Bøler T', '58', 11), call('Bøler T', '58', 31)], NOW)[0].times).toEqual([11, 31]);
+    expect(mins(groupDirections([call('Lutvann', '69', 7)], NOW)[0])).toEqual([7]);
+    expect(mins(groupDirections(
+      [call('Bøler T', '58', 11), call('Bøler T', '58', 31)], NOW)[0])).toEqual([11, 31]);
   });
 
   // v1.61.1 applies to the whole row, not only its first entry: a departure
@@ -326,7 +331,7 @@ describe('groupDirections and the next three', () => {
     const out = groupDirections([
       call('Østerås', '2', -1.5), call('Østerås', '2', 4), call('Østerås', '2', 14),
     ], NOW);
-    expect(out[0].times).toEqual([4, 14]);
+    expect(mins(out[0])).toEqual([4, 14]);
   });
 
   // The row's first time and the journey a tap opens have to be the same
@@ -336,7 +341,7 @@ describe('groupDirections and the next three', () => {
     const early = call('Østerås', '2', 2);
     const out = groupDirections([call('Østerås', '2', 22), early, call('Østerås', '2', 12)], NOW);
     expect(out[0].call).toBe(early);
-    expect(out[0].mins).toBe(out[0].times[0]);
+    expect(out[0].mins).toBe(mins(out[0])[0]);
   });
 
   // Directions are folded on front text, so a row can carry two lines — and
@@ -346,13 +351,65 @@ describe('groupDirections and the next three', () => {
     const out = groupDirections([
       call('Mortensrud', '3', 4), call('Mortensrud', '76', 9), call('Mortensrud', '3', 14),
     ], NOW);
-    expect(out[0].times).toEqual([4, 9, 14]);
+    expect(mins(out[0])).toEqual([4, 9, 14]);
     expect(out[0].lines.map(l => l.code)).toEqual(['3', '76']);
   });
 
   it('rounds each time the way the first one is rounded', () => {
     const out = groupDirections(
       [call('Østerås', '2', 2), call('Østerås', '2', 4.6)], NOW);
-    expect(out[0].times).toEqual([2, 5]);
+    expect(mins(out[0])).toEqual([2, 5]);
+  });
+});
+
+// ── Where to stand ─────────────────────────────────────────────────────────
+//
+// Asked for: combine the time to departure with the platform. The stop board
+// already carries `quay` on every call — it was simply thrown away, the same
+// way the later departure times were before v1.69.0.
+//
+// Taken from the SOONEST departure, because at a terminus like Mortensrud the
+// metro alternates between platforms and the three times on a row need not
+// share one. The first one is the departure the row is about.
+describe('quayLabel', () => {
+  const at = (mode, publicCode, name) => ({
+    quay: publicCode || name ? { publicCode, name } : null,
+    serviceJourney: { line: { transportMode: mode } },
+  });
+
+  it('says spor for the modes that run on rails', () => {
+    expect(quayLabel(at('metro', '2'))).toBe('spor 2');
+    expect(quayLabel(at('rail', '4'))).toBe('spor 4');
+  });
+
+  // The app says "spor" everywhere today, and it is the wrong word for a bus
+  // bay — Ruter calls those plattform, and the sign at the stop says so too.
+  it('says plattform for a bus bay', () => {
+    expect(quayLabel(at('bus', 'E'))).toBe('plattform E');
+    expect(quayLabel(at('tram', '3'))).toBe('plattform 3');
+  });
+
+  it('falls back to the last word of the name', () => {
+    expect(quayLabel(at('bus', null, 'Mortensrud E'))).toBe('plattform E');
+  });
+
+  // A row with no platform is honest; a row saying "spor ?" is noise.
+  it('says nothing rather than nothing useful', () => {
+    expect(quayLabel(at('bus', null, null))).toBe(null);
+    expect(quayLabel(at('bus', '?'))).toBe(null);
+    expect(quayLabel(null)).toBe(null);
+    expect(quayLabel({})).toBe(null);
+  });
+
+  // The row's platform must be the first departure's, even when the row folds
+  // two lines that leave from different bays.
+  it('is the soonest departure’s, on a row carrying two lines', () => {
+    const early = { ...call('Mortensrud', '3', 4), quay: { publicCode: '2' } };
+    early.serviceJourney.line.transportMode = 'metro';
+    const later = { ...call('Mortensrud', '76', 9), quay: { publicCode: 'E' } };
+    later.serviceJourney.line.transportMode = 'bus';
+    const out = groupDirections([later, early], NOW);
+    expect(out[0].call).toBe(early);
+    expect(quayLabel(out[0].call)).toBe('spor 2');
   });
 });

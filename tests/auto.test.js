@@ -5,6 +5,7 @@
  * platform with a train coming.
  */
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
 import { groupDirections, stopsAhead, autoRoute, noPosText, quayLabel, _minsUntil } from '../src/views/auto.js';
 
 const NOW = Date.UTC(2026, 4, 26, 15, 0, 0);
@@ -411,5 +412,31 @@ describe('quayLabel', () => {
     const out = groupDirections([later, early], NOW);
     expect(out[0].call).toBe(early);
     expect(quayLabel(out[0].call)).toBe('spor 2');
+  });
+});
+
+// ── The row wraps rather than truncating ───────────────────────────────────
+//
+// v1.71.0 kept every row on one line by letting the destination ellipsis. On a
+// bus interchange that meant six rows of seven reading "mot Hels…", "mot
+// Holml…", "mot Bjørn…" — measured on the reported stop. The destination is
+// what you scan for; it is the last thing that should be cut.
+//
+// The layout is CSS, so this asserts the two rules that carry the decision.
+// The measurement that actually proves it is the browser run: 6/7 names cut
+// before, 0/7 after, and the one row that fits still one line.
+describe('the direction row’s layout', () => {
+  const css = fs.readFileSync('src/style/settings.css', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('lets the row wrap to a second line', () => {
+    expect(css).toMatch(/#v-auto \.auto-dir \{[^}]*flex-wrap:\s*wrap/);
+  });
+
+  // A truncated destination is the thing this replaced. If the ellipsis comes
+  // back, so does "mot Hels…".
+  it('never truncates the destination', () => {
+    const block = css.slice(css.indexOf('#v-auto .auto-dir .nearby-name {'));
+    expect(block.slice(0, block.indexOf('}'))).not.toContain('text-overflow');
   });
 });

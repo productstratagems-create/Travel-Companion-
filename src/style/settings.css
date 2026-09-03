@@ -287,12 +287,23 @@
    pushed right and sat flush against the first time: "spor 2 2 · 17 · 32",
    which reads as platform 22. Where you stand belongs with which way you are
    going; the times keep the far edge to themselves. */
-#v-auto .auto-dir .nearby-name { margin-right: 0; }
+/* The name takes the free space, so it sits under the badge where you read
+   it — not adrift in the middle, which is where space-between put it once the
+   row was allowed to wrap. The gap it makes is also what keeps the platform
+   clear of the times on a row that does NOT wrap. */
+#v-auto .auto-dir .nearby-name { margin-right: auto; }
 #v-auto .auto-dir .nearby-dist { margin-left: auto; padding-left: .75rem; }
+/* Two lines when one will not do.
+   v1.71.0 kept every row on one line by letting the destination truncate —
+   and on a bus interchange that meant six rows of seven reading "mot Hels…",
+   "mot Holml…", "mot Bjørn…". The destination is the thing you scan for; it
+   is the last thing that should be cut. So the row wraps instead: the ones
+   that fit stay one line, the ones that do not put the times underneath. */
+#v-auto .auto-dir { flex-wrap: wrap; }
 #v-auto .auto-dir .nearby-name {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* Whole, and in one piece. Wrapping happens between the row's parts, never
+     inside a stop name. */
   white-space: nowrap;
 }
 /* The times do not wrap either — "3 · 33 · 63 min" breaking after the last

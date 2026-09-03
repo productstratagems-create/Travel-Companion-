@@ -433,6 +433,22 @@ describe('the direction row’s layout', () => {
     expect(css).toMatch(/#v-auto \.auto-dir \{[^}]*flex-wrap:\s*wrap/);
   });
 
+  // Always two lines, not two-when-needed. Wrapping only when it was needed
+  // left "mot Kolsås" on one line beside neighbours on two, so the times moved
+  // up and down the list and the eye had to hunt for them row by row.
+  it('always gives the times a line of their own', () => {
+    const block = css.slice(css.indexOf('#v-auto .auto-dir .nearby-dist {'));
+    expect(block.slice(0, block.indexOf('}'))).toMatch(/flex:\s*0\s+0\s+100%/);
+  });
+
+  // A one-digit line number is narrower than a two-digit one, so without a
+  // floor the destination started further left on the metro row — measured at
+  // 5px, which is exactly enough to break a column.
+  it('starts every destination at the same place', () => {
+    const block = css.slice(css.indexOf('#v-auto .auto-badges {'));
+    expect(block.slice(0, block.indexOf('}'))).toMatch(/min-width/);
+  });
+
   // A truncated destination is the thing this replaced. If the ellipsis comes
   // back, so does "mot Hels…".
   it('never truncates the destination', () => {

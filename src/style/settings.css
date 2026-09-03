@@ -261,7 +261,16 @@
   font-size: 1.35rem; font-weight: 700; letter-spacing: .02em;
   margin: .1rem 0 .7rem;
 }
-#v-auto .auto-badges { display: inline-flex; gap: 3px; margin-right: .55rem; }
+/* A one-digit line number is narrower than a two-digit one, so without a
+   floor the destination started 5px further left on the metro row than on the
+   bus rows — measured. Everything else on this screen lines up in a column;
+   the thing you read first should too. */
+#v-auto .auto-badges {
+  display: inline-flex;
+  gap: 3px;
+  margin-right: .55rem;
+  min-width: 2rem;
+}
 /* The name belongs beside its badges, not floating in the middle of the row:
    .nearby-btn is space-between, and a third child pushes the label adrift. */
 #v-auto .auto-dir .nearby-name { margin-right: auto; text-align: left; }
@@ -292,7 +301,6 @@
    row was allowed to wrap. The gap it makes is also what keeps the platform
    clear of the times on a row that does NOT wrap. */
 #v-auto .auto-dir .nearby-name { margin-right: auto; }
-#v-auto .auto-dir .nearby-dist { margin-left: auto; padding-left: .75rem; }
 /* Two lines when one will not do.
    v1.71.0 kept every row on one line by letting the destination truncate —
    and on a bus interchange that meant six rows of seven reading "mot Hels…",
@@ -309,9 +317,20 @@
 /* The times do not wrap either — "3 · 33 · 63 min" breaking after the last
    number is what actually grew the row to 52px, not the destination.
    Exactly one child of this row is allowed to give way, and it is the name. */
+/* The times always take a line of their own.
+   Wrapping only when it was needed meant "mot Kolsås" sat on one line while
+   its neighbours took two, so the eye had to hunt for the times row by row.
+   A fixed shape costs a few pixels on the short rows and buys a list you can
+   scan down a column: which line and where you are going on the first line,
+   when on the second. */
 #v-auto .auto-dir .nearby-dist {
-  flex-shrink: 0;
+  /* Its own full-width line, right-aligned. There used to be a second rule
+     for this selector carrying margin-left:auto — needed while the times
+     shared a line with the platform, redundant now, and two rules for one
+     selector is how they drift apart. */
+  flex: 0 0 100%;
   white-space: nowrap;
+  text-align: right;
 }
 /* The prediction is a hint, not a decision: a marked edge, never a
    pre-selection that has to be undone. */

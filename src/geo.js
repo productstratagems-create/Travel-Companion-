@@ -245,6 +245,26 @@ export function findArr(calls, name) {
 const STOP_CATS = new Set(TRANSIT_CATS);
 
 /**
+ * How far a stop can be and still be offered on auto-reise, in metres.
+ *
+ * THE one number for that idea. It used to be two — a display limit in
+ * auto.js and a query radius here — in two files, which had to agree and
+ * were free not to: a display limit larger than the radius promises stops
+ * the query never asked for. Same shape as v1.68.0 and v1.71.0.
+ */
+export const NEAR_STOP_MAX_M = 850;
+
+/*
+ * And it is the ONLY rule. There used to be two silent caps on top of it —
+ * eight stops here and four alternatives in auto.js — so a stop well inside
+ * the limit could still be invisible: measured, "Skullerud stasjon" at 650 m
+ * vanished behind three nearer ones. A distance limit with a hidden count
+ * limit behind it is a promise the screen does not keep. The page size the
+ * geocoder is asked for (NEAR_SIZE) is the only remaining ceiling, and it is
+ * a property of the request rather than a second opinion about "nearby".
+ */
+
+/**
  * How far to look, IN KILOMETRES.
  *
  * Pelias reads boundary.circle.radius as km. This said 5000, so the search
@@ -253,11 +273,10 @@ const STOP_CATS = new Set(TRANSIT_CATS);
  * metro station outranks a kerb, which is the second half of why the reader
  * standing at a bus stop was told they were at a metro station.
  *
- * 1.2 rather than the board's 0.8 because auto-reise offers alternatives out
- * to ALT_STOP_MAX_M = 1000 (auto.js), and a radius under that would make
- * that limit a promise the query cannot keep.
+ * Derived from NEAR_STOP_MAX_M rather than written out, so the query and the
+ * list cannot disagree about what "nearby" means.
  */
-const NEAR_RADIUS_KM = 1.2;
+const NEAR_RADIUS_KM = NEAR_STOP_MAX_M / 1000;
 /* Asked for before filtering, so this is what decides whether any bus stops
    are left to keep. */
 const NEAR_SIZE = 40;
@@ -279,8 +298,7 @@ export function findNearestStation(lat, lon, onFound, onFail) {
           distM: Math.round(haver(lat, lon, f.geometry.coordinates[1], f.geometry.coordinates[0])),
           type: (f.properties.category || []).find(c => STOP_CATS.has(c)) || 'unknown',
         }))
-        .sort((a, b) => a.distM - b.distM)
-        .slice(0, 8);
+        .sort((a, b) => a.distM - b.distM);
       if (!stops.length) {
         // The position was fine; there is simply nothing within the radius.
         // Said as its own state because the screen used to blame GPS for it,

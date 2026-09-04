@@ -488,4 +488,13 @@ describe('noPosText and the empty surroundings', () => {
   it('always offers a way forward', () => {
     ['nostops', 'denied', null].forEach(s => expect(noPosText(s).cta).toBeTruthy());
   });
+
+
+  // The prose used to say "drøyt en kilometer" while the constant said 850.
+  // A number repeated in a sentence is a second copy that is free to drift.
+  it('names the real distance rather than repeating a round number', async () => {
+    const { NEAR_STOP_MAX_M } = await import('../src/geo.js');
+    expect(noPosText('nostops').body).toContain(String(NEAR_STOP_MAX_M));
+    expect(noPosText('nostops').body).not.toMatch(/kilometer/i);
+  });
 });

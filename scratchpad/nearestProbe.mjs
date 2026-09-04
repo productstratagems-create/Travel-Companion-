@@ -119,11 +119,14 @@ async function open(dark) {
       properties: { id, name, label: name, category: cats }, geometry: { coordinates: at(m) } });
     return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ features: [
       f(HERE.id, 'Skullerud T', ['metroStation'], 400),
-      f('NSR:StopPlace:71', 'Oslo Bussterminal', ['busStation'], 900),
+      f('NSR:StopPlace:71', 'For langt unna', ['busStation'], 900),
       f('NSR:StopPlace:72', 'Skullerudveien', ['onstreetTram'], 220),
       f('NSR:StopPlace:73', 'Skullerud stasjon', ['railStation'], 650),
       f('NSR:StopPlace:74', 'Skullerudstubben', ['onstreetBus'], 35),
       f('NSR:StopPlace:75', 'Ryen skole', ['school'], 10),
+      f('NSR:StopPlace:76', 'Bogerudsvingen', ['onstreetBus'], 120),
+      f('NSR:StopPlace:77', 'Skullerudbakken', ['onstreetBus'], 300),
+      f('NSR:StopPlace:78', 'Nesten 850', ['onstreetBus'], 840),
     ] }) });
   });
   await page.route(/tiles\.stadiamaps|tile\.openstreetmap|open-meteo|overpass|valhalla|geoapify|mobility/, r => r.abort());

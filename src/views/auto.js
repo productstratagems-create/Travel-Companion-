@@ -26,7 +26,7 @@ import { predictDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { ensureHubs, loadHubs, isHub } from '../api/hubs.js';
 import { logMsg } from '../ui/log.js';
-import { loadAutoSort, saveAutoSort } from '../geo.js';
+import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M } from '../geo.js';
 
 const MIN = 60000;
 /**
@@ -50,7 +50,7 @@ const AUTO_BOARD_DEPARTURES = 30;
 const AUTO_PER_LINE = 3;
 
 /** As far as it is worth walking to a different stop instead. */
-const ALT_STOP_MAX_M = 1000;
+
 
 function _callTime(c) {
   const t = c && (c.expectedDepartureTime || c.aimedDepartureTime);
@@ -407,8 +407,11 @@ export function noPosText(gpsError) {
   if (gpsError === 'nostops') {
     return {
       where: 'Ingen holdeplass innen gangavstand.',
-      body: 'Vi fant posisjonen din, men ingen holdeplass innenfor drøyt en '
-        + 'kilometer. Sett stoppet selv hvis du vet hva det heter.',
+      // The distance is read from the constant, not repeated in prose. A
+      // sentence that says "en kilometer" while the code says 850 is a lie
+      // nobody notices until they count.
+      body: 'Vi fant posisjonen din, men ingen holdeplass innenfor '
+        + NEAR_STOP_MAX_M + ' meter. Sett stoppet selv hvis du vet hva det heter.',
       cta: 'sett hvor du er →',
     };
   }
@@ -440,6 +443,25 @@ function _stops() {
   return list;
 }
 
+/**
+ * The other stops worth offering next to the one you are at.
+ *
+ * Exported and pure because the rule it carries is a promise: everything
+ * within NEAR_STOP_MAX_M, and nothing else. It used to end in .slice(0, 4),
+ * so a stop well inside the limit could still be invisible — measured,
+ * "Skullerud stasjon" at 650 m vanished behind three nearer ones. A distance
+ * limit with a hidden count limit behind it is not a distance limit.
+ *
+ * A stop with no measured distance is kept rather than dropped: it came from
+ * the same nearby query, so "we did not measure it" is not the same fact as
+ * "it is far away".
+ */
+export function nearbyAlternatives(list, chosen) {
+  const id = chosen && chosen.id;
+  return (list || []).filter(s =>
+    s && s.id !== id && (s.distM == null || s.distM <= NEAR_STOP_MAX_M));
+}
+
 function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
@@ -452,11 +474,10 @@ function _renderWhere() {
   }
   // Other stops you could actually walk to instead. geo.js searches 5 km to
   // be sure of finding *a* station; offering one of those as an alternative
-  // is not an alternative, it is another journey. A kilometre is about twelve
-  // minutes at the app's own default pace.
-  const others = list
-    .filter(s => s.id !== _stop.id && (s.distM == null || s.distM <= ALT_STOP_MAX_M))
-    .slice(0, 4);
+  // is not an alternative, it is another journey. The limit is
+  // NEAR_STOP_MAX_M, defined next to the query that fetches them, so the list
+  // cannot offer a distance the query never looked at.
+  const others = nearbyAlternatives(list, _stop);
   el.innerHTML = '<div class="set-label">du er ved</div>'
     + '<div class="auto-stop">' + esc(_stop.name)
     + (_stop.distM != null ? '<span class="nearby-dist">' + _stop.distM + ' m</span>' : '')

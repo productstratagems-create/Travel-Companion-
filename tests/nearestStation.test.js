@@ -23,7 +23,7 @@ vi.mock('../src/config.js', () => ({
 }));
 vi.mock('../src/ui/log.js', () => ({ logMsg: vi.fn() }));
 
-import { findNearestStation } from '../src/geo.js';
+import { findNearestStation, NEAR_STOP_MAX_M } from '../src/geo.js';
 import { state } from '../src/state.js';
 
 // The reader is standing AT a kerbside bus stop. The metro station is four
@@ -101,8 +101,21 @@ describe('the request', () => {
   // unbounded and handed prominence the decision.
   it('asks within a real radius, in kilometres', async () => {
     await find([feature('Et stopp', ['onstreetBus'], 50)]);
-    expect(lastUrl).toContain('boundary.circle.radius=1.2');
+    expect(lastUrl).toContain('boundary.circle.radius=0.85');
     expect(lastUrl).not.toContain('radius=5000');
+  });
+
+  // The one number, proved to be one. A query radius smaller than the list's
+  // limit promises stops that were never asked for; two constants in two
+  // files were free to drift into exactly that.
+  it('asks for exactly as far as the list is willing to offer', async () => {
+    await find([feature('Et stopp', ['onstreetBus'], 50)]);
+    expect(lastUrl).toContain('boundary.circle.radius=' + (NEAR_STOP_MAX_M / 1000));
+    const fs = await import('node:fs');
+    const auto = fs.readFileSync('src/views/auto.js', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(auto).toContain('NEAR_STOP_MAX_M');
+    expect(auto).not.toMatch(/ALT_STOP_MAX_M\s*=/);
   });
 
   // The filter runs AFTER the fetch, so the page size is what decides whether
@@ -141,5 +154,35 @@ describe('nothing within the radius is its own fact', () => {
     state.gpsError = 'nostops';
     await find([feature('Skullerudstubben', ['onstreetBus'], 30)]);
     expect(state.gpsError).toBe(null);
+  });
+});
+
+describe('how far a stop may be', () => {
+  // Asked for: only stops within 850 m. The number is the contract, so it is
+  // pinned rather than left to be read off a comment.
+  it('is 850 metres', () => {
+    expect(NEAR_STOP_MAX_M).toBe(850);
+  });
+
+  it('keeps a stop just inside and drops one just outside', async () => {
+    await find([
+      feature('Så vidt innenfor', ['onstreetBus'], NEAR_STOP_MAX_M - 20),
+      feature('Nærmest', ['onstreetBus'], 30),
+    ]);
+    expect(state.nearestStations.map(s => s.name)).toEqual(['Nærmest', 'Så vidt innenfor']);
+  });
+});
+
+describe('distance is the only rule', () => {
+  // There were two silent caps on top of the distance limit — eight here and
+  // four alternatives in auto.js — so a stop well inside 850 m could still be
+  // invisible. Measured before this: "Skullerud stasjon" at 650 m vanished
+  // behind three nearer ones.
+  it('keeps every stop inside the limit, however many there are', async () => {
+    const many = Array.from({ length: 11 }, (_, i) =>
+      feature('Stopp ' + i, ['onstreetBus'], 40 + i * 70));
+    await find(many);
+    expect(state.nearestStations).toHaveLength(11);
+    expect(state.nearestStations[10].distM).toBeLessThanOrEqual(NEAR_STOP_MAX_M);
   });
 });

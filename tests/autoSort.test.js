@@ -13,7 +13,8 @@
  * the answer. Every rule about that fallback is tested here.
  */
 import { describe, it, expect } from 'vitest';
-import { groupDirections, dirRank, sortDirs, dirRows, quayLabel, SORT_TYPE, SORT_TIME } from '../src/views/auto.js';
+import { groupDirections, dirRank, sortDirs, dirRows, quayLabel, nearbyAlternatives, SORT_TYPE, SORT_TIME } from '../src/views/auto.js';
+import { NEAR_STOP_MAX_M } from '../src/geo.js';
 
 const NOW = Date.UTC(2026, 4, 26, 15, 0, 0);
 const at = (min) => new Date(NOW + min * 60000).toISOString();
@@ -271,5 +272,45 @@ describe('direction', () => {
   it('treats a bare mode string as ascending', () => {
     expect(names(sortDirs(rows(), SORT_TYPE)))
       .toEqual(names(sortDirs(rows(), { mode: 'type', desc: false })));
+  });
+});
+
+// ── Which other stops get offered ─────────────────────────────────────────
+//
+// Asked for: show the stops within 850 m. The rule used to end in
+// .slice(0, 4), so a stop well inside the limit could still be invisible —
+// measured, "Skullerud stasjon" at 650 m vanished behind three nearer ones.
+// A distance limit with a hidden count limit behind it is not a distance
+// limit, and no assertion about the fetched list could see the difference.
+describe('nearbyAlternatives', () => {
+  const s = (name, distM) => ({ id: 'NSR:' + name, name, distM });
+
+  it('offers every stop inside the limit, however many there are', () => {
+    const here = s('Her', 0);
+    const list = [here, ...Array.from({ length: 9 },
+      (_, i) => s('Stopp ' + i, 40 + i * 80))];
+    const out = nearbyAlternatives(list, here);
+    expect(out).toHaveLength(9);
+    expect(out.every(x => x.distM <= NEAR_STOP_MAX_M)).toBe(true);
+  });
+
+  it('drops the stop you are already at, and only that one', () => {
+    const here = s('Her', 20);
+    expect(nearbyAlternatives([here, s('Annet', 20)], here).map(x => x.name))
+      .toEqual(['Annet']);
+  });
+
+  it('drops a stop beyond the limit', () => {
+    const here = s('Her', 0);
+    const out = nearbyAlternatives([here, s('Innafor', NEAR_STOP_MAX_M), s('Utafor', NEAR_STOP_MAX_M + 1)], here);
+    expect(out.map(x => x.name)).toEqual(['Innafor']);
+  });
+
+  // "We did not measure it" is not the same fact as "it is far away", and it
+  // came from the same nearby query either way.
+  it('keeps a stop whose distance is unknown', () => {
+    const here = s('Her', 0);
+    expect(nearbyAlternatives([here, s('Umålt', null)], here).map(x => x.name))
+      .toEqual(['Umålt']);
   });
 });

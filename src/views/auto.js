@@ -388,6 +388,9 @@ export function badgeHtml(l) {
 // ── The screen ─────────────────────────────────────────────────────────────
 
 let _stop = null;      // { name, id, lat, lon }
+// Did the READER pick this stop, or did the app? Only the reader's choice
+// survives a better position fix. Cleared by resetAuto with everything else.
+let _stopPinned = false;
 let _dirs = [];        // groupDirections output for _stop
 let _open = null;      // the direction whose stops are showing
 
@@ -530,11 +533,55 @@ export function stopHeadHtml(stop, count, open) {
     + head + dist + '</button>';
 }
 
+/**
+ * Which stop the heading names, given the list we have right now.
+ *
+ * Exported and pure, because the bug it fixes is invisible to any test that
+ * renders once. Reported by screenshot: the heading read "Mortensrud 649 m"
+ * while every one of the seven alternatives under it was NEARER, down to
+ * 369 m. Reproduced in the browser, where it was worse than it looked — the
+ * heading said "Mortensrud T · 20 m" beside alternatives at 446 m, so the
+ * DISTANCE was stale too, not only the choice.
+ *
+ * The cause is a one-line guard, `if (!_stop && list.length)`. locateUser
+ * resolves stops from the REMEMBERED position first so the screen has
+ * something before GPS warms up (geo.js), then resolves again once you have
+ * moved 200 m. The second, better answer never reached the heading: _stop was
+ * no longer null, so the whole frozen object — name and metres — stayed.
+ *
+ * Two cases, and they are genuinely different:
+ *
+ *   not pinned  the app chose this stop, so a better answer replaces it.
+ *   pinned      the READER chose it by tapping an alternative. That choice
+ *               survives a new fix — but its distance is refreshed from the
+ *               new list, because the reader picked a place, not a number.
+ *
+ * @returns {{stop: object|null, changed: boolean}} changed = a different stop
+ */
+export function pickStop(list, current, pinned) {
+  const l = list || [];
+  if (!current) return { stop: l.length ? l[0] : null, changed: !!l.length };
+  if (pinned) {
+    // Same place, current metres. Falls back to what we have when the reader's
+    // stop drops out of range — losing their choice because they walked is
+    // worse than a distance going briefly stale.
+    const fresh = l.find(s => s.id === current.id);
+    return { stop: fresh || current, changed: false };
+  }
+  if (!l.length) return { stop: current, changed: false };
+  return { stop: l[0], changed: l[0].id !== current.id };
+}
+
 function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
   const list = _stops();
-  if (!_stop && list.length) _stop = list[0];
+  const picked = pickStop(list, _stop, _stopPinned);
+  _stop = picked.stop;
+  // A different stop is a different board. Without this the departures below
+  // would keep belonging to the stop the reader has walked away from — and
+  // the guard in renderAuto only refetches when _dirs is empty.
+  if (picked.changed) { _dirs = []; _open = null; }
   if (!_stop) {
     el.innerHTML = '<div class="set-label">du er ved</div>'
       + '<div class="dest-prev-empty">' + esc(noPosText(state.gpsError).where) + '</div>';
@@ -571,6 +618,9 @@ function _renderWhere() {
   el.querySelectorAll('.auto-alt').forEach(b => {
     b.addEventListener('click', () => {
       _stop = list.find(s => s.id === b.dataset.id) || _stop;
+      // The reader chose. From here a new fix refreshes the distance but does
+      // not overrule the choice — until they leave the screen.
+      _stopPinned = true;
       _open = null; _dirs = [];
       // Deliberately NOT collapsing here. Having the list shut under the
       // finger that just picked from it is a movement nobody asked for, and
@@ -845,4 +895,4 @@ export function renderAuto() {
 
 /** Fresh screen when the mode is entered, so it never opens on a stale stop. */
 export function resetAuto() {
-  _askedFor = null; _stop = null; _dirs = []; _open = null; }
+  _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null; }

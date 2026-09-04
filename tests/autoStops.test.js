@@ -24,7 +24,7 @@ vi.mock('../src/storage.js', () => {
 });
 
 import { loadAutoStopsOpen, saveAutoStopsOpen } from '../src/geo.js';
-import { stopHeadHtml, stopsOpen } from '../src/views/auto.js';
+import { stopHeadHtml, stopsOpen, pickStop } from '../src/views/auto.js';
 import { storage } from '../src/storage.js';
 
 beforeEach(() => storage._reset());
@@ -139,5 +139,67 @@ describe('where the state lives', () => {
     const all = src();
     const where = all.slice(all.indexOf('function _renderWhere'));
     expect(where).toContain('saveAutoStopsOpen(');
+  });
+});
+
+// ── Which stop the heading names ──────────────────────────────────────────
+//
+// Reported by screenshot: "du er ved Mortensrud, 649 m" with all seven
+// alternatives under it NEARER, down to 369 m. Reproduced in the browser and
+// it was worse than it looked — the heading read "Mortensrud T · 20 m" beside
+// alternatives at 446 m, so the DISTANCE was stale too.
+//
+// The cause: `if (!_stop && list.length)`. locateUser resolves stops from the
+// remembered position first so the screen has something before GPS warms up,
+// then resolves again once you have moved 200 m. The second, better answer
+// never reached the heading, because _stop was no longer null.
+describe('pickStop', () => {
+  const s = (id, distM) => ({ id, name: id, distM });
+  const OLD = [s('Mortensrud', 20), s('Olasrudveien', 400)];
+  const NEW = [s('Olasrudveien', 446), s('Granebakken', 497), s('Mortensrud', 695)];
+
+  it('takes the nearest when there is nothing yet', () => {
+    expect(pickStop(NEW, null, false)).toEqual({ stop: NEW[0], changed: true });
+  });
+
+  // The reported bug, as one assertion.
+  it('follows a better fix when the app chose the stop', () => {
+    const { stop, changed } = pickStop(NEW, OLD[0], false);
+    expect(stop.id).toBe('Olasrudveien');
+    expect(stop.distM).toBe(446);
+    expect(changed).toBe(true);
+  });
+
+  // The reader tapped this one. A new fix must not overrule that.
+  it('keeps the reader’s own choice', () => {
+    const { stop, changed } = pickStop(NEW, OLD[0], true);
+    expect(stop.id).toBe('Mortensrud');
+    expect(changed).toBe(false);
+  });
+
+  // …but the metres are refreshed, because they picked a place, not a number.
+  // This is the half the screenshot actually showed.
+  it('refreshes the distance of a pinned stop', () => {
+    expect(pickStop(NEW, s('Mortensrud', 20), true).stop.distM).toBe(695);
+  });
+
+  // Losing the reader's choice because they walked out of range is worse than
+  // a distance going briefly stale.
+  it('holds on to a pinned stop that has dropped out of the list', () => {
+    const gone = s('Bortenfor', 900);
+    expect(pickStop(NEW, gone, true).stop).toBe(gone);
+  });
+
+  it('keeps what it has when a fix returns nothing', () => {
+    expect(pickStop([], OLD[0], false)).toEqual({ stop: OLD[0], changed: false });
+    expect(pickStop(null, OLD[0], false)).toEqual({ stop: OLD[0], changed: false });
+  });
+
+  // Same stop, new metres, and NOT a change — clearing the departures every
+  // time the distance moves a metre would refetch the board all day.
+  it('does not call it a change when the nearest is still the same stop', () => {
+    const { stop, changed } = pickStop([s('Olasrudveien', 450)], s('Olasrudveien', 446), false);
+    expect(changed).toBe(false);
+    expect(stop.distM).toBe(450);
   });
 });

@@ -323,6 +323,17 @@
     <button class="nav-plan-btn" id="auto-refresh" aria-label="Hent posisjon og avganger på nytt">↻</button>
   </div>
   <div id="auto-where" class="set-section"></div>
+  <!-- Outside #auto-body on purpose, like the two sections below it: the
+       screen redraws every second (v1.71.0) and replaces that innerHTML
+       wholesale, so a switch drawn inside would lose focus and swallow taps
+       mid-press. Wired once at startup, highlighted from the stored value. -->
+  <div id="auto-sort" style="display:none">
+    <span class="set-label" id="auto-sort-label">sorter</span>
+    <div class="pref-group" role="group" aria-labelledby="auto-sort-label">
+      <button class="pref-btn" type="button" data-val="type" aria-pressed="true">Type</button>
+      <button class="pref-btn" type="button" data-val="tid" aria-pressed="false">Tid</button>
+    </div>
+  </div>
   <div id="auto-body"></div>
   <!-- Outside #auto-where and #auto-body on purpose: both have their innerHTML
        replaced on every render, and a GPS fix landing after the screen does

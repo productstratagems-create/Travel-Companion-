@@ -351,3 +351,33 @@
   margin-left: auto; font-size: 10px; letter-spacing: .16em;
   text-transform: uppercase; opacity: .6;
 }
+
+/* The sort switch on auto-reise.
+ *
+ * Reuses .pref-group/.pref-btn so there is one segmented control in the app,
+ * but shrunk hard for this one place. At the settings size it was the second
+ * most prominent thing on a screen whose entire job is "what leaves now", and
+ * it pushed the first departure down — measured on a 414px viewport. A
+ * control the reader touches once should not outweigh the list it orders.
+ *
+ * On one line with its label, and the buttons only as wide as their words, so
+ * the row costs a line of text rather than a block.
+ */
+#auto-sort {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  margin: 0 0 .5rem;
+}
+
+#auto-sort .set-label { margin: 0; }
+
+#auto-sort .pref-group { flex: 0 0 auto; gap: .3rem; }
+
+#auto-sort .pref-btn {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: .3rem .7rem;
+  font-size: .72rem;
+  border-radius: 5px;
+}

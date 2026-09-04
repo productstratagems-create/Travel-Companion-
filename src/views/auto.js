@@ -26,6 +26,7 @@ import { predictDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { ensureHubs, loadHubs, isHub } from '../api/hubs.js';
 import { logMsg } from '../ui/log.js';
+import { loadAutoSort, saveAutoSort } from '../geo.js';
 
 const MIN = 60000;
 /**
@@ -70,6 +71,17 @@ function _callTime(c) {
  * Nationaltheatret are one choice with two badges, because "which of these
  * two comes first" is the board's job, not this screen's. The same line in
  * both directions is correctly two rows — the front texts differ.
+ *
+ * BUT by front text AND MODE. Reported from Skullerud, with a picture: the
+ * metro 3 and the bus 76 both say "Mortensrud", so they folded into one row
+ * carrying both badges — and the row read "spor 1", the metro's platform,
+ * because the platform comes from the soonest call. A reader taking the bus
+ * was sent to the metro track.
+ *
+ * The "one choice" reasoning holds inside a mode and breaks across it. Two
+ * bus lines to the same place really are one choice: same stop, same wait,
+ * take whichever comes. A metro and a bus are a different vehicle at a
+ * different platform, and the row can only name one of them.
  */
 export function groupDirections(calls, now) {
   const t0 = now == null ? Date.now() : now;
@@ -95,9 +107,13 @@ export function groupDirections(calls, now) {
     const ln = c.serviceJourney && c.serviceJourney.line;
     const code = (ln && ln.publicCode) || null;
     const colour = (ln && ln.presentation && ln.presentation.colour) || null;
-    const prev = byText.get(front);
+    // A NUL separator, not a space or a colon: a front text can contain
+    // either, and a key two different directions could collide on is the
+    // same bug one level down.
+    const key = front + '\u0000' + ((ln && ln.transportMode) || '');
+    const prev = byText.get(key);
     if (!prev) {
-      byText.set(front, {
+      byText.set(key, {
         frontText: front,
         lines: code ? [{ code, colour }] : [],
         nextMs: ms,
@@ -141,6 +157,98 @@ export function groupDirections(calls, now) {
         times: all.slice().sort((a, b) => a - b).slice(0, 3),
       };
     });
+}
+
+/**
+ * Sorting the list of directions.
+ *
+ * Asked for: T-bane, Ruter-buss, andre busser, tog — and the soonest
+ * departure first inside each group. The list had exactly one order before
+ * this, `nextMs` alone, so a bus a minute away always outranked the metro the
+ * reader was actually waiting for.
+ *
+ * WHAT THE APP DOES NOT HAVE, said here rather than discovered in the list:
+ * there is no operator or authority data anywhere in it. `boardGQL` selects
+ * `line{id publicCode transportMode presentation{colour}}` (queries.js) and
+ * nothing more — no `authority`, no `operator`, no `transportSubmode`. So
+ * "Ruter-buss" cannot be read directly.
+ *
+ * What IS in the answer is `line.id`, a NeTEx id whose codespace prefix is
+ * the dataset owner: `RUT:Line:…` against `VYX:`, `FLI:` and the rest. That
+ * gives the split for free, without touching a query whose field names
+ * cannot be tried from here. It is a proxy for the authority, not the
+ * authority — hence one named constant, and a fallback that goes DOWNWARDS:
+ * a bus with no `line.id`, or a prefix we do not know, lands in "andre
+ * busser". The worst outcome is a Ruter bus sinking a little. Never a row
+ * disappearing.
+ */
+export const SORT_TYPE = 'type';
+export const SORT_TIME = 'tid';
+
+/** The NeTEx codespace Ruter publishes under. */
+const RUTER_CODESPACE = 'RUT:';
+
+/**
+ * Which group a direction belongs to. Lower comes first.
+ *
+ * The tram is a judgement call and is written down as one: four groups were
+ * asked for and `BOARD_MODES` has five modes. It is rail-bound Ruter
+ * transport, so it sits with the metro rather than after the train. One
+ * number to move if that reads wrong on a real morning.
+ */
+export function dirRank(d) {
+  const ln = d && d.call && d.call.serviceJourney && d.call.serviceJourney.line;
+  const mode = (ln && ln.transportMode) || null;
+  if (mode === 'metro') return 0;
+  if (mode === 'tram') return 1;
+  if (mode === 'bus') {
+    return String((ln && ln.id) || '').startsWith(RUTER_CODESPACE) ? 2 : 3;
+  }
+  if (mode === 'rail') return 4;
+  // An unknown mode is still a departure. Last, never dropped.
+  return 5;
+}
+
+/**
+ * ONE comparator, used both by `sortDirs` and by the render pass.
+ *
+ * The render pass cannot sort the rows themselves — `data-i` indexes back
+ * into `_dirs` and the click handler reads `_dirs[data-i]`, so re-ordering
+ * the array would move the indices under the handler's feet. It sorts the
+ * {row, index} pairs instead, with this comparator, so there is no second
+ * definition of the order that could drift from this one. Two things that
+ * must agree, set in two places, is the bug shape this codebase keeps
+ * finding (v1.68.0, v1.71.0).
+ */
+export function dirCmp(mode) {
+  if (mode !== SORT_TYPE) return (a, b) => a.nextMs - b.nextMs;
+  return (a, b) => (dirRank(a) - dirRank(b)) || (a.nextMs - b.nextMs);
+}
+
+/** The rows in the reader's chosen order. Pure; does not touch the input. */
+export function sortDirs(rows, mode) {
+  return (rows || []).slice().sort(dirCmp(mode));
+}
+
+/**
+ * What the screen actually draws: the surviving rows, in order, each still
+ * carrying the index it has in `_dirs`.
+ *
+ * The index is the whole reason this is a function and not two lines inline.
+ * The button's `data-i` indexes back into `_dirs` and the click handler reads
+ * `_dirs[data-i]`, so if the order and the index ever disagree the reader
+ * taps "mot Vestli" and gets the stops for a bus to Helsfyr — a wrong answer
+ * that looks completely right. Pairing them here means the invariant
+ * `dirs[out[k].i] === out[k].d` can be asserted, which is exactly what the
+ * test does.
+ *
+ * @param {(d) => boolean} keep drops rows whose departures have all gone
+ */
+export function dirRows(dirs, mode, keep) {
+  const cmp = dirCmp(mode);
+  return (dirs || []).map((d, i) => ({ d, i }))
+    .filter(({ d }) => (keep ? keep(d) : true))
+    .sort((a, b) => cmp(a.d, b.d));
 }
 
 /**
@@ -398,22 +506,53 @@ function _timesHtml(d, now) {
     + (times[0] === 0 && !rest.length ? '' : ' min');
 }
 
+/**
+ * The sort switch is only there when there is something to sort.
+ *
+ * Not while a direction is open (that screen is a list of stops in line
+ * order, and re-ordering it would be nonsense), and not while the list is
+ * empty or we have no position. A control that cannot change anything is
+ * worse than no control.
+ */
+let _sortWired = false;
+function _showSort(on) {
+  const el = _el('auto-sort');
+  if (!el) return;
+  el.style.display = on ? '' : 'none';
+  if (!on) return;
+  const cur = loadAutoSort();
+  el.querySelectorAll('.pref-btn').forEach(b => {
+    const on = b.dataset.val === cur;
+    b.classList.toggle('active', on);
+    // The class is the whole state a sighted reader gets; aria-pressed is the
+    // same fact for everyone else. Two ways to say it, set together.
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  if (_sortWired) return;
+  _sortWired = true;
+  el.querySelectorAll('.pref-btn').forEach(b => {
+    b.addEventListener('click', () => { saveAutoSort(b.dataset.val); _renderBody(); });
+  });
+}
+
 function _renderBody() {
   const body = _el('auto-body');
   if (!body) return;
-  if (_open) { _renderStops(body); return; }
+  if (_open) { _showSort(false); _renderStops(body); return; }
   // "We do not know where you are" and "nothing leaves from here" are
   // different facts, and saying the second when the first is true is a lie
   // the reader cannot see through — there ARE departures, we just have no
   // position. Measured on the GPS-denied run, which said exactly that.
   if (!_stop) {
     const t = noPosText(state.gpsError);
+    _showSort(false);
     body.innerHTML = '<div class="dest-prev-empty">' + esc(t.body) + '</div>';
     _setManual(t.cta);
     return;
   }
   _setManual(MANUAL_CTA);
   if (!_dirs.length) {
+    _showSort(false);
     body.innerHTML = '<div class="dest-prev-empty">Ingen avganger herfra nå.</div>';
     return;
   }
@@ -428,11 +567,13 @@ function _renderBody() {
   // choice any more. The screen counts down now (v1.71.0), so rows can age
   // past their own contents — and a row naming a direction with no time
   // beside it promises something the stop board is not saying.
-  const live = _dirs.map((d, i) => ({ d, i })).filter(({ d }) => _timesHtml(d, now));
+  const live = dirRows(_dirs, loadAutoSort(), d => _timesHtml(d, now));
   if (!live.length) {
+    _showSort(false);
     body.innerHTML = '<div class="dest-prev-empty">Ingen avganger herfra nå.</div>';
     return;
   }
+  _showSort(true);
   body.innerHTML = '<div class="set-label">hvor skal du?</div>'
     + live.map(({ d, i }) => {
       const hint = usual && d.frontText.toLowerCase() === usual;

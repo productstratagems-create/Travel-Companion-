@@ -17,6 +17,11 @@ const HERE = { id: 'NSR:StopPlace:6021', name: 'Skullerud', lat: 59.8555, lon: 1
 
 // front, code, mode, lineId, quay, [minutes]
 const DEPS = [
+  // The shared stretch: lines 1-5 all leave westbound with the same front
+  // text. This is where "one row is one line" costs the most.
+  ['Nationaltheatret', '1',   'metro', 'RUT:Line:1',   '2', [4, 14]],
+  ['Nationaltheatret', '2',   'metro', 'RUT:Line:2',   '2', [6, 16]],
+  ['Nationaltheatret', '4',   'metro', 'RUT:Line:4',   '2', [8, 18]],
   ['Grorud T',        '79',  'bus',   'RUT:Line:79',  'J', [2, 12, 19]],
   ['Mortensrud',      '3',   'metro', 'RUT:Line:3',   '1', [3, 10]],
   ['Mortensrud',      '76',  'bus',   'RUT:Line:76',  'J', [19]],
@@ -144,6 +149,24 @@ await page.waitForSelector('#v-auto .auto-dir');
 await page.click('#auto-sort .pref-btn[data-val="tid"]');
 await page.waitForTimeout(200);
 show(await rows(page));
+
+console.log('\n══ retning: trykk «Tid» en gang til ══');
+await page.click('#auto-sort .pref-btn[data-val="tid"]');
+await page.waitForTimeout(200);
+console.log('   pil:', await page.$eval('#auto-sort .pref-btn.active', b => b.textContent.trim()));
+show((await rows(page)).slice(0, 4));
+console.log('\n── bytte modus arver ikke retningen ──');
+await page.click('#auto-sort .pref-btn[data-val="type"]');
+await page.waitForTimeout(200);
+console.log('   pil:', await page.$eval('#auto-sort .pref-btn.active', b => b.textContent.trim()));
+console.log('\n══ type synkende ══');
+await page.click('#auto-sort .pref-btn[data-val="type"]');
+await page.waitForTimeout(200);
+console.log('   pil:', await page.$eval('#auto-sort .pref-btn.active', b => b.textContent.trim()));
+show(await rows(page));
+console.log('   aria:', await page.$eval('#auto-sort .pref-btn.active', b => b.getAttribute('aria-label')));
+console.log('   inaktiv knapp har pil?', JSON.stringify(
+  await page.$eval('#auto-sort .pref-btn:not(.active) .sort-arrow', e => e.textContent)));
 
 console.log('\n── overlever tegneløkka (3 s) ──');
 await page.waitForTimeout(3000);

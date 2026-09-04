@@ -82,11 +82,26 @@ export function saveAutoMode(v) {
  * on the switch gives back the old one.
  */
 const AUTO_SORT_KEY = 't.autoSort';
+
+/**
+ * Which order the auto-reise list is drawn in, and which way.
+ *
+ * Stored as one string — 'type', 'type-desc', 'tid', 'tid-desc' — rather than
+ * two keys, because they are one choice and two keys that must agree is the
+ * bug shape this codebase keeps finding. A value written by an older build
+ * ('type' or 'tid') still parses, and simply means ascending.
+ *
+ * @returns {{mode: 'type'|'tid', desc: boolean}}
+ */
 export function loadAutoSort() {
-  return storage.get(AUTO_SORT_KEY) === 'tid' ? 'tid' : 'type';
+  const raw = String(storage.get(AUTO_SORT_KEY) || '');
+  const desc = raw.endsWith('-desc');
+  const mode = raw.replace(/-desc$/, '') === 'tid' ? 'tid' : 'type';
+  return { mode, desc };
 }
-export function saveAutoSort(v) {
-  storage.set(AUTO_SORT_KEY, v === 'tid' ? 'tid' : 'type');
+
+export function saveAutoSort(mode, desc) {
+  storage.set(AUTO_SORT_KEY, (mode === 'tid' ? 'tid' : 'type') + (desc ? '-desc' : ''));
 }
 
 const WEEKEND_MODE_KEY = 't.weekendMode';

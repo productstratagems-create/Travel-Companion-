@@ -35,16 +35,19 @@ describe('groupDirections', () => {
     expect(out[0].mins).toBe(2);
   });
 
-  // Two lines to the same place is ONE choice with two badges: "which of
-  // these comes first" is the board's job, not this screen's.
-  it('folds two lines running to the same place into one row', () => {
+  // Two lines to the same place used to be ONE row with two badges, on the
+  // reasoning that "which of these comes first" is the board's job. Asked to
+  // change: metro 2 and metro 3 are two rows. A row is one line, so it has
+  // one badge, one platform and one type — and a reader can check it against
+  // the sign on the front of the vehicle.
+  it('gives two lines running to the same place a row each', () => {
     const out = groupDirections([
       call('Nationaltheatret', '3', 4),
       call('Nationaltheatret', '2', 2),
     ], NOW);
-    expect(out).toHaveLength(1);
-    expect(out[0].lines.map(l => l.code).sort()).toEqual(['2', '3']);
-    expect(out[0].mins).toBe(2);            // the soonest of the two
+    expect(out).toHaveLength(2);
+    expect(out.map(d => d.lines.map(l => l.code))).toEqual([['2'], ['3']]);
+    expect(out.map(d => d.mins)).toEqual([2, 4]);   // still soonest first
   });
 
   // The same line the other way is a different front text, so two rows —
@@ -348,12 +351,17 @@ describe('groupDirections and the next three', () => {
   // Directions are folded on front text, so a row can carry two lines — and
   // then the three times are the three that take you there, whichever line
   // runs them. That was the choice: the platform question, not the timetable.
-  it('counts every line that goes that way', () => {
+  // The three times belong to ONE line now. Line 76's departure is its own
+  // row with its own time, rather than a number under line 3's badge that
+  // would send the reader to the wrong platform.
+  it('counts only the departures of that line', () => {
     const out = groupDirections([
       call('Mortensrud', '3', 4), call('Mortensrud', '76', 9), call('Mortensrud', '3', 14),
     ], NOW);
-    expect(mins(out[0])).toEqual([4, 9, 14]);
-    expect(out[0].lines.map(l => l.code)).toEqual(['3', '76']);
+    expect(out).toHaveLength(2);
+    expect(out[0].lines.map(l => l.code)).toEqual(['3']);
+    expect(mins(out[0])).toEqual([4, 14]);
+    expect(mins(out[1])).toEqual([9]);
   });
 
   it('rounds each time the way the first one is rounded', () => {

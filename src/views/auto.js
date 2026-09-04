@@ -67,21 +67,36 @@ function _callTime(c) {
  * already models it (`dir.filter` is a regex tested against exactly this
  * field, board.js:2761).
  *
- * Grouped by front text, NOT by line: two lines that both run to
- * Nationaltheatret are one choice with two badges, because "which of these
- * two comes first" is the board's job, not this screen's. The same line in
- * both directions is correctly two rows — the front texts differ.
+ * ONE ROW IS ONE LINE. Metro 2 and metro 3 to the same place are two rows,
+ * not one row with two badges.
  *
- * BUT by front text AND MODE. Reported from Skullerud, with a picture: the
- * metro 3 and the bus 76 both say "Mortensrud", so they folded into one row
- * carrying both badges — and the row read "spor 1", the metro's platform,
- * because the platform comes from the soonest call. A reader taking the bus
- * was sent to the metro track.
+ * This screen used to group by front text alone, on the reasoning that "which
+ * of these comes first" is the board's job — two lines to Nationaltheatret
+ * were one choice. That reasoning collapsed twice against real data:
  *
- * The "one choice" reasoning holds inside a mode and breaks across it. Two
- * bus lines to the same place really are one choice: same stop, same wait,
- * take whichever comes. A metro and a bus are a different vehicle at a
- * different platform, and the row can only name one of them.
+ *   1. Reported from Skullerud, with a picture: the metro 3 and the bus 76
+ *      both say "Mortensrud", so they folded into one row carrying both
+ *      badges — and the row read "spor 1", the metro's platform, because the
+ *      platform comes from the soonest call. A reader taking the bus was sent
+ *      to the metro track (v1.73.0 split those by mode).
+ *   2. Mode alone was not enough either: when `transportMode` is absent from
+ *      both, the key falls to the same value and the Skullerud row comes
+ *      straight back. Measured.
+ *
+ * Keying on the line closes both, because two lines never share a `line.id`.
+ * A row now carries exactly one badge, one platform and one type — which is
+ * also what makes the type sort (v1.73.0) mean anything: a row that was
+ * several lines had no single answer to sort on, and no single platform to
+ * name.
+ *
+ * THE PRICE, said here rather than discovered on a screen: at an interchange
+ * where lines share a stretch — 1 through 5 westbound from Jernbanetorget —
+ * this is five rows where it used to be one. Measured: a Jernbanetorget-
+ * shaped stop goes 4 rows to 12. The list is longer on purpose; every row
+ * names one vehicle the reader can actually check against the platform sign.
+ *
+ * The same line in both directions is still two rows — the front texts
+ * differ, and that was never in question.
  */
 export function groupDirections(calls, now) {
   const t0 = now == null ? Date.now() : now;
@@ -107,10 +122,20 @@ export function groupDirections(calls, now) {
     const ln = c.serviceJourney && c.serviceJourney.line;
     const code = (ln && ln.publicCode) || null;
     const colour = (ln && ln.presentation && ln.presentation.colour) || null;
+    // The line, not the mode. Two lines never share a line.id, so this also
+    // subsumes the mode split it replaces — including the case where
+    // transportMode is missing, which mode-keying could not survive.
+    //
+    // publicCode is the fallback rather than nothing: a departure with no
+    // line.id at all still has a number on the front of it, and folding all
+    // such departures into one row is the very thing being fixed. Front text
+    // stays in the key so one line in two directions remains two rows.
+    //
     // A NUL separator, not a space or a colon: a front text can contain
     // either, and a key two different directions could collide on is the
     // same bug one level down.
-    const key = front + '\u0000' + ((ln && ln.transportMode) || '');
+    const lineKey = (ln && (ln.id || ln.publicCode)) || '';
+    const key = front + '\u0000' + lineKey;
     const prev = byText.get(key);
     if (!prev) {
       byText.set(key, {
@@ -126,7 +151,10 @@ export function groupDirections(calls, now) {
       });
       return;
     }
-    if (code && !prev.lines.some(l => l.code === code)) prev.lines.push({ code, colour });
+    // No badge is added here any more: the key IS the line, so every call
+    // reaching an existing row belongs to the line already on it. `lines`
+    // stays an array rather than a single field so badgeHtml and the row
+    // template keep one shape to render — it is simply always length 1.
     prev.all.push(ms);
     // The soonest call owns the row — and it is the one whose onward stops
     // the reader will see, so it must be the same call the time came from.
@@ -220,9 +248,23 @@ export function dirRank(d) {
  * must agree, set in two places, is the bug shape this codebase keeps
  * finding (v1.68.0, v1.71.0).
  */
-export function dirCmp(mode) {
-  if (mode !== SORT_TYPE) return (a, b) => a.nextMs - b.nextMs;
-  return (a, b) => (dirRank(a) - dirRank(b)) || (a.nextMs - b.nextMs);
+/**
+ * Accepts either a bare mode string or the {mode, desc} the preference holds,
+ * so a caller that does not care about direction can still say SORT_TYPE.
+ */
+function _spec(v) {
+  return (v && typeof v === 'object') ? v : { mode: v, desc: false };
+}
+
+export function dirCmp(v) {
+  const { mode, desc } = _spec(v);
+  const way = desc ? -1 : 1;
+  if (mode !== SORT_TYPE) return (a, b) => (a.nextMs - b.nextMs) * way;
+  // Descending reverses the GROUPS, not the clock inside them. Asked for, and
+  // it is the useful reading: the reader chooses which type to see first, but
+  // putting a departure 37 minutes out above one 3 minutes out helps nobody
+  // standing on a platform.
+  return (a, b) => ((dirRank(a) - dirRank(b)) * way) || (a.nextMs - b.nextMs);
 }
 
 /** The rows in the reader's chosen order. Pure; does not touch the input. */
@@ -522,16 +564,33 @@ function _showSort(on) {
   if (!on) return;
   const cur = loadAutoSort();
   el.querySelectorAll('.pref-btn').forEach(b => {
-    const on = b.dataset.val === cur;
-    b.classList.toggle('active', on);
-    // The class is the whole state a sighted reader gets; aria-pressed is the
-    // same fact for everyone else. Two ways to say it, set together.
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    const active = b.dataset.val === cur.mode;
+    b.classList.toggle('active', active);
+    // The arrow only ever appears on the active button. On the other one it
+    // would be a promise about an order that is not on screen — and worse, a
+    // direction the reader has not chosen for that mode.
+    const arrow = b.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = active ? (cur.desc ? ' ↓' : ' ↑') : '';
+    // The class and the arrow are the whole state a sighted reader gets;
+    // these are the same facts for everyone else, set in the same place.
+    b.setAttribute('aria-pressed', active ? 'true' : 'false');
+    b.setAttribute('aria-label', b.dataset.label
+      + (active ? (cur.desc ? ', synkende. Trykk for stigende'
+                            : ', stigende. Trykk for synkende') : ''));
   });
   if (_sortWired) return;
   _sortWired = true;
   el.querySelectorAll('.pref-btn').forEach(b => {
-    b.addEventListener('click', () => { saveAutoSort(b.dataset.val); _renderBody(); });
+    b.addEventListener('click', () => {
+      const now = loadAutoSort();
+      // Tapping the button already in use turns the order around; tapping the
+      // other one switches to it, ascending. Switching mode does NOT inherit
+      // the other mode's direction — arriving at a list already reversed,
+      // having asked only to change what it is sorted by, is a surprise.
+      const same = b.dataset.val === now.mode;
+      saveAutoSort(b.dataset.val, same ? !now.desc : false);
+      _renderBody();
+    });
   });
 }
 

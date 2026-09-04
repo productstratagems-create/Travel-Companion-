@@ -190,16 +190,38 @@ describe('a row is one mode', () => {
     expect(out.map(d => quayLabel(d.call))).toEqual(['spor 1', 'plattform J']);
   });
 
-  // The behaviour that must NOT be lost. Two bus lines to the same place are
-  // genuinely one choice — same stop, same wait, take whichever comes.
-  it('still folds two lines of the same mode into one row', () => {
+  // Asked for after the mode split: one row is one LINE. Two bus lines to the
+  // same place are two rows, so each carries its own next departures.
+  it('gives two lines of the same mode a row each', () => {
     const out = groupDirections([
       q('Helsfyr', '76', 3, 'bus', 'J'),
       q('Helsfyr', '79', 6, 'bus', 'J'),
     ], NOW);
-    expect(out).toHaveLength(1);
-    expect(out[0].lines.map(l => l.code)).toEqual(['76', '79']);
-    expect(out[0].times).toHaveLength(2);
+    expect(out).toHaveLength(2);
+    expect(out.map(d => d.lines.map(l => l.code))).toEqual([['76'], ['79']]);
+    expect(out.map(d => d.times.length)).toEqual([1, 1]);
+  });
+
+  // The hole the line key closes that the mode key could not: with
+  // transportMode absent from both, mode-keying folded them straight back
+  // into one row and the Skullerud platform lie returned. Measured before
+  // this change.
+  it('keeps two lines apart even with no transportMode at all', () => {
+    const out = groupDirections([
+      q('Mortensrud', '3', 3, undefined, '1'),
+      q('Mortensrud', '76', 10, undefined, 'J'),
+    ], NOW);
+    expect(out).toHaveLength(2);
+    expect(out.map(d => quayLabel(d.call))).toEqual(['plattform 1', 'plattform J']);
+  });
+
+  it('gives every row a single badge, so it has one type and one platform', () => {
+    const out = groupDirections([
+      q('Vestli', '1', 2, 'metro', '1'),
+      q('Vestli', '2', 4, 'metro', '1'),
+      q('Vestli', '3', 6, 'metro', '1'),
+    ], NOW);
+    expect(out.map(d => d.lines.length)).toEqual([1, 1, 1]);
   });
 
   it('gives every row a single rank once they are split', () => {
@@ -208,5 +230,46 @@ describe('a row is one mode', () => {
       q('Mortensrud', '3', 10, 'metro', '1'),
     ], NOW), SORT_TYPE);
     expect(out.map(dirRank)).toEqual([0, 2]);
+  });
+});
+
+// ── Ascending and descending ──────────────────────────────────────────────
+//
+// Asked for: the sort buttons should toggle between ascending and descending.
+// Descending on TYPE reverses the groups and NOT the clock inside them — the
+// reader chooses which type to see first, but a departure 37 minutes out
+// above one 3 minutes out helps nobody standing on a platform.
+describe('direction', () => {
+  const rows = () => groupDirections([
+    call('Vestli', '5', 9, 'metro'),
+    call('Helsfyr', '37', 2, 'bus'),
+    call('Bogerud', '79', 8, 'bus'),
+    call('Gardermoen', 'F4', 1, 'bus', 'VYX:Line:F4'),
+    call('Lillestrøm', 'R14', 4, 'rail', 'NSB:Line:R14'),
+  ], NOW);
+
+  it('reverses the groups on type', () => {
+    expect(names(sortDirs(rows(), { mode: 'type', desc: true })))
+      .toEqual(['Lillestrøm', 'Gardermoen', 'Helsfyr', 'Bogerud', 'Vestli']);
+  });
+
+  // The half that must NOT reverse. Helsfyr (2 min) stays above Bogerud
+  // (8 min) even though their group has moved up the list.
+  it('keeps the soonest first inside a group when descending', () => {
+    const out = sortDirs(rows(), { mode: 'type', desc: true });
+    const bus = out.filter(d => ['Helsfyr', 'Bogerud'].includes(d.frontText));
+    expect(names(bus)).toEqual(['Helsfyr', 'Bogerud']);
+  });
+
+  it('reverses the clock on tid, where that is the whole sort', () => {
+    expect(names(sortDirs(rows(), { mode: 'tid', desc: true })))
+      .toEqual(['Vestli', 'Bogerud', 'Lillestrøm', 'Helsfyr', 'Gardermoen']);
+  });
+
+  // A bare mode string still means ascending, so callers that do not care
+  // about direction keep working.
+  it('treats a bare mode string as ascending', () => {
+    expect(names(sortDirs(rows(), SORT_TYPE)))
+      .toEqual(names(sortDirs(rows(), { mode: 'type', desc: false })));
   });
 });

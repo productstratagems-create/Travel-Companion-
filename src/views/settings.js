@@ -3,6 +3,7 @@ import { enturFetch } from '../api/http.js';
 import { recordSmartTrip } from '../api/smart.js';
 import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
+import { loadFreq, trackPlace } from '../api/usage.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, landingPref, saveLandingPref } from '../geo.js';
 import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
@@ -36,8 +37,7 @@ const _arrStopIds = new Map();
 const _viaStopIds = new Map();
 
 function _prependFreqToSugg(sugg, inp, role, query, stopMap, onPick) {
-  const key = role === 'dep' ? FREQ_DEP_KEY : FREQ_ARR_KEY;
-  const all  = _loadFreq(key);
+  const all  = loadFreq(role);
   const q    = (query || '').toLowerCase();
   const matches = q.length
     ? all.filter(p => p.name.toLowerCase().includes(q)).slice(0, 3)
@@ -786,40 +786,15 @@ export function applyRouteFromState(arr) {
   return true;
 }
 
-const FREQ_DEP_KEY = 't.freqDep';
-const FREQ_ARR_KEY = 't.freqArr';
-const FREQ_MAX     = 10;
-
-function _loadFreq(key) {
-  try { const v = storage.get(key); return v ? JSON.parse(v) : []; } catch { return []; }
-}
-
-function _saveFreq(key, list) {
-  storage.set(key, JSON.stringify(list));
-}
-
-export function trackPlace(role, name, meta) {
-  if (!name) return;
-  const key = role === 'dep' ? FREQ_DEP_KEY : FREQ_ARR_KEY;
-  const list = _loadFreq(key);
-  const norm = name.trim();
-  const idx = list.findIndex(p => p.name.toLowerCase() === norm.toLowerCase());
-  if (idx !== -1) {
-    list[idx].count += 1;
-    list[idx].lastUsed = Date.now();
-    if (meta) Object.assign(list[idx], { lat: meta.lat, lon: meta.lon, stopId: meta.stopId || null });
-  } else {
-    list.push({ name: norm, count: 1, lastUsed: Date.now(), lat: meta && meta.lat, lon: meta && meta.lon, stopId: meta && meta.stopId || null });
-  }
-  list.sort((a, b) => b.count - a.count || b.lastUsed - a.lastUsed);
-  _saveFreq(key, list.slice(0, FREQ_MAX));
-}
+// The keys, the store and trackPlace live in api/usage.js — one home, because
+// auto-reise now ranks the nearby stops by these same counts. Re-exported so
+// the rest of the app keeps importing it from where it always has.
+export { trackPlace };
 
 function _renderFreqRow(elId, role) {
   const el = document.getElementById(elId);
   if (!el) return;
-  const key = role === 'dep' ? FREQ_DEP_KEY : FREQ_ARR_KEY;
-  const list = _loadFreq(key).slice(0, 4);
+  const list = loadFreq(role).slice(0, 4);
   if (!list.length) { el.style.display = 'none'; return; }
   el.style.display = 'flex';
   el.innerHTML = list.map(p =>

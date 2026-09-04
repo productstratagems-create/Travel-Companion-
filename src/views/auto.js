@@ -26,6 +26,7 @@ import { predictDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { ensureHubs, loadHubs, anchorIds } from '../api/hubs.js';
 import { logMsg } from '../ui/log.js';
+import { depUses, usesOf } from '../api/usage.js';
 import { loadAutoSort, saveAutoSort, loadAutoStopsOpen, saveAutoStopsOpen,
   NEAR_STOP_MAX_M } from '../geo.js';
 
@@ -462,11 +463,66 @@ function _setManual(label) {
   if (b) b.textContent = label;
 }
 
+/**
+ * How close counts as "you are standing there".
+ *
+ * A claim about GPS ACCURACY, not about transit: geo.js already refuses fixes
+ * noisier than ACC_GATE = 40 m, so a stop within a hundred metres of an
+ * accepted fix is somewhere the reader can see. Inside that band the app does
+ * not argue with them, whatever the history says.
+ */
+export const CLOSE_M = 100;
+
+/**
+ * The nearby stops, best suggestion first.
+ *
+ * Asked for: "Rangér «du er ved» basert på bruk. Steder ofte i bruk kan
+ * foreslås foran steder som er nærmere." That reverses v1.76.0's "nearest
+ * wins, always" — which was right then, when the app preferred metro stations
+ * and hid kerbside bus stops entirely. Now that every stop is in the list,
+ * the nearest is often one the reader has never used: reported from
+ * Mortensrud, where the stop they take every day sat fifth at 649 m behind
+ * four they have never boarded.
+ *
+ * Three bands, in order:
+ *
+ *   1. within CLOSE_M   nearest first. You are standing there.
+ *   2. used before      most used first, then distance.
+ *   3. everything else  distance, exactly as before.
+ *
+ * Band 1 is the half that is easy to lose: without it, standing at a bus stop
+ * you have never used would have the app name somewhere six hundred metres
+ * away.
+ *
+ * With no history at all every stop falls to band 3, so a new reader sees
+ * precisely today's list.
+ */
+export function rankStops(list, uses) {
+  const band = (s) => {
+    if (s.distM != null && s.distM <= CLOSE_M) return 0;
+    return usesOf(s, uses) > 0 ? 1 : 2;
+  };
+  const d = (s) => (s.distM == null ? Infinity : s.distM);
+  return (list || []).slice().sort((a, b) =>
+    (band(a) - band(b))
+    // Inside the used band, count decides and distance breaks the tie — so
+    // two equally used stops still order predictably rather than by whatever
+    // the geocoder happened to return.
+    || (band(a) === 1 ? usesOf(b, uses) - usesOf(a, uses) : 0)
+    || (d(a) - d(b)));
+}
+
 function _stops() {
   const list = (state.nearestStations && state.nearestStations.length)
     ? state.nearestStations
     : (state.nearestStation ? [state.nearestStation] : []);
-  return list;
+  // Ranked HERE, once, so the heading and the alternatives cannot disagree
+  // about the order — pickStop and nearbyAlternatives both read this.
+  //
+  // state.nearestStations itself is left alone: "fra stasjon" in settings
+  // reads the same array and should stay purely nearest-first. Sorting it in
+  // place would move a list nobody asked to move.
+  return rankStops(list, depUses());
 }
 
 /**

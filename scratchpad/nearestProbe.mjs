@@ -64,6 +64,7 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(PORT, r));
 
 let EMPTY = false;
+let STANDING_AT = false;
 const browser = await pw.chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 let hubCalls = 0;
 
@@ -90,6 +91,11 @@ async function open(dark) {
       localStorage.setItem('default::t.theme', 'system');
       localStorage.setItem('default::t.autoMode', '1');
       localStorage.setItem('default::t.landing', 'auto');
+    // Mortensrud is where this reader departs from, fourteen times over.
+    localStorage.setItem('default::t.freqDep', JSON.stringify([
+      { name: 'Mortensrud', count: 14, lastUsed: now, stopId: 'NSR:StopPlace:Mortensrud' },
+      { name: 'Granebakken', count: 2, lastUsed: now, stopId: 'NSR:StopPlace:Granebakken' },
+    ]));
       localStorage.setItem('default::t.homeLL', JSON.stringify({ lat: here.lat, lon: here.lon }));
     }
   }, { now: NOW, here: HERE });
@@ -128,6 +134,9 @@ async function open(dark) {
       f('NSR:StopPlace:76', 'Kantarellen', ['onstreetBus'], 639),
       f('NSR:StopPlace:77', 'Kantarellen terrasse', ['onstreetBus'], 644),
       f('NSR:StopPlace:78', 'For langt unna', ['onstreetBus'], 900),
+      // Only present in the "standing right at one" run: a stop the reader
+      // has never used, thirty metres away. It must win regardless.
+      ...(STANDING_AT ? [f('NSR:StopPlace:79', 'Ryenkrysset', ['onstreetBus'], 30)] : []),
     ] }) });
   });
   await page.route(/tiles\.stadiamaps|tile\.openstreetmap|open-meteo|overpass|valhalla|geoapify|mobility/, r => r.abort());
@@ -199,6 +208,50 @@ console.log('  du er ved:', await head());
 console.log('  alternativer synlige:', await altsShown());
 await page.click('#auto-stop-toggle');
 await page.waitForTimeout(200);
+
+console.log('\n══ leserens eget valg ══');
+console.log('\n══ st\u00e5r du rett ved et ubrukt stopp, vinner det ══');
+STANDING_AT = true;
+const c9 = await browser.newContext({
+  viewport: { width: 414, height: 860 }, deviceScaleFactor: 2, colorScheme: 'dark',
+  hasTouch: true, isMobile: true, timezoneId: 'Europe/Oslo', locale: 'nb-NO',
+  geolocation: { latitude: HERE.lat, longitude: HERE.lon }, permissions: ['geolocation'],
+});
+const p9 = await c9.newPage();
+await p9.addInitScript((now) => {
+  const Real = Date;
+  class Pinned extends Real {
+    constructor(...a) { super(...(a.length ? a : [now])); }
+    static now() { return now; }
+  }
+  globalThis.Date = Pinned;
+  localStorage.setItem('__activeProfile', 'default');
+  localStorage.setItem('default::t.autoMode', '1');
+  localStorage.setItem('default::t.landing', 'auto');
+  localStorage.setItem('default::t.freqDep', JSON.stringify([
+    { name: 'Mortensrud', count: 14, lastUsed: now, stopId: 'NSR:StopPlace:6021' },
+  ]));
+}, NOW);
+await p9.route('**/geocoder/**', r => r.fulfill({ status: 200, contentType: 'application/json',
+  body: JSON.stringify({ features: [
+    { properties: { id: 'NSR:StopPlace:6021', name: 'Mortensrud', label: 'Mortensrud',
+      category: ['metroStation'] },
+      geometry: { coordinates: [HERE.lon, HERE.lat + 649 / 111320] } },
+    { properties: { id: 'NSR:StopPlace:79', name: 'Ryenkrysset', label: 'Ryenkrysset',
+      category: ['onstreetBus'] },
+      geometry: { coordinates: [HERE.lon, HERE.lat + 30 / 111320] } },
+  ] }) }));
+await p9.route('**/journey-planner/**', r => r.fulfill({ status: 200,
+  contentType: 'application/json', body: JSON.stringify({ data: { stopPlace: null } }) }));
+await p9.route(/tiles|open-meteo|overpass|valhalla|geoapify|mobility/, r => r.abort());
+p9.on('pageerror', e => console.log('  ! sidefeil:', e.message));
+await p9.goto(`http://localhost:${PORT}/`, { waitUntil: 'load' });
+await p9.waitForSelector('#v-auto .auto-stop');
+await p9.waitForTimeout(1200);
+console.log('  du er ved:', (await p9.$eval('#v-auto .auto-stop', e =>
+  e.textContent.replace(/\s+/g, ' ').trim())));
+await c9.close();
+STANDING_AT = false;
 
 console.log('\n══ sorter-bryteren ══');
 console.log('  ' + await page.$eval('#auto-sort', e => e.textContent.replace(/\\s+/g, ' ').trim()));

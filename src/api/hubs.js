@@ -38,17 +38,6 @@ export function _resetHubs() {
 }
 
 /**
- * How many platforms make a place worth anchoring on.
- *
- * A guess, and named so it can stop being one. Four is roughly where an Oslo
- * metro stop stops being a pair of side platforms and starts being somewhere
- * you change — but that is reasoning, not measurement, and it is written here
- * rather than buried in a comparison so the next person can move it after one
- * look at real data.
- */
-export const HUB_QUAYS = 4;
-
-/**
  * The shape of a stored entry.
  *
  * Bumped when the facts collected change, because an entry written by an
@@ -64,36 +53,69 @@ export function hubKnown(entry) {
 }
 
 /**
- * Is this somewhere you can change?
+ * How much this stop stands out — lines calling, plus a nudge for every mode
+ * beyond the first.
  *
- * The reader's own definition, in their words: "alle holdeplasser som har
- * overganger til andre linjer eller som både fungerer som t-bane-stopp og
- * buss-holdeplasser".
- *
- *   more than one mode   the bus meets the metro
- *   two or more lines    somewhere you can change to another line
- *   four or more quays   the old rule, kept for when Quay.lines was refused
- *
- * The mode test used to be here and could never fire: `m` was built from
- * StopPlace.transportMode, which is a single value, so the set never had two
- * elements. In practice the whole rule was the quay count, and Helsfyr —
- * four metro lines and the buses, two platforms — did not qualify. That was
- * the reported bug, and it was a dead branch rather than a wrong threshold.
- *
- * `l` is absent when only the plain query succeeded, and that branch then
- * skips itself rather than treating "unknown" as "one".
+ * `q` is the fallback when the line field was refused, so the relative rule
+ * below works in that world too, just more coarsely.
  */
-export function isHub(entry) {
-  if (!entry) return false;
-  const modes = Array.isArray(entry.m) ? entry.m.filter(Boolean) : [];
-  if (new Set(modes).size > 1) return true;
-  if (Number(entry.l) >= HUB_LINES) return true;
-  return Number(entry.q) >= HUB_QUAYS;
+export function hubScore(entry) {
+  if (!entry) return 0;
+  const modes = new Set((Array.isArray(entry.m) ? entry.m : []).filter(Boolean)).size;
+  const base = Number(entry.l) || Number(entry.q) || 0;
+  return base + Math.max(0, modes - 1);
 }
 
-/** Two lines meeting is a change. One line calling twice is not — `l` counts
- *  distinct line ids, so a line in both directions stays one. */
-export const HUB_LINES = 2;
+/**
+ * At most this share of a line may be an anchor.
+ *
+ * A DISPLAY decision, not a claim about transit — how many anchors a list can
+ * carry before it stops being scannable. That is the difference between this
+ * number and the one it replaces.
+ */
+export const ANCHOR_SHARE = 0.4;
+
+/**
+ * Which stops on THIS line are worth anchoring on.
+ *
+ * Relative, and that is the whole point. v1.81.0 used an absolute rule — two
+ * or more lines calling — and reported back: "ser ut som alle holdeplasser er
+ * blitt til knutepunkter". Whatever Entur actually returns for an ordinary
+ * Oslo metro stop, it clears two: a night bus, a replacement bus, or simply
+ * how Ruter models the place. Raising the number would have been the same
+ * guess with a different digit.
+ *
+ * So there is no absolute number left to be wrong about. A stop anchors when
+ * it stands out AGAINST THE LINE IT IS ON — above the median score — and the
+ * set is capped at ANCHOR_SHARE of the stops. Marking everything is now
+ * impossible by construction rather than by a lucky threshold, and a line
+ * where every stop really is equal gets no anchors at all, which stopRuns
+ * already reads as "show them all".
+ *
+ * @returns {Set<string>} stop ids
+ */
+export function anchorIds(stops, hubs) {
+  const list = stops || [];
+  const reg = hubs || {};
+  const scored = list
+    .map(s => ({ id: s && s.id, v: hubScore(reg[s && s.id]) }))
+    .filter(x => x.id);
+  if (!scored.some(x => x.v > 0)) return new Set();
+
+  const vals = scored.map(x => x.v).sort((a, b) => a - b);
+  const mid = vals.length >> 1;
+  const median = vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
+
+  const above = scored.filter(x => x.v > median).sort((a, b) => b.v - a.v);
+  const cap = Math.max(1, Math.floor(list.length * ANCHOR_SHARE));
+  if (above.length <= cap) return new Set(above.map(x => x.id));
+  // The cap must not cut through a tie. Two stops with the same score are the
+  // same kind of place, and marking one of them and not the other is a
+  // distinction the data does not make — measured: Grønland and Tøyen both
+  // scored 5, and only Tøyen was anchored because it sorted first.
+  const cut = above[cap - 1].v;
+  return new Set(above.filter(x => x.v >= cut).map(x => x.id));
+}
 
 // Remembered for the session, like the per-line cap in entur.js: a rejected
 // field must cost one request, not one per line for the rest of the day.
@@ -154,6 +176,21 @@ export function ensureHubs(ids) {
     const places = (j.data && j.data.stopPlaces) || [];
     const next = { ...have };
     places.forEach(sp => { if (sp && sp.id) next[sp.id] = _factsOf(sp); });
+    // What Entur actually said, in the panel, one line per answer.
+    //
+    // v1.81.0 shipped an absolute threshold reasoned out from what an Oslo
+    // metro stop OUGHT to look like, and it marked every stop. The register
+    // is a fact about real data, and there is no way to check it from a
+    // sandbox that cannot reach api.entur.io — so it says what it learned
+    // rather than leaving the next person to reason again.
+    if (places.length) {
+      logMsg('knutepunkt: ' + places.slice(0, 12).map(sp =>
+        String(sp.id).replace(/^NSR:StopPlace:/, '')
+        + ' l=' + ((next[sp.id] && next[sp.id].l) || 0)
+        + ' q=' + ((next[sp.id] && next[sp.id].q) || 0)
+        + ' m=' + (((next[sp.id] && next[sp.id].m) || []).join('+') || '-')
+      ).join(' | '), 'ok');
+    }
     // Stops the answer said nothing about are recorded as known-and-plain,
     // or every opening of the line would ask about them again for ever.
     want.forEach(id => {

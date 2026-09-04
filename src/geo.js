@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import config from './config.js';
+import { TRANSIT_CATS } from './api/stopCats.js';
 import { enturFetch } from './api/http.js';
 import { logMsg } from './ui/log.js';
 import { storage } from './storage.js';
@@ -241,27 +242,54 @@ export function findArr(calls, name) {
   return null;
 }
 
-const TRANSIT_STOP_CATS = new Set(['metroStation', 'railStation', 'tramStop', 'busStation']);
+const STOP_CATS = new Set(TRANSIT_CATS);
+
+/**
+ * How far to look, IN KILOMETRES.
+ *
+ * Pelias reads boundary.circle.radius as km. This said 5000, so the search
+ * was effectively unbounded — and with a page size of 20 the app got the
+ * geocoder's twenty most PROMINENT venues rather than the twenty nearest. A
+ * metro station outranks a kerb, which is the second half of why the reader
+ * standing at a bus stop was told they were at a metro station.
+ *
+ * 1.2 rather than the board's 0.8 because auto-reise offers alternatives out
+ * to ALT_STOP_MAX_M = 1000 (auto.js), and a radius under that would make
+ * that limit a promise the query cannot keep.
+ */
+const NEAR_RADIUS_KM = 1.2;
+/* Asked for before filtering, so this is what decides whether any bus stops
+   are left to keep. */
+const NEAR_SIZE = 40;
 
 export function findNearestStation(lat, lon, onFound, onFail) {
   enturFetch(config.api.geocoderReverse
     + '?point.lat=' + lat + '&point.lon=' + lon
-    + '&boundary.circle.radius=5000&size=20&layers=venue')
+    + '&boundary.circle.radius=' + NEAR_RADIUS_KM
+    + '&size=' + NEAR_SIZE + '&layers=venue')
     .then(r => r.json())
     .then(j => {
       const stops = ((j && j.features) || [])
-        .filter(f => (f.properties.category || []).some(c => TRANSIT_STOP_CATS.has(c)))
+        .filter(f => (f.properties.category || []).some(c => STOP_CATS.has(c)))
         .map(f => ({
           name: f.properties.name || f.properties.label,
           id: f.properties.id,
           lat: f.geometry.coordinates[1],
           lon: f.geometry.coordinates[0],
           distM: Math.round(haver(lat, lon, f.geometry.coordinates[1], f.geometry.coordinates[0])),
-          type: (f.properties.category || []).find(c => TRANSIT_STOP_CATS.has(c)) || 'unknown',
+          type: (f.properties.category || []).find(c => STOP_CATS.has(c)) || 'unknown',
         }))
         .sort((a, b) => a.distM - b.distM)
         .slice(0, 8);
-      if (!stops.length) { if (onFail) onFail('ingen stasjon i nærheten'); return; }
+      if (!stops.length) {
+        // The position was fine; there is simply nothing within the radius.
+        // Said as its own state because the screen used to blame GPS for it,
+        // and with the radius corrected this path can finally be reached.
+        state.gpsError = 'nostops';
+        if (onFail) onFail('ingen stasjon i nærheten');
+        return;
+      }
+      state.gpsError = null;
       state.nearestStations = stops;
       state.nearestStation = stops[0];
       state.statLL['custom-out'] = { lat: stops[0].lat, lon: stops[0].lon };

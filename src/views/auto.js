@@ -394,10 +394,24 @@ function _el(id) { return document.getElementById(id); }
  * buttons come from the position too, so they are not there to point at —
  * an earlier draft said "velg et stopp nedenfor" under an empty screen.
  *
- * @param {string|null} gpsError state.gpsError — 'denied' when refused
+ * @param {string|null} gpsError state.gpsError — 'denied' when refused,
+ *   'nostops' when the position is known but nothing is within the radius
  * @returns {{where: string, body: string, cta: string}}
  */
 export function noPosText(gpsError) {
+  // Position fine, nothing within the search radius. Not the same fact as
+  // "no position", and saying the second when the first is true is a lie the
+  // reader cannot see through: they are looking straight at a bus stop while
+  // the app tells them it cannot find them. Reachable for the first time now
+  // that the radius is 1.2 km rather than an unbounded 5000.
+  if (gpsError === 'nostops') {
+    return {
+      where: 'Ingen holdeplass innen gangavstand.',
+      body: 'Vi fant posisjonen din, men ingen holdeplass innenfor drøyt en '
+        + 'kilometer. Sett stoppet selv hvis du vet hva det heter.',
+      cta: 'sett hvor du er →',
+    };
+  }
   return gpsError === 'denied'
     ? {
       where: 'Stedstjenester er avslått.',

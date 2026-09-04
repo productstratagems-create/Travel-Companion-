@@ -464,3 +464,28 @@ describe('the direction row’s layout', () => {
     expect(block.slice(0, block.indexOf('}'))).not.toContain('text-overflow');
   });
 });
+
+// ── Three different facts, three different messages ───────────────────────
+//
+// "We cannot find you" and "there is nothing around you" are not the same
+// thing, and saying the first when the second is true is a lie the reader
+// cannot see through — they are standing at a bus stop while the app claims
+// it cannot locate them. Reachable for the first time now that the search
+// radius is 1.2 km instead of an unbounded 5000.
+describe('noPosText and the empty surroundings', () => {
+  it('says the position is known when only the stops are missing', () => {
+    const t = noPosText('nostops');
+    expect(t.where).toMatch(/holdeplass/i);
+    expect(t.where).not.toMatch(/posisjon/i);
+    expect(t.body).toMatch(/fant posisjonen din/i);
+  });
+
+  it('still blames nothing on GPS in the other two states', () => {
+    expect(noPosText('denied').where).toMatch(/avslått/i);
+    expect(noPosText(null).where).toMatch(/[Ff]inner ikke posisjonen/);
+  });
+
+  it('always offers a way forward', () => {
+    ['nostops', 'denied', null].forEach(s => expect(noPosText(s).cta).toBeTruthy());
+  });
+});

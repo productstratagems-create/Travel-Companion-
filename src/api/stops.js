@@ -1,15 +1,8 @@
 import { haver } from '../geo.js';
 import config from '../config.js';
 import { enturFetch } from './http.js';
+import { CAT_MODE, TRANSIT_CATS } from './stopCats.js';
 
-const CAT_MODE = {
-  metroStation: 'metro',
-  busStation:   'bus',
-  onstreetBus:  'bus',
-  tramStation:  'tram',
-  onstreetTram: 'tram',
-};
-const TRANSIT_CATS = Object.keys(CAT_MODE);
 
 let _cache = null;
 

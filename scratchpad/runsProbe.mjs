@@ -15,12 +15,20 @@ const iso = ms => new Date(ms).toISOString();
 const HERE = { id: 'NSR:StopPlace:6013', name: 'Mortensrud', lat: 59.8617, lon: 10.8285 };
 
 /* The real line, and which stops really are interchanges. */
-const STOPS = [
+/* Two worlds. The first is what I ASSUMED when v1.81.0 shipped; the second is
+   what was reported back — every stop clearing an absolute threshold of two,
+   because an ordinary Oslo metro stop apparently has night buses, replacement
+   buses or simply more lines registered than reasoning suggested. */
+const THIN = [
   ['Skullerud', 1], ['Bogerud', 1], ['Bøler', 1], ['Ulsrud', 1], ['Oppsal', 1],
   ['Skøyenåsen', 1], ['Godlia', 1], ['Hellerud', 1],
   ['Brynseng', 3], ['Helsfyr', 5], ['Ensjø', 1], ['Tøyen', 5], ['Grønland', 5],
   ['Jernbanetorget', 9], ['Stortinget', 6], ['Nationaltheatret', 8], ['Majorstuen', 7],
 ];
+/* Every plain stop already has four lines. Under the old absolute rule every
+   single row was an anchor, which is the report. */
+const FAT = THIN.map(([n, v]) => [n, v === 1 ? 4 : v + 4]);
+let STOPS = THIN;
 const LINES = (n, name) => Array.from({ length: n }, (_, i) => ({
   id: 'RUT:Line:' + name + i, transportMode: i === 0 ? 'metro' : (i % 2 ? 'bus' : 'tram') }));
 
@@ -59,7 +67,8 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(PORT, r));
 const browser = await pw.chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 
-async function run({ refuse, dark, shot }) {
+async function run({ refuse, dark, shot, world }) {
+  STOPS = world === 'fat' ? FAT : THIN;
   let hubCalls = 0;
   const ctx = await browser.newContext({
     viewport: { width: 414, height: 1000 }, deviceScaleFactor: 2,
@@ -121,7 +130,8 @@ async function run({ refuse, dark, shot }) {
       e.querySelector('.nearby-dist').textContent.trim() +
       (e.classList.contains('auto-hub') ? '   ← knutepunkt' : '')));
 
-  console.log('\n' + (refuse ? '══ Entur AVVISER linjefeltet ══' : '══ Entur godtar ══'));
+  console.log('\n══ ' + (world === 'fat' ? 'hvert stopp har MANGE linjer (det rapporterte)' :
+    'få linjer på de enkle stoppene') + (refuse ? ', og linjefeltet avvises' : '') + ' ══');
   const r = await rows();
   r.forEach(x => console.log('   ' + x));
   console.log('   rader:', r.length, '| stopp på linja: 17 | registerkall:', hubCalls);
@@ -144,7 +154,8 @@ async function run({ refuse, dark, shot }) {
 }
 
 fs.mkdirSync('scratchpad/shots', { recursive: true });
-await run({ refuse: false, dark: true, shot: 'scratchpad/shots/runs-dark.png' });
-await run({ refuse: true, dark: true });
-await run({ refuse: false, dark: false, shot: 'scratchpad/shots/runs-light.png' });
+await run({ refuse: false, dark: true, world: 'thin', shot: 'scratchpad/shots/runs-dark.png' });
+await run({ refuse: false, dark: true, world: 'fat' });
+await run({ refuse: true, dark: true, world: 'thin' });
+await run({ refuse: false, dark: false, world: 'thin', shot: 'scratchpad/shots/runs-light.png' });
 await browser.close(); server.close();

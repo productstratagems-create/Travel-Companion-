@@ -24,7 +24,7 @@ import { state } from '../state.js';
 import { fetchBoard } from '../api/entur.js';
 import { predictDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
-import { ensureHubs, loadHubs, isHub } from '../api/hubs.js';
+import { ensureHubs, loadHubs, anchorIds } from '../api/hubs.js';
 import { logMsg } from '../ui/log.js';
 import { loadAutoSort, saveAutoSort, loadAutoStopsOpen, saveAutoStopsOpen,
   NEAR_STOP_MAX_M } from '../geo.js';
@@ -873,10 +873,10 @@ const _openRuns = new Set();
 export function stopRuns(stops, hubs, openRuns) {
   const list = stops || [];
   if (!list.length) return [];
-  const reg = hubs || {};
-  if (!list.some(s => isHub(reg[s.id]))) return list.map((s, i) => ({ kind: 'stop', s, i }));
+  const ids = anchorIds(list, hubs);
+  if (!ids.size) return list.map((s, i) => ({ kind: 'stop', s, i }));
 
-  const anchor = (s, i) => isHub(reg[s.id]) || i === list.length - 1;
+  const anchor = (s, i) => ids.has(s.id) || i === list.length - 1;
   const out = [];
   let run = [];
   const flush = () => {
@@ -915,8 +915,9 @@ function _renderStops(body) {
         && stops.some(s => s.id && next[s.id] && !hubs[s.id])) _renderBody();
     });
   }
+  const anchors = anchorIds(stops, hubs);
   const stopHtml = ({ s, i }) => '<button class="nearby-btn auto-stop-btn'
-    + (isHub(hubs[s.id]) ? ' auto-hub' : '') + '" type="button" data-i="' + i + '">'
+    + (anchors.has(s.id) ? ' auto-hub' : '') + '" type="button" data-i="' + i + '">'
     + '<span class="nearby-name">' + esc(s.name) + '</span>'
     + '<span class="nearby-dist">' + (s.mins != null ? s.mins + ' min' : '') + '</span>'
     + '</button>';

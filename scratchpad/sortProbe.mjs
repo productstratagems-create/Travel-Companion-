@@ -17,6 +17,11 @@ const HERE = { id: 'NSR:StopPlace:6021', name: 'Skullerud', lat: 59.8555, lon: 1
 
 // front, code, mode, lineId, quay, [minutes]
 const DEPS = [
+  // The shared stretch: lines 1-5 all leave westbound with the same front
+  // text. This is where "one row is one line" costs the most.
+  ['Nationaltheatret', '1',   'metro', 'RUT:Line:1',   '2', [4, 14]],
+  ['Nationaltheatret', '2',   'metro', 'RUT:Line:2',   '2', [6, 16]],
+  ['Nationaltheatret', '4',   'metro', 'RUT:Line:4',   '2', [8, 18]],
   ['Grorud T',        '79',  'bus',   'RUT:Line:79',  'J', [2, 12, 19]],
   ['Mortensrud',      '3',   'metro', 'RUT:Line:3',   '1', [3, 10]],
   ['Mortensrud',      '76',  'bus',   'RUT:Line:76',  'J', [19]],

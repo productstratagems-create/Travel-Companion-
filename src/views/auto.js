@@ -67,21 +67,36 @@ function _callTime(c) {
  * already models it (`dir.filter` is a regex tested against exactly this
  * field, board.js:2761).
  *
- * Grouped by front text, NOT by line: two lines that both run to
- * Nationaltheatret are one choice with two badges, because "which of these
- * two comes first" is the board's job, not this screen's. The same line in
- * both directions is correctly two rows — the front texts differ.
+ * ONE ROW IS ONE LINE. Metro 2 and metro 3 to the same place are two rows,
+ * not one row with two badges.
  *
- * BUT by front text AND MODE. Reported from Skullerud, with a picture: the
- * metro 3 and the bus 76 both say "Mortensrud", so they folded into one row
- * carrying both badges — and the row read "spor 1", the metro's platform,
- * because the platform comes from the soonest call. A reader taking the bus
- * was sent to the metro track.
+ * This screen used to group by front text alone, on the reasoning that "which
+ * of these comes first" is the board's job — two lines to Nationaltheatret
+ * were one choice. That reasoning collapsed twice against real data:
  *
- * The "one choice" reasoning holds inside a mode and breaks across it. Two
- * bus lines to the same place really are one choice: same stop, same wait,
- * take whichever comes. A metro and a bus are a different vehicle at a
- * different platform, and the row can only name one of them.
+ *   1. Reported from Skullerud, with a picture: the metro 3 and the bus 76
+ *      both say "Mortensrud", so they folded into one row carrying both
+ *      badges — and the row read "spor 1", the metro's platform, because the
+ *      platform comes from the soonest call. A reader taking the bus was sent
+ *      to the metro track (v1.73.0 split those by mode).
+ *   2. Mode alone was not enough either: when `transportMode` is absent from
+ *      both, the key falls to the same value and the Skullerud row comes
+ *      straight back. Measured.
+ *
+ * Keying on the line closes both, because two lines never share a `line.id`.
+ * A row now carries exactly one badge, one platform and one type — which is
+ * also what makes the type sort (v1.73.0) mean anything: a row that was
+ * several lines had no single answer to sort on, and no single platform to
+ * name.
+ *
+ * THE PRICE, said here rather than discovered on a screen: at an interchange
+ * where lines share a stretch — 1 through 5 westbound from Jernbanetorget —
+ * this is five rows where it used to be one. Measured: a Jernbanetorget-
+ * shaped stop goes 4 rows to 12. The list is longer on purpose; every row
+ * names one vehicle the reader can actually check against the platform sign.
+ *
+ * The same line in both directions is still two rows — the front texts
+ * differ, and that was never in question.
  */
 export function groupDirections(calls, now) {
   const t0 = now == null ? Date.now() : now;
@@ -107,10 +122,20 @@ export function groupDirections(calls, now) {
     const ln = c.serviceJourney && c.serviceJourney.line;
     const code = (ln && ln.publicCode) || null;
     const colour = (ln && ln.presentation && ln.presentation.colour) || null;
+    // The line, not the mode. Two lines never share a line.id, so this also
+    // subsumes the mode split it replaces — including the case where
+    // transportMode is missing, which mode-keying could not survive.
+    //
+    // publicCode is the fallback rather than nothing: a departure with no
+    // line.id at all still has a number on the front of it, and folding all
+    // such departures into one row is the very thing being fixed. Front text
+    // stays in the key so one line in two directions remains two rows.
+    //
     // A NUL separator, not a space or a colon: a front text can contain
     // either, and a key two different directions could collide on is the
     // same bug one level down.
-    const key = front + '\u0000' + ((ln && ln.transportMode) || '');
+    const lineKey = (ln && (ln.id || ln.publicCode)) || '';
+    const key = front + '\u0000' + lineKey;
     const prev = byText.get(key);
     if (!prev) {
       byText.set(key, {
@@ -126,7 +151,10 @@ export function groupDirections(calls, now) {
       });
       return;
     }
-    if (code && !prev.lines.some(l => l.code === code)) prev.lines.push({ code, colour });
+    // No badge is added here any more: the key IS the line, so every call
+    // reaching an existing row belongs to the line already on it. `lines`
+    // stays an array rather than a single field so badgeHtml and the row
+    // template keep one shape to render — it is simply always length 1.
     prev.all.push(ms);
     // The soonest call owns the row — and it is the one whose onward stops
     // the reader will see, so it must be the same call the time came from.

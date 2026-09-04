@@ -118,15 +118,16 @@ async function open(dark) {
     const f = (id, name, cats, m) => ({
       properties: { id, name, label: name, category: cats }, geometry: { coordinates: at(m) } });
     return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ features: [
-      f(HERE.id, 'Skullerud T', ['metroStation'], 400),
-      f('NSR:StopPlace:71', 'For langt unna', ['busStation'], 900),
-      f('NSR:StopPlace:72', 'Skullerudveien', ['onstreetTram'], 220),
-      f('NSR:StopPlace:73', 'Skullerud stasjon', ['railStation'], 650),
-      f('NSR:StopPlace:74', 'Skullerudstubben', ['onstreetBus'], 35),
-      f('NSR:StopPlace:75', 'Ryen skole', ['school'], 10),
-      f('NSR:StopPlace:76', 'Bogerudsvingen', ['onstreetBus'], 120),
-      f('NSR:StopPlace:77', 'Skullerudbakken', ['onstreetBus'], 300),
-      f('NSR:StopPlace:78', 'Nesten 850', ['onstreetBus'], 840),
+      // The reported screen, stop for stop: Mortensrud with seven alternatives.
+      f(HERE.id, 'Mortensrud', ['metroStation'], 649),
+      f('NSR:StopPlace:71', 'Olasrudveien', ['onstreetBus'], 369),
+      f('NSR:StopPlace:72', 'Granebakken', ['onstreetBus'], 429),
+      f('NSR:StopPlace:73', 'Stenbråten', ['onstreetBus'], 496),
+      f('NSR:StopPlace:74', 'Maikollen', ['onstreetBus'], 548),
+      f('NSR:StopPlace:75', 'Kantarellen legesenter', ['onstreetBus'], 625),
+      f('NSR:StopPlace:76', 'Kantarellen', ['onstreetBus'], 639),
+      f('NSR:StopPlace:77', 'Kantarellen terrasse', ['onstreetBus'], 644),
+      f('NSR:StopPlace:78', 'For langt unna', ['onstreetBus'], 900),
     ] }) });
   });
   await page.route(/tiles\.stadiamaps|tile\.openstreetmap|open-meteo|overpass|valhalla|geoapify|mobility/, r => r.abort());
@@ -153,6 +154,52 @@ const alts = (page) => page.$$eval('#v-auto .auto-stop-btn', els => els.map(e =>
 const { ctx, page } = await open(true);
 console.log('\n══ du er ved ══');
 console.log('  ' + await where(page));
+console.log('\n══ hvor langt ned starter avgangene ══');
+const firstDepTop = () => page.$eval('#v-auto .auto-dir', e => Math.round(e.getBoundingClientRect().top));
+console.log('  første avgang starter på y =', await firstDepTop(), 'px  (skjermen er 860 høy)');
+console.log('  alternativer synlige:', (await page.$$('#v-auto .auto-alt')).length);
+
+console.log('\n══ sammensl\u00e5tt ved f\u00f8rste \u00e5pning ══');
+const head = () => page.$eval('#v-auto .auto-stop', e => e.textContent.replace(/\\s+/g, ' ').trim());
+const altsShown = () => page.$$eval('#v-auto .auto-alt', els =>
+  els.filter(e => e.offsetParent !== null).length);
+console.log('  overskrift:', await head());
+console.log('  alternativer synlige:', await altsShown());
+console.log('  er knapp:', await page.$eval('#v-auto .auto-stop', e => e.tagName));
+console.log('  aria-expanded:', await page.$eval('#v-auto .auto-stop', e => e.getAttribute('aria-expanded')));
+
+console.log('\n══ ett trykk utvider ══');
+await page.click('#auto-stop-toggle');
+await page.waitForTimeout(200);
+console.log('  overskrift:', await head());
+console.log('  alternativer synlige:', await altsShown());
+console.log('  f\u00f8rste avgang p\u00e5 y =', await firstDepTop());
+
+console.log('\n── overlever tegnel\u00f8kka (3 s) ──');
+await page.waitForTimeout(3000);
+console.log('  fortsatt utvidet:', await altsShown());
+
+console.log('\n══ nytt trykk sl\u00e5r sammen ══');
+await page.click('#auto-stop-toggle');
+await page.waitForTimeout(200);
+console.log('  alternativer synlige:', await altsShown());
+console.log('  f\u00f8rste avgang p\u00e5 y =', await firstDepTop());
+
+console.log('\n── valget st\u00e5r etter reload ──');
+await page.click('#auto-stop-toggle');
+await page.waitForTimeout(150);
+await page.reload({ waitUntil: 'load' });
+await page.waitForSelector('#v-auto .auto-dir');
+console.log('  alternativer synlige:', await altsShown());
+
+console.log('\n── velge et alternativ lar lista st\u00e5 \u00e5pen ──');
+await page.click('#v-auto .auto-alt');
+await page.waitForTimeout(600);
+console.log('  du er ved:', await head());
+console.log('  alternativer synlige:', await altsShown());
+await page.click('#auto-stop-toggle');
+await page.waitForTimeout(200);
+
 console.log('\n══ sorter-bryteren ══');
 console.log('  ' + await page.$eval('#auto-sort', e => e.textContent.replace(/\\s+/g, ' ').trim()));
 console.log('  aktiv:', await page.$eval('#auto-sort .pref-btn.active', b => b.textContent.trim()));

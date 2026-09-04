@@ -14,6 +14,9 @@ const ALL_KEYS = [
   // Which order the auto-reise list is drawn in. A display choice, but one
   // the reader made, so it travels with the profile like the rest.
   't.autoSort',
+  // Whether the nearby-stops list on auto-reise is open. A display choice the
+  // reader made, so it travels with the profile like the rest.
+  't.autoStops',
 ];
 
 const PROFILES_KEY = '__profiles';

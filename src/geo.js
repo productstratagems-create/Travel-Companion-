@@ -104,6 +104,24 @@ export function saveAutoSort(desc) {
   storage.set(AUTO_SORT_KEY, desc ? 'type-desc' : 'type');
 }
 
+/**
+ * Is the list of nearby stops on auto-reise open?
+ *
+ * Closed unless the reader has opened it. Chosen: since v1.77.0 made distance
+ * the only rule, a dense stop offers seven alternatives, and measured on the
+ * reported Mortensrud screen they pushed the first departure to y=490 of an
+ * 860px screen — 57% of the screen spent before the thing the screen is for.
+ *
+ * The stops are all still there. They are just not in the way.
+ */
+const AUTO_STOPS_KEY = 't.autoStops';
+export function loadAutoStopsOpen() {
+  return storage.get(AUTO_STOPS_KEY) === '1';
+}
+export function saveAutoStopsOpen(open) {
+  storage.set(AUTO_STOPS_KEY, open ? '1' : '0');
+}
+
 const WEEKEND_MODE_KEY = 't.weekendMode';
 export function loadWeekendMode() {
   return storage.get(WEEKEND_MODE_KEY) === '1';

@@ -23,24 +23,35 @@ import { storage } from '../src/storage.js';
 beforeEach(() => storage._reset());
 
 describe('loadAutoSort', () => {
-  it('is type when the reader has never chosen', () => {
-    expect(loadAutoSort()).toBe('type');
+  it('is type, ascending, when the reader has never chosen', () => {
+    expect(loadAutoSort()).toEqual({ mode: 'type', desc: false });
   });
 
-  it('round-trips both choices', () => {
-    saveAutoSort('tid');
-    expect(loadAutoSort()).toBe('tid');
-    saveAutoSort('type');
-    expect(loadAutoSort()).toBe('type');
+  it('round-trips all four states', () => {
+    saveAutoSort('tid', false);
+    expect(loadAutoSort()).toEqual({ mode: 'tid', desc: false });
+    saveAutoSort('tid', true);
+    expect(loadAutoSort()).toEqual({ mode: 'tid', desc: true });
+    saveAutoSort('type', true);
+    expect(loadAutoSort()).toEqual({ mode: 'type', desc: true });
+    saveAutoSort('type', false);
+    expect(loadAutoSort()).toEqual({ mode: 'type', desc: false });
+  });
+
+  // Written by v1.73.0, which had no direction at all. It must keep meaning
+  // what it meant, not reset the reader's choice of mode.
+  it('reads a value from before directions existed as ascending', () => {
+    storage.set('t.autoSort', 'tid');
+    expect(loadAutoSort()).toEqual({ mode: 'tid', desc: false });
   });
 
   // Rubbish in storage is a real state: an older build, a hand-edited value,
   // a half-written key. It must land on the default, never on undefined.
-  it('falls to type on a stored value it does not know', () => {
+  it('falls to type ascending on a stored value it does not know', () => {
     storage.set('t.autoSort', 'linjenummer');
-    expect(loadAutoSort()).toBe('type');
-    saveAutoSort('tullball');
-    expect(loadAutoSort()).toBe('type');
+    expect(loadAutoSort()).toEqual({ mode: 'type', desc: false });
+    saveAutoSort('tullball', true);
+    expect(loadAutoSort()).toEqual({ mode: 'type', desc: true });
   });
 });
 
@@ -75,5 +86,18 @@ describe('the sort switch markup', () => {
     // The generic .pref-btn is 44px and flex:1. Both are overridden here, and
     // dropping either brings the settings-sized block back.
     expect(block).toMatch(/flex:\s*0 0 auto/);
+  });
+
+
+  it('keeps the arrow beside the word, not under it', async () => {
+    const fs = await import('node:fs');
+    const css = fs.readFileSync('src/style/settings.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const block = css.slice(css.indexOf('#auto-sort .pref-btn'));
+    // The settings .pref-btn is flex-direction: column, which put the arrow on
+    // its own line and made the active button taller than the other one — the
+    // whole row grew and shrank on every tap. Seen on a 414px screen.
+    expect(block).toMatch(/flex-direction:\s*row/);
+    // And a reserved width, so the button does not resize under the finger.
+    expect(block).toMatch(/\.sort-arrow[\s\S]*?min-width:\s*\.8em/);
   });
 });

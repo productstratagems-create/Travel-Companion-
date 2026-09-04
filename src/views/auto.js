@@ -248,9 +248,23 @@ export function dirRank(d) {
  * must agree, set in two places, is the bug shape this codebase keeps
  * finding (v1.68.0, v1.71.0).
  */
-export function dirCmp(mode) {
-  if (mode !== SORT_TYPE) return (a, b) => a.nextMs - b.nextMs;
-  return (a, b) => (dirRank(a) - dirRank(b)) || (a.nextMs - b.nextMs);
+/**
+ * Accepts either a bare mode string or the {mode, desc} the preference holds,
+ * so a caller that does not care about direction can still say SORT_TYPE.
+ */
+function _spec(v) {
+  return (v && typeof v === 'object') ? v : { mode: v, desc: false };
+}
+
+export function dirCmp(v) {
+  const { mode, desc } = _spec(v);
+  const way = desc ? -1 : 1;
+  if (mode !== SORT_TYPE) return (a, b) => (a.nextMs - b.nextMs) * way;
+  // Descending reverses the GROUPS, not the clock inside them. Asked for, and
+  // it is the useful reading: the reader chooses which type to see first, but
+  // putting a departure 37 minutes out above one 3 minutes out helps nobody
+  // standing on a platform.
+  return (a, b) => ((dirRank(a) - dirRank(b)) * way) || (a.nextMs - b.nextMs);
 }
 
 /** The rows in the reader's chosen order. Pure; does not touch the input. */
@@ -550,16 +564,33 @@ function _showSort(on) {
   if (!on) return;
   const cur = loadAutoSort();
   el.querySelectorAll('.pref-btn').forEach(b => {
-    const on = b.dataset.val === cur;
-    b.classList.toggle('active', on);
-    // The class is the whole state a sighted reader gets; aria-pressed is the
-    // same fact for everyone else. Two ways to say it, set together.
-    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    const active = b.dataset.val === cur.mode;
+    b.classList.toggle('active', active);
+    // The arrow only ever appears on the active button. On the other one it
+    // would be a promise about an order that is not on screen — and worse, a
+    // direction the reader has not chosen for that mode.
+    const arrow = b.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = active ? (cur.desc ? ' ↓' : ' ↑') : '';
+    // The class and the arrow are the whole state a sighted reader gets;
+    // these are the same facts for everyone else, set in the same place.
+    b.setAttribute('aria-pressed', active ? 'true' : 'false');
+    b.setAttribute('aria-label', b.dataset.label
+      + (active ? (cur.desc ? ', synkende. Trykk for stigende'
+                            : ', stigende. Trykk for synkende') : ''));
   });
   if (_sortWired) return;
   _sortWired = true;
   el.querySelectorAll('.pref-btn').forEach(b => {
-    b.addEventListener('click', () => { saveAutoSort(b.dataset.val); _renderBody(); });
+    b.addEventListener('click', () => {
+      const now = loadAutoSort();
+      // Tapping the button already in use turns the order around; tapping the
+      // other one switches to it, ascending. Switching mode does NOT inherit
+      // the other mode's direction — arriving at a list already reversed,
+      // having asked only to change what it is sorted by, is a surprise.
+      const same = b.dataset.val === now.mode;
+      saveAutoSort(b.dataset.val, same ? !now.desc : false);
+      _renderBody();
+    });
   });
 }
 

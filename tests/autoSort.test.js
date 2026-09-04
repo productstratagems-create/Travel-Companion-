@@ -232,3 +232,44 @@ describe('a row is one mode', () => {
     expect(out.map(dirRank)).toEqual([0, 2]);
   });
 });
+
+// ── Ascending and descending ──────────────────────────────────────────────
+//
+// Asked for: the sort buttons should toggle between ascending and descending.
+// Descending on TYPE reverses the groups and NOT the clock inside them — the
+// reader chooses which type to see first, but a departure 37 minutes out
+// above one 3 minutes out helps nobody standing on a platform.
+describe('direction', () => {
+  const rows = () => groupDirections([
+    call('Vestli', '5', 9, 'metro'),
+    call('Helsfyr', '37', 2, 'bus'),
+    call('Bogerud', '79', 8, 'bus'),
+    call('Gardermoen', 'F4', 1, 'bus', 'VYX:Line:F4'),
+    call('Lillestrøm', 'R14', 4, 'rail', 'NSB:Line:R14'),
+  ], NOW);
+
+  it('reverses the groups on type', () => {
+    expect(names(sortDirs(rows(), { mode: 'type', desc: true })))
+      .toEqual(['Lillestrøm', 'Gardermoen', 'Helsfyr', 'Bogerud', 'Vestli']);
+  });
+
+  // The half that must NOT reverse. Helsfyr (2 min) stays above Bogerud
+  // (8 min) even though their group has moved up the list.
+  it('keeps the soonest first inside a group when descending', () => {
+    const out = sortDirs(rows(), { mode: 'type', desc: true });
+    const bus = out.filter(d => ['Helsfyr', 'Bogerud'].includes(d.frontText));
+    expect(names(bus)).toEqual(['Helsfyr', 'Bogerud']);
+  });
+
+  it('reverses the clock on tid, where that is the whole sort', () => {
+    expect(names(sortDirs(rows(), { mode: 'tid', desc: true })))
+      .toEqual(['Vestli', 'Bogerud', 'Lillestrøm', 'Helsfyr', 'Gardermoen']);
+  });
+
+  // A bare mode string still means ascending, so callers that do not care
+  // about direction keep working.
+  it('treats a bare mode string as ascending', () => {
+    expect(names(sortDirs(rows(), SORT_TYPE)))
+      .toEqual(names(sortDirs(rows(), { mode: 'type', desc: false })));
+  });
+});

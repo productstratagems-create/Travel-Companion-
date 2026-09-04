@@ -150,6 +150,24 @@ await page.click('#auto-sort .pref-btn[data-val="tid"]');
 await page.waitForTimeout(200);
 show(await rows(page));
 
+console.log('\n══ retning: trykk «Tid» en gang til ══');
+await page.click('#auto-sort .pref-btn[data-val="tid"]');
+await page.waitForTimeout(200);
+console.log('   pil:', await page.$eval('#auto-sort .pref-btn.active', b => b.textContent.trim()));
+show((await rows(page)).slice(0, 4));
+console.log('\n── bytte modus arver ikke retningen ──');
+await page.click('#auto-sort .pref-btn[data-val="type"]');
+await page.waitForTimeout(200);
+console.log('   pil:', await page.$eval('#auto-sort .pref-btn.active', b => b.textContent.trim()));
+console.log('\n══ type synkende ══');
+await page.click('#auto-sort .pref-btn[data-val="type"]');
+await page.waitForTimeout(200);
+console.log('   pil:', await page.$eval('#auto-sort .pref-btn.active', b => b.textContent.trim()));
+show(await rows(page));
+console.log('   aria:', await page.$eval('#auto-sort .pref-btn.active', b => b.getAttribute('aria-label')));
+console.log('   inaktiv knapp har pil?', JSON.stringify(
+  await page.$eval('#auto-sort .pref-btn:not(.active) .sort-arrow', e => e.textContent)));
+
 console.log('\n── overlever tegneløkka (3 s) ──');
 await page.waitForTimeout(3000);
 console.log('   knapp fortsatt aktiv:', await page.$eval('#auto-sort .pref-btn.active', b => b.dataset.val));

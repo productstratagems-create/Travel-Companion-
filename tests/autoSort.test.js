@@ -13,7 +13,7 @@
  * the answer. Every rule about that fallback is tested here.
  */
 import { describe, it, expect } from 'vitest';
-import { groupDirections, dirRank, sortDirs, dirRows, quayLabel, nearbyAlternatives, SORT_TYPE, SORT_TIME } from '../src/views/auto.js';
+import { groupDirections, dirRank, sortDirs, dirRows, quayLabel, nearbyAlternatives, RANKS, sortEndLabels } from '../src/views/auto.js';
 import { NEAR_STOP_MAX_M } from '../src/geo.js';
 
 const NOW = Date.UTC(2026, 4, 26, 15, 0, 0);
@@ -90,7 +90,7 @@ describe('sortDirs', () => {
   ], NOW);
 
   it('groups by type in the order asked for', () => {
-    expect(names(sortDirs(rows(), SORT_TYPE)))
+    expect(names(sortDirs(rows(), false)))
       .toEqual(['Vestli', 'Helsfyr', 'Gardermoen', 'Lillestrøm']);
   });
 
@@ -109,18 +109,14 @@ describe('sortDirs', () => {
       call('Grorud', '31', 5, 'bus'),
     ], NOW).reverse();
     expect(names(rows)).toEqual(['Helsfyr', 'Grorud', 'Bogerud']);
-    expect(names(sortDirs(rows, SORT_TYPE))).toEqual(['Bogerud', 'Grorud', 'Helsfyr']);
+    expect(names(sortDirs(rows, false))).toEqual(['Bogerud', 'Grorud', 'Helsfyr']);
   });
 
-  it('keeps the old pure-time order when that is chosen', () => {
-    expect(names(sortDirs(rows(), SORT_TIME)))
-      .toEqual(['Gardermoen', 'Helsfyr', 'Lillestrøm', 'Vestli']);
-  });
 
   it('does not touch the array it was given', () => {
     const before = rows();
     const copy = names(before);
-    sortDirs(before, SORT_TYPE);
+    sortDirs(before, false);
     expect(names(before)).toEqual(copy);
   });
 });
@@ -139,13 +135,13 @@ describe('dirRows — the order and the index must agree', () => {
   // _dirs[data-i], so this invariant IS the click handler's correctness.
   it('leaves every index pointing at its own row', () => {
     const d = dirs();
-    dirRows(d, SORT_TYPE).forEach(({ d: row, i }) => {
+    dirRows(d, false).forEach(({ d: row, i }) => {
       expect(d[i]).toBe(row);
     });
   });
 
   it('sorts by type and drops nothing when nothing is filtered', () => {
-    const out = dirRows(dirs(), SORT_TYPE);
+    const out = dirRows(dirs(), false);
     expect(out.map(x => x.d.frontText))
       .toEqual(['Vestli', 'Ljabru', 'Helsfyr', 'Gardermoen', 'Lillestrøm']);
   });
@@ -154,7 +150,7 @@ describe('dirRows — the order and the index must agree', () => {
   // is where an index built after the filter would quietly go wrong.
   it('keeps indices right after a row is filtered out', () => {
     const d = dirs();
-    const out = dirRows(d, SORT_TYPE, row => row.frontText !== 'Helsfyr');
+    const out = dirRows(d, false, row => row.frontText !== 'Helsfyr');
     expect(out.map(x => x.d.frontText))
       .toEqual(['Vestli', 'Ljabru', 'Gardermoen', 'Lillestrøm']);
     out.forEach(({ d: row, i }) => expect(d[i]).toBe(row));
@@ -229,7 +225,7 @@ describe('a row is one mode', () => {
     const out = sortDirs(groupDirections([
       q('Mortensrud', '76', 3, 'bus', 'J'),
       q('Mortensrud', '3', 10, 'metro', '1'),
-    ], NOW), SORT_TYPE);
+    ], NOW), false);
     expect(out.map(dirRank)).toEqual([0, 2]);
   });
 });
@@ -250,29 +246,19 @@ describe('direction', () => {
   ], NOW);
 
   it('reverses the groups on type', () => {
-    expect(names(sortDirs(rows(), { mode: 'type', desc: true })))
+    expect(names(sortDirs(rows(), true)))
       .toEqual(['Lillestrøm', 'Gardermoen', 'Helsfyr', 'Bogerud', 'Vestli']);
   });
 
   // The half that must NOT reverse. Helsfyr (2 min) stays above Bogerud
   // (8 min) even though their group has moved up the list.
   it('keeps the soonest first inside a group when descending', () => {
-    const out = sortDirs(rows(), { mode: 'type', desc: true });
+    const out = sortDirs(rows(), true);
     const bus = out.filter(d => ['Helsfyr', 'Bogerud'].includes(d.frontText));
     expect(names(bus)).toEqual(['Helsfyr', 'Bogerud']);
   });
 
-  it('reverses the clock on tid, where that is the whole sort', () => {
-    expect(names(sortDirs(rows(), { mode: 'tid', desc: true })))
-      .toEqual(['Vestli', 'Bogerud', 'Lillestrøm', 'Helsfyr', 'Gardermoen']);
-  });
 
-  // A bare mode string still means ascending, so callers that do not care
-  // about direction keep working.
-  it('treats a bare mode string as ascending', () => {
-    expect(names(sortDirs(rows(), SORT_TYPE)))
-      .toEqual(names(sortDirs(rows(), { mode: 'type', desc: false })));
-  });
 });
 
 // ── Which other stops get offered ─────────────────────────────────────────
@@ -312,5 +298,35 @@ describe('nearbyAlternatives', () => {
     const here = s('Her', 0);
     expect(nearbyAlternatives([here, s('Umålt', null)], here).map(x => x.name))
       .toEqual(['Umålt']);
+  });
+});
+
+// ── One sort, and the buttons say what it does ────────────────────────────
+//
+// Asked for: type primary, time secondary — and the time-only sort removed as
+// a choice. Sorting by the clock across every type is not an order anyone
+// wanted, and offering it meant half the taps produced a list nobody asked
+// for. Deleted rather than hidden: an unreachable mode is a second definition
+// of the order, waiting to be switched back on.
+describe('the switch labels come from the rank table', () => {
+  it('names the two ends of RANKS, not "stigende" and "synkende"', () => {
+    const ends = sortEndLabels();
+    const named = RANKS.filter(r => r.label);
+    expect(ends.asc).toBe(named[0].label);
+    expect(ends.desc).toBe(named[named.length - 1].label);
+    expect(ends.asc).toBe('T-bane');
+    expect(ends.desc).toBe('Tog');
+  });
+
+  // The whole reason RANKS is a table: move a group and the buttons follow.
+  // Written as a chain of ifs, the labels would have gone on lying.
+  it('keeps the labels and the order as one thing', () => {
+    RANKS.forEach((r, i) => {
+      if (r.key === 'metro') expect(i).toBe(0);
+      if (r.key === 'rail') expect(i).toBe(RANKS.length - 2);
+    });
+    // The unknown group is last and deliberately unlabelled: nothing on
+    // screen should claim to know what it is.
+    expect(RANKS[RANKS.length - 1].label).toBe(null);
   });
 });

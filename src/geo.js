@@ -85,24 +85,23 @@ export function saveAutoMode(v) {
 const AUTO_SORT_KEY = 't.autoSort';
 
 /**
- * Which order the auto-reise list is drawn in, and which way.
+ * Which way the auto-reise list runs.
  *
- * Stored as one string — 'type', 'type-desc', 'tid', 'tid-desc' — rather than
- * two keys, because they are one choice and two keys that must agree is the
- * bug shape this codebase keeps finding. A value written by an older build
- * ('type' or 'tid') still parses, and simply means ascending.
+ * ONLY a direction now. There used to be a second sort mode, time alone,
+ * beside the type sort; it was removed because sorting by the clock across
+ * every type is not an order anyone wanted. The stored strings from that
+ * build — 'type', 'type-desc', 'tid', 'tid-desc' — still parse, and the only
+ * thing that survives from them is the direction. Someone who left it on
+ * 'tid' gets the type order ascending, which is the order that remains.
  *
- * @returns {{mode: 'type'|'tid', desc: boolean}}
+ * @returns {{desc: boolean}}
  */
 export function loadAutoSort() {
-  const raw = String(storage.get(AUTO_SORT_KEY) || '');
-  const desc = raw.endsWith('-desc');
-  const mode = raw.replace(/-desc$/, '') === 'tid' ? 'tid' : 'type';
-  return { mode, desc };
+  return { desc: String(storage.get(AUTO_SORT_KEY) || '').endsWith('-desc') };
 }
 
-export function saveAutoSort(mode, desc) {
-  storage.set(AUTO_SORT_KEY, (mode === 'tid' ? 'tid' : 'type') + (desc ? '-desc' : ''));
+export function saveAutoSort(desc) {
+  storage.set(AUTO_SORT_KEY, desc ? 'type-desc' : 'type');
 }
 
 const WEEKEND_MODE_KEY = 't.weekendMode';

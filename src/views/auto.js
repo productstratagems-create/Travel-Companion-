@@ -210,31 +210,54 @@ export function groupDirections(calls, now) {
  * busser". The worst outcome is a Ruter bus sinking a little. Never a row
  * disappearing.
  */
-export const SORT_TYPE = 'type';
-export const SORT_TIME = 'tid';
-
 /** The NeTEx codespace Ruter publishes under. */
 const RUTER_CODESPACE = 'RUT:';
 
 /**
- * Which group a direction belongs to. Lower comes first.
+ * The groups, in order, with the words the screen uses for them.
+ *
+ * A table rather than a chain of ifs, because the sort switch is labelled
+ * from the two ENDS of this list — "T-bane først" against "Tog først". Those
+ * labels and this order have to agree, and the only way to guarantee that is
+ * for there to be one of them. Written as a chain, moving a group would have
+ * silently made the buttons lie.
  *
  * The tram is a judgement call and is written down as one: four groups were
  * asked for and `BOARD_MODES` has five modes. It is rail-bound Ruter
- * transport, so it sits with the metro rather than after the train. One
- * number to move if that reads wrong on a real morning.
+ * transport, so it sits with the metro rather than after the train. One row
+ * to move if that reads wrong on a real morning.
  */
+export const RANKS = [
+  { key: 'metro',     label: 'T-bane' },
+  { key: 'tram',      label: 'Trikk' },
+  { key: 'rutebuss',  label: 'Ruter-buss' },
+  { key: 'annenbuss', label: 'Andre busser' },
+  { key: 'rail',      label: 'Tog' },
+  // An unknown mode is still a departure. Last, never dropped, and never a
+  // label — nothing on screen should claim to know what it is.
+  { key: 'ukjent',    label: null },
+];
+
+const _RANK_OF = Object.fromEntries(RANKS.map((r, i) => [r.key, i]));
+
+/** Which group a direction belongs to. Lower comes first. */
 export function dirRank(d) {
   const ln = d && d.call && d.call.serviceJourney && d.call.serviceJourney.line;
   const mode = (ln && ln.transportMode) || null;
-  if (mode === 'metro') return 0;
-  if (mode === 'tram') return 1;
+  if (mode === 'metro') return _RANK_OF.metro;
+  if (mode === 'tram') return _RANK_OF.tram;
   if (mode === 'bus') {
-    return String((ln && ln.id) || '').startsWith(RUTER_CODESPACE) ? 2 : 3;
+    return String((ln && ln.id) || '').startsWith(RUTER_CODESPACE)
+      ? _RANK_OF.rutebuss : _RANK_OF.annenbuss;
   }
-  if (mode === 'rail') return 4;
-  // An unknown mode is still a departure. Last, never dropped.
-  return 5;
+  if (mode === 'rail') return _RANK_OF.rail;
+  return _RANK_OF.ukjent;
+}
+
+/** The two ends of the list, which are what the switch offers. */
+export function sortEndLabels() {
+  const named = RANKS.filter(r => r.label);
+  return { asc: named[0].label, desc: named[named.length - 1].label };
 }
 
 /**
@@ -249,27 +272,29 @@ export function dirRank(d) {
  * finding (v1.68.0, v1.71.0).
  */
 /**
- * Accepts either a bare mode string or the {mode, desc} the preference holds,
- * so a caller that does not care about direction can still say SORT_TYPE.
+ * TYPE IS PRIMARY, TIME IS SECONDARY. That is the whole sort, and it is now
+ * the only one.
+ *
+ * There used to be a second mode, time alone, offered beside it. Asked to
+ * remove it: sorting by the clock across every type is not an order anyone
+ * wanted, and leaving it as a choice meant half the taps produced a list
+ * nobody had asked for. It is deleted rather than hidden — an unreachable
+ * mode is a second definition of the order waiting to be re-enabled.
+ *
+ * The direction reverses the GROUPS, not the clock inside them: the reader
+ * chooses which type to see first, but putting a departure 37 minutes out
+ * above one 3 minutes out helps nobody standing on a platform.
+ *
+ * @param {boolean} desc
  */
-function _spec(v) {
-  return (v && typeof v === 'object') ? v : { mode: v, desc: false };
-}
-
-export function dirCmp(v) {
-  const { mode, desc } = _spec(v);
+export function dirCmp(desc) {
   const way = desc ? -1 : 1;
-  if (mode !== SORT_TYPE) return (a, b) => (a.nextMs - b.nextMs) * way;
-  // Descending reverses the GROUPS, not the clock inside them. Asked for, and
-  // it is the useful reading: the reader chooses which type to see first, but
-  // putting a departure 37 minutes out above one 3 minutes out helps nobody
-  // standing on a platform.
   return (a, b) => ((dirRank(a) - dirRank(b)) * way) || (a.nextMs - b.nextMs);
 }
 
 /** The rows in the reader's chosen order. Pure; does not touch the input. */
-export function sortDirs(rows, mode) {
-  return (rows || []).slice().sort(dirCmp(mode));
+export function sortDirs(rows, desc) {
+  return (rows || []).slice().sort(dirCmp(desc));
 }
 
 /**
@@ -286,8 +311,8 @@ export function sortDirs(rows, mode) {
  *
  * @param {(d) => boolean} keep drops rows whose departures have all gone
  */
-export function dirRows(dirs, mode, keep) {
-  const cmp = dirCmp(mode);
+export function dirRows(dirs, desc, keep) {
+  const cmp = dirCmp(desc);
   return (dirs || []).map((d, i) => ({ d, i }))
     .filter(({ d }) => (keep ? keep(d) : true))
     .sort((a, b) => cmp(a.d, b.d));
@@ -597,33 +622,25 @@ function _showSort(on) {
   if (!el) return;
   el.style.display = on ? '' : 'none';
   if (!on) return;
-  const cur = loadAutoSort();
+  const { desc } = loadAutoSort();
+  const ends = sortEndLabels();
   el.querySelectorAll('.pref-btn').forEach(b => {
-    const active = b.dataset.val === cur.mode;
+    const wantsDesc = b.dataset.val === 'desc';
+    const active = wantsDesc === desc;
+    // The words come from the ends of the RANKS table, so a group moved there
+    // moves the label with it. "Stigende" and "synkende" said nothing about
+    // an order of categories — the reader had to tap to find out what they
+    // meant, which is the definition of a control that does not explain
+    // itself.
+    b.querySelector('.sort-word').textContent = (wantsDesc ? ends.desc : ends.asc) + ' først';
     b.classList.toggle('active', active);
-    // The arrow only ever appears on the active button. On the other one it
-    // would be a promise about an order that is not on screen — and worse, a
-    // direction the reader has not chosen for that mode.
-    const arrow = b.querySelector('.sort-arrow');
-    if (arrow) arrow.textContent = active ? (cur.desc ? ' ↓' : ' ↑') : '';
-    // The class and the arrow are the whole state a sighted reader gets;
-    // these are the same facts for everyone else, set in the same place.
     b.setAttribute('aria-pressed', active ? 'true' : 'false');
-    b.setAttribute('aria-label', b.dataset.label
-      + (active ? (cur.desc ? ', synkende. Trykk for stigende'
-                            : ', stigende. Trykk for synkende') : ''));
   });
   if (_sortWired) return;
   _sortWired = true;
   el.querySelectorAll('.pref-btn').forEach(b => {
     b.addEventListener('click', () => {
-      const now = loadAutoSort();
-      // Tapping the button already in use turns the order around; tapping the
-      // other one switches to it, ascending. Switching mode does NOT inherit
-      // the other mode's direction — arriving at a list already reversed,
-      // having asked only to change what it is sorted by, is a surprise.
-      const same = b.dataset.val === now.mode;
-      saveAutoSort(b.dataset.val, same ? !now.desc : false);
+      saveAutoSort(b.dataset.val === 'desc');
       _renderBody();
     });
   });
@@ -661,7 +678,7 @@ function _renderBody() {
   // choice any more. The screen counts down now (v1.71.0), so rows can age
   // past their own contents — and a row naming a direction with no time
   // beside it promises something the stop board is not saying.
-  const live = dirRows(_dirs, loadAutoSort(), d => _timesHtml(d, now));
+  const live = dirRows(_dirs, loadAutoSort().desc, d => _timesHtml(d, now));
   if (!live.length) {
     _showSort(false);
     body.innerHTML = '<div class="dest-prev-empty">Ingen avganger herfra nå.</div>';

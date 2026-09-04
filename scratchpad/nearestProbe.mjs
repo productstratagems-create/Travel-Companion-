@@ -153,9 +153,22 @@ const alts = (page) => page.$$eval('#v-auto .auto-stop-btn', els => els.map(e =>
 const { ctx, page } = await open(true);
 console.log('\n══ du er ved ══');
 console.log('  ' + await where(page));
-console.log('\n══ alternativer ══');
-(await alts(page)).forEach(a => console.log('  ' + a));
-console.log('\n  rader i lista:', (await page.$$('#v-auto .auto-dir')).length);
+console.log('\n══ sorter-bryteren ══');
+console.log('  ' + await page.$eval('#auto-sort', e => e.textContent.replace(/\\s+/g, ' ').trim()));
+console.log('  aktiv:', await page.$eval('#auto-sort .pref-btn.active', b => b.textContent.trim()));
+console.log('  bryter bredere enn skjermen?', await page.$eval('#auto-sort',
+  e => e.scrollWidth > e.clientWidth));
+const first = () => page.$$eval('#v-auto .auto-dir', els => els.slice(0, 3).map(e =>
+  e.querySelector('.auto-badges').textContent.trim() + ' ' + e.querySelector('.nearby-name').textContent.trim()));
+console.log('\n  T-bane først:'); (await first()).forEach(r => console.log('   ', r));
+await page.click('#auto-sort .pref-btn[data-val="desc"]');
+await page.waitForTimeout(200);
+console.log('  aktiv n\u00e5:', await page.$eval('#auto-sort .pref-btn.active', b => b.textContent.trim()));
+console.log('  Tog f\u00f8rst:'); (await first()).forEach(r => console.log('   ', r));
+await page.waitForTimeout(2500);
+console.log('  overlever tegnel\u00f8kka:', await page.$eval('#auto-sort .pref-btn.active', b => b.textContent.trim()));
+await page.click('#auto-sort .pref-btn[data-val="asc"]');
+await page.waitForTimeout(200);
 await page.screenshot({ path: 'scratchpad/shots/near-dark.png', animations: 'disabled' });
 await ctx.close();
 

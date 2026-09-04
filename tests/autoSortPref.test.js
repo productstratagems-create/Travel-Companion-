@@ -23,35 +23,29 @@ import { storage } from '../src/storage.js';
 beforeEach(() => storage._reset());
 
 describe('loadAutoSort', () => {
-  it('is type, ascending, when the reader has never chosen', () => {
-    expect(loadAutoSort()).toEqual({ mode: 'type', desc: false });
+  it('is ascending when the reader has never chosen', () => {
+    expect(loadAutoSort()).toEqual({ desc: false });
   });
 
-  it('round-trips all four states', () => {
-    saveAutoSort('tid', false);
-    expect(loadAutoSort()).toEqual({ mode: 'tid', desc: false });
-    saveAutoSort('tid', true);
-    expect(loadAutoSort()).toEqual({ mode: 'tid', desc: true });
-    saveAutoSort('type', true);
-    expect(loadAutoSort()).toEqual({ mode: 'type', desc: true });
-    saveAutoSort('type', false);
-    expect(loadAutoSort()).toEqual({ mode: 'type', desc: false });
+  it('round-trips both directions', () => {
+    saveAutoSort(true);
+    expect(loadAutoSort()).toEqual({ desc: true });
+    saveAutoSort(false);
+    expect(loadAutoSort()).toEqual({ desc: false });
   });
 
-  // Written by v1.73.0, which had no direction at all. It must keep meaning
-  // what it meant, not reset the reader's choice of mode.
-  it('reads a value from before directions existed as ascending', () => {
-    storage.set('t.autoSort', 'tid');
-    expect(loadAutoSort()).toEqual({ mode: 'tid', desc: false });
-  });
+  // Written by the build that still offered a time-only sort. The mode is
+  // gone; the direction is the only thing left to carry over, and someone who
+  // left it on 'tid' gets the order that remains rather than an error.
+  it.each([['type'], ['tid'], ['linjenummer'], ['']])(
+    'reads the old value %s as ascending', (raw) => {
+      storage.set('t.autoSort', raw);
+      expect(loadAutoSort()).toEqual({ desc: false });
+    });
 
-  // Rubbish in storage is a real state: an older build, a hand-edited value,
-  // a half-written key. It must land on the default, never on undefined.
-  it('falls to type ascending on a stored value it does not know', () => {
-    storage.set('t.autoSort', 'linjenummer');
-    expect(loadAutoSort()).toEqual({ mode: 'type', desc: false });
-    saveAutoSort('tullball', true);
-    expect(loadAutoSort()).toEqual({ mode: 'type', desc: true });
+  it('reads an old descending value as descending', () => {
+    storage.set('t.autoSort', 'tid-desc');
+    expect(loadAutoSort()).toEqual({ desc: true });
   });
 });
 
@@ -89,15 +83,13 @@ describe('the sort switch markup', () => {
   });
 
 
-  it('keeps the arrow beside the word, not under it', async () => {
+  it('lays the button out as a row, not a column', async () => {
     const fs = await import('node:fs');
     const css = fs.readFileSync('src/style/settings.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     const block = css.slice(css.indexOf('#auto-sort .pref-btn'));
-    // The settings .pref-btn is flex-direction: column, which put the arrow on
-    // its own line and made the active button taller than the other one — the
-    // whole row grew and shrank on every tap. Seen on a 414px screen.
+    // The settings .pref-btn is flex-direction: column, which stacked the
+    // label and made the active button taller than the other one — the whole
+    // row grew and shrank on every tap. Seen on a 414px screen.
     expect(block).toMatch(/flex-direction:\s*row/);
-    // And a reserved width, so the button does not resize under the finger.
-    expect(block).toMatch(/\.sort-arrow[\s\S]*?min-width:\s*\.8em/);
   });
 });

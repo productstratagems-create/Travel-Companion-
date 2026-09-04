@@ -382,10 +382,6 @@
   border-radius: 5px;
 }
 
-/* The direction arrow. Inline with the word rather than beside it, so the
- * button does not change width when the arrow appears — a control that
- * resizes under the finger is a control that gets mis-tapped. Reserved on
- * both buttons; only the active one has a glyph in it. */
 #auto-sort .pref-btn {
   /* The settings .pref-btn stacks its children in a column, which put the
      arrow on its own line and made the active button taller than the other
@@ -394,11 +390,3 @@
   flex-direction: row;
 }
 
-#auto-sort .sort-arrow {
-  /* Reserved on both buttons so the button does not change width when the
-     arrow appears. A control that resizes under the finger gets mis-tapped. */
-  display: inline-block;
-  min-width: .8em;
-  margin-left: .25em;
-  text-align: left;
-}

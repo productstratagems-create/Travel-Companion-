@@ -831,6 +831,73 @@ function _renderBody() {
 // redraws every second (v1.71.0), so without this the lookup would fire on
 // every tick — one request per line, not one per frame.
 let _hubsAskedFor = null;
+// Which folded stretches the reader has opened. A module variable, cleared
+// when the direction changes, for the same reason _hubsAskedFor is one:
+// everything in #auto-body is rewritten once a second, so state kept in the
+// markup would be gone before the finger lifted.
+const _openRuns = new Set();
+
+/**
+ * The stops along a direction, with the plain stretches folded away.
+ *
+ * Asked for: "holdeplasser som ikke har slike funksjoner kollapses. Må kunne
+ * ekspanderes." Line 3 to Kolsås is twenty-four stops, and the ones you can
+ * actually change at are a handful. Anchoring them (v1.72.0) helped; it did
+ * not shorten anything.
+ *
+ * One folded row per STRETCH between two interchanges, not one switch for the
+ * whole list — chosen, and it keeps the sense of how far apart the anchors
+ * are. Expanding opens only that stretch.
+ *
+ * Three guards, because the worst outcome here is a list that has eaten
+ * itself:
+ *
+ *   no anchors      if the register found no interchange on this line — the
+ *                   line field was refused, or the answer has not landed yet
+ *                   — every stop is shown. MEASURED, and it is why this
+ *                   guard is about anchors rather than about knowledge: with
+ *                   Quay.lines refused every stop falls back to a plain
+ *                   two-platform entry, the register knows them all perfectly
+ *                   well, and seventeen stops folded into ONE row plus the
+ *                   terminus. A list that has eaten itself because a field
+ *                   was refused is far worse than a long list.
+ *   the last stop   always shown. It is the terminus, and it is the name of
+ *                   the direction itself.
+ *   a run of one    not folded. "1 stopp" costs a row and saves none.
+ *
+ * @param {Array} stops   from stopsAhead
+ * @param {object} hubs   the register
+ * @param {Set} openRuns  which folded stretches the reader has opened
+ * @returns {Array} rows: {kind:'stop', s, i} or {kind:'run', key, from, to, items}
+ */
+export function stopRuns(stops, hubs, openRuns) {
+  const list = stops || [];
+  if (!list.length) return [];
+  const reg = hubs || {};
+  if (!list.some(s => isHub(reg[s.id]))) return list.map((s, i) => ({ kind: 'stop', s, i }));
+
+  const anchor = (s, i) => isHub(reg[s.id]) || i === list.length - 1;
+  const out = [];
+  let run = [];
+  const flush = () => {
+    if (!run.length) return;
+    if (run.length === 1) out.push(run[0]);
+    else {
+      const key = run[0].s.id || run[0].s.name;
+      out.push(openRuns && openRuns.has(key)
+        ? { kind: 'open', key, items: run }
+        : { kind: 'run', key, from: run[0].s.name, to: run[run.length - 1].s.name,
+            items: run });
+    }
+    run = [];
+  };
+  list.forEach((s, i) => {
+    if (anchor(s, i)) { flush(); out.push({ kind: 'stop', s, i }); }
+    else run.push({ kind: 'stop', s, i });
+  });
+  flush();
+  return out;
+}
 
 function _renderStops(body) {
   const stops = stopsAhead(_open.call, _stop.name);
@@ -848,18 +915,33 @@ function _renderStops(body) {
         && stops.some(s => s.id && next[s.id] && !hubs[s.id])) _renderBody();
     });
   }
+  const stopHtml = ({ s, i }) => '<button class="nearby-btn auto-stop-btn'
+    + (isHub(hubs[s.id]) ? ' auto-hub' : '') + '" type="button" data-i="' + i + '">'
+    + '<span class="nearby-name">' + esc(s.name) + '</span>'
+    + '<span class="nearby-dist">' + (s.mins != null ? s.mins + ' min' : '') + '</span>'
+    + '</button>';
+  const rowHtml = (r) => {
+    if (r.kind === 'stop') return stopHtml(r);
+    if (r.kind === 'open') return r.items.map(stopHtml).join('');
+    return '<button class="nearby-btn auto-run" type="button" data-run="' + esc(r.key) + '"'
+      + ' aria-expanded="false"'
+      + ' aria-label="' + esc(r.from) + ' til ' + esc(r.to) + ', ' + r.items.length
+      + ' stopp. Trykk for å vise">'
+      + '<span class="nearby-name">' + esc(r.from) + ' → ' + esc(r.to) + '</span>'
+      + '<span class="nearby-dist">' + r.items.length + ' stopp ▾</span>'
+      + '</button>';
+  };
   body.innerHTML = '<button class="set-via-add-btn auto-back-dir" type="button">← alle retninger</button>'
     + '<div class="set-label">' + _open.lines.map(badgeHtml).join('')
     + ' mot ' + esc(_open.frontText) + '</div>'
     + (stops.length
-      ? stops.map((s, i) => '<button class="nearby-btn auto-stop-btn'
-        + (isHub(hubs[s.id]) ? ' auto-hub' : '') + '" type="button" data-i="' + i + '">'
-        + '<span class="nearby-name">' + esc(s.name) + '</span>'
-        + '<span class="nearby-dist">' + (s.mins != null ? s.mins + ' min' : '') + '</span>'
-        + '</button>').join('')
+      ? stopRuns(stops, hubs, _openRuns).map(rowHtml).join('')
       : '<div class="dest-prev-empty">Vet ikke hvor denne stopper.</div>');
   body.querySelector('.auto-back-dir').addEventListener('click', () => {
-    _open = null; _hubsAskedFor = null; _renderBody();
+    _open = null; _hubsAskedFor = null; _openRuns.clear(); _renderBody();
+  });
+  body.querySelectorAll('.auto-run').forEach(b => {
+    b.addEventListener('click', () => { _openRuns.add(b.dataset.run); _renderBody(); });
   });
   body.querySelectorAll('.auto-stop-btn').forEach(b => {
     b.addEventListener('click', () => {
@@ -895,4 +977,5 @@ export function renderAuto() {
 
 /** Fresh screen when the mode is entered, so it never opens on a stale stop. */
 export function resetAuto() {
-  _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null; }
+  _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null;
+  _openRuns.clear(); }

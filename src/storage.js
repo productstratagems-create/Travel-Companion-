@@ -17,6 +17,11 @@ const ALL_KEYS = [
   // Whether the nearby-stops list on auto-reise is open. A display choice the
   // reader made, so it travels with the profile like the rest.
   't.autoStops',
+  // Found missing all at once by a test that enumerates them, after t.destPeek
+  // was noticed by hand. Every one is personal, and t.homeLL is the one that
+  // matters: the privacy page promises the app does not track you, so a
+  // remembered position has to die with the profile that made it.
+  't.destPeek', 't.freqArr', 't.freqDep', 't.homeLL', 't.palette', 't.walkDist',
 ];
 
 const PROFILES_KEY = '__profiles';

@@ -189,9 +189,24 @@ export function boardGQL(id, n, now, basic, fwdMins, modes, perLine) {
  * and its caller drops it and remembers on a rejection, exactly as fetchBoard
  * does for the per-line cap (v1.70.0).
  */
-export function stopPlacesGQL(ids) {
+/**
+ * What kind of place each of these stops is.
+ *
+ * `rich` asks for the lines calling at every quay, which is what actually
+ * makes somewhere an interchange — you change there because ANOTHER LINE
+ * stops there, not because it has four platforms. Without it the register can
+ * only count platforms, and a two-platform metro stop where four lines and
+ * the buses meet does not qualify. That was the reported bug.
+ *
+ * Opt-in, because `Quay.lines` cannot be tried from the sandbox this was
+ * written in — the proxy does not reach api.entur.io. hubs.js asks for it
+ * first and drops back to the plain form for the session if Entur turns it
+ * down, so the failure mode is exactly the query that shipped in v1.72.0.
+ */
+export function stopPlacesGQL(ids, rich) {
   const list = (ids || []).map(id => '"' + String(id).replace(/"/g, '') + '"').join(',');
-  return '{stopPlaces(ids:[' + list + ']){id transportMode quays{id}}}';
+  const quays = rich ? 'quays{id lines{id transportMode}}' : 'quays{id}';
+  return '{stopPlaces(ids:[' + list + ']){id transportMode ' + quays + '}}';
 }
 
 export function normJid(jid) {

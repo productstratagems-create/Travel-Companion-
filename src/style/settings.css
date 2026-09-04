@@ -261,6 +261,45 @@
   font-size: 1.35rem; font-weight: 700; letter-spacing: .02em;
   margin: .1rem 0 .7rem;
 }
+
+/* The heading is a <button> when there are stops to collapse and a <div> when
+   there are not, so the button's own defaults have to be undone or the two
+   would not look alike: a browser button brings its own font, background,
+   border, padding and centred text. */
+#v-auto button.auto-stop {
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 1.35rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+#v-auto button.auto-stop:active { opacity: .7; }
+
+/* The name and the caret travel together on the left. Kept as one flex child
+   because the row is space-between and a third sibling would push the name
+   off its column. */
+#v-auto .auto-stop-name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .5rem;
+  min-width: 0;
+}
+
+#v-auto .auto-stop-more {
+  font-size: .75rem;
+  font-weight: 400;
+  letter-spacing: .05em;
+  opacity: .6;
+  white-space: nowrap;
+}
 /* A one-digit line number is narrower than a two-digit one, so without a
    floor the destination started 5px further left on the metro row than on the
    bus rows — measured. Everything else on this screen lines up in a column;

@@ -26,7 +26,8 @@ import { predictDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { ensureHubs, loadHubs, isHub } from '../api/hubs.js';
 import { logMsg } from '../ui/log.js';
-import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M } from '../geo.js';
+import { loadAutoSort, saveAutoSort, loadAutoStopsOpen, saveAutoStopsOpen,
+  NEAR_STOP_MAX_M } from '../geo.js';
 
 const MIN = 60000;
 /**
@@ -48,9 +49,6 @@ const AUTO_BOARD_DEPARTURES = 30;
  * down we are exactly where v1.69.0 left us.
  */
 const AUTO_PER_LINE = 3;
-
-/** As far as it is worth walking to a different stop instead. */
-
 
 function _callTime(c) {
   const t = c && (c.expectedDepartureTime || c.aimedDepartureTime);
@@ -487,6 +485,51 @@ export function nearbyAlternatives(list, chosen) {
     s && s.id !== id && (s.distM == null || s.distM <= NEAR_STOP_MAX_M));
 }
 
+/**
+ * Is the nearby-stops list showing?
+ *
+ * Never when there is nothing in it: a heading that folds away an empty list
+ * is a control that cannot change anything, which is worse than no control —
+ * the same rule _showSort keeps.
+ */
+export function stopsOpen(count) {
+  return count > 0 && loadAutoStopsOpen();
+}
+
+/**
+ * The "du er ved" heading, which is also the fold.
+ *
+ * Exported and pure because everything that matters about it is in the
+ * markup: whether it is a button at all, what it promises a screen reader,
+ * and which way the caret points. Grepping the source for those is not a
+ * test — this is.
+ *
+ * The name and the caret are ONE left-hand flex child, not two siblings. The
+ * row is space-between, and a third child in a space-between row pushes the
+ * label off its column; settings.css says so in plain words because it has
+ * happened here before.
+ *
+ * The count shows only while the list is closed. Open, the stops are on
+ * screen, and a number counting what you are looking at is noise.
+ */
+export function stopHeadHtml(stop, count, open) {
+  const dist = stop && stop.distM != null
+    ? '<span class="nearby-dist">' + stop.distM + ' m</span>' : '';
+  const name = esc((stop && stop.name) || '');
+  const head = '<span class="auto-stop-name">' + name
+    + (count > 0
+      ? '<span class="auto-stop-more">' + (open ? '' : count + ' ')
+        + (open ? '▴' : '▾') + '</span>'
+      : '')
+    + '</span>';
+  if (!count) return '<div class="auto-stop">' + head + dist + '</div>';
+  return '<button class="auto-stop" type="button" id="auto-stop-toggle"'
+    + ' aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="auto-alts"'
+    + ' aria-label="' + name + ', ' + count + ' holdeplasser i nærheten.'
+    + ' Trykk for å ' + (open ? 'skjule' : 'vise') + '">'
+    + head + dist + '</button>';
+}
+
 function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
@@ -503,18 +546,35 @@ function _renderWhere() {
   // NEAR_STOP_MAX_M, defined next to the query that fetches them, so the list
   // cannot offer a distance the query never looked at.
   const others = nearbyAlternatives(list, _stop);
+  const open = stopsOpen(others.length);
+
   el.innerHTML = '<div class="set-label">du er ved</div>'
-    + '<div class="auto-stop">' + esc(_stop.name)
-    + (_stop.distM != null ? '<span class="nearby-dist">' + _stop.distM + ' m</span>' : '')
-    + '</div>'
+    + stopHeadHtml(_stop, others.length, open)
+    + '<div id="auto-alts"' + (open ? '' : ' hidden') + '>'
     + others.map(s => '<button class="nearby-btn auto-alt" type="button" data-id="' + esc(s.id) + '">'
       + '<span class="nearby-name">' + esc(s.name) + '</span>'
       + '<span class="nearby-dist">' + (s.distM != null ? s.distM + ' m' : '') + '</span>'
-      + '</button>').join('');
+      + '</button>').join('')
+    + '</div>';
+
+  // Listeners are re-attached on every tick, which is fine and is how the
+  // alternatives have always worked. It is the STATE that cannot live here:
+  // this innerHTML is rewritten once a second, so a class on the markup would
+  // be wiped before the reader let go of the button. It lives in storage.
+  const toggle = _el('auto-stop-toggle');
+  if (toggle) {
+    toggle.addEventListener('click', () => {
+      saveAutoStopsOpen(!loadAutoStopsOpen());
+      _renderWhere();
+    });
+  }
   el.querySelectorAll('.auto-alt').forEach(b => {
     b.addEventListener('click', () => {
       _stop = list.find(s => s.id === b.dataset.id) || _stop;
       _open = null; _dirs = [];
+      // Deliberately NOT collapsing here. Having the list shut under the
+      // finger that just picked from it is a movement nobody asked for, and
+      // it makes trying two stops in a row needlessly hard.
       renderAuto();
       _load();
     });

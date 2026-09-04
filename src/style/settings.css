@@ -315,6 +315,18 @@
 }
 #v-auto .auto-stop-btn.auto-hub .nearby-name { font-weight: 700; }
 
+/* A stretch with nothing to change at, folded to one row.
+   Dimmer than a stop and without its own left edge, so the eye reads it as a
+   gap in the line rather than as another place you could get off at — which
+   it is not, until you open it. */
+#v-auto .auto-run {
+  opacity: .55;
+  border-style: dashed;
+  background: none;
+}
+#v-auto .auto-run .nearby-name { font-weight: 400; }
+#v-auto .auto-run:active { opacity: .8; }
+
 #v-auto .auto-badges {
   display: inline-flex;
   gap: 3px;

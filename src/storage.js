@@ -11,6 +11,9 @@ const ALL_KEYS = [
   // The interchange register: learned per device, and worth keeping with the
   // profile so a switch does not inherit another reader's answers.
   't.hubs',
+  // Which order the auto-reise list is drawn in. A display choice, but one
+  // the reader made, so it travels with the profile like the rest.
+  't.autoSort',
 ];
 
 const PROFILES_KEY = '__profiles';

@@ -73,6 +73,22 @@ export function saveAutoMode(v) {
   storage.set(AUTO_MODE_KEY, v ? '1' : '0');
 }
 
+/**
+ * How the auto-reise list is ordered: by type, or by time alone.
+ *
+ * Default is BY TYPE, which is why absence is not read as "off" here the way
+ * t.autoMode has to be. There is no harm in a reader who has never chosen
+ * getting the type order — it is the order that was asked for, and one tap
+ * on the switch gives back the old one.
+ */
+const AUTO_SORT_KEY = 't.autoSort';
+export function loadAutoSort() {
+  return storage.get(AUTO_SORT_KEY) === 'tid' ? 'tid' : 'type';
+}
+export function saveAutoSort(v) {
+  storage.set(AUTO_SORT_KEY, v === 'tid' ? 'tid' : 'type');
+}
+
 const WEEKEND_MODE_KEY = 't.weekendMode';
 export function loadWeekendMode() {
   return storage.get(WEEKEND_MODE_KEY) === '1';

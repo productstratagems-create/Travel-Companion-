@@ -17,7 +17,7 @@ vi.mock('../src/config.js', () => ({
   default: { api: { journeyPlanner: 'https://x/jp' }, storage: { dir: 't.dir' }, dirs: [{ key: 'out' }] },
 }));
 
-const { loadHubs, saveHubs, ensureHubs, anchorIds, hubReport, HUB_V,
+const { loadHubs, saveHubs, ensureHubs, anchorIds, hubReport, HUB_MIN_LINES, HUB_V,
   _resetHubs, _hubProbeRejected, _hubRichRefused } = await import('../src/api/hubs.js');
 
 const ok = (places) => ({ data: { stopPlaces: places } });
@@ -94,83 +94,69 @@ describe('ensureHubs', () => {
   });
 });
 
-// ── Which stops along a direction are worth anchoring on ─────────────────
+// ── Which stops are worth anchoring on ──────────────────────────────────
 //
-// THE THIRD DEFINITION. v1.81.0 used an absolute line count and every stop
-// became an anchor. v1.82.0 made it relative to the line — which measured
-// POPULARITY rather than interchange, and the reader found the hole at once:
-// "Hellerud, som tjener to ulike t-banelinjer, faller utenfor."
+// THE FIFTH DEFINITION, and the reader's own: "lagre alle stoppesteder som
+// tjener fler enn én linje". It is also the one variant never tried. v1.81.0
+// tried "more than one line" and marked everything, so the idea was written
+// off — but it counted ALL lines, buses included, and every Oslo metro
+// station has buses. Only v1.84.0 narrowed what is STORED to rail-bound
+// lines, and by then the rule had moved on to comparing neighbours.
 //
-// Measured against that build, on line 3 westbound:
-//   scores  1 1 1 1 1 1 1 2 2 4 4 5 5 5 5 5 5   median 2, cap 6 of 17
-//   kept    Tøyen Grønland Jernbanetorget Stortinget Nationaltheatret Majorstuen
-//   dropped Hellerud (2) — and Helsfyr (4), above the median, because the cap
-//           was already full of the six tunnel stops
-//
-// A stop is an anchor when its rail-bound line set, or its mode set, differs
-// from the stop BEFORE it. That is what a junction is.
+// Comparing neighbours finds JUNCTIONS, not interchanges. Reported with a
+// screenshot: Borgen and Gjettum anchored while Majorstuen and
+// Jernbanetorget did not, because inside a shared stretch nothing changes
+// however many lines call there.
 describe('anchorIds', () => {
   const st = (name) => ({ id: name, name });
-  // Mortensrud → Kolsås. Line 2 joins at Hellerud; 1, 4 and 5 join at Tøyen.
   const LINE3 = [
     ['Bogerud', ['3']], ['Bøler', ['3']], ['Godlia', ['3']],
-    ['Hellerud', ['2', '3']],                 // ← the junction the reader named
+    ['Hellerud', ['2', '3']],
     ['Brynseng', ['2', '3']], ['Helsfyr', ['2', '3']],
     ['Tøyen', ['1', '2', '3', '4', '5']],
-    ['Grønland', ['1', '2', '3', '4', '5']],
     ['Jernbanetorget', ['1', '2', '3', '4', '5']],
+    ['Majorstuen', ['1', '2', '3', '4', '5']],
   ];
   const stops = LINE3.map(([n]) => st(n));
   const reg = (over = {}) => Object.fromEntries(LINE3.map(([n, r]) => [n,
     { v: 3, q: 2, m: over[n] || ['metro'], r }]));
 
-  it('anchors the stop where a line joins', () => {
+  it('anchors every stop serving more than one line', () => {
+    expect([...anchorIds(stops, reg())].sort()).toEqual(
+      ['Brynseng', 'Hellerud', 'Helsfyr', 'Jernbanetorget', 'Majorstuen', 'Tøyen']);
+  });
+
+  // The two the screenshot named, in one assertion each.
+  it('anchors Hellerud, the light one', () => {
+    expect(anchorIds(stops, reg()).has('Hellerud')).toBe(true);
+  });
+
+  it('anchors Jernbanetorget and Majorstuen, which change-detection could not', () => {
     const ids = anchorIds(stops, reg());
-    expect(ids.has('Hellerud')).toBe(true);
-    expect(ids.has('Godlia')).toBe(false);
-    expect(ids.has('Bogerud')).toBe(false);
+    expect(ids.has('Jernbanetorget')).toBe(true);
+    expect(ids.has('Majorstuen')).toBe(true);
   });
 
-  // The shared tunnel is ONE stretch, not six anchors. Only where the lines
-  // arrived is a change.
-  it('does not anchor a stretch where nothing changes', () => {
+  it('leaves a one-line stop alone', () => {
     const ids = anchorIds(stops, reg());
-    expect(ids.has('Tøyen')).toBe(true);
-    expect(ids.has('Grønland')).toBe(false);
-    expect(ids.has('Jernbanetorget')).toBe(false);
+    ['Bogerud', 'Bøler', 'Godlia'].forEach(n => expect(ids.has(n)).toBe(false));
   });
 
-  it('marks a handful, not everything', () => {
-    expect([...anchorIds(stops, reg())].sort()).toEqual(['Hellerud', 'Tøyen']);
-  });
-
-  // ── The reader's own call about buses ───────────────────────────────────
-  //
-  // Every kerb has different bus routes, so a bus number changing between
-  // neighbours is not a junction — it is a different kerb. Buses speak on the
-  // mode dimension instead.
-  it('is not moved by bus lines coming and going', () => {
+  // Buses are not in `r` at all (v1.84.0), so they cannot inflate the count —
+  // which is exactly why v1.81.0's version of this rule marked everything.
+  it('is not inflated by bus lines', () => {
     const hubs = reg();
-    // Different buses at every stop, same rails: still no new anchors.
-    Object.keys(hubs).forEach((k, i) => { hubs[k].m = ['metro', 'bus']; });
-    expect([...anchorIds(stops, hubs)].sort()).toEqual(['Hellerud', 'Tøyen']);
+    Object.keys(hubs).forEach(k => { hubs[k].m = ['metro', 'bus']; });
+    expect([...anchorIds(stops, hubs)].sort()).toEqual(
+      ['Brynseng', 'Hellerud', 'Helsfyr', 'Jernbanetorget', 'Majorstuen', 'Tøyen']);
   });
 
-  // This test used to assert the opposite, and that assertion WAS the bug:
-  // buses call at some stops and not the next, so letting their presence
-  // count made almost every stop an anchor. Reported as "nå er alle stopp
-  // definert som knutepunkter".
-  it('is not moved when buses stop meeting the metro', () => {
-    const hubs = reg({ Bogerud: ['metro', 'bus'], Bøler: ['metro', 'bus'] });
-    expect(anchorIds(stops, hubs).has('Godlia')).toBe(false);
-  });
-
-  it('is moved when something RAIL-BOUND meets the metro', () => {
+  it('anchors a stop where two rail-bound modes meet, on one line each', () => {
     const hubs = reg({ Godlia: ['metro', 'tram'] });
     expect(anchorIds(stops, hubs).has('Godlia')).toBe(true);
   });
 
-  // ── The two failure modes, which both land on today's list ──────────────
+  // Unknown is not the same fact as "one line".
   it('anchors nothing when the line field was never answered', () => {
     const noLines = Object.fromEntries(LINE3.map(([n]) => [n, { v: 3, q: 2, m: ['metro'] }]));
     expect(anchorIds(stops, noLines).size).toBe(0);
@@ -178,53 +164,34 @@ describe('anchorIds', () => {
     expect(anchorIds(stops, null).size).toBe(0);
   });
 
-  // Unknown is not the same fact as "no lines here", and must not read as a
-  // change on the stop after it.
-  it('treats a gap in the register as unknown, not as a change', () => {
-    const hubs = reg();
-    delete hubs.Godlia;
-    const ids = anchorIds(stops, hubs);
-    expect(ids.has('Hellerud')).toBe(false);   // nothing to compare against
-    expect(ids.has('Tøyen')).toBe(true);       // and the rest still works
-  });
-
   it('survives an empty list', () => {
     expect(anchorIds([], reg()).size).toBe(0);
     expect(anchorIds(null, reg()).size).toBe(0);
   });
 
-  // Same SIZE, different lines — a line leaves and another joins at the same
-  // stop. Comparing counts would miss it entirely, which is the mistake the
-  // two previous definitions were built on.
-  it('sees a swap, not just a change of size', () => {
-    const swap = [st('a'), st('b'), st('c')];
-    const hubs = {
-      a: { v: 3, q: 2, m: ['metro'], r: ['1', '2'] },
-      b: { v: 3, q: 2, m: ['metro'], r: ['2', '3'] },
-      c: { v: 3, q: 2, m: ['metro'], r: ['2', '3'] },
-    };
-    expect([...anchorIds(swap, hubs)]).toEqual(['b']);
+  // "We never asked" is not "we asked and there are no lines". A stop with no
+  // line data is not an anchor on the strength of its modes alone — the modes
+  // came from the same answer, and if that answer had no lines it cannot be
+  // trusted to say two rail modes meet there.
+  it('will not anchor on modes alone when the lines were never answered', () => {
+    const hubs = { Bogerud: { v: 3, q: 2, m: ['metro', 'tram'] } };   // no r
+    expect(anchorIds([st('Bogerud')], hubs).size).toBe(0);
   });
 
-  // An entry with no line data at all is UNKNOWN. Reading it as "no lines
-  // here" would invent a change at it and another at the stop after it.
-  it('does not invent a change around a stop it knows nothing about', () => {
-    const hubs = reg();
-    delete hubs.Godlia.r;              // entry exists, line data does not
-    const ids = anchorIds(stops, hubs);
-    expect(ids.has('Godlia')).toBe(false);
-    expect(ids.has('Hellerud')).toBe(false);   // nothing to compare against
-    expect(ids.has('Tøyen')).toBe(true);       // and the rest still works
-  });
-
-  // Order is the whole rule, so the same stops the other way round must
-  // anchor where the lines change from THAT direction.
-  it('reads the sequence in travel order', () => {
+  // The order of the stops is no longer part of the rule at all, which is the
+  // whole difference from the definition this replaces.
+  it('gives the same answer whichever way the line is read', () => {
     const back = [...stops].reverse();
-    const ids = anchorIds(back, reg());
-    expect(ids.has('Helsfyr')).toBe(true);   // 1,4,5 leave here going east
-    expect(ids.has('Godlia')).toBe(true);    // 2 leaves here
-    expect(ids.has('Bogerud')).toBe(false);
+    expect([...anchorIds(back, reg())].sort()).toEqual([...anchorIds(stops, reg())].sort());
+  });
+
+  // v1.84.1 refused any answer marking more than 60% of a line. On a trunk
+  // that is a TRUE fact, not a broken signal — measured: six of nine stops
+  // here, and the whole set came back empty.
+  it('does not throw away a line that really is mostly interchanges', () => {
+    const busy = Object.fromEntries(LINE3.map(([n]) => [n,
+      { v: 3, q: 2, m: ['metro'], r: ['1', '2'] }]));
+    expect(anchorIds(stops, busy).size).toBe(stops.length);
   });
 });
 
@@ -325,115 +292,52 @@ describe('the ladder', () => {
   });
 });
 
-// ── There is no cap and no threshold any more ────────────────────────────
-//
-// v1.82.0 had both, and they were what dropped Helsfyr: it scored above the
-// median, but the cap was already full of the six tunnel stops. A rule about
-// where lines CHANGE needs neither, and both are gone rather than tuned.
-describe('no thresholds left', () => {
-  it('keeps every junction on a line that really has several', () => {
-    const many = Array.from({ length: 20 }, (_, i) => ({ id: 's' + i, name: 's' + i }));
-    // Junctions at five stops out of twenty — under the uselessness valve,
-    // so every one of them is kept. There is no selection and no ranking:
-    // the rule either recognises a change or it does not.
-    const hubs = Object.fromEntries(many.map((s, i) => [s.id,
-      { v: 3, q: 2, m: ['metro'], r: ['3', ...(i >= 4 ? ['A'] : []), ...(i >= 8 ? ['B'] : []),
-        ...(i >= 12 ? ['C'] : []), ...(i >= 16 ? ['D'] : [])] }]));
-    expect([...anchorIds(many, hubs)].sort()).toEqual(['s12', 's16', 's4', 's8']);
+// ── One threshold, and it is a definition ───────────────────────────────
+describe('HUB_MIN_LINES', () => {
+  it('is two, because that is what "more than one line" means', () => {
+    expect(HUB_MIN_LINES).toBe(2);
   });
 
-  it('has no share or median left in the source', async () => {
+  it('leaves no share or median behind', async () => {
     const fs = await import('node:fs');
     const src = fs.readFileSync('src/api/hubs.js', 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
     expect(src).not.toContain('ANCHOR_SHARE');
+    expect(src).not.toContain('ANCHOR_USELESS_ABOVE');
     expect(src).not.toContain('median');
-    expect(src).not.toContain('hubScore');
   });
 });
 
-// ── Buses must not sneak back in through the modes ────────────────────────
+// ── Buses stay out of the count ─────────────────────────────────────────
 //
-// Reported after v1.84.0: "Nå er alle stopp definert som knutepunkter."
-//
-// Bus LINES were excluded because every kerb has different bus routes — and
-// then let straight back in through the MODE dimension, three lines apart in
-// the same file. Buses call at some stops and not the next, so the mode set
-// flickered between {metro,bus} and {metro} and the rule fired almost
-// everywhere. Measured against that build, on a line with buses at every
-// other stop: SEVEN of eight stops became anchors.
-describe('rail-bound in both dimensions', () => {
-  const N = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'Hellerud'];
+// Reported after v1.81.0: "Nå er alle stopp definert som knutepunkter." That
+// rule counted ALL lines, and every Oslo metro station has buses. Only the
+// rail-bound lines are stored, which is what lets the same idea work now.
+describe('rail-bound only', () => {
+  const N = ['a', 'b', 'c', 'Hellerud'];
   const stops = N.map(n => ({ id: n, name: n }));
-  const flickering = Object.fromEntries(N.map((n, i) => [n, {
-    v: 3, q: 2,
-    r: n === 'Hellerud' ? ['2', '3'] : ['3'],
-    m: i % 2 ? ['metro'] : ['metro', 'bus'],
-  }]));
+
+  it('does not let bus lines make a stop an interchange', async () => {
+    reply = ok([{ id: 'a', transportMode: 'metro', quays: [{ id: 'q', lines: [
+      { id: 'RUT:Line:3', transportMode: 'metro' },
+      { id: 'RUT:Line:79', transportMode: 'bus' },
+      { id: 'RUT:Line:70', transportMode: 'bus' },
+    ] }] }]);
+    await ensureHubs(['a']);
+    expect(loadHubs().a.r).toEqual(['RUT:Line:3']);
+    expect(anchorIds([stops[0]], loadHubs()).size).toBe(0);
+  });
+
+  it('still counts a tram or a train meeting the metro', () => {
+    const hubs = { a: { v: 3, q: 2, r: ['3'], m: ['metro', 'rail'] } };
+    expect(anchorIds([stops[0]], hubs).has('a')).toBe(true);
+  });
 
   it('is not moved by buses appearing and disappearing', () => {
-    expect([...anchorIds(stops, flickering)]).toEqual(['Hellerud']);
-  });
-
-  // The case the mode test exists for, and which must survive: something
-  // rail-bound meeting the metro.
-  it('still anchors where a train or a tram meets the metro', () => {
-    const hubs = Object.fromEntries(N.map(n => [n,
-      { v: 3, q: 2, r: ['3'], m: ['metro', 'bus'] }]));
-    hubs.e = { v: 3, q: 2, r: ['3'], m: ['metro', 'rail'] };
-    const ids = anchorIds(stops, hubs);
-    expect(ids.has('e')).toBe(true);
-    expect(ids.has('f')).toBe(true);     // and where it leaves again
-    expect(ids.has('b')).toBe(false);
-  });
-});
-
-// ── The instrument has to work, or the next round is another guess ────────
-//
-// v1.84.0 renamed the stored fact from `l` to `r` and left the debug line
-// printing `l`, so the one thing built to end the guessing showed l=0 for
-// every stop. Three definitions have now been wrong; the log is how the
-// fourth stops being a guess.
-describe('what the register reports', () => {
-  it('prints the line ids it actually stored', async () => {
-    reply = ok([{ id: 'NSR:StopPlace:6013', transportMode: 'metro', quays: [
-      { id: 'q1', lines: [
-        { id: 'RUT:Line:2', transportMode: 'metro' },
-        { id: 'RUT:Line:3', transportMode: 'metro' },
-        { id: 'RUT:Line:79', transportMode: 'bus' },
-      ] },
-    ] }]);
-    const { logMsg } = await import('../src/ui/log.js');
-    logMsg.mockClear();
-    await ensureHubs(['NSR:StopPlace:6013']);
-    const line = logMsg.mock.calls.map(c => c[0]).find(m => m.startsWith('knutepunkt:'));
-    expect(line).toContain('6013');
-    expect(line).toContain('r=2,3');          // the rail lines, prefix stripped
-    expect(line).not.toContain('r=-');
-    expect(line).toContain('m=metro+bus');    // the bus is still reported
-  });
-});
-
-// ── Insurance, after three wrong definitions ─────────────────────────────
-//
-// NOT the cap v1.82.0 had. That one SELECTED anchors — keep the best 40% —
-// and it is what dropped Helsfyr. This one selects nothing: it refuses an
-// answer that has clearly learned nothing, and marking nothing means every
-// stop is shown, which is the list as it was.
-describe('a signal that fires everywhere is no signal', () => {
-  const N = Array.from({ length: 10 }, (_, i) => 's' + i);
-  const stops = N.map(n => ({ id: n, name: n }));
-
-  it('offers no anchors when almost every stop qualifies', () => {
-    const everyStopDiffers = Object.fromEntries(N.map((n, i) => [n,
-      { v: 3, q: 2, m: ['metro'], r: ['L' + i] }]));
-    expect(anchorIds(stops, everyStopDiffers).size).toBe(0);
-  });
-
-  it('still answers when the change is rare, which is the point', () => {
-    const twoJunctions = Object.fromEntries(N.map((n, i) => [n,
-      { v: 3, q: 2, m: ['metro'], r: i < 4 ? ['3'] : (i < 8 ? ['2', '3'] : ['3']) }]));
-    expect([...anchorIds(stops, twoJunctions)].sort()).toEqual(['s4', 's8']);
+    const hubs = Object.fromEntries(N.map((n, i) => [n,
+      { v: 3, q: 2, r: n === 'Hellerud' ? ['2', '3'] : ['3'],
+        m: i % 2 ? ['metro'] : ['metro', 'bus'] }]));
+    expect([...anchorIds(stops, hubs)]).toEqual(['Hellerud']);
   });
 });
 

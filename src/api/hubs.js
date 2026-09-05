@@ -30,6 +30,35 @@ export function saveHubs(map) {
   try { storage.set(KEY, JSON.stringify(map)); } catch { /* quota; harmless */ }
 }
 
+/**
+ * The register, as a person can read it.
+ *
+ * Read from STORAGE, not caught in flight. The log line this replaces could
+ * not be read at all: logMsg keeps thirty entries, the departure board writes
+ * about five per poll every ten seconds, and the only way to open the debug
+ * panel is a dot in the BOARD header — so getting to the panel flushed the
+ * line on the way. Twice sent, twice not there. The register is stored, so
+ * the panel should read the store.
+ *
+ * @returns {string} one line per stop, or a plain sentence when empty
+ */
+export function hubReport() {
+  const reg = loadHubs();
+  const ids = Object.keys(reg);
+  if (!ids.length) return 'registeret er tomt — åpne en retning på auto-reise';
+  return ids.map(id => {
+    const e = reg[id] || {};
+    const name = e.n || String(id).replace(/^NSR:StopPlace:/, '');
+    const r = Array.isArray(e.r)
+      ? (e.r.map(x => String(x).replace(/^\w+:Line:/, '')).join(',') || '(ingen)')
+      : '—';
+    return name.padEnd(22).slice(0, 22)
+      + ' r=' + r.padEnd(12).slice(0, 12)
+      + ' q=' + String(e.q == null ? '?' : e.q).padEnd(3)
+      + ' m=' + ((e.m || []).join('+') || '-');
+  }).join('\n');
+}
+
 /** Test seam, and what a profile switch should do. */
 export function _resetHubs() {
   try { storage.remove(KEY); } catch { /* ignore */ }
@@ -186,6 +215,11 @@ function _factsOf(sp) {
     });
   });
   const e = { v: HUB_V, q: quays.length, m: [...modes], ts: Date.now() };
+  // The name, so the register can be read back by a person. Not used by any
+  // rule — an id is simply not something anyone can report to me, and the
+  // whole reason this register is inspectable is that four definitions of an
+  // interchange have been wrong.
+  if (sp._name) e.n = sp._name;
   // The rail-bound line IDS, sorted, not a count. A count answered the wrong
   // question — see anchorIds. Only claimed when the rich query answered:
   // absent means "not asked", which is not the same as "no lines here".
@@ -210,7 +244,10 @@ export function ensureHubs(ids, names) {
   const store = (j) => {
     const places = (j.data && j.data.stopPlaces) || [];
     const next = { ...have };
-    places.forEach(sp => { if (sp && sp.id) next[sp.id] = _factsOf(sp); });
+    places.forEach(sp => {
+      if (!sp || !sp.id) return;
+      next[sp.id] = _factsOf({ ...sp, _name: names && names[sp.id] });
+    });
     // What Entur actually said, in the panel, one line per answer.
     //
     // v1.81.0 shipped an absolute threshold reasoned out from what an Oslo

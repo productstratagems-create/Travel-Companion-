@@ -17,7 +17,7 @@ vi.mock('../src/config.js', () => ({
   default: { api: { journeyPlanner: 'https://x/jp' }, storage: { dir: 't.dir' }, dirs: [{ key: 'out' }] },
 }));
 
-const { loadHubs, saveHubs, ensureHubs, anchorIds, HUB_V,
+const { loadHubs, saveHubs, ensureHubs, anchorIds, hubReport, HUB_V,
   _resetHubs, _hubProbeRejected, _hubRichRefused } = await import('../src/api/hubs.js');
 
 const ok = (places) => ({ data: { stopPlaces: places } });
@@ -486,5 +486,52 @@ describe('asking again', () => {
     const line = logMsg.mock.calls.map(c => c[0]).find(m => String(m).startsWith('knutepunkt:'));
     expect(line).toContain('Hellerud r=3');
     expect(line).toContain('9999 r=3');      // no name: the id, not blank
+  });
+});
+
+// ── The register has to be readable from the store ───────────────────────
+//
+// The log line this replaces could not be read at all. logMsg keeps its
+// entries, the departure board writes about five per poll every ten seconds,
+// and the only opener for the debug panel is a dot in the BOARD header — so
+// getting to the panel flushed the line on the way. Sent twice, absent twice.
+// The register is stored; the panel should read the store.
+describe('hubReport', () => {
+  it('says so plainly when nothing has been learned yet', () => {
+    expect(hubReport()).toContain('tomt');
+  });
+
+  it('prints one readable line per stop', async () => {
+    reply = ok([
+      { id: 'NSR:StopPlace:1', transportMode: 'metro',
+        quays: [{ id: 'q', lines: [
+          { id: 'RUT:Line:2', transportMode: 'metro' },
+          { id: 'RUT:Line:3', transportMode: 'metro' },
+          { id: 'RUT:Line:79', transportMode: 'bus' },
+        ] }] },
+      { id: 'NSR:StopPlace:2', transportMode: 'metro',
+        quays: [{ id: 'q', lines: [{ id: 'RUT:Line:3', transportMode: 'metro' }] }] },
+    ]);
+    await ensureHubs(['NSR:StopPlace:1', 'NSR:StopPlace:2'],
+      { 'NSR:StopPlace:1': 'Hellerud', 'NSR:StopPlace:2': 'Godlia' });
+    const out = hubReport();
+    expect(out).toMatch(/Hellerud\s+r=2,3\s+q=1\s+m=metro\+bus/);
+    expect(out).toMatch(/Godlia\s+r=3\s+q=1\s+m=metro/);
+    expect(out.split('\n')).toHaveLength(2);
+  });
+
+  // An id is not something anyone can report back, which is the whole point.
+  it('falls back to the id when no name was recorded', async () => {
+    reply = ok([{ id: 'NSR:StopPlace:6013', transportMode: 'metro', quays: [] }]);
+    await ensureHubs(['NSR:StopPlace:6013']);
+    expect(hubReport()).toContain('6013');
+  });
+
+  // "asked and told nothing" and "never asked" are different facts, and the
+  // dump must not show them as the same.
+  it('shows an unanswered stop as — rather than as no lines', async () => {
+    reply = ok([]);
+    await ensureHubs(['NSR:StopPlace:9'], { 'NSR:StopPlace:9': 'Ukjent' });
+    expect(hubReport()).toMatch(/r=—/);
   });
 });

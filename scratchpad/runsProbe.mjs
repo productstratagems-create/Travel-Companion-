@@ -165,9 +165,23 @@ async function run({ refuse, dark, shot, world }) {
     console.log('\n  ── logglinja etter ↻ ──');
     lines.forEach(l => console.log('    ' + l.slice(0, 400)));
     console.log('    registerkall n\u00e5:', hubCalls);
+    // The real test of the instrument: leave auto-reise, let the board flood
+    // the log, THEN open the panel — which is exactly the walk that lost the
+    // line twice.
+    await page.click('.app-nav-btn[data-view="v-board"]');
+    await page.waitForTimeout(3000);
     await page.click('#status-dot').catch(() => {});
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(600);
+    const dump = await page.$eval('#dbg-hubs', e => e.textContent.trim());
+    console.log('\n  ── knutepunkt-registeret i panelet, etter turen om tavla ──');
+    dump.split('\n').slice(0, 20).forEach(l => console.log('    ' + l));
     await page.screenshot({ path: 'scratchpad/shots/log-panel.png', animations: 'disabled' });
+    await page.click('#dbg-close').catch(() => {});
+    await page.click('.app-nav-btn[data-view="v-auto"]');
+    await page.waitForSelector('#v-auto .auto-dir');
+    await page.click('#v-auto .auto-dir');
+    await page.waitForSelector('#v-auto .auto-stop-btn, #v-auto .auto-run');
+    await page.waitForTimeout(800);
   }
   if (shot) await page.screenshot({ path: shot, animations: 'disabled', fullPage: true });
   if (!refuse) {

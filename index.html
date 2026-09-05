@@ -376,6 +376,12 @@
        missing: the line marked «MISTET HER» is where it went. -->
   <div class="debug-label">hvor ble avgangen av</div>
   <pre class="dbg-diag" id="dbg-diag">—</pre>
+  <!-- What the interchange register actually learned, read from storage when
+       the panel opens. NOT a log line: the log keeps thirty entries and the
+       board writes five every ten seconds, so anything written on another
+       screen is gone before this panel can be reached. -->
+  <div class="debug-label">knutepunkt-register</div>
+  <pre class="dbg-diag" id="dbg-hubs">—</pre>
   <div class="debug-label">logg</div>
   <div class="log-wrap" id="log"></div>
   <div class="dbg-sec">

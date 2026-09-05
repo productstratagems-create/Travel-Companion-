@@ -45,76 +45,69 @@ export function _resetHubs() {
  * already used the app is exactly the one who would see no improvement at
  * all. Entries below this are treated as unknown.
  */
-export const HUB_V = 2;
+export const HUB_V = 3;
 
 /** An entry we can actually reason about. */
 export function hubKnown(entry) {
   return !!entry && Number(entry.v) >= HUB_V;
 }
 
-/**
- * How much this stop stands out — lines calling, plus a nudge for every mode
- * beyond the first.
- *
- * `q` is the fallback when the line field was refused, so the relative rule
- * below works in that world too, just more coarsely.
- */
-export function hubScore(entry) {
-  if (!entry) return 0;
-  const modes = new Set((Array.isArray(entry.m) ? entry.m : []).filter(Boolean)).size;
-  const base = Number(entry.l) || Number(entry.q) || 0;
-  return base + Math.max(0, modes - 1);
-}
+/** Modes that run on rails, and therefore cannot quietly take another road. */
+const RAIL_MODES = new Set(['metro', 'tram', 'rail']);
+
+const _set = (a) => new Set((Array.isArray(a) ? a : []).filter(Boolean));
+const _same = (a, b) => {
+  if (a.size !== b.size) return false;
+  for (const x of a) if (!b.has(x)) return false;
+  return true;
+};
 
 /**
- * At most this share of a line may be an anchor.
+ * Which stops along this direction are worth anchoring on.
  *
- * A DISPLAY decision, not a claim about transit — how many anchors a list can
- * carry before it stops being scannable. That is the difference between this
- * number and the one it replaces.
- */
-export const ANCHOR_SHARE = 0.4;
-
-/**
- * Which stops on THIS line are worth anchoring on.
+ * A stop is an anchor when its set of rail-bound lines, or its set of modes,
+ * DIFFERS FROM THE STOP BEFORE IT. That is what a junction is: a line joins
+ * or leaves, right there.
  *
- * Relative, and that is the whole point. v1.81.0 used an absolute rule — two
- * or more lines calling — and reported back: "ser ut som alle holdeplasser er
- * blitt til knutepunkter". Whatever Entur actually returns for an ordinary
- * Oslo metro stop, it clears two: a night bus, a replacement bus, or simply
- * how Ruter models the place. Raising the number would have been the same
- * guess with a different digit.
+ * THIS IS THE THIRD DEFINITION, and the first with nothing left to guess.
+ * v1.81.0 used an absolute count — every stop became an anchor. v1.82.0 made
+ * it relative to the line — which measured POPULARITY, not interchange, and
+ * the reader found the hole immediately: Hellerud, where lines 2 and 3 part
+ * company, scored 2 against a median of 2 and was dropped, while Grønland — a
+ * through-station where all five lines run the same way — was kept. Measured:
  *
- * So there is no absolute number left to be wrong about. A stop anchors when
- * it stands out AGAINST THE LINE IT IS ON — above the median score — and the
- * set is capped at ANCHOR_SHARE of the stops. Marking everything is now
- * impossible by construction rather than by a lucky threshold, and a line
- * where every stop really is equal gets no anchors at all, which stopRuns
- * already reads as "show them all".
+ *   scores  1 1 1 1 1 1 1 2 2 4 4 5 5 5 5 5 5   median 2, cap 6 of 17
+ *   kept    Tøyen Grønland Jernbanetorget Stortinget Nationaltheatret Majorstuen
+ *   dropped Hellerud (2), and Helsfyr (4) — above the median, but the cap was
+ *           already full of the six tunnel stops
  *
+ * No median, no cap, no threshold. "How many lines call here" simply answers
+ * a different question from "can I change here".
+ *
+ * BOTH FAILURE MODES LAND ON TODAY'S LIST, which is the property the two
+ * previous attempts lacked. With Quay.lines refused there are no ids, nothing
+ * can differ, and there are no anchors — stopRuns then shows every stop. And
+ * if the rule ever marked too many, nothing folds and the list is the full
+ * list again. Neither end is an empty screen.
+ *
+ * @param {Array} stops in travel order
  * @returns {Set<string>} stop ids
  */
 export function anchorIds(stops, hubs) {
   const list = stops || [];
   const reg = hubs || {};
-  const scored = list
-    .map(s => ({ id: s && s.id, v: hubScore(reg[s && s.id]) }))
-    .filter(x => x.id);
-  if (!scored.some(x => x.v > 0)) return new Set();
-
-  const vals = scored.map(x => x.v).sort((a, b) => a - b);
-  const mid = vals.length >> 1;
-  const median = vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2;
-
-  const above = scored.filter(x => x.v > median).sort((a, b) => b.v - a.v);
-  const cap = Math.max(1, Math.floor(list.length * ANCHOR_SHARE));
-  if (above.length <= cap) return new Set(above.map(x => x.id));
-  // The cap must not cut through a tie. Two stops with the same score are the
-  // same kind of place, and marking one of them and not the other is a
-  // distinction the data does not make — measured: Grønland and Tøyen both
-  // scored 5, and only Tøyen was anchored because it sorted first.
-  const cut = above[cap - 1].v;
-  return new Set(above.filter(x => x.v >= cut).map(x => x.id));
+  const out = new Set();
+  let prev = null;
+  list.forEach(s => {
+    const e = s && s.id ? reg[s.id] : null;
+    // No line data at all means nothing can be compared. Not "no lines here"
+    // — unknown, which must not read as a change.
+    if (!e || !Array.isArray(e.r)) { prev = null; return;  }
+    const cur = { r: _set(e.r), m: _set(e.m) };
+    if (prev && (!_same(cur.r, prev.r) || !_same(cur.m, prev.m))) out.add(s.id);
+    prev = cur;
+  });
+  return out;
 }
 
 // Remembered for the session, like the per-line cap in entur.js: a rejected
@@ -154,14 +147,19 @@ function _factsOf(sp) {
   quays.forEach(q => {
     (Array.isArray(q && q.lines) ? q.lines : []).forEach(ln => {
       if (!ln) return;
-      if (ln.id) lines.add(ln.id);
+      // Rail-bound lines only. Every kerb has different bus routes, so a bus
+      // number changing between neighbours is not a junction — it is just a
+      // different kerb, and counting it would make every stop an anchor.
+      // Buses still speak, on the MODE dimension below.
+      if (ln.id && RAIL_MODES.has(ln.transportMode)) lines.add(ln.id);
       if (ln.transportMode) modes.add(ln.transportMode);
     });
   });
   const e = { v: HUB_V, q: quays.length, m: [...modes], ts: Date.now() };
-  // Only claimed when the rich query answered. Absent means "not asked", and
-  // isHub skips that test rather than reading it as one line.
-  if (lines.size) e.l = lines.size;
+  // The rail-bound line IDS, sorted, not a count. A count answered the wrong
+  // question — see anchorIds. Only claimed when the rich query answered:
+  // absent means "not asked", which is not the same as "no lines here".
+  if (lines.size) e.r = [...lines].sort();
   return e;
 }
 

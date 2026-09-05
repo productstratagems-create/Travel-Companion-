@@ -436,3 +436,55 @@ describe('a signal that fires everywhere is no signal', () => {
     expect([...anchorIds(stops, twoJunctions)].sort()).toEqual(['s4', 's8']);
   });
 });
+
+// ── The instrument has to be reachable ───────────────────────────────────
+//
+// The register only asks about stops it does not know, so once filled it
+// never asked again — and _resetHubs was exported and called from NOWHERE in
+// the app. The diagnostic line it writes could therefore be produced exactly
+// once in the lifetime of an install, and by the time it mattered it had
+// already happened. Four definitions of an interchange have been wrong; this
+// line is what the fifth is meant to be set from.
+describe('asking again', () => {
+  const answer = (ids) => ok(ids.map(id => ({
+    id, transportMode: 'metro',
+    quays: [{ id: 'q', lines: [{ id: 'RUT:Line:3', transportMode: 'metro' }] }],
+  })));
+
+  it('says nothing on a second visit, until the register is cleared', async () => {
+    reply = answer(['NSR:StopPlace:6013']);
+    await ensureHubs(['NSR:StopPlace:6013']);
+    calls = [];
+    await ensureHubs(['NSR:StopPlace:6013']);
+    expect(calls).toHaveLength(0);
+
+    _resetHubs();
+    await ensureHubs(['NSR:StopPlace:6013']);
+    expect(calls).toHaveLength(1);
+  });
+
+  // Line 3 has seventeen onward stops, and the cap of twelve cut off exactly
+  // the ones the question is about — Jernbanetorget and Stortinget.
+  it('reports every stop it asked about, not the first twelve', async () => {
+    const ids = Array.from({ length: 17 }, (_, i) => 'NSR:StopPlace:' + i);
+    reply = answer(ids);
+    const { logMsg } = await import('../src/ui/log.js');
+    logMsg.mockClear();
+    await ensureHubs(ids);
+    const line = logMsg.mock.calls.map(c => c[0]).find(m => String(m).startsWith('knutepunkt:'));
+    ids.forEach(id => expect(line).toContain(id.replace('NSR:StopPlace:', '')));
+  });
+
+  // An id is not something a person can read back to me, and reading it back
+  // is the entire purpose of the line.
+  it('prints the stop name when it has one, and the id when it does not', async () => {
+    reply = answer(['NSR:StopPlace:6013', 'NSR:StopPlace:9999']);
+    const { logMsg } = await import('../src/ui/log.js');
+    logMsg.mockClear();
+    await ensureHubs(['NSR:StopPlace:6013', 'NSR:StopPlace:9999'],
+      { 'NSR:StopPlace:6013': 'Hellerud' });
+    const line = logMsg.mock.calls.map(c => c[0]).find(m => String(m).startsWith('knutepunkt:'));
+    expect(line).toContain('Hellerud r=3');
+    expect(line).toContain('9999 r=3');      // no name: the id, not blank
+  });
+});

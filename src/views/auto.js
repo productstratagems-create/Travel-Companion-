@@ -985,7 +985,11 @@ function _renderStops(body) {
   const key = _open.frontText + '|' + _open.lines.map(l => l.code).join(',');
   if (_hubsAskedFor !== key) {
     _hubsAskedFor = key;
-    ensureHubs(stops.map(s => s.id)).then(next => {
+    // Names go along for the debug line only: an id is not something a
+    // person can read back to me, and reading it back is the point.
+    const names = {};
+    stops.forEach(s => { if (s.id) names[s.id] = s.name; });
+    ensureHubs(stops.map(s => s.id), names).then(next => {
       // Redraw only if the answer actually told us something, and only if the
       // reader is still looking at this list.
       if (_open && _hubsAskedFor === key
@@ -1056,4 +1060,9 @@ export function renderAuto() {
 /** Fresh screen when the mode is entered, so it never opens on a stale stop. */
 export function resetAuto() {
   _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null;
+  // _hubsAskedFor too, or ↻ clears the register and the screen still believes
+  // it has already asked — measured: the button emptied the store and no new
+  // request followed, so the diagnostic line never came back. Two pieces of
+  // "have we asked" that must agree, in two files.
+  _hubsAskedFor = null;
   _openRuns.clear(); _stopsShown = false; }

@@ -220,3 +220,19 @@ describe('pickStop', () => {
     expect(stop.distM).toBe(450);
   });
 });
+
+// ── ↻ has to reach the register too ──────────────────────────────────────
+//
+// Measured, and it is why the first version of v1.84.2 did nothing: the
+// button cleared the store, but the screen still believed it had already
+// asked, so no new request followed and the diagnostic line never came back.
+// Two pieces of "have we asked" in two files, which had to agree.
+describe('resetAuto and the register', () => {
+  it('forgets that it has asked about the hubs', () => {
+    const fs = require('node:fs');
+    const src = fs.readFileSync('src/views/auto.js', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    const reset = src.slice(src.indexOf('export function resetAuto'));
+    expect(reset).toContain('_hubsAskedFor = null');
+  });
+});

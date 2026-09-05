@@ -17,10 +17,18 @@ const s = (name, id) => ({ name, id: id || 'NSR:' + name, mins: 5 });
 const LINE3 = ['Skullerud', 'Bogerud', 'Bøler', 'Ulsrud', 'Oppsal', 'Skøyenåsen',
   'Godlia', 'Hellerud', 'Brynseng', 'Helsfyr', 'Ensjø', 'Tøyen'].map(n => s(n));
 
-const hub = { v: 2, q: 2, m: ['metro', 'bus'], l: 4 };
-const plain = { v: 2, q: 2, m: ['metro'], l: 1 };
-const register = (...hubNames) => Object.fromEntries(
-  LINE3.map(x => [x.id, hubNames.includes(x.name) ? hub : plain]));
+// A stop is an anchor when its rail-bound line set differs from the stop
+// BEFORE it (v1.84.0), so the register is built by walking the line and
+// adding a line at each named junction — which is what a junction is.
+const register = (...hubNames) => {
+  const out = {};
+  let lines = ['3'];
+  LINE3.forEach(x => {
+    if (hubNames.includes(x.name)) lines = [...lines, 'J' + x.name];
+    out[x.id] = { v: 3, q: 2, m: ['metro'], r: [...lines].sort() };
+  });
+  return out;
+};
 
 const kinds = (rows) => rows.map(r => r.kind === 'stop' ? r.s.name : r.kind + ':' + r.items.length);
 
@@ -72,7 +80,8 @@ describe('stopRuns', () => {
   // perfectly well, and folding produced ONE row plus the terminus for a
   // seventeen-stop line. So the guard is about anchors, not about knowledge.
   it('shows every stop when the register found no interchange at all', () => {
-    const noneAreHubs = Object.fromEntries(LINE3.map(x => [x.id, plain]));
+    const noneAreHubs = Object.fromEntries(
+      LINE3.map(x => [x.id, { v: 3, q: 2, m: ['metro'], r: ['3'] }]));
     expect(stopRuns(LINE3, noneAreHubs, new Set())).toHaveLength(LINE3.length);
   });
 
@@ -83,10 +92,12 @@ describe('stopRuns', () => {
   });
 
   it('does not fold a single stop', () => {
-    const rows = stopRuns(LINE3, register('Skullerud', 'Bøler'), new Set());
-    // Bogerud sits alone between two anchors and stays a stop.
-    expect(rows[1]).toMatchObject({ kind: 'stop' });
-    expect(rows[1].s.name).toBe('Bogerud');
+    // Anchors at Bogerud and Ulsrud, so Bøler sits alone between them.
+    // Not at Skullerud: the FIRST stop can never be an anchor, because there
+    // is nothing before it to differ from.
+    const rows = stopRuns(LINE3, register('Bogerud', 'Ulsrud'), new Set());
+    const solo = rows.find(r => r.kind === 'stop' && r.s.name === 'Bøler');
+    expect(solo).toBeTruthy();
   });
 
   // The index has to keep pointing at the stop it draws — the click handler

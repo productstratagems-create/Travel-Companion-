@@ -27,8 +27,7 @@ import { renderRouteShortcuts } from '../ui/favs.js';
 import { ensureHubs, loadHubs, anchorIds } from '../api/hubs.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf } from '../api/usage.js';
-import { loadAutoSort, saveAutoSort, loadAutoStopsOpen, saveAutoStopsOpen,
-  NEAR_STOP_MAX_M } from '../geo.js';
+import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M } from '../geo.js';
 
 const MIN = 60000;
 /**
@@ -551,9 +550,31 @@ export function nearbyAlternatives(list, chosen) {
  * is a control that cannot change anything, which is worse than no control —
  * the same rule _showSort keeps.
  */
+/**
+ * Is the nearby-stops list showing?
+ *
+ * A module variable, NOT a stored preference, and cleared by resetAuto when
+ * the screen is entered — the same shape as _openRuns three hundred lines
+ * below, which does exactly this for the folded stretches along a line.
+ *
+ * v1.79.0 stored it, so "collapsed by default" only held until the first tap:
+ * after that the list was open for ever, and the reported behaviour was the
+ * opposite of the default. Open while you are on the screen, closed when you
+ * come back, is what was actually wanted.
+ *
+ * Never open when there is nothing in it: a heading that folds away an empty
+ * list is a control that cannot change anything, which is worse than no
+ * control — the same rule _showSort keeps.
+ */
+let _stopsShown = false;
+
 export function stopsOpen(count) {
-  return count > 0 && loadAutoStopsOpen();
+  return count > 0 && _stopsShown;
 }
+
+/** Test seam. The tap itself lives in a DOM handler and no unit test reaches
+ *  it; the browser probe carries that half. */
+export function _setStopsOpen(v) { _stopsShown = !!v; }
 
 /**
  * The "du er ved" heading, which is also the fold.
@@ -667,7 +688,7 @@ function _renderWhere() {
   const toggle = _el('auto-stop-toggle');
   if (toggle) {
     toggle.addEventListener('click', () => {
-      saveAutoStopsOpen(!loadAutoStopsOpen());
+      _stopsShown = !_stopsShown;
       _renderWhere();
     });
   }
@@ -1035,4 +1056,4 @@ export function renderAuto() {
 /** Fresh screen when the mode is entered, so it never opens on a stale stop. */
 export function resetAuto() {
   _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null;
-  _openRuns.clear(); }
+  _openRuns.clear(); _stopsShown = false; }

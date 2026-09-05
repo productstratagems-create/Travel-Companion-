@@ -19,16 +19,23 @@ const HERE = { id: 'NSR:StopPlace:6013', name: 'Mortensrud', lat: 59.8617, lon: 
    what was reported back — every stop clearing an absolute threshold of two,
    because an ordinary Oslo metro stop apparently has night buses, replacement
    buses or simply more lines registered than reasoning suggested. */
-const THIN = [
-  ['Skullerud', 1], ['Bogerud', 1], ['Bøler', 1], ['Ulsrud', 1], ['Oppsal', 1],
-  ['Skøyenåsen', 1], ['Godlia', 1], ['Hellerud', 1],
-  ['Brynseng', 3], ['Helsfyr', 5], ['Ensjø', 1], ['Tøyen', 5], ['Grønland', 5],
-  ['Jernbanetorget', 9], ['Stortinget', 6], ['Nationaltheatret', 8], ['Majorstuen', 7],
-];
-/* Every plain stop already has four lines. Under the old absolute rule every
-   single row was an anchor, which is the report. */
-const FAT = THIN.map(([n, v]) => [n, v === 1 ? 4 : v + 4]);
+/* Line 3 westbound, with the rail-bound lines that really call at each stop.
+   Line 2 joins at Hellerud — the junction the reader named. 1, 4 and 5 join
+   in the tunnel. */
+const RAILS = {
+  Skullerud: ['3'], Bogerud: ['3'], Bøler: ['3'], Ulsrud: ['3'], Oppsal: ['3'],
+  Skøyenåsen: ['3'], Godlia: ['3'],
+  Hellerud: ['2', '3'], Brynseng: ['2', '3'], Helsfyr: ['2', '3'], Ensjø: ['2', '3'],
+  Tøyen: ['1', '2', '3', '4', '5'], Grønland: ['1', '2', '3', '4', '5'],
+  Jernbanetorget: ['1', '2', '3', '4', '5'], Stortinget: ['1', '2', '3', '4', '5'],
+  Nationaltheatret: ['1', '2', '3', '4', '5'],
+  Majorstuen: ['1', '2', '3', '4', '5'],
+};
+const NAMES = Object.keys(RAILS);
+const THIN = NAMES.map(n => [n, RAILS[n].length]);
+const FAT = THIN;
 let STOPS = THIN;
+let BUSSES = false;
 const LINES = (n, name) => Array.from({ length: n }, (_, i) => ({
   id: 'RUT:Line:' + name + i, transportMode: i === 0 ? 'metro' : (i % 2 ? 'bus' : 'tram') }));
 
@@ -68,7 +75,8 @@ await new Promise(r => server.listen(PORT, r));
 const browser = await pw.chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 
 async function run({ refuse, dark, shot, world }) {
-  STOPS = world === 'fat' ? FAT : THIN;
+  STOPS = THIN;
+  BUSSES = world === 'fat';
   let hubCalls = 0;
   const ctx = await browser.newContext({
     viewport: { width: 414, height: 1000 }, deviceScaleFactor: 2,
@@ -102,10 +110,15 @@ async function run({ refuse, dark, shot, world }) {
       if (refuse && rich) return route.fulfill({ status: 200, contentType: 'application/json',
         body: JSON.stringify({ errors: [{ message: "Cannot query field 'lines' on type 'Quay'" }] }) });
       return route.fulfill({ status: 200, contentType: 'application/json',
-        body: JSON.stringify({ data: { stopPlaces: STOPS.map(([name, n]) => ({
+        body: JSON.stringify({ data: { stopPlaces: NAMES.map((name, i) => ({
           id: 'NSR:StopPlace:' + name, transportMode: 'metro',
           quays: rich
-            ? [{ id: 'q1', lines: LINES(n, name) }, { id: 'q2', lines: [] }]
+            ? [{ id: 'q1', lines: [
+                ...RAILS[name].map(l => ({ id: 'RUT:Line:' + l, transportMode: 'metro' })),
+                // Different bus routes at every stop, which is the real world
+                // and the thing that must NOT make every stop an anchor.
+                ...(BUSSES ? [{ id: 'RUT:Line:B' + i, transportMode: 'bus' }] : []),
+              ] }]
             : [{ id: 'q1' }, { id: 'q2' }],
         })) } }) });
     }
@@ -130,8 +143,8 @@ async function run({ refuse, dark, shot, world }) {
       e.querySelector('.nearby-dist').textContent.trim() +
       (e.classList.contains('auto-hub') ? '   ← knutepunkt' : '')));
 
-  console.log('\n══ ' + (world === 'fat' ? 'hvert stopp har MANGE linjer (det rapporterte)' :
-    'få linjer på de enkle stoppene') + (refuse ? ', og linjefeltet avvises' : '') + ' ══');
+  console.log('\n══ ' + (world === 'fat' ? 'ulike BUSSLINJER på hvert stopp' :
+    'ekte linje 3') + (refuse ? ', og linjefeltet avvises' : '') + ' ══');
   const r = await rows();
   r.forEach(x => console.log('   ' + x));
   console.log('   rader:', r.length, '| stopp på linja: 17 | registerkall:', hubCalls);

@@ -20,6 +20,7 @@ import './views/favs.js';
 import './views/plan.js';
 import { renderLeisure } from './views/leisure.js';
 import { renderAuto, resetAuto } from './views/auto.js';
+import { hubReport } from './api/hubs.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
 import { landingChoice, exampleDir, isExample, upgradeToNearest } from './firstRun.js';
 import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode, autoModePref, saveAutoMode } from './geo.js';
@@ -89,6 +90,10 @@ window._renderLeisure = renderLeisure;
 window._renderAuto = renderAuto;
 window._refreshBoard = refreshBoard;
 window._resetAuto = resetAuto;
+// The debug panel reads the interchange register through this rather than
+// importing it: hubs.js imports logMsg from ui/log.js, so a direct import
+// would close a cycle. Same reason api/stopCats.js exists.
+window._hubReport = hubReport;
 
 // The board's own poll asks this each time round, rather than a new timer —
 // the same arrangement window._updatePlanCtx already uses.

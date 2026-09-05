@@ -237,3 +237,33 @@ describe('the auto-reise refresh button', () => {
     expect(src).toContain("from '../api/hubs.js'");
   });
 });
+
+// ── The instrument must survive the walk to the panel ────────────────────
+describe('the debug panel and the register', () => {
+  const log = () => fs.readFileSync('src/ui/log.js', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+
+  it('reads the register from the store when it opens', () => {
+    expect(log()).toContain('_hubReport');
+    expect(log()).toContain('dbg-hubs');
+  });
+
+  // hubs.js imports logMsg from ui/log.js, so importing hubReport back would
+  // close a cycle — the shape that threw a ReferenceError in the bundle while
+  // the unit tests stayed green, in v1.76.0.
+  it('does not import hubs.js back into log.js', () => {
+    expect(log()).not.toContain("from '../api/hubs.js'");
+  });
+
+  // Thirty entries was under a minute of board polling, which is less than
+  // the walk from auto-reise to the only button that opens the panel.
+  it('keeps enough log history to reach the panel', () => {
+    const m = log().match(/children\.length > (\d+)/);
+    expect(m).toBeTruthy();
+    expect(Number(m[1])).toBeGreaterThanOrEqual(100);
+  });
+
+  it('has somewhere to put the register in the panel', () => {
+    expect(fs.readFileSync('index.html', 'utf8')).toContain('id="dbg-hubs"');
+  });
+});

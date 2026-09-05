@@ -149,6 +149,26 @@ async function run({ refuse, dark, shot, world }) {
   r.forEach(x => console.log('   ' + x));
   console.log('   rader:', r.length, '| stopp på linja: 17 | registerkall:', hubCalls);
 
+  // The whole point of v1.84.2: press ↻ and read what the register learned.
+  if (world === 'thin' && !refuse) {
+    const before = hubCalls;
+    await page.click('#auto-refresh');
+    await page.waitForTimeout(1200);
+    // ↻ returns to the directions list, so the stops list — and the register —
+    // is only asked again when the direction is opened. That IS the flow.
+    await page.click('#v-auto .auto-dir');
+    await page.waitForSelector('#v-auto .auto-stop-btn, #v-auto .auto-run');
+    await page.waitForTimeout(1500);
+    console.log('\n  registerkall f\u00f8r ↻:', before, '| etter ↻ + \u00e5pne igjen:', hubCalls);
+    const lines = await page.$$eval('#log .le', els => els.map(e => e.textContent.trim())
+      .filter(t => t.includes('knutepunkt:')));
+    console.log('\n  ── logglinja etter ↻ ──');
+    lines.forEach(l => console.log('    ' + l.slice(0, 400)));
+    console.log('    registerkall n\u00e5:', hubCalls);
+    await page.click('#status-dot').catch(() => {});
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: 'scratchpad/shots/log-panel.png', animations: 'disabled' });
+  }
   if (shot) await page.screenshot({ path: shot, animations: 'disabled', fullPage: true });
   if (!refuse) {
     const run = await page.$('#v-auto .auto-run');

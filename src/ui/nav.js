@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { _resetHubs } from '../api/hubs.js';
 import { state } from '../state.js';
 import { addFav } from './favs.js';
 import { storage } from '../storage.js';
@@ -497,6 +498,13 @@ export function attachEventListeners() {
   // GPS all over again.
   const refresh = document.getElementById('auto-refresh');
   if (refresh) refresh.addEventListener('click', () => {
+    // The interchange register too. It only ever asks about stops it does not
+    // know, so once filled it was never asked again — and _resetHubs was
+    // exported and called from nowhere in the app. That made the register
+    // permanent: a stop that gains a bus line stayed as first recorded, and
+    // the diagnostic line it writes could not be produced a second time.
+    // This is the button that already means "ask again".
+    _resetHubs();
     window._resetAuto && window._resetAuto();
     window._renderAuto && window._renderAuto();
   });

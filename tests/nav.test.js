@@ -222,3 +222,18 @@ describe('after gangtid was folded away', () => {
     });
   });
 });
+
+// ── ↻ means "ask again", and the register was not listening ──────────────
+//
+// _resetHubs was exported and called from nowhere in src/, so the interchange
+// register was permanent once filled: a stop that gained a bus line stayed as
+// first recorded, and the diagnostic line could not be produced a second time.
+describe('the auto-reise refresh button', () => {
+  it('clears the interchange register too', () => {
+    const src = fs.readFileSync('src/ui/nav.js', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    const handler = src.slice(src.indexOf("getElementById('auto-refresh')"));
+    expect(handler.slice(0, 400)).toContain('_resetHubs()');
+    expect(src).toContain("from '../api/hubs.js'");
+  });
+});

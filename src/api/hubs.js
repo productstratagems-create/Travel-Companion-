@@ -193,7 +193,14 @@ function _factsOf(sp) {
   return e;
 }
 
-export function ensureHubs(ids) {
+/**
+ * @param {string[]} ids
+ * @param {Object<string,string>} [names] id → name, for the log line only.
+ *   NSR:StopPlace:6013 is not something a person can read, and this line
+ *   exists to be read: four definitions of an interchange have been wrong, and
+ *   it is what the fifth is meant to be set from.
+ */
+export function ensureHubs(ids, names) {
   const have = loadHubs();
   // An entry written by an older build knows less than we now need, so it is
   // asked again rather than trusted.
@@ -212,8 +219,13 @@ export function ensureHubs(ids) {
     // sandbox that cannot reach api.entur.io — so it says what it learned
     // rather than leaving the next person to reason again.
     if (places.length) {
-      logMsg('knutepunkt: ' + places.slice(0, 12).map(sp =>
-        String(sp.id).replace(/^NSR:StopPlace:/, '')
+      // Every stop that was asked about, not the first twelve. Line 3 has
+      // seventeen onward stops, so the cap cut off exactly the ones the
+      // question is about — Jernbanetorget and Stortinget. logMsg sets no
+      // length limit and the panel scrolls, so twelve was a guess at what
+      // would fit rather than a limit.
+      logMsg('knutepunkt: ' + places.map(sp =>
+        ((names && names[sp.id]) || String(sp.id).replace(/^NSR:StopPlace:/, ''))
         // `r`, not `l`. v1.84.0 renamed the fact and left this printing a
         // field that no longer existed, so the one instrument built to stop
         // the guessing quietly showed l=0 for every stop.

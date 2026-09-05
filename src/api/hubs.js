@@ -52,10 +52,19 @@ export function hubKnown(entry) {
   return !!entry && Number(entry.v) >= HUB_V;
 }
 
+/**
+ * Above this share of a line, "it changed here" has stopped meaning anything
+ * and no anchors are offered at all. A statement about the SIGNAL, not about
+ * transit — see the note where it is used.
+ */
+export const ANCHOR_USELESS_ABOVE = 0.6;
+
 /** Modes that run on rails, and therefore cannot quietly take another road. */
 const RAIL_MODES = new Set(['metro', 'tram', 'rail']);
 
 const _set = (a) => new Set((Array.isArray(a) ? a : []).filter(Boolean));
+const _railModes = (a) =>
+  new Set((Array.isArray(a) ? a : []).filter(m => RAIL_MODES.has(m)));
 const _same = (a, b) => {
   if (a.size !== b.size) return false;
   for (const x of a) if (!b.has(x)) return false;
@@ -103,10 +112,31 @@ export function anchorIds(stops, hubs) {
     // No line data at all means nothing can be compared. Not "no lines here"
     // — unknown, which must not read as a change.
     if (!e || !Array.isArray(e.r)) { prev = null; return;  }
-    const cur = { r: _set(e.r), m: _set(e.m) };
+    // Rail-bound modes only, for exactly the reason bus LINES are excluded
+    // above: buses call at some stops and not the next, so a mode set holding
+    // them flickers between {metro,bus} and {metro} and the rule fires almost
+    // everywhere. Measured on a line where buses served every other stop:
+    // SEVEN of eight stops became anchors.
+    //
+    // That was the shipped bug in v1.84.0 — buses were kept out of the line
+    // dimension and let straight back in through the mode dimension, three
+    // lines apart in the same file. A tram or a train meeting the metro still
+    // counts, which is the case the mode test exists for.
+    const cur = { r: _set(e.r), m: _railModes(e.m) };
     if (prev && (!_same(cur.r, prev.r) || !_same(cur.m, prev.m))) out.add(s.id);
     prev = cur;
   });
+  // A signal that fires almost everywhere is not a signal.
+  //
+  // This is NOT the cap v1.82.0 had. That one SELECTED the anchors — keep the
+  // best 40% — and it is what dropped Helsfyr. This one selects nothing: it
+  // only refuses an answer that has clearly learned nothing, and marking
+  // nothing means stopRuns shows every stop, which is the list as it was.
+  //
+  // Insurance, and it is written down as such: three definitions of this have
+  // now been wrong on real data I cannot reach, twice by marking everything.
+  // The cost of a fourth should be the old screen, not a bad one.
+  if (out.size > list.length * ANCHOR_USELESS_ABOVE) return new Set();
   return out;
 }
 
@@ -184,7 +214,11 @@ export function ensureHubs(ids) {
     if (places.length) {
       logMsg('knutepunkt: ' + places.slice(0, 12).map(sp =>
         String(sp.id).replace(/^NSR:StopPlace:/, '')
-        + ' l=' + ((next[sp.id] && next[sp.id].l) || 0)
+        // `r`, not `l`. v1.84.0 renamed the fact and left this printing a
+        // field that no longer existed, so the one instrument built to stop
+        // the guessing quietly showed l=0 for every stop.
+        + ' r=' + (((next[sp.id] && next[sp.id].r) || [])
+          .map(x => String(x).replace(/^\w+:Line:/, '')).join(',') || '-')
         + ' q=' + ((next[sp.id] && next[sp.id].q) || 0)
         + ' m=' + (((next[sp.id] && next[sp.id].m) || []).join('+') || '-')
       ).join(' | '), 'ok');

@@ -81,52 +81,51 @@ export function hubKnown(entry) {
   return !!entry && Number(entry.v) >= HUB_V;
 }
 
-/**
- * Above this share of a line, "it changed here" has stopped meaning anything
- * and no anchors are offered at all. A statement about the SIGNAL, not about
- * transit — see the note where it is used.
- */
-export const ANCHOR_USELESS_ABOVE = 0.6;
-
 /** Modes that run on rails, and therefore cannot quietly take another road. */
 const RAIL_MODES = new Set(['metro', 'tram', 'rail']);
 
 const _set = (a) => new Set((Array.isArray(a) ? a : []).filter(Boolean));
 const _railModes = (a) =>
   new Set((Array.isArray(a) ? a : []).filter(m => RAIL_MODES.has(m)));
-const _same = (a, b) => {
-  if (a.size !== b.size) return false;
-  for (const x of a) if (!b.has(x)) return false;
-  return true;
-};
+
+/**
+ * How many rail-bound lines make a stop somewhere you can change.
+ *
+ * TWO, and this is a definition rather than a tuning knob: "lagre alle
+ * stoppesteder som tjener fler enn én linje". It is not a number to move if
+ * the answer looks wrong — if it looks wrong, the facts are wrong.
+ */
+export const HUB_MIN_LINES = 2;
 
 /**
  * Which stops along this direction are worth anchoring on.
  *
- * A stop is an anchor when its set of rail-bound lines, or its set of modes,
- * DIFFERS FROM THE STOP BEFORE IT. That is what a junction is: a line joins
- * or leaves, right there.
+ * A stop serves more than one rail-bound line, or more than one rail-bound
+ * mode. That is all.
  *
- * THIS IS THE THIRD DEFINITION, and the first with nothing left to guess.
- * v1.81.0 used an absolute count — every stop became an anchor. v1.82.0 made
- * it relative to the line — which measured POPULARITY, not interchange, and
- * the reader found the hole immediately: Hellerud, where lines 2 and 3 part
- * company, scored 2 against a median of 2 and was dropped, while Grønland — a
- * through-station where all five lines run the same way — was kept. Measured:
+ * THE FIFTH DEFINITION, AND IT IS THE READER'S OWN — and the one variant that
+ * was never tried. v1.81.0 tried "more than one line" and marked every stop,
+ * so the idea was written off; but it counted ALL lines, buses included, and
+ * every Oslo metro station has buses. Only v1.84.0 narrowed what is stored to
+ * RAIL-BOUND lines, and by then the rule had already moved on to comparing
+ * neighbours. So an absolute count over the rail-only set was skipped past
+ * rather than rejected.
  *
- *   scores  1 1 1 1 1 1 1 2 2 4 4 5 5 5 5 5 5   median 2, cap 6 of 17
- *   kept    Tøyen Grønland Jernbanetorget Stortinget Nationaltheatret Majorstuen
- *   dropped Hellerud (2), and Helsfyr (4) — above the median, but the cap was
- *           already full of the six tunnel stops
+ * Comparing neighbours was wrong for a reason worth keeping written down: it
+ * finds JUNCTIONS, not interchanges. Reported with a screenshot — Borgen and
+ * Gjettum anchored while Majorstuen and Jernbanetorget did not, because
+ * inside a shared stretch nothing changes however many lines call there.
+ * "Where the line's composition changes" and "where you can change" are
+ * different questions, and only the second was ever asked.
  *
- * No median, no cap, no threshold. "How many lines call here" simply answers
- * a different question from "can I change here".
+ *   Hellerud        r=2,3          → 2 lines → anchor
+ *   Majorstuen      r=1,2,3,4,5    → 5 lines → anchor
+ *   Jernbanetorget  r=1,2,3,4,5    → 5 lines → anchor
+ *   Bogerud         r=3            → 1 line  → not
  *
- * BOTH FAILURE MODES LAND ON TODAY'S LIST, which is the property the two
- * previous attempts lacked. With Quay.lines refused there are no ids, nothing
- * can differ, and there are no anchors — stopRuns then shows every stop. And
- * if the rule ever marked too many, nothing folds and the list is the full
- * list again. Neither end is an empty screen.
+ * A stop with no line data is not an anchor: unknown is not the same fact as
+ * "one line", and with Quay.lines refused nothing anchors at all — which
+ * stopRuns reads as "show every stop", the list as it was.
  *
  * @param {Array} stops in travel order
  * @returns {Set<string>} stop ids
@@ -135,37 +134,25 @@ export function anchorIds(stops, hubs) {
   const list = stops || [];
   const reg = hubs || {};
   const out = new Set();
-  let prev = null;
   list.forEach(s => {
     const e = s && s.id ? reg[s.id] : null;
-    // No line data at all means nothing can be compared. Not "no lines here"
-    // — unknown, which must not read as a change.
-    if (!e || !Array.isArray(e.r)) { prev = null; return;  }
-    // Rail-bound modes only, for exactly the reason bus LINES are excluded
-    // above: buses call at some stops and not the next, so a mode set holding
-    // them flickers between {metro,bus} and {metro} and the rule fires almost
-    // everywhere. Measured on a line where buses served every other stop:
-    // SEVEN of eight stops became anchors.
-    //
-    // That was the shipped bug in v1.84.0 — buses were kept out of the line
-    // dimension and let straight back in through the mode dimension, three
-    // lines apart in the same file. A tram or a train meeting the metro still
-    // counts, which is the case the mode test exists for.
-    const cur = { r: _set(e.r), m: _railModes(e.m) };
-    if (prev && (!_same(cur.r, prev.r) || !_same(cur.m, prev.m))) out.add(s.id);
-    prev = cur;
+    if (!e || !Array.isArray(e.r)) return;
+    if (_set(e.r).size >= HUB_MIN_LINES || _railModes(e.m).size >= HUB_MIN_LINES) {
+      out.add(s.id);
+    }
   });
-  // A signal that fires almost everywhere is not a signal.
+  // No valve here, and its removal is the point rather than an omission.
   //
-  // This is NOT the cap v1.82.0 had. That one SELECTED the anchors — keep the
-  // best 40% — and it is what dropped Helsfyr. This one selects nothing: it
-  // only refuses an answer that has clearly learned nothing, and marking
-  // nothing means stopRuns shows every stop, which is the list as it was.
+  // v1.84.1 refused an answer that marked more than 60% of a line, as
+  // insurance against a signal firing everywhere. Under an absolute rule that
+  // insurance turns harmful: on a trunk where ten of seventeen stops really do
+  // serve several lines, "most of this line is an interchange" is TRUE, and
+  // the valve threw the correct answer away. Measured — six of nine stops on
+  // the line 3 fixture, and the whole set came back empty.
   //
-  // Insurance, and it is written down as such: three definitions of this have
-  // now been wrong on real data I cannot reach, twice by marking everything.
-  // The cost of a fourth should be the old screen, not a bad one.
-  if (out.size > list.length * ANCHOR_USELESS_ABOVE) return new Set();
+  // The rule protects itself instead: a stop with one line is never an anchor,
+  // and if every stop genuinely has several then nothing folds and the list is
+  // the full list. The failure mode is still the old screen.
   return out;
 }
 

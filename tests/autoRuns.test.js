@@ -20,15 +20,10 @@ const LINE3 = ['Skullerud', 'Bogerud', 'Bøler', 'Ulsrud', 'Oppsal', 'Skøyenås
 // A stop is an anchor when its rail-bound line set differs from the stop
 // BEFORE it (v1.84.0), so the register is built by walking the line and
 // adding a line at each named junction — which is what a junction is.
-const register = (...hubNames) => {
-  const out = {};
-  let lines = ['3'];
-  LINE3.forEach(x => {
-    if (hubNames.includes(x.name)) lines = [...lines, 'J' + x.name];
-    out[x.id] = { v: 3, q: 2, m: ['metro'], r: [...lines].sort() };
-  });
-  return out;
-};
+// A stop is an anchor when it serves more than one rail-bound line
+// (v1.85.0), so the register simply gives the named stops two lines.
+const register = (...hubNames) => Object.fromEntries(LINE3.map(x => [x.id,
+  { v: 3, q: 2, m: ['metro'], r: hubNames.includes(x.name) ? ['2', '3'] : ['3'] }]));
 
 const kinds = (rows) => rows.map(r => r.kind === 'stop' ? r.s.name : r.kind + ':' + r.items.length);
 
@@ -93,8 +88,6 @@ describe('stopRuns', () => {
 
   it('does not fold a single stop', () => {
     // Anchors at Bogerud and Ulsrud, so Bøler sits alone between them.
-    // Not at Skullerud: the FIRST stop can never be an anchor, because there
-    // is nothing before it to differ from.
     const rows = stopRuns(LINE3, register('Bogerud', 'Ulsrud'), new Set());
     const solo = rows.find(r => r.kind === 'stop' && r.s.name === 'Bøler');
     expect(solo).toBeTruthy();

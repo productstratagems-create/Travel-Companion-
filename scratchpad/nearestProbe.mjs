@@ -194,18 +194,31 @@ await page.waitForTimeout(200);
 console.log('  alternativer synlige:', await altsShown());
 console.log('  f\u00f8rste avgang p\u00e5 y =', await firstDepTop());
 
-console.log('\n── valget st\u00e5r etter reload ──');
+// The whole of v1.83.1: open while you are here, closed when you come back.
+console.log('\n── g\u00e5 til tavla og tilbake ──');
+await page.click('#auto-stop-toggle');
+await page.waitForTimeout(200);
+console.log('  utvidet f\u00f8r:', await altsShown());
+await page.click('.app-nav-btn[data-view="v-board"]');
+await page.waitForTimeout(700);
+await page.click('.app-nav-btn[data-view="v-auto"]');
+await page.waitForTimeout(900);
+console.log('  etter \u00e5 ha kommet tilbake:', await altsShown(), '(skal v\u00e6re 0)');
+
+console.log('\n── etter reload ──');
 await page.click('#auto-stop-toggle');
 await page.waitForTimeout(150);
 await page.reload({ waitUntil: 'load' });
 await page.waitForSelector('#v-auto .auto-dir');
-console.log('  alternativer synlige:', await altsShown());
+console.log('  alternativer synlige:', await altsShown(), '(skal v\u00e6re 0)');
 
 console.log('\n── velge et alternativ lar lista st\u00e5 \u00e5pen ──');
+await page.click('#auto-stop-toggle');
+await page.waitForTimeout(200);
 await page.click('#v-auto .auto-alt');
 await page.waitForTimeout(600);
 console.log('  du er ved:', await head());
-console.log('  alternativer synlige:', await altsShown());
+console.log('  alternativer synlige:', await altsShown(), '(skal v\u00e6re 7)');
 await page.click('#auto-stop-toggle');
 await page.waitForTimeout(200);
 

@@ -14,8 +14,10 @@ const ALL_KEYS = [
   // Which order the auto-reise list is drawn in. A display choice, but one
   // the reader made, so it travels with the profile like the rest.
   't.autoSort',
-  // Whether the nearby-stops list on auto-reise is open. A display choice the
-  // reader made, so it travels with the profile like the rest.
+  // Legacy. v1.79.0 stored whether the nearby-stops list was open; v1.83.1
+  // made that a module variable so the list starts collapsed every time.
+  // Nothing writes this any more — it stays listed so a value left over from
+  // that build is still deleted with the profile that made it.
   't.autoStops',
   // Found missing all at once by a test that enumerates them, after t.destPeek
   // was noticed by hand. Every one is personal, and t.homeLL is the one that

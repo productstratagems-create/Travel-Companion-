@@ -23,41 +23,63 @@ vi.mock('../src/storage.js', () => {
   } };
 });
 
-import { loadAutoStopsOpen, saveAutoStopsOpen } from '../src/geo.js';
-import { stopHeadHtml, stopsOpen, pickStop } from '../src/views/auto.js';
+import { stopHeadHtml, stopsOpen, pickStop, resetAuto, _setStopsOpen } from '../src/views/auto.js';
 import { storage } from '../src/storage.js';
 
 beforeEach(() => storage._reset());
 
-describe('loadAutoStopsOpen', () => {
-  // Closed unless opened. Chosen deliberately: the departures are what the
-  // screen is for, and they were below the fold.
-  it('is closed when the reader has never chosen', () => {
-    expect(loadAutoStopsOpen()).toBe(false);
+// ── The list starts collapsed every time ─────────────────────────────────
+//
+// v1.79.0 stored the choice, so "collapsed by default" only held until the
+// first tap: after that the list was open for ever, and the reported
+// behaviour was the opposite of the default. Reported back as "«Du er her»
+// feltet starter collapsed" — an instruction, not an observation.
+//
+// It is a module variable now, cleared by resetAuto when the screen is
+// entered, exactly as _openRuns already was for the folded stretches.
+describe('stopsOpen', () => {
+  it('is closed when the screen is entered', () => {
+    _setStopsOpen(true);
+    resetAuto();
+    expect(stopsOpen(7)).toBe(false);
   });
 
-  it('round-trips both states', () => {
-    saveAutoStopsOpen(true);
-    expect(loadAutoStopsOpen()).toBe(true);
-    saveAutoStopsOpen(false);
-    expect(loadAutoStopsOpen()).toBe(false);
+  // The reported bug, as an assertion: a value left over from v1.79.0 must
+  // no longer mean anything at all.
+  it('ignores a choice stored by the build that stored one', () => {
+    storage.set('t.autoStops', '1');
+    resetAuto();
+    expect(stopsOpen(7)).toBe(false);
   });
 
-  // Rubbish in storage is a real state: an older build, a hand-edited value,
-  // a half-written key. It must land closed, never on undefined.
-  it('falls to closed on a value it does not know', () => {
-    storage.set('t.autoStops', 'kanskje');
-    expect(loadAutoStopsOpen()).toBe(false);
+  it('stays open while you are on the screen', () => {
+    resetAuto();
+    _setStopsOpen(true);
+    expect(stopsOpen(7)).toBe(true);
+    expect(stopsOpen(7)).toBe(true);   // a redraw does not close it
   });
 
-  it('travels with the profile', async () => {
+  // A heading that folds away an empty list is a control that cannot change
+  // anything, which is worse than no control.
+  it('is never open with nothing in the list', () => {
+    _setStopsOpen(true);
+    expect(stopsOpen(0)).toBe(false);
+  });
+
+  it('is not stored any more', async () => {
     const fs = await import('node:fs');
-    const src = fs.readFileSync('src/storage.js', 'utf8').replace(/\/\/.*$/gm, '');
-    expect(src).toContain("'t.autoStops'");
+    const src = ['src/views/auto.js', 'src/geo.js']
+      .map(f => fs.readFileSync(f, 'utf8')).join('\n')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(src).not.toContain('saveAutoStopsOpen');
+    expect(src).not.toContain('loadAutoStopsOpen');
+    // …but the key stays listed, so a stale value is still deleted with the
+    // profile that made it.
+    const st = fs.readFileSync('src/storage.js', 'utf8');
+    expect(st).toContain("'t.autoStops'");
   });
 });
 
-// ── The heading, which is also the fold ───────────────────────────────────
 describe('stopHeadHtml', () => {
   const stop = { id: 'NSR:1', name: 'Mortensrud', distM: 649 };
 
@@ -102,20 +124,6 @@ describe('stopHeadHtml', () => {
   });
 });
 
-describe('stopsOpen', () => {
-  it('is never open with nothing in the list', () => {
-    saveAutoStopsOpen(true);
-    expect(stopsOpen(0)).toBe(false);
-    expect(stopsOpen(3)).toBe(true);
-  });
-
-  it('follows the stored choice', () => {
-    expect(stopsOpen(3)).toBe(false);
-    saveAutoStopsOpen(true);
-    expect(stopsOpen(3)).toBe(true);
-  });
-});
-
 // ── The state may not live in the markup ──────────────────────────────────
 //
 // #auto-where has its whole innerHTML rewritten every second (scheduler.js,
@@ -135,10 +143,19 @@ describe('where the state lives', () => {
     expect(where).toContain('stopsOpen(');
   });
 
-  it('writes it to storage rather than holding it in the markup', () => {
+  // Not a class on the markup, and not storage either — a module variable,
+  // which is the only shape that both survives the redraw AND starts fresh
+  // when the reader comes back to the screen.
+  it('holds it outside the markup, not as a class on it', () => {
     const all = src();
-    const where = all.slice(all.indexOf('function _renderWhere'));
-    expect(where).toContain('saveAutoStopsOpen(');
+    const where = all.slice(all.indexOf('function _renderWhere'), all.indexOf('function _load'));
+    expect(where).not.toMatch(/classList\.(toggle|add|remove)/);
+  });
+
+  it('is cleared when the screen is entered', () => {
+    const all = src();
+    const reset = all.slice(all.indexOf('export function resetAuto'));
+    expect(reset).toContain('_stopsShown = false');
   });
 });
 

@@ -34,6 +34,10 @@ const leg = (mins, dur, code, colour) => ({
   situations: [], pointsOnLink: null,
 });
 const PATTERNS = [
+  { duration: 140 * 60, aimedStartTime: iso(NOW + 9 * 60000),
+    expectedStartTime: iso(NOW + 9 * 60000), legs: [leg(9, 140, '415', 'a8321f')] },
+  { duration: 140 * 60, aimedStartTime: iso(NOW + 95 * 60000),
+    expectedStartTime: iso(NOW + 95 * 60000), legs: [leg(95, 140, '415', 'a8321f')] },
   { duration: 144 * 60, aimedStartTime: iso(NOW + 1209 * 60000),
     expectedStartTime: iso(NOW + 1209 * 60000), legs: [leg(1209, 144, '415', 'a8321f')] },
   { duration: 138 * 60, aimedStartTime: iso(NOW + 1241 * 60000),

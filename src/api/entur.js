@@ -223,6 +223,13 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
         })
         .then(j => {
           if (!j || signal.aborted) return j;
+          // What Entur actually said. The ladder below sheds arguments one
+          // at a time without knowing which was refused, and the log said only
+          // that something was — so a refused searchWindow could not be told
+          // from a wrong unit, a wrong name, or a value out of range. The
+          // answer was in hand and thrown away.
+          const why = (j.errors && j.errors[0] && j.errors[0].message)
+            ? ' — ' + String(j.errors[0].message).slice(0, 160) : '';
           // The whole board rides on this one request. v1.12.0 put the
           // in-flight window in its own query precisely so a misspelt
           // argument could not take the departure list down; asking for
@@ -239,16 +246,16 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
           // had), then the coaches, then the two-minute lookback.
           if (withWindow && !j.data && j.errors) {
             _windowRejected = true;
-            logMsg('søkevindu: searchWindow avvist av Entur — hentes ikke denne økta', 'err');
+            logMsg('søkevindu: searchWindow avvist' + why, 'err');
             return ask(withLookback, withCoach, false);
           }
           if (withCoach && !j.data && j.errors) {
             _coachRejected = true;
-            logMsg('ekspressbuss: coach avvist av Entur — hentes ikke denne økta', 'err');
+            logMsg('ekspressbuss: coach avvist' + why, 'err');
             return ask(withLookback, false, withWindow);
           }
           if (withLookback && !j.data && j.errors) {
-            logMsg('trip: dateTime avvist, prøver uten — tilbakeblikket tapt for denne pollen', 'err');
+            logMsg('trip: dateTime avvist, tilbakeblikket tapt denne pollen' + why, 'err');
             noteLookbackLost();
             return ask(false, withCoach, withWindow);
           }

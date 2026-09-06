@@ -36,7 +36,20 @@ export function takeLookbackLost() { const v = _lookbackLost; _lookbackLost = fa
 /** Stages in the order a departure passes through them. */
 export const STAGES = ['svar', 'adaptert', 'dedup', 'modus', 'linje', 'rader'];
 
-export function newRecord(at) {
+/**
+ * @param {number} [at]
+ * @param {object} [prev] the record being replaced, so the stop-board
+ *   comparison survives it.
+ *
+ * That comparison is the whole point of the panel — "Entur has an earlier one"
+ * is how you tell OUR loss from Entur's — and it was being wiped. Measured:
+ * `board → NSR:StopPlace:16828` answered 200 four seconds before the trip
+ * fetch started a fresh record, and the stopptavle row was simply absent from
+ * the panel on the one screen where it mattered most, a route returning zero
+ * journeys. It is a slowly-changing fact about a stop; carrying it forward is
+ * also why v1.45.0 does not re-ask it every poll.
+ */
+export function newRecord(at, prev) {
   return {
     at: at == null ? Date.now() : at,
     askedFor: null,      // the dateTime actually sent
@@ -44,9 +57,9 @@ export function newRecord(at) {
     origin: null,        // stop id, or 'koordinater' — a known dropper
     stages: {},          // stage → { n, earliest }
     dropped: [],         // reasons from adaptTripPattern
-    stopBoard: null,     // earliest the stop board reports, when asked
-    stopBoardN: null,    // how many departures that board held
-    stopBoardQuays: null, // and how they split across platforms
+    stopBoard: prev ? prev.stopBoard : null,     // earliest the stop board reports
+    stopBoardN: prev ? prev.stopBoardN : null,   // how many departures it held
+    stopBoardQuays: prev ? prev.stopBoardQuays : null, // and their platforms
     ourQuays: null,      // the same split for the rows we ended up showing
     lookbackLost: false, // the retry shed the 2-minute lookback this poll
   };

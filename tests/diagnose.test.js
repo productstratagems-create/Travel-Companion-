@@ -167,3 +167,57 @@ describe('formatRecord — platforms', () => {
     expect(formatRecord(r).join('\n')).not.toContain('spor vi ikke viser');
   });
 });
+
+// ── The stop-board comparison must survive the next fetch ────────────────
+//
+// It is the whole point of the panel: "Entur har en tidligere" is how our
+// loss is told apart from Entur's. Measured on a route returning zero
+// journeys — the one screen where it matters most — `board → NSR:16828`
+// answered 200 four seconds before the trip fetch started a fresh record,
+// and the stopptavle row was simply absent.
+describe('newRecord and the stop board', () => {
+  it('carries the comparison forward', () => {
+    const prev = newRecord(1000);
+    prev.stopBoard = 1700000000000;
+    prev.stopBoardN = 20;
+    prev.stopBoardQuays = { B: 5, '1': 3 };
+    const next = newRecord(2000, prev);
+    expect(next.stopBoard).toBe(1700000000000);
+    expect(next.stopBoardN).toBe(20);
+    expect(next.stopBoardQuays).toEqual({ B: 5, '1': 3 });
+  });
+
+  it('starts empty when there is nothing to carry', () => {
+    const fresh = newRecord(1000);
+    expect(fresh.stopBoard).toBe(null);
+    expect(fresh.stopBoardN).toBe(null);
+    expect(newRecord(2000, null).stopBoard).toBe(null);
+  });
+
+  // Everything else is per-fetch and must NOT be inherited, or the panel
+  // would report the previous route's pipeline as this one's.
+  it('carries nothing else', () => {
+    const prev = newRecord(1000);
+    prev.stages = { svar: { n: 6, earliest: 1 } };
+    prev.dropped = ['kun gange'];
+    prev.ourQuays = { A: 1 };
+    prev.lookbackLost = true;
+    const next = newRecord(2000, prev);
+    expect(next.stages).toEqual({});
+    expect(next.dropped).toEqual([]);
+    expect(next.ourQuays).toBe(null);
+    expect(next.lookbackLost).toBe(false);
+  });
+
+
+  // The wiring, not just the function. v1.84.2 shipped a _resetHubs() call
+  // that a test confirmed existed while the button it was in did nothing —
+  // a helper that takes the previous record is worth nothing if the one
+  // caller never hands it over.
+  it('is handed the previous record by the board', async () => {
+    const fs = await import('node:fs');
+    const src = fs.readFileSync('src/views/board.js', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(src).toMatch(/newRecord\(\s*Date\.now\(\)\s*,\s*_diag\s*\)/);
+  });
+});

@@ -7,8 +7,8 @@ vi.mock('../src/api/adapt.js', () => ({ quayLatLon: () => null }));
 const fetchMock = vi.fn();
 vi.mock('../src/api/http.js', () => ({ enturFetch: (...a) => fetchMock(...a) }));
 
-const { fetchTrip, fetchBoard, _resetPerLineProbe, _coachRefused, _resetCoachProbe } =
-  await import('../src/api/entur.js');
+const { fetchTrip, fetchBoard, _resetPerLineProbe, _coachRefused, _resetCoachProbe,
+  _windowRefused, _resetWindowProbe } = await import('../src/api/entur.js');
 
 const DIR = { from: 'Grorud', to: 'Jernbanetorget', stopId: 'NSR:StopPlace:1', toStopId: 'NSR:StopPlace:2' };
 const ok = (patterns) => ({
@@ -24,7 +24,7 @@ const settle = () => new Promise(r => setTimeout(r, 0));
 
 // The coach refusal is remembered for the session on purpose, so it has to
 // be cleared between tests or the first refusal decides all the rest.
-beforeEach(() => { fetchMock.mockReset(); _resetCoachProbe(); });
+beforeEach(() => { fetchMock.mockReset(); _resetCoachProbe(); _resetWindowProbe(); });
 
 /**
  * The board rides on this one request. v1.12.0 put the in-flight window in its
@@ -51,7 +51,7 @@ describe('fetchTrip — the retry when dateTime is rejected', () => {
   // refused, so they are shed one at a time — coach first, because losing the
   // express services costs less than losing the two-minute lookback, which is
   // a train standing at the platform a minute late.
-  it('sheds the coach mode first and still renders a board', async () => {
+  it('sheds the search window first and still renders a board', async () => {
     fetchMock
       .mockReturnValueOnce(Promise.resolve(gqlError()))
       .mockReturnValueOnce(Promise.resolve(ok([{ duration: 1 }, { duration: 2 }])));
@@ -60,9 +60,11 @@ describe('fetchTrip — the retry when dateTime is rejected', () => {
     await settle(); await settle(); await settle(); await settle();
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(bodyOf(fetchMock.mock.calls[0])).toContain('transportMode:coach');
-    expect(bodyOf(fetchMock.mock.calls[1])).not.toContain('transportMode:coach');
-    // The lookback is NOT given up for a refusal that might have been coach.
+    expect(bodyOf(fetchMock.mock.calls[0])).toContain('searchWindow:');
+    expect(bodyOf(fetchMock.mock.calls[1])).not.toContain('searchWindow:');
+    // Neither the coaches nor the lookback are given up for a refusal that
+    // might have been the window.
+    expect(bodyOf(fetchMock.mock.calls[1])).toContain('transportMode:coach');
     expect(bodyOf(fetchMock.mock.calls[1])).toContain('dateTime:');
     // The point of the whole exercise: the departure list still arrives.
     expect(onSuccess).toHaveBeenCalled();
@@ -70,25 +72,48 @@ describe('fetchTrip — the retry when dateTime is rejected', () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it('sheds the lookback next when coach was not the problem', async () => {
+  // Cheapest loss first, all the way down: the wider window (rural journeys
+  // we never had), then the coaches, then the two-minute lookback — which is
+  // a train standing at the platform a minute late.
+  it('sheds the coaches next, and the lookback only last', async () => {
     fetchMock
+      .mockReturnValueOnce(Promise.resolve(gqlError()))
       .mockReturnValueOnce(Promise.resolve(gqlError()))
       .mockReturnValueOnce(Promise.resolve(gqlError()))
       .mockReturnValueOnce(Promise.resolve(ok([{ duration: 1 }])));
     const onSuccess = vi.fn(), onError = vi.fn();
     fetchTrip(DIR, onSuccess, onError);
-    await settle(); await settle(); await settle(); await settle(); await settle();
+    for (let i = 0; i < 6; i++) await settle();
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(bodyOf(fetchMock.mock.calls[2])).not.toContain('dateTime:');
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(bodyOf(fetchMock.mock.calls[1])).not.toContain('searchWindow:');
+    expect(bodyOf(fetchMock.mock.calls[2])).not.toContain('transportMode:coach');
+    expect(bodyOf(fetchMock.mock.calls[3])).not.toContain('dateTime:');
     expect(onSuccess).toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('remembers a refused window and stops asking for it', async () => {
+    fetchMock
+      .mockReturnValueOnce(Promise.resolve(gqlError()))
+      .mockReturnValue(Promise.resolve(ok([{ duration: 1 }])));
+    fetchTrip(DIR, vi.fn(), vi.fn());
+    for (let i = 0; i < 5; i++) await settle();
+    expect(_windowRefused()).toBe(true);
+
+    fetchMock.mockClear();
+    fetchMock.mockReturnValue(Promise.resolve(ok([{ duration: 1 }])));
+    fetchTrip(DIR, vi.fn(), vi.fn());
+    await settle(); await settle(); await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(bodyOf(fetchMock.mock.calls[0])).not.toContain('searchWindow:');
   });
 
   // A refused enum must cost one request, not one per poll for the rest of
   // the day — the same session memory the per-line cap and the hub fields got.
   it('remembers the refusal and stops asking for coach', async () => {
     fetchMock
+      .mockReturnValueOnce(Promise.resolve(gqlError()))
       .mockReturnValueOnce(Promise.resolve(gqlError()))
       .mockReturnValue(Promise.resolve(ok([{ duration: 1 }])));
     fetchTrip(DIR, vi.fn(), vi.fn());
@@ -107,8 +132,8 @@ describe('fetchTrip — the retry when dateTime is rejected', () => {
     fetchMock.mockReturnValue(Promise.resolve(gqlError()));
     const onError = vi.fn();
     fetchTrip(DIR, vi.fn(), onError);
-    await settle(); await settle(); await settle(); await settle(); await settle();
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (let i = 0; i < 6; i++) await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(onError).toHaveBeenCalled();
   });
 });

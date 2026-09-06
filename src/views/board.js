@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { normMode } from '../api/stopCats.js';
 import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
@@ -194,9 +195,9 @@ export function _rowQuay(c, byJourney) {
  * of which are about the vehicle you step onto, so the first leg is right.
  */
 function _depMode(dep) {
-  if (dep._legs && dep._legs[0]) return dep._legs[0].mode;
+  if (dep._legs && dep._legs[0]) return normMode(dep._legs[0].mode);
   const ln = dep.serviceJourney && dep.serviceJourney.line;
-  return (ln && ln.transportMode) || 'metro';
+  return normMode((ln && ln.transportMode) || 'metro');
 }
 
 /**

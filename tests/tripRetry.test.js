@@ -7,7 +7,8 @@ vi.mock('../src/api/adapt.js', () => ({ quayLatLon: () => null }));
 const fetchMock = vi.fn();
 vi.mock('../src/api/http.js', () => ({ enturFetch: (...a) => fetchMock(...a) }));
 
-const { fetchTrip, fetchBoard, _resetPerLineProbe } = await import('../src/api/entur.js');
+const { fetchTrip, fetchBoard, _resetPerLineProbe, _coachRefused, _resetCoachProbe } =
+  await import('../src/api/entur.js');
 
 const DIR = { from: 'Grorud', to: 'Jernbanetorget', stopId: 'NSR:StopPlace:1', toStopId: 'NSR:StopPlace:2' };
 const ok = (patterns) => ({
@@ -21,7 +22,9 @@ const gqlError = () => ({
 const bodyOf = (call) => JSON.parse(call[1].body).query;
 const settle = () => new Promise(r => setTimeout(r, 0));
 
-beforeEach(() => fetchMock.mockReset());
+// The coach refusal is remembered for the session on purpose, so it has to
+// be cleared between tests or the first refusal decides all the rest.
+beforeEach(() => { fetchMock.mockReset(); _resetCoachProbe(); });
 
 /**
  * The board rides on this one request. v1.12.0 put the in-flight window in its
@@ -41,7 +44,14 @@ describe('fetchTrip — the retry when dateTime is rejected', () => {
     expect(onSuccess).toHaveBeenCalled();
   });
 
-  it('retries without the lookback and still renders a board', async () => {
+  // ── The ladder, in order ───────────────────────────────────────────────
+  //
+  // Two arguments here have never been checkable against the live schema:
+  // dateTime, and now coach (v1.86.0). The error does not say which was
+  // refused, so they are shed one at a time — coach first, because losing the
+  // express services costs less than losing the two-minute lookback, which is
+  // a train standing at the platform a minute late.
+  it('sheds the coach mode first and still renders a board', async () => {
     fetchMock
       .mockReturnValueOnce(Promise.resolve(gqlError()))
       .mockReturnValueOnce(Promise.resolve(ok([{ duration: 1 }, { duration: 2 }])));
@@ -50,20 +60,55 @@ describe('fetchTrip — the retry when dateTime is rejected', () => {
     await settle(); await settle(); await settle(); await settle();
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(bodyOf(fetchMock.mock.calls[0])).toContain('dateTime:');
-    expect(bodyOf(fetchMock.mock.calls[1])).not.toContain('dateTime:');
+    expect(bodyOf(fetchMock.mock.calls[0])).toContain('transportMode:coach');
+    expect(bodyOf(fetchMock.mock.calls[1])).not.toContain('transportMode:coach');
+    // The lookback is NOT given up for a refusal that might have been coach.
+    expect(bodyOf(fetchMock.mock.calls[1])).toContain('dateTime:');
     // The point of the whole exercise: the departure list still arrives.
     expect(onSuccess).toHaveBeenCalled();
     expect(onSuccess.mock.calls[0][0]).toHaveLength(2);
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it('does not retry forever when the second attempt fails too', async () => {
+  it('sheds the lookback next when coach was not the problem', async () => {
+    fetchMock
+      .mockReturnValueOnce(Promise.resolve(gqlError()))
+      .mockReturnValueOnce(Promise.resolve(gqlError()))
+      .mockReturnValueOnce(Promise.resolve(ok([{ duration: 1 }])));
+    const onSuccess = vi.fn(), onError = vi.fn();
+    fetchTrip(DIR, onSuccess, onError);
+    await settle(); await settle(); await settle(); await settle(); await settle();
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(bodyOf(fetchMock.mock.calls[2])).not.toContain('dateTime:');
+    expect(onSuccess).toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  // A refused enum must cost one request, not one per poll for the rest of
+  // the day — the same session memory the per-line cap and the hub fields got.
+  it('remembers the refusal and stops asking for coach', async () => {
+    fetchMock
+      .mockReturnValueOnce(Promise.resolve(gqlError()))
+      .mockReturnValue(Promise.resolve(ok([{ duration: 1 }])));
+    fetchTrip(DIR, vi.fn(), vi.fn());
+    await settle(); await settle(); await settle(); await settle();
+    expect(_coachRefused()).toBe(true);
+
+    fetchMock.mockClear();
+    fetchMock.mockReturnValue(Promise.resolve(ok([{ duration: 1 }])));
+    fetchTrip(DIR, vi.fn(), vi.fn());
+    await settle(); await settle(); await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(bodyOf(fetchMock.mock.calls[0])).not.toContain('transportMode:coach');
+  });
+
+  it('does not retry forever when every attempt fails', async () => {
     fetchMock.mockReturnValue(Promise.resolve(gqlError()));
     const onError = vi.fn();
     fetchTrip(DIR, vi.fn(), onError);
-    await settle(); await settle(); await settle(); await settle();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await settle(); await settle(); await settle(); await settle(); await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(onError).toHaveBeenCalled();
   });
 });

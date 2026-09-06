@@ -162,6 +162,19 @@ export function resolveToPlace(dir, signal) {
  *   home, set hours earlier, wants the departures around when you actually
  *   leave rather than the ones going now.
  */
+/**
+ * Has Entur turned down the `coach` mode this session?
+ *
+ * Remembered like the per-line cap and the hub fields before it: an argument
+ * the schema will not accept must cost one request, not one per poll for the
+ * rest of the day.
+ */
+let _coachRejected = false;
+
+/** Test seam. */
+export function _coachRefused() { return _coachRejected; }
+export function _resetCoachProbe() { _coachRejected = false; }
+
 export function fetchTrip(dir, onSuccess, onError, atMs) {
   if (tripController) tripController.abort();
   if (boardController) boardController.abort();
@@ -175,19 +188,20 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
       const label = p => (p && typeof p === 'object') ? p.lat + ',' + p.lon : p;
       logMsg('trip → ' + label(fromId) + (viaId ? ' via ' + viaId : '') + ' → ' + label(toId));
-      const ask = (withLookback) => enturFetch(config.api.journeyPlanner, {
+      const ask = (withLookback, withCoach) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: withLookback
-            ? tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? undefined : atMs)
+            ? tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? undefined : atMs,
+              false, false, withCoach)
             // The retry deliberately drops dateTime: it is the argument that
             // could never be verified against the live API, so it is the one
             // the fallback exists to shed. The cost is real — this poll loses
             // the two-minute lookback, and with it a train standing at the
             // platform a minute late — so the diagnostic records that it
             // happened rather than trading a silent loss for a silent outage.
-            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null),
+            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach),
         }),
         signal,
       })
@@ -204,14 +218,24 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
           // argument could not take the departure list down; asking for
           // dateTime here gives that isolation up, so buy it back — one
           // retry without the lookback rather than an empty screen.
+          // Coach first, because it is the argument that has never been
+          // checked against the live schema and this one request carries
+          // every journey. Shedding it costs the express services; shedding
+          // the lookback costs a train standing at the platform. Neither is
+          // worth an empty screen, and the cheaper loss goes first.
+          if (withCoach && !j.data && j.errors) {
+            _coachRejected = true;
+            logMsg('ekspressbuss: coach avvist av Entur — hentes ikke denne økta', 'err');
+            return ask(withLookback, false);
+          }
           if (withLookback && !j.data && j.errors) {
             logMsg('trip: dateTime avvist, prøver uten — tilbakeblikket tapt for denne pollen', 'err');
             noteLookbackLost();
-            return ask(false);
+            return ask(false, withCoach);
           }
           return j;
         });
-      return ask(true);
+      return ask(true, !_coachRejected);
     })
     .then(j => {
       if (!j || signal.aborted) return;

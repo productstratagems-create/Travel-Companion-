@@ -36,26 +36,30 @@ export function sitsGQL(basic) {
 }
 
 /**
- * How far ahead the trip planner is asked to look.
+ * How far ahead the trip planner is asked to look, IN MINUTES.
  *
- * OTP2 sizes its search window dynamically from local frequency when none is
- * given, which is generous in Oslo and can close before the next departure on
- * a stop with two services a day. Measured: Mortensrud→Stortinget returned
- * 6/6 trip patterns while Storaas Gjestegård→Jernbanetorget returned 0/0 in
- * the same minute, with no error — Entur simply found nothing inside the
- * window it chose.
+ * OTP2 sizes its search window from local frequency when none is given,
+ * which is generous in Oslo and can close before the next departure at a stop
+ * with two services a day. Measured: Mortensrud→Stortinget returned 6/6 trip
+ * patterns while Storaas Gjestegård→Jernbanetorget returned 0/0 in the same
+ * minute, with no error at all.
  *
- * THE NUMBER IS CHOSEN FOR AN UNIT I CANNOT CHECK. Entur's schema documents
- * searchWindow in MINUTES; OTP2's other API counts SECONDS, and the proxy
- * here reaches neither the API nor its docs. 43200 is the one value that
- * lands somewhere useful under both readings: twelve hours if seconds, and
- * thirty days if minutes — which OTP clamps to its own maximum rather than
- * honouring. A middling number like 720 would have been twelve hours under
- * one reading and twelve MINUTES under the other, and the second is shorter
- * than the default it replaces. That is the trade being made, written down
- * rather than discovered on a rural morning.
+ * THE UNIT IS NO LONGER A GUESS. v1.86.1 sent 43200, chosen to be useful
+ * whether the field counted minutes or seconds, and Entur answered:
+ *
+ *   The search window cannot exceed PT48H
+ *
+ * Forty-three thousand two hundred SECONDS is twelve hours and would have
+ * been accepted. It was refused, so the field counts MINUTES and the ceiling
+ * is 2880. That is measured, not reasoned — the first thing in this corner of
+ * the app that stopped being unverifiable.
+ *
+ * 1440 rather than the 2880 maximum: twenty-four hours catches both of the
+ * day's departures at a rural stop, journeys the day after tomorrow are not
+ * an answer to "when can I go", and a value sitting exactly on a documented
+ * limit is the one most likely to be moved by the other side.
  */
-export const TRIP_SEARCH_WINDOW = 43200;
+export const TRIP_SEARCH_WINDOW = 1440;
 
 export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTime, coach, window) {
   const sits = sitsGQL(minimal);

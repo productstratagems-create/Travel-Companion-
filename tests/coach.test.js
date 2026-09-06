@@ -99,14 +99,25 @@ describe('tripGQL and the search window', () => {
     expect(q(true)).toContain('searchWindow:' + TRIP_SEARCH_WINDOW);
   });
 
-  // The number is chosen for a unit I cannot check: Entur documents minutes,
-  // OTP2's other API counts seconds. 43200 is twelve hours under one reading
-  // and thirty days under the other — which OTP clamps rather than honours.
-  // A middling number would have been twelve MINUTES under one reading, which
-  // is shorter than the default it replaces.
-  it('is a value that survives either unit', () => {
-    expect(TRIP_SEARCH_WINDOW).toBe(43200);
-    expect(TRIP_SEARCH_WINDOW / 60).toBeGreaterThanOrEqual(12 * 60);   // ok as seconds
-    expect(TRIP_SEARCH_WINDOW).toBeGreaterThan(24 * 60);               // clamped as minutes
+  // The unit is measured now, not reasoned. v1.86.1 sent 43200 — chosen to be
+  // useful whether the field counted minutes or seconds — and Entur said:
+  // "The search window cannot exceed PT48H". 43200 SECONDS is twelve hours
+  // and would have been accepted; it was refused, so the field counts
+  // MINUTES and the ceiling is 2880.
+  it('is minutes, and inside the ceiling Entur named', () => {
+    expect(TRIP_SEARCH_WINDOW).toBe(1440);          // 24 hours
+    expect(TRIP_SEARCH_WINDOW).toBeLessThan(48 * 60);
+  });
+
+  // Not sitting exactly on the documented limit: that is the value most
+  // likely to be moved by the other side, and journeys the day after
+  // tomorrow are not an answer to "when can I go".
+  it('leaves room under the ceiling', () => {
+    expect(48 * 60 - TRIP_SEARCH_WINDOW).toBeGreaterThanOrEqual(24 * 60);
+  });
+
+  // A rural stop with two departures a day still fits.
+  it('is long enough to reach tomorrow morning', () => {
+    expect(TRIP_SEARCH_WINDOW).toBeGreaterThanOrEqual(12 * 60);
   });
 });

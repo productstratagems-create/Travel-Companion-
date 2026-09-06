@@ -1724,25 +1724,42 @@ export function _clusterTrains(trains, minSep) {
 }
 
 /**
- * What goes on the flank of a strip glyph.
+ * How long until it goes, on the flank of the glyph.
  *
- * The line, not the minutes. The strip is a timeline — the glyph's POSITION
- * already carries WHEN — so the label can carry WHICH, and a line number
- * stays short however far out the departure is.
+ * The minutes, which is what the strip has always meant: the position says
+ * WHEN along the rail, and the label says the same thing as a number you can
+ * act on. v1.87.0 briefly put the line number here instead; that was my
+ * misreading of an answer.
  *
- * Minutes were unbounded. Reported as "navn på avgang på strip" against a
- * pill reading "12411209": two departures 1241 and 1209 minutes out, which is
- * twenty hours, which the v1.86.3 search window now returns as a matter of
- * course. Four digits is 26px of ink in a 30px glyph.
+ * THE SCALE EXISTS BECAUSE THE GLYPH IS 30px WIDE. A bus body is 30px
+ * (mapIcons _SIDE), the label is 11px mono — about 6.6px a character — so
+ * three characters is the honest ceiling and four already fills it edge to
+ * edge. Raw minutes were unbounded, and since the search window became a full
+ * day (v1.86.3) a departure twenty hours out is a normal case: "1209" is
+ * 26px of ink, which is what the reader saw as "12411209".
  *
- * Departed and imminent still take the label. "nå" and "-3" are the two
- * things a reader acts on without thinking, and both are two characters.
+ *   gone        -3        what you just missed
+ *   now         nå
+ *   under 1t    9, 59     the number you act on, exactly
+ *   1t–23t      1t, 20t   the hour, FLOORED — "20t" promises at least twenty
+ *   a day+      1d, 2d
+ *
+ * Floored rather than rounded on purpose: at this size the label is a marker,
+ * not a countdown, and "1t" for ninety minutes is a promise the departure
+ * keeps. Rounding up would make the glyph claim more time than there is. The
+ * exact wait is in the tooltip, through fmtMins, and in the row.
  */
+export const STRIP_LABEL_MAX = 3;
+
 export function _stripLabel(lead) {
   if (!lead) return '';
   if (lead.ago >= 1) return '-' + lead.ago;
   if (lead.ago !== null || lead.mins <= 0) return 'nå';
-  return lead.line ? String(lead.line) : String(lead.mins);
+  const m = Number(lead.mins);
+  if (!Number.isFinite(m)) return 'nå';
+  if (m < 60) return String(m);
+  if (m < 1440) return Math.floor(m / 60) + 't';
+  return Math.floor(m / 1440) + 'd';
 }
 
 export function _stripSummary(data) {

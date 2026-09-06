@@ -16,6 +16,7 @@ vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
 import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary, _stripLabel,
+  STRIP_LABEL_MAX,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
   _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _isolateLine, _corridorKey, CORRIDOR_MAX_M, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle, _interpolateVehiclePos, _interpolateOnPath,
   _nextPageAt, _mergePage, MAX_ROWS, _rowQuay, stopBoardExtras, _onwardStops } from '../src/views/board.js';
@@ -1336,42 +1337,61 @@ describe('_onwardStops', () => {
   });
 });
 
-// ── The strip's glyph says which line, not how many minutes ──────────────
+// ── The strip's glyph says how long until it goes ───────────────────────
 //
-// Reported as "navn på avgang på strip" against a pill reading "12411209".
-// It was never a name: the label was minutes, and the two departures were
-// 1241 and 1209 minutes out — twenty hours, which the v1.86.3 search window
-// now returns as a matter of course. Four digits is 26px of ink in a 30px
-// glyph, and beside the cluster's "+1" it read as one run-on number.
+// The minutes, which is what the strip has always meant: the position says
+// WHEN along the rail, and the label says the same thing as a number you can
+// act on. v1.87.0 briefly put the line number here instead, on a misreading.
 //
-// The strip is a timeline: the glyph's POSITION already carries when. So the
-// label carries which, and a line number stays short however far out it is.
+// The scale exists because the glyph is 30px wide. A bus body is 30px and the
+// label is 11px mono — about 6.6px a character — so three characters is the
+// ceiling. Raw minutes were unbounded, and since the search window became a
+// full day a departure twenty hours out is a normal case: "1209" is 26px of
+// ink, which is what was reported as "12411209".
 describe('_stripLabel', () => {
   const lead = (over) => ({
-    mins: 1241, ago: null, line: '415', colour: '#e5006d',
+    mins: 9, ago: null, line: '415', colour: '#e5006d',
     mode: 'bus', departed: false, id: 'a', ...over,
   });
 
-  it('is the line number, however far out the departure is', () => {
-    expect(_stripLabel(lead())).toBe('415');
-    expect(_stripLabel(lead({ mins: 9 }))).toBe('415');
+  it('is the exact minutes under an hour', () => {
+    expect(_stripLabel(lead({ mins: 9 }))).toBe('9');
+    expect(_stripLabel(lead({ mins: 59 }))).toBe('59');
   });
 
-  // The two things a reader acts on without thinking, both two characters.
+  it('becomes hours from an hour, and days from a day', () => {
+    expect(_stripLabel(lead({ mins: 60 }))).toBe('1t');
+    expect(_stripLabel(lead({ mins: 1209 }))).toBe('20t');   // the reported case
+    expect(_stripLabel(lead({ mins: 1439 }))).toBe('23t');
+    expect(_stripLabel(lead({ mins: 1440 }))).toBe('1d');
+  });
+
+  // Floored, not rounded: at this size the label is a marker, and "1t" for
+  // ninety minutes is a promise the departure keeps. Rounding up would have
+  // the glyph claim more time than there is.
+  it('floors rather than rounds, so it never overstates the wait', () => {
+    expect(_stripLabel(lead({ mins: 119 }))).toBe('1t');
+    expect(_stripLabel(lead({ mins: 90 }))).toBe('1t');
+  });
+
+  // The two things a reader acts on without thinking.
   it('still says how long ago one left, and "nå"', () => {
     expect(_stripLabel(lead({ ago: 3, departed: true }))).toBe('-3');
     expect(_stripLabel(lead({ ago: 0, departed: true }))).toBe('nå');
     expect(_stripLabel(lead({ mins: 0 }))).toBe('nå');
   });
 
-  // A departure with no publicCode is rare but real; a blank flank would be
-  // worse than the old behaviour, so minutes remain the fallback.
-  it('falls back to minutes when there is no line code', () => {
-    expect(_stripLabel(lead({ line: null, mins: 9 }))).toBe('9');
+  // The whole reason the scale exists: three characters is what fits.
+  it('never exceeds three characters, at any wait', () => {
+    for (const m of [1, 9, 59, 60, 61, 599, 600, 1439, 1440, 2880, 10000]) {
+      expect(_stripLabel(lead({ mins: m })).length, String(m))
+        .toBeLessThanOrEqual(STRIP_LABEL_MAX);
+    }
   });
 
-  it('survives nothing at all', () => {
+  it('survives nothing at all, and rubbish minutes', () => {
     expect(_stripLabel(null)).toBe('');
+    expect(_stripLabel(lead({ mins: NaN }))).toBe('nå');
   });
 });
 

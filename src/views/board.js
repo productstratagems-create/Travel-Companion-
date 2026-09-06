@@ -2973,7 +2973,7 @@ function _fetchBoard() {
   // One record per fetch. The whole reason it exists: this symptom has been
   // reported three times and mis-diagnosed twice, so the board now shows
   // where the earliest departure stopped being the earliest.
-  _diag = newRecord(Date.now());
+  _diag = newRecord(Date.now(), _diag);
   _diag.askedFor = at != null ? at : Date.now() - LOOKBACK_MINS * 60000;
   _diag.askedFuture = at != null && at > Date.now();
 

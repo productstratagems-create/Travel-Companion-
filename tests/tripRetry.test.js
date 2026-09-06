@@ -345,3 +345,64 @@ describe('fetchBoard and the per-line cap', () => {
     expect(bodyOf(fetchMock.mock.calls[0])).toContain(PER);
   });
 });
+
+// ── The log has to say WHY ───────────────────────────────────────────────
+//
+// The ladder sheds arguments one at a time without knowing which was
+// refused, and the log said only that something was. Measured on a real
+// screen: "søkevindu: searchWindow avvist av Entur" — which could equally
+// mean a wrong name, a wrong unit, or a value out of range, and those need
+// three different fixes. Entur says which, in j.errors[0].message, and the
+// message was in hand and thrown away.
+describe('what the log says when an argument is refused', () => {
+  const errWith = (msg) => Promise.resolve({
+    ok: true, status: 200,
+    json: () => Promise.resolve({ errors: [{ message: msg }] }),
+  });
+
+  it('quotes Entur back', async () => {
+    const { logMsg } = await import('../src/ui/log.js');
+    logMsg.mockClear();
+    fetchMock
+      .mockReturnValueOnce(errWith("Validation error: searchWindow must be less than 'PT24H'"))
+      .mockReturnValue(Promise.resolve(ok([{ duration: 1 }])));
+    fetchTrip(DIR, vi.fn(), vi.fn());
+    for (let i = 0; i < 5; i++) await settle();
+
+    const line = logMsg.mock.calls.map(c => String(c[0]))
+      .find(m => m.startsWith('søkevindu:'));
+    expect(line).toContain('searchWindow');
+    expect(line).toContain("must be less than 'PT24H'");
+  });
+
+  // A message long enough to fill the panel would push the rest of the log
+  // out, and the log is how everything else gets diagnosed.
+  it('does not let a long message run away with the panel', async () => {
+    const { logMsg } = await import('../src/ui/log.js');
+    logMsg.mockClear();
+    fetchMock
+      .mockReturnValueOnce(errWith('x'.repeat(500)))
+      .mockReturnValue(Promise.resolve(ok([{ duration: 1 }])));
+    fetchTrip(DIR, vi.fn(), vi.fn());
+    for (let i = 0; i < 5; i++) await settle();
+
+    const line = logMsg.mock.calls.map(c => String(c[0]))
+      .find(m => m.startsWith('søkevindu:'));
+    expect(line.length).toBeLessThan(240);
+  });
+
+  it('says nothing extra when Entur sent no message', async () => {
+    const { logMsg } = await import('../src/ui/log.js');
+    logMsg.mockClear();
+    fetchMock
+      .mockReturnValueOnce(Promise.resolve({ ok: true, status: 200,
+        json: () => Promise.resolve({ errors: [{}] }) }))
+      .mockReturnValue(Promise.resolve(ok([{ duration: 1 }])));
+    fetchTrip(DIR, vi.fn(), vi.fn());
+    for (let i = 0; i < 5; i++) await settle();
+
+    const line = logMsg.mock.calls.map(c => String(c[0]))
+      .find(m => m.startsWith('søkevindu:'));
+    expect(line).toBe('søkevindu: searchWindow avvist');
+  });
+});

@@ -14,6 +14,49 @@ export function fmtMins(m) {
   return h + 't' + (rm > 0 ? ' ' + rm + 'm' : '');
 }
 
+const _pad = (n) => String(n).padStart(2, '0');
+
+/** HH:MM, local. The one definition; board.js used to keep its own. */
+export function clk(v) {
+  const d = new Date(v);
+  return _pad(d.getHours()) + ':' + _pad(d.getMinutes());
+}
+
+/** man tir ons tor fre lør søn — Sunday first, as getDay() counts. */
+const _DAYS = ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'];
+
+/**
+ * Which day a time falls on, when that is not today.
+ *
+ * The app has never formatted a date. It never needed one: before v1.86.3 the
+ * trip planner's search window was sized by local frequency and effectively
+ * never reached past midnight, so every departure on screen was today's. With
+ * a full day of window a rural stop routinely answers with tomorrow's 07:05 —
+ * and "07:05" alone is then a time that has already passed.
+ *
+ * COMPARED BY DATE, NOT BY DIFFERENCE. 23:59 to 00:01 is two minutes and IS
+ * tomorrow; 00:30 to 23:30 is twenty-three hours and is NOT. A duration
+ * threshold gets both of those wrong, which is exactly the mistake worth
+ * naming in a helper that exists to answer "which day".
+ *
+ * @returns {string} '' today · 'i morgen ' · 'lør ' further out
+ */
+export function dayPrefix(v, now) {
+  const d = new Date(v);
+  const n = new Date(now == null ? Date.now() : now);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = (x) => Math.floor((x - x.getTimezoneOffset() * 60000) / 86400000);
+  const diff = day(d) - day(n);
+  if (diff <= 0) return '';
+  if (diff === 1) return 'i morgen ';
+  return _DAYS[d.getDay()] + ' ';
+}
+
+/** HH:MM, with the day in front when it is not today. */
+export function clkDay(v, now) {
+  return dayPrefix(v, now) + clk(v);
+}
+
 /**
  * Escape a string for safe interpolation into innerHTML.
  */

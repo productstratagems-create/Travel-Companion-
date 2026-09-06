@@ -1,4 +1,5 @@
 import { decodePolyline } from '../ui/polyline.js';
+import { normMode } from './stopCats.js';
 // Quays carry their own coordinates (the actual platform), distinct from
 // their stopPlace's centroid. Prefer the quay-level point when present so
 // map markers land on the platform rather than the station's middle.
@@ -91,7 +92,14 @@ export function _rowDest(c) {
 export function adaptTripPattern(tp) {
   try {
     if (!tp || !tp.legs) return drop('uten bein');
-    const legs = tp.legs.filter(l => l.mode !== 'foot');
+    // Normalised once, at the door. `leg.mode === 'bus'` is compared for in
+    // eleven places downstream — snapping distance, vehicle labels, mode
+    // pills — and every one of them means "a bus" in the sense a person
+    // means it. An express coach is a bus; Transmodel is the only party that
+    // disagrees. A shallow copy, because tp.legs belongs to the response.
+    const all = tp.legs.map(l => (l && l.mode === 'coach' ? { ...l, mode: 'bus' } : l));
+    tp = { ...tp, legs: all };
+    const legs = all.filter(l => l.mode !== 'foot');
     // OTP routinely offers a walk-only itinerary when the destination is
     // close. It is not a departure, but it does consume one of the twelve
     // slots we asked for — worth seeing in the record.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tripGQL, boardGQL, trackGQL, arrBoardGQL, sitsGQL, LOOKBACK_MINS, BOARD_MODES } from '../src/api/queries.js';
+import { tripGQL, boardGQL, trackGQL, arrBoardGQL, sitsGQL, LOOKBACK_MINS, BOARD_MODES, BOARD_MODES_COACH } from '../src/api/queries.js';
 
 // --- tripGQL ---
 
@@ -112,7 +112,7 @@ describe('boardGQL(id, n)', () => {
   });
 
   it('whitelists all supported transit modes (departure board)', () => {
-    expect(q).toContain('whiteListedModes:[metro,tram,bus,rail]');
+    expect(q).toContain('whiteListedModes:[metro,tram,bus,rail,coach]');
   });
 
   it('requests estimatedCalls with quay and serviceJourney', () => {
@@ -341,24 +341,35 @@ describe('the situation text rides on every situation query', () => {
 describe('boardGQL — whiteListedModes', () => {
   const modesIn = (q) => (q.match(/whiteListedModes:\[([^\]]*)\]/) || [])[1];
 
+  // Express coaches ride along with the four (v1.86.0): Transmodel keeps
+  // `coach` apart from `bus`, and asking for four modes made every express
+  // service in Norway invisible — never filtered, never requested.
   it('asks for every mode when it is not told otherwise', () => {
-    expect(modesIn(boardGQL('NSR:1', 20))).toBe(BOARD_MODES.join(','));
-    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, []))).toBe(BOARD_MODES.join(','));
+    expect(modesIn(boardGQL('NSR:1', 20))).toBe(BOARD_MODES_COACH.join(','));
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, []))).toBe(BOARD_MODES_COACH.join(','));
   });
 
   // The fix: twenty metro departures instead of three metro and seventeen bus.
   it('asks for only what it was given', () => {
     expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['metro']))).toBe('metro');
-    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus', 'rail']))).toBe('bus,rail');
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus', 'rail']))).toBe('bus,rail,coach');
   });
 
   // These go into the query as bare GraphQL enums, unquoted. Anything that is
   // not one of the four must not reach it.
-  it('lets nothing but the four known modes into the query', () => {
+  it('lets nothing but the known modes into the query', () => {
     expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['metro', 'sykkel']))).toBe('metro');
     expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus] evil {'])))
-      .toBe(BOARD_MODES.join(','));
+      .toBe(BOARD_MODES_COACH.join(','));
     expect(boardGQL('NSR:1', 20, null, true, null, ['bus] evil {'])).not.toContain('evil');
+  });
+
+  // The reader's own call: an express coach belongs under "Buss". Asking for
+  // buses asks for coaches; asking for the metro alone does not.
+  it('adds coach when and only when bus was asked for', () => {
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus']))).toBe('bus,coach');
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['metro']))).toBe('metro');
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus', 'coach']))).toBe('bus,coach');
   });
 });
 

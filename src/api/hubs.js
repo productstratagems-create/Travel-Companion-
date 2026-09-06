@@ -3,6 +3,7 @@ import { enturFetch } from './http.js';
 import { logMsg } from '../ui/log.js';
 import config from '../config.js';
 import { stopPlacesGQL } from './queries.js';
+import { normMode } from './stopCats.js';
 
 const KEY = 't.hubs';
 
@@ -189,7 +190,7 @@ function _factsOf(sp) {
   const quays = Array.isArray(sp.quays) ? sp.quays : [];
   const lines = new Set();
   const modes = new Set();
-  if (sp.transportMode) modes.add(sp.transportMode);
+  if (sp.transportMode) modes.add(normMode(sp.transportMode));
   quays.forEach(q => {
     (Array.isArray(q && q.lines) ? q.lines : []).forEach(ln => {
       if (!ln) return;
@@ -198,7 +199,7 @@ function _factsOf(sp) {
       // different kerb, and counting it would make every stop an anchor.
       // Buses still speak, on the MODE dimension below.
       if (ln.id && RAIL_MODES.has(ln.transportMode)) lines.add(ln.id);
-      if (ln.transportMode) modes.add(ln.transportMode);
+      if (ln.transportMode) modes.add(normMode(ln.transportMode));
     });
   });
   const e = { v: HUB_V, q: quays.length, m: [...modes], ts: Date.now() };

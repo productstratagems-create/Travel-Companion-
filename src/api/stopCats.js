@@ -41,3 +41,26 @@ export const CAT_MODE = {
 export const TRANSIT_CATS = [...new Set([
   ...Object.keys(CAT_MODE), 'railStation', 'tramStop',
 ])];
+
+/**
+ * What Entur calls a long-distance bus.
+ *
+ * Transmodel separates `coach` from `bus`: Haukeliekspressen and the
+ * Telemark and Vy expresses are coaches, city buses are buses. The app asked
+ * for four modes and `coach` was not among them, so EVERY express service in
+ * Norway was invisible — not filtered out on screen, never requested at all.
+ * Reported as "finn og integrer busstilbud som kjører mellom riksvei 37 og
+ * Oslo": the services exist, the app simply never asked.
+ *
+ * Normalised at the door rather than compared for in a dozen places. `mode
+ * === 'bus'` appears eleven times across board.js, track.js and auto.js —
+ * snapping distance, vehicle labels, mode pills, ranking — and every one of
+ * them means "a bus" in the sense a person means it. One named seam beats
+ * eleven edits that must agree.
+ */
+export const COACH = 'coach';
+
+/** @returns {string} the mode the rest of the app reasons about */
+export function normMode(m) {
+  return m === COACH ? 'bus' : m;
+}

@@ -35,7 +35,7 @@ export function sitsGQL(basic) {
     + ' severity validityPeriod{startTime endTime}}';
 }
 
-export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTime) {
+export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTime, coach) {
   const sits = sitsGQL(minimal);
   const fromIsCoord = fromId && typeof fromId === 'object';
   // Only the stop places the reader actually named.
@@ -73,7 +73,14 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
     // right one, which is worse than an error.
     + ((minimal && !keepTime) ? '' : 'dateTime:"' + lookbackISO(now) + '" ')
     + 'walkSpeed:' + (walkSpeed || 1.3) + ' '
-    + 'modes:{accessMode:foot,egressMode:foot,transportModes:[{transportMode:metro},{transportMode:bus},{transportMode:tram},{transportMode:rail}]}'
+    + 'modes:{accessMode:foot,egressMode:foot,transportModes:[{transportMode:metro},'
+    + '{transportMode:bus},{transportMode:tram},{transportMode:rail}'
+    // Express coaches. `coach` cannot be checked against the live schema from
+    // here, and this one query carries EVERY journey — so it is opt-in and
+    // fetchTrip drops it for the session if Entur turns it down. The cost of
+    // a wrong enum name here is the whole board, not one feature.
+    + (coach ? ',{transportMode:coach}' : '')
+    + ']}'
     + ') { tripPatterns { duration legs {'
     + ' fromPlace{name latitude longitude}'
     + ' toPlace{name latitude longitude}'
@@ -123,6 +130,13 @@ export function arrBoardGQL(id, n, basic) {
 export const BOARD_MODES = ['metro', 'tram', 'bus', 'rail'];
 
 /**
+ * …and the same list with express coaches, which Transmodel keeps separate
+ * from `bus`. Opt-in for the same reason: the name cannot be checked from
+ * here, and a rejected enum takes the stop board with it.
+ */
+export const BOARD_MODES_COACH = [...BOARD_MODES, 'coach'];
+
+/**
  * @param {string[]} [modes] which modes to ask for. Defaults to all four.
  *
  * It matters more than it looks. `numberOfDepartures` is a cap on the WHOLE
@@ -146,8 +160,11 @@ export const BOARD_MODES = ['metro', 'tram', 'bus', 'rail'];
  */
 export function boardGQL(id, n, now, basic, fwdMins, modes, perLine) {
   const sits = sitsGQL(basic);
-  const wl = (Array.isArray(modes) ? modes.filter(m => BOARD_MODES.includes(m)) : []);
-  const modeList = (wl.length ? wl : BOARD_MODES).join(',');
+  const wl = (Array.isArray(modes) ? modes.filter(m => BOARD_MODES_COACH.includes(m)) : []);
+  // Asking for `bus` means asking for the express coaches too. Transmodel
+  // keeps them apart; a person does not, and that was the reader's call.
+  const withCoach = wl.length ? (wl.includes('bus') ? [...wl, 'coach'] : wl) : BOARD_MODES_COACH;
+  const modeList = [...new Set(withCoach)].join(',');
   // startTime/timeRange rather than a bare numberOfDepartures, for the same
   // reason as tripGQL above. These two argument names are already in
   // production in inflightGQL, so unlike tripGQL's dateTime they are proven.
@@ -269,7 +286,7 @@ export function inflightGQL(id, backMins, fwdMins) {
   const startTime = new Date(Date.now() - back * 60000).toISOString();
   return '{stopPlace(id:"' + id + '"){'
     + 'estimatedCalls(startTime:"' + startTime + '",timeRange:' + ((back + fwd) * 60)
-    + ',numberOfDepartures:20,whiteListedModes:[metro,tram,bus,rail]){'
+    + ',numberOfDepartures:20,whiteListedModes:[metro,tram,bus,rail,coach]){'
     + 'aimedDepartureTime expectedDepartureTime cancellation realtime '
     // The only authoritative answer to "is it standing at my platform": it has
     // actually arrived and has not actually left. These two fields ride in

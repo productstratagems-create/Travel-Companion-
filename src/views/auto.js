@@ -27,6 +27,7 @@ import { renderRouteShortcuts } from '../ui/favs.js';
 import { ensureHubs, loadHubs, anchorIds } from '../api/hubs.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf } from '../api/usage.js';
+import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M } from '../geo.js';
 
 const MIN = 60000;
@@ -241,7 +242,9 @@ const _RANK_OF = Object.fromEntries(RANKS.map((r, i) => [r.key, i]));
 /** Which group a direction belongs to. Lower comes first. */
 export function dirRank(d) {
   const ln = d && d.call && d.call.serviceJourney && d.call.serviceJourney.line;
-  const mode = (ln && ln.transportMode) || null;
+  // An express coach is a bus here, and not a Ruter one — it ranks with
+  // "andre busser", which is exactly what it is.
+  const mode = normMode((ln && ln.transportMode) || null);
   if (mode === 'metro') return _RANK_OF.metro;
   if (mode === 'tram') return _RANK_OF.tram;
   if (mode === 'bus') {

@@ -1,4 +1,5 @@
 import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus } from '../api/plan.js';
+import { clk, clkDay } from '../ui/fmt.js';
 import { state } from '../state.js';
 import { show, updateHeader } from '../ui/nav.js';
 import { confirmTap } from '../ui/confirm.js';
@@ -11,7 +12,6 @@ import { esc } from '../ui/fmt.js';
 import { geocodePlace, fetchJourneyMeta } from '../api/entur.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
-function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 function fmtCountdown(ms) {
   const m = Math.floor(ms / 60000);
   const s = Math.floor((ms % 60000) / 1000);
@@ -189,14 +189,14 @@ export function updatePlanCtx() {
   let statusText = '';
   let statusClass = '';
   if (st === 'done') {
-    statusText = 'ankom ' + (arrTs ? clk(arrTs) : '—');
+    statusText = 'ankom ' + (arrTs ? clkDay(arrTs) : '—');
     statusClass = 'pctx-done';
   } else if (st === 'active' && arrTs) {
     const rem = arrTs - now;
     statusText = rem > 0 ? fmtCountdown(rem) + ' igjen' : 'ankommer nå';
     statusClass = 'pctx-active';
   } else {
-    statusText = 'avgang ' + clk(depTs);
+    statusText = 'avgang ' + clkDay(depTs);
     statusClass = 'pctx-future';
   }
 
@@ -217,7 +217,7 @@ export function updatePlanCtx() {
     + '<span class="pctx-label">etappe ' + n + '</span>'
     + '<span class="line-badge pctx-badge" style="background:#' + last.lineColour + '">' + last.line + '</span>'
     + '<span class="pctx-dest">' + last.to.toLowerCase() + '</span>'
-    + (arrTs ? '<span class="pctx-arr">ank. ' + clk(arrTs) + '</span>' : '')
+    + (arrTs ? '<span class="pctx-arr">ank. ' + clkDay(arrTs) + '</span>' : '')
     + '<span id="pctx-status" class="' + statusClass + '">' + statusText + '</span>'
     + '</button>'
     + '<button class="pctx-close" aria-label="Lukk kontekst">×</button>';
@@ -249,7 +249,7 @@ function _updatePlanCountdowns(legs, now) {
     const arrTs = leg.arrIso ? new Date(leg.arrIso).getTime() : null;
     const st = legStatus(leg, now);
     if (st === 'done') {
-      cdEl.textContent = '✓ ankomst ' + (arrTs ? clk(arrTs) : '—');
+      cdEl.textContent = '✓ ankomst ' + (arrTs ? clkDay(arrTs) : '—');
     } else if (st === 'active' && arrTs) {
       const remaining = arrTs - now;
       cdEl.textContent = remaining > 0 ? fmtCountdown(remaining) + ' igjen' : 'ankommer nå';

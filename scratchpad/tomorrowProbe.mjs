@@ -118,6 +118,23 @@ async function run(dark, shot) {
     })));
     rows.forEach(r => console.log('  ', JSON.stringify(r)));
   }
+  // The detail view is where jd-val sits: a large value in a narrow column,
+  // the same shape as the big clock that broke on the row.
+  await page.click('#dep-list .dep-row');
+  await page.waitForSelector('#v-selected', { state: 'visible', timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(900);
+  if (dark) {
+    const jd = await page.$$eval('#v-selected .jd-val', els => els.map(e => e.textContent.trim()));
+    console.log('\n══ detaljvisningen ══');
+    console.log('  jd-val:', JSON.stringify(jd));
+    const wrapped = await page.$$eval('#v-selected .jd-val',
+      els => els.map(e => e.scrollHeight > e.clientHeight + 2));
+    console.log('  brekker over linjer?', JSON.stringify(wrapped));
+  }
+  if (shot) await page.screenshot({ path: shot.replace('.png', '-detail.png'),
+    animations: 'disabled' });
+  await page.goBack().catch(() => {});
+  await page.waitForTimeout(400);
   if (shot) await page.screenshot({ path: shot, animations: 'disabled' });
   await ctx.close();
 }

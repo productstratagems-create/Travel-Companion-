@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus } from '../geo.js';
 import { fetchJourneyMeta } from '../api/entur.js';
@@ -17,8 +18,6 @@ import L from 'leaflet';
 import { createMap, drawRoute, drawWalk } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
 
-function pad(n) { return String(n).padStart(2, '0'); }
-function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 function cleanName(s) { return (s || '').replace(/,\s*\S.*$/, '').replace(/\s+T$/i, '').trim(); }
 
 // Walk-deadline sub-line. States the remaining margin as a fact and leaves the
@@ -404,13 +403,13 @@ export function renderSelected() {
     journeyDetail = '<div class="journey-detail">'
       + '<div class="jd-cell"' + (arrT ? '' : ' style="grid-column:1/-1"') + '>'
       + '<div class="jd-label">avgår ' + esc(cleanName(dir.from).toLowerCase()) + '</div>'
-      + '<div class="jd-val departure">' + clk(c.expectedDepartureTime) + '</div>'
+      + '<div class="jd-val departure">' + clkDay(c.expectedDepartureTime) + '</div>'
       + (delayed ? '<div class="jd-sub">rute ' + clk(c.aimedDepartureTime) + '</div>' : '')
       + '</div>'
       + (arrT
         ? '<div class="jd-cell">'
           + '<div class="jd-label">ankommer ' + esc(cleanName(dir.to).toLowerCase()) + '</div>'
-          + '<div class="jd-val arrival">' + clk(arrT) + '</div>'
+          + '<div class="jd-val arrival">' + clkDay(arrT) + '</div>'
           + '<div class="jd-sub">'
           + (tmin ? tmin + ' min reise' : '')
           + (c._arrQuay ? (tmin ? ' · ' : '') + 'spor ' + esc(c._arrQuay) : '')
@@ -570,7 +569,9 @@ function renderSelDeps() {
         return '<span class="line-badge" style="background:' + lbg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
       }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
     : '<span class="line-badge" style="background:' + bg + '">' + ((ln && ln.publicCode) || '?') + '</span>';
-  const minsLabel = mins <= 0 ? 'nå' : mins < 60 ? mins + ' min' : clk(depTs);
+  // Below an hour it cannot be another day; at or above it now routinely is,
+  // and this row sits under a headline that says a different departure.
+  const minsLabel = mins <= 0 ? 'nå' : mins < 60 ? mins + ' min' : clkDay(depTs);
   const a11y = 'Neste avgang: ' + ((ln && ln.publicCode) || '') + ' om ' + minsLabel;
 
   const el = document.createElement('div');

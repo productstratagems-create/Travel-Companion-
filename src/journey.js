@@ -1,4 +1,5 @@
 import config from './config.js';
+import { clk, clkDay } from './ui/fmt.js';
 import { state, intervals } from './state.js';
 import { findArr } from './geo.js';
 import { storage } from './storage.js';
@@ -9,8 +10,6 @@ import { startBoard, stopBoard } from './views/board.js';
 import { renderSelected, startSelRefresh, stopSelRefresh } from './views/selected.js';
 import { buildTrackBar, startTracking, stopTracking } from './views/track.js';
 
-function pad(n) { return String(n).padStart(2, '0'); }
-function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
 export function tap(i) {
   state.sel = typeof i === 'number' ? state.deps[i] : i;

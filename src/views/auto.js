@@ -24,9 +24,8 @@ import { state } from '../state.js';
 import { fetchBoard } from '../api/entur.js';
 import { predictDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
-import { ensureHubs, loadHubs, anchorIds } from '../api/hubs.js';
 import { logMsg } from '../ui/log.js';
-import { depUses, usesOf } from '../api/usage.js';
+import { depUses, usesOf, loadFreq } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M } from '../geo.js';
 
@@ -557,8 +556,7 @@ export function nearbyAlternatives(list, chosen) {
  * Is the nearby-stops list showing?
  *
  * A module variable, NOT a stored preference, and cleared by resetAuto when
- * the screen is entered — the same shape as _openRuns three hundred lines
- * below, which does exactly this for the folded stretches along a line.
+ * the screen is entered, so it never opens expanded on a later visit.
  *
  * v1.79.0 stored it, so "collapsed by default" only held until the first tap:
  * after that the list was open for ever, and the reported behaviour was the
@@ -910,123 +908,94 @@ function _renderBody() {
 // Which line's stops the register has already been asked about. The screen
 // redraws every second (v1.71.0), so without this the lookup would fire on
 // every tick — one request per line, not one per frame.
-let _hubsAskedFor = null;
-// Which folded stretches the reader has opened. A module variable, cleared
-// when the direction changes, for the same reason _hubsAskedFor is one:
-// everything in #auto-body is rewritten once a second, so state kept in the
-// markup would be gone before the finger lifted.
-const _openRuns = new Set();
 
 /**
- * The stops along a direction, with the plain stretches folded away.
+ * How many of the reader's own stops go above the list.
  *
- * Asked for: "holdeplasser som ikke har slike funksjoner kollapses. Må kunne
- * ekspanderes." Line 3 to Kolsås is twenty-four stops, and the ones you can
- * actually change at are a handful. Anchoring them (v1.72.0) helped; it did
- * not shorten anything.
- *
- * One folded row per STRETCH between two interchanges, not one switch for the
- * whole list — chosen, and it keeps the sense of how far apart the anchors
- * are. Expanding opens only that stretch.
- *
- * Three guards, because the worst outcome here is a list that has eaten
- * itself:
- *
- *   no anchors      if the register found no interchange on this line — the
- *                   line field was refused, or the answer has not landed yet
- *                   — every stop is shown. MEASURED, and it is why this
- *                   guard is about anchors rather than about knowledge: with
- *                   Quay.lines refused every stop falls back to a plain
- *                   two-platform entry, the register knows them all perfectly
- *                   well, and seventeen stops folded into ONE row plus the
- *                   terminus. A list that has eaten itself because a field
- *                   was refused is far worse than a long list.
- *   the last stop   always shown. It is the terminus, and it is the name of
- *                   the direction itself.
- *   a run of one    not folded. "1 stopp" costs a row and saves none.
- *
- * @param {Array} stops   from stopsAhead
- * @param {object} hubs   the register
- * @param {Set} openRuns  which folded stretches the reader has opened
- * @returns {Array} rows: {kind:'stop', s, i} or {kind:'run', key, from, to, items}
+ * Three: enough for the trips actually taken, and the same number the "ofte
+ * brukt" route row already uses. More and the shortcuts become the list they
+ * are meant to spare you.
  */
-export function stopRuns(stops, hubs, openRuns) {
-  const list = stops || [];
-  if (!list.length) return [];
-  const ids = anchorIds(list, hubs);
-  if (!ids.size) return list.map((s, i) => ({ kind: 'stop', s, i }));
+export const STOP_SHORTCUTS = 3;
 
-  const anchor = (s, i) => ids.has(s.id) || i === list.length - 1;
-  const out = [];
-  let run = [];
-  const flush = () => {
-    if (!run.length) return;
-    if (run.length === 1) out.push(run[0]);
-    else {
-      const key = run[0].s.id || run[0].s.name;
-      out.push(openRuns && openRuns.has(key)
-        ? { kind: 'open', key, items: run }
-        : { kind: 'run', key, from: run[0].s.name, to: run[run.length - 1].s.name,
-            items: run });
-    }
-    run = [];
-  };
-  list.forEach((s, i) => {
-    if (anchor(s, i)) { flush(); out.push({ kind: 'stop', s, i }); }
-    else run.push({ kind: 'stop', s, i });
+/**
+ * The stops on THIS direction that the reader travels to most.
+ *
+ * Asked for after five attempts at defining an interchange: "legg de mest
+ * brukte stoppene som snarveier over listen — etterhvert som brukeren bruker
+ * funksjonen". Every one of those attempts reasoned about how Oslo's network
+ * OUGHT to look, against data the sandbox cannot reach. This asks about the
+ * reader instead, and t.freqArr has counted every destination they have
+ * chosen since v1.36.0.
+ *
+ * Returns INDICES into `stops`, not stop objects. The shortcut then carries
+ * the same data-i as the row below it, shares one click handler, and shows
+ * the minutes from this very departure. Two representations of one stop is
+ * the bug shape this codebase has found six times.
+ *
+ * Only stops that are actually on this line: a shortcut to somewhere this
+ * direction does not go is a button that cannot do what it says.
+ *
+ * The join is stopId first, name as fallback — the rule usesOf already
+ * follows, because stopId is null whenever the route came from a typed place.
+ *
+ * @param {Array} stops from stopsAhead
+ * @param {Array} arr   loadFreq('arr')
+ * @returns {number[]} indices, most used first
+ */
+export function stopShortcuts(stops, arr, n) {
+  const list = stops || [];
+  const hist = (arr || []).filter(p => p && p.name);
+  if (!list.length || !hist.length) return [];
+  const byId = new Map(), byName = new Map();
+  hist.forEach(p => {
+    const c = Number(p.count) || 0;
+    if (p.stopId) byId.set(p.stopId, Math.max(c, byId.get(p.stopId) || 0));
+    const k = String(p.name).trim().toLowerCase();
+    byName.set(k, Math.max(c, byName.get(k) || 0));
   });
-  flush();
-  return out;
+  const uses = (s) => {
+    if (s.id && byId.has(s.id)) return byId.get(s.id);
+    return byName.get(String(s.name || '').trim().toLowerCase()) || 0;
+  };
+  return list
+    .map((s, i) => ({ i, n: uses(s) }))
+    .filter(x => x.n > 0)
+    // Most used first; the line's own order breaks a tie, so two equally used
+    // stops stay in the order you would ride past them.
+    .sort((a, b) => b.n - a.n || a.i - b.i)
+    .slice(0, n == null ? STOP_SHORTCUTS : n)
+    .map(x => x.i);
 }
 
 function _renderStops(body) {
   const stops = stopsAhead(_open.call, _stop.name);
-  const hubs = loadHubs();
-  // The list is drawn now, from whatever the register already knows. Asking
-  // is a background errand: an anchor is worth having, and worth nothing at
-  // all if the reader waits for it.
-  const key = _open.frontText + '|' + _open.lines.map(l => l.code).join(',');
-  if (_hubsAskedFor !== key) {
-    _hubsAskedFor = key;
-    // Names go along for the debug line only: an id is not something a
-    // person can read back to me, and reading it back is the point.
-    const names = {};
-    stops.forEach(s => { if (s.id) names[s.id] = s.name; });
-    ensureHubs(stops.map(s => s.id), names).then(next => {
-      // Redraw only if the answer actually told us something, and only if the
-      // reader is still looking at this list.
-      if (_open && _hubsAskedFor === key
-        && stops.some(s => s.id && next[s.id] && !hubs[s.id])) _renderBody();
-    });
-  }
-  const anchors = anchorIds(stops, hubs);
-  const stopHtml = ({ s, i }) => '<button class="nearby-btn auto-stop-btn'
-    + (anchors.has(s.id) ? ' auto-hub' : '') + '" type="button" data-i="' + i + '">'
+  const stopHtml = (s, i, extra) => '<button class="nearby-btn auto-stop-btn'
+    + (extra || '') + '" type="button" data-i="' + i + '">'
     + '<span class="nearby-name">' + esc(s.name) + '</span>'
     + '<span class="nearby-dist">' + (s.mins != null ? s.mins + ' min' : '') + '</span>'
     + '</button>';
-  const rowHtml = (r) => {
-    if (r.kind === 'stop') return stopHtml(r);
-    if (r.kind === 'open') return r.items.map(stopHtml).join('');
-    return '<button class="nearby-btn auto-run" type="button" data-run="' + esc(r.key) + '"'
-      + ' aria-expanded="false"'
-      + ' aria-label="' + esc(r.from) + ' til ' + esc(r.to) + ', ' + r.items.length
-      + ' stopp. Trykk for å vise">'
-      + '<span class="nearby-name">' + esc(r.from) + ' → ' + esc(r.to) + '</span>'
-      + '<span class="nearby-dist">' + r.items.length + ' stopp ▾</span>'
-      + '</button>';
-  };
+
+  // Nothing at all until the reader has travelled — which is the whole of
+  // "etterhvert som brukeren bruker funksjonen", and it falls out by itself.
+  const short = stopShortcuts(stops, loadFreq('arr'));
+  const shortHtml = short.length
+    ? '<div class="set-label">ofte brukt</div>'
+      + short.map(i => stopHtml(stops[i], i, ' auto-fav-stop')).join('')
+      + '<div class="set-label">alle stopp</div>'
+    : '';
+
   body.innerHTML = '<button class="set-via-add-btn auto-back-dir" type="button">← alle retninger</button>'
     + '<div class="set-label">' + _open.lines.map(badgeHtml).join('')
     + ' mot ' + esc(_open.frontText) + '</div>'
+    + shortHtml
+    // The whole line stays, in its own order. A shortcut is a way past the
+    // list, not a way of shortening it — the stop above is the same row.
     + (stops.length
-      ? stopRuns(stops, hubs, _openRuns).map(rowHtml).join('')
+      ? stops.map((s, i) => stopHtml(s, i)).join('')
       : '<div class="dest-prev-empty">Vet ikke hvor denne stopper.</div>');
   body.querySelector('.auto-back-dir').addEventListener('click', () => {
-    _open = null; _hubsAskedFor = null; _openRuns.clear(); _renderBody();
-  });
-  body.querySelectorAll('.auto-run').forEach(b => {
-    b.addEventListener('click', () => { _openRuns.add(b.dataset.run); _renderBody(); });
+    _open = null; _renderBody();
   });
   body.querySelectorAll('.auto-stop-btn').forEach(b => {
     b.addEventListener('click', () => {
@@ -1063,9 +1032,4 @@ export function renderAuto() {
 /** Fresh screen when the mode is entered, so it never opens on a stale stop. */
 export function resetAuto() {
   _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null;
-  // _hubsAskedFor too, or ↻ clears the register and the screen still believes
-  // it has already asked — measured: the button emptied the store and no new
-  // request followed, so the diagnostic line never came back. Two pieces of
-  // "have we asked" that must agree, in two files.
-  _hubsAskedFor = null;
-  _openRuns.clear(); _stopsShown = false; }
+  _stopsShown = false; }

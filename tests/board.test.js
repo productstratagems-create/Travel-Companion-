@@ -15,7 +15,7 @@ vi.mock('../src/ui/mapIcons.js', () => ({
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
-import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary,
+import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary, _stripLabel,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
   _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _isolateLine, _corridorKey, CORRIDOR_MAX_M, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle, _interpolateVehiclePos, _interpolateOnPath,
   _nextPageAt, _mergePage, MAX_ROWS, _rowQuay, stopBoardExtras, _onwardStops } from '../src/views/board.js';
@@ -1333,5 +1333,63 @@ describe('_onwardStops', () => {
   it('is empty when we do not know when it leaves', () => {
     expect(_onwardStops(sj, NaN).size).toBe(0);
     expect(_onwardStops(sj, undefined).size).toBe(0);
+  });
+});
+
+// ── The strip's glyph says which line, not how many minutes ──────────────
+//
+// Reported as "navn på avgang på strip" against a pill reading "12411209".
+// It was never a name: the label was minutes, and the two departures were
+// 1241 and 1209 minutes out — twenty hours, which the v1.86.3 search window
+// now returns as a matter of course. Four digits is 26px of ink in a 30px
+// glyph, and beside the cluster's "+1" it read as one run-on number.
+//
+// The strip is a timeline: the glyph's POSITION already carries when. So the
+// label carries which, and a line number stays short however far out it is.
+describe('_stripLabel', () => {
+  const lead = (over) => ({
+    mins: 1241, ago: null, line: '415', colour: '#e5006d',
+    mode: 'bus', departed: false, id: 'a', ...over,
+  });
+
+  it('is the line number, however far out the departure is', () => {
+    expect(_stripLabel(lead())).toBe('415');
+    expect(_stripLabel(lead({ mins: 9 }))).toBe('415');
+  });
+
+  // The two things a reader acts on without thinking, both two characters.
+  it('still says how long ago one left, and "nå"', () => {
+    expect(_stripLabel(lead({ ago: 3, departed: true }))).toBe('-3');
+    expect(_stripLabel(lead({ ago: 0, departed: true }))).toBe('nå');
+    expect(_stripLabel(lead({ mins: 0 }))).toBe('nå');
+  });
+
+  // A departure with no publicCode is rare but real; a blank flank would be
+  // worse than the old behaviour, so minutes remain the fallback.
+  it('falls back to minutes when there is no line code', () => {
+    expect(_stripLabel(lead({ line: null, mins: 9 }))).toBe('9');
+  });
+
+  it('survives nothing at all', () => {
+    expect(_stripLabel(null)).toBe('');
+  });
+});
+
+// The summary and the tooltip say the wait the way the row already does.
+// "neste om 1209 min" is correct and unreadable; the row has said "20t 9m"
+// since v1.21.
+describe('_stripSummary and long waits', () => {
+  const t = (mins) => ({ mins, ago: null, pos: -0.5, line: '415',
+    colour: '#e5006d', mode: 'bus', departed: false, id: 'x' + mins });
+
+  it('says hours once the wait passes an hour', () => {
+    expect(_stripSummary({ trains: [t(1241), t(1209)], from: 'Storaas' }))
+      .toContain('20t 9m');
+    expect(_stripSummary({ trains: [t(1209)], from: 'Storaas' }))
+      .not.toContain('1209 min');
+  });
+
+  it('leaves a short wait alone', () => {
+    expect(_stripSummary({ trains: [t(9)], from: 'Ryen' })).toContain('9 min');
   });
 });

@@ -168,11 +168,44 @@ describe('sideVehicleSvg', () => {
   it('draws nothing but a body and its number', () => {
     ['metro', 'rail', 'tram', 'bus'].forEach(m => {
       const s = svg(m, null, '12');
-      expect((s.match(/<path/g) || []).length).toBe(1);
-      expect((s.match(/<text/g) || []).length).toBe(1);
-      expect(s).not.toContain('<circle');   // wheels
-      expect(s).not.toContain('<rect');     // window panes
-      expect(s).not.toContain('<line');
+      // One path is DRAWN; the other is the same outline inside <defs>, used
+      // only to clip the label. Count what is painted.
+      const painted = s.slice(s.indexOf('</defs>') + 7);
+      expect((painted.match(/<path/g) || []).length).toBe(1);
+      expect((painted.match(/<text/g) || []).length).toBe(1);
+      expect(painted).not.toContain('<circle');   // wheels
+      expect(painted).not.toContain('<rect');     // window panes
+      expect(painted).not.toContain('<line');
+    });
+  });
+
+  // ── The label cannot spill out of the body ──────────────────────────────
+  //
+  // It used to be minutes, unbounded. At twenty hours out that is "1241" —
+  // 26px of ink centred in a 30px box, with no clip anywhere — and beside the
+  // cluster's "+1" the strip read "12411209". Reported as a garbled name.
+  describe('the label is clipped to the body', () => {
+    it('clips, and clips to the body outline itself', () => {
+      const s = svg('bus', null, 'NW180');
+      const id = (s.match(/<clipPath id="([^"]+)"/) || [])[1];
+      expect(id).toBeTruthy();
+      expect(s).toContain('clip-path="url(#' + id + ')"');
+      // The clip is the same outline as the body, so nothing can sit in the
+      // halo the drop-shadow draws around it either.
+      const d = (s.match(/<path d="([^"]+)"/) || [])[1];
+      expect(s).toContain('<clipPath id="' + id + '"><path d="' + d + '"/>');
+    });
+
+    // Two strips on one page must not share an id, or one clip would apply to
+    // both and the wrong glyph would be cut.
+    it('gives different shapes different ids', () => {
+      const a = (svg('bus', null, '12').match(/id="([^"]+)"/) || [])[1];
+      const b = (svg('rail', null, '12').match(/id="([^"]+)"/) || [])[1];
+      expect(a).not.toBe(b);
+    });
+
+    it('is stable for the same glyph, so a redraw does not churn the DOM', () => {
+      expect(svg('bus', null, '12')).toBe(svg('bus', null, '12'));
     });
   });
 

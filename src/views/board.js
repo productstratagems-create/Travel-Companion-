@@ -11,7 +11,7 @@ import { adaptTripPattern, quayLatLon, legShape, _rowDest } from '../api/adapt.j
 import { loadPlan, legStatus } from '../api/plan.js';
 import { renderAlerts, pruneHidden } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
-import { fmtMins, esc } from '../ui/fmt.js';
+import { fmtMins, esc, clk, clkDay } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
@@ -32,7 +32,6 @@ import { takeDropReasons } from '../api/adapt.js';
 import { loadReturn, returnWindow, loadSkip, dayKey } from '../api/returnTrip.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
-function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
 // Keyed by _depKey — stable across re-renders so a click fired on a DOM element
 // from a previous render still resolves the correct departure.
@@ -1724,12 +1723,37 @@ export function _clusterTrains(trains, minSep) {
   return out;
 }
 
+/**
+ * What goes on the flank of a strip glyph.
+ *
+ * The line, not the minutes. The strip is a timeline — the glyph's POSITION
+ * already carries WHEN — so the label can carry WHICH, and a line number
+ * stays short however far out the departure is.
+ *
+ * Minutes were unbounded. Reported as "navn på avgang på strip" against a
+ * pill reading "12411209": two departures 1241 and 1209 minutes out, which is
+ * twenty hours, which the v1.86.3 search window now returns as a matter of
+ * course. Four digits is 26px of ink in a 30px glyph.
+ *
+ * Departed and imminent still take the label. "nå" and "-3" are the two
+ * things a reader acts on without thinking, and both are two characters.
+ */
+export function _stripLabel(lead) {
+  if (!lead) return '';
+  if (lead.ago >= 1) return '-' + lead.ago;
+  if (lead.ago !== null || lead.mins <= 0) return 'nå';
+  return lead.line ? String(lead.line) : String(lead.mins);
+}
+
 export function _stripSummary(data) {
   if (!data || !data.trains || !data.trains.length) return 'Ingen avganger på linja nå';
   // 'tog' is invariant in Norwegian — no plural branch to get wrong.
   const soonest = Math.min(...data.trains.map(t => t.mins));
+  // fmtMins, as the row already does. Raw minutes read fine at 9 and badly at
+  // 1209 — and since the search window became a full day (v1.86.3) the second
+  // is a normal case, not an edge one.
   return data.trains.length + ' tog på vei til ' + (data.from || 'stoppet ditt')
-    + ', neste om ' + soonest + ' min';
+    + ', neste om ' + fmtMins(soonest);
 }
 
 function renderLineStrip(visibleDeps) {
@@ -1821,9 +1845,7 @@ function renderLineStrip(visibleDeps) {
     // The minutes ride on the vehicle's flank. Same silhouettes and the same
     // colour rule as the map — see sideVehicleSvg — so the strip and the map
     // read as one thing rather than two languages for the same train.
-    const mins = lead.ago >= 1 ? '-' + lead.ago
-      : (lead.ago !== null || lead.mins <= 0) ? 'nå' : String(lead.mins);
-    const body = sideVehicleSvg(lead.mode, lead.colour, mins, !!lead.departed)
+    const body = sideVehicleSvg(lead.mode, lead.colour, _stripLabel(lead), !!lead.departed)
       + (n > 1 ? '<i>+' + (n - 1) + '</i>' : '');
     const title = lead.departed
       ? (n > 1 ? n + ' tog har gått, siste ' : '')
@@ -1832,10 +1854,10 @@ function renderLineStrip(visibleDeps) {
       ? (() => {
           const codes = [...new Set(cl.items.map(t => t.line).filter(Boolean))];
           const which = codes.length > 1 ? ' (linje ' + codes.join(', ') + ')' : '';
-          return n + ' tog' + which + ', neste om ' + lead.mins + ' min · trykk for å se dem';
+          return n + ' tog' + which + ', neste om ' + fmtMins(lead.mins) + ' · trykk for å se dem';
         })()
       : cl.group
-        ? 'om ' + lead.mins + ' min · trykk for å lukke gruppen'
+        ? 'om ' + fmtMins(lead.mins) + ' · trykk for å lukke gruppen'
         : esc(lead.label) + ' · trykk for å se raden';
     // The line colour is on the vehicle itself now, so the glyph carries no
     // background of its own — a coloured pill behind a coloured train would
@@ -2651,6 +2673,11 @@ export function renderBoard() {
           if (isNow) return 'NÅ';
           if (diffSec < 60) return secs + '<span class="unit">sek</span>';
           if (mins < 60)    return mins + '<span class="unit">min</span>';
+          // The clock only, no day. This column is narrow and uppercased, and
+          // "i morgen 07:21" wrapped to two lines with the "i" rendering as a
+          // hairline — seen on a 414px screen, not in any assertion. The day
+          // is on the departure line beside it, where it has room and reads
+          // as a sentence.
           return clk(depTs);
         })()
       + '</div>'
@@ -2658,8 +2685,10 @@ export function renderBoard() {
       + '<div class="dep-top">'
       + lineBadges
       + '<div class="dep-times">'
-      + '<span class="dep-dep">' + clk(depTs) + '</span>'
-      + (arrT ? '<span class="dep-arr">ank. ' + clk(arrT) + '</span>'
+      + '<span class="dep-dep">' + clkDay(depTs, now) + '</span>'
+      // The arrival carries its own day too: a night coach leaves today and
+      // lands tomorrow, and "ank. 09:29" beside a 22:40 departure is a riddle.
+      + (arrT ? '<span class="dep-arr">ank. ' + clkDay(arrT, now) + '</span>'
         // Recovered from the stop board, which the journey search did not
         // offer. We know when it leaves; we do not know when it arrives, and
         // the honest place to say so is exactly where that number would be.

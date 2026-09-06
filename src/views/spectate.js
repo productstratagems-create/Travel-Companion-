@@ -1,12 +1,11 @@
 import config from '../config.js';
+import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { fetchJourneyMeta } from '../api/entur.js';
 import { joinJourney } from '../journey.js';
 import { logMsg } from '../ui/log.js';
 import { esc } from '../ui/fmt.js';
 
-function pad(n) { return String(n).padStart(2, '0'); }
-function clk(v) { const d = new Date(v); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
 
 let _activePanel = null;
 let _lastMeta = null;

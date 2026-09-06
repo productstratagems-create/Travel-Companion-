@@ -219,6 +219,13 @@ const _SIDE = {
   bus:   { len: 30, nose: 0 },
 };
 
+/** A stable id per glyph shape, so two strips on a page cannot share a clip. */
+function _hash(str) {
+  let h = 0;
+  for (let i = 0; i < String(str).length; i++) h = (h * 31 + String(str).charCodeAt(i)) | 0;
+  return h;
+}
+
 export function sideVehicleSvg(mode, color, label, dim) {
   // Resolve the mode ONCE. Looking the shape and the colour up separately
   // gave an unknown mode a metro body in rail grey — a vehicle that belongs
@@ -250,10 +257,19 @@ export function sideVehicleSvg(mode, color, label, dim) {
   // without making the number any harder to read; and the decoration went,
   // because at 30px it was texture rather than information. Mode is still
   // carried by length, by the rake of the nose, and above all by colour.
+  // The label is clipped to the body, and that is structural rather than
+  // cosmetic. It used to be minutes, unbounded: at twenty hours out "1241" is
+  // 26px of ink centred in a 30px box, and with the cluster's "+1" beside it
+  // the strip read "12411209". Reported as a garbled name. A line number is
+  // short, but NW180 is five characters, and the next thing to end up here
+  // should be cut off rather than spill.
+  const cid = 'vc' + Math.abs(_hash(m + w + body)).toString(36);
   return '<svg class="ls-veh" width="' + w + '" height="' + h + '"'
     + ' viewBox="0 0 ' + w + ' ' + h + '" aria-hidden="true" focusable="false">'
+    + '<defs><clipPath id="' + cid + '"><path d="' + d + '"/></clipPath></defs>'
     + '<path d="' + d + '" fill="' + body + '" fill-opacity="' + (dim ? '.55' : '1') + '"/>'
-    + '<text x="' + r((w - sh.nose * 0.7) / 2) + '" y="' + r(y + bh / 2 + 3.9) + '"'
+    + '<text clip-path="url(#' + cid + ')"'
+    + ' x="' + r((w - sh.nose * 0.7) / 2) + '" y="' + r(y + bh / 2 + 3.9) + '"'
     + ' text-anchor="middle" font-family="JetBrains Mono, ui-monospace, monospace"'
     + ' font-size="11" font-weight="700" fill="#fff"'
     + ' opacity="' + (dim ? '.85' : '1') + '">' + label + '</text>'

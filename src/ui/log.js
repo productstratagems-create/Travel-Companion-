@@ -36,19 +36,6 @@ export function initDebugToggle() {
     // The stop-board comparison is only asked for while the panel is open, so
     // ask the moment it opens rather than at the next poll twenty seconds on.
     if (open) window._askStopBoard && window._askStopBoard();
-    // Read from the store, so it does not matter how long ago the register
-    // was filled or which screen filled it.
-    //
-    // Through a window hook, like _askStopBoard on the line above, and for a
-    // concrete reason: hubs.js imports logMsg from THIS file, so importing
-    // hubReport here would close a cycle. Harmless today because both are
-    // called at click time — and exactly the shape that threw a
-    // ReferenceError in the bundle while the unit tests stayed green, in
-    // v1.76.0.
-    if (open) {
-      const h = document.getElementById('dbg-hubs');
-      if (h && window._hubReport) h.textContent = window._hubReport();
-    }
   };
   document.getElementById('status-dot').addEventListener('click', () => set(!state.debugOpen));
   // On the board the panel is a sheet over the content, so the dot that

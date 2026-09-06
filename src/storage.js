@@ -8,8 +8,10 @@ const ALL_KEYS = [
   // exactly when there is no history. A key that picks the first screen has
   // to travel with the profile and be deleted with it.
   't.autoMode', 't.smartHist',
-  // The interchange register: learned per device, and worth keeping with the
-  // profile so a switch does not inherit another reader's answers.
+  // Legacy. v1.72.0–v1.85.0 kept an interchange register here; v1.88.0
+  // replaced the whole idea with the reader's own most-used stops. Nothing
+  // writes it any more — it stays listed so a value left behind is still
+  // deleted with the profile that made it.
   't.hubs',
   // Which order the auto-reise list is drawn in. A display choice, but one
   // the reader made, so it travels with the profile like the rest.

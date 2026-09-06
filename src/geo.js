@@ -182,11 +182,45 @@ export function walkInfo() {
   return { mins: config.defaultWalkMinutes, src: 'standard' };
 }
 
+/**
+ * Is this stop one of the ones we are standing near?
+ *
+ * Asked of the WHOLE `nearestStations` list — everything within
+ * NEAR_STOP_MAX_M — and not of `stops[0]`. That distinction is the whole
+ * repair: v1.76.0 let kerbside stops in and v1.77.0 sorted strictly by
+ * distance, so the nearest stop became the kerb 35 m away while the route
+ * departs from the station 300 m away. An equality against stops[0] then
+ * quietly answered no for every saved route, and the walk time — which hangs
+ * off this one boolean on both surfaces — disappeared entirely.
+ *
+ * Id first, normalised name as the fallback, which is the same rule `usesOf`
+ * in api/usage.js already uses. The fallback is what lets a route saved
+ * before the ids moved find itself again; `t.route` carries the old stopId
+ * and nothing rewrites it.
+ *
+ * Two missing ids are not a match. They are two unknowns.
+ */
+export function nearStopMatch(stopId, name) {
+  const list = state.nearestStations || [];
+  if (stopId) {
+    const byId = list.find(s => s.id && s.id === stopId);
+    if (byId) return byId;
+  }
+  const n = normStopName(name);
+  if (!n) return null;
+  return list.find(s => normStopName(s.name) === n) || null;
+}
+
+/** Does the active custom route carry its own departure coordinate? */
+function routeHasOrigin() {
+  const d = config.dirs[2];
+  return !!(d && d.key === 'custom-out' && d._fromLat && d._fromLon);
+}
+
 export function isWalkActive(dir) {
   if (dir.key === 'in') return false;
   if (state.walkFromLL !== null) return true;
-  const ns = state.nearestStation;
-  return ns !== null && dir.stopId === ns.id;
+  return nearStopMatch(dir.stopId, dir.from) !== null;
 }
 
 /**
@@ -309,7 +343,15 @@ export function findNearestStation(lat, lon, onFound, onFail) {
       state.gpsError = null;
       state.nearestStations = stops;
       state.nearestStation = stops[0];
-      state.statLL['custom-out'] = { lat: stops[0].lat, lon: stops[0].lon };
+      // Only when the route has no departure coordinate of its own.
+      //
+      // 'custom-out' is the real route's key, and board.js writes the same
+      // entry from the route's own departure stop on every fetch. Whoever
+      // answered last used to win, so the walk time could quietly be measured
+      // to a kerb the reader is not travelling from.
+      if (!routeHasOrigin()) {
+        state.statLL['custom-out'] = { lat: stops[0].lat, lon: stops[0].lon };
+      }
       logMsg('nærmeste: ' + stops[0].name + ' (' + stops[0].type + ')', 'ok');
       updateWalkDbg();
       if (onFound) onFound(stops[0]);

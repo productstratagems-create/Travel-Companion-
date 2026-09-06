@@ -4,7 +4,7 @@ import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, _rowDest } from '../api/adapt.js';
@@ -2156,7 +2156,11 @@ function renderWalkSummary() {
   if (isWalkActive(dir)) {
     const wk = walkInfo();
     const wf = state.walkFromLL ? loadWalkFrom() : null;
-    const ns = state.nearestStation;
+    // The stop the route departs from, as the geocoder named it — not
+    // stops[0]. They are different the moment you stand by a kerb and travel
+    // from the station behind it, and naming the kerb here would put a stop
+    // in the heading that this walk is not to.
+    const ns = nearStopMatch(dir.stopId, dir.from) || state.nearestStation;
     const fromLabel = wf ? wf.label : (ns ? ns.name : null);
     // Say when the position behind this number has gone old, the same way the
     // board says it for departures. ACC_GATE discards any fix worse than

@@ -25,6 +25,7 @@ vi.mock('../src/ui/log.js', () => ({ logMsg: vi.fn() }));
 
 import { findNearestStation, NEAR_STOP_MAX_M } from '../src/geo.js';
 import { state } from '../src/state.js';
+import config from '../src/config.js';
 
 // The reader is standing AT a kerbside bus stop. The metro station is four
 // hundred metres away — and it is the one the app named.
@@ -50,7 +51,11 @@ const find = (features) => new Promise((res, rej) => {
   findNearestStation(HERE.lat, HERE.lon, res, (m) => rej(new Error(m || 'fail')));
 });
 
-beforeEach(() => { state.nearestStations = []; state.nearestStation = null; state.gpsError = null; });
+beforeEach(() => {
+  state.nearestStations = []; state.nearestStation = null; state.gpsError = null;
+  state.statLL = {};
+  config.dirs.length = 2;
+});
 
 describe('the categories that count as a stop', () => {
   // The whole of the report, in one assertion: an ordinary bus stop 30 m away
@@ -184,5 +189,23 @@ describe('distance is the only rule', () => {
     await find(many);
     expect(state.nearestStations).toHaveLength(11);
     expect(state.nearestStations[10].distM).toBeLessThanOrEqual(NEAR_STOP_MAX_M);
+  });
+});
+
+// The walk time is measured from your position to statLL['custom-out'], and
+// 'custom-out' is the real route's key — board.js writes it from the route's
+// own departure stop. Whoever answered last used to win, so the number could
+// be the walk to a kerb the reader is not travelling from.
+describe('statLL — the route owns its departure coordinate', () => {
+  it('does not overwrite a route that has its own origin', async () => {
+    config.dirs[2] = { key: 'custom-out', _fromLat: 59.95, _fromLon: 10.80 };
+    state.statLL['custom-out'] = { lat: 59.95, lon: 10.80 };
+    await find([feature('Kantsteinen', ['onstreetBus'], 30)]);
+    expect(state.statLL['custom-out']).toEqual({ lat: 59.95, lon: 10.80 });
+  });
+
+  it('still fills it in when the route has no origin of its own', async () => {
+    const found = await find([feature('Kantsteinen', ['onstreetBus'], 30)]);
+    expect(state.statLL['custom-out']).toEqual({ lat: found.lat, lon: found.lon });
   });
 });

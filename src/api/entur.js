@@ -175,6 +175,16 @@ let _coachRejected = false;
 export function _coachRefused() { return _coachRejected; }
 export function _resetCoachProbe() { _coachRejected = false; }
 
+/**
+ * …and the same for the search window. Shed FIRST of the three optional
+ * arguments, because it is the newest, the most likely to be the one refused,
+ * and the cheapest to lose: without it the app is exactly where it was
+ * yesterday.
+ */
+let _windowRejected = false;
+export function _windowRefused() { return _windowRejected; }
+export function _resetWindowProbe() { _windowRejected = false; }
+
 export function fetchTrip(dir, onSuccess, onError, atMs) {
   if (tripController) tripController.abort();
   if (boardController) boardController.abort();
@@ -188,20 +198,20 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
       const label = p => (p && typeof p === 'object') ? p.lat + ',' + p.lon : p;
       logMsg('trip → ' + label(fromId) + (viaId ? ' via ' + viaId : '') + ' → ' + label(toId));
-      const ask = (withLookback, withCoach) => enturFetch(config.api.journeyPlanner, {
+      const ask = (withLookback, withCoach, withWindow) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: withLookback
             ? tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? undefined : atMs,
-              false, false, withCoach)
+              false, false, withCoach, withWindow)
             // The retry deliberately drops dateTime: it is the argument that
             // could never be verified against the live API, so it is the one
             // the fallback exists to shed. The cost is real — this poll loses
             // the two-minute lookback, and with it a train standing at the
             // platform a minute late — so the diagnostic records that it
             // happened rather than trading a silent loss for a silent outage.
-            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach),
+            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow),
         }),
         signal,
       })
@@ -223,19 +233,28 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
           // every journey. Shedding it costs the express services; shedding
           // the lookback costs a train standing at the platform. Neither is
           // worth an empty screen, and the cheaper loss goes first.
+          // Cheapest first. The error does not say which argument was
+          // refused, so they are shed one at a time in order of what their
+          // loss costs the reader: the wider window (rural journeys we never
+          // had), then the coaches, then the two-minute lookback.
+          if (withWindow && !j.data && j.errors) {
+            _windowRejected = true;
+            logMsg('søkevindu: searchWindow avvist av Entur — hentes ikke denne økta', 'err');
+            return ask(withLookback, withCoach, false);
+          }
           if (withCoach && !j.data && j.errors) {
             _coachRejected = true;
             logMsg('ekspressbuss: coach avvist av Entur — hentes ikke denne økta', 'err');
-            return ask(withLookback, false);
+            return ask(withLookback, false, withWindow);
           }
           if (withLookback && !j.data && j.errors) {
             logMsg('trip: dateTime avvist, prøver uten — tilbakeblikket tapt for denne pollen', 'err');
             noteLookbackLost();
-            return ask(false, withCoach);
+            return ask(false, withCoach, withWindow);
           }
           return j;
         });
-      return ask(true, !_coachRejected);
+      return ask(true, !_coachRejected, !_windowRejected);
     })
     .then(j => {
       if (!j || signal.aborted) return;

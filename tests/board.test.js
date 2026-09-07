@@ -19,7 +19,7 @@ import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary, _stripLabel,
   STRIP_LABEL_MAX,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
   _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _isolateLine, _corridorKey, CORRIDOR_MAX_M, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle, _interpolateVehiclePos, _interpolateOnPath,
-  _nextPageAt, _mergePage, MAX_ROWS, _rowQuay, stopBoardExtras, _onwardStops } from '../src/views/board.js';
+  _nextPageAt, _mergePage, MAX_ROWS, _rowQuay, stopBoardExtras, _onwardStops, _stripGroups } from '../src/views/board.js';
 import { measurePath } from '../src/ui/path.js';
 import { haver } from '../src/geo.js';
 
@@ -294,6 +294,32 @@ describe('_clusterTrains', () => {
     expect(_clusterTrains([T(1.5), T(2)], 1)).toHaveLength(1);
   });
 
+  // Two glyphs that both say "1t" cannot be told apart, so standing them
+  // apart says nothing and costs room. Reported: several "1t" labels side by
+  // side that should have been one.
+  it('merges anything wearing the same label, however far apart', () => {
+    const label = (t) => (t.mins < 60 ? String(t.mins) : Math.floor(t.mins / 60) + 't');
+    const c = _clusterTrains([T(0, 65), T(40, 70), T(80, 119), T(90, 300)], 5, label);
+    expect(c).toHaveLength(2);
+    expect(c[0].items.map(t => t.mins)).toEqual([65, 70, 119]);
+    expect(c[1].items.map(t => t.mins)).toEqual([300]);
+  });
+
+  it('still keeps labels that differ apart when there is room', () => {
+    const label = (t) => String(t.mins);
+    const c = _clusterTrains([T(0, 9), T(40, 10)], 5, label);
+    expect(c).toHaveLength(2);
+  });
+
+  // The measured failure: 47 min and 65 min merged at 0.058 axis units while
+  // sitting 4.7 percentage points apart — most of a glyph — and 70 min was
+  // left standing beside them. Which one led flipped as the minutes ticked.
+  it('measures in the caller’s unit, so the same gap decides the same way', () => {
+    const c = _clusterTrains([T(73.6, 47), T(68.9, 65), T(67.6, 70)], 6.13);
+    expect(c).toHaveLength(1);
+    expect(c[0].items[0].mins).toBe(47);
+  });
+
   it('does nothing with a separation of zero, and copes with an empty list', () => {
     expect(_clusterTrains([T(0), T(0.1)], 0)).toHaveLength(2);
     expect(_clusterTrains([], 1)).toEqual([]);
@@ -402,12 +428,33 @@ describe('_buildStrip', () => {
     expect(_buildStrip([d], DIR, '5', NOW, new Map()).trains[0].mins).toBe(2);
   });
 
-  it('runs the axis from the furthest departure to your stop', () => {
-    const s = _buildStrip([dep(5, 'a'), dep(10, 'b'), dep(20, 'c')], DIR, '5', NOW, new Map());
-    // Sorted furthest first; the last one sits at your stop end.
-    expect(s.trains.map(t => t.mins)).toEqual([20, 10, 5]);
-    expect(s.trains[0].pos).toBeCloseTo(-1, 6);
-    expect(s.trains[2].pos).toBeCloseTo(-0.25, 6);
+  it('runs the axis from the horizon to your stop', () => {
+    const s = _buildStrip([dep(15, 'a'), dep(30, 'b'), dep(60, 'c')], DIR, '5', NOW, new Map());
+    // Sorted furthest first; the last one sits nearest your stop.
+    expect(s.trains.map(t => t.mins)).toEqual([60, 30, 15]);
+    expect(s.trains[0].pos).toBeCloseTo(-1, 6);      // at the horizon
+    expect(s.trains[2].pos).toBeCloseTo(-0.25, 6);   // a quarter of an hour out
+  });
+
+  // The reported screen: one departure five hours out set the scale, and two,
+  // seventeen and forty-seven minutes were squeezed between 73.6% and 85.5%
+  // of the rail while 70% of it stood empty.
+  it('does not let a far departure set the scale for the near ones', () => {
+    const near = [dep(2, 'a'), dep(17, 'b'), dep(47, 'c')];
+    const alone = _buildStrip(near, DIR, '5', NOW, new Map());
+    const withFar = _buildStrip([...near, dep(310, 'f')], DIR, '5', NOW, new Map());
+    const posOf = (s, m) => s.trains.find(t => t.mins === m).pos;
+    [2, 17, 47].forEach(m => expect(posOf(withFar, m)).toBeCloseTo(posOf(alone, m), 9));
+  });
+
+  it('clamps everything past the horizon to one position, so it clusters', () => {
+    const s = _buildStrip([dep(61, 'a'), dep(310, 'b'), dep(1400, 'c')], DIR, '5', NOW, new Map());
+    expect(s.trains.map(t => t.pos)).toEqual([-1, -1, -1]);
+  });
+
+  it('keeps a departure just inside the horizon on the axis', () => {
+    const s = _buildStrip([dep(59, 'a')], DIR, '5', NOW, new Map());
+    expect(s.trains[0].pos).toBeCloseTo(-59 / 60, 6);
   });
 
   it('ignores other lines', () => {
@@ -1411,5 +1458,48 @@ describe('_stripSummary and long waits', () => {
 
   it('leaves a short wait alone', () => {
     expect(_stripSummary({ trains: [t(9)], from: 'Ryen' })).toContain('9 min');
+  });
+});
+
+
+// The unit test above proves _clusterTrains is right. It cannot prove the
+// RENDERER hands it the right thing — and that is exactly what went wrong:
+// positions in axis units, a separation in axis units, on an axis that is not
+// linear. This is the seam where the hand-off itself is checked.
+describe('_stripGroups — the hand-off, in one unit', () => {
+  const T = (mins, id) => ({ id, mins, ago: null, departed: false, pos: -Math.min(1, mins / 60) });
+  const at = (g, mins) => g.groups.find(x => x.items.some(i => i.mins === mins));
+
+  // The reported screen, measured: 5t · 47 · 1t+1 · 2, with 47 standing left
+  // of a later departure.
+  it('lays the glyphs out in falling minutes, left to right', () => {
+    const g = _stripGroups([T(2, 'a'), T(17, 'b'), T(47, 'c'), T(65, 'd'), T(70, 'e'), T(310, 'f')], 750);
+    // Sooner is always further right. The reported screen broke exactly this:
+    // 47 min stood LEFT of a departure an hour later.
+    const byPos = g.groups.slice().sort((a, b) => a.pos - b.pos);
+    const soonest = byPos.map(x => Math.min(...x.items.map(t => t.mins)));
+    expect(soonest).toEqual([...soonest].sort((a, b) => b - a));
+  });
+
+  it('puts everything past the horizon in one glyph at the left end', () => {
+    const g = _stripGroups([T(2, 'a'), T(65, 'd'), T(70, 'e'), T(310, 'f')], 750);
+    const far = at(g, 310);
+    expect(far.items.map(t => t.mins)).toEqual([65, 70, 310]);
+    expect(far.pos).toBeLessThan(at(g, 2).pos);
+  });
+
+  it('separates every glyph by at least its own width', () => {
+    const g = _stripGroups([T(2, 'a'), T(17, 'b'), T(47, 'c'), T(310, 'f')], 750);
+    const sepPct = 100 * 46 / 750;
+    const pos = g.groups.map(x => x.pos).sort((a, b) => a - b);
+    for (let i = 1; i < pos.length; i++) expect(pos[i] - pos[i - 1]).toBeGreaterThanOrEqual(sepPct - 0.6);
+  });
+
+  // The shuffling, as a property: a far departure must not move the near ones.
+  it('is unmoved by a departure beyond the horizon appearing', () => {
+    const near = [T(2, 'a'), T(17, 'b'), T(47, 'c')];
+    const before = _stripGroups(near, 750);
+    const after = _stripGroups([...near, T(310, 'f')], 750);
+    [2, 17, 47].forEach(m => expect(at(after, m).pos).toBeCloseTo(at(before, m).pos, 6));
   });
 });

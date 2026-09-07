@@ -1366,6 +1366,28 @@ const _STRIP_ORIGIN = 0.86;
 const _STRIP_INSET = 0.045;   // so the furthest glyph does not poke off the left
 const _STRIP_GONE_AT = 0.5;
 
+/**
+ * How far ahead the rail reaches.
+ *
+ * The axis used to run to the FURTHEST departure in the set, which was fine
+ * while the search window was an hour. Since it became a full day (v1.86.3)
+ * one departure five hours out sets the scale, and everything you can act on
+ * — two, seventeen and forty-seven minutes — is crushed into the right twelfth
+ * of the rail. Measured on the reported screen: those three sat between 73.6%
+ * and 85.5%, while 70% of the strip stood empty.
+ *
+ * A fixed horizon also makes the axis STABLE. The old scale was recomputed
+ * every second from whatever happened to be in the set, so a far departure
+ * appearing or going rescaled every glyph on one tick — half of what was
+ * reported as departures shuffling about.
+ *
+ * Everything past the horizon clamps to -1, lands on one another, and so
+ * clusters into a single glyph by the mechanism that already exists. Nothing
+ * is hidden: the cluster carries its +N, its title names them, and it opens
+ * on a tap like any other.
+ */
+const _STRIP_HORIZON_MINS = 60;
+
 // The countdown a train shows on the strip must be the one its row shows in
 // the list, or the two pictures disagree and the strip is worse than nothing.
 // Same source and same rounding as the row render below.
@@ -1571,8 +1593,7 @@ export function _buildStrip(candidates, dir, lineOn, now, livePos) {
     });
   });
 
-  // One axis, running from the furthest departure at -1 to your stop at 0.
-  const maxMins = Math.max(1, ...out.trains.map(t => t.mins));
+  // One axis, running from the horizon at -1 to your stop at 0.
   // Past its time, a train sits beyond your stop rather than crushed against
   // it. Before this, a "nå" glyph landed at the very edge of the rail and hung
   // 8px over it.
@@ -1586,7 +1607,9 @@ export function _buildStrip(candidates, dir, lineOn, now, livePos) {
   // so a separation that looks generous in axis units is about 6px there
   // against a glyph that was 46px wide then and is 38px now. Spreading them produced overlapping glyphs, and an
   // overlapping glyph swallows the taps of the one beneath it.
-  out.trains.forEach(t => { t.pos = t.departed ? _STRIP_GONE_AT : -(t.mins / maxMins); });
+  out.trains.forEach(t => {
+    t.pos = t.departed ? _STRIP_GONE_AT : -Math.min(1, t.mins / _STRIP_HORIZON_MINS);
+  });
   // Most recently gone first, so it leads its cluster: of the trains that have
   // left, the one that just left is the only one still worth a second look.
   out.trains.sort((a, b) => a.pos - b.pos || (a.ago - b.ago));
@@ -1713,12 +1736,48 @@ export function _relaxPositions(groups, minSep, min, max) {
   return s;
 }
 
-export function _clusterTrains(trains, minSep) {
+/**
+ * Which glyphs become one.
+ *
+ * TWO RULES, AND BOTH ARE ABOUT WHAT THE READER CAN TELL APART.
+ *
+ * Closer than one glyph, measured IN PERCENT OF THE RAIL. It used to be
+ * measured in axis units, and the axis is not linear across your stop — the
+ * half left of it maps ~0.82 of the width onto one axis unit, the strip right
+ * of it ~0.19 onto the same unit. `_relaxPositions` already learned this and
+ * works in percent; this did not, so the two disagreed about the same idea in
+ * two units. Measured on the reported screen: 47 min and 65 min merged at
+ * 0.058 axis units while sitting 4.7 percentage points apart — most of a
+ * glyph — and 70 min was left standing alone beside them. Which of the two led
+ * the cluster then flipped as the minutes ticked, and the labels swapped
+ * places on the rail. That was the shuffling.
+ *
+ * Same label, wherever they stand. Two glyphs that both say "1t" cannot be
+ * told apart no matter how far from each other they are, so showing them
+ * twice says nothing and costs room. `labelOf` is `_stripLabel` — the one
+ * function that decides what rides on a flank — so this rule cannot drift
+ * away from what is actually drawn.
+ *
+ * @param {Array} trains sorted soonest-first, positions in percent
+ * @param {number} minSepPct one glyph, as a percentage of the rail
+ * @param {function} labelOf what the glyph will say
+ */
+export function _clusterTrains(trains, minSepPct, labelOf) {
   const out = [];
+  const byLabel = new Map();
   (trains || []).forEach(t => {
+    const label = labelOf ? labelOf(t) : null;
+    const twin = label ? byLabel.get(label) : null;
+    if (twin) { twin.items.push(t); return; }
     const last = out[out.length - 1];
-    if (last && Math.abs(t.pos - last.pos) < minSep) { last.items.push(t); return; }
-    out.push({ pos: t.pos, items: [t] });
+    if (last && Math.abs(t.pos - last.pos) < minSepPct) {
+      last.items.push(t);
+      if (label && !byLabel.has(label)) byLabel.set(label, last);
+      return;
+    }
+    const cl = { pos: t.pos, items: [t] };
+    out.push(cl);
+    if (label) byLabel.set(label, cl);
   });
   return out;
 }
@@ -1773,6 +1832,72 @@ export function _stripSummary(data) {
     + ', neste om ' + fmtMins(soonest);
 }
 
+export const _stripPct = (p) => 100 * (p <= 0
+  ? _STRIP_INSET + (1 + p) * (_STRIP_ORIGIN - _STRIP_INSET)
+  : _STRIP_ORIGIN + p * (1 - _STRIP_ORIGIN - _STRIP_INSET));
+
+/**
+ * Where every glyph ends up, in percent of the rail.
+ *
+ * Pulled out of the renderer because the WIRING is what went wrong, not the
+ * pieces. `_clusterTrains` was correct and tested; the renderer handed it a
+ * separation in axis units against positions in axis units on an axis that is
+ * not linear, and a unit test of the function could never see that. This is
+ * the seam that makes the hand-off itself testable — the same shape of hole
+ * that let _hubsAskedFor ship unwired.
+ *
+ * ONE UNIT throughout: positions are converted to percent first, and
+ * clustering, spreading and relaxing all speak it.
+ *
+ * @param {Array} trains from _buildStrip, positions in axis units
+ * @param {number} width the rail, in pixels
+ * @param {string|undefined} touchedId the cluster the reader opened, or
+ *   undefined to open the soonest group by itself
+ */
+export function _stripGroups(trains, width, touchedId) {
+  const sepPct = 100 * _STRIP_GLYPH_PX / width;
+  // Same tiebreak as _buildStrip: departed trains all share mins 0, and the
+  // one that just left must lead its cluster rather than whichever happened
+  // to be first in the response.
+  const sorted = (trains || []).slice()
+    .sort((a, b) => a.mins - b.mins || (a.ago - b.ago))
+    .map(t => ({ ...t, pos: _stripPct(t.pos) }));
+  const clusters = _clusterTrains(sorted, sepPct, _stripLabel);
+
+  // The soonest group is open unless the reader has chosen otherwise. Its lead
+  // changes as departures go, so this is recomputed rather than latched.
+  //
+  // Skip the departed: they carry mins 0, so once the board started keeping a
+  // couple of minutes of them they sorted to the front and became the default
+  // focus — the strip opened up, by itself, on the trains you have already
+  // missed. They also have the least room on the rail, so spreading them
+  // overlapped the glyphs by 19px and swallowed each other's taps.
+  //
+  // Skip the far group for the same reason. Everything past the horizon lands
+  // on one position by design, so it is always a cluster and always the
+  // biggest one — opening it by itself would spread the departures you can do
+  // nothing about across the empty left half, which is the picture the
+  // horizon was introduced to stop. It still opens on a tap.
+  const openId = touchedId !== undefined
+    ? touchedId
+    : (clusters.find(cl => cl.items.length > 1 && !cl.items[0].departed
+        && cl.items[0].mins < _STRIP_HORIZON_MINS) || {}).items?.[0]?.id || null;
+
+  const groups = _relaxPositions(
+    clusters.flatMap(cl => (cl.items.length > 1 && cl.items[0].id === openId)
+      ? _spreadCluster(cl.items, sepPct).map(t => ({ pos: t.pos, items: [t.item], group: openId }))
+      : [cl]),
+    sepPct, _stripPct(-1), _stripPct(_STRIP_GONE_AT));
+
+  // Relaxing can only slide the run back if the left end has slack, and on a
+  // full strip it has none — so the rightmost glyph ends up hanging over the
+  // rail. Keep every glyph's box inside the container as a last step; a
+  // slightly tighter gap at the right end beats one that pokes out.
+  const half = sepPct / 2;
+  groups.forEach(g => { g.pos = Math.max(half, Math.min(100 - half, g.pos)); });
+  return { groups, openId };
+}
+
 function renderLineStrip(visibleDeps) {
   const el = document.getElementById('line-strip');
   if (!el) return;
@@ -1792,54 +1917,11 @@ function renderLineStrip(visibleDeps) {
   el.style.display = 'block';
   const width = el.clientWidth || 360;
 
-  // One axis: -1 is the furthest departure, 0 is your stop. Your stop sits at
-  // 86% rather than the right edge, leaving room to its right for a train
-  // whose time has come — and an inset on the left so the furthest glyph is
-  // not half off the rail either.
-  const pct = (p) => 100 * (p <= 0
-    ? _STRIP_INSET + (1 + p) * (_STRIP_ORIGIN - _STRIP_INSET)
-    : _STRIP_ORIGIN + p * (1 - _STRIP_ORIGIN - _STRIP_INSET));
-  const sep = _STRIP_GLYPH_PX / width;
-
-  // Same tiebreak as _buildStrip: departed trains all share mins 0, and the
-  // one that just left must lead its cluster rather than whichever happened
-  // to be first in the response.
-  const sorted = data.trains.slice().sort((a, b) => a.mins - b.mins || (a.ago - b.ago));
-  const clusters = _clusterTrains(sorted, sep);
-
-  // The soonest group is open unless the reader has chosen otherwise. Its lead
-  // changes as departures go, so this is recomputed rather than latched.
-  //
-  // Skip the departed: they carry mins 0, so once the board started keeping a
-  // couple of minutes of them they sorted to the front and became the default
-  // focus — the strip opened up, by itself, on the trains you have already
-  // missed. They also have the least room on the rail, so spreading them
-  // overlapped the glyphs by 19px and swallowed each other's taps.
-  const openId = _stripTouched
-    ? _expandedCluster
-    : (clusters.find(cl => cl.items.length > 1 && !cl.items[0].departed) || {}).items?.[0]?.id || null;
-
-  // Relax in percent, not in axis units. The axis is not linear across your
-  // stop — the half left of it maps ~0.82 of the width onto one axis unit,
-  // the strip right of it ~0.19 onto the same unit — so one separation
-  // expressed in axis units is four times tighter on the right than on the
-  // left, and glyphs there still touched after relaxing. Percent is the space
-  // the overlap actually happens in.
-  const sepPct = 100 * _STRIP_GLYPH_PX / width;
-  const groups = _relaxPositions(
-    clusters
-      .flatMap(cl => (cl.items.length > 1 && cl.items[0].id === openId)
-        ? _spreadCluster(cl.items, sep).map(t => ({ pos: t.pos, items: [t.item], group: openId }))
-        : [cl])
-      .map(g => ({ ...g, pos: pct(g.pos) })),
-    sepPct, pct(-1), pct(_STRIP_GONE_AT));
-
-  // Relaxing can only slide the run back if the left end has slack, and on a
-  // full strip it has none — so the rightmost glyph ends up hanging over the
-  // rail. Keep every glyph's box inside the container as a last step; a
-  // slightly tighter gap at the right end beats one that pokes out.
-  const half = sepPct / 2;
-  groups.forEach(g => { g.pos = Math.max(half, Math.min(100 - half, g.pos)); });
+  // One axis: -1 is the horizon, 0 is your stop. Your stop sits at 86% rather
+  // than the right edge, leaving room to its right for a train whose time has
+  // come — and an inset on the left so the furthest glyph is not half off the
+  // rail either.
+  const { groups, openId } = _stripGroups(data.trains, width, _stripTouched ? _expandedCluster : undefined);
 
   const trains = groups.map(cl => {
     const n = cl.items.length;
@@ -1889,11 +1971,11 @@ function renderLineStrip(visibleDeps) {
   el.innerHTML =
     '<div class="ls-caps"><span class="ls-cap ls-cap-wide">neste avganger</span></div>'
     + '<div class="ls-rail">'
-    + '<span class="ls-zone ls-zone-appr" style="width:' + pct(0).toFixed(2) + '%"></span>'
+    + '<span class="ls-zone ls-zone-appr" style="width:' + _stripPct(0).toFixed(2) + '%"></span>'
     + trains
-    + '<span class="ls-you" style="left:' + pct(0).toFixed(2) + '%"></span>'
+    + '<span class="ls-you" style="left:' + _stripPct(0).toFixed(2) + '%"></span>'
     + '</div>'
-    + '<div class="ls-ends"><span class="ls-end-from" style="left:' + pct(0).toFixed(2) + '%">'
+    + '<div class="ls-ends"><span class="ls-end-from" style="left:' + _stripPct(0).toFixed(2) + '%">'
     + esc(data.from || '') + '</span></div>';
 
   el.querySelectorAll('.ls-cap').forEach(cap => {

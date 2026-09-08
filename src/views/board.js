@@ -4,6 +4,7 @@ import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
+import { walkKey } from '../api/walkDist.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
@@ -23,6 +24,8 @@ import { createMap, drawRoute, drawWalk } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _headingDeg, anchorDistances, pointAtDistance, projectOnPath } from '../ui/path.js';
 import { decodePolyline } from '../ui/polyline.js';
+import { approachRoute } from '../api/walkApproach.js';
+import { fetchFootRouteEntur } from '../api/route.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
 import { isExample } from '../firstRun.js';
@@ -633,6 +636,82 @@ function _drawWalkRoute(fromLL, toLL, destName) {
       drawWalk(_bLayer, [[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]]);
     });
 }
+
+/**
+ * Draw the walk from where you stand to the stop you leave from.
+ *
+ * Fetched ONCE per pair of points, not once per render. The board redraws
+ * every second (renderTickMs), and without the key guard this would be a
+ * routing request a second against a public demo server.
+ *
+ * The key is `walkKey` — the same four decimals (~11 m) walkDist stores
+ * under — rather than a rounding of its own. Two roundings for one idea is
+ * how they drift apart, and here the drift would be a fetch that never hits
+ * the cache it just filled.
+ */
+let _approachKey = null;
+let _approachPts = null;
+let _approachLayer = null;
+
+/**
+ * How far away is worth drawing.
+ *
+ * Standing on the platform, a route to your own feet is noise on the map and
+ * a request for nothing. Above this the walk is a real part of catching the
+ * departure, which is exactly when the countdown starts mattering.
+ */
+export const APPROACH_MIN_M = 120;
+
+/** Test seam: the guard is module state, and a test must be able to clear it. */
+export function _resetApproach() { _approachKey = null; _approachPts = null; }
+export function _approachPoints() { return _approachPts; }
+
+export function _ensureApproach(fromLL, stopLL) {
+  if (!fromLL || !stopLL) { _approachKey = null; _approachPts = null; return; }
+  const crow = haver(fromLL.lat, fromLL.lon, stopLL.lat, stopLL.lon);
+  if (crow < APPROACH_MIN_M) { _approachKey = null; _approachPts = null; return; }
+
+  const key = walkKey(fromLL, stopLL);
+  if (_approachKey === key) return;
+  _approachKey = key;
+  _approachPts = null;
+
+  approachRoute(fromLL, stopLL, crow, {
+    entur: (a, b) => fetchFootRouteEntur(enturFetch, config.api.journeyPlanner, a, b),
+  }).then(({ latlngs, src, metres }) => {
+    // The reader may have moved, or the route changed, while we waited.
+    if (_approachKey !== key) return;
+    _approachPts = latlngs;
+    logMsg('gangrute: ' + src + (metres != null ? ' · ' + metres + ' m' : ' · ikke målt'),
+      metres != null ? 'ok' : null);
+  });
+}
+
+/**
+ * Put the walk on the map, in a layer of its own.
+ *
+ * Its own layer because `_bRouteLayer` is cleared at the top of every tick by
+ * renderLineRoute — and, worse, renderLineRoute returns early when no
+ * departure carries a usable corridor. Drawing there made the walk depend on
+ * the transit route existing, which measured as a route fetched, stored and
+ * never shown.
+ *
+ * WHILE YOU ARE WALKING, THE MAP IS ABOUT THE WALK. A 300 m approach inside a
+ * 6 km corridor is a few pixels. So the frame follows the walk until you are
+ * at the stop, and then the journey gets it back.
+ */
+function _renderApproach() {
+  if (!_bMap) return;
+  if (!_approachLayer) _approachLayer = L.layerGroup().addTo(_bMap);
+  _approachLayer.clearLayers();
+  if (!_approachPts) { _approachFitKey = null; return; }
+  drawWalk(_approachLayer, _approachPts);
+  if (_approachFitKey !== _approachKey && !_bUserMoved) {
+    _approachFitKey = _approachKey;
+    _bMap.fitBounds(_approachPts, { padding: [40, 40], maxZoom: 17 });
+  }
+}
+let _approachFitKey = null;
 
 let _modeFilterKey = '';
 
@@ -2440,7 +2519,16 @@ export function renderBoard() {
     _drawWalkRoute(walkFrom, { lat: dir._toLat, lon: dir._toLon }, dir.to);
   } else {
     _walkRouteKey = null;
+    // The walk you are actually making. Same gate as the countdown on every
+    // row: isWalkActive means a walk applies at all, and the stop's own
+    // coordinate is the one the route is measured to — not stops[0], which is
+    // the kerb you happen to be nearest (v1.89.0).
+    const stopLL = state.statLL && state.statLL[dir.key];
+    _ensureApproach(isWalkActive(dir) ? (state.walkFromLL || state.homeLL) : null, stopLL);
     renderBoardMap(pos, modes);
+    // After the map exists, and every tick: the route lands asynchronously and
+    // renderBoardMap returns early once its own key is unchanged.
+    _renderApproach();
   }
 
   const activeModes = ['metro', 'tram', 'bus', 'rail'].filter(m => modes[m]);

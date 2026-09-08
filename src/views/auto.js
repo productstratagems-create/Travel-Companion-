@@ -546,6 +546,53 @@ export function nearbyAlternatives(list, chosen) {
 }
 
 /**
+ * The lanes, in order, with their Norwegian names.
+ *
+ * NOT `RANKS`. That table splits buses into «Ruter-buss» and «Andre busser»
+ * on the codespace in `line.id` — something a departure has and a STOP does
+ * not. Two lists for two different questions, and a test asserts that every
+ * mode `modesOf` can produce has a lane here, which is the guard against them
+ * drifting apart.
+ */
+export const LANES = [
+  { mode: 'metro', label: 'T-bane' },
+  { mode: 'tram',  label: 'Trikk' },
+  { mode: 'bus',   label: 'Buss' },
+  { mode: 'rail',  label: 'Tog' },
+  { mode: null,    label: 'Andre stopp' },
+];
+
+/**
+ * The nearby stops, split into one band per mode.
+ *
+ * A STOP APPEARS IN EVERY LANE IT SERVES. Hellerud is under T-bane and under
+ * Buss, same id, same tap — chosen deliberately: one row is one way to
+ * travel, and "you can get a bus from here too" is usually the thing worth
+ * knowing. It also means the lane a reader scans is complete, which a
+ * one-lane-per-stop rule could never promise.
+ *
+ * Order INSIDE a lane is the order it was given — `rankStops` has already
+ * weighed closeness and use, and splitting the list must not throw that away.
+ *
+ * Empty lanes are dropped: a heading over nothing is a label that lies about
+ * what is nearby.
+ *
+ * A stop with no known mode still gets a lane. Falling out of the list
+ * entirely would be a stop the geocoder found and the screen hid.
+ */
+export function laneStops(list) {
+  return LANES
+    .map(({ mode, label }) => ({
+      mode, label,
+      stops: (list || []).filter(s => {
+        const m = (s && s.modes) || [];
+        return mode === null ? !m.length : m.includes(mode);
+      }),
+    }))
+    .filter(l => l.stops.length);
+}
+
+/**
  * Is the nearby-stops list showing?
  *
  * Never when there is nothing in it: a heading that folds away an empty list
@@ -676,10 +723,17 @@ function _renderWhere() {
   el.innerHTML = '<div class="set-label">du er ved</div>'
     + stopHeadHtml(_stop, others.length, open)
     + '<div id="auto-alts"' + (open ? '' : ' hidden') + '>'
-    + others.map(s => '<button class="nearby-btn auto-alt" type="button" data-id="' + esc(s.id) + '">'
-      + '<span class="nearby-name">' + esc(s.name) + '</span>'
-      + '<span class="nearby-dist">' + (s.distM != null ? s.distM + ' m' : '') + '</span>'
-      + '</button>').join('')
+    // One band per mode. The count in the heading above is the number of
+    // STOPS, not of rows — an interchange stands in two lanes, and letting it
+    // count twice is the one error here that would look entirely right.
+    + laneStops(others).map(lane =>
+      '<div class="auto-lane">'
+      + '<div class="set-label">' + esc(lane.label) + '</div>'
+      + lane.stops.map(s => '<button class="nearby-btn auto-alt" type="button" data-id="' + esc(s.id) + '">'
+        + '<span class="nearby-name">' + esc(s.name) + '</span>'
+        + '<span class="nearby-dist">' + (s.distM != null ? s.distM + ' m' : '') + '</span>'
+        + '</button>').join('')
+      + '</div>').join('')
     + '</div>';
 
   // Listeners are re-attached on every tick, which is fine and is how the

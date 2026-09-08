@@ -43,6 +43,37 @@ export const TRANSIT_CATS = [...new Set([
 ])];
 
 /**
+ * Which lane a stop belongs in.
+ *
+ * Built FROM CAT_MODE rather than beside it, so the two cannot say different
+ * things about metroStation — but with `railStation` and `tramStop` added,
+ * which CAT_MODE deliberately omits. The comment above says why they are
+ * missing there: a category with no CAT_MODE entry is skipped by
+ * fetchNearbyStops, so adding them to that table would quietly start putting
+ * train stations on the departure board's map. Grouping a list is a different
+ * question from deciding what to fetch, and this is the table for it.
+ */
+export const STOP_MODE = { ...CAT_MODE, railStation: 'rail', tramStop: 'tram' };
+
+/**
+ * Every mode a stop serves — plural, because interchanges exist.
+ *
+ * Hellerud is a metro station AND a kerbside bus stop, and the geocoder says
+ * so in an array. geo.js used to keep only the first entry, which made a stop
+ * that serves two modes indistinguishable from one that serves one.
+ *
+ * Unique and in the order given: two `onstreetBus` quays are still one bus.
+ */
+export function modesOf(cats) {
+  const out = [];
+  (cats || []).forEach(c => {
+    const m = STOP_MODE[c];
+    if (m && !out.includes(m)) out.push(m);
+  });
+  return out;
+}
+
+/**
  * What Entur calls a long-distance bus.
  *
  * Transmodel separates `coach` from `bus`: Haukeliekspressen and the

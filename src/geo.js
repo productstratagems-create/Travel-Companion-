@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import config from './config.js';
-import { TRANSIT_CATS } from './api/stopCats.js';
+import { TRANSIT_CATS, modesOf } from './api/stopCats.js';
 import { enturFetch } from './api/http.js';
 import { logMsg } from './ui/log.js';
 import { storage } from './storage.js';
@@ -329,7 +329,13 @@ export function findNearestStation(lat, lon, onFound, onFail) {
           lat: f.geometry.coordinates[1],
           lon: f.geometry.coordinates[0],
           distM: Math.round(haver(lat, lon, f.geometry.coordinates[1], f.geometry.coordinates[0])),
-          type: (f.properties.category || []).find(c => STOP_CATS.has(c)) || 'unknown',
+          // Every category, not the first one. Pelias returns an array, and
+          // an interchange like Hellerud is a metro station AND a kerbside
+          // bus stop — `.find` kept whichever came first and threw the rest
+          // away, so a stop serving two modes was indistinguishable from one
+          // serving one. Nothing read the old `type` but a log line.
+          cats: (f.properties.category || []).filter(c => STOP_CATS.has(c)),
+          modes: modesOf(f.properties.category),
         }))
         .sort((a, b) => a.distM - b.distM);
       if (!stops.length) {
@@ -352,7 +358,7 @@ export function findNearestStation(lat, lon, onFound, onFail) {
       if (!routeHasOrigin()) {
         state.statLL['custom-out'] = { lat: stops[0].lat, lon: stops[0].lon };
       }
-      logMsg('nærmeste: ' + stops[0].name + ' (' + stops[0].type + ')', 'ok');
+      logMsg('nærmeste: ' + stops[0].name + ' (' + (stops[0].modes.join('+') || 'ukjent') + ')', 'ok');
       updateWalkDbg();
       if (onFound) onFound(stops[0]);
     })

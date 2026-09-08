@@ -383,6 +383,32 @@ export function maybeSwitchToReturn() {
 }
 
 /**
+ * «⚡ gikk til Jernbanetorget · velg selv ✕»
+ *
+ * The app moved the reader without being asked, so it says both WHAT it did
+ * and how to undo it — the same contract the trip-home toast keeps. Tapping
+ * the text goes back to the direction list, which is the "snarvei tilbake"
+ * that was asked for; ✕ dismisses and lets you stay.
+ *
+ * Wired once. The board redraws every second, and a listener added per tick
+ * would fire as many times as the screen had been drawn.
+ */
+window._autoJumped = (destName) => {
+  const el = document.getElementById('auto-toast');
+  if (!el) return;
+  const dest = el.querySelector('.auto-toast-dest');
+  if (dest) dest.textContent = destName || '';
+  el.style.display = '';
+  if (!el._jumpBound) {
+    el._jumpBound = true;
+    const back = el.querySelector('.auto-toast-back');
+    if (back) back.addEventListener('click', () => { el.style.display = 'none'; navTo('v-auto'); });
+    const close = el.querySelector('.auto-toast-close');
+    if (close) close.addEventListener('click', () => { el.style.display = 'none'; });
+  }
+};
+
+/**
  * The «hjem 16:20 ✕» line above the board.
  *
  * Reuses #smart-toast, which has been sitting in the markup fully styled —

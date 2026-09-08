@@ -19,7 +19,7 @@ import { registerServiceWorker, initOfflineBanner } from './pwa.js';
 import './views/favs.js';
 import './views/plan.js';
 import { renderLeisure } from './views/leisure.js';
-import { renderAuto, resetAuto } from './views/auto.js';
+import { renderAuto, resetAuto, armAutoJump } from './views/auto.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
 import { landingChoice, exampleDir, isExample, upgradeToNearest } from './firstRun.js';
 import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode, autoModePref, saveAutoMode } from './geo.js';
@@ -184,6 +184,10 @@ if (landing === 'journey') {
   // looking at.
   if (autoModePref() === null) saveAutoMode(true);
   resetAuto();
+  // Only here. Opening the app may go straight to the trip you always take;
+  // tapping ⚡ in the nav bar must not, or the direction list becomes a place
+  // you can only reach by going back.
+  armAutoJump();
   renderAuto();
   show('v-auto');
 } else if (landing === 'leisure') {

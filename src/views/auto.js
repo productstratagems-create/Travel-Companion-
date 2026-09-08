@@ -22,7 +22,7 @@ import { esc } from '../ui/fmt.js';
 import config from '../config.js';
 import { state } from '../state.js';
 import { fetchBoard } from '../api/entur.js';
-import { predictDest } from '../api/smart.js';
+import { predictDest, autoJumpDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf, loadFreq } from '../api/usage.js';
@@ -834,6 +834,52 @@ function _showSort(on) {
   });
 }
 
+/**
+ * Armed by the landing branch, and by nothing else.
+ *
+ * The jump belongs to opening the app, not to the screen. Tapping ⚡ in the
+ * nav bar means "show me the directions" — a jump there would make the list
+ * unreachable except by going back every single time.
+ *
+ * A module variable, like _stopsShown: true while this visit lasts, gone when
+ * you come back. resetAuto clears it, so navTo('v-auto') — which resets on
+ * entry — can never inherit an arming from startup.
+ */
+let _jumpArmed = false;
+export function armAutoJump() { _jumpArmed = true; }
+export function _isJumpArmed() { return _jumpArmed; }
+
+/**
+ * Go where you always go, once, and only when the history is sure.
+ *
+ * Consumes the arming whatever the outcome: a screen that keeps trying every
+ * second would jump the moment a late departure tipped the balance, under the
+ * reader's finger.
+ *
+ * Cancelled if the reader got there first — an opened direction or a pinned
+ * stop means they are already choosing, and moving the screen under someone
+ * who is using it is the worst version of this feature.
+ *
+ * The route is set with chosen:false. _useRouteDir normally records a use in
+ * t.freqArr and t.smartHist, and counting the app's own guess as the reader's
+ * choice would feed the prediction its own output until it could no longer be
+ * disproved. The trip-home switch (nav.js) has always taken the same care.
+ */
+function _maybeJump() {
+  if (!_jumpArmed) return false;
+  _jumpArmed = false;
+  if (_open || _stopPinned || !_stop) return false;
+  const guess = autoJumpDest();
+  if (!guess) return false;
+  const hit = findJumpTarget(_dirs, guess, _stop.name);
+  if (!hit) return false;
+  const dir = autoRoute(_stop, hit.stop);
+  if (!dir) return false;
+  window._autoJumped && window._autoJumped(hit.stop.name);
+  window._useRouteDir(dir, null, { chosen: false });
+  return true;
+}
+
 function _renderBody() {
   const body = _el('auto-body');
   if (!body) return;
@@ -855,6 +901,7 @@ function _renderBody() {
     body.innerHTML = '<div class="dest-prev-empty">Ingen avganger herfra nå.</div>';
     return;
   }
+  if (_maybeJump()) return;
   // The prediction, demoted from gatekeeper to hint: with history the
   // direction you usually take at this hour is marked, and without it every
   // row behaves the same.
@@ -968,6 +1015,42 @@ export function stopShortcuts(stops, arr, n) {
     .map(x => x.i);
 }
 
+/**
+ * The stop this direction list can take you to, if history is sure enough.
+ *
+ * Searches every direction's own stops for the predicted destination — id
+ * first, normalised name as the fallback, the same join `usesOf` and
+ * `nearStopMatch` already use, because the saved history carries a stopId
+ * only when the route was set from one.
+ *
+ * The SOONEST direction wins when two go the same way. Nothing else would
+ * make sense: the jump exists to save a tap on the departure you are about
+ * to make.
+ *
+ * Returns null when the destination is not on any line from here — an
+ * automatic jump towards a place this stop does not serve is worse than no
+ * jump at all.
+ *
+ * @param {Array} dirs groupDirections output, in the order they depart
+ * @param {{toName:string,toStopId:string|null}} guess from autoJumpDest
+ * @param {string} fromName the stop you are standing at — stopsAhead needs the
+ *   origin to know which calls are still ahead of you
+ * @param {number} [now]
+ */
+export function findJumpTarget(dirs, guess, fromName, now) {
+  if (!guess || !guess.toName || !Array.isArray(dirs)) return null;
+  const want = String(guess.toName).toLowerCase().replace(/\s+t$/i, '').trim();
+  const wantId = guess.toStopId || null;
+  const byTime = dirs.slice().sort((a, b) => a.nextMs - b.nextMs);
+  for (const d of byTime) {
+    const stops = stopsAhead(d.call, fromName, now);
+    const hit = stops.find(s => (wantId && s.id && s.id === wantId)
+      || String(s.name || '').toLowerCase().replace(/\s+t$/i, '').trim() === want);
+    if (hit) return { dir: d, stop: hit };
+  }
+  return null;
+}
+
 function _renderStops(body) {
   const stops = stopsAhead(_open.call, _stop.name);
   const stopHtml = (s, i, extra) => '<button class="nearby-btn auto-stop-btn'
@@ -1032,4 +1115,4 @@ export function renderAuto() {
 /** Fresh screen when the mode is entered, so it never opens on a stale stop. */
 export function resetAuto() {
   _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null;
-  _stopsShown = false; }
+  _stopsShown = false; _jumpArmed = false; }

@@ -316,6 +316,12 @@
    .nearby-btn is space-between, and a third child pushes the label adrift. */
 #v-auto .auto-dir .nearby-name { margin-right: auto; text-align: left; }
 #v-auto .nearby-btn { width: 100%; }
+/* One band per mode inside the alternatives. The heading is the same
+   .set-label the rest of this screen uses, so a lane reads as a section and
+   not as a new component. Space above every band but the first, which sits
+   directly under the stop heading. */
+#v-auto .auto-lane + .auto-lane { margin-top: .5rem; }
+#v-auto .auto-lane .set-label { margin-bottom: .25rem; }
 /* Three times, and not three equal weights — the first is the one you act on,
    the rest tell you what missing it costs. Text in the same span rather than
    new flex children: the rule above exists because a third child pushed the

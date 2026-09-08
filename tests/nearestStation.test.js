@@ -209,3 +209,39 @@ describe('statLL — the route owns its departure coordinate', () => {
     expect(state.statLL['custom-out']).toEqual({ lat: found.lat, lon: found.lon });
   });
 });
+
+// The reported ask — swim lanes by mode — turned on a fact the fixture above
+// never exercised: geo.js used `.find` on the category array, so an
+// interchange kept only whichever category Pelias listed first. Hellerud is a
+// metro station AND a kerbside bus stop, and the second fact was thrown away
+// at the door.
+describe('a stop can serve more than one mode', () => {
+  const multi = (name, cats, offsetM) => ({
+    properties: { id: 'NSR:StopPlace:' + name, name, label: name, category: cats },
+    geometry: { coordinates: [at(offsetM).lon, at(offsetM).lat] },
+  });
+
+  it('keeps every transit category, not the first', async () => {
+    const found = await find([multi('Hellerud', ['metroStation', 'onstreetBus'], 200)]);
+    expect(found.cats).toEqual(['metroStation', 'onstreetBus']);
+    expect(found.modes).toEqual(['metro', 'bus']);
+  });
+
+  it('keeps them whichever order the geocoder gives them in', async () => {
+    const found = await find([multi('Hellerud', ['onstreetBus', 'metroStation'], 200)]);
+    expect(found.modes).toEqual(['bus', 'metro']);
+  });
+
+  it('drops categories that are not stops at all', async () => {
+    const found = await find([multi('Hellerud', ['metroStation', 'school'], 200)]);
+    expect(found.cats).toEqual(['metroStation']);
+    expect(found.modes).toEqual(['metro']);
+  });
+
+  it('gives a stop with no known mode an empty list, never undefined', async () => {
+    const found = await find([multi('Rart', ['tramStop'], 50)]);
+    expect(found.modes).toEqual(['tram']);
+    const odd = await find([multi('Rarere', ['railStation'], 50)]);
+    expect(odd.modes).toEqual(['rail']);
+  });
+});

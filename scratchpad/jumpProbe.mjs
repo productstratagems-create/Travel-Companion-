@@ -95,6 +95,12 @@ async function run(label, hist, scheme) {
     localStorage.setItem('default::t.autoMode', '1');
     localStorage.setItem('default::t.homeLL', JSON.stringify(here));
     localStorage.setItem('default::t.smartHist', JSON.stringify(hist));
+    // The shortcuts over the stop list read t.freqArr, which the same
+    // _recordChoice writes — so a reader with history has both. Without this
+    // the probe measured a screen no real reader ever sees.
+    localStorage.setItem('default::t.freqArr', JSON.stringify(
+      hist.map(h => ({ name: h.toName, stopId: h.toStopId, lat: h.toLat, lon: h.toLon,
+        count: h.count, lastUsed: h.lastUsed }))));
   }, { now: NOW, here: HERE, hist });
 
   await page.route('**/geocoder/**', r => r.fulfill({ status: 200, contentType: 'application/json',
@@ -125,7 +131,10 @@ async function run(label, hist, scheme) {
       mål: (document.getElementById('dir-dest') || {}).textContent || null,
       retninger: Array.from(document.querySelectorAll('#auto-body .auto-dir'))
         .map(e => e.textContent.replace(/\s+/g, ' ').trim().slice(0, 30)),
-      brukt: localStorage.getItem('default::t.freqArr'),
+      // Seeded at 12. If the jump were recorded as a choice it would read 13
+      // — and the prediction would be feeding on its own output.
+      teller: (JSON.parse(localStorage.getItem('default::t.freqArr') || '[]')
+        .find(e => e.name === 'Jernbanetorget') || {}).count,
     };
   });
 
@@ -135,7 +144,7 @@ async function run(label, hist, scheme) {
   console.log('  stripe     :', a.stripe);
   if (a.skjerm === 'v-board') console.log('  tavla      :', a.overskrift, '→', a.mål);
   if (a.retninger.length) a.retninger.forEach(r => console.log('    retning:', r));
-  console.log('  talt som valg:', a.brukt);
+  console.log('  Jernbanetorget teller:', a.teller, '(seedet 12 \u2014 13 ville betydd at hoppet ble talt)');
 
   fs.mkdirSync('scratchpad/shots', { recursive: true });
   await page.screenshot({ path: 'scratchpad/shots/jump-' + label + '-' + scheme + '.png', animations: 'disabled' });
@@ -148,6 +157,28 @@ async function run(label, hist, scheme) {
     console.log('  skjerm     :', b.skjerm);
     b.retninger.forEach(r => console.log('    retning:', r));
     await page.screenshot({ path: 'scratchpad/shots/jump-' + label + '-tilbake-' + scheme + '.png', animations: 'disabled' });
+
+    // The screen the reader actually pointed at: the stops inside a
+    // direction, with «ofte brukt» above the full line. After a jump and a
+    // tap back it must be exactly what it was before — the jump skips it, it
+    // does not change it.
+    await page.click('#auto-body .auto-dir');
+    await page.waitForTimeout(800);
+    const c = await page.evaluate(() => ({
+      tilbakeknapp: (document.querySelector('.auto-back-dir') || {}).textContent || null,
+      merkelapper: Array.from(document.querySelectorAll('#auto-body .set-label'))
+        .map(e => e.textContent.replace(/\s+/g, ' ').trim()),
+      snarveier: Array.from(document.querySelectorAll('#auto-body .auto-fav-stop'))
+        .map(e => e.textContent.replace(/\s+/g, ' ').trim()),
+      alle: Array.from(document.querySelectorAll('#auto-body .auto-stop-btn:not(.auto-fav-stop)'))
+        .map(e => e.textContent.replace(/\s+/g, ' ').trim()),
+    }));
+    console.log('  ── stopplista, etter \u00e5 ha trykket inn selv ──');
+    console.log('  tilbake  :', c.tilbakeknapp);
+    console.log('  merkelapper:', c.merkelapper.join(' | '));
+    c.snarveier.forEach(x => console.log('    ofte brukt:', x));
+    c.alle.forEach(x => console.log('    stopp     :', x));
+    await page.screenshot({ path: 'scratchpad/shots/jump-' + label + '-stopplista-' + scheme + '.png', animations: 'disabled' });
   }
   await ctx.close();
 }

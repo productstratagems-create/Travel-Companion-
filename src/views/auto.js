@@ -27,7 +27,7 @@ import { renderRouteShortcuts } from '../ui/favs.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf, loadFreq } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
-import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M } from '../geo.js';
+import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo } from '../geo.js';
 
 const MIN = 60000;
 /**
@@ -851,6 +851,74 @@ function _timesHtml(d, now) {
 }
 
 /**
+ * Do all these directions leave the stop the same way?
+ *
+ * The guard on advancing by yourself. At Mortensrud — a terminus — «mot
+ * Stortinget» and «mot Kolsås» both run the same way out and differ only in
+ * how far they go, so picking the sooner one is plainly right. At a
+ * mid-line stop like Tøyen the two metro directions are OPPOSITE, and
+ * "soonest" would send the reader the wrong way.
+ *
+ * The test is the first stop after yours, from `stopsAhead` — data already in
+ * the answer, no extra request.
+ *
+ * A PROXY, and named as one. It promises that the choice cannot send you out
+ * of this stop in the wrong direction. It does NOT promise the lines stay
+ * together: two metros can share the first stop and part five stops later.
+ * There the back button is the answer, and that is a far smaller error than
+ * being sent the opposite way.
+ */
+export function sameWayOut(dirs, fromName, now) {
+  const list = dirs || [];
+  if (list.length < 2) return list.length === 1;
+  let first = null;
+  for (const d of list) {
+    const ahead = stopsAhead(d.call, fromName, now);
+    if (!ahead.length) return false;
+    const key = ahead[0].id || String(ahead[0].name || '').toLowerCase();
+    if (first === null) first = key;
+    else if (key !== first) return false;
+  }
+  return true;
+}
+
+/**
+ * The metro to open by itself: the soonest one you can actually catch.
+ *
+ * Chosen on `dirRank`, NOT on position in the list. With «Tog først» the
+ * metro rows sit at the bottom, and a rule that read the top of the list
+ * would quietly follow the sort switch instead of the mode.
+ *
+ * "Catch" is the whole of it. Measured on the reported screen: 637 m from the
+ * stop is about eight minutes' walk, and the soonest metro was two minutes
+ * away — advancing onto that one points at a train that is gone before you
+ * arrive. So the soonest departure at least `walkMins` away wins, and if none
+ * is, nothing opens and the list stands.
+ *
+ * Liveness is the list's own rule — a row whose times have all passed is one
+ * the screen has already stopped showing, and it must not be chosen off a raw
+ * nextMs that is still in the array.
+ *
+ * @param {Array} dirs groupDirections output
+ * @param {string} fromName the stop you are standing at
+ * @param {number} now
+ * @param {number|null} walkMins minutes to reach the stop; null skips the test
+ */
+export function nextMetro(dirs, fromName, now, walkMins) {
+  const t = now == null ? Date.now() : now;
+  const metros = (dirs || []).filter(d => dirRank(d) === 0 && _timesHtml(d, t) !== '');
+  if (!metros.length) return null;
+  if (!sameWayOut(metros, fromName, t)) return null;
+  const need = walkMins == null ? 0 : walkMins;
+  const catchable = metros
+    .map(d => ({ d, at: (d.times || []).find(ms => (ms - t) / MIN >= need) }))
+    .filter(x => x.at != null)
+    .sort((a, b) => a.at - b.at);
+  return catchable.length ? catchable[0].d : null;
+}
+
+
+/**
  * The sort switch is only there when there is something to sort.
  *
  * Not while a direction is open (that screen is a list of stops in line
@@ -919,9 +987,35 @@ export function _isJumpArmed() { return _jumpArmed; }
  * choice would feed the prediction its own output until it could no longer be
  * disproved. The trip-home switch (nav.js) has always taken the same care.
  */
+/**
+ * One step, when going all the way is not warranted.
+ *
+ * The complement to _maybeJump. With a clear favourite in the history the app
+ * goes to the board; without one it should still take the obvious step, which
+ * on a screen of seven directions is the metro that leaves first.
+ *
+ * Shares the SAME arming — one flag, two steps — so this can only happen when
+ * opening the app, never when the reader taps ⚡ asking for the list. And it
+ * is tried only after the jump has declined, so the two can never both fire.
+ *
+ * Opens `_open` on the identical object from `_dirs`, so «← alle retninger»
+ * and the data-i contract are untouched. No toast: this does not move the
+ * reader off the screen, it unfolds one step of it, and the way back is
+ * already at the top of the stop list.
+ */
+function _maybeAdvance() {
+  if (_open || _stopPinned || !_stop) return false;
+  const walk = walkMinsTo(_stop);
+  const hit = nextMetro(_dirs, _stop.name, Date.now(), walk && walk.mins);
+  if (!hit) return false;
+  _open = hit;
+  logMsg('auto: åpnet ' + hit.frontText
+    + (walk ? ' (' + walk.mins + ' min gange)' : ''), 'ok');
+  _renderBody();
+  return true;
+}
+
 function _maybeJump() {
-  if (!_jumpArmed) return false;
-  _jumpArmed = false;
   if (_open || _stopPinned || !_stop) return false;
   const guess = autoJumpDest();
   if (!guess) return false;
@@ -955,7 +1049,20 @@ function _renderBody() {
     body.innerHTML = '<div class="dest-prev-empty">Ingen avganger herfra nå.</div>';
     return;
   }
-  if (_maybeJump()) return;
+  // ONE ARMING, TWO STEPS — and the arming is consumed HERE, by the caller.
+  //
+  // It used to be consumed inside each step, and _maybeJump cleared it before
+  // returning false: the second step could then never run, because the flag
+  // it checked was already gone. The unit tests of both pieces passed, and
+  // the browser probe caught it — the screen simply stayed on the list.
+  //
+  // Consumed whatever the outcome: a screen that retried every second would
+  // advance the moment a late departure tipped the balance, under the
+  // reader's finger.
+  if (_jumpArmed) {
+    _jumpArmed = false;
+    if (_maybeJump() || _maybeAdvance()) return;
+  }
   // The prediction, demoted from gatekeeper to hint: with history the
   // direction you usually take at this hour is marked, and without it every
   // row behaves the same.

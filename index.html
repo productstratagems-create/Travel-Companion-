@@ -94,6 +94,14 @@
     <span>⚡ auto → <strong class="smart-toast-dest"></strong></span>
     <button class="smart-toast-cancel" type="button" aria-label="Avbryt auto-reise">✕</button>
   </div>
+  <!-- The app went somewhere by itself, and says so. Its OWN element rather
+       than a second use of #smart-toast: the trip-home toast rewrites that
+       label permanently (nav.js), so one node shared by two independent
+       messages can only ever end up stuck on the last one. -->
+  <div id="auto-toast" class="smart-toast" style="display:none" role="status" aria-live="polite">
+    <button class="auto-toast-back" type="button">⚡ gikk til <strong class="auto-toast-dest"></strong> · velg selv</button>
+    <button class="smart-toast-cancel auto-toast-close" type="button" aria-label="Lukk">✕</button>
+  </div>
   <div id="follow-jny-panel" style="display:none"></div>
   <div id="plan-ctx" style="display:none"></div>
   <div id="board-error" role="alert" class="status-error-box" style="display:none"></div>

@@ -59,13 +59,24 @@ export function renderFavs() {
  * prediction engine. `favId` is optional; a shortcut drawn from the history
  * has no favourite to mark as used.
  */
-window._useRouteDir = (dir, favId) => {
+window._useRouteDir = (dir, favId, opts) => {
   if (!dir) return;
   // Loading a favourite used to record nothing at all, so the routes people
   // actually tap were invisible to the one mechanism measuring taps — and to
   // the smart engine, which only ever heard about «bruk rute» and deep links.
   if (favId) markFavUsed(favId);
-  setActiveRoute(dir, { chosen: true });
+  // A tap is a choice; the app's own guess is not. Auto-reise's jump comes
+  // through here with chosen:false, because counting a prediction as a
+  // decision would let it feed on its own output until nothing could
+  // disprove it. Everyone else keeps today's behaviour by omitting opts.
+  const chosen = !(opts && opts.chosen === false);
+  // A real choice retires the "the app went here" line. Left standing it
+  // would claim the app picked a route the reader picked themselves.
+  if (chosen) {
+    const t = document.getElementById('auto-toast');
+    if (t) t.style.display = 'none';
+  }
+  setActiveRoute(dir, { chosen });
   updateHeader();
   state.deps = [];
   show('v-board');

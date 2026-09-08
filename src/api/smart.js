@@ -67,19 +67,59 @@ export function loadSmartHist() {
  *
  * Falls back to freqArr (no time dimension) if smart history is empty.
  */
+export function destRanking(at) {
+  const now = at == null ? new Date() : new Date(at);
+  const bucket = Math.floor(now.getHours() / 2);
+  const isWeekend = now.getDay() === 0 || now.getDay() === 6;
+  const best = new Map();
+  _load().forEach(e => {
+    const diff = Math.abs(e.bucket - bucket);
+    if (diff > 2) return;
+    const score = e.count * (diff === 0 ? 3 : diff === 1 ? 2 : 1) * (e.isWeekend === isWeekend ? 2 : 0.5);
+    // ONE ENTRY PER DESTINATION. The history is keyed by destination AND
+    // time bucket, so the same place appears several times over — and two
+    // rows for Jernbanetorget would look like a contest between it and
+    // itself, which is how a dead heat turns into a landslide.
+    const k = String(e.toName || '').toLowerCase();
+    if (!k) return;
+    const prev = best.get(k);
+    if (!prev || score > prev.score) {
+      best.set(k, { fromName: e.fromName || null, toName: e.toName, toStopId: e.toStopId,
+        fromStopId: e.fromStopId || null, score });
+    }
+  });
+  return [...best.values()].sort((a, b) => b.score - a.score);
+}
+
+/**
+ * How far ahead the favourite must be before the app acts on it by itself.
+ *
+ * Twice the runner-up. Below that the two are close enough that jumping is as
+ * likely to be wrong as right, and being sent to the wrong place costs more
+ * than the tap it saved.
+ */
+export const JUMP_RATIO = 2;
+
+/**
+ * Where to go without being asked — or null, which is the usual answer.
+ *
+ * Deliberately stricter than `predictDest`, because this one MOVES you.
+ * Real history only: the freqArr fallback has score 0 and no sense of time,
+ * so acting on it would mean jumping on the strength of a single past trip.
+ */
+export function autoJumpDest(at) {
+  const ranked = destRanking(at);
+  const top = ranked[0];
+  if (!top || !(top.score > 0)) return null;
+  const rival = ranked[1];
+  if (rival && top.score < JUMP_RATIO * rival.score) return null;
+  return { toName: top.toName, toStopId: top.toStopId || null, score: top.score };
+}
+
 export function predictDest(at) {
   const hist = _load();
   if (hist.length) {
-    const now = at == null ? new Date() : new Date(at);
-    const bucket = Math.floor(now.getHours() / 2);
-    const isWeekend = now.getDay() === 0 || now.getDay() === 6;
-    let best = null, bestScore = 0;
-    hist.forEach(e => {
-      const diff = Math.abs(e.bucket - bucket);
-      if (diff > 2) return;
-      const score = e.count * (diff === 0 ? 3 : diff === 1 ? 2 : 1) * (e.isWeekend === isWeekend ? 2 : 0.5);
-      if (score > bestScore) { bestScore = score; best = { fromName: e.fromName || null, toName: e.toName, toStopId: e.toStopId, fromStopId: e.fromStopId || null, score }; }
-    });
+    const best = destRanking(at)[0];
     if (best) return { ...best, source: 'smart' };
   }
   // Fallback: most-visited arrival regardless of time

@@ -162,24 +162,34 @@ export function haver(la1, lo1, la2, lo2) {
  * route has been fetched and drawn once, and the sanity band in `walkDist`
  * rejects a nonsense one — so `× 1.3` remains the answer on a first run, on a
  * new pair of points, and whenever the router says something impossible.
+ *
+ * SPLIT IN TWO because auto-reise needs the same arithmetic for a DIFFERENT
+ * stop. `walkInfo` reads `config.dirs[state.dIdx]` — the active route's
+ * station — and could never answer "how long to the stop I am standing near".
+ * `walkMinsTo` takes the stop; `walkInfo` is the thin wrapper that supplies
+ * the active route's one. Two places computing walking time is how they drift
+ * apart, and this one decides when someone leaves.
  */
+export function walkMinsTo(stopLL, fromLL) {
+  const pos = fromLL || state.walkFromLL || state.homeLL;
+  if (!pos || !stopLL || stopLL.lat == null || stopLL.lon == null) return null;
+  const spd = SPEED_MPN[loadWalkSpeed()] || 83.33;
+  const buf = loadWalkBuffer();
+  const crow = haver(pos.lat, pos.lon, stopLL.lat, stopLL.lon);
+  const measured = getWalkDist(pos, stopLL, crow);
+  const d = measured != null ? measured : crow * 1.3;
+  return {
+    mins: Math.max(1, Math.ceil(d / spd)) + buf,
+    dist: Math.round(d),
+    src: measured != null ? 'gangrute' : (state.walkFromLL ? 'sted' : 'beregnet'),
+  };
+}
+
 export function walkInfo() {
   if (state.walkOvr !== null) return { mins: state.walkOvr, src: 'manuelt' };
-  const pos = state.walkFromLL || state.homeLL;
   const sc = state.statLL[config.dirs[state.dIdx].key];
-  if (pos && sc) {
-    const spd = SPEED_MPN[loadWalkSpeed()] || 83.33;
-    const buf = loadWalkBuffer();
-    const crow = haver(pos.lat, pos.lon, sc.lat, sc.lon);
-    const measured = getWalkDist(pos, sc, crow);
-    const d = measured != null ? measured : crow * 1.3;
-    return {
-      mins: Math.max(1, Math.ceil(d / spd)) + buf,
-      dist: Math.round(d),
-      src: measured != null ? 'gangrute' : (state.walkFromLL ? 'sted' : 'beregnet'),
-    };
-  }
-  return { mins: config.defaultWalkMinutes, src: 'standard' };
+  const w = walkMinsTo(sc);
+  return w || { mins: config.defaultWalkMinutes, src: 'standard' };
 }
 
 /**

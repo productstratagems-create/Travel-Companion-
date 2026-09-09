@@ -180,3 +180,33 @@ describe('the app’s own guess is not the reader’s choice', () => {
     vi.doUnmock('../src/ui/nav.js');
   });
 });
+
+
+// ── The second step ────────────────────────────────────────────────────────
+//
+// One arming, two steps: all the way to the board when the history is sure,
+// otherwise one step to the metro you can catch. The unit tests cover both
+// pieces; this is the hand-off between them, which is where v1.90.0 shipped a
+// surviving mutant.
+describe('the jump and the advance share one arming', () => {
+  it('never both fires — the jump is tried first', () => {
+    const auto = fs.readFileSync(path.resolve(__dirname, '../src/views/auto.js'), 'utf8');
+    // Short-circuit: _maybeAdvance is only reached when _maybeJump declined.
+    expect(auto).toMatch(/_maybeJump\(\)\s*\|\|\s*_maybeAdvance\(\)/);
+    // The arming is consumed by the CALLER, not inside each step. It used to
+    // be consumed inside, and _maybeJump cleared it before returning false —
+    // so the second step could never run. Both unit tests passed; the browser
+    // probe is what caught it.
+    expect(auto).toMatch(/if \(_jumpArmed\) \{\s*\n\s*_jumpArmed = false;/);
+    const jump = auto.slice(auto.indexOf('function _maybeJump'));
+    expect(jump.slice(0, 300)).not.toMatch(/_jumpArmed/);
+    const advance = auto.slice(auto.indexOf('function _maybeAdvance'));
+    expect(advance.slice(0, 300)).not.toMatch(/_jumpArmed/);
+  });
+
+  it('is cancelled when the reader is already choosing', () => {
+    const auto = fs.readFileSync(path.resolve(__dirname, '../src/views/auto.js'), 'utf8');
+    const advance = auto.slice(auto.indexOf('function _maybeAdvance'));
+    expect(advance.slice(0, 400)).toMatch(/if \(_open \|\| _stopPinned \|\| !_stop\) return false;/);
+  });
+});

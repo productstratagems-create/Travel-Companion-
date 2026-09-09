@@ -74,13 +74,13 @@ describe('where a coach ranks on auto-reise', () => {
 
   // Not a Ruter bus, which is exactly what it is: "andre busser".
   it('ranks with the other buses, not as unknown', () => {
-    expect(dirRank(row('coach', 'VYX:Line:NW180'))).toBe(rankOf('annenbuss'));
-    expect(dirRank(row('coach', 'VYX:Line:NW180'))).not.toBe(rankOf('ukjent'));
+    expect(dirRank(row('coach', 'VYX:Line:NW180'), 'RUT:')).toBe(rankOf('annenbuss'));
+    expect(dirRank(row('coach', 'VYX:Line:NW180'), 'RUT:')).not.toBe(rankOf('ukjent'));
   });
 
-  it('does not become a Ruter bus on a RUT codespace', () => {
+  it('does become a local bus on the local codespace', () => {
     // Hypothetical, but the rule should be the same one either way.
-    expect(dirRank(row('coach', 'RUT:Line:1'))).toBe(rankOf('rutebuss'));
+    expect(dirRank(row('coach', 'RUT:Line:1'), 'RUT:')).toBe(rankOf('rutebuss'));
   });
 });
 

@@ -4,7 +4,7 @@ import { recordSmartTrip } from '../api/smart.js';
 import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
 import { loadFreq, trackPlace } from '../api/usage.js';
-import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, landingPref, saveLandingPref } from '../geo.js';
+import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, landingPref, saveLandingPref, geoFocus, focusParam } from '../geo.js';
 import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
 import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
@@ -12,6 +12,15 @@ import { fetchNearbyPlaces } from '../api/places.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { loadReturn, saveReturn, clearReturn, reverseOf, suggestHHMM, returnWindow, skipToday } from '../api/returnTrip.js';
 import { loadSmartHist } from '../api/smart.js';
+
+/**
+ * How far from you a typed destination may be and still be offered.
+ *
+ * Eighty kilometres: far enough for Drammen from Oslo or Voss from Bergen,
+ * short enough that Stockholm and Longyearbyen stay out of a list of places
+ * you could plausibly travel to this evening.
+ */
+export const DEST_MAX_M = 80000;
 
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
@@ -80,7 +89,7 @@ function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbo
     if (getAbort()) getAbort().abort();
     const ctrl = new AbortController();
     setAbort(ctrl);
-    enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(query) + '&size=8&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522',
+    enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(query) + '&size=8&layers=venue' + focusParam(),
       { signal: ctrl.signal })
       .then(r => r.json())
       .then(j => {
@@ -89,9 +98,16 @@ function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbo
         if (!sugg || !inp2) return;
         const stops = ((j && j.features) || [])
           .filter(f => (f.properties.category || []).some(c => TRANSIT_CATEGORIES.includes(c)))
+          // The radius exists to keep hits in Sweden and on Svalbard out of a
+          // list of places you could plausibly travel to — a job that is the
+          // same in Bergen as in Oslo. It used to be drawn around OSLO S, so
+          // a destination typed in Bergen was not merely unranked but
+          // discarded, 306 km outside a circle the reader could not move.
+          // Now it is drawn around you, and Oslo S only when nothing is known.
           .filter(f => {
             const coords = f.geometry && f.geometry.coordinates;
-            return coords && haver(coords[1], coords[0], 59.9139, 10.7522) < 80000;
+            const c = geoFocus();
+            return coords && haver(coords[1], coords[0], c.lat, c.lon) < DEST_MAX_M;
           });
         stopMap.clear();
         sugg.innerHTML = '';

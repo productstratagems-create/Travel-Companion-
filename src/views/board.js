@@ -5,7 +5,7 @@ import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { walkKey } from '../api/walkDist.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins, geoFocus } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, _rowDest } from '../api/adapt.js';
@@ -419,7 +419,8 @@ function _ensureMap(pos) {
   _bMap = createMap(mapEl, { scale: true });
   _bMap.on('dragstart', () => { _bUserMoved = true; });
   _bLayer = L.layerGroup().addTo(_bMap);
-  const c = pos || { lat: 59.9139, lon: 10.7522 };
+  // Oslo S only when the app knows nothing — geoFocus says what it does know.
+  const c = pos || geoFocus();
   _bMap.setView([c.lat, c.lon], 14);
   setTimeout(() => _bMap && _bMap.invalidateSize(), 100);
   const expandBtn = document.getElementById('board-map-expand');
@@ -455,7 +456,7 @@ function renderBoardMap(pos, modes) {
   if (mapKey === _bMapKey) return;
   _bMapKey = mapKey;
 
-  const fetchPos = pos || { lat: 59.9139, lon: 10.7522 };
+  const fetchPos = pos || geoFocus();
   const transitModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
   // Only fetch stops near the user — destination-side stops add clutter without
   // helping the user decide which departure to board.

@@ -208,8 +208,39 @@ export function groupDirections(calls, now) {
  * busser". The worst outcome is a Ruter bus sinking a little. Never a row
  * disappearing.
  */
-/** The NeTEx codespace Ruter publishes under. */
-const RUTER_CODESPACE = 'RUT:';
+/**
+ * Which operator's buses are the LOCAL ones — read off the stop itself.
+ *
+ * This used to be the literal 'RUT:'. Ruter's codespace, written into the
+ * ranking, which meant that outside Ruter's area EVERY bus fell into «andre
+ * busser» while the group named after the local operator stood empty. In
+ * Bergen the split said the exact opposite of the truth.
+ *
+ * The codespace running the most bus departures AT THIS STOP is the local
+ * network there, whether that is RUT:, SKY: or ATB:. Self-configuring — and
+ * this is the point — it needs no table of codespaces written from memory.
+ * The sandbox cannot reach Entur to check one, and a guessed field value has
+ * cost this project a release before.
+ *
+ * A tie means we do not know, and then there is no local operator: one bus
+ * group beats a confident wrong split.
+ */
+export function localCodespace(dirs) {
+  const counts = new Map();
+  (dirs || []).forEach(d => {
+    const ln = d && d.call && d.call.serviceJourney && d.call.serviceJourney.line;
+    if (normMode((ln && ln.transportMode) || null) !== 'bus') return;
+    const id = String((ln && ln.id) || '');
+    const i = id.indexOf(':');
+    if (i < 1) return;
+    const cs = id.slice(0, i + 1);
+    counts.set(cs, (counts.get(cs) || 0) + 1);
+  });
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  if (!ranked.length) return null;
+  if (ranked.length > 1 && ranked[0][1] === ranked[1][1]) return null;
+  return ranked[0][0];
+}
 
 /**
  * The groups, in order, with the words the screen uses for them.
@@ -228,7 +259,9 @@ const RUTER_CODESPACE = 'RUT:';
 export const RANKS = [
   { key: 'metro',     label: 'T-bane' },
   { key: 'tram',      label: 'Trikk' },
-  { key: 'rutebuss',  label: 'Ruter-buss' },
+  // Named for what it is, not for who runs it: the operator differs by
+  // city, and the app no longer claims to know which one you are looking at.
+  { key: 'rutebuss',  label: 'Lokalbuss' },
   { key: 'annenbuss', label: 'Andre busser' },
   { key: 'rail',      label: 'Tog' },
   // An unknown mode is still a departure. Last, never dropped, and never a
@@ -239,25 +272,43 @@ export const RANKS = [
 const _RANK_OF = Object.fromEntries(RANKS.map((r, i) => [r.key, i]));
 
 /** Which group a direction belongs to. Lower comes first. */
-export function dirRank(d) {
+export function dirRank(d, local) {
   const ln = d && d.call && d.call.serviceJourney && d.call.serviceJourney.line;
-  // An express coach is a bus here, and not a Ruter one — it ranks with
+  // An express coach is a bus here, and not a local one — it ranks with
   // "andre busser", which is exactly what it is.
   const mode = normMode((ln && ln.transportMode) || null);
   if (mode === 'metro') return _RANK_OF.metro;
   if (mode === 'tram') return _RANK_OF.tram;
   if (mode === 'bus') {
-    return String((ln && ln.id) || '').startsWith(RUTER_CODESPACE)
+    // No local operator known — one bus, or a dead heat — means ONE bus
+    // group rather than a wrong split. The two keys are adjacent, so the
+    // list still reads as a single run of buses.
+    if (!local) return _RANK_OF.annenbuss;
+    return String((ln && ln.id) || '').startsWith(local)
       ? _RANK_OF.rutebuss : _RANK_OF.annenbuss;
   }
   if (mode === 'rail') return _RANK_OF.rail;
   return _RANK_OF.ukjent;
 }
 
-/** The two ends of the list, which are what the switch offers. */
-export function sortEndLabels() {
+/**
+ * The two ends of the list, which are what the switch offers.
+ *
+ * NAMED FOR WHAT IS ACTUALLY HERE. This used to take the ends of RANKS
+ * outright, so the switch said «T-bane først» at a Bergen stop that has no
+ * metro at all — seen on the screen, not in any number — and «Tog først» at
+ * any Oslo stop with no trains. A control that names a group it cannot show
+ * is worse than one that names nothing.
+ *
+ * With nothing to look at, the old answer stands: on a first render the
+ * labels have to say something.
+ */
+export function sortEndLabels(dirs, local) {
   const named = RANKS.filter(r => r.label);
-  return { asc: named[0].label, desc: named[named.length - 1].label };
+  const here = named.filter(r =>
+    (dirs || []).some(d => dirRank(d, local) === _RANK_OF[r.key]));
+  const use = here.length ? here : named;
+  return { asc: use[0].label, desc: use[use.length - 1].label };
 }
 
 /**
@@ -287,14 +338,14 @@ export function sortEndLabels() {
  *
  * @param {boolean} desc
  */
-export function dirCmp(desc) {
+export function dirCmp(desc, local) {
   const way = desc ? -1 : 1;
-  return (a, b) => ((dirRank(a) - dirRank(b)) * way) || (a.nextMs - b.nextMs);
+  return (a, b) => ((dirRank(a, local) - dirRank(b, local)) * way) || (a.nextMs - b.nextMs);
 }
 
 /** The rows in the reader's chosen order. Pure; does not touch the input. */
-export function sortDirs(rows, desc) {
-  return (rows || []).slice().sort(dirCmp(desc));
+export function sortDirs(rows, desc, local) {
+  return (rows || []).slice().sort(dirCmp(desc, local));
 }
 
 /**
@@ -311,8 +362,8 @@ export function sortDirs(rows, desc) {
  *
  * @param {(d) => boolean} keep drops rows whose departures have all gone
  */
-export function dirRows(dirs, desc, keep) {
-  const cmp = dirCmp(desc);
+export function dirRows(dirs, desc, keep, local) {
+  const cmp = dirCmp(desc, local);
   return (dirs || []).map((d, i) => ({ d, i }))
     .filter(({ d }) => (keep ? keep(d) : true))
     .sort((a, b) => cmp(a.d, b.d));
@@ -904,9 +955,16 @@ export function sameWayOut(dirs, fromName, now) {
  * @param {number} now
  * @param {number|null} walkMins minutes to reach the stop; null skips the test
  */
-export function nextMetro(dirs, fromName, now, walkMins) {
+export function nextRail(dirs, fromName, now, walkMins) {
   const t = now == null ? Date.now() : now;
-  const metros = (dirs || []).filter(d => dirRank(d) === 0 && _timesHtml(d, t) !== '');
+  const live = (dirs || []).filter(d => _timesHtml(d, t) !== '');
+  // THE RAIL-BOUND MODE THIS STOP ACTUALLY HAS. It used to be metro, full
+  // stop — so in Bergen, where the rail-bound network is Bybanen and
+  // Transmodel calls it `tram`, this feature was permanently dead. Metro
+  // first where a stop has both, which is the Oslo case and unchanged there.
+  const railish = [_RANK_OF.metro, _RANK_OF.tram].find(r => live.some(d => dirRank(d) === r));
+  if (railish == null) return null;
+  const metros = live.filter(d => dirRank(d) === railish);
   if (!metros.length) return null;
   if (!sameWayOut(metros, fromName, t)) return null;
   const need = walkMins == null ? 0 : walkMins;
@@ -933,7 +991,7 @@ function _showSort(on) {
   el.style.display = on ? '' : 'none';
   if (!on) return;
   const { desc } = loadAutoSort();
-  const ends = sortEndLabels();
+  const ends = sortEndLabels(_dirs, localCodespace(_dirs));
   el.querySelectorAll('.pref-btn').forEach(b => {
     const wantsDesc = b.dataset.val === 'desc';
     const active = wantsDesc === desc;
@@ -1006,7 +1064,7 @@ export function _isJumpArmed() { return _jumpArmed; }
 function _maybeAdvance() {
   if (_open || _stopPinned || !_stop) return false;
   const walk = walkMinsTo(_stop);
-  const hit = nextMetro(_dirs, _stop.name, Date.now(), walk && walk.mins);
+  const hit = nextRail(_dirs, _stop.name, Date.now(), walk && walk.mins);
   if (!hit) return false;
   _open = hit;
   logMsg('auto: åpnet ' + hit.frontText
@@ -1074,7 +1132,7 @@ function _renderBody() {
   // choice any more. The screen counts down now (v1.71.0), so rows can age
   // past their own contents — and a row naming a direction with no time
   // beside it promises something the stop board is not saying.
-  const live = dirRows(_dirs, loadAutoSort().desc, d => _timesHtml(d, now));
+  const live = dirRows(_dirs, loadAutoSort().desc, d => _timesHtml(d, now), localCodespace(_dirs));
   if (!live.length) {
     _showSort(false);
     body.innerHTML = '<div class="dest-prev-empty">Ingen avganger herfra nå.</div>';

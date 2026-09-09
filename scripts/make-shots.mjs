@@ -209,23 +209,29 @@ const BASE = `http://localhost:${PORT}/`;
 
 /* The share card. Deliberately self-contained and system-font: this page is
    never served, it exists for one screenshot, and a webfont that fails to
-   load would silently change the picture. */
+   load would silently change the picture.
+
+   The colours are the blågrå dark tokens, written out rather than read from
+   tokens.css because this markup never loads the app's stylesheets. When the
+   default palette changed, the phone inside the card turned blue-grey while
+   the frame around it stayed amber — a card that contradicted the app it was
+   advertising. Seen on the rendered image, not in any number. */
 const CARD_HTML = `<!doctype html><meta charset="utf-8"><style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{width:1200px;height:630px;display:flex;align-items:center;gap:72px;
-    padding:0 80px;background:#0a0806;color:#f7f2e8;overflow:hidden;
+    padding:0 80px;background:#0f172a;color:#e2e8f0;overflow:hidden;
     font-family:"Helvetica Neue",Arial,sans-serif;
-    background-image:radial-gradient(90% 70% at 18% 40%,rgba(245,160,0,.13),transparent 70%)}
+    background-image:radial-gradient(90% 70% at 18% 40%,rgba(96,165,250,.14),transparent 70%)}
   .copy{flex:1;min-width:0}
   .eyebrow{font-size:22px;letter-spacing:.32em;text-transform:uppercase;
-    color:#f5a000;margin-bottom:26px}
+    color:#60a5fa;margin-bottom:26px}
   h1{font-size:82px;line-height:.98;letter-spacing:-.02em;font-weight:800}
-  h1 em{font-style:normal;color:#f5a000}
-  p{font-size:29px;line-height:1.4;color:#c9bfae;margin-top:26px;max-width:19em}
+  h1 em{font-style:normal;color:#60a5fa}
+  p{font-size:29px;line-height:1.4;color:#94a3b8;margin-top:26px;max-width:19em}
   .url{font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;font-size:20px;
-    color:#8b8073;margin-top:38px;letter-spacing:.02em}
+    color:#64748b;margin-top:38px;letter-spacing:.02em}
   .phone{flex:0 0 300px;height:551px;border-radius:34px;overflow:hidden;
-    border:2px solid rgba(247,242,232,.16);box-shadow:0 30px 70px rgba(0,0,0,.6)}
+    border:2px solid rgba(226,232,240,.16);box-shadow:0 30px 70px rgba(0,0,0,.6)}
   .phone img{width:100%;display:block}
 </style>
 <div class="copy">

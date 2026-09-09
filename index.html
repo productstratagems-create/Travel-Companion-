@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0a0806">
+<meta name="theme-color" content="#0f172a">
 <title>T-bane — sanntid for Oslo og Viken</title>
 <meta name="description" content="Sanntids avganger for T-bane, buss, trikk og tog i Oslo og Viken — når du må gå hjemmefra, hele traseen på kartet, og hva som venter deg framme.">
 <link rel="manifest" href="manifest.webmanifest">
@@ -34,7 +34,7 @@
 /* Paint the right theme before first render. Keys are profile-scoped by
    storage.js, so they must be read with the same prefix — reading the bare
    key always missed and fell back to system, flashing the wrong theme. */
-(function(){try{var p=localStorage.getItem('__activeProfile')||'default';var g=function(k){return localStorage.getItem(p+'::'+k)};var t=g('t.theme')||'system';var pal=g('t.palette')||'standard';var d=document.documentElement;d.setAttribute('data-theme',(t==='light'||(t==='system'&&window.matchMedia('(prefers-color-scheme:light)').matches))?'light':'dark');d.setAttribute('data-palette',pal==='bluegrey'?'bluegrey':'standard')}catch(e){}}())
+(function(){try{var p=localStorage.getItem('__activeProfile')||'default';var g=function(k){return localStorage.getItem(p+'::'+k)};var t=g('t.theme')||'dark';var pal=g('t.palette')||'bluegrey';var d=document.documentElement;d.setAttribute('data-theme',(t==='light'||(t==='system'&&window.matchMedia('(prefers-color-scheme:light)').matches))?'light':'dark');d.setAttribute('data-palette',pal==='standard'?'standard':'bluegrey')}catch(e){}}())
 </script>
 </head>
 <body>

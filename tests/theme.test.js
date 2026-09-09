@@ -10,7 +10,10 @@ vi.mock('../src/storage.js', () => ({
   },
 }));
 
-import { loadTheme, loadPalette, setTheme, setPalette, applyTheme, initTheme, PALETTES } from '../src/theme.js';
+import { loadTheme, loadPalette, setTheme, setPalette, applyTheme, initTheme, PALETTES,
+  DEFAULT_THEME, DEFAULT_PALETTE } from '../src/theme.js';
+import fs from 'node:fs';
+import path from 'node:path';
 
 let prefersLight = false;
 beforeEach(() => {
@@ -33,20 +36,32 @@ const attrs = () => ({
 const themeColor = () => document.querySelector('meta[name="theme-color"]').content;
 
 describe('defaults', () => {
-  it('defaults to system theme and the standard palette', () => {
+  // Asked for: «Default fargevalg skal være mørk og blågrå.» Dark rather
+  // than 'system', so a first-time reader gets the screen this was designed
+  // on rather than whatever their phone happens to say.
+  it('defaults to dark and blue-grey', () => {
+    expect(loadTheme()).toBe('dark');
+    expect(loadPalette()).toBe('bluegrey');
+    expect(DEFAULT_THEME).toBe('dark');
+    expect(DEFAULT_PALETTE).toBe('bluegrey');
+  });
+
+  it('still honours a stored choice, including the old ones', () => {
+    store.set('t.theme', 'system');
+    store.set('t.palette', 'standard');
     expect(loadTheme()).toBe('system');
     expect(loadPalette()).toBe('standard');
   });
 
-  it('falls back to standard for an unknown stored palette', () => {
+  it('falls back to the default for an unknown stored palette', () => {
     store.set('t.palette', 'chartreuse');
-    expect(loadPalette()).toBe('standard');
+    expect(loadPalette()).toBe('bluegrey');
   });
 
   it('refuses to persist an unknown palette', () => {
     setPalette('chartreuse');
-    expect(loadPalette()).toBe('standard');
-    expect(attrs().palette).toBe('standard');
+    expect(loadPalette()).toBe('bluegrey');
+    expect(attrs().palette).toBe('bluegrey');
   });
 
   it('exposes the supported palettes', () => {
@@ -129,5 +144,30 @@ describe('persistence', () => {
     setPalette('bluegrey');
     applyTheme('dark');
     expect(attrs()).toEqual({ theme: 'dark', palette: 'bluegrey' });
+  });
+});
+
+
+// The default lives in THREE places that must agree: theme.js, the inline
+// anti-flash script at the top of index.html (which runs before the bundle
+// exists, so it cannot import), and the theme-color meta the browser chrome
+// reads before either. Two spellings of one default is how they drift — and a
+// drift here shows as the first paint flashing the wrong palette.
+describe('the inline first-paint script agrees with theme.js', () => {
+  const html = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf8');
+
+  it('falls back to the same theme and palette', () => {
+    expect(html).toContain("g('t.theme')||'" + DEFAULT_THEME + "'");
+    expect(html).toContain("g('t.palette')||'" + DEFAULT_PALETTE + "'");
+  });
+
+  it('resolves an unknown stored palette to the default, not to standard', () => {
+    // The old line read pal==='bluegrey'?'bluegrey':'standard', which pinned
+    // standard as the fallback no matter what theme.js said.
+    expect(html).toMatch(/data-palette',\s*pal==='standard'\?'standard':'bluegrey'/);
+  });
+
+  it('ships the browser chrome colour of the default combination', () => {
+    expect(html).toContain('<meta name="theme-color" content="#0f172a">');
   });
 });

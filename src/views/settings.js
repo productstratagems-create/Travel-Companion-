@@ -4,7 +4,7 @@ import { recordSmartTrip } from '../api/smart.js';
 import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
 import { loadFreq, trackPlace } from '../api/usage.js';
-import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, landingPref, saveLandingPref, geoFocus, focusParam } from '../geo.js';
+import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, landingPref, saveLandingPref, focusParam } from '../geo.js';
 import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
 import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
@@ -14,15 +14,6 @@ import { loadReturn, saveReturn, clearReturn, reverseOf, suggestHHMM, returnWind
 import { loadSmartHist } from '../api/smart.js';
 
 /**
- * How far from you a typed destination may be and still be offered.
- *
- * Eighty kilometres: far enough for Drammen from Oslo or Voss from Bergen,
- * short enough that Stockholm and Longyearbyen stay out of a list of places
- * you could plausibly travel to this evening.
- */
-export const DEST_MAX_M = 80000;
-
-/**
  * How many suggestions to ask for before filtering to stops.
  *
  * Eight was the page, and the category filter ran after it — so eight
@@ -30,6 +21,42 @@ export const DEST_MAX_M = 80000;
  * caveat: headroom, not proof.
  */
 export const SUGG_SIZE = 25;
+
+/**
+ * The query the suggestion list asks the geocoder.
+ *
+ * Pulled out so the focus point is testable. It is what makes near results
+ * rank first, and a version of this file that dropped it looked identical to
+ * one that kept it in any grep over the source.
+ */
+export function suggestUrl(query) {
+  return config.api.geocoder + '?text=' + encodeURIComponent(query)
+    + '&size=' + SUGG_SIZE + '&layers=venue' + focusParam();
+}
+
+/**
+ * Which geocoder hits are offered as stops.
+ *
+ * NO DISTANCE FILTER. There used to be one — 80 km, first drawn around Oslo S
+ * and then around the reader — and both versions did the same damage in the
+ * end: reported as «finner ikke stopp i Bergen», typed from Oslo, where every
+ * Bergen stop sat 306 km outside the circle. Measured: three suggestions
+ * became none.
+ *
+ * 306 km is not a mistake to be corrected. It is the journey. And the job the
+ * radius was meant to do — keeping far-flung hits out of a list of plausible
+ * places — is RANKING, not exclusion. The geocoder already does it, from the
+ * focus point suggestUrl sends.
+ *
+ * A pure function because the rule is the whole feature, and greps over this
+ * file could not tell a version that filtered from one that did not: two
+ * mutants survived that way before this existed.
+ */
+export function stopSuggestions(features) {
+  return ((features) || [])
+    .filter(f => (f.properties.category || []).some(c => TRANSIT_CATEGORIES.includes(c)))
+    .filter(f => f.geometry && f.geometry.coordinates);
+}
 
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
@@ -98,26 +125,13 @@ function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbo
     if (getAbort()) getAbort().abort();
     const ctrl = new AbortController();
     setAbort(ctrl);
-    enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(query) + '&size=' + SUGG_SIZE + '&layers=venue' + focusParam(),
-      { signal: ctrl.signal })
+    enturFetch(suggestUrl(query), { signal: ctrl.signal })
       .then(r => r.json())
       .then(j => {
         const sugg = document.getElementById(suggId);
         const inp2 = document.getElementById(inputId);
         if (!sugg || !inp2) return;
-        const stops = ((j && j.features) || [])
-          .filter(f => (f.properties.category || []).some(c => TRANSIT_CATEGORIES.includes(c)))
-          // The radius exists to keep hits in Sweden and on Svalbard out of a
-          // list of places you could plausibly travel to — a job that is the
-          // same in Bergen as in Oslo. It used to be drawn around OSLO S, so
-          // a destination typed in Bergen was not merely unranked but
-          // discarded, 306 km outside a circle the reader could not move.
-          // Now it is drawn around you, and Oslo S only when nothing is known.
-          .filter(f => {
-            const coords = f.geometry && f.geometry.coordinates;
-            const c = geoFocus();
-            return coords && haver(coords[1], coords[0], c.lat, c.lon) < DEST_MAX_M;
-          });
+        const stops = stopSuggestions(j && j.features);
         stopMap.clear();
         sugg.innerHTML = '';
         const freqNames = _prependFreqToSugg(sugg, inp2, role, query, stopMap, null);

@@ -38,9 +38,10 @@ describe('nothing writes the focus point by hand any more', () => {
     expect(geo).toMatch(/FALLBACK_FOCUS/);
   });
 
-  it('measures the destination radius from the focus, not from a constant', () => {
-    expect(read('../src/views/settings.js'))
-      .toMatch(/haver\(coords\[1\], coords\[0\], c\.lat, c\.lon\) < DEST_MAX_M/);
+  // The radius that used to be measured from a constant is gone entirely —
+  // see «a typed search is not limited by where you stand» below.
+  it('has no destination radius left to measure from anywhere', () => {
+    expect(read('../src/views/settings.js')).not.toContain('DEST_MAX_M');
   });
 
   it('rejects Stockholm too, which is the job the radius actually has', () => {
@@ -186,5 +187,76 @@ describe('city bikes and scooters are told apart by the system id', () => {
     // Unknown stays itself rather than being renamed to something made up.
     expect(operatorName('nyttfirma')).toBe('Nyttfirma');
     expect(operatorName('')).toBe('Sparkesykkel');
+  });
+});
+
+// ── searching for a city you are not standing in ───────────────────────────
+//
+// Reported after v1.96.0 shipped: «Finner ikke stopp i Bergen», typed from
+// Oslo. Moving the circle from Oslo S to the reader was only half the fix —
+// a circle around you is still a circle, and it forbids planning a journey in
+// another city. 306 km is not a mistake to be corrected; it is the trip.
+describe('a typed search is not limited by where you stand', () => {
+  const load = async (homeLL) => {
+    vi.resetModules();
+    vi.doMock('../src/state.js', () => ({
+      state: { walkOvr: null, statLL: {}, dIdx: 0, walkFromLL: null, homeLL,
+        nearestStations: [], nearestStation: null },
+      intervals: { board: null, track: null, sel: null },
+    }));
+    vi.doMock('../src/config.js', () => ({
+      default: { defaultWalkMinutes: 8, dirs: [{ key: 'out' }],
+        storage: {}, api: { geocoder: 'https://g/autocomplete', geocoderReverse: 'https://g/reverse' } },
+    }));
+    return import('../src/views/settings.js');
+  };
+
+  const bergen = (name, cats) => ({
+    properties: { id: 'NSR:StopPlace:' + name, name, label: name, category: cats },
+    geometry: { coordinates: [BERGEN.lon, BERGEN.lat] },
+  });
+
+  // The whole report, as one assertion: standing in Oslo, typing a Bergen
+  // stop. Measured in the browser before this: three suggestions became none.
+  it('offers a Bergen stop to a reader standing in Oslo', async () => {
+    const { stopSuggestions } = await load(OSLO);
+    const out = stopSuggestions([
+      bergen('Nonneseter', ['tramStop', 'onstreetBus']),
+      bergen('Bergen busstasjon', ['StopPlace']),
+      bergen('Strandkaiterminalen', ['ferryStop']),
+    ]);
+    expect(out.map(f => f.properties.name))
+      .toEqual(['Nonneseter', 'Bergen busstasjon', 'Strandkaiterminalen']);
+  });
+
+  it('still refuses things that are not stops', async () => {
+    const { stopSuggestions } = await load(OSLO);
+    expect(stopSuggestions([bergen('Kiwi Nonneseter', ['shop'])])).toEqual([]);
+  });
+
+  it('refuses a hit with no coordinates, which nothing downstream could use', async () => {
+    const { stopSuggestions } = await load(OSLO);
+    const broken = { properties: { name: 'X', category: ['onstreetBus'] }, geometry: null };
+    expect(stopSuggestions([broken])).toEqual([]);
+  });
+
+  it('copes with no answer at all', async () => {
+    const { stopSuggestions } = await load(OSLO);
+    expect(stopSuggestions(null)).toEqual([]);
+    expect(stopSuggestions([])).toEqual([]);
+  });
+
+  // Ranking still belongs to the geocoder: the focus point puts what is near
+  // you first without forbidding what is far. A grep could not tell a version
+  // that sent it from one that did not — this asks the URL.
+  it('tells the geocoder where you are', async () => {
+    const { suggestUrl } = await load(BERGEN);
+    expect(suggestUrl('Nonneseter'))
+      .toContain('focus.point.lat=' + BERGEN.lat + '&focus.point.lon=' + BERGEN.lon);
+    expect(suggestUrl('Nonneseter')).toContain('text=Nonneseter');
+  });
+
+  it('Bergen really is outside any radius Oslo could have', () => {
+    expect(haver(BERGEN.lat, BERGEN.lon, OSLO.lat, OSLO.lon)).toBeGreaterThan(300000);
   });
 });

@@ -140,6 +140,43 @@ export function saveLandingPref(v) {
   saveWeekendMode(v === 'utforsk');
 }
 
+/**
+ * Oslo S — the last-resort centre, and nothing more.
+ *
+ * It used to be written out in six geocoder URLs and one validity radius, so
+ * every search in Norway leaned towards Oslo and a destination typed in
+ * Bergen was discarded 306 km outside a circle the reader could not move.
+ * Reported as the answer to «vil appen fungere i Bergen»: it did not.
+ */
+export const FALLBACK_FOCUS = { lat: 59.9139, lon: 10.7522 };
+
+/**
+ * Where searching should be centred: on you.
+ *
+ * The remembered position first, then an explicit «gå fra» place, then the
+ * active route's own stop — all three are places the reader actually is or
+ * has chosen. Oslo S only when the app knows nothing at all, which on a first
+ * run before GPS lands is genuinely all it knows.
+ *
+ * ONE definition, because six copies of a coordinate is the shape this
+ * codebase has found nine times, and here the copies decided which half of
+ * the country a search could see.
+ */
+export function geoFocus() {
+  const p = state.walkFromLL || state.homeLL;
+  if (p && p.lat != null && p.lon != null) return { lat: p.lat, lon: p.lon };
+  const d = config.dirs[state.dIdx];
+  const sc = d && state.statLL[d.key];
+  if (sc && sc.lat != null && sc.lon != null) return { lat: sc.lat, lon: sc.lon };
+  return FALLBACK_FOCUS;
+}
+
+/** The geocoder query fragment, so no caller writes a coordinate by hand. */
+export function focusParam() {
+  const f = geoFocus();
+  return '&focus.point.lat=' + f.lat + '&focus.point.lon=' + f.lon;
+}
+
 export function haver(la1, lo1, la2, lo2) {
   const R = 6371000, r = Math.PI / 180;
   const dL = (la2 - la1) * r, dN = (lo2 - lo1) * r;
@@ -322,7 +359,20 @@ export const NEAR_STOP_MAX_M = 850;
 const NEAR_RADIUS_KM = NEAR_STOP_MAX_M / 1000;
 /* Asked for before filtering, so this is what decides whether any bus stops
    are left to keep. */
-const NEAR_SIZE = 40;
+/**
+ * How many venues to ask the geocoder for.
+ *
+ * Raised from 40, and this is a MITIGATION rather than a fix. The page is
+ * requested with `layers=venue` and no category restriction, so shops,
+ * schools and attractions spend it too, and only then does the stop filter
+ * run. In a dense city centre forty prominent venues can leave no stop at
+ * all — part of what was reported as stops the app cannot find in Bergen.
+ *
+ * How many venues Bergen sentrum actually has inside 850 m cannot be measured
+ * from this sandbox; the proxy does not reach the geocoder. So this buys
+ * headroom, it does not prove the problem gone.
+ */
+export const NEAR_SIZE = 100;
 
 export function findNearestStation(lat, lon, onFound, onFail) {
   enturFetch(config.api.geocoderReverse

@@ -23,7 +23,7 @@ vi.mock('../src/config.js', () => ({
 }));
 vi.mock('../src/ui/log.js', () => ({ logMsg: vi.fn() }));
 
-import { findNearestStation, NEAR_STOP_MAX_M } from '../src/geo.js';
+import { findNearestStation, NEAR_STOP_MAX_M, NEAR_SIZE } from '../src/geo.js';
 import { state } from '../src/state.js';
 import config from '../src/config.js';
 
@@ -127,7 +127,10 @@ describe('the request', () => {
   // there are any bus stops left to keep.
   it('asks for enough candidates to survive the filter', async () => {
     await find([feature('Et stopp', ['onstreetBus'], 50)]);
-    expect(lastUrl).toContain('size=40');
+    // Raised from 40: the page is spent before the category filter runs, so a
+    // dense centre can fill it with shops. Headroom, not proof — see NEAR_SIZE.
+    expect(lastUrl).toContain('size=' + NEAR_SIZE);
+    expect(NEAR_SIZE).toBeGreaterThan(40);
   });
 });
 

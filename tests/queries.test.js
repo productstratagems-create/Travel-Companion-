@@ -112,7 +112,7 @@ describe('boardGQL(id, n)', () => {
   });
 
   it('whitelists all supported transit modes (departure board)', () => {
-    expect(q).toContain('whiteListedModes:[metro,tram,bus,rail,coach]');
+    expect(q).toContain('whiteListedModes:[metro,tram,bus,rail,water,coach]');
   });
 
   it('requests estimatedCalls with quay and serviceJourney', () => {

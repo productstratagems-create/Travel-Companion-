@@ -4,17 +4,17 @@ import { arrBoardGQL, boardGQL, inflightGQL, journeyGQL, normJid, trackGQL, trip
 import { quayLatLon } from './adapt.js';
 import { logMsg, setDot } from '../ui/log.js';
 import { noteLookbackLost } from './diagnose.js';
-import { loadWalkSpeed } from '../geo.js';
+import { loadWalkSpeed, focusParam } from '../geo.js';
 const WALK_MPS = { rolig: 41.67 / 60, middels: 83.33 / 60, rask: 116.67 / 60 };
 
 let boardController = null;
 let tripController = null;
 
-const TRANSIT_CAT = [
-  'railStation', 'metroStation', 'busStation', 'onstreetBus', 'onstreetTram',
-  'tramStation', 'harbourPort', 'airport', 'ferryStop', 'GroupOfStopPlaces', 'StopPlace',
-];
-export { TRANSIT_CAT };
+// One list, in stopCats.js. This file used to keep its own, and the two
+// disagreed: ferry quays and multimodal hubs were findable by typing their
+// name and invisible when you stood next to them.
+export { TRANSIT_CATS as TRANSIT_CAT } from './stopCats.js';
+import { TRANSIT_CATS as TRANSIT_CAT } from './stopCats.js';
 
 export function resolveStop(dir, signal) {
   // Prefer the stop id. Passing coordinates instead makes OTP run a foot-access
@@ -26,7 +26,7 @@ export function resolveStop(dir, signal) {
   if (dir.stopId) return Promise.resolve(dir.stopId);
   if (dir._fromLat && dir._fromLon) return Promise.resolve({ lat: dir._fromLat, lon: dir._fromLon });
   if (!dir.geo) return Promise.reject(new Error('Mangler avgangssted'));
-  return enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
+  return enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.geo) + '&size=10&layers=venue' + focusParam(), { signal })
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(json => {
       const ff = ((json && json.features) || [])
@@ -57,7 +57,7 @@ export function resolveStop(dir, signal) {
 
 export function resolveToStop(dir, signal) {
   if (dir.toStopId) return Promise.resolve(dir.toStopId);
-  return enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.toGeo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
+  return enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.toGeo) + '&size=10&layers=venue' + focusParam(), { signal })
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(json => {
       const ff = ((json && json.features) || [])
@@ -80,7 +80,7 @@ export function resolveToStop(dir, signal) {
 export function resolveViaStop(dir, signal) {
   if (dir.viaStopId) return Promise.resolve(dir.viaStopId);
   if (!dir.viaGeo) return Promise.resolve(null);
-  return enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.viaGeo) + '&size=10&layers=venue&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
+  return enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(dir.viaGeo) + '&size=10&layers=venue' + focusParam(), { signal })
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(json => {
       const ff = ((json && json.features) || [])
@@ -99,7 +99,7 @@ export function resolveViaStop(dir, signal) {
 export function geocodeDest(query) {
   return enturFetch(config.api.geocoder
     + '?text=' + encodeURIComponent(query)
-    + '&size=10&layers=venue,address&focus.point.lat=59.9139&focus.point.lon=10.7522')
+    + '&size=10&layers=venue,address' + focusParam())
     .then(r => r.json())
     .then(json => {
       const mapped = ((json && json.features) || [])
@@ -130,7 +130,7 @@ export function geocodeDest(query) {
 export function geocodePlace(query, signal) {
   return enturFetch(config.api.geocoder
     + '?text=' + encodeURIComponent(query)
-    + '&size=8&layers=venue,address&focus.point.lat=59.9139&focus.point.lon=10.7522', { signal })
+    + '&size=8&layers=venue,address' + focusParam(), { signal })
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(json => ((json && json.features) || [])
       .filter(f => f.geometry && f.geometry.coordinates && f.geometry.coordinates[1])

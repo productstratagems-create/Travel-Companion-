@@ -181,7 +181,11 @@
   display:flex;gap:.35rem;flex-wrap:wrap;
   z-index:1000;pointer-events:none;
 }
-.map-wrap #mode-filter{top:.5rem}
+/* Room for the ⤢ button, which sits at top:6px;right:6px (base.css). The row
+   is right-anchored and wraps, but with six modes the last pill fitted by a
+   hair and slid UNDER the button — measured on the screen, not in any number,
+   when «Båt» made it six. Reserving the corner makes the row wrap instead. */
+.map-wrap #mode-filter{top:.5rem;padding-right:2.25rem}
 .map-wrap #line-filter{bottom:.5rem}
 .map-wrap #mode-filter > *,.map-wrap #line-filter > *{pointer-events:auto}
 .map-wrap #mode-filter:empty,.map-wrap #line-filter:empty{display:none}

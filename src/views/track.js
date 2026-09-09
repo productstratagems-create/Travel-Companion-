@@ -531,8 +531,23 @@ function _updateArrMapWalkPin(arrLL) {
   }).catch(() => {});
 }
 
+/** The definite form, for «bussen er nå ved». One table, five modes. */
+const _VEHICLE_NOUN = {
+  bus: 'bussen', tram: 'trikken', metro: 'toget', rail: 'toget', water: 'båten',
+};
+/** The bare noun, for «byttebuss» and «neste buss». */
+const _VEHICLE_WORD = {
+  bus: 'buss', tram: 'trikk', metro: 'tog', rail: 'tog', water: 'båt',
+};
+
+const _MODE_PIN = {
+  bus: 'BUSS', tram: 'TRIKK', metro: 'T-BANE', rail: 'TOG', water: 'BÅT',
+};
+
 function _makeTransitStopIcon(code, bg, mode) {
-  const modeLabel = mode === 'bus' ? 'BUS' : mode === 'tram' ? 'TRIKK' : 'T-BANE';
+  // Anything unrecognised used to be labelled T-BANE, so a ferry pin said
+  // metro. One table, and an unknown mode says nothing rather than a lie.
+  const modeLabel = _MODE_PIN[mode] || '';
   const html = '<div style="text-align:center;line-height:1;white-space:nowrap;transform:translate(-50%,-50%)">'
     + '<span class="line-badge" style="background:' + bg + ';font-size:13px;padding:4px 9px">' + code + '</span>'
     + '<div style="font-size:8px;color:#444;font-family:JetBrains Mono,monospace;letter-spacing:.08em;margin-top:3px">' + modeLabel + '</div>'
@@ -1168,9 +1183,8 @@ export function renderTrack() {
     const arrTs = nextPreStop.arrT ? new Date(nextPreStop.arrT).getTime() : null;
     const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
     const relTxt = ma !== null ? (ma <= 0 ? ' · nå' : ' · om ' + fmtMins(ma)) : '';
-    const vehicleLabel = legs[legIdx] && legs[legIdx].mode === 'bus' ? 'bussen er nå ved'
-      : legs[legIdx] && legs[legIdx].mode === 'tram' ? 'trikken er nå ved'
-      : 'toget er nå ved';
+    const vm = (legs[legIdx] && legs[legIdx].mode) || null;
+    const vehicleLabel = (_VEHICLE_NOUN[vm] || 'toget') + ' er nå ved';
     return '<div class="pre-board-info"><span class="pre-board-label">' + vehicleLabel + '</span> '
       + nextPreStop.nm.toLowerCase() + relTxt + ' · ' + stopsAway + ' stopp til avgang</div>';
   }
@@ -1371,9 +1385,8 @@ export function renderTrack() {
   // ── Build cards ───────────────────────────────────────────────────────────
 
   function cardLabel(mode, isFirst) {
-    if (mode === 'bus')  return isFirst ? 'byttebuss' : 'neste buss';
-    if (mode === 'tram') return isFirst ? 'byttetrikk' : 'neste trikk';
-    return isFirst ? 'byttetog' : 'neste tog';
+    const w = _VEHICLE_WORD[mode] || 'tog';
+    return (isFirst ? 'bytte' : 'neste ') + w;
   }
 
   let cards = '';

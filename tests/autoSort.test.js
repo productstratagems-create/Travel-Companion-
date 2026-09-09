@@ -52,32 +52,52 @@ describe('the order before this change', () => {
 
 describe('dirRank', () => {
   const row = (mode, lineId) => ({ call: call('X', '1', 1, mode, lineId) });
+  // The local operator is now told to the ranker rather than hardcoded. In
+  // Oslo that is Ruter, and every assertion below is the Oslo case unchanged.
+  const rank = (r) => dirRank(r, 'RUT:');
 
   it('puts the six groups in the order that was asked for', () => {
-    expect(dirRank(row('metro'))).toBe(0);
-    expect(dirRank(row('tram'))).toBe(1);
-    expect(dirRank(row('bus', 'RUT:Line:37'))).toBe(2);
-    expect(dirRank(row('bus', 'VYX:Line:F4'))).toBe(3);
-    expect(dirRank(row('rail', 'NSB:Line:R14'))).toBe(4);
-    expect(dirRank(row('water'))).toBe(5);
+    expect(rank(row('metro'))).toBe(0);
+    expect(rank(row('tram'))).toBe(1);
+    expect(rank(row('bus', 'RUT:Line:37'))).toBe(2);
+    expect(rank(row('bus', 'VYX:Line:F4'))).toBe(3);
+    expect(rank(row('rail', 'NSB:Line:R14'))).toBe(4);
+    // A boat is its own group now; it used to fall through to «ukjent».
+    expect(rank(row('water'))).toBe(5);
+    expect(RANKS[5].key).toBe('water');
   });
 
-  // The three ways the Ruter split can be missing data. All fall DOWNWARDS
-  // into "andre busser": a Ruter bus sinking is survivable, a row vanishing
+  // In Bergen the very same rows rank the other way round, which is the whole
+  // point: the local network is the one that runs here.
+  it('mirrors itself when the local operator is Skyss', () => {
+    expect(dirRank(row('bus', 'SKY:Line:2'), 'SKY:')).toBe(2);
+    expect(dirRank(row('bus', 'RUT:Line:37'), 'SKY:')).toBe(3);
+  });
+
+  // No local operator known — one bus, or a dead heat — is ONE bus group,
+  // not a confident wrong split.
+  it('puts every bus in one group when the local operator is unknown', () => {
+    expect(dirRank(row('bus', 'RUT:Line:37'), null)).toBe(3);
+    expect(dirRank(row('bus', 'SKY:Line:2'), null)).toBe(3);
+  });
+
+  // The three ways the split can be missing data. All fall DOWNWARDS
+  // into "andre busser": a local bus sinking is survivable, a row vanishing
   // is not.
   it('falls to andre busser when the codespace is missing or unknown', () => {
-    expect(dirRank(row('bus', null))).toBe(3);
-    expect(dirRank(row('bus', ''))).toBe(3);
-    expect(dirRank(row('bus', 'FLI:Line:1'))).toBe(3);
+    expect(rank(row('bus', null))).toBe(3);
+    expect(rank(row('bus', ''))).toBe(3);
+    expect(rank(row('bus', 'FLI:Line:1'))).toBe(3);
   });
 
   it('does not mistake a codespace that merely contains RUT', () => {
-    expect(dirRank(row('bus', 'BRUT:Line:9'))).toBe(3);
+    expect(rank(row('bus', 'BRUT:Line:9'))).toBe(3);
   });
 
   it('survives a row with no call at all', () => {
-    expect(dirRank({})).toBe(5);
-    expect(dirRank(null)).toBe(5);
+    const unknown = RANKS.findIndex(r => r.key === 'ukjent');
+    expect(rank({})).toBe(unknown);
+    expect(rank(null)).toBe(unknown);
   });
 });
 
@@ -90,7 +110,7 @@ describe('sortDirs', () => {
   ], NOW);
 
   it('groups by type in the order asked for', () => {
-    expect(names(sortDirs(rows(), false)))
+    expect(names(sortDirs(rows(), false, 'RUT:')))
       .toEqual(['Vestli', 'Helsfyr', 'Gardermoen', 'Lillestrøm']);
   });
 
@@ -109,14 +129,14 @@ describe('sortDirs', () => {
       call('Grorud', '31', 5, 'bus'),
     ], NOW).reverse();
     expect(names(rows)).toEqual(['Helsfyr', 'Grorud', 'Bogerud']);
-    expect(names(sortDirs(rows, false))).toEqual(['Bogerud', 'Grorud', 'Helsfyr']);
+    expect(names(sortDirs(rows, false, 'RUT:'))).toEqual(['Bogerud', 'Grorud', 'Helsfyr']);
   });
 
 
   it('does not touch the array it was given', () => {
     const before = rows();
     const copy = names(before);
-    sortDirs(before, false);
+    sortDirs(before, false, 'RUT:');
     expect(names(before)).toEqual(copy);
   });
 });
@@ -135,13 +155,13 @@ describe('dirRows — the order and the index must agree', () => {
   // _dirs[data-i], so this invariant IS the click handler's correctness.
   it('leaves every index pointing at its own row', () => {
     const d = dirs();
-    dirRows(d, false).forEach(({ d: row, i }) => {
+    dirRows(d, false, null, 'RUT:').forEach(({ d: row, i }) => {
       expect(d[i]).toBe(row);
     });
   });
 
   it('sorts by type and drops nothing when nothing is filtered', () => {
-    const out = dirRows(dirs(), false);
+    const out = dirRows(dirs(), false, null, 'RUT:');
     expect(out.map(x => x.d.frontText))
       .toEqual(['Vestli', 'Ljabru', 'Helsfyr', 'Gardermoen', 'Lillestrøm']);
   });
@@ -150,7 +170,7 @@ describe('dirRows — the order and the index must agree', () => {
   // is where an index built after the filter would quietly go wrong.
   it('keeps indices right after a row is filtered out', () => {
     const d = dirs();
-    const out = dirRows(d, false, row => row.frontText !== 'Helsfyr');
+    const out = dirRows(d, false, row => row.frontText !== 'Helsfyr', 'RUT:');
     expect(out.map(x => x.d.frontText))
       .toEqual(['Vestli', 'Ljabru', 'Gardermoen', 'Lillestrøm']);
     out.forEach(({ d: row, i }) => expect(d[i]).toBe(row));
@@ -226,7 +246,7 @@ describe('a row is one mode', () => {
       q('Mortensrud', '76', 3, 'bus', 'J'),
       q('Mortensrud', '3', 10, 'metro', '1'),
     ], NOW), false);
-    expect(out.map(dirRank)).toEqual([0, 2]);
+    expect(out.map(d => dirRank(d, 'RUT:'))).toEqual([0, 2]);
   });
 });
 
@@ -246,14 +266,14 @@ describe('direction', () => {
   ], NOW);
 
   it('reverses the groups on type', () => {
-    expect(names(sortDirs(rows(), true)))
+    expect(names(sortDirs(rows(), true, 'RUT:')))
       .toEqual(['Lillestrøm', 'Gardermoen', 'Helsfyr', 'Bogerud', 'Vestli']);
   });
 
   // The half that must NOT reverse. Helsfyr (2 min) stays above Bogerud
   // (8 min) even though their group has moved up the list.
   it('keeps the soonest first inside a group when descending', () => {
-    const out = sortDirs(rows(), true);
+    const out = sortDirs(rows(), true, 'RUT:');
     const bus = out.filter(d => ['Helsfyr', 'Bogerud'].includes(d.frontText));
     expect(names(bus)).toEqual(['Helsfyr', 'Bogerud']);
   });
@@ -315,7 +335,7 @@ describe('the switch labels come from the rank table', () => {
     expect(ends.asc).toBe(named[0].label);
     expect(ends.desc).toBe(named[named.length - 1].label);
     expect(ends.asc).toBe('T-bane');
-    expect(ends.desc).toBe('Tog');
+    expect(ends.desc).toBe('Båt');
   });
 
   // The whole reason RANKS is a table: move a group and the buttons follow.
@@ -323,10 +343,33 @@ describe('the switch labels come from the rank table', () => {
   it('keeps the labels and the order as one thing', () => {
     RANKS.forEach((r, i) => {
       if (r.key === 'metro') expect(i).toBe(0);
-      if (r.key === 'rail') expect(i).toBe(RANKS.length - 2);
+      if (r.key === 'water') expect(i).toBe(RANKS.length - 2);
     });
     // The unknown group is last and deliberately unlabelled: nothing on
     // screen should claim to know what it is.
     expect(RANKS[RANKS.length - 1].label).toBe(null);
+  });
+});
+
+// The switch names the ends of what is ACTUALLY at this stop. It used to name
+// the ends of RANKS outright, so a Bergen stop with no metro still offered
+// «T-bane først» — a control naming a group it cannot show.
+describe('sortEndLabels names what is here', () => {
+  const d = (mode, lineId) => ({ call: call('X', '1', 1, mode, lineId) });
+
+  it('says T-bane and Tog at an Oslo stop that has both', () => {
+    expect(sortEndLabels([d('metro'), d('rail', 'NSB:Line:R14')], 'RUT:'))
+      .toEqual({ asc: 'T-bane', desc: 'Tog' });   // no boat at this stop
+  });
+
+  it('says Trikk at a Bergen stop where Bybanen is the rail-bound mode', () => {
+    const ends = sortEndLabels([d('tram', 'SKY:Line:1'), d('bus', 'SKY:Line:5')], 'SKY:');
+    expect(ends.asc).toBe('Trikk');
+    expect(ends.asc).not.toBe('T-bane');
+  });
+
+  it('falls back to the full table before anything has loaded', () => {
+    expect(sortEndLabels([], null)).toEqual({ asc: 'T-bane', desc: 'Båt' });
+    expect(sortEndLabels()).toEqual({ asc: 'T-bane', desc: 'Båt' });
   });
 });

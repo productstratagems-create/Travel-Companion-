@@ -1,5 +1,13 @@
 /**
- * Does the app take the obvious step when history cannot decide?
+ * Are the stops Bergen has the stops the app finds?
+ *
+ * Answered "yes" once, and that was wrong: a destination typed in Bergen was
+ * discarded by an 80 km radius drawn around Oslo S, the geocoder was focused
+ * on Oslo in six places, every Skyss bus ranked as «andre busser», and
+ * «gå videre» looked for a metro in a city whose rail-bound network is
+ * Bybanen — a tram.
+ *
+ * This drives a Bergen stop and reads what the screen says.
  *
  * Asked for from the Mortensrud screen: «Jernbanetorget er det mest
  * sannsynlige. Gå derfor automatisk dit, men legg på en snarvei tilbake til
@@ -15,10 +23,10 @@ import { fileURLToPath } from 'node:url';
 import pw from '/opt/node22/lib/node_modules/playwright/index.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DIST = path.join(ROOT, 'dist'); const PORT = 4500;
+const DIST = path.join(ROOT, 'dist'); const PORT = 4502;
 const NOW = Date.parse('2026-09-08T07:41:00+02:00');
 const iso = ms => new Date(ms).toISOString();
-const HERE = { lat: 59.8617, lon: 10.8285 };
+const HERE = { lat: 60.3894, lon: 5.3327 };   // Bergen stasjon
 const AWAY = { lat: HERE.lat - 637 / 111320, lon: HERE.lon };   // 637 m south, as on the screen
 
 const stop = (name, m) => ({
@@ -26,24 +34,33 @@ const stop = (name, m) => ({
     category: [name.endsWith(' T') ? 'metroStation' : 'onstreetBus'] },
   geometry: { coordinates: [HERE.lon, HERE.lat + m / 111320] },
 });
-const NEARBY = [stop('Mortensrud', 20), stop('Lofsrud', 400)];
+const NEARBY = [
+  { ...stop('Nonneseter', 20), properties: { id: 'NSR:StopPlace:Nonneseter', name: 'Nonneseter',
+    label: 'Nonneseter', category: ['tramStop', 'onstreetBus'] } },
+  { ...stop('Strandkaiterminalen', -520), properties: { id: 'NSR:StopPlace:Strandkaien',
+    name: 'Strandkaiterminalen', label: 'Strandkaiterminalen', category: ['ferryStop'] } },
+  { ...stop('Bergen busstasjon', -560), properties: { id: 'NSR:StopPlace:Busstasjonen',
+    name: 'Bergen busstasjon', label: 'Bergen busstasjon', category: ['StopPlace'] } },
+  { ...stop('Bergen stasjon', -600), properties: { id: 'NSR:StopPlace:Bergenst',
+    name: 'Bergen stasjon', label: 'Bergen stasjon', category: ['railStation'] } },
+];
 
-const JBT = { name: 'Jernbanetorget', id: 'NSR:StopPlace:6' };
-const HEL = { name: 'Hellerud', id: 'NSR:StopPlace:7' };
+const JBT = { name: 'Byparken', id: 'NSR:StopPlace:Byparken' };
+const HEL = { name: 'Kronstad', id: 'NSR:StopPlace:Kronstad' };
 
 /* Two directions from Mortensrud, as on the reported screen. Both reach
    Jernbanetorget; line 3 towards Kolsås leaves first. */
-const call = (line, front, mins, stops) => ({
+const call = (line, front, mins, stops, mode, cs) => ({
   realtime: true, cancellation: false, situations: [],
   aimedDepartureTime: iso(NOW + mins * 60000), expectedDepartureTime: iso(NOW + mins * 60000),
   destinationDisplay: { frontText: front },
   quay: { id: 'NSR:Quay:' + line, publicCode: '1', name: 'spor 1' },
   serviceJourney: { id: 'sj:' + line + ':' + mins, situations: [],
-    line: { id: 'RUT:Line:' + line, publicCode: line, transportMode: 'metro',
+    line: { id: (cs || 'SKY:') + 'Line:' + line, publicCode: line, transportMode: mode || 'tram',
       presentation: { colour: 'f5a000' } },
     estimatedCalls: [
       { quay: { latitude: HERE.lat, longitude: HERE.lon,
-        stopPlace: { id: 'NSR:StopPlace:Mortensrud', name: 'Mortensrud', latitude: HERE.lat, longitude: HERE.lon } },
+        stopPlace: { id: 'NSR:StopPlace:Mortensrud', name: 'Nonneseter', latitude: HERE.lat, longitude: HERE.lon } },
         aimedDepartureTime: iso(NOW + mins * 60000), expectedDepartureTime: iso(NOW + mins * 60000) },
       ...stops.map((s, i) => ({
         quay: { latitude: 59.9 + i / 1000, longitude: 10.75,
@@ -54,20 +71,25 @@ const call = (line, front, mins, stops) => ({
         expectedDepartureTime: iso(NOW + (mins + 8 + i * 6) * 60000) })),
     ] },
 });
-const SKU = { name: 'Skullerud', id: 'NSR:StopPlace:Skullerud' };
+const SKU = { name: 'Danmarksplass', id: 'NSR:StopPlace:Danmarksplass' };
 const CALLS = [
   // «mot Stortinget om 2 min» — real, and gone before an 8-minute walk ends.
-  call('3', 'Stortinget', 2, [SKU, HEL, JBT]),
-  call('3', 'Stortinget', 17, [SKU, HEL, JBT]),
-  call('3', 'Stortinget', 32, [SKU, HEL, JBT]),
-  call('3', 'Kolsås', 11, [SKU, HEL, JBT]),
-  call('3', 'Kolsås', 26, [SKU, HEL, JBT]),
-  call('73X', 'Maikollen', 0, [SKU]),
-  call('71', 'Bjørndal', 4, [SKU]),
+  // Bybanen: tram, not metro — the mode that made «gå videre» dead here.
+  call('1', 'Byparken', 2, [SKU, HEL, JBT], 'tram'),
+  call('1', 'Byparken', 17, [SKU, HEL, JBT], 'tram'),
+  call('1', 'Byparken', 32, [SKU, HEL, JBT], 'tram'),
+  call('2', 'Fyllingsdalen', 11, [SKU, HEL, JBT], 'tram'),
+  call('2', 'Fyllingsdalen', 26, [SKU, HEL, JBT], 'tram'),
+  // Skyss buses — the local network here, and everything that is not.
+  call('5', 'Åsane', 6, [SKU], 'bus'),
+  call('12', 'Lønborg', 9, [SKU], 'bus'),
+  call('NW180', 'Oslo', 40, [SKU], 'coach', 'VYX:'),
+  // The boat that was never asked for.
+  call('Beffen', 'Dreggekaien', 8, [SKU], 'water'),
 ];
 
 const histRow = (to, id, n) => ({
-  key: to.toLowerCase() + '|3|wd', fromName: 'Mortensrud', toName: to, toStopId: id,
+  key: to.toLowerCase() + '|3|wd', fromName: 'Nonneseter', toName: to, toStopId: id,
   toLat: 59.91, toLon: 10.75, fromStopId: 'NSR:StopPlace:Mortensrud',
   bucket: 3, isWeekend: false, count: n, lastUsed: NOW,
 });
@@ -119,7 +141,7 @@ async function run(label, hist, scheme) {
       body: JSON.stringify({ data: { stopPlace: { situations: [] }, dest: { situations: [] },
         trip: { tripPatterns: [] } } }) });
     return route.fulfill({ status: 200, contentType: 'application/json',
-      body: JSON.stringify({ data: { stopPlace: { id: 'x', name: 'Mortensrud', estimatedCalls: CALLS } } }) });
+      body: JSON.stringify({ data: { stopPlace: { id: 'x', name: 'Nonneseter', estimatedCalls: CALLS } } }) });
   });
   await page.route(/tiles|open-meteo|overpass|valhalla|geoapify|mobility|realtime/, r => r.abort());
   page.on('pageerror', e => console.log('  ! sidefeil:', e.message));
@@ -140,6 +162,8 @@ async function run(label, hist, scheme) {
       retninger: Array.from(document.querySelectorAll('#auto-body .auto-dir'))
         .map(e => e.textContent.replace(/\s+/g, ' ').trim().slice(0, 34)),
       apen: (document.querySelector('#auto-body .set-label') || {}).textContent || null,
+      baand: Array.from(document.querySelectorAll('#v-auto .auto-lane .set-label')).map(e => e.textContent.trim()),
+      naere: Array.from(document.querySelectorAll('#v-auto .auto-alt .nearby-name')).map(e => e.textContent.trim()),
       tilbake: (document.querySelector('.auto-back-dir') || {}).textContent || null,
       stopp: Array.from(document.querySelectorAll('#auto-body .auto-stop-btn'))
         .map(e => e.textContent.replace(/\s+/g, ' ').trim()),
@@ -156,8 +180,8 @@ async function run(label, hist, scheme) {
   console.log('  stripe     :', a.stripe);
   if (a.skjerm === 'v-board') console.log('  tavla      :', a.overskrift, '→', a.mål);
   console.log('  \u00e5pnet     :', a.apen);
-  const pills = await page.$$eval('#mode-filter .mode-pill', els => els.map(x => x.textContent.trim())).catch(() => []);
-  if (pills.length) console.log('  filterpiller:', pills.join(' \u00b7 '));
+  console.log('  b\u00e5nd      :', (a.baand || []).join(' | '));
+  console.log('  n\u00e6re stopp :', (a.naere || []).join(' \u00b7 '));
   console.log('  tilbake    :', a.tilbake);
   a.stopp.forEach(x => console.log('    stopp:', x));
   if (a.retninger.length) a.retninger.forEach(r => console.log('    retning:', r));
@@ -167,7 +191,7 @@ async function run(label, hist, scheme) {
   await page.screenshot({ path: 'scratchpad/shots/jump-' + label + '-' + scheme + '.png', animations: 'disabled' });
 
   fs.mkdirSync('scratchpad/shots', { recursive: true });
-  await page.screenshot({ path: 'scratchpad/shots/advance-' + label + '-' + scheme + '.png', animations: 'disabled' });
+  await page.screenshot({ path: 'scratchpad/shots/ferry-' + label + '-' + scheme + '.png', animations: 'disabled' });
 
   if (a.tilbake) {
     await page.click('.auto-back-dir');
@@ -175,7 +199,23 @@ async function run(label, hist, scheme) {
     const c = await read();
     console.log('  \u2500\u2500 etter \u00ab\u2190 alle retninger\u00bb \u2500\u2500');
     c.retninger.forEach(r => console.log('    retning:', r));
-    await page.screenshot({ path: 'scratchpad/shots/advance-' + label + '-tilbake-' + scheme + '.png', animations: 'disabled' });
+    // The nearby list starts collapsed since v1.83.1 — open it as a reader does.
+    await page.click('#auto-stop-toggle').catch(() => {});
+    await page.waitForTimeout(700);
+    const e = await read();
+    console.log('  \u2500\u2500 «du er ved», utfoldet \u2500\u2500');
+    console.log('  b\u00e5nd      :', (e.baand || []).join(' | '));
+    (e.naere || []).forEach(n => console.log('    n\u00e6rt stopp:', n));
+    const dbg = await page.evaluate(() => ({
+      toggle: !!document.getElementById('auto-stop-toggle'),
+      head: (document.querySelector('#v-auto .auto-stop-name') || {}).textContent || null,
+      alts: document.querySelectorAll('#auto-alts .auto-alt').length,
+      hidden: (document.getElementById('auto-alts') || {}).hidden,
+    }));
+    console.log('  dbg       :', JSON.stringify(dbg));
+    const pills = await page.$$eval('#mode-filter .mode-pill', els => els.map(x => x.textContent.trim()));
+    console.log('  filterpiller:', pills.join(' \u00b7 '));
+    await page.screenshot({ path: 'scratchpad/shots/ferry-' + label + '-tilbake-' + scheme + '.png', animations: 'disabled' });
   }
   if (a.stripe) {
     await page.click('.auto-toast-back');

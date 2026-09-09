@@ -55,7 +55,7 @@ function _halo() {
  * `filter: drop-shadow(...)`, which traces the union of everything rendered,
  * so anything sticking out would grow its own halo.
  *
- * @param {string} mode  metro | rail | tram | bus — anything else gets metro
+ * @param {string} mode  metro | rail | tram | bus | water — anything else gets metro
  * @param {string} color line colour; falls back to the mode's own when the
  *   caller has none (track.js passes leg.lineBg, which can be empty)
  * @param {{bearing?:number|null, estimated?:boolean}} [opts]
@@ -79,6 +79,9 @@ const _VEH_SHAPE = {
   rail:  { long: 28, wide: 11.5, rx: 3,   nose: 9,   cars: 4 },
   tram:  { long: 25, wide: 10.5, rx: 2.5, nose: 4.5, cars: 4 },
   bus:   { long: 19, wide: 13,   rx: 2.5, nose: 2.5, cars: 1 },
+  // A boat is beamy and sharply pointed — the one silhouette here that is
+  // wider than it is car-like. One "car", because a hull has no joints.
+  water: { long: 24, wide: 14,   rx: 5,   nose: 11,  cars: 1 },
 };
 
 /**
@@ -217,6 +220,9 @@ const _SIDE = {
   rail:  { len: 38, nose: 16 },
   tram:  { len: 32, nose: 6 },
   bus:   { len: 30, nose: 0 },
+  // The longest rake of the lot: a bow is the most recognisable profile on
+  // this strip, and it is what stops a ferry reading as a train.
+  water: { len: 32, nose: 18 },
 };
 
 /** A stable id per glyph shape, so two strips on a page cannot share a clip. */
@@ -285,6 +291,10 @@ const _MODE_COLOUR = {
   tram:  '#7b3999',
   bus:   '#e5006d',
   rail:  '#5a6b7d',
+  // Boats had no colour, so an unnamed operator got rail grey and a metro
+  // body: a ferry that read as a train. Deep sea blue — and distinct from
+  // --map-you, which must stay the one thing on the map that is you.
+  water: '#0e7490',
 };
 
 /**

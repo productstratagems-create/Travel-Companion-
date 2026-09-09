@@ -22,6 +22,15 @@ import { loadSmartHist } from '../api/smart.js';
  */
 export const DEST_MAX_M = 80000;
 
+/**
+ * How many suggestions to ask for before filtering to stops.
+ *
+ * Eight was the page, and the category filter ran after it — so eight
+ * prominent shops and no stop survived. Same shape as NEAR_SIZE, and the same
+ * caveat: headroom, not proof.
+ */
+export const SUGG_SIZE = 25;
+
 const DEST_KEY = 't.dest';
 const DEP_KEY = 't.dep';
 const VIA_KEY = 't.via';
@@ -89,7 +98,7 @@ function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbo
     if (getAbort()) getAbort().abort();
     const ctrl = new AbortController();
     setAbort(ctrl);
-    enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(query) + '&size=8&layers=venue' + focusParam(),
+    enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(query) + '&size=' + SUGG_SIZE + '&layers=venue' + focusParam(),
       { signal: ctrl.signal })
       .then(r => r.json())
       .then(j => {

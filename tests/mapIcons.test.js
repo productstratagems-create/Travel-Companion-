@@ -237,7 +237,10 @@ describe('sideVehicleSvg', () => {
   });
 
   it('falls back to the metro silhouette for a mode it does not know', () => {
-    expect(svg('water', null, '5')).toBe(svg('metro', null, '5'));
+    // A ferry used to render as an orange metro — the mode had no shape and no
+    // colour, so both fell through. It is its own silhouette now.
+    expect(svg('water', null, '5')).not.toBe(svg('metro', null, '5'));
+    expect(svg('funicular', null, '5')).toBe(svg('metro', null, '5'));
   });
 
   // track.js passes leg.lineBg, which entur.js can leave as an empty string.

@@ -10,11 +10,11 @@ const WALK_MPS = { rolig: 41.67 / 60, middels: 83.33 / 60, rask: 116.67 / 60 };
 let boardController = null;
 let tripController = null;
 
-const TRANSIT_CAT = [
-  'railStation', 'metroStation', 'busStation', 'onstreetBus', 'onstreetTram',
-  'tramStation', 'harbourPort', 'airport', 'ferryStop', 'GroupOfStopPlaces', 'StopPlace',
-];
-export { TRANSIT_CAT };
+// One list, in stopCats.js. This file used to keep its own, and the two
+// disagreed: ferry quays and multimodal hubs were findable by typing their
+// name and invisible when you stood next to them.
+export { TRANSIT_CATS as TRANSIT_CAT } from './stopCats.js';
+import { TRANSIT_CATS as TRANSIT_CAT } from './stopCats.js';
 
 export function resolveStop(dir, signal) {
   // Prefer the stop id. Passing coordinates instead makes OTP run a foot-access

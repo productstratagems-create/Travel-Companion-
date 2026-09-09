@@ -62,7 +62,9 @@ describe('dirRank', () => {
     expect(rank(row('bus', 'RUT:Line:37'))).toBe(2);
     expect(rank(row('bus', 'VYX:Line:F4'))).toBe(3);
     expect(rank(row('rail', 'NSB:Line:R14'))).toBe(4);
+    // A boat is its own group now; it used to fall through to «ukjent».
     expect(rank(row('water'))).toBe(5);
+    expect(RANKS[5].key).toBe('water');
   });
 
   // In Bergen the very same rows rank the other way round, which is the whole
@@ -93,8 +95,9 @@ describe('dirRank', () => {
   });
 
   it('survives a row with no call at all', () => {
-    expect(rank({})).toBe(5);
-    expect(rank(null)).toBe(5);
+    const unknown = RANKS.findIndex(r => r.key === 'ukjent');
+    expect(rank({})).toBe(unknown);
+    expect(rank(null)).toBe(unknown);
   });
 });
 
@@ -332,7 +335,7 @@ describe('the switch labels come from the rank table', () => {
     expect(ends.asc).toBe(named[0].label);
     expect(ends.desc).toBe(named[named.length - 1].label);
     expect(ends.asc).toBe('T-bane');
-    expect(ends.desc).toBe('Tog');
+    expect(ends.desc).toBe('Båt');
   });
 
   // The whole reason RANKS is a table: move a group and the buttons follow.
@@ -340,7 +343,7 @@ describe('the switch labels come from the rank table', () => {
   it('keeps the labels and the order as one thing', () => {
     RANKS.forEach((r, i) => {
       if (r.key === 'metro') expect(i).toBe(0);
-      if (r.key === 'rail') expect(i).toBe(RANKS.length - 2);
+      if (r.key === 'water') expect(i).toBe(RANKS.length - 2);
     });
     // The unknown group is last and deliberately unlabelled: nothing on
     // screen should claim to know what it is.
@@ -356,7 +359,7 @@ describe('sortEndLabels names what is here', () => {
 
   it('says T-bane and Tog at an Oslo stop that has both', () => {
     expect(sortEndLabels([d('metro'), d('rail', 'NSB:Line:R14')], 'RUT:'))
-      .toEqual({ asc: 'T-bane', desc: 'Tog' });
+      .toEqual({ asc: 'T-bane', desc: 'Tog' });   // no boat at this stop
   });
 
   it('says Trikk at a Bergen stop where Bybanen is the rail-bound mode', () => {
@@ -366,7 +369,7 @@ describe('sortEndLabels names what is here', () => {
   });
 
   it('falls back to the full table before anything has loaded', () => {
-    expect(sortEndLabels([], null)).toEqual({ asc: 'T-bane', desc: 'Tog' });
-    expect(sortEndLabels()).toEqual({ asc: 'T-bane', desc: 'Tog' });
+    expect(sortEndLabels([], null)).toEqual({ asc: 'T-bane', desc: 'Båt' });
+    expect(sortEndLabels()).toEqual({ asc: 'T-bane', desc: 'Båt' });
   });
 });

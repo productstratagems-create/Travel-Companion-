@@ -264,6 +264,7 @@ export const RANKS = [
   { key: 'rutebuss',  label: 'Lokalbuss' },
   { key: 'annenbuss', label: 'Andre busser' },
   { key: 'rail',      label: 'Tog' },
+  { key: 'water',     label: 'Båt' },
   // An unknown mode is still a departure. Last, never dropped, and never a
   // label — nothing on screen should claim to know what it is.
   { key: 'ukjent',    label: null },
@@ -288,6 +289,7 @@ export function dirRank(d, local) {
       ? _RANK_OF.rutebuss : _RANK_OF.annenbuss;
   }
   if (mode === 'rail') return _RANK_OF.rail;
+  if (mode === 'water') return _RANK_OF.water;
   return _RANK_OF.ukjent;
 }
 
@@ -610,6 +612,7 @@ export const LANES = [
   { mode: 'tram',  label: 'Trikk' },
   { mode: 'bus',   label: 'Buss' },
   { mode: 'rail',  label: 'Tog' },
+  { mode: 'water', label: 'Båt' },
   { mode: null,    label: 'Andre stopp' },
 ];
 
@@ -877,7 +880,11 @@ export function quayLabel(call) {
   if (!code || code === '?') return null;
   const mode = call.serviceJourney && call.serviceJourney.line
     && call.serviceJourney.line.transportMode;
-  const word = (mode === 'metro' || mode === 'rail') ? 'spor' : 'plattform';
+  // A boat leaves from a kai, not a platform and not a track. Three words for
+  // three things, and the wrong one reads as a mistake to anyone standing
+  // there looking for the sign.
+  const word = mode === 'water' ? 'kai'
+    : (mode === 'metro' || mode === 'rail') ? 'spor' : 'plattform';
   return word + ' ' + code;
 }
 

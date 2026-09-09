@@ -1,7 +1,7 @@
-import { haver } from '../geo.js';
+import { haver, NEAR_STOP_MAX_M, NEAR_SIZE } from '../geo.js';
 import config from '../config.js';
 import { enturFetch } from './http.js';
-import { CAT_MODE, TRANSIT_CATS } from './stopCats.js';
+import { CAT_MODE, STOP_MODE, TRANSIT_CATS } from './stopCats.js';
 
 
 let _cache = null;
@@ -19,8 +19,11 @@ export function fetchNearbyStops(lat, lon) {
   const url = config.api.geocoderReverse
     + '?point.lat=' + lat
     + '&point.lon=' + lon
-    + '&boundary.circle.radius=0.8'
-    + '&size=40'
+    // ONE definition of nearby, shared with geo.js. This said 0.8 while
+    // geo.js said 0.85 — two circles for one idea, and the map quietly saw a
+    // smaller one than the list beside it.
+    + '&boundary.circle.radius=' + (NEAR_STOP_MAX_M / 1000)
+    + '&size=' + NEAR_SIZE
     + '&layers=venue';
 
   return enturFetch(url)
@@ -39,7 +42,11 @@ export function fetchNearbyStops(lat, lon) {
         // Emit one entry per distinct transit mode served by this place
         const modesAdded = new Set();
         cats.forEach(cat => {
-          const mode = CAT_MODE[cat];
+          // STOP_MODE, not CAT_MODE. The narrow table has no `tramStop` and
+          // no `railStation`, so Bybanen and every railway station were
+          // dropped here without a trace — part of what was reported as stops
+          // the app cannot find in Bergen.
+          const mode = STOP_MODE[cat];
           if (!mode || modesAdded.has(mode)) return;
           modesAdded.add(mode);
           const uid = baseId + '|' + mode;

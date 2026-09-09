@@ -105,6 +105,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
     + 'walkSpeed:' + (walkSpeed || 1.3) + ' '
     + 'modes:{accessMode:foot,egressMode:foot,transportModes:[{transportMode:metro},'
     + '{transportMode:bus},{transportMode:tram},{transportMode:rail}'
+    + ',{transportMode:water}'
     // Express coaches. `coach` cannot be checked against the live schema from
     // here, and this one query carries EVERY journey — so it is opt-in and
     // fetchTrip drops it for the session if Entur turns it down. The cost of
@@ -156,8 +157,14 @@ export function arrBoardGQL(id, n, basic) {
  *   more rows.
  */
 /** The only modes the app ever asks for. Also a whitelist: these go into the
- *  query as bare GraphQL enums, so nothing else may reach it. */
-export const BOARD_MODES = ['metro', 'tram', 'bus', 'rail'];
+ *  query as bare GraphQL enums, so nothing else may reach it.
+ *
+ *  `water` is here because Norway is a coastal country and the app never once
+ *  asked: Beffen across Vågen, the fast boats out of Bergen, Nesoddbåten and
+ *  the Oslo island ferries were not filtered off the screen — they were never
+ *  requested. Reported as stops the app could not find in Bergen. Same shape
+ *  as `coach` in v1.86.0, and the same cost: a whole mode, invisible. */
+export const BOARD_MODES = ['metro', 'tram', 'bus', 'rail', 'water'];
 
 /**
  * …and the same list with express coaches, which Transmodel keeps separate
@@ -296,7 +303,7 @@ export function inflightGQL(id, backMins, fwdMins) {
   const startTime = new Date(Date.now() - back * 60000).toISOString();
   return '{stopPlace(id:"' + id + '"){'
     + 'estimatedCalls(startTime:"' + startTime + '",timeRange:' + ((back + fwd) * 60)
-    + ',numberOfDepartures:20,whiteListedModes:[metro,tram,bus,rail,coach]){'
+    + ',numberOfDepartures:20,whiteListedModes:[metro,tram,bus,rail,water,coach]){'
     + 'aimedDepartureTime expectedDepartureTime cancellation realtime '
     // The only authoritative answer to "is it standing at my platform": it has
     // actually arrived and has not actually left. These two fields ride in

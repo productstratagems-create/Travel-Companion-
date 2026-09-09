@@ -11,9 +11,14 @@
  */
 
 /**
- * Which MODE a category means. Narrower than TRANSIT_CATS on purpose: a
- * category with no entry here is skipped by fetchNearbyStops, so adding a
- * name below does not change the departure board.
+ * Which MODE a category means, for the departure board's own nearby stops.
+ *
+ * It used to be deliberately narrow — a category with no entry here is
+ * skipped by fetchNearbyStops, and that was the point. It stopped being the
+ * point when a reader in Bergen reported missing stops: `tramStop` and
+ * `railStation` have no entry, so Bybanen and every railway station vanished
+ * from the map's nearby stops. `fetchNearbyStops` now reads STOP_MODE below,
+ * which is this table plus the ones that were left out.
  */
 export const CAT_MODE = {
   metroStation: 'metro',
@@ -39,21 +44,38 @@ export const CAT_MODE = {
  * removing one that does match loses a stop.
  */
 export const TRANSIT_CATS = [...new Set([
-  ...Object.keys(CAT_MODE), 'railStation', 'tramStop',
+  ...Object.keys(CAT_MODE),
+  'railStation', 'tramStop',
+  // Boats and hubs. These lived in a SECOND list, in entur.js, which only the
+  // typed-search path used — so Strandkaiterminalen and Bergen busstasjon
+  // could be found by typing their names and never by standing next to them.
+  // Reported as "mange kollektiv stoppesteder i Bergen som appen ikke finner".
+  // Same shape as the drift this comment already describes, one layer up.
+  'ferryStop', 'harbourPort', 'GroupOfStopPlaces', 'StopPlace',
+  // You can stand at an airport and want the bus. It is a stop.
+  'airport',
 ])];
 
 /**
- * Which lane a stop belongs in.
+ * Which mode a stop category means — the whole table.
  *
- * Built FROM CAT_MODE rather than beside it, so the two cannot say different
- * things about metroStation — but with `railStation` and `tramStop` added,
- * which CAT_MODE deliberately omits. The comment above says why they are
- * missing there: a category with no CAT_MODE entry is skipped by
- * fetchNearbyStops, so adding them to that table would quietly start putting
- * train stations on the departure board's map. Grouping a list is a different
- * question from deciding what to fetch, and this is the table for it.
+ * Built FROM CAT_MODE so the two cannot say different things about
+ * metroStation, with the categories that used to be left out. Both the lanes
+ * on auto-reise and the board's nearby stops read this one; the split that
+ * once existed between them is what hid Bybanen.
+ *
+ * A hub typed `StopPlace` or `GroupOfStopPlaces` gets NO mode on purpose: the
+ * category says a stop is there, not what runs from it. It still reaches the
+ * screen — the «andre stopp» lane is exactly for a stop whose mode we do not
+ * know — and tapping it asks the board, which does know.
  */
-export const STOP_MODE = { ...CAT_MODE, railStation: 'rail', tramStop: 'tram' };
+export const STOP_MODE = {
+  ...CAT_MODE,
+  railStation: 'rail',
+  tramStop:    'tram',
+  ferryStop:   'water',
+  harbourPort: 'water',
+};
 
 /**
  * Every mode a stop serves — plural, because interchanges exist.

@@ -42,7 +42,7 @@ const _depMap = new Map();
 
 // ── Mode filter ──────────────────────────────────────────────────────────────
 const MODES_KEY = 't.modes';
-const DEFAULT_MODES = { metro: true, tram: true, bus: true, rail: true, sykkel: false };
+const DEFAULT_MODES = { metro: true, tram: true, bus: true, rail: true, water: true, sykkel: false };
 function loadModes() {
   try { const v = storage.get(MODES_KEY); return v ? { ...DEFAULT_MODES, ...JSON.parse(v) } : { ...DEFAULT_MODES }; }
   catch { return { ...DEFAULT_MODES }; }
@@ -457,7 +457,7 @@ function renderBoardMap(pos, modes) {
   _bMapKey = mapKey;
 
   const fetchPos = pos || geoFocus();
-  const transitModes = ['metro', 'tram', 'bus'].filter(m => modes[m]);
+  const transitModes = ['metro', 'tram', 'bus', 'water'].filter(m => modes[m]);
   // Only fetch stops near the user — destination-side stops add clutter without
   // helping the user decide which departure to board.
   const p1 = transitModes.length ? fetchNearbyStops(fetchPos.lat, fetchPos.lon) : Promise.resolve([]);
@@ -725,6 +725,7 @@ function renderModeFilter() {
     { key: 'tram',  label: 'Trikk' },
     { key: 'bus',   label: 'Buss' },
     { key: 'rail',  label: 'Tog' },
+    { key: 'water', label: 'Båt' },
     { key: 'sykkel', label: 'Sykkel' },
   ];
   // Rebuilding via innerHTML every render tick can detach a pill mid-tap and
@@ -2532,7 +2533,7 @@ export function renderBoard() {
     _renderApproach();
   }
 
-  const activeModes = ['metro', 'tram', 'bus', 'rail'].filter(m => modes[m]);
+  const activeModes = BOARD_MODES.filter(m => modes[m]);
   const list = document.getElementById('dep-list');
   list.className = isStale ? 'stale' : '';
   if (!activeModes.length) {

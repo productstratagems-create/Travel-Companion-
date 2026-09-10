@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
-import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN } from '../geo.js';
+import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon, legShape } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
@@ -12,7 +12,7 @@ import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard, _interpolateVehiclePos } from './board.js';
 import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
-import { makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
+import { makeVehicleIcon, makeRouteStopIcon, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _trainPosition, SRC_LABEL } from './trainPosition.js';
 import { renderJourneyStrip } from './journeyStrip.js';
@@ -376,22 +376,126 @@ function _updateDestAlertsSection() {
   els.forEach(el => renderAlertsInto(el, _destAlerts, _updateDestAlertsSection));
 }
 
-function _renderArrBoardHtml() {
+/**
+ * How long it takes to change platform here, before any margin of yours.
+ *
+ * A floor, not a measurement. The arrival board asks for `quay{publicCode}`
+ * only (queries.js), so there are no platform coordinates to measure between
+ * — and a walk inside a station goes by stairs and tunnels, so a straight line
+ * between two quays would not have been truer anyway.
+ *
+ * Same platform costs nothing: you are already standing on it.
+ */
+export const PLATFORM_CHANGE_MINS = 3;
+
+/**
+ * Minutes of slack between arriving and catching an onward departure.
+ *
+ * The list used to count from `Date.now()`, so it offered a departure leaving
+ * «NÅ» to a reader still sitting on the train — reported from the screen at
+ * Jernbanetorget. It is a departure board for someone already standing there,
+ * shown to someone who is not.
+ *
+ * `extraMins` is the reader's own «ekstra tid» (t.walkBuf, 0/2/5/10 in
+ * settings). It is the MARGIN, on top of the floor above — so choosing 0 still
+ * does not promise a change of platform in no time at all.
+ *
+ * Negative means you cannot make it. Nothing is dropped for it; the row says
+ * so instead, because you might choose to run and a line that vanishes without
+ * trace is worse than one you can see you just missed.
+ */
+export function transferMargin(depTs, arrivalTs, sameQuay, extraMins) {
+  const cost = (sameQuay ? 0 : PLATFORM_CHANGE_MINS) + (extraMins || 0);
+  return Math.floor((depTs - arrivalTs) / 60000) - cost;
+}
+
+/** How far ahead the onward list looks. */
+export const ARR_BOARD_HORIZON_MINS = 90;
+/** How many onward departures are offered. */
+export const ARR_BOARD_ROWS = 8;
+/**
+ * How many departures you have just missed are worth keeping.
+ *
+ * Seeing the one or two that went is context — it says the next one is five
+ * minutes behind it. Seeing eight is noise, and worse: the list is capped at
+ * eight, so a stop where the next eight all leave before you arrive would show
+ * eight grey rows and NOTHING you could catch. Measured on the reported
+ * screen, arriving in six minutes at Jernbanetorget: eight of ten rows dimmed,
+ * and both catchable ones cut off below the fold.
+ *
+ * That is the difference between marking a list and curating one.
+ */
+export const ARR_BOARD_MISSED = 2;
+
+/**
+ * The onward rows, decided rather than drawn.
+ *
+ * Pulled out because the WIRING is what the report was about, not the
+ * arithmetic. `transferMargin` was pure and testable on its own, and a
+ * renderer that fed it `Date.now()` instead of the arrival time passed every
+ * one of those tests — a mutant proved it. This is the seam where the basis
+ * itself is checked.
+ *
+ * @param {Array} board fetchArrBoard rows
+ * @param {number} arrivalTs when the reader gets there
+ * @param {number} extraMins the reader's «ekstra tid»
+ * @param {string|null} arrQuay the platform they arrive on
+ */
+export function arrRows(board, arrivalTs, extraMins, arrQuay) {
+  const rows = (board || [])
+    // Filtered BEFORE the cap. It used to cut to eight and then drop the far
+    // ones, so a couple of departures an hour out could leave the list short —
+    // or empty — while nearer ones waited behind them.
+    .filter(c => Math.floor((c.depTs - arrivalTs) / 60000) <= ARR_BOARD_HORIZON_MINS)
+    .map(c => {
+      const sameQuay = !!(arrQuay && c.quay && String(c.quay) === String(arrQuay));
+      const margin = transferMargin(c.depTs, arrivalTs, sameQuay, extraMins);
+      return {
+        c,
+        mins: Math.floor((c.depTs - arrivalTs) / 60000),
+        margin,
+        sameQuay,
+        rcls: reachCls(margin),
+      };
+    });
+
+  // Keep the LAST few you missed — the ones nearest to catchable — and fill
+  // the rest with departures you can make. Order is untouched: the kept
+  // missed ones still sit above the ones that follow them.
+  const missed = rows.filter(r => r.rcls === 'missed');
+  const keep = new Set(missed.slice(-ARR_BOARD_MISSED));
+  return rows
+    .filter(r => r.rcls !== 'missed' || keep.has(r))
+    .slice(0, ARR_BOARD_ROWS);
+}
+
+/**
+ * Test seam: the onward list reads module state, and the ONE line that
+ * chooses what to measure against is the thing the report was about. Two
+ * mutants — Date.now() instead of the arrival, and dropping the arrival
+ * platform — survived every test of the pure functions below it.
+ */
+export function _setArrBoard(rows) { _arrBoard = rows; }
+
+export function _renderArrBoardHtml() {
   if (!_arrBoard) return '<div class="hn-loading">laster avganger…</div>';
   if (!_arrBoard.length) return '<div class="hn-loading">ingen avganger</div>';
-  const now = Date.now();
-  return _arrBoard.slice(0, 8).map(c => {
-    const mins = Math.floor((c.depTs - now) / 60000);
-    if (mins > 90) return '';
+  // WHEN YOU GET THERE, not now. _arrivalDate is kept live by every fetchTrack
+  // poll and already feeds the weather and the places on this same screen.
+  return arrRows(_arrBoard, _arrivalDate().getTime(), loadWalkBuffer(),
+    (state.jny && state.jny.arrQuay) || null).map(({ c, mins, rcls }) => {
     const lc = (c.ln && c.ln.publicCode) || '?';
     const bg = (c.ln && c.ln.presentation && c.ln.presentation.colour) ? '#' + c.ln.presentation.colour : '#7c2d12';
     const minsHtml = mins <= 0 ? 'NÅ' : mins + '<span>min</span>';
-    return '<div class="hn-arr-row' + (c.cancelled ? ' cancelled' : '') + '">'
+    return '<div class="hn-arr-row ' + rcls + (c.cancelled ? ' cancelled' : '') + '">'
       + '<div class="hn-arr-mins">' + minsHtml + '</div>'
       + '<div class="hn-arr-mid">'
       + '<span class="line-badge" style="background:' + bg + '">' + lc + '</span>'
       + '<span class="hn-arr-dest">' + esc(c.dest) + '</span>'
       + (c.cancelled ? '<span class="dep-cancelled">innstilt</span>' : '')
+      // Said, not hidden: you can choose to run.
+      + (rcls === 'missed' && !c.cancelled
+        ? '<span class="hn-arr-late">går før du er framme</span>' : '')
       + '</div>'
       + (c.quay && c.quay !== '?' ? '<div class="hn-arr-spor">spor ' + c.quay + '</div>' : '<div></div>')
       + '</div>';
@@ -419,8 +523,14 @@ function _updateUserMarker() {
   if (_userMarker) {
     _userMarker.setLatLng([state.homeLL.lat, state.homeLL.lon]);
   } else {
+    // --map-you, the one colour reserved for «you». It used to be #60a5fa —
+    // the SAME blue as the destination pin two functions below, and as Tier's
+    // vendor colour — so the dot that means «you are here» was indistinguish-
+    // able from the dot that means «that is where you are going». The token
+    // exists precisely so this cannot happen; the board map already uses it.
     _userMarker = L.circleMarker([state.homeLL.lat, state.homeLL.lon], {
-      radius: 7, color: '#fff', fillColor: '#60a5fa', fillOpacity: 0.95, weight: 2,
+      radius: 7, color: tokens().mapInk, fillColor: tokens().mapYou,
+      fillOpacity: 1, weight: 2.5,
     }).bindTooltip('Din posisjon', { className: 'map-label' }).addTo(_arrMap);
   }
 }
@@ -459,6 +569,9 @@ function _fitArrMap(arrLL) {
   if (!_arrMap || _arrUserMoved) return;
   const pts = [[arrLL.lat, arrLL.lon]];
   if (_walkDestLL) pts.push([_walkDestLL.lat, _walkDestLL.lon]);
+  // …and you. The dot was drawn and then framed out: nothing put the reader's
+  // own position into the bounds, so «du er her» could sit off the map.
+  if (state.homeLL) pts.push([state.homeLL.lat, state.homeLL.lon]);
   if (pts.length === 1) { _arrMap.setView(pts[0], 15); return; }
   _arrMap.fitBounds(pts, { padding: [24, 24], maxZoom: 16 });
 }
@@ -466,40 +579,64 @@ function _fitArrMap(arrLL) {
 function _drawMobilityMarkers(ranked) {
   if (!_arrMap || !_bikeLayer) return;
   _bikeLayer.clearLayers();
-  // Build a lookup: lat+lon → rank number
-  const rankMap = new Map();
-  ranked.forEach((o, idx) => rankMap.set(o.lat + ',' + o.lon, idx + 1));
+  _mobMarkers = {};
+  const list = ranked || [];
 
   if (_cachedBikes) {
     _cachedBikes.forEach(s => {
       const count = s.bikes + (s.ebikes || 0);
-      const rank = rankMap.get(s.lat + ',' + s.lon);
-      const rankBadge = rank ? '<span class="mob-marker-rank">' + rank + '</span>' : '';
+      // A station is one place, so its own coordinate identifies it.
+      const idx = list.findIndex(o => o.lat === s.lat && o.lon === s.lon);
+      const rankBadge = idx >= 0 ? '<span class="mob-marker-rank">' + (idx + 1) + '</span>' : '';
+      const picked = idx >= 0 && idx === _mobPicked;
       const icon = L.divIcon({
         className: '',
-        html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '') + '">' + rankBadge + count + '</div>',
+        html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '')
+          + (picked ? ' picked' : '') + '">' + rankBadge + count + '</div>',
         iconAnchor: [14, 14],
       });
-      L.marker([s.lat, s.lon], { icon })
-        .bindTooltip(s.name + ' · ' + count + ' sykler · ' + s.dist + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
+      const mk = L.marker([s.lat, s.lon], { icon })
+        .bindTooltip(s.name + ' \u00b7 ' + count + ' sykler \u00b7 ' + s.dist + ' m',
+          { direction: 'top', offset: [0, -20], className: 'map-label' })
         .addTo(_bikeLayer);
+      if (idx >= 0) _mobMarkers[idx] = mk;
     });
   }
   if (_cachedScooters) {
-    _cachedScooters.forEach(v => {
-      const rank = rankMap.get(v.lat + ',' + v.lon);
-      const rankBadge = rank ? '<span class="mob-marker-rank">' + rank + '</span>' : '';
-      const label = v.battery !== null ? v.battery + '%' : '⚡';
+    const groups = clusterByDistance(_cachedScooters, MOBILITY_CLUSTER_M, v => v.operator);
+    // MEMBERSHIP, not coordinates. The badge used to be looked up by the raw
+    // vehicle's lat/lon, which stopped matching the moment the marker moved to
+    // the group's centroid — so a ranked scooter that was not first in its
+    // group lost its number entirely. Shipped that way in v1.99.0.
+    const rankOfGroup = new Map();
+    list.forEach((o, idx) => {
+      const gi = clusterIndexOf(groups, o);
+      if (gi >= 0 && !rankOfGroup.has(gi)) rankOfGroup.set(gi, idx);
+    });
+    groups.forEach((group, gi) => {
+      const g = mobilityCluster(group);
+      const idx = rankOfGroup.has(gi) ? rankOfGroup.get(gi) : -1;
+      const rankBadge = idx >= 0 ? '<span class="mob-marker-rank">' + (idx + 1) + '</span>' : '';
+      const picked = idx >= 0 && idx === _mobPicked;
+      const label = esc(String(g.operator).toUpperCase().slice(0, 4))
+        + (g.count > 1 ? '<span class="mob-marker-n">\u00d7' + g.count + '</span>' : '');
       const icon = L.divIcon({
         className: '',
-        html: '<div class="hn-map-scooter">' + rankBadge + label + '</div>',
-        iconAnchor: [14, 14],
+        html: '<div class="hn-map-scooter' + (picked ? ' picked' : '')
+          + '" style="border-color:' + vendorColour(g.operator) + ';color:'
+          + vendorColour(g.operator) + '">' + rankBadge + label + '</div>',
+        iconAnchor: [22, 14],
       });
-      L.marker([v.lat, v.lon], { icon })
-        .bindTooltip(v.operator + ' · ' + (v.battery !== null ? v.battery + '% · ' : '') + v.dist + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
+      const mk = L.marker([g.lat, g.lon], { icon })
+        .bindTooltip(g.tooltip, { direction: 'top', offset: [0, -20], className: 'map-label' })
         .addTo(_bikeLayer);
+      if (idx >= 0) _mobMarkers[idx] = mk;
     });
   }
+  // «Gå» has no vehicle: its marker is the destination, which is already on
+  // the map. Point the row at it so every row answers the same question.
+  const walkIdx = list.findIndex(o => o.type === 'walk');
+  if (walkIdx >= 0 && _arrWalkMarker) _mobMarkers[walkIdx] = _arrWalkMarker;
 }
 
 function _addBikeMarkers(arrLL) {
@@ -888,7 +1025,10 @@ function _mobilitySectionHtml() {
     if (o.battery != null) meta.push(o.battery + '% · ca ' + o.rangeKm + ' km');
     if (o.type === 'walk') meta.push(o.dist < 1000 ? o.dist + ' m' : (o.dist / 1000).toFixed(1) + ' km');
     else meta.push(o.dist + ' m unna');
-    return '<div class="mob-option' + (isBest ? ' mob-best' : '') + '">'
+    // A button, not a div: it does something now, and a screen reader should
+    // be told so. data-i indexes back into the same ranking the markers use.
+    return '<button type="button" class="mob-option' + (isBest ? ' mob-best' : '')
+      + (_mobPicked === idx ? ' mob-picked' : '') + '" data-i="' + idx + '">'
       + '<span class="mob-rank">' + rank + '</span>'
       + '<span class="mob-icon">' + _mobilityIcon(o.type) + '</span>'
       + '<div class="mob-info">'
@@ -900,13 +1040,94 @@ function _mobilitySectionHtml() {
       + '<span class="mob-total">' + o.total + ' min</span>'
       + (o.rideT > 0 ? '<span class="mob-breakdown">' + o.walkT + 'g + ' + o.rideT + 'r</span>' : '')
       + '</div>'
-      + '</div>';
+      + '</button>';
   }).join('');
+}
+
+/**
+ * Where a ranked row is, on the map.
+ *
+ * The list said «1 Bysykkel · The Hub, 30 m unna» and pointed at nothing —
+ * the rows were plain divs. This is what a tap has to resolve to.
+ *
+ * A vehicle carries its own coordinate. «Gå» does not: it is not a place, it
+ * is the whole way from here to there, so it resolves to the DESTINATION —
+ * the far end of the walk that is already drawn on the map. That keeps every
+ * row answering the same question: where is this?
+ *
+ * Pure, and exported, because it is the rule; the panning and the highlight
+ * are just what the screen does with it.
+ */
+export function mobilityTarget(option, destLL) {
+  if (!option) return null;
+  if (option.lat != null && option.lon != null) {
+    return { lat: option.lat, lon: option.lon, kind: option.type };
+  }
+  if (option.type === 'walk' && destLL && destLL.lat != null) {
+    return { lat: destLL.lat, lon: destLL.lon, kind: 'walk' };
+  }
+  return null;
+}
+
+/**
+ * Which cluster a ranked vehicle ended up in.
+ *
+ * The rank badge used to be looked up by `lat + ',' + lon` on the RAW vehicle,
+ * which stopped working the moment scooters were clustered (v1.99.0): the
+ * marker sits at the group's centroid, and the lookup only matched when the
+ * ranked scooter happened to be first in its group. Anywhere else the badge
+ * simply vanished — a bug shipped in the release before this one.
+ *
+ * Membership, not coordinates. Returns the index of the group containing the
+ * option, or -1.
+ */
+export function clusterIndexOf(groups, option) {
+  if (!option || option.lat == null) return -1;
+  return (groups || []).findIndex(g => (g || []).some(v =>
+    v.lat === option.lat && v.lon === option.lon
+    && (!option.label || !v.operator || v.operator === option.label)));
+}
+
+/**
+ * Which row the reader tapped, by index into the ranking.
+ *
+ * A module variable, not markup: #hn-mobility-content is rewritten by
+ * innerHTML on every update, so a class on the row would be wiped before the
+ * finger left the screen. Same rule the rest of this codebase keeps.
+ */
+let _mobPicked = null;
+/** rank index → the Leaflet marker for it, rebuilt with the markers. */
+let _mobMarkers = {};
+
+function _pickMobility(idx) {
+  if (!_arrLL || !_walkDestLL) return;
+  const ranked = _rankMobility(_arrLL, _walkDestLL);
+  const o = ranked[idx];
+  const target = mobilityTarget(o, _walkDestLL);
+  if (!target) return;
+  _mobPicked = (_mobPicked === idx) ? null : idx;
+  _updateMobilitySection();
+  if (_mobPicked === null || !_arrMap) return;
+
+  // The map sits ABOVE the list, so on a phone a highlight without this
+  // points at something off the screen.
+  const mapEl = document.getElementById('hn-map');
+  if (mapEl && mapEl.scrollIntoView) mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Pan, do not zoom: the arrival stop and the destination are the context
+  // the reader asked for, and zooming to one option throws both away.
+  _arrUserMoved = true;
+  _arrMap.panTo([target.lat, target.lon]);
+  if (_mobMarkers[idx]) _mobMarkers[idx].openTooltip();
 }
 
 function _updateMobilitySection() {
   const el = document.getElementById('hn-mobility-content');
-  if (el) el.innerHTML = _mobilitySectionHtml();
+  if (el) {
+    el.innerHTML = _mobilitySectionHtml();
+    el.querySelectorAll('.mob-option').forEach(b => {
+      b.addEventListener('click', () => _pickMobility(Number(b.dataset.i)));
+    });
+  }
   // Sync map markers with current ranking
   if (_arrLL && (_cachedBikes || _cachedScooters)) {
     const ranked = (_walkDestLL && _arrLL)

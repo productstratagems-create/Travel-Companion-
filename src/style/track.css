@@ -208,6 +208,15 @@
 .hn-arr-row:last-child{border-bottom:none}
 .hn-arr-row.cancelled .hn-arr-mins,
 .hn-arr-row.cancelled .hn-arr-dest{text-decoration:line-through;opacity:.5}
+/* Goes before you get there. Dimmed rather than removed: you might choose to
+   run, and a line that vanishes without trace is worse than one you can see
+   you just missed. Not struck through — that is what «innstilt» means, and
+   this departure is running perfectly well, just without you. */
+.hn-arr-row.missed{opacity:.45}
+.hn-arr-late{
+  font-size:9px;letter-spacing:.06em;color:var(--text-soft);
+  white-space:nowrap;margin-left:.35rem;
+}
 .hn-arr-mins{
   text-align:right;font-family:"Bebas Neue",sans-serif;
   font-size:1.5rem;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums;
@@ -239,12 +248,24 @@
   line-height:1;
 }
 .hn-map-bike.empty{border-color:#f87171;color:#f87171;background:#2a1a1a}
+/* Was a fixed 28px square holding a battery percentage. It now carries the
+   operator — the thing the grouping is by — and a ×N when several scooters
+   share a rack, so the badge is sized by its content instead. The border and
+   text colour come from the operator, set inline, which is why neither is
+   declared here any more. */
 .hn-map-scooter{
-  width:28px;height:28px;border-radius:5px;
+  min-width:28px;height:22px;padding:0 5px;border-radius:5px;
   background:#160a00;border:2px solid var(--urgent);
-  color:var(--urgent);font-size:11px;font-weight:700;
-  display:flex;align-items:center;justify-content:center;
-  line-height:1;
+  color:var(--urgent);font-size:10px;font-weight:700;letter-spacing:.04em;
+  display:flex;align-items:center;justify-content:center;gap:2px;
+  line-height:1;white-space:nowrap;
+}
+.mob-marker-n{font-size:9px;opacity:.85}
+/* The one the reader tapped in the list. A ring rather than a colour change:
+   the border already carries the operator, and overwriting it would trade one
+   piece of information for another. */
+.hn-map-scooter.picked,.hn-map-bike.picked{
+  outline:2px solid var(--accent);outline-offset:2px;
 }
 
 /* Connection risk banner */
@@ -278,7 +299,21 @@
 .alight-hvanaa-hint{font-size:11px;color:rgba(96,165,250,.55);margin-top:.4rem}
 
 /* ── Mobility ranking section ── */
-.mob-option{display:flex;align-items:center;gap:.65rem;padding:.6rem 0;border-bottom:1px solid rgba(255,255,255,.06)}
+/* A button now — it highlights the option on the map — so the browser's own
+   button chrome has to be reset or it reads as a form control inside a list. */
+.mob-option{
+  display:flex;align-items:center;gap:.65rem;width:100%;box-sizing:border-box;
+  padding:.6rem .5rem;border:none;border-bottom:1px solid rgba(255,255,255,.06);
+  border-radius:6px 6px 0 0;
+  background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.mob-option:active{opacity:.7}
+/* The row you tapped, tied to the ring on its marker by the same accent. */
+.mob-option.mob-picked{background:rgba(var(--accent-rgb),.10);border-radius:6px}
+.mob-option.mob-picked .mob-rank{
+  background:var(--accent);color:var(--map-ink);
+}
 .mob-option:last-child{border-bottom:none}
 .mob-best{padding:.7rem .75rem;margin:0 -.75rem;background:rgba(255,255,255,.05);border-radius:6px;border-bottom:none}
 .mob-icon{font-size:18px;flex-shrink:0;width:24px;text-align:center}

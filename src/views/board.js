@@ -5,7 +5,7 @@ import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { walkKey } from '../api/walkDist.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins, geoFocus } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, _rowDest } from '../api/adapt.js';
@@ -17,7 +17,7 @@ import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops, _resetNearbyCache } from '../api/stops.js';
-import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX } from '../ui/mapIcons.js';
+import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { fetchVehiclePositions, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
 import { createMap, drawRoute, drawWalk } from '../ui/map.js';
@@ -401,15 +401,19 @@ function _makeDestIcon() {
   return L.divIcon({ className: '', html, iconSize: [18, 24], iconAnchor: [9, 24] });
 }
 
-const VENDOR_COLORS = { Bolt: '#22c55e', Voi: '#f87171', Tier: '#60a5fa' };
-function _makeScooterIcon(operator, battery) {
-  const vc = VENDOR_COLORS[operator] || '#94a3b8';
-  const label = battery != null ? battery + '%' : '?';
+
+function _makeScooterIcon(operator, battery, count) {
+  const vc = vendorColour(operator);
+  // The OPERATOR, because that is what the grouping is by — a badge showing
+  // only a battery would hide the very distinction it was clustered on.
+  const label = String(operator || '').toUpperCase().slice(0, 4)
+    + (count > 1 ? ' ×' + count : '');
+  const w = count > 1 ? 52 : 44;
   const html = '<div style="background:' + alpha('bgRgb', .9) + ';border:2px solid ' + vc + ';border-radius:4px;'
-    + 'width:44px;height:20px;display:flex;align-items:center;justify-content:center;'
-    + 'font-size:10px;font-weight:700;white-space:nowrap;'
-    + 'box-shadow:0 1px 4px rgba(0,0,0,.4);color:' + vc + '">⚡' + label + '</div>';
-  return L.divIcon({ className: '', html, iconSize: [44, 20], iconAnchor: [22, 10] });
+    + 'width:' + w + 'px;height:20px;display:flex;align-items:center;justify-content:center;'
+    + 'font-size:10px;font-weight:700;white-space:nowrap;letter-spacing:.04em;'
+    + 'box-shadow:0 1px 4px rgba(0,0,0,.4);color:' + vc + '">' + label + '</div>';
+  return L.divIcon({ className: '', html, iconSize: [w, 20], iconAnchor: [w / 2, 10] });
 }
 
 function _ensureMap(pos) {
@@ -507,19 +511,9 @@ function renderBoardMap(pos, modes) {
       const modeSet = new Set(transitModes);
       const stops = r1.value.filter(s => modeSet.has(s.mode));
 
-      // Cluster stops within 80 m
-      const used = new Set();
-      const clusters = [];
-      stops.forEach((s, i) => {
-        if (used.has(i)) return;
-        used.add(i);
-        const cluster = [s];
-        stops.forEach((t, j) => {
-          if (used.has(j) || t.mode !== s.mode) return;
-          if (haver(s.lat, s.lon, t.lat, t.lon) < 80) { cluster.push(t); used.add(j); }
-        });
-        clusters.push(cluster);
-      });
+      // One clustering rule, shared with the scooters. It lived here as a loop
+      // with the metres inlined; scooters had no clustering at all.
+      const clusters = clusterByDistance(stops, STOP_CLUSTER_M, s => s.mode);
 
       // Keep only the 2 nearest clusters per mode to limit marker density
       const perMode = {};
@@ -559,12 +553,15 @@ function renderBoardMap(pos, modes) {
       });
     }
 
-    // Scooters: minimal marker only, battery on tap
+    // Scooters: one marker per rack, not per vehicle. Grouped by operator as
+    // well as distance — two that merely stand together are not the same
+    // offer, and a badge that hid which was which would explain nothing.
     if (r3.status === 'fulfilled') {
-      r3.value.forEach(v => {
-        pts.push([v.lat, v.lon]);
-        L.marker([v.lat, v.lon], { icon: _makeScooterIcon(v.operator, v.battery) })
-          .bindTooltip((v.operator || '') + (v.battery != null ? ' · ' + v.battery + '%' : ''), { className: 'map-label' })
+      clusterByDistance(r3.value, MOBILITY_CLUSTER_M, v => v.operator).forEach(group => {
+        const g = mobilityCluster(group);
+        pts.push([g.lat, g.lon]);
+        L.marker([g.lat, g.lon], { icon: _makeScooterIcon(g.operator, g.battery, g.count) })
+          .bindTooltip(g.tooltip, { className: 'map-label' })
           .addTo(_bLayer);
       });
     }

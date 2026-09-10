@@ -478,7 +478,9 @@ html[data-theme="light"] #t-map { background: #e5e7eb; }
 html[data-theme="light"] #hn-map { background: #e5e7eb; }
 html[data-theme="light"] .hn-map-bike { background: #e8f5e9; border-color: #4ade80; color: #15803d; }
 html[data-theme="light"] .hn-map-bike.empty { background: #fdecea; border-color: #f87171; color: #dc2626; }
-html[data-theme="light"] .hn-map-scooter { background: #fff3e0; border-color: #f97316; color: #c2410c; }
+/* Neutral, because the border and the text are the operator's colour now and
+   set inline — a warm cream ground behind a blue Tier badge read as a mistake. */
+html[data-theme="light"] .hn-map-scooter { background: #ffffff; }
 
 /* ── LAGRET (favoritter / reiseplan / finn reise) ── */
 html[data-theme="light"] .saved-tab {

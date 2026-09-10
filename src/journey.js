@@ -198,6 +198,10 @@ export function saveJny() {
       frontText:         state.jny.frontText,
       firstLegFrontText: state.jny.firstLegFrontText || null,
       arrival:           state.jny.arrival,
+      // The arrival platform. It was set and never saved, so after a reload
+      // the onward list could no longer tell «same platform» from «across the
+      // station» — and quietly offered a change it could not promise.
+      arrQuay:           state.jny.arrQuay || null,
       _toLat:            state.jny._toLat || null,
       _toLon:            state.jny._toLon || null,
       legs: state.jny.legs.map(leg => ({

@@ -560,7 +560,7 @@ function renderBoardMap(pos, modes) {
       clusterByDistance(r3.value, MOBILITY_CLUSTER_M, v => v.operator).forEach(group => {
         const g = mobilityCluster(group);
         pts.push([g.lat, g.lon]);
-        L.marker([g.lat, g.lon], { icon: _makeScooterIcon(g.operator, g.battery, g.count) })
+        L.marker([g.lat, g.lon], { icon: _makeScooterIcon(g.operator, g.pct, g.count) })
           .bindTooltip(g.tooltip, { className: 'map-label' })
           .addTo(_bLayer);
       });

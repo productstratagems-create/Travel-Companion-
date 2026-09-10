@@ -9,7 +9,7 @@ import { mobilityCluster, vendorColour, VENDOR_COLOUR } from '../src/ui/mapIcons
 // Jernbanetorget as eight badges piled on one spot, all reading «100%».
 const RACK = { lat: 59.9110, lon: 10.7500 };
 const near = (m, dLon = 0) => ({ lat: RACK.lat + m / 111320, lon: RACK.lon + dLon });
-const v = (m, operator, battery, dist) => ({ ...near(m), operator, battery, dist });
+const v = (m, operator, pct, dist, rangeM) => ({ ...near(m), operator, pct, dist, rangeM });
 
 describe('clusterByDistance', () => {
   it('makes one group of a rack full of the same operator', () => {
@@ -74,8 +74,8 @@ describe('mobilityCluster — what a group is', () => {
   });
 
   // The one you would take.
-  it('reports the best battery, not the first', () => {
-    expect(mobilityCluster(group).battery).toBe(100);
+  it('reports the best charge, not the first', () => {
+    expect(mobilityCluster(group).pct).toBe(100);
   });
 
   // How far you must walk to reach any of them.
@@ -99,9 +99,23 @@ describe('mobilityCluster — what a group is', () => {
     expect(mobilityCluster([v(0, 'Bolt', 55, 12)]).tooltip).toBe('Bolt · 55% · 12 m');
   });
 
-  it('copes with a missing battery and an unnamed operator', () => {
-    const g = mobilityCluster([{ lat: 1, lon: 2, battery: null, dist: 5 }]);
-    expect(g.battery).toBe(null);
+  // Without a percentage from the feed, the range is what we know — and it is
+  // the thing that answers «will it get me there».
+  it('falls back to the range when the feed gave no percentage', () => {
+    const g = mobilityCluster([v(0, 'Voi', null, 20, 18400)]);
+    expect(g.pct).toBe(null);
+    expect(g.rangeM).toBe(18400);
+    expect(g.tooltip).toBe('Voi · ca 18.4 km · 20 m');
+  });
+
+  it('reports the longest range of the group', () => {
+    const g = mobilityCluster([v(0, 'Voi', null, 20, 9000), v(5, 'Voi', null, 24, 21000)]);
+    expect(g.rangeM).toBe(21000);
+  });
+
+  it('copes with neither, and an unnamed operator', () => {
+    const g = mobilityCluster([{ lat: 1, lon: 2, pct: null, rangeM: null, dist: 5 }]);
+    expect(g.pct).toBe(null);
     expect(g.operator).toBe('Sparkesykkel');
     expect(g.tooltip).toBe('Sparkesykkel · 5 m');
   });

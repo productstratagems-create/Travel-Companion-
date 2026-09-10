@@ -177,6 +177,59 @@ export function focusParam() {
   return '&focus.point.lat=' + f.lat + '&focus.point.lon=' + f.lon;
 }
 
+/**
+ * Group things that are close together AND of the same kind.
+ *
+ * The one clustering rule on the map, and it was written twice: nearby stops
+ * had it inline in board.js with an unnamed 80 and a `mode` guard, while
+ * scooters had none at all — reported as eight badges piled on one rack,
+ * every one of them reading «100%».
+ *
+ * Greedy and anchored on the order given, which for these callers is already
+ * nearest-first: the first of a group is the one closest to the reader, so
+ * the group's identity is the nearest member's. O(n²) over lists of eight.
+ *
+ * `keyOf` is what must MATCH — a transport mode, an operator. Two things that
+ * merely stand together are not the same thing, and a marker that hides which
+ * is which explains nothing.
+ *
+ * @param {Array} items each with lat/lon
+ * @param {number} radiusM how close counts as together
+ * @param {function} [keyOf] what must be equal; omitted means distance alone
+ * @returns {Array<Array>} groups, in the input's order, none empty
+ */
+export function clusterByDistance(items, radiusM, keyOf) {
+  const list = items || [];
+  const used = new Set();
+  const out = [];
+  list.forEach((a, i) => {
+    if (used.has(i)) return;
+    used.add(i);
+    const group = [a];
+    list.forEach((b, j) => {
+      if (used.has(j)) return;
+      if (keyOf && keyOf(b) !== keyOf(a)) return;
+      if (haver(a.lat, a.lon, b.lat, b.lon) < radiusM) { group.push(b); used.add(j); }
+    });
+    out.push(group);
+  });
+  return out;
+}
+
+/**
+ * How close two scooters must be to be one marker.
+ *
+ * Thirty metres. Scooters at one rack stand 2–15 m apart, so this catches the
+ * rack; two left on opposite sides of a square stay two markers, which is the
+ * truth about where they are. The 28px badge covers roughly 65 m of ground at
+ * normal zoom, so a pair at 30 m can still touch slightly — chosen anyway,
+ * because merging things that are genuinely apart is the worse error.
+ */
+export const MOBILITY_CLUSTER_M = 30;
+
+/** The same rule for nearby stops, which used to carry it inline, unnamed. */
+export const STOP_CLUSTER_M = 80;
+
 export function haver(la1, lo1, la2, lo2) {
   const R = 6371000, r = Math.PI / 180;
   const dL = (la2 - la1) * r, dN = (lo2 - lo1) * r;

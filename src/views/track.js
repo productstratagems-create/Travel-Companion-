@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
-import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls } from '../geo.js';
+import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon, legShape } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
@@ -12,7 +12,7 @@ import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard, _interpolateVehiclePos } from './board.js';
 import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
-import { makeVehicleIcon, makeRouteStopIcon } from '../ui/mapIcons.js';
+import { makeVehicleIcon, makeRouteStopIcon, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _trainPosition, SRC_LABEL } from './trainPosition.js';
 import { renderJourneyStrip } from './journeyStrip.js';
@@ -590,17 +590,25 @@ function _drawMobilityMarkers(ranked) {
     });
   }
   if (_cachedScooters) {
-    _cachedScooters.forEach(v => {
-      const rank = rankMap.get(v.lat + ',' + v.lon);
+    // One marker per rack, not per vehicle. Reported from this very map:
+    // eight badges stacked on one spot, every one of them reading «100%».
+    // Grouped by operator too — two scooters that merely stand together are
+    // not the same offer, and the badge now says which is which, so the
+    // grouping is visible rather than assumed.
+    clusterByDistance(_cachedScooters, MOBILITY_CLUSTER_M, v => v.operator).forEach(group => {
+      const g = mobilityCluster(group);
+      const rank = rankMap.get(group[0].lat + ',' + group[0].lon);
       const rankBadge = rank ? '<span class="mob-marker-rank">' + rank + '</span>' : '';
-      const label = v.battery !== null ? v.battery + '%' : '⚡';
+      const label = esc(String(g.operator).toUpperCase().slice(0, 4))
+        + (g.count > 1 ? '<span class="mob-marker-n">×' + g.count + '</span>' : '');
       const icon = L.divIcon({
         className: '',
-        html: '<div class="hn-map-scooter">' + rankBadge + label + '</div>',
-        iconAnchor: [14, 14],
+        html: '<div class="hn-map-scooter" style="border-color:' + vendorColour(g.operator) + ';color:'
+          + vendorColour(g.operator) + '">' + rankBadge + label + '</div>',
+        iconAnchor: [22, 14],
       });
-      L.marker([v.lat, v.lon], { icon })
-        .bindTooltip(v.operator + ' · ' + (v.battery !== null ? v.battery + '% · ' : '') + v.dist + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
+      L.marker([g.lat, g.lon], { icon })
+        .bindTooltip(g.tooltip, { direction: 'top', offset: [0, -20], className: 'map-label' })
         .addTo(_bikeLayer);
     });
   }

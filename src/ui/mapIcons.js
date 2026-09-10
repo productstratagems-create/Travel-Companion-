@@ -345,3 +345,58 @@ export function makeRouteStopIcon(color) {
     + 'opacity:.8;border:1.7px solid ' + _halo() + ';box-shadow:0 1px 2px rgba(0,0,0,.35)"></div>';
   return L.divIcon({ className: '', html, iconSize: [size, size], iconAnchor: [Math.round(size / 2), Math.round(size / 2)] });
 }
+
+
+/**
+ * What a group of scooters IS: one place, one operator, one badge.
+ *
+ * Both maps drew mobility markers, in two different ways — track.js with CSS
+ * classes, board.js with inline styles — so anything decided here had to be
+ * decided twice. This is the one place that says what a cluster means, and
+ * both call it.
+ *
+ * The centroid rather than the nearest one's spot: a marker that sat on one
+ * scooter of four would point at a single vehicle while claiming to be all of
+ * them. The BEST battery, because that is the one you would take. The nearest
+ * distance, because that is how far you must walk to reach any of them.
+ *
+ * @param {Array} group vehicles from one clusterByDistance group
+ */
+export function mobilityCluster(group) {
+  const list = group || [];
+  const n = list.length;
+  if (!n) return null;
+  const lat = list.reduce((a, v) => a + v.lat, 0) / n;
+  const lon = list.reduce((a, v) => a + v.lon, 0) / n;
+  const batteries = list.map(v => v.battery).filter(b => b != null);
+  const battery = batteries.length ? Math.max(...batteries) : null;
+  const dist = Math.min(...list.map(v => (v.dist == null ? Infinity : v.dist)));
+  const operator = list[0].operator || 'Sparkesykkel';
+  return {
+    lat, lon, count: n, operator, battery,
+    dist: Number.isFinite(dist) ? dist : null,
+    tooltip: operator + (n > 1 ? ' · ' + n + ' stk' : '')
+      + (battery != null ? ' · ' + battery + '%' : '')
+      + (Number.isFinite(dist) ? ' · ' + dist + ' m' : ''),
+  };
+}
+
+/**
+ * The colour that says which operator.
+ *
+ * ONE table. It was written twice: VENDOR_COLORS in board.js and a `.vnd-*`
+ * palette in board.css that carried the same four colours and was applied
+ * nowhere at all — dead CSS shadowing live JS.
+ */
+export const VENDOR_COLOUR = {
+  Bolt: '#22c55e',
+  Voi:  '#f87171',
+  Tier: '#60a5fa',
+  Ryde: '#a78bfa',
+  Dott: '#38bdf8',
+};
+
+/** An operator's colour, or a neutral one for a name we do not know. */
+export function vendorColour(operator) {
+  return VENDOR_COLOUR[operator] || '#94a3b8';
+}

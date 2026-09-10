@@ -26,10 +26,14 @@ const server = http.createServer((req, res) => {
 });
 await new Promise(r => server.listen(PORT, r));
 
+/* Two scooters the app can now tell apart: one whose feed reports a real
+   percentage, one whose feed reports only a range. Under the old rule both
+   read «100% · ca 25 km». */
 const ROWS = [
   { rank: 1, icon: '🚲', name: 'Bysykkel', sub: 'The Hub', meta: '20 ledig · 30 m unna', t: '4 min', b: '1g + 3r' },
-  { rank: 2, icon: '🛴', name: 'Voi', sub: 'sparkesykkel', meta: '100% · ca 25 km · 9 m unna', t: '4 min', b: '1g + 3r' },
-  { rank: 3, icon: '🚶', name: 'Gå', sub: null, meta: '597 m', t: '8 min', b: null },
+  { rank: 2, icon: '🛴', name: 'Voi', sub: 'sparkesykkel', meta: '42% · ca 18.4 km · 9 m unna', t: '4 min', b: '1g + 3r' },
+  { rank: 3, icon: '🛴', name: 'Bolt', sub: 'sparkesykkel', meta: 'ca 9.2 km igjen · 40 m unna', t: '5 min', b: '1g + 4r' },
+  { rank: 4, icon: '🚶', name: 'Gå', sub: null, meta: '597 m', t: '8 min', b: null },
 ];
 const rowHtml = (r, i, picked) =>
   '<button type="button" class="mob-option' + (i === 0 ? ' mob-best' : '')
@@ -78,14 +82,14 @@ for (const scheme of ['dark', 'light']) {
   console.log('  du er her  :', you);
   console.log('  destinasjon:', dest);
   console.log('  til å skille:', you !== dest ? 'JA' : 'NEI — samme farge');
-  await page.screenshot({ path: 'scratchpad/shots/pick-' + scheme + '-før.png', animations: 'disabled' });
+  await page.screenshot({ path: 'scratchpad/shots/charge-' + scheme + '-før.png', animations: 'disabled' });
 
   await render(1);   // the reader tapped row 2, «Voi»
   await page.waitForTimeout(300);
   const marked = await page.$$eval('.picked, .mob-picked', e => e.length);
   console.log('  etter trykk på rad 2 — markert:', marked, '(rad + merke)');
   fs.mkdirSync('scratchpad/shots', { recursive: true });
-  await page.screenshot({ path: 'scratchpad/shots/pick-' + scheme + '.png', animations: 'disabled' });
+  await page.screenshot({ path: 'scratchpad/shots/charge-' + scheme + '.png', animations: 'disabled' });
   await ctx.close();
 }
 await browser.close(); server.close();

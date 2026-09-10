@@ -368,15 +368,20 @@ export function mobilityCluster(group) {
   if (!n) return null;
   const lat = list.reduce((a, v) => a + v.lat, 0) / n;
   const lon = list.reduce((a, v) => a + v.lon, 0) / n;
-  const batteries = list.map(v => v.battery).filter(b => b != null);
-  const battery = batteries.length ? Math.max(...batteries) : null;
+  // The best of the group — the one you would take. A percentage only when
+  // the feed gave one; the range is what we always know.
+  const pcts = list.map(v => v.pct).filter(b => b != null);
+  const pct = pcts.length ? Math.max(...pcts) : null;
+  const ranges = list.map(v => v.rangeM).filter(r => r != null);
+  const rangeM = ranges.length ? Math.max(...ranges) : null;
   const dist = Math.min(...list.map(v => (v.dist == null ? Infinity : v.dist)));
   const operator = list[0].operator || 'Sparkesykkel';
   return {
-    lat, lon, count: n, operator, battery,
+    lat, lon, count: n, operator, pct, rangeM,
     dist: Number.isFinite(dist) ? dist : null,
     tooltip: operator + (n > 1 ? ' · ' + n + ' stk' : '')
-      + (battery != null ? ' · ' + battery + '%' : '')
+      + (pct != null ? ' · ' + pct + '%' : '')
+      + (pct == null && rangeM != null ? ' · ca ' + (Math.round(rangeM / 100) / 10) + ' km' : '')
       + (Number.isFinite(dist) ? ' · ' + dist + ' m' : ''),
   };
 }

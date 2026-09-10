@@ -957,12 +957,15 @@ function _rankMobility(arrLL, destLL) {
       const walkM = haver(arrLL.lat, arrLL.lon, v.lat, v.lon);
       const walkT = Math.ceil(walkM / walkSpd);
       const rideM = haver(v.lat, v.lon, destLL.lat, destLL.lon) * ROUTE_FACTOR;
-      const rangeKm = v.battery !== null ? Math.round(v.battery * 0.25) : null;
+      // The range as the feed gave it. It used to be reconstructed from the
+      // clamped percentage — battery * 0.25 — so «100 %» always came back out
+      // as «25 km», and the check below never fired.
+      const rangeKm = v.rangeM != null ? Math.round(v.rangeM / 100) / 10 : null;
       const rideKm  = Math.round(rideM / 1000 * 10) / 10;
       const tooLow  = rangeKm !== null && rangeKm < rideKm;
       if (!tooLow) {
         options.push({ type: 'scooter', label: v.operator, sub: 'sparkesykkel', dist: Math.round(walkM),
-          walkT, rideT: Math.ceil(rideM / RIDE_MPM.scooter), battery: v.battery, rangeKm, lat: v.lat, lon: v.lon });
+          walkT, rideT: Math.ceil(rideM / RIDE_MPM.scooter), pct: v.pct, rangeKm, lat: v.lat, lon: v.lon });
       }
     });
   }
@@ -1022,7 +1025,11 @@ function _mobilitySectionHtml() {
           : 'ingen ledige plasser ved ' + esc(o.ret.name));
       }
     }
-    if (o.battery != null) meta.push(o.battery + '% · ca ' + o.rangeKm + ' km');
+    // A percentage only when the feed gave one; otherwise the range alone,
+    // which is the thing the reader can act on and the thing we actually know.
+    if (o.pct != null && o.rangeKm != null) meta.push(o.pct + '% · ca ' + o.rangeKm + ' km');
+    else if (o.pct != null) meta.push(o.pct + '%');
+    else if (o.rangeKm != null) meta.push('ca ' + o.rangeKm + ' km igjen');
     if (o.type === 'walk') meta.push(o.dist < 1000 ? o.dist + ' m' : (o.dist / 1000).toFixed(1) + ' km');
     else meta.push(o.dist + ' m unna');
     // A button, not a div: it does something now, and a screen reader should

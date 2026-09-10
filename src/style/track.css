@@ -208,6 +208,15 @@
 .hn-arr-row:last-child{border-bottom:none}
 .hn-arr-row.cancelled .hn-arr-mins,
 .hn-arr-row.cancelled .hn-arr-dest{text-decoration:line-through;opacity:.5}
+/* Goes before you get there. Dimmed rather than removed: you might choose to
+   run, and a line that vanishes without trace is worse than one you can see
+   you just missed. Not struck through — that is what «innstilt» means, and
+   this departure is running perfectly well, just without you. */
+.hn-arr-row.missed{opacity:.45}
+.hn-arr-late{
+  font-size:9px;letter-spacing:.06em;color:var(--text-soft);
+  white-space:nowrap;margin-left:.35rem;
+}
 .hn-arr-mins{
   text-align:right;font-family:"Bebas Neue",sans-serif;
   font-size:1.5rem;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums;

@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
-import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN } from '../geo.js';
+import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon, legShape } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
@@ -376,22 +376,126 @@ function _updateDestAlertsSection() {
   els.forEach(el => renderAlertsInto(el, _destAlerts, _updateDestAlertsSection));
 }
 
-function _renderArrBoardHtml() {
+/**
+ * How long it takes to change platform here, before any margin of yours.
+ *
+ * A floor, not a measurement. The arrival board asks for `quay{publicCode}`
+ * only (queries.js), so there are no platform coordinates to measure between
+ * — and a walk inside a station goes by stairs and tunnels, so a straight line
+ * between two quays would not have been truer anyway.
+ *
+ * Same platform costs nothing: you are already standing on it.
+ */
+export const PLATFORM_CHANGE_MINS = 3;
+
+/**
+ * Minutes of slack between arriving and catching an onward departure.
+ *
+ * The list used to count from `Date.now()`, so it offered a departure leaving
+ * «NÅ» to a reader still sitting on the train — reported from the screen at
+ * Jernbanetorget. It is a departure board for someone already standing there,
+ * shown to someone who is not.
+ *
+ * `extraMins` is the reader's own «ekstra tid» (t.walkBuf, 0/2/5/10 in
+ * settings). It is the MARGIN, on top of the floor above — so choosing 0 still
+ * does not promise a change of platform in no time at all.
+ *
+ * Negative means you cannot make it. Nothing is dropped for it; the row says
+ * so instead, because you might choose to run and a line that vanishes without
+ * trace is worse than one you can see you just missed.
+ */
+export function transferMargin(depTs, arrivalTs, sameQuay, extraMins) {
+  const cost = (sameQuay ? 0 : PLATFORM_CHANGE_MINS) + (extraMins || 0);
+  return Math.floor((depTs - arrivalTs) / 60000) - cost;
+}
+
+/** How far ahead the onward list looks. */
+export const ARR_BOARD_HORIZON_MINS = 90;
+/** How many onward departures are offered. */
+export const ARR_BOARD_ROWS = 8;
+/**
+ * How many departures you have just missed are worth keeping.
+ *
+ * Seeing the one or two that went is context — it says the next one is five
+ * minutes behind it. Seeing eight is noise, and worse: the list is capped at
+ * eight, so a stop where the next eight all leave before you arrive would show
+ * eight grey rows and NOTHING you could catch. Measured on the reported
+ * screen, arriving in six minutes at Jernbanetorget: eight of ten rows dimmed,
+ * and both catchable ones cut off below the fold.
+ *
+ * That is the difference between marking a list and curating one.
+ */
+export const ARR_BOARD_MISSED = 2;
+
+/**
+ * The onward rows, decided rather than drawn.
+ *
+ * Pulled out because the WIRING is what the report was about, not the
+ * arithmetic. `transferMargin` was pure and testable on its own, and a
+ * renderer that fed it `Date.now()` instead of the arrival time passed every
+ * one of those tests — a mutant proved it. This is the seam where the basis
+ * itself is checked.
+ *
+ * @param {Array} board fetchArrBoard rows
+ * @param {number} arrivalTs when the reader gets there
+ * @param {number} extraMins the reader's «ekstra tid»
+ * @param {string|null} arrQuay the platform they arrive on
+ */
+export function arrRows(board, arrivalTs, extraMins, arrQuay) {
+  const rows = (board || [])
+    // Filtered BEFORE the cap. It used to cut to eight and then drop the far
+    // ones, so a couple of departures an hour out could leave the list short —
+    // or empty — while nearer ones waited behind them.
+    .filter(c => Math.floor((c.depTs - arrivalTs) / 60000) <= ARR_BOARD_HORIZON_MINS)
+    .map(c => {
+      const sameQuay = !!(arrQuay && c.quay && String(c.quay) === String(arrQuay));
+      const margin = transferMargin(c.depTs, arrivalTs, sameQuay, extraMins);
+      return {
+        c,
+        mins: Math.floor((c.depTs - arrivalTs) / 60000),
+        margin,
+        sameQuay,
+        rcls: reachCls(margin),
+      };
+    });
+
+  // Keep the LAST few you missed — the ones nearest to catchable — and fill
+  // the rest with departures you can make. Order is untouched: the kept
+  // missed ones still sit above the ones that follow them.
+  const missed = rows.filter(r => r.rcls === 'missed');
+  const keep = new Set(missed.slice(-ARR_BOARD_MISSED));
+  return rows
+    .filter(r => r.rcls !== 'missed' || keep.has(r))
+    .slice(0, ARR_BOARD_ROWS);
+}
+
+/**
+ * Test seam: the onward list reads module state, and the ONE line that
+ * chooses what to measure against is the thing the report was about. Two
+ * mutants — Date.now() instead of the arrival, and dropping the arrival
+ * platform — survived every test of the pure functions below it.
+ */
+export function _setArrBoard(rows) { _arrBoard = rows; }
+
+export function _renderArrBoardHtml() {
   if (!_arrBoard) return '<div class="hn-loading">laster avganger…</div>';
   if (!_arrBoard.length) return '<div class="hn-loading">ingen avganger</div>';
-  const now = Date.now();
-  return _arrBoard.slice(0, 8).map(c => {
-    const mins = Math.floor((c.depTs - now) / 60000);
-    if (mins > 90) return '';
+  // WHEN YOU GET THERE, not now. _arrivalDate is kept live by every fetchTrack
+  // poll and already feeds the weather and the places on this same screen.
+  return arrRows(_arrBoard, _arrivalDate().getTime(), loadWalkBuffer(),
+    (state.jny && state.jny.arrQuay) || null).map(({ c, mins, rcls }) => {
     const lc = (c.ln && c.ln.publicCode) || '?';
     const bg = (c.ln && c.ln.presentation && c.ln.presentation.colour) ? '#' + c.ln.presentation.colour : '#7c2d12';
     const minsHtml = mins <= 0 ? 'NÅ' : mins + '<span>min</span>';
-    return '<div class="hn-arr-row' + (c.cancelled ? ' cancelled' : '') + '">'
+    return '<div class="hn-arr-row ' + rcls + (c.cancelled ? ' cancelled' : '') + '">'
       + '<div class="hn-arr-mins">' + minsHtml + '</div>'
       + '<div class="hn-arr-mid">'
       + '<span class="line-badge" style="background:' + bg + '">' + lc + '</span>'
       + '<span class="hn-arr-dest">' + esc(c.dest) + '</span>'
       + (c.cancelled ? '<span class="dep-cancelled">innstilt</span>' : '')
+      // Said, not hidden: you can choose to run.
+      + (rcls === 'missed' && !c.cancelled
+        ? '<span class="hn-arr-late">går før du er framme</span>' : '')
       + '</div>'
       + (c.quay && c.quay !== '?' ? '<div class="hn-arr-spor">spor ' + c.quay + '</div>' : '<div></div>')
       + '</div>';

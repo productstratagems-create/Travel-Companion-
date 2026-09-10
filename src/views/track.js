@@ -523,8 +523,14 @@ function _updateUserMarker() {
   if (_userMarker) {
     _userMarker.setLatLng([state.homeLL.lat, state.homeLL.lon]);
   } else {
+    // --map-you, the one colour reserved for «you». It used to be #60a5fa —
+    // the SAME blue as the destination pin two functions below, and as Tier's
+    // vendor colour — so the dot that means «you are here» was indistinguish-
+    // able from the dot that means «that is where you are going». The token
+    // exists precisely so this cannot happen; the board map already uses it.
     _userMarker = L.circleMarker([state.homeLL.lat, state.homeLL.lon], {
-      radius: 7, color: '#fff', fillColor: '#60a5fa', fillOpacity: 0.95, weight: 2,
+      radius: 7, color: tokens().mapInk, fillColor: tokens().mapYou,
+      fillOpacity: 1, weight: 2.5,
     }).bindTooltip('Din posisjon', { className: 'map-label' }).addTo(_arrMap);
   }
 }
@@ -563,6 +569,9 @@ function _fitArrMap(arrLL) {
   if (!_arrMap || _arrUserMoved) return;
   const pts = [[arrLL.lat, arrLL.lon]];
   if (_walkDestLL) pts.push([_walkDestLL.lat, _walkDestLL.lon]);
+  // …and you. The dot was drawn and then framed out: nothing put the reader's
+  // own position into the bounds, so «du er her» could sit off the map.
+  if (state.homeLL) pts.push([state.homeLL.lat, state.homeLL.lon]);
   if (pts.length === 1) { _arrMap.setView(pts[0], 15); return; }
   _arrMap.fitBounds(pts, { padding: [24, 24], maxZoom: 16 });
 }
@@ -570,48 +579,64 @@ function _fitArrMap(arrLL) {
 function _drawMobilityMarkers(ranked) {
   if (!_arrMap || !_bikeLayer) return;
   _bikeLayer.clearLayers();
-  // Build a lookup: lat+lon → rank number
-  const rankMap = new Map();
-  ranked.forEach((o, idx) => rankMap.set(o.lat + ',' + o.lon, idx + 1));
+  _mobMarkers = {};
+  const list = ranked || [];
 
   if (_cachedBikes) {
     _cachedBikes.forEach(s => {
       const count = s.bikes + (s.ebikes || 0);
-      const rank = rankMap.get(s.lat + ',' + s.lon);
-      const rankBadge = rank ? '<span class="mob-marker-rank">' + rank + '</span>' : '';
+      // A station is one place, so its own coordinate identifies it.
+      const idx = list.findIndex(o => o.lat === s.lat && o.lon === s.lon);
+      const rankBadge = idx >= 0 ? '<span class="mob-marker-rank">' + (idx + 1) + '</span>' : '';
+      const picked = idx >= 0 && idx === _mobPicked;
       const icon = L.divIcon({
         className: '',
-        html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '') + '">' + rankBadge + count + '</div>',
+        html: '<div class="hn-map-bike' + (count === 0 ? ' empty' : '')
+          + (picked ? ' picked' : '') + '">' + rankBadge + count + '</div>',
         iconAnchor: [14, 14],
       });
-      L.marker([s.lat, s.lon], { icon })
-        .bindTooltip(s.name + ' · ' + count + ' sykler · ' + s.dist + ' m', { direction: 'top', offset: [0, -20], className: 'map-label' })
+      const mk = L.marker([s.lat, s.lon], { icon })
+        .bindTooltip(s.name + ' \u00b7 ' + count + ' sykler \u00b7 ' + s.dist + ' m',
+          { direction: 'top', offset: [0, -20], className: 'map-label' })
         .addTo(_bikeLayer);
+      if (idx >= 0) _mobMarkers[idx] = mk;
     });
   }
   if (_cachedScooters) {
-    // One marker per rack, not per vehicle. Reported from this very map:
-    // eight badges stacked on one spot, every one of them reading «100%».
-    // Grouped by operator too — two scooters that merely stand together are
-    // not the same offer, and the badge now says which is which, so the
-    // grouping is visible rather than assumed.
-    clusterByDistance(_cachedScooters, MOBILITY_CLUSTER_M, v => v.operator).forEach(group => {
+    const groups = clusterByDistance(_cachedScooters, MOBILITY_CLUSTER_M, v => v.operator);
+    // MEMBERSHIP, not coordinates. The badge used to be looked up by the raw
+    // vehicle's lat/lon, which stopped matching the moment the marker moved to
+    // the group's centroid — so a ranked scooter that was not first in its
+    // group lost its number entirely. Shipped that way in v1.99.0.
+    const rankOfGroup = new Map();
+    list.forEach((o, idx) => {
+      const gi = clusterIndexOf(groups, o);
+      if (gi >= 0 && !rankOfGroup.has(gi)) rankOfGroup.set(gi, idx);
+    });
+    groups.forEach((group, gi) => {
       const g = mobilityCluster(group);
-      const rank = rankMap.get(group[0].lat + ',' + group[0].lon);
-      const rankBadge = rank ? '<span class="mob-marker-rank">' + rank + '</span>' : '';
+      const idx = rankOfGroup.has(gi) ? rankOfGroup.get(gi) : -1;
+      const rankBadge = idx >= 0 ? '<span class="mob-marker-rank">' + (idx + 1) + '</span>' : '';
+      const picked = idx >= 0 && idx === _mobPicked;
       const label = esc(String(g.operator).toUpperCase().slice(0, 4))
-        + (g.count > 1 ? '<span class="mob-marker-n">×' + g.count + '</span>' : '');
+        + (g.count > 1 ? '<span class="mob-marker-n">\u00d7' + g.count + '</span>' : '');
       const icon = L.divIcon({
         className: '',
-        html: '<div class="hn-map-scooter" style="border-color:' + vendorColour(g.operator) + ';color:'
+        html: '<div class="hn-map-scooter' + (picked ? ' picked' : '')
+          + '" style="border-color:' + vendorColour(g.operator) + ';color:'
           + vendorColour(g.operator) + '">' + rankBadge + label + '</div>',
         iconAnchor: [22, 14],
       });
-      L.marker([g.lat, g.lon], { icon })
+      const mk = L.marker([g.lat, g.lon], { icon })
         .bindTooltip(g.tooltip, { direction: 'top', offset: [0, -20], className: 'map-label' })
         .addTo(_bikeLayer);
+      if (idx >= 0) _mobMarkers[idx] = mk;
     });
   }
+  // «Gå» has no vehicle: its marker is the destination, which is already on
+  // the map. Point the row at it so every row answers the same question.
+  const walkIdx = list.findIndex(o => o.type === 'walk');
+  if (walkIdx >= 0 && _arrWalkMarker) _mobMarkers[walkIdx] = _arrWalkMarker;
 }
 
 function _addBikeMarkers(arrLL) {
@@ -1000,7 +1025,10 @@ function _mobilitySectionHtml() {
     if (o.battery != null) meta.push(o.battery + '% · ca ' + o.rangeKm + ' km');
     if (o.type === 'walk') meta.push(o.dist < 1000 ? o.dist + ' m' : (o.dist / 1000).toFixed(1) + ' km');
     else meta.push(o.dist + ' m unna');
-    return '<div class="mob-option' + (isBest ? ' mob-best' : '') + '">'
+    // A button, not a div: it does something now, and a screen reader should
+    // be told so. data-i indexes back into the same ranking the markers use.
+    return '<button type="button" class="mob-option' + (isBest ? ' mob-best' : '')
+      + (_mobPicked === idx ? ' mob-picked' : '') + '" data-i="' + idx + '">'
       + '<span class="mob-rank">' + rank + '</span>'
       + '<span class="mob-icon">' + _mobilityIcon(o.type) + '</span>'
       + '<div class="mob-info">'
@@ -1012,13 +1040,94 @@ function _mobilitySectionHtml() {
       + '<span class="mob-total">' + o.total + ' min</span>'
       + (o.rideT > 0 ? '<span class="mob-breakdown">' + o.walkT + 'g + ' + o.rideT + 'r</span>' : '')
       + '</div>'
-      + '</div>';
+      + '</button>';
   }).join('');
+}
+
+/**
+ * Where a ranked row is, on the map.
+ *
+ * The list said «1 Bysykkel · The Hub, 30 m unna» and pointed at nothing —
+ * the rows were plain divs. This is what a tap has to resolve to.
+ *
+ * A vehicle carries its own coordinate. «Gå» does not: it is not a place, it
+ * is the whole way from here to there, so it resolves to the DESTINATION —
+ * the far end of the walk that is already drawn on the map. That keeps every
+ * row answering the same question: where is this?
+ *
+ * Pure, and exported, because it is the rule; the panning and the highlight
+ * are just what the screen does with it.
+ */
+export function mobilityTarget(option, destLL) {
+  if (!option) return null;
+  if (option.lat != null && option.lon != null) {
+    return { lat: option.lat, lon: option.lon, kind: option.type };
+  }
+  if (option.type === 'walk' && destLL && destLL.lat != null) {
+    return { lat: destLL.lat, lon: destLL.lon, kind: 'walk' };
+  }
+  return null;
+}
+
+/**
+ * Which cluster a ranked vehicle ended up in.
+ *
+ * The rank badge used to be looked up by `lat + ',' + lon` on the RAW vehicle,
+ * which stopped working the moment scooters were clustered (v1.99.0): the
+ * marker sits at the group's centroid, and the lookup only matched when the
+ * ranked scooter happened to be first in its group. Anywhere else the badge
+ * simply vanished — a bug shipped in the release before this one.
+ *
+ * Membership, not coordinates. Returns the index of the group containing the
+ * option, or -1.
+ */
+export function clusterIndexOf(groups, option) {
+  if (!option || option.lat == null) return -1;
+  return (groups || []).findIndex(g => (g || []).some(v =>
+    v.lat === option.lat && v.lon === option.lon
+    && (!option.label || !v.operator || v.operator === option.label)));
+}
+
+/**
+ * Which row the reader tapped, by index into the ranking.
+ *
+ * A module variable, not markup: #hn-mobility-content is rewritten by
+ * innerHTML on every update, so a class on the row would be wiped before the
+ * finger left the screen. Same rule the rest of this codebase keeps.
+ */
+let _mobPicked = null;
+/** rank index → the Leaflet marker for it, rebuilt with the markers. */
+let _mobMarkers = {};
+
+function _pickMobility(idx) {
+  if (!_arrLL || !_walkDestLL) return;
+  const ranked = _rankMobility(_arrLL, _walkDestLL);
+  const o = ranked[idx];
+  const target = mobilityTarget(o, _walkDestLL);
+  if (!target) return;
+  _mobPicked = (_mobPicked === idx) ? null : idx;
+  _updateMobilitySection();
+  if (_mobPicked === null || !_arrMap) return;
+
+  // The map sits ABOVE the list, so on a phone a highlight without this
+  // points at something off the screen.
+  const mapEl = document.getElementById('hn-map');
+  if (mapEl && mapEl.scrollIntoView) mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Pan, do not zoom: the arrival stop and the destination are the context
+  // the reader asked for, and zooming to one option throws both away.
+  _arrUserMoved = true;
+  _arrMap.panTo([target.lat, target.lon]);
+  if (_mobMarkers[idx]) _mobMarkers[idx].openTooltip();
 }
 
 function _updateMobilitySection() {
   const el = document.getElementById('hn-mobility-content');
-  if (el) el.innerHTML = _mobilitySectionHtml();
+  if (el) {
+    el.innerHTML = _mobilitySectionHtml();
+    el.querySelectorAll('.mob-option').forEach(b => {
+      b.addEventListener('click', () => _pickMobility(Number(b.dataset.i)));
+    });
+  }
   // Sync map markers with current ranking
   if (_arrLL && (_cachedBikes || _cachedScooters)) {
     const ranked = (_walkDestLL && _arrLL)

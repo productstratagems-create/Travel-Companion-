@@ -85,13 +85,15 @@ await new Promise(r => server.listen(PORT, r));
 
 const browser = await pw.chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 
-async function run(label, hist, scheme) {
+async function run(label, hist, scheme, at) {
+  const POS = at || AWAY;
   const ctx = await browser.newContext({
     viewport: { width: 414, height: 860 }, deviceScaleFactor: 2, colorScheme: scheme,
     hasTouch: true, isMobile: true, timezoneId: 'Europe/Oslo', locale: 'nb-NO',
-    geolocation: { latitude: AWAY.lat, longitude: AWAY.lon }, permissions: ["geolocation"],
+    geolocation: { latitude: POS.lat, longitude: POS.lon }, permissions: ["geolocation"],
   });
   const page = await ctx.newPage();
+  page.on('console', m => { const t = m.text(); if (/auto:/.test(t)) console.log('    [logg]', t); });
   await page.addInitScript(({ now, away, hist }) => {
     const Real = Date;
     class Pinned extends Real {
@@ -109,7 +111,7 @@ async function run(label, hist, scheme) {
     localStorage.setItem('default::t.freqArr', JSON.stringify(
       hist.map(h => ({ name: h.toName, stopId: h.toStopId, lat: h.toLat, lon: h.toLon,
         count: h.count, lastUsed: h.lastUsed }))));
-  }, { now: NOW, away: AWAY, hist });
+  }, { now: NOW, away: POS, hist });
 
   await page.route('**/geocoder/**', r => r.fulfill({ status: 200, contentType: 'application/json',
     body: JSON.stringify({ features: NEARBY }) }));
@@ -211,6 +213,16 @@ async function run(label, hist, scheme) {
   await ctx.close();
 }
 
+/* SINCE v1.101.0 THE ADVANCE ONLY FIRES AT THE STOP.
+   637 m away — this probe's own distance, taken from the reported Mortensrud
+   screen — the walking route and the walking time ARE the answer, so the
+   orientation screen stays and the reach marks say the same thing the advance
+   used to say, only more directly: the metro in 2 minutes is struck through
+   and the one in 11 is not.
+   Both halves are driven here, because "does not fire" is only correct if
+   "still fires" is also true. */
+await run('637 m unna — skal IKKE gå videre', [], 'dark');
+await run('ved stoppet — skal gå videre', [], 'dark', { lat: HERE.lat - 30 / 111320, lon: HERE.lon });
 await run('uten-historikk', [], 'dark');
 await run('klar', [histRow('Jernbanetorget', JBT.id, 12), histRow('Hellerud', HEL.id, 2)], 'dark');
 await run('uten-historikk', [], 'light');

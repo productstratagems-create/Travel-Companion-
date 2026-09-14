@@ -352,9 +352,44 @@ export function walkFocus(minsToLeave) {
   return Number.isFinite(minsToLeave) && minsToLeave <= WALK_FOCUS_MINS;
 }
 
+/**
+ * Minutes until you must set off, given a walk you name yourself.
+ *
+ * Pure, and exported, because two screens ask this question about two
+ * different stops. `mToLeave` asks it about the ACTIVE ROUTE's stop, through
+ * `walkInfo` — which reads `config.dirs[state.dIdx]` and so can only ever
+ * answer for a route that has already been chosen. auto-reise has no active
+ * route; it has a stop it just found under your feet, and calling `mToLeave`
+ * there would have counted down to the wrong platform.
+ *
+ * Same repair as v1.94.0 made for `walkInfo`/`walkMinsTo`: the general rule
+ * takes the walk as an argument, and the old name becomes a thin wrapper that
+ * supplies the active route's walk. One rule, two callers, and a test that
+ * binds them — because a second copy of this arithmetic is how the two
+ * screens would start disagreeing about whether you can still make the train.
+ */
+/**
+ * Where the reader is, as one answer.
+ *
+ * The callers disagreed: board.js used `walkFromLL || homeLL`, track.js used
+ * `homeLL || walkFromLL`. Same two values, opposite precedence, so the same
+ * reader could be in two places on two screens of the same app.
+ *
+ * A place the reader SET THEMSELVES wins over a GPS fix, as everywhere else
+ * here — `walkMinsTo` already resolves it that way (`fromLL || walkFromLL ||
+ * homeLL`), so this is that rule given a name rather than a new one.
+ */
+export function userLL() {
+  return state.walkFromLL || state.homeLL || null;
+}
+
+export function minsToLeave(depTs, walkMins, now) {
+  if (!Number.isFinite(depTs) || !Number.isFinite(walkMins)) return NaN;
+  return Math.floor((depTs - walkMins * 60000 - now) / 60000);
+}
+
 export function mToLeave(depTs) {
-  const w = walkInfo();
-  return Math.floor((depTs - w.mins * 60000 - Date.now()) / 60000);
+  return minsToLeave(depTs, walkInfo().mins, Date.now());
 }
 
 export function reachCls(mtl) {

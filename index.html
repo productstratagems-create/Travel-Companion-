@@ -331,6 +331,17 @@
     <button class="nav-plan-btn" id="auto-refresh" aria-label="Hent posisjon og avganger på nytt">↻</button>
   </div>
   <div id="auto-where" class="set-section"></div>
+  <!-- The orientation map, and it is OUTSIDE #auto-where and #auto-body for
+       the same reason everything else here is: both have their innerHTML
+       replaced once a second, and a Leaflet map drawn inside one of them
+       would be torn down and rebuilt at 1 Hz. Created once, updated after.
+
+       «Hvor er jeg, hvor er stoppet, hvordan kommer jeg dit» was the one
+       question this screen could not answer — it had no map at all, and the
+       walking time it already computed went to the debug log. -->
+  <div id="auto-map-wrap" class="set-section" style="display:none">
+    <div id="auto-map"></div>
+  </div>
   <!-- Outside #auto-body on purpose, like the two sections below it: the
        screen redraws every second (v1.71.0) and replaces that innerHTML
        wholesale, so a switch drawn inside would lose focus and swallow taps

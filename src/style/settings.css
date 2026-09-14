@@ -320,6 +320,24 @@
    .set-label the rest of this screen uses, so a lane reads as a section and
    not as a new component. Space above every band but the first, which sits
    directly under the stop heading. */
+/* The orientation map: a BAND, not a canvas.
+   Chosen deliberately over a full-height map. This screen has to answer two
+   halves of one question at once — «where am I / how do I get to the stop»
+   and «which departures are relevant» — and a map that takes the screen wins
+   the first by losing the second. 140px is enough to read you, the stop and
+   the line between you, while the first departures stay above the fold.
+   Measured at 414px: four direction rows still visible. */
+#v-auto #auto-map {
+  height: 140px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+#v-auto #auto-map-wrap { padding-top: 0; }
+/* Tap targets on the band are the same stops as the rows below, so they get
+   the same affordance — a pointer, not a map's grab cursor. */
+#v-auto #auto-map .auto-map-pin { cursor: pointer; }
+
 #v-auto .auto-lane + .auto-lane { margin-top: .5rem; }
 #v-auto .auto-lane .set-label { margin-bottom: .25rem; }
 /* Three times, and not three equal weights — the first is the one you act on,
@@ -327,6 +345,30 @@
    new flex children: the rule above exists because a third child pushed the
    label adrift under space-between. */
 #v-auto .auto-dir .auto-t-more { opacity: .55; }
+/* CAN YOU ACTUALLY MAKE IT — the reason the walking time is on this screen.
+   The classes come from reachCls, the same four the departure board has used
+   all along; they had no styling HERE, so the marks were in the DOM and
+   invisible on screen. Measured in the browser, which is the only place that
+   showed it.
+
+   Restrained on purpose. r-ok is the normal case and stays exactly as it was
+   — colouring every ordinary departure would turn the list into a rainbow and
+   say nothing. Only the two facts a reader acts on get a voice: one you
+   cannot reach, and one you must leave for now.
+
+   Struck through rather than hidden. Nothing is removed — you may choose to
+   run — and a departure that vanishes without trace is worse than one you can
+   see you just missed. */
+#v-auto .auto-dir .missed {
+  opacity: .45;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+#v-auto .auto-dir .r-soon { color: var(--warn); }
+#v-auto .auto-dir .r-now  { color: #60a5fa; }
+/* The first time is the one you act on, so a missed first time has to be
+   legible as struck-through rather than merely faint. */
+#v-auto .auto-dir .auto-t-next.missed { opacity: .5; }
 /* Where to stand, beside which way you are going — two halves of the same
    question. Quieter than the destination, which is what you scan for.
    Never shrinks: the destination is the long, variable part and gives way

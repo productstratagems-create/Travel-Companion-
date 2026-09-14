@@ -120,6 +120,10 @@ html[data-theme="light"] .dep-tag { color: var(--warn); }
 
 html[data-theme="light"] .dep-reach.r-ok { color: var(--ok); }
 html[data-theme="light"] .dep-reach.r-soon { color: var(--urgent); }
+/* Same substitution the departure board makes: --warn is legible on a dark
+   canvas and washes out on a light one. */
+html[data-theme="light"] #v-auto .auto-dir .r-soon { color: var(--urgent); }
+html[data-theme="light"] #v-auto .auto-dir .r-now  { color: #2563eb; }
 html[data-theme="light"] .dep-reach.r-now { color: #2563eb; }
 html[data-theme="light"] .dep-cancelled { color: var(--err); }
 

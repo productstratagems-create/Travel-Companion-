@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL } from '../geo.js';
 import { fetchJourneyMeta } from '../api/entur.js';
 import { quayLatLon, legShape, _rowDest } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
@@ -15,7 +15,7 @@ import { startBoard } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
-import { createMap, drawRoute, drawWalk } from '../ui/map.js';
+import { createMap, drawRoute, drawWalk, userDot } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
 
 function cleanName(s) { return (s || '').replace(/,\s*\S.*$/, '').replace(/\s+T$/i, '').trim(); }
@@ -239,11 +239,9 @@ function _renderSelMap(dep, fromName, toName) {
   }
 
   // User position
-  const userPos = state.walkFromLL || state.homeLL;
+  const userPos = userLL();
   if (userPos) {
-    L.circleMarker([userPos.lat, userPos.lon], { radius: 6, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2 })
-      .bindTooltip('Din posisjon', { className: 'sel-stop-label' })
-      .addTo(_selLayer);
+    userDot(_selLayer, userPos, { radius: 6 });
 
     // The walk TO the stop — the half of the journey only the gangtid screen
     // used to draw, on a second map of its own. Without it this map showed

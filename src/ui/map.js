@@ -128,6 +128,40 @@ export function drawWalk(layer, latlngs) {
   });
 }
 
+/**
+ * You, on any map — drawn the one way you are drawn.
+ *
+ * There were five of these: board.js, two in track.js, selected.js and
+ * leisure.js. Three read `tokens().mapYou`; the other two were still
+ * hardcoded `#60a5fa` — THE SAME BLUE AS THE DESTINATION PINS. So on two
+ * screens the dot saying "you are here" was the same colour as the dot saying
+ * "you are going there", which is the one confusion a map about orientation
+ * must not have. track.js's own comment says the token was introduced to
+ * prevent exactly that; two maps never got the message.
+ *
+ * Same consolidation `drawWalk` above did for the walking line, and for the
+ * same reason: nobody chose five, it accumulated.
+ *
+ * THE SOURCE IS ALSO ONE CHOICE NOW. Callers disagreed about which position
+ * wins — board.js took `walkFromLL || homeLL`, track.js took
+ * `homeLL || walkFromLL`. A place the reader set themselves beats a GPS fix,
+ * as everywhere else in the app; `userLL()` is that rule, in one place.
+ *
+ * @param {L.LayerGroup|L.Map} layer
+ * @param {{lat:number, lon:number}} ll
+ */
+export function userDot(layer, ll, opts = {}) {
+  const { radius = 7, tooltip = 'Din posisjon' } = opts;
+  const m = L.circleMarker([ll.lat, ll.lon], {
+    radius, color: tokens().mapInk, fillColor: tokens().mapYou,
+    fillOpacity: 1, weight: 2.5,
+  });
+  if (tooltip) {
+    m.bindTooltip(tooltip, { className: 'map-label', direction: 'bottom', offset: [0, 6] });
+  }
+  return m.addTo(layer);
+}
+
 /** Swap every live map onto the tile set matching the current theme. */
 export function retileMaps() {
   const url = currentTileUrl();

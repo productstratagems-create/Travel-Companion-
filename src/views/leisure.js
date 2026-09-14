@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import { setActiveRoute } from './settings.js';
-import { createMap } from '../ui/map.js';
+import { createMap, userDot } from '../ui/map.js';
 import { state } from '../state.js';
 import { fetchNearbyPlaces, timeCategory, PLACE_CATS } from '../api/places.js';
 import { fetchWeather } from '../api/weather.js';
@@ -361,9 +361,7 @@ function _initLeisureMap(pos) {
 
   if (pos) {
     _lMap.setView([pos.lat, pos.lon], 15);
-    _userMarker = L.circleMarker([pos.lat, pos.lon], {
-      radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2,
-    }).addTo(_lMap);
+    _userMarker = userDot(_lMap, pos);
   }
 
   if (_venues && _venues.length) _updateLeisureMarkers(pos);
@@ -382,9 +380,7 @@ function _updateLeisureMarkers(pos) {
     if (_userMarker) {
       _userMarker.setLatLng([pos.lat, pos.lon]);
     } else {
-      _userMarker = L.circleMarker([pos.lat, pos.lon], {
-        radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.9, weight: 2,
-      }).addTo(_lMap);
+      _userMarker = userDot(_lMap, pos);
     }
   }
 

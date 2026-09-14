@@ -27,7 +27,11 @@ import { renderRouteShortcuts } from '../ui/favs.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf, loadFreq } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
-import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo } from '../geo.js';
+import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, userLL, minsToLeave, reachCls, posAgeMins } from '../geo.js';
+import L from 'leaflet';
+import { createMap, drawWalk, userDot } from '../ui/map.js';
+import { makeStopIcon } from '../ui/mapIcons.js';
+import { ensureApproach, approachPoints, AT_STOP_M } from '../api/approach.js';
 
 const MIN = 60000;
 /**
@@ -694,9 +698,22 @@ export function _setStopsOpen(v) { _stopsShown = !!v; }
  * The count shows only while the list is closed. Open, the stops are on
  * screen, and a number counting what you are looking at is noise.
  */
-export function stopHeadHtml(stop, count, open) {
-  const dist = stop && stop.distM != null
-    ? '<span class="nearby-dist">' + stop.distM + ' m</span>' : '';
+export function stopHeadHtml(stop, count, open, extra) {
+  // «369 m» alone asks the reader to convert metres into whether they can
+  // make the 16:04. The app already knows: walkMinsTo is computed on this
+  // screen and, until now, went only to the debug log.
+  //
+  // The age of the fix rides here too, and only when it is stale. This whole
+  // screen — the heading, the map, the reach on every row — now leans on the
+  // position being right, so a position that is twelve minutes old has to say
+  // so rather than be drawn with full confidence. posAgeMins already exists;
+  // it was read in exactly one place in the whole app.
+  const bits = [];
+  if (stop && stop.distM != null) bits.push(stop.distM + ' m');
+  if (extra && extra.walkMins != null) bits.push(extra.walkMins + ' min gange');
+  if (extra && extra.ageMins != null) bits.push('posisjon ' + extra.ageMins + ' min gammel');
+  const dist = bits.length
+    ? '<span class="nearby-dist">' + esc(bits.join(' · ')) + '</span>' : '';
   const name = esc((stop && stop.name) || '');
   const head = '<span class="auto-stop-name">' + name
     + (count > 0
@@ -774,8 +791,14 @@ function _renderWhere() {
   const others = nearbyAlternatives(list, _stop);
   const open = stopsOpen(others.length);
 
+  const w = walkMinsTo(_stop);
+  // posAgeMins already returns null while the fix is fresh (POS_STALE_MS), so
+  // the threshold is not repeated here. One definition of "stale".
   el.innerHTML = '<div class="set-label">du er ved</div>'
-    + stopHeadHtml(_stop, others.length, open)
+    + stopHeadHtml(_stop, others.length, open, {
+      walkMins: w ? w.mins : null,
+      ageMins: posAgeMins(),
+    })
     + '<div id="auto-alts"' + (open ? '' : ' hidden') + '>'
     // One band per mode. The count in the heading above is the number of
     // STOPS, not of rows — an interchange stands in two lanes, and letting it
@@ -802,19 +825,178 @@ function _renderWhere() {
     });
   }
   el.querySelectorAll('.auto-alt').forEach(b => {
-    b.addEventListener('click', () => {
-      _stop = list.find(s => s.id === b.dataset.id) || _stop;
-      // The reader chose. From here a new fix refreshes the distance but does
-      // not overrule the choice — until they leave the screen.
-      _stopPinned = true;
-      _open = null; _dirs = [];
-      // Deliberately NOT collapsing here. Having the list shut under the
-      // finger that just picked from it is a movement nobody asked for, and
-      // it makes trying two stops in a row needlessly hard.
-      renderAuto();
-      _load();
-    });
+    b.addEventListener('click', () => pinStop(b.dataset.id));
   });
+}
+
+/**
+ * The orientation map.
+ *
+ * The thing this screen was missing entirely. auto-reise is where the app
+ * answers «where am I, where is the stop, how do I get there», and until now
+ * it answered all three in text: «du er ved Mortensrud T» and «369 m». There
+ * was no Leaflet import in the file at all.
+ *
+ * CREATED ONCE. The screen redraws every second (scheduler.js), so building
+ * the map inside the render would tear down and rebuild a Leaflet instance at
+ * 1 Hz. It is built on the first render that has a stop, and updated after.
+ *
+ * REDRAWN ONLY WHEN SOMETHING MOVED. Same reasoning one level down: clearing
+ * and refilling the layer every tick is churn the reader sees as flicker, so
+ * the markers are keyed on what they depend on.
+ */
+let _aMap = null;
+let _aLayer = null;
+let _aKey = '';
+let _aFitKey = '';
+let _aUserMoved = false;
+
+/** Test seam: module state, and a test must be able to clear it. */
+export function _resetAutoMap() {
+  if (_aMap) { try { _aMap.remove(); } catch (_) {} }
+  _aMap = null; _aLayer = null; _aKey = ''; _aFitKey = ''; _aUserMoved = false;
+}
+export function _autoMap() { return _aMap; }
+
+/**
+ * What the map is showing right now, as one string.
+ *
+ * Pure and exported so the "drawn once" claim is testable without a browser.
+ * The position is rounded to ~11 m — the same four decimals `walkKey` uses —
+ * because a GPS fix jitters by a few metres while standing still, and keying
+ * on the raw value would redraw the map on jitter alone.
+ */
+export function mapKey(stop, userPos, others, walkPts) {
+  const r = v => (v == null ? '-' : v.toFixed(4));
+  return [
+    stop ? stop.id : '-',
+    userPos ? r(userPos.lat) + ',' + r(userPos.lon) : '-',
+    others.length,
+    walkPts ? walkPts.length : 0,
+  ].join('|');
+}
+
+function _renderMap() {
+  const wrap = _el('auto-map-wrap');
+  const el = _el('auto-map');
+  if (!wrap || !el) return;
+
+  const userPos = userLL();
+  // Nothing to orient by. A map showing neither you nor a stop is a grey
+  // rectangle taking 140px from the departures, so it is not shown at all.
+  if (!_stop && !userPos) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+
+  if (!_aMap) {
+    _aMap = createMap(el, { zoom: false });
+    _aLayer = L.layerGroup().addTo(_aMap);
+    // Once the reader has DRAGGED the map it is theirs. Same rule, and the
+    // same single event, as the board (_bUserMoved): an auto-fit that keeps
+    // yanking the frame back is the most irritating thing a small map can do.
+    //
+    // `zoomstart` was here too, and it was self-defeating — Leaflet fires it
+    // for programmatic zooms as well, so `fitBounds` declared the reader had
+    // moved the map in the act of framing it, and every later fit was
+    // blocked. Measured: the stop marker sat 40px above a 140px band.
+    _aMap.on('dragstart', () => { _aUserMoved = true; });
+  }
+  // Leaflet measures the container when it is created; created while the
+  // screen was hidden, that measurement is zero and the tiles never fill.
+  _aMap.invalidateSize();
+  // AND THE FRAME HAS TO BE RECOMPUTED WHEN THAT MEASUREMENT CHANGES.
+  // Measured in the browser: the first fitBounds ran against a 0-height
+  // container, so the map settled centred on the reader at max zoom with the
+  // stop 550px above the band — the walking line ran off the top edge and the
+  // stop marker was not on screen at all. Every number was right; only the
+  // screenshot showed it.
+  //
+  // The size is part of the fit key, because a different container is a
+  // different frame. Nothing to fit into yet means nothing to fit.
+  const box = el.getBoundingClientRect();
+  const sizeKey = Math.round(box.width) + 'x' + Math.round(box.height);
+  if (!box.width || !box.height) return;
+
+  // The walk, from the one cache that owns it. The board reads the same
+  // points from the same module, so the two screens cannot draw different
+  // routes between the same two places.
+  if (userPos && _stop) ensureApproach(userPos, _stop);
+  const walkPts = approachPoints();
+
+  const others = _stop ? nearbyAlternatives(_stops(), _stop) : [];
+  const key = mapKey(_stop, userPos, others, walkPts);
+  // Redraw when the content changed; re-fit when the content OR the frame
+  // changed. Returning early on content alone is what let the bad first fit
+  // survive for the life of the screen.
+  const fitStale = !_aUserMoved && _aFitKey !== key + '|' + sizeKey;
+  if (key === _aKey && !fitStale) return;
+  _aKey = key;
+
+  _aLayer.clearLayers();
+  const pts = [];
+
+  if (_stop && _stop.lat != null) {
+    L.marker([_stop.lat, _stop.lon], {
+      icon: makeStopIcon(normMode((_stop.modes || [])[0]), (_stop.modes || []).length, { primary: true }),
+    })
+      .bindTooltip(_stop.name, { className: 'map-label', direction: 'top', offset: [0, -8] })
+      .addTo(_aLayer);
+    pts.push([_stop.lat, _stop.lon]);
+  }
+
+  // Every other stop you could walk to, and TAPPABLE — the same choice the
+  // rows below offer, through the same door. This is also a repair: the
+  // alternatives are folded shut by default (_stopsShown), so when the app
+  // has guessed the wrong stop the reader has to find a disclosure triangle
+  // to discover it. On the map the mistake is visible immediately.
+  others.forEach(s => {
+    if (s.lat == null) return;
+    L.marker([s.lat, s.lon], {
+      icon: makeStopIcon(normMode((s.modes || [])[0]), (s.modes || []).length),
+      keyboard: false,
+    })
+      .bindTooltip(s.name + ' · ' + s.distM + ' m', { className: 'map-label', direction: 'top', offset: [0, -8] })
+      .on('click', () => pinStop(s.id))
+      .addTo(_aLayer);
+    pts.push([s.lat, s.lon]);
+  });
+
+  if (walkPts && walkPts.length) {
+    drawWalk(_aLayer, walkPts);
+    walkPts.forEach(p => pts.push(p));
+  }
+
+  if (userPos) {
+    userDot(_aLayer, userPos);
+    pts.push([userPos.lat, userPos.lon]);
+  }
+
+  if (pts.length && !_aUserMoved && _aFitKey !== key + '|' + sizeKey) {
+    _aFitKey = key + '|' + sizeKey;
+    _aMap.fitBounds(pts, { padding: [26, 26], maxZoom: 17 });
+  }
+}
+
+/**
+ * The reader picked a stop — from the list, or from the map.
+ *
+ * ONE DOOR, because there are now two ways in. A tap on the band and a tap on
+ * the row must do the identical thing, and the way they stop doing the
+ * identical thing is by being written down twice.
+ */
+export function pinStop(id) {
+  const found = _stops().find(s => s.id === id);
+  if (!found) return false;
+  _stop = found;
+  // The reader chose. From here a new fix refreshes the distance but does
+  // not overrule the choice — until they leave the screen.
+  _stopPinned = true;
+  _open = null; _dirs = [];
+  // Deliberately NOT collapsing here. Having the list shut under the
+  // finger that just picked from it is a movement nobody asked for, and
+  // it makes trying two stops in a row needlessly hard.
+  renderAuto();
+  _load();
+  return true;
 }
 
 /**
@@ -892,20 +1074,47 @@ export function _minsUntil(ms, now) {
   return Math.round((ms - (now == null ? Date.now() : now)) / MIN);
 }
 
-function _timesHtml(d, now) {
-  const mins = (d.times && d.times.length)
-    ? d.times.map(ms => _minsUntil(ms, now))
-    : [d.mins];
+/**
+ * The times on a direction row — and, when we know how far you have to walk,
+ * whether you can actually make them.
+ *
+ * The screen used to say «2 · 12 · 22 min» with no qualification, leaving the
+ * reader to work out for themselves whether the one in two minutes was
+ * reachable from 369 m away. The app had already worked it out: `walkMinsTo`
+ * is computed in `_maybeAdvance` and goes to the debug log.
+ *
+ * So each time carries `reachCls` — the same four states the departure board
+ * has always used, with the same CSS. With a five-minute walk the departure
+ * in two minutes is dimmed and the one in twelve is the one to read.
+ *
+ * NOTHING IS REMOVED. Same principle as v1.98.0's onward list: you may choose
+ * to run, and a departure that vanishes without trace is worse than one you
+ * can see you just missed. `walkMins == null` (no position, no stop) means no
+ * classes at all — exactly today's row.
+ *
+ * @param {number|null} walkMins minutes on foot to this stop, or null
+ */
+export function _timesHtml(d, now, walkMins) {
+  const raw = (d.times && d.times.length) ? d.times : null;
+  const mins = raw ? raw.map(ms => _minsUntil(ms, now)) : [d.mins];
   // A departure that went while you were looking at the screen is not a
   // choice either — the same rule groupDirections applies when it builds the
   // row, applied again now that the row is allowed to age.
-  const times = mins.filter(m => m >= 0);
-  if (!times.length) return '';
-  const label = (m) => (m === 0 ? 'nå' : String(m));
-  const rest = times.slice(1);
-  return '<span class="auto-t-next">' + label(times[0]) + '</span>'
-    + (rest.length ? '<span class="auto-t-more"> · ' + rest.map(label).join(' · ') + '</span>' : '')
-    + (times[0] === 0 && !rest.length ? '' : ' min');
+  const keep = mins.map((m, i) => ({ m, ms: raw ? raw[i] : null })).filter(x => x.m >= 0);
+  if (!keep.length) return '';
+  const cls = (x) => {
+    if (walkMins == null || x.ms == null) return '';
+    return ' ' + reachCls(minsToLeave(x.ms, walkMins, now));
+  };
+  const label = (x) => (x.m === 0 ? 'nå' : String(x.m));
+  const rest = keep.slice(1);
+  return '<span class="auto-t-next' + cls(keep[0]) + '">' + label(keep[0]) + '</span>'
+    + (rest.length
+      ? '<span class="auto-t-more"> · '
+        + rest.map(x => '<span class="' + cls(x).trim() + '">' + label(x) + '</span>').join(' · ')
+        + '</span>'
+      : '')
+    + (keep[0].m === 0 && !rest.length ? '' : ' min');
 }
 
 /**
@@ -1068,8 +1277,33 @@ export function _isJumpArmed() { return _jumpArmed; }
  * reader off the screen, it unfolds one step of it, and the way back is
  * already at the top of the stop list.
  */
+/**
+ * Are you standing at the stop, or walking to it?
+ *
+ * Pure and exported, because it is the one rule that decides whether the app
+ * may skip this screen — and «skip the screen that says where you are» is
+ * exactly the kind of decision that should be readable in a test.
+ *
+ * AT_STOP_M is the approach route's own number, not a new one. It already
+ * means «close enough that drawing a walk to your feet is noise»; if the walk
+ * is not worth drawing, it is not worth reading either, and the shortcut is
+ * free. Two numbers for that one idea would drift, and the drift would be an
+ * app that draws you a walking route and then jumps past it.
+ *
+ * Unknown distance counts as NOT at the stop. Without a position the jump
+ * cannot happen anyway, and the failure mode is «the list stays» — today's
+ * screen, not something worse.
+ */
+export function atStop(stop) {
+  return !!stop && stop.distM != null && stop.distM < AT_STOP_M;
+}
+
 function _maybeAdvance() {
   if (_open || _stopPinned || !_stop) return false;
+  // Standing 600 m away, the walking route and the walking time are precisely
+  // what you need, so the orientation screen stays. At the stop it has been
+  // read, and this is a plain shortcut.
+  if (!atStop(_stop)) return false;
   const walk = walkMinsTo(_stop);
   const hit = nextRail(_dirs, _stop.name, Date.now(), walk && walk.mins);
   if (!hit) return false;
@@ -1082,6 +1316,7 @@ function _maybeAdvance() {
 
 function _maybeJump() {
   if (_open || _stopPinned || !_stop) return false;
+  if (!atStop(_stop)) return false;
   const guess = autoJumpDest();
   if (!guess) return false;
   const hit = findJumpTarget(_dirs, guess, _stop.name);
@@ -1135,6 +1370,11 @@ function _renderBody() {
   const usual = guess && guess.toName ? String(guess.toName).toLowerCase() : null;
   // Read once, so every row on the screen agrees about what time it is.
   const now = Date.now();
+  // How far you have to walk to be standing here — the number this screen has
+  // always computed and never shown. Null when we cannot know, and then the
+  // rows are exactly as they were.
+  const walk = walkMinsTo(_stop);
+  const walkMins = walk ? walk.mins : null;
   // A direction whose departures have all gone while you watched is not a
   // choice any more. The screen counts down now (v1.71.0), so rows can age
   // past their own contents — and a row naming a direction with no time
@@ -1170,7 +1410,7 @@ function _renderBody() {
         // Text inside the existing span, not new children. settings.css:267
         // warns in plain words that a third child pushes the label adrift
         // under space-between — and that warning is there because it happened.
-        + '<span class="nearby-dist">' + _timesHtml(d, now) + '</span>'
+        + '<span class="nearby-dist">' + _timesHtml(d, now, walkMins) + '</span>'
         + '</button>';
     }).join('');
   body.querySelectorAll('.auto-dir').forEach(b => {
@@ -1334,6 +1574,9 @@ export function renderAuto() {
   // which for a brand-new reader is always.
   renderRouteShortcuts('auto-fav-routes', 2);
   _renderWhere();
+  // After _renderWhere, which is what settles _stop for this tick — the map
+  // draws the stop the heading names, never the one it named last second.
+  _renderMap();
   const need = _stop && !_dirs.length && _askedFor !== _stop.id;
   if (need) { _askedFor = _stop.id; _load(); } else _renderBody();
 }
@@ -1341,4 +1584,5 @@ export function renderAuto() {
 /** Fresh screen when the mode is entered, so it never opens on a stale stop. */
 export function resetAuto() {
   _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null;
+  _resetAutoMap();
   _stopsShown = false; _jumpArmed = false; }

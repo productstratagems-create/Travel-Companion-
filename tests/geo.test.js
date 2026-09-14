@@ -9,7 +9,7 @@ vi.mock('../src/config.js', () => ({
 }));
 vi.mock('../src/ui/log.js', () => ({ logMsg: vi.fn() }));
 
-import { haver, reachCls, findArr, walkInfo, walkFocus, WALK_FOCUS_MINS } from '../src/geo.js';
+import { haver, reachCls, findArr, walkInfo, walkFocus, WALK_FOCUS_MINS, minsToLeave, mToLeave, userLL } from '../src/geo.js';
 import { state } from '../src/state.js';
 import { saveWalkDist } from '../src/api/walkDist.js';
 
@@ -225,5 +225,82 @@ describe('walkFocus', () => {
 
   it('says no rather than guessing when there is no number', () => {
     [null, undefined, NaN, Infinity, 'snart'].forEach(v => expect(walkFocus(v)).toBe(false));
+  });
+});
+
+
+// ── One rule for "when must I set off" ───────────────────────────────────
+//
+// mToLeave answers it for the ACTIVE ROUTE's stop, through walkInfo, which
+// reads config.dirs[state.dIdx]. auto-reise has no active route — it has a
+// stop it just found under your feet — so calling mToLeave there would have
+// counted down to the wrong platform.
+//
+// Same repair v1.94.0 made for walkInfo/walkMinsTo: the general rule takes
+// the walk as an argument and the old name wraps it. This test is what stops
+// the two drifting apart, and the drift would be two screens disagreeing
+// about whether you can still make the train.
+describe('minsToLeave', () => {
+  it('subtracts the walk from the time left', () => {
+    const now = 1_700_000_000_000;
+    expect(minsToLeave(now + 20 * 60000, 5, now)).toBe(15);
+  });
+
+  it('goes negative once you are too late to start walking', () => {
+    const now = 1_700_000_000_000;
+    expect(minsToLeave(now + 2 * 60000, 8, now)).toBe(-6);
+  });
+
+  it('floors, so a partial minute is never rounded into one you do not have', () => {
+    const now = 1_700_000_000_000;
+    expect(minsToLeave(now + 5 * 60000 + 59_000, 5, now)).toBe(0);
+  });
+
+  it('is NaN rather than a wrong number when an input is missing', () => {
+    expect(Number.isNaN(minsToLeave(null, 5, Date.now()))).toBe(true);
+    expect(Number.isNaN(minsToLeave(Date.now(), null, Date.now()))).toBe(true);
+  });
+
+  // THE ANTI-DRIFT TEST, and it has to be driven on a value that can tell the
+  // two apart. A first attempt used whole minutes, where floor and round
+  // agree — so a mutant that gave mToLeave its own `Math.round` copy of the
+  // arithmetic survived. Forty seconds past the minute is the difference
+  // between "you have 30 minutes" and "you have 31 minutes you do not have".
+  it('agrees with mToLeave down to the rounding', () => {
+    const NOW = 1_700_000_000_000;
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    state.walkOvr = 7;                        // walkInfo returns {mins: 7}
+    const dep = NOW + 37 * 60000 + 40_000;    // 30m40s of slack after the walk
+    expect(minsToLeave(dep, 7, NOW)).toBe(30);   // floors, never up
+    expect(mToLeave(dep)).toBe(minsToLeave(dep, 7, NOW));
+    state.walkOvr = null;
+    vi.useRealTimers();
+  });
+});
+
+// ── Where the reader is, as one answer ───────────────────────────────────
+//
+// board.js used walkFromLL || homeLL; track.js used homeLL || walkFromLL.
+// Same two values, opposite precedence — so the same reader could be in two
+// places on two screens of the same app.
+describe('userLL', () => {
+  it('prefers a place the reader set themselves over a GPS fix', () => {
+    state.homeLL = { lat: 59.9, lon: 10.8 };
+    state.walkFromLL = { lat: 60.0, lon: 11.0 };
+    expect(userLL()).toEqual({ lat: 60.0, lon: 11.0 });
+    state.walkFromLL = null;
+  });
+
+  it('falls back to the GPS fix', () => {
+    state.homeLL = { lat: 59.9, lon: 10.8 };
+    state.walkFromLL = null;
+    expect(userLL()).toEqual({ lat: 59.9, lon: 10.8 });
+  });
+
+  it('is null when nothing is known', () => {
+    state.homeLL = null;
+    state.walkFromLL = null;
+    expect(userLL()).toBe(null);
   });
 });

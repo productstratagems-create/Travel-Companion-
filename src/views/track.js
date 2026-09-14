@@ -1,7 +1,7 @@
 import config from '../config.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
-import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M } from '../geo.js';
+import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon, legShape } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
@@ -21,7 +21,7 @@ import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { fetchWalkRoute } from '../api/route.js';
-import { createMap, drawRoute, drawWalk } from '../ui/map.js';
+import { createMap, drawRoute, drawWalk, userDot } from '../ui/map.js';
 import { storage } from '../storage.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -297,18 +297,13 @@ function _renderTrackMap(now, cs, legs) {
   // it falls back to the raw GPS fix.
   // While the train marker was placed from your own fix it already is you —
   // a second dot on the same point says there are two things there.
-  const userPos = _tPosSrc === 'gps' ? null : (state.homeLL || state.walkFromLL);
+  const userPos = _tPosSrc === 'gps' ? null : userLL();
   if (userPos) {
     const snapped = snapToCorridor(userPos, _tRoutePts, _tSnapDist) || userPos;
     if (_tUserMarker) {
       _tUserMarker.setLatLng([snapped.lat, snapped.lon]);
     } else {
-      _tUserMarker = L.circleMarker([snapped.lat, snapped.lon], {
-        // mapYou is reserved for "you". The literal here was simultaneously
-        // the Tier vendor colour and the blagra dark accent — flagged in the
-        // v1.8.0 audit, fixed in board.js, missed at this call site.
-        radius: 6, color: tokens().mapInk, fillColor: tokens().mapYou, fillOpacity: 0.95, weight: 2,
-      }).bindTooltip('Din posisjon', { className: 'map-label' }).addTo(_tLayer);
+      _tUserMarker = userDot(_tLayer, snapped, { radius: 6 });
     }
   } else if (_tUserMarker) {
     _tUserMarker.remove();
@@ -528,10 +523,7 @@ function _updateUserMarker() {
     // vendor colour — so the dot that means «you are here» was indistinguish-
     // able from the dot that means «that is where you are going». The token
     // exists precisely so this cannot happen; the board map already uses it.
-    _userMarker = L.circleMarker([state.homeLL.lat, state.homeLL.lon], {
-      radius: 7, color: tokens().mapInk, fillColor: tokens().mapYou,
-      fillOpacity: 1, weight: 2.5,
-    }).bindTooltip('Din posisjon', { className: 'map-label' }).addTo(_arrMap);
+    _userMarker = userDot(_arrMap, state.homeLL);
   }
 }
 

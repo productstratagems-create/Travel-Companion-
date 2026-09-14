@@ -4,7 +4,6 @@ import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
-import { walkKey } from '../api/walkDist.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
@@ -20,12 +19,11 @@ import { fetchNearbyStops, _resetNearbyCache } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { fetchVehiclePositions, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
-import { createMap, drawRoute, drawWalk } from '../ui/map.js';
+import { createMap, drawRoute, drawWalk, userDot } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _headingDeg, anchorDistances, pointAtDistance, projectOnPath } from '../ui/path.js';
 import { decodePolyline } from '../ui/polyline.js';
-import { approachRoute } from '../api/walkApproach.js';
-import { fetchFootRouteEntur } from '../api/route.js';
+import { ensureApproach, approachPoints, approachKey, resetApproach } from '../api/approach.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
 import { isExample } from '../firstRun.js';
@@ -496,12 +494,7 @@ function renderBoardMap(pos, modes) {
     // User position — anchor for the whole map
     if (pos) {
       const snapped = _snapToCorridor(pos) || pos;
-      L.circleMarker([snapped.lat, snapped.lon], {
-        radius: 7, color: tokens().mapInk, fillColor: tokens().mapYou,
-        fillOpacity: 1, weight: 2.5,
-      })
-        .bindTooltip('Din posisjon', { className: 'map-label', direction: 'bottom', offset: [0, 6] })
-        .addTo(_bLayer);
+      userDot(_bLayer, snapped);
       pts.push([snapped.lat, snapped.lon]);
     }
 
@@ -636,54 +629,24 @@ function _drawWalkRoute(fromLL, toLL, destName) {
 }
 
 /**
- * Draw the walk from where you stand to the stop you leave from.
+ * The approach walk now lives in api/approach.js, and board.js is one of its
+ * two readers rather than its owner.
  *
- * Fetched ONCE per pair of points, not once per render. The board redraws
- * every second (renderTickMs), and without the key guard this would be a
- * routing request a second against a public demo server.
+ * It moved because auto-reise needs the same route from the same position to
+ * the same stop. Copying the cache and the key guard over there would have
+ * been two things that must agree, written down twice — and the drift would
+ * have been a second routing request a second against a public demo server.
  *
- * The key is `walkKey` — the same four decimals (~11 m) walkDist stores
- * under — rather than a rounding of its own. Two roundings for one idea is
- * how they drift apart, and here the drift would be a fetch that never hits
- * the cache it just filled.
+ * APPROACH_MIN_M is re-exported under its old name so existing callers and
+ * tests keep working; AT_STOP_M is the same number said the other way round,
+ * and auto-reise reads it to decide whether it may skip its own screen.
  */
-let _approachKey = null;
-let _approachPts = null;
 let _approachLayer = null;
-
-/**
- * How far away is worth drawing.
- *
- * Standing on the platform, a route to your own feet is noise on the map and
- * a request for nothing. Above this the walk is a real part of catching the
- * departure, which is exactly when the countdown starts mattering.
- */
-export const APPROACH_MIN_M = 120;
-
-/** Test seam: the guard is module state, and a test must be able to clear it. */
-export function _resetApproach() { _approachKey = null; _approachPts = null; }
-export function _approachPoints() { return _approachPts; }
-
-export function _ensureApproach(fromLL, stopLL) {
-  if (!fromLL || !stopLL) { _approachKey = null; _approachPts = null; return; }
-  const crow = haver(fromLL.lat, fromLL.lon, stopLL.lat, stopLL.lon);
-  if (crow < APPROACH_MIN_M) { _approachKey = null; _approachPts = null; return; }
-
-  const key = walkKey(fromLL, stopLL);
-  if (_approachKey === key) return;
-  _approachKey = key;
-  _approachPts = null;
-
-  approachRoute(fromLL, stopLL, crow, {
-    entur: (a, b) => fetchFootRouteEntur(enturFetch, config.api.journeyPlanner, a, b),
-  }).then(({ latlngs, src, metres }) => {
-    // The reader may have moved, or the route changed, while we waited.
-    if (_approachKey !== key) return;
-    _approachPts = latlngs;
-    logMsg('gangrute: ' + src + (metres != null ? ' · ' + metres + ' m' : ' · ikke målt'),
-      metres != null ? 'ok' : null);
-  });
-}
+export { AT_STOP_M as APPROACH_MIN_M } from '../api/approach.js';
+/** Test seams, kept at their old names so the board's tests are untouched. */
+export function _resetApproach() { resetApproach(); }
+export function _approachPoints() { return approachPoints(); }
+export function _ensureApproach(fromLL, stopLL) { return ensureApproach(fromLL, stopLL); }
 
 /**
  * Put the walk on the map, in a layer of its own.
@@ -702,11 +665,12 @@ function _renderApproach() {
   if (!_bMap) return;
   if (!_approachLayer) _approachLayer = L.layerGroup().addTo(_bMap);
   _approachLayer.clearLayers();
-  if (!_approachPts) { _approachFitKey = null; return; }
-  drawWalk(_approachLayer, _approachPts);
-  if (_approachFitKey !== _approachKey && !_bUserMoved) {
-    _approachFitKey = _approachKey;
-    _bMap.fitBounds(_approachPts, { padding: [40, 40], maxZoom: 17 });
+  const pts = approachPoints();
+  if (!pts) { _approachFitKey = null; return; }
+  drawWalk(_approachLayer, pts);
+  if (_approachFitKey !== approachKey() && !_bUserMoved) {
+    _approachFitKey = approachKey();
+    _bMap.fitBounds(pts, { padding: [40, 40], maxZoom: 17 });
   }
 }
 let _approachFitKey = null;

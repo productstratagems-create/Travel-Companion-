@@ -699,34 +699,62 @@ export function _setStopsOpen(v) { _stopsShown = !!v; }
  * screen, and a number counting what you are looking at is noise.
  */
 export function stopHeadHtml(stop, count, open, extra) {
-  // «369 m» alone asks the reader to convert metres into whether they can
-  // make the 16:04. The app already knows: walkMinsTo is computed on this
-  // screen and, until now, went only to the debug log.
+  // TWO LINES, and that is the repair rather than a CSS patch on one.
   //
-  // The age of the fix rides here too, and only when it is stale. This whole
-  // screen — the heading, the map, the reach on every row — now leans on the
-  // position being right, so a position that is twelve minutes old has to say
-  // so rather than be drawn with full confidence. posAgeMins already exists;
-  // it was read in exactly one place in the whole app.
+  // v1.101.0 put three facts where «369 m» had been — «6014 m · 15 min gange ·
+  // posisjon 8 min gammel», some 44 characters — beside a 1.35rem name in a
+  // space-between row of exactly two children. Reported by screenshot from a
+  // phone in portrait: «Mortensrud» with the metres printed straight across
+  // it. Measured at 390px: a 35×16px collision.
+  //
+  // The name is one unbreakable word and the row gave it no floor, so it ran
+  // out of its own box. The codebase warned about precisely this twice — in
+  // the CSS above .auto-stop and in this file — but the guard that enforces it
+  // was only ever written for the direction rows.
+  //
+  // So the name gets a line to itself. It shares a row with nothing, and
+  // therefore cannot collide with anything: structure, not a rule that has to
+  // keep holding.
   const bits = [];
-  if (stop && stop.distM != null) bits.push(stop.distM + ' m');
+  // THE DISTANCE AND THE WALK COME FROM ONE CALL, FROM ONE POSITION.
+  //
+  // They did not. `stop.distM` is measured from wherever findNearestStation
+  // was last called — frozen until you have drifted STATION_REFRESH_M — while
+  // walkMinsTo measures from `walkFromLL || homeLL`, live. With a «gå fra»
+  // place set in settings those are two different points, permanently, across
+  // sessions: nothing in findNearestStation reads walkFromLL. The screenshot
+  // is the proof — «6014 m» beside «15 min gange», and six kilometres is over
+  // an hour on foot.
+  //
+  // v1.101.0 did not create that; it made it visible by printing the two
+  // numbers side by side. The fix is not to keep them in step but to have one
+  // answer: walkMinsTo already returns the distance it used.
+  if (extra && extra.walkDist != null) bits.push(extra.walkDist + ' m å gå');
+  else if (stop && stop.distM != null) bits.push(stop.distM + ' m');
   if (extra && extra.walkMins != null) bits.push(extra.walkMins + ' min gange');
+  // Only when it is stale — posAgeMins returns null while the fix is fresh, so
+  // the threshold is not repeated here.
   if (extra && extra.ageMins != null) bits.push('posisjon ' + extra.ageMins + ' min gammel');
-  const dist = bits.length
-    ? '<span class="nearby-dist">' + esc(bits.join(' · ')) + '</span>' : '';
+
+  const facts = bits.length
+    ? '<span class="auto-stop-facts">' + esc(bits.join(' · ')) + '</span>' : '';
   const name = esc((stop && stop.name) || '');
-  const head = '<span class="auto-stop-name">' + name
+  // The name in its own element so it can be given an ellipsis. It used to be
+  // a bare text node beside the caret, which is also why a browser probe that
+  // swept ELEMENTS could not see it overflow — it had no box of its own.
+  const head = '<span class="auto-stop-name">'
+    + '<span class="auto-stop-label">' + name + '</span>'
     + (count > 0
       ? '<span class="auto-stop-more">' + (open ? '' : count + ' ')
         + (open ? '▴' : '▾') + '</span>'
       : '')
     + '</span>';
-  if (!count) return '<div class="auto-stop">' + head + dist + '</div>';
+  if (!count) return '<div class="auto-stop">' + head + facts + '</div>';
   return '<button class="auto-stop" type="button" id="auto-stop-toggle"'
     + ' aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="auto-alts"'
     + ' aria-label="' + name + ', ' + count + ' holdeplasser i nærheten.'
     + ' Trykk for å ' + (open ? 'skjule' : 'vise') + '">'
-    + head + dist + '</button>';
+    + head + facts + '</button>';
 }
 
 /**
@@ -796,6 +824,7 @@ function _renderWhere() {
   // the threshold is not repeated here. One definition of "stale".
   el.innerHTML = '<div class="set-label">du er ved</div>'
     + stopHeadHtml(_stop, others.length, open, {
+      walkDist: w ? w.dist : null,
       walkMins: w ? w.mins : null,
       ageMins: posAgeMins(),
     })

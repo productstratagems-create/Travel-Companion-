@@ -109,7 +109,13 @@ describe('atStop', () => {
   });
 });
 
-// ── The heading says what the app already knew ───────────────────────────
+// ── The heading says what the app already knew, on its own line ──────────
+//
+// Reported by screenshot from a phone in portrait: «Mortensrud» with
+// «6014 m ▾» printed straight across it. v1.101.0 put three facts where one
+// had been, in a space-between row of two children, and the name is one
+// unbreakable word with no floor under it. Measured at 390px: a 35×16px
+// collision.
 describe('stopHeadHtml', () => {
   const stop = { name: 'Mortensrud T', distM: 369 };
 
@@ -119,9 +125,43 @@ describe('stopHeadHtml', () => {
     expect(h).not.toContain('gange');
   });
 
-  it('shows the walking time beside the metres', () => {
-    const h = stopHeadHtml(stop, 0, false, { walkMins: 5 });
+  // THE TWO NUMBERS COME FROM ONE CALL, FROM ONE POSITION.
+  //
+  // They did not. `distM` is measured from wherever findNearestStation was
+  // last called; walkMinsTo measures from `walkFromLL || homeLL`, and with a
+  // «gå fra» place set those are different points permanently. The screenshot
+  // showed «6014 m» beside «15 min gange» — six kilometres is over an hour on
+  // foot, so they could not both be true. This is that case, and it fails
+  // against the code that read stop.distM.
+  it('prefers the distance the walk itself was measured over', () => {
+    const far = { name: 'Mortensrud', distM: 6014 };
+    const h = stopHeadHtml(far, 0, false, { walkDist: 1240, walkMins: 15 });
+    expect(h).toContain('1240 m');
+    expect(h).not.toContain('6014');
+  });
+
+  // A number that changes meaning without saying so is worse than two numbers
+  // that disagree: «m» is now the distance you walk, not the crow line.
+  it('says the metres are a walk when they are', () => {
+    expect(stopHeadHtml(stop, 0, false, { walkDist: 480, walkMins: 6 }))
+      .toContain('480 m å gå');
+  });
+
+  it('does not say «å gå» about the crow distance', () => {
+    const h = stopHeadHtml(stop, 0, false, {});
     expect(h).toContain('369 m');
+    expect(h).not.toContain('å gå');
+  });
+
+  it('falls back to the crow distance when there is no position', () => {
+    const h = stopHeadHtml(stop, 0, false, { walkDist: null, walkMins: null });
+    expect(h).toContain('369 m');
+    expect(h).not.toContain('gange');
+    expect(h).not.toContain('gammel');
+  });
+
+  it('shows the walking time beside the metres', () => {
+    const h = stopHeadHtml(stop, 0, false, { walkDist: 480, walkMins: 5 });
     expect(h).toContain('5 min gange');
   });
 
@@ -137,7 +177,52 @@ describe('stopHeadHtml', () => {
     expect(h).not.toContain('gammel');
   });
 
-  // Called with no extras at all, it must be exactly what it was before.
+  // THE STRUCTURAL CLAIM: the name shares a row with nothing.
+  //
+  // Not a CSS assertion — a markup one. The facts must not be a sibling that
+  // sits beside the name; they must be their own block under it. That is what
+  // makes the collision impossible rather than merely unlikely.
+  it('puts the facts outside the name, not inside it', () => {
+    // Parsed, not sliced. A first version compared string offsets, and a
+    // mutant that nested the facts INSIDE the name span survived it — the
+    // substring between the two class names was still free of «480 m»
+    // because the facts carried it along. Nesting is not ordering, so the
+    // question has to be put to the DOM.
+    const host = document.createElement('div');
+    host.innerHTML = stopHeadHtml(stop, 0, false, { walkDist: 480, walkMins: 6 });
+    const name = host.querySelector('.auto-stop-name');
+    const facts = host.querySelector('.auto-stop-facts');
+    expect(name).not.toBeNull();
+    expect(facts).not.toBeNull();
+    expect(name.contains(facts)).toBe(false);
+    expect(facts.textContent).toContain('480 m');
+  });
+
+  // The name needs a box of its own to be given an ellipsis. It used to be a
+  // bare text node beside the caret — which is also why a browser probe that
+  // swept elements could not see it overflow: it had no box to measure.
+  it('gives the name an element of its own', () => {
+    expect(stopHeadHtml(stop, 0, false, {})).toContain('auto-stop-label');
+  });
+
+  // The caret must sit outside the truncated text, so the one part you cannot
+  // guess is never the part that is cut.
+  it('keeps the caret out of the truncated name', () => {
+    const h = stopHeadHtml(stop, 3, false, {});
+    const label = h.slice(h.indexOf('auto-stop-label'), h.indexOf('auto-stop-more'));
+    expect(label).not.toContain('▾');
+    expect(h).toContain('▾');
+  });
+
+  // The heading is a button when there are stops to fold. That contract is
+  // untouched by the relayout.
+  it('stays a button with its aria intact when there are alternatives', () => {
+    const h = stopHeadHtml(stop, 3, false, { walkDist: 480, walkMins: 6 });
+    expect(h).toContain('id="auto-stop-toggle"');
+    expect(h).toContain('aria-expanded="false"');
+    expect(h).toContain('aria-controls="auto-alts"');
+  });
+
   it('is unchanged when nothing extra is known', () => {
     expect(stopHeadHtml(stop, 0, false)).toContain('369 m');
     expect(stopHeadHtml(stop, 0, false)).not.toContain('gange');

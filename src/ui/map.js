@@ -1,6 +1,7 @@
 import L from 'leaflet';
 import { addCompass } from './mapCompass.js';
 import { onThemeChange, tokens } from './themeTokens.js';
+import { makeRouteStopIcon } from './mapIcons.js';
 
 /**
  * One place that owns basemap tiles, map init options and the live-map
@@ -126,6 +127,100 @@ export function drawWalk(layer, latlngs) {
   return drawRoute(layer, latlngs, {
     color: tokens().accent, weight: 3, opacity: 0.85, dashArray: '2 7',
   });
+}
+
+/**
+ * How a transit corridor is drawn, per mode.
+ *
+ * Moved here from board.js, where it was exported but lived among three
+ * hundred lines of corridor clipping. It is a pure lookup about how a LINE
+ * looks, which belongs beside the function that draws lines — and auto-reise
+ * now needs the same answer. Two tables for one idea is the failure shape
+ * this codebase has found around a dozen times; board.js re-exports it under
+ * its old name so nothing there has to change.
+ *
+ * A bus is dotted and thin, rail-bound modes are solid: a bus on a road is a
+ * weaker claim about where the vehicle actually goes than a train on a track.
+ */
+export function corridorStyle(mode, color) {
+  return mode === 'bus'
+    ? { color, weight: 2, opacity: 0.55, dashArray: '1 7', interactive: false }
+    : { color, weight: 4, opacity: 0.7, lineCap: 'round', interactive: false };
+}
+
+/**
+ * Is there room to draw a marker at every stop?
+ *
+ * The gate is the median gap rather than the smallest: one pair of unusually
+ * close stops should not blank a corridor that is otherwise perfectly
+ * legible. Three times the 7px marker, so beads never touch.
+ *
+ * Moved here from board.js because drawStopLine needs the same answer.
+ * Measured on auto-reise: an 11 km metro line inside a 140px band put its
+ * stops a 9px median apart — right in every number and a solid caterpillar on
+ * the screen.
+ */
+export const ROUTE_STOP_MIN_GAP_PX = 21;
+
+export function stopsReadable(points, minGap) {
+  const pts = points || [];
+  if (pts.length < 3) return true;      // ends only; nothing to crowd
+  const gaps = [];
+  for (let i = 1; i < pts.length; i++) {
+    gaps.push(Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+  }
+  gaps.sort((a, b) => a - b);
+  const median = gaps[Math.floor(gaps.length / 2)];
+  return median >= (minGap == null ? ROUTE_STOP_MIN_GAP_PX : minGap);
+}
+
+/**
+ * A line, drawn from the stops it calls at.
+ *
+ * The pattern — polyline through the stops, then a small dot on each one in
+ * between — is written out by hand in board.js, track.js and selected.js.
+ * This would have been the fourth copy. Same consolidation `drawWalk` and
+ * `userDot` above are: nobody chose three, it accumulated.
+ *
+ * STRAIGHT SEGMENTS BETWEEN STOPS, AND THAT IS NOT THE REAL ALIGNMENT. The
+ * decoded shape (`pointsOnLink`) is only in `tripGQL`; a stop board answer
+ * carries coordinates and nothing else, so the line cuts every curve. The app
+ * already falls back this way in four places and plan.js draws whole journeys
+ * like this — but a chord between platforms is an approximation, and callers
+ * that HAVE a shape should pass it as `opts.shape`.
+ *
+ * Stops with no coordinates are skipped rather than allowed to collapse the
+ * line to [0,0] — a missing kink is a small lie, a line through null island
+ * is a large one.
+ *
+ * @param {L.LayerGroup} layer
+ * @param {{lat:number, lon:number, name:string}[]} stops  in travel order
+ * @param {{color?:string, mode?:string, shape?:number[][], dots?:boolean, project?:Function}} opts
+ * @returns {{pts:number[][], drawn:boolean}} the points actually used
+ */
+export function drawStopLine(layer, stops, opts = {}) {
+  const { color = '#7c2d12', mode = null, shape = null, dots = true, project = null } = opts;
+  const usable = (stops || []).filter(s => s && s.lat != null && s.lon != null);
+  const pts = (shape && shape.length >= 2) ? shape : usable.map(s => [s.lat, s.lon]);
+  if (pts.length < 2) return { pts: [], drawn: false };
+
+  drawRoute(layer, pts, corridorStyle(mode, color));
+
+  // The ends are the caller's business — it knows which one you board at and
+  // which one the line is heading for, and those deserve louder markers than
+  // the ones you pass through.
+  // Only when there is room. Pass `project` (a map's latLngToContainerPoint)
+  // and the beads are dropped when they would touch — the line itself still
+  // says where it goes, and the list below already names every stop.
+  const room = !project || stopsReadable(usable.map(st => project([st.lat, st.lon])));
+  if (dots && room) {
+    usable.slice(1, -1).forEach(s => {
+      L.marker([s.lat, s.lon], { icon: makeRouteStopIcon(color), keyboard: false })
+        .bindTooltip(s.name || '', { className: 'map-label', direction: 'top', offset: [0, -6] })
+        .addTo(layer);
+    });
+  }
+  return { pts, drawn: true, dots: !!(dots && room) };
 }
 
 /**

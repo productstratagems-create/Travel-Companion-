@@ -25,7 +25,7 @@ vi.mock('../src/storage.js', () => {
   } };
 });
 
-import { mapKey, atStop, stopHeadHtml, resetAuto, _timesHtml } from '../src/views/auto.js';
+import { mapKey, atStop, stopHeadHtml, resetAuto, _timesHtml, openKey, openLine } from '../src/views/auto.js';
 import { AT_STOP_M } from '../src/api/approach.js';
 import { storage } from '../src/storage.js';
 
@@ -287,5 +287,105 @@ describe('_timesHtml reach', () => {
   // It must keep answering "is there anything here" identically.
   it('answers liveness the same with and without a walk', () => {
     expect(_timesHtml(dir, NOW) === '').toBe(_timesHtml(dir, NOW, 5) === '');
+  });
+});
+
+
+// ── The map follows the list into the line ───────────────────────────────
+//
+// Reported: «når bruker har klikket seg inn på en linje, så burde kartet
+// gjenspeile listen». The cause was one missing term in this key: opening a
+// direction changed none of stop.id, the position, the alternatives count or
+// the walk, so the guard in _renderMap matched and the function returned
+// BEFORE clearLayers(). The map had been told nothing had changed.
+describe('mapKey with an open direction', () => {
+  const stop = { id: 'NSR:StopPlace:Mortensrud', lat: 59.86, lon: 10.83 };
+  const pos = { lat: 59.8600, lon: 10.8285 };
+  const shut = mapKey(stop, pos, [], null, null);
+
+  const dir = (front, lineId) => ({
+    frontText: front,
+    call: { serviceJourney: { line: { id: lineId, publicCode: '3', transportMode: 'metro',
+      presentation: { colour: 'f5a000' } } } },
+    lines: [{ code: '3', colour: 'f5a000' }],
+  });
+  const stops = (n) => Array.from({ length: n }, (_, i) => ({ name: 's' + i, lat: 59 + i / 100, lon: 10 }));
+
+  // THE REPRODUCTION. Against the four-term key these two were identical.
+  it('differs from the closed screen', () => {
+    const open = mapKey(stop, pos, [], null, openKey(dir('Stortinget', 'RUT:Line:3'), stops(8)));
+    expect(open).not.toBe(shut);
+  });
+
+  it('differs between two directions of the same line', () => {
+    const a = mapKey(stop, pos, [], null, openKey(dir('Stortinget', 'RUT:Line:3'), stops(8)));
+    const b = mapKey(stop, pos, [], null, openKey(dir('Kolsås', 'RUT:Line:3'), stops(8)));
+    expect(a).not.toBe(b);
+  });
+
+  it('differs between two lines to the same place', () => {
+    const a = mapKey(stop, pos, [], null, openKey(dir('Stortinget', 'RUT:Line:3'), stops(8)));
+    const b = mapKey(stop, pos, [], null, openKey(dir('Stortinget', 'RUT:Line:2'), stops(8)));
+    expect(a).not.toBe(b);
+  });
+
+  it('is stable for the same direction', () => {
+    const a = mapKey(stop, pos, [], null, openKey(dir('Stortinget', 'RUT:Line:3'), stops(8)));
+    const b = mapKey(stop, pos, [], null, openKey(dir('Stortinget', 'RUT:Line:3'), stops(8)));
+    expect(a).toBe(b);
+  });
+
+  // The list shrinks as you ride past stops, and the map has to follow.
+  it('changes when a stop has been passed', () => {
+    const a = mapKey(stop, pos, [], null, openKey(dir('Stortinget', 'RUT:Line:3'), stops(8)));
+    const b = mapKey(stop, pos, [], null, openKey(dir('Stortinget', 'RUT:Line:3'), stops(7)));
+    expect(a).not.toBe(b);
+  });
+
+  // THE ONE THAT PREVENTS FLICKER. The minutes tick for every stop every
+  // minute; a key that carried them would re-fit a map drawn once a second.
+  it('ignores the minutes ticking down', () => {
+    const withMins = (m) => stops(8).map(s => ({ ...s, mins: m }));
+    const a = mapKey(stop, pos, [], null, openKey(dir('Stortinget', 'RUT:Line:3'), withMins(9)));
+    const b = mapKey(stop, pos, [], null, openKey(dir('Stortinget', 'RUT:Line:3'), withMins(4)));
+    expect(a).toBe(b);
+  });
+
+  it('closing the direction returns the closed key', () => {
+    expect(mapKey(stop, pos, [], null, openKey(null, null))).toBe(shut);
+  });
+});
+
+describe('openLine', () => {
+  const dir = (colour, mode) => ({
+    lines: colour ? [{ code: '3', colour }] : [],
+    call: { serviceJourney: { line: { id: 'x', transportMode: mode,
+      presentation: { colour } } } },
+  });
+
+  // The API gives hex WITHOUT a '#', and badgeHtml adds it. A colour that
+  // reached Leaflet unprefixed would silently draw black.
+  it('prefixes the hex the API gives', () => {
+    expect(openLine(dir('f5a000', 'metro')).color).toBe('#f5a000');
+  });
+
+  it('does not double the prefix if one is already there', () => {
+    expect(openLine(dir('#f5a000', 'metro')).color).toBe('#f5a000');
+  });
+
+  it('falls back to a real colour when the line has none', () => {
+    expect(openLine(dir(null, 'bus')).color).toMatch(/^#[0-9a-f]{6}$/i);
+  });
+
+  // transportMode lives on serviceJourney.line, NOT on the `lines` array that
+  // the row badges are built from — reading it from there would give undefined
+  // and draw every line with the rail-bound weight.
+  it('finds the mode on the service journey', () => {
+    expect(openLine(dir('f5a000', 'bus')).mode).toBe('bus');
+  });
+
+  it('survives a direction with no call at all', () => {
+    expect(() => openLine(null)).not.toThrow();
+    expect(openLine(null).color).toMatch(/^#/);
   });
 });

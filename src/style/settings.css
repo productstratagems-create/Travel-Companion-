@@ -357,6 +357,15 @@
    .set-label the rest of this screen uses, so a lane reads as a section and
    not as a new component. Space above every band but the first, which sits
    directly under the stop heading. */
+/* The stop a tap on the map is pointing at.
+   A mark, not a selection — the row still has to be tapped to be chosen. So
+   it reads as «this one», in the accent the map marker uses, without looking
+   like something has already happened. */
+#v-auto .auto-stop-btn.picked {
+  border-color: rgba(var(--accent-rgb), .65);
+  background: rgba(var(--accent-rgb), .12);
+}
+
 /* The orientation map: a BAND, not a canvas.
    Chosen deliberately over a full-height map. This screen has to answer two
    halves of one question at once — «where am I / how do I get to the stop»

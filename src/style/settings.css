@@ -256,8 +256,20 @@
 /* ── auto-reise ─────────────────────────────────────────────────────────
    Reuses .nearby-btn wholesale — the row that already means "a place you can
    tap" everywhere else in the app — so this screen adds no new shape. */
+/* A BLOCK, not a space-between row.
+   It was the row, with the name on the left and the metres on the right. That
+   held while the right-hand side was «369 m». v1.101.0 made it «6014 m · 15
+   min gange · posisjon 8 min gammel» — about 44 characters at .75rem, wider
+   than half a phone — and the name, one unbreakable word at 1.35rem in
+   JetBrains Mono, ran straight out of its own box and printed on top of it.
+   Measured at 390px: a 35×16px collision.
+
+   The comment two rules down has warned about this row since it was written,
+   and the guard it describes (margin-right:auto) was only ever implemented
+   for .auto-dir. Rather than add a third patch, the name now has a line to
+   itself: it shares a row with nothing and therefore cannot collide. */
 #v-auto .auto-stop {
-  display: flex; align-items: baseline; justify-content: space-between;
+  display: block;
   font-size: 1.35rem; font-weight: 700; letter-spacing: .02em;
   margin: .1rem 0 .7rem;
 }
@@ -287,10 +299,35 @@
    because the row is space-between and a third sibling would push the name
    off its column. */
 #v-auto .auto-stop-name {
-  display: inline-flex;
+  display: flex;
   align-items: baseline;
   gap: .5rem;
   min-width: 0;
+}
+
+/* The name truncates rather than overflows — even with a line to itself.
+   «Bjørnholt skole snuplass» exists, and a name that runs off the card is the
+   same failure the row above just had, one element further in. The caret and
+   the count sit OUTSIDE this box so they can never be the part that is cut:
+   they are two characters and you cannot guess them, while a truncated name
+   is still recognisable. */
+#v-auto .auto-stop-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* How far, how long, and how fresh — one quiet line under the name.
+   Allowed to wrap: at .75rem this is a sentence, and a sentence taking two
+   lines is not a layout fault. */
+#v-auto .auto-stop-facts {
+  display: block;
+  font-size: .75rem;
+  font-weight: 400;
+  letter-spacing: .05em;
+  color: rgba(var(--accent-rgb), .8);
+  margin-top: .15rem;
 }
 
 #v-auto .auto-stop-more {
@@ -320,6 +357,15 @@
    .set-label the rest of this screen uses, so a lane reads as a section and
    not as a new component. Space above every band but the first, which sits
    directly under the stop heading. */
+/* The stop a tap on the map is pointing at.
+   A mark, not a selection — the row still has to be tapped to be chosen. So
+   it reads as «this one», in the accent the map marker uses, without looking
+   like something has already happened. */
+#v-auto .auto-stop-btn.picked {
+  border-color: rgba(var(--accent-rgb), .65);
+  background: rgba(var(--accent-rgb), .12);
+}
+
 /* The orientation map: a BAND, not a canvas.
    Chosen deliberately over a full-height map. This screen has to answer two
    halves of one question at once — «where am I / how do I get to the stop»

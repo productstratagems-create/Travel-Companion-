@@ -19,7 +19,7 @@ import { fetchNearbyStops, _resetNearbyCache } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { fetchVehiclePositions, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
-import { createMap, drawRoute, drawWalk, userDot } from '../ui/map.js';
+import { createMap, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _headingDeg, anchorDistances, pointAtDistance, projectOnPath } from '../ui/path.js';
 import { decodePolyline } from '../ui/polyline.js';
@@ -920,27 +920,11 @@ export function _interpolateOnPath(calls, now, path) {
 const _ROUTE_STOP_TOOLTIP_MS = 3000;
 
 
-/**
- * Is there room to draw a marker at every stop?
- *
- * The gate is the median gap rather than the smallest: one pair of unusually
- * close stops should not blank a corridor that is otherwise perfectly
- * legible. ROUTE_STOP_MIN_GAP_PX is three times the 7px marker, so beads
- * never touch.
- */
-export const ROUTE_STOP_MIN_GAP_PX = 21;
-
-export function _stopsReadable(points, minGap) {
-  const pts = points || [];
-  if (pts.length < 3) return true;      // ends only; nothing to crowd
-  const gaps = [];
-  for (let i = 1; i < pts.length; i++) {
-    gaps.push(Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
-  }
-  gaps.sort((a, b) => a - b);
-  const median = gaps[Math.floor(gaps.length / 2)];
-  return median >= (minGap == null ? ROUTE_STOP_MIN_GAP_PX : minGap);
-}
+/* Moved to ui/map.js beside drawStopLine, which needs the same answer: an
+   11 km line inside a 140px band measured a 9px median gap, so the stops
+   between the ends were a chain of touching beads. Re-exported here under
+   their old names so nothing in this file or its tests has to change. */
+export { ROUTE_STOP_MIN_GAP_PX, stopsReadable as _stopsReadable } from '../ui/map.js';
 
 /**
  * What makes two drawn corridors the same corridor.
@@ -1153,7 +1137,7 @@ function renderLineRoute(visibleDeps, vehicles) {
   const ln = c.serviceJourney.line;
   const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
   const isBus = _depMode(c) === 'bus';
-  const style = _corridorStyle(_depMode(c), color);
+  const style = corridorStyle(_depMode(c), color);
 
   // The array's identity has to survive a tick, or the path measurement
   // memoised in ui/path.js misses every second and we pay a full sweep of a
@@ -1219,7 +1203,7 @@ function renderLineRoute(visibleDeps, vehicles) {
     const ll = leg.serviceJourney && leg.serviceJourney.line;
     const lc = ll && ll.presentation && ll.presentation.colour
       ? '#' + ll.presentation.colour : color;
-    L.polyline(lp, _corridorStyle(leg.mode, lc)).addTo(_bRouteLayer);
+    L.polyline(lp, corridorStyle(leg.mode, lc)).addTo(_bRouteLayer);
     // First one wins, so a later leg on the same line never displaces the
     // primary corridor the board is actually about.
     if (ll && ll.publicCode && !paths.has(ll.publicCode)) {
@@ -1273,7 +1257,7 @@ function renderLineRoute(visibleDeps, vehicles) {
     // bus corridor was drawn solid and 4px whenever a metro line happened to
     // have the soonest departure — the same bus, two thicknesses, depending
     // on what else was selected.
-    L.polyline(ocPts, _corridorStyle(_depMode(oc), ocColor)).addTo(_bRouteLayer);
+    L.polyline(ocPts, corridorStyle(_depMode(oc), ocColor)).addTo(_bRouteLayer);
     const entry = { path: _legPath(ocPts, key),
       snapDist: _depMode(oc) === 'bus' ? 25 : 50 };
     drawn.set(key, entry);
@@ -1287,7 +1271,7 @@ function renderLineRoute(visibleDeps, vehicles) {
   // fixed threshold would show its beads immediately — defeating the point.
   // Same reasoning as the strip's clustering: separation in pixels, on the
   // screen the reader actually has.
-  const showIntermediate = _stopsReadable(stops.map(st => _bMap.latLngToContainerPoint([st.lat, st.lon])));
+  const showIntermediate = stopsReadable(stops.map(st => _bMap.latLngToContainerPoint([st.lat, st.lon])));
   stops.forEach((s, i) => {
     if (!s.name) return;
     // Start and stop are never hidden — they are what the corridor is for.
@@ -2160,11 +2144,10 @@ export function _approachingVehicles(visibleDeps, lineOn, now, livePos) {
  * spread the primary line's style over every other line — so a bus drawn
  * beside a metro borrowed the metro's weight.
  */
-export function _corridorStyle(mode, color) {
-  return mode === 'bus'
-    ? { color, weight: 2, opacity: 0.55, dashArray: '1 7', interactive: false }
-    : { color, weight: 4, opacity: 0.7, lineCap: 'round', interactive: false };
-}
+/* Moved to ui/map.js, beside the function that draws lines — auto-reise needs
+   the same answer, and two tables for one idea is how they drift apart. Kept
+   under its old name here so every caller and test is untouched. */
+export { corridorStyle as _corridorStyle } from '../ui/map.js';
 
 function _clearDepartureGraphics() {
   renderLineRoute([]);

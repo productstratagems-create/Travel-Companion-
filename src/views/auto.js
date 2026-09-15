@@ -29,7 +29,7 @@ import { depUses, usesOf, loadFreq } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, userLL, minsToLeave, reachCls, posAgeMins } from '../geo.js';
 import L from 'leaflet';
-import { createMap, drawWalk, userDot } from '../ui/map.js';
+import { createMap, drawWalk, userDot, drawStopLine } from '../ui/map.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
 import { ensureApproach, approachPoints, AT_STOP_M } from '../api/approach.js';
 
@@ -699,34 +699,62 @@ export function _setStopsOpen(v) { _stopsShown = !!v; }
  * screen, and a number counting what you are looking at is noise.
  */
 export function stopHeadHtml(stop, count, open, extra) {
-  // «369 m» alone asks the reader to convert metres into whether they can
-  // make the 16:04. The app already knows: walkMinsTo is computed on this
-  // screen and, until now, went only to the debug log.
+  // TWO LINES, and that is the repair rather than a CSS patch on one.
   //
-  // The age of the fix rides here too, and only when it is stale. This whole
-  // screen — the heading, the map, the reach on every row — now leans on the
-  // position being right, so a position that is twelve minutes old has to say
-  // so rather than be drawn with full confidence. posAgeMins already exists;
-  // it was read in exactly one place in the whole app.
+  // v1.101.0 put three facts where «369 m» had been — «6014 m · 15 min gange ·
+  // posisjon 8 min gammel», some 44 characters — beside a 1.35rem name in a
+  // space-between row of exactly two children. Reported by screenshot from a
+  // phone in portrait: «Mortensrud» with the metres printed straight across
+  // it. Measured at 390px: a 35×16px collision.
+  //
+  // The name is one unbreakable word and the row gave it no floor, so it ran
+  // out of its own box. The codebase warned about precisely this twice — in
+  // the CSS above .auto-stop and in this file — but the guard that enforces it
+  // was only ever written for the direction rows.
+  //
+  // So the name gets a line to itself. It shares a row with nothing, and
+  // therefore cannot collide with anything: structure, not a rule that has to
+  // keep holding.
   const bits = [];
-  if (stop && stop.distM != null) bits.push(stop.distM + ' m');
+  // THE DISTANCE AND THE WALK COME FROM ONE CALL, FROM ONE POSITION.
+  //
+  // They did not. `stop.distM` is measured from wherever findNearestStation
+  // was last called — frozen until you have drifted STATION_REFRESH_M — while
+  // walkMinsTo measures from `walkFromLL || homeLL`, live. With a «gå fra»
+  // place set in settings those are two different points, permanently, across
+  // sessions: nothing in findNearestStation reads walkFromLL. The screenshot
+  // is the proof — «6014 m» beside «15 min gange», and six kilometres is over
+  // an hour on foot.
+  //
+  // v1.101.0 did not create that; it made it visible by printing the two
+  // numbers side by side. The fix is not to keep them in step but to have one
+  // answer: walkMinsTo already returns the distance it used.
+  if (extra && extra.walkDist != null) bits.push(extra.walkDist + ' m å gå');
+  else if (stop && stop.distM != null) bits.push(stop.distM + ' m');
   if (extra && extra.walkMins != null) bits.push(extra.walkMins + ' min gange');
+  // Only when it is stale — posAgeMins returns null while the fix is fresh, so
+  // the threshold is not repeated here.
   if (extra && extra.ageMins != null) bits.push('posisjon ' + extra.ageMins + ' min gammel');
-  const dist = bits.length
-    ? '<span class="nearby-dist">' + esc(bits.join(' · ')) + '</span>' : '';
+
+  const facts = bits.length
+    ? '<span class="auto-stop-facts">' + esc(bits.join(' · ')) + '</span>' : '';
   const name = esc((stop && stop.name) || '');
-  const head = '<span class="auto-stop-name">' + name
+  // The name in its own element so it can be given an ellipsis. It used to be
+  // a bare text node beside the caret, which is also why a browser probe that
+  // swept ELEMENTS could not see it overflow — it had no box of its own.
+  const head = '<span class="auto-stop-name">'
+    + '<span class="auto-stop-label">' + name + '</span>'
     + (count > 0
       ? '<span class="auto-stop-more">' + (open ? '' : count + ' ')
         + (open ? '▴' : '▾') + '</span>'
       : '')
     + '</span>';
-  if (!count) return '<div class="auto-stop">' + head + dist + '</div>';
+  if (!count) return '<div class="auto-stop">' + head + facts + '</div>';
   return '<button class="auto-stop" type="button" id="auto-stop-toggle"'
     + ' aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="auto-alts"'
     + ' aria-label="' + name + ', ' + count + ' holdeplasser i nærheten.'
     + ' Trykk for å ' + (open ? 'skjule' : 'vise') + '">'
-    + head + dist + '</button>';
+    + head + facts + '</button>';
 }
 
 /**
@@ -796,6 +824,7 @@ function _renderWhere() {
   // the threshold is not repeated here. One definition of "stale".
   el.innerHTML = '<div class="set-label">du er ved</div>'
     + stopHeadHtml(_stop, others.length, open, {
+      walkDist: w ? w.dist : null,
       walkMins: w ? w.mins : null,
       ageMins: posAgeMins(),
     })
@@ -850,11 +879,13 @@ let _aLayer = null;
 let _aKey = '';
 let _aFitKey = '';
 let _aUserMoved = false;
+let _aOpenKey = null;
 
 /** Test seam: module state, and a test must be able to clear it. */
 export function _resetAutoMap() {
   if (_aMap) { try { _aMap.remove(); } catch (_) {} }
   _aMap = null; _aLayer = null; _aKey = ''; _aFitKey = ''; _aUserMoved = false;
+  _aOpenKey = null; _linePicked = null;
 }
 export function _autoMap() { return _aMap; }
 
@@ -866,14 +897,50 @@ export function _autoMap() { return _aMap; }
  * because a GPS fix jitters by a few metres while standing still, and keying
  * on the raw value would redraw the map on jitter alone.
  */
-export function mapKey(stop, userPos, others, walkPts) {
+export function mapKey(stop, userPos, others, walkPts, open) {
   const r = v => (v == null ? '-' : v.toFixed(4));
   return [
     stop ? stop.id : '-',
     userPos ? r(userPos.lat) + ',' + r(userPos.lon) : '-',
     others.length,
     walkPts ? walkPts.length : 0,
+    // WHICH DIRECTION IS OPEN, AND HOW MANY STOPS ARE STILL AHEAD.
+    //
+    // This is the whole of the reported bug. Opening a direction changes none
+    // of the four above, so the key matched, _renderMap returned before
+    // clearLayers(), and the map could not follow the list however long you
+    // looked at it. It was not «the map forgot to update» — it had been told
+    // nothing had changed.
+    //
+    // The count is here because the list shrinks as you ride past stops. The
+    // MINUTES are deliberately not: they change every minute for every stop,
+    // and a key that carried them would re-fit and flicker a map that is
+    // drawn once a second.
+    open ? open.id + '×' + open.count : '-',
   ].join('|');
+}
+
+/**
+ * The open direction, as the two facts the map depends on.
+ *
+ * Pure and exported so the key can be tested without a screen. The identity
+ * is `frontText \0 line.id` — the SAME key groupDirections already builds for
+ * its accumulator, not a second way of saying "this direction".
+ */
+export function openKey(dir, stops) {
+  if (!dir) return null;
+  const ln = dir.call && dir.call.serviceJourney && dir.call.serviceJourney.line;
+  const lineId = (ln && (ln.id || ln.publicCode)) || '';
+  return { id: (dir.frontText || '') + '\u0000' + lineId, count: (stops || []).length };
+}
+
+/** The line's colour and mode, from the one place that carries them. */
+export function openLine(dir) {
+  const ln = dir && dir.call && dir.call.serviceJourney && dir.call.serviceJourney.line;
+  const raw = (dir && dir.lines && dir.lines[0] && dir.lines[0].colour)
+    || (ln && ln.presentation && ln.presentation.colour) || '7c2d12';
+  // The API gives hex WITHOUT a '#', and badgeHtml adds it. One rule, not two.
+  return { color: '#' + String(raw).replace(/^#/, ''), mode: (ln && ln.transportMode) || null };
 }
 
 function _renderMap() {
@@ -899,6 +966,10 @@ function _renderMap() {
     // moved the map in the act of framing it, and every later fit was
     // blocked. Measured: the stop marker sat 40px above a 140px band.
     _aMap.on('dragstart', () => { _aUserMoved = true; });
+    // Only a redraw, never a refit: zoomend fires for fitBounds too, and
+    // treating that as «the reader moved the map» is the trap that made
+    // zoomstart self-defeating in v1.101.0.
+    _aMap.on('zoomend', () => { _aKey = ''; });
   }
   // Leaflet measures the container when it is created; created while the
   // screen was hidden, that measurement is zero and the tiles never fill.
@@ -922,17 +993,57 @@ function _renderMap() {
   if (userPos && _stop) ensureApproach(userPos, _stop);
   const walkPts = approachPoints();
 
-  const others = _stop ? nearbyAlternatives(_stops(), _stop) : [];
-  const key = mapKey(_stop, userPos, others, walkPts);
+  // WHEN A DIRECTION IS OPEN THE MAP IS ABOUT THE LINE, NOT THE NEIGHBOURHOOD.
+  // The list has moved on to the stops ahead; the alternatives it was offering
+  // a moment ago belong to a question the reader has already answered.
+  const line = _open && _stop ? stopsAhead(_open.call, _stop.name) : null;
+  const others = (!_open && _stop) ? nearbyAlternatives(_stops(), _stop) : [];
+  // The zoom is part of the content, because readability is. Culled beads must
+  // come back when the reader pinches in — without this the map answers for
+  // the zoom it was drawn at for the rest of the screen's life.
+  const key = mapKey(_stop, userPos, others, walkPts, openKey(_open, line))
+    + '|z' + (_aMap.getZoom ? Math.round(_aMap.getZoom() * 2) / 2 : 0);
   // Redraw when the content changed; re-fit when the content OR the frame
   // changed. Returning early on content alone is what let the bad first fit
   // survive for the life of the screen.
+  // A NEW CONTENT IS A NEW FRAME. _aUserMoved is sticky for the life of the
+  // screen, so a reader who dragged the map once while orienting would never
+  // have seen it frame the line — their choice was about the old picture.
+  if (_aOpenKey !== (openKey(_open, line) || {}).id) {
+    _aOpenKey = (openKey(_open, line) || {}).id;
+    _aUserMoved = false;
+    _linePicked = null;
+  }
   const fitStale = !_aUserMoved && _aFitKey !== key + '|' + sizeKey;
   if (key === _aKey && !fitStale) return;
   _aKey = key;
 
   _aLayer.clearLayers();
+
+  // ── FRAME FIRST, THEN DRAW ───────────────────────────────────────────
+  //
+  // Readability has to be judged against the frame the map ENDS UP in, not
+  // the one it is leaving. Fitting after drawing measured a comfortable gap
+  // at the old zoom, kept every bead, and then zoomed out — 15 stops at a 9px
+  // median, a solid caterpillar. Every number was right.
+  //
+  // So the points are gathered without drawing anything, the frame is set,
+  // and only then are the markers placed against a projection that is true.
   const pts = [];
+  if (_stop && _stop.lat != null) pts.push([_stop.lat, _stop.lon]);
+  (line || []).forEach(st => { if (st.lat != null) pts.push([st.lat, st.lon]); });
+  others.forEach(s => { if (s.lat != null) pts.push([s.lat, s.lon]); });
+  (walkPts || []).forEach(p => pts.push(p));
+  if (userPos) pts.push([userPos.lat, userPos.lon]);
+
+  if (pts.length && !_aUserMoved && _aFitKey !== key + '|' + sizeKey) {
+    _aFitKey = key + '|' + sizeKey;
+    // animate:false so the projection is TRUE the moment this returns. With
+    // the default animation latLngToContainerPoint still answers for the view
+    // being left, so the readability check below measured the old zoom and
+    // kept every bead — 12px median where the threshold is 21.
+    _aMap.fitBounds(pts, { padding: [26, 26], maxZoom: 17, animate: false });
+  }
 
   if (_stop && _stop.lat != null) {
     L.marker([_stop.lat, _stop.lon], {
@@ -940,7 +1051,44 @@ function _renderMap() {
     })
       .bindTooltip(_stop.name, { className: 'map-label', direction: 'top', offset: [0, -8] })
       .addTo(_aLayer);
-    pts.push([_stop.lat, _stop.lon]);
+  }
+
+  // ── The line ahead, when one is open ──────────────────────────────────
+  //
+  // Reported: «når bruker har klikket seg inn på en linje, så burde kartet
+  // gjenspeile listen». Every stop the list shows already carries lat/lon —
+  // stopsAhead returns them — so this costs no request at all.
+  //
+  // Straight segments between stops: boardGQL does not ask for pointsOnLink,
+  // so the real alignment is not in this answer and the line cuts every curve.
+  // Named in drawStopLine rather than hidden.
+  if (line && line.length) {
+    const { color, mode } = openLine(_open);
+    drawStopLine(_aLayer, line, {
+      color, mode: normMode(mode),
+      // Cull the beads when they would touch. The line still says where it
+      // goes, and every stop is named in the list directly below it.
+      project: (ll) => _aMap.latLngToContainerPoint(ll),
+    });
+    // The ends are louder than the stops you pass through, and tappable — a
+    // tap points at the row rather than choosing it, because a mis-tap on a
+    // band this dense should not throw you off the screen.
+    const fav = new Set(stopShortcuts(line, loadFreq('arr')));
+    line.forEach((st, i) => {
+      if (st.lat == null) return;
+      const last = i === line.length - 1;
+      const picked = _linePicked === i;
+      if (!last && !picked && !fav.has(i)) return;   // the rest are drawn as dots already
+      L.marker([st.lat, st.lon], {
+        icon: makeStopIcon(normMode(mode), 0, { primary: last || picked }),
+        keyboard: false, zIndexOffset: picked ? 1000 : (last ? 500 : 250),
+      })
+        .bindTooltip(st.name + (st.mins != null ? ' · ' + st.mins + ' min' : ''),
+          { className: 'map-label', direction: 'top', offset: [0, -8],
+            permanent: picked })
+        .on('click', () => _pickLineStop(i))
+        .addTo(_aLayer);
+    });
   }
 
   // Every other stop you could walk to, and TAPPABLE — the same choice the
@@ -957,23 +1105,43 @@ function _renderMap() {
       .bindTooltip(s.name + ' · ' + s.distM + ' m', { className: 'map-label', direction: 'top', offset: [0, -8] })
       .on('click', () => pinStop(s.id))
       .addTo(_aLayer);
-    pts.push([s.lat, s.lon]);
   });
 
-  if (walkPts && walkPts.length) {
-    drawWalk(_aLayer, walkPts);
-    walkPts.forEach(p => pts.push(p));
-  }
+  if (walkPts && walkPts.length) drawWalk(_aLayer, walkPts);
+  if (userPos) userDot(_aLayer, userPos);
+}
 
-  if (userPos) {
-    userDot(_aLayer, userPos);
-    pts.push([userPos.lat, userPos.lon]);
-  }
+/**
+ * A tap on a stop in the line POINTS AT IT — it does not choose it.
+ *
+ * A tap on the ROW sets the route and opens the board: you leave the screen.
+ * A tap on the map marks the row and scrolls to it, exactly as the arrival
+ * screen has done since v1.100.0. The two are different questions — «where is
+ * this» and «I want this» — and on an 11 km line inside a 140px band the
+ * stops sit some 35px apart, so a mis-tap that throws you off the screen is a
+ * far more expensive mistake than one that highlights the wrong row.
+ *
+ * The index is the index into `stopsAhead`, which is the same `data-i` the
+ * rows carry and the same index `stopShortcuts` returns — so a stop that
+ * appears both under «ofte brukt» and in the full list is one stop, marked in
+ * both places, with no third representation of it.
+ */
+let _linePicked = null;
 
-  if (pts.length && !_aUserMoved && _aFitKey !== key + '|' + sizeKey) {
-    _aFitKey = key + '|' + sizeKey;
-    _aMap.fitBounds(pts, { padding: [26, 26], maxZoom: 17 });
-  }
+export function _setLinePicked(i) { _linePicked = i; }
+export function _getLinePicked() { return _linePicked; }
+
+function _pickLineStop(i) {
+  // Tapping the marked stop again clears it — the same toggle the mobility
+  // rows use, so the reader can always get back to a quiet map.
+  _linePicked = (_linePicked === i) ? null : i;
+  // The key must change or the map will not redraw: this is the very guard
+  // that caused the reported bug one level up.
+  _aKey = '';
+  _renderBody();
+  _renderMap();
+  const row = document.querySelector('#auto-body .auto-stop-btn[data-i="' + i + '"]');
+  if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 /**
@@ -1519,8 +1687,12 @@ export function findJumpTarget(dirs, guess, fromName, now) {
 
 function _renderStops(body) {
   const stops = stopsAhead(_open.call, _stop.name);
+  // `.picked` is the mark a tap on the map leaves. It is a CLASS on the row
+  // rather than state in the markup, because this innerHTML is replaced once a
+  // second — anything stored here would be gone before the finger lifted.
   const stopHtml = (s, i, extra) => '<button class="nearby-btn auto-stop-btn'
-    + (extra || '') + '" type="button" data-i="' + i + '">'
+    + (extra || '') + (_linePicked === i ? ' picked' : '')
+    + '" type="button" data-i="' + i + '">'
     + '<span class="nearby-name">' + esc(s.name) + '</span>'
     + '<span class="nearby-dist">' + (s.mins != null ? s.mins + ' min' : '') + '</span>'
     + '</button>';

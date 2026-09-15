@@ -32,6 +32,24 @@ const iso = ms => new Date(ms).toISOString();
 const ME   = { lat: 59.8617, lon: 10.8285 };
 const STOP = { lat: 59.8650, lon: 10.8285 };
 
+/* THE REPORTED SCREEN, built on purpose.
+   The screenshot read «Mortensrud» with «6014 m ▾» straight across it, then
+   «15 min gange · posisjon 8 min gammel» wrapped to two lines. Three things
+   have to be true at once to get there, and the happy fixture above has none
+   of them:
+     - a FOUR-DIGIT distance, so the right-hand string is long;
+     - a stale fix, so «posisjon N min gammel» is on the end;
+     - and the two numbers DISAGREEING, which needs the distance and the walk
+       measured from different points.
+   The last one is the mechanism: findNearestStation measures from the
+   position it was called with (homeLL), while walkMinsTo prefers
+   state.walkFromLL — the «gå fra» place set in settings, restored from
+   storage at module load. Nothing in findNearestStation reads it. So with
+   «gå fra» set they measure from two different places, permanently. */
+const FAR_HOME = { lat: 59.9160, lon: 10.8285 };   // ~6 km north of the stop
+const WALK_FROM = { lat: 59.8542, lon: 10.8285 };  // ~1.2 km south of it
+const STALE_MIN = 8;
+
 const mk = (name, lat, lon, cats) => ({
   properties: { id: 'NSR:StopPlace:' + name.replace(/\W/g, ''), name, label: name, category: cats },
   geometry: { coordinates: [lon, lat] },
@@ -40,6 +58,14 @@ const STOPS = [
   mk('Mortensrud T', STOP.lat, STOP.lon, ['metroStation']),     // ~369 m
   mk('Lofsrudveien', 59.8672, 10.8330, ['onstreetBus']),        // further
   mk('Bjørnholt skole', 59.8690, 10.8360, ['onstreetBus']),     // further still
+];
+/* The reported set. The name is ONE WORD on purpose: «Bjørnholt skole» has a
+   space and can wrap, «Mortensrud» cannot — so when the row squeezes it to
+   nothing it runs out of its own box instead of breaking. That is the
+   difference between a fixture that reproduces this and one that does not. */
+const STOPS_HARD = [
+  mk('Mortensrud', 59.8690, 10.8285, ['metroStation']),
+  mk('Lofsrudveien', 59.8672, 10.8330, ['onstreetBus']),
 ];
 
 const dep = (front, mins, code, mode, colour) => ({
@@ -56,12 +82,22 @@ const dep = (front, mins, code, mode, colour) => ({
       aimedDepartureTime: iso(NOW + (mins + 7) * 60000), expectedDepartureTime: iso(NOW + (mins + 7) * 60000) }] },
 });
 /* 2 minutes is unreachable on a 5 minute walk; 12 and 22 are not. */
+/* FIVE directions, as on the reported screen — Kolsås, Stortinget, Holmlia,
+   Bjørndal, Jernbanetorget. The heading grew by ~20px when it became two
+   lines, and «does that push a departure off the fold» can only be answered
+   against a realistic number of rows. Two would have flattered it. */
 const CALLS = [
   dep('Stortinget', 2, '3', 'metro', 'f5a000'),
   dep('Stortinget', 12, '3', 'metro', 'f5a000'),
   dep('Stortinget', 22, '3', 'metro', 'f5a000'),
+  dep('Kolsås', 4, '3', 'metro', 'f5a000'),
+  dep('Kolsås', 18, '3', 'metro', 'f5a000'),
   dep('Helsfyr', 6, '70', 'bus', 'e60000'),
   dep('Helsfyr', 26, '70', 'bus', 'e60000'),
+  dep('Holmlia stasjon', 9, '73', 'bus', 'e60000'),
+  dep('Holmlia stasjon', 29, '73', 'bus', 'e60000'),
+  dep('Bjørndal', 15, '71', 'bus', 'e60000'),
+  dep('Jernbanetorget', 19, '74', 'bus', 'e60000'),
 ];
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
@@ -77,14 +113,16 @@ await new Promise(r => server.listen(PORT, r));
 
 const browser = await pw.chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 
-async function run(scheme) {
+async function run(scheme, width, hard) {
+  const W = width || 414;
+  const HOME = hard ? FAR_HOME : ME;
   const ctx = await browser.newContext({
-    viewport: { width: 414, height: 860 }, deviceScaleFactor: 2, colorScheme: scheme,
+    viewport: { width: W, height: 860 }, deviceScaleFactor: 2, colorScheme: scheme,
     hasTouch: true, isMobile: true, timezoneId: 'Europe/Oslo', locale: 'nb-NO',
-    geolocation: { latitude: ME.lat, longitude: ME.lon }, permissions: ['geolocation'],
+    geolocation: { latitude: HOME.lat, longitude: HOME.lon }, permissions: ['geolocation'],
   });
   const page = await ctx.newPage();
-  await page.addInitScript(({ now, me, scheme }) => {
+  await page.addInitScript(({ now, me, scheme, walkFrom }) => {
     const Real = Date;
     class Pinned extends Real {
       constructor(...a) { super(...(a.length ? a : [now])); }
@@ -99,11 +137,12 @@ async function run(scheme) {
     // DEFAULT_THEME is 'dark' and the inline boot script stamps it. Setting
     // colorScheme on the context alone left the "light" run rendering dark.
     localStorage.setItem('default::t.theme', scheme);
-  }, { now: NOW, me: ME, scheme });
+    if (walkFrom) localStorage.setItem('default::t.walkFrom', JSON.stringify(walkFrom));
+  }, { now: NOW + (hard ? STALE_MIN * 60000 : 0), me: HOME, scheme, walkFrom: hard ? WALK_FROM : null });
 
   let valhalla = 0, enturFoot = 0;
   await page.route('**/geocoder/**', route => route.fulfill({ status: 200,
-    contentType: 'application/json', body: JSON.stringify({ features: STOPS }) }));
+    contentType: 'application/json', body: JSON.stringify({ features: hard ? STOPS_HARD : STOPS }) }));
   await page.route('**/journey-planner/**', route => {
     const body = route.request().postData() || '';
     if (body.includes('directMode:foot') || body.includes('directMode: foot')) {
@@ -129,10 +168,49 @@ async function run(scheme) {
   await page.waitForSelector('#v-auto .auto-stop', { timeout: 15000 });
   await page.waitForTimeout(5000);
 
-  console.log(`\n══ ${scheme.toUpperCase()} ══`);
+  console.log(`\n══ ${scheme.toUpperCase()} · ${W} px · ${hard ? 'RAPPORTERT TILFELLE' : 'enkelt'} ══`);
 
   const head = await page.$eval('#v-auto .auto-stop', e => e.textContent.replace(/\s+/g, ' ').trim());
   console.log('  overskrift   :', head);
+
+  // DOES ANYTHING IN THE HEADING SIT ON TOP OF ANYTHING ELSE?
+  // Reported by screenshot: «Mortensrud» with «6014 m ▾» straight across it.
+  // A generic collision check rather than a check for this one pair, so it
+  // also catches the next fact somebody adds to this row.
+  const clash = await page.evaluate(() => {
+    const root = document.querySelector('#v-auto .auto-stop');
+    if (!root) return null;
+    // Every run of text, measured where it actually paints. Element boxes are
+    // not enough: the stop name is a bare text node whose parent also holds
+    // the caret, so an element-only sweep never sees the name at all.
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const leaves = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent.trim()) continue;
+      const rng = document.createRange();
+      rng.selectNodeContents(n);
+      for (const r of rng.getClientRects()) {
+        if (r.width > 0 && r.height > 0) {
+          leaves.push({ t: n.textContent.replace(/\s+/g, ' ').trim().slice(0, 22), r });
+        }
+      }
+    }
+    const hits = [];
+    for (let i = 0; i < leaves.length; i++) {
+      for (let j = i + 1; j < leaves.length; j++) {
+        const a = leaves[i].r, b = leaves[j].r;
+        const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (ox > 1 && oy > 1) hits.push(`«${leaves[i].t}» ✕ «${leaves[j].t}» (${Math.round(ox)}×${Math.round(oy)} px)`);
+      }
+    }
+    const box = root.getBoundingClientRect();
+    const spill = leaves.filter(x => x.r.right > box.right + 1).map(x => `«${x.t}» stikker ${Math.round(x.r.right - box.right)} px utenfor`);
+    return { hits, spill, høyde: Math.round(box.height) };
+  });
+  console.log('  overlapp     :', clash.hits.length ? clash.hits.join(' | ') : 'ingen');
+  if (clash.spill.length) console.log('  utenfor kant :', clash.spill.join(' | '));
+  console.log('  overskriftens høyde:', clash.høyde, 'px');
 
   const hasMap = await page.$eval('#auto-map-wrap', e => getComputedStyle(e).display !== 'none').catch(() => false);
   const mapBox = await page.$eval('#auto-map', e => { const r = e.getBoundingClientRect();
@@ -207,8 +285,8 @@ async function run(scheme) {
     '(1 av hver = stigen, ikke ett per sekund)');
 
   fs.mkdirSync('scratchpad/shots', { recursive: true });
-  await page.screenshot({ path: `scratchpad/shots/orient-${scheme}.png`, animations: 'disabled' });
-  await page.screenshot({ path: `scratchpad/shots/orient-${scheme}-full.png`, fullPage: true, animations: 'disabled' });
+  await page.screenshot({ path: `scratchpad/shots/orient-${scheme}-${W}-${hard ? 'hard' : 'lett'}.png`, animations: 'disabled' });
+  await page.screenshot({ path: `scratchpad/shots/orient-${scheme}-${W}-${hard ? 'hard' : 'lett'}-full.png`, fullPage: true, animations: 'disabled' });
 
   // Tapping a stop on the map must do exactly what tapping the row does.
   const before = await page.$eval('#v-auto .auto-stop-name', e => e.textContent.trim());
@@ -229,8 +307,11 @@ async function run(scheme) {
   await ctx.close();
 }
 
-await run('dark');
-await run('light');
+/* The happy case first, so the regression is visible, then the reported one. */
+await run('dark', 390, false);
+await run('dark', 390, true);
+await run('light', 390, true);
+await run('dark', 414, true);
 await browser.close();
 server.close();
 console.log('\nSkjermbilder: scratchpad/shots/orient-*.png\n');

@@ -22,8 +22,20 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist'); const PORT = 4515;
 const NOW = Date.parse('2026-09-16T07:03:00+02:00');
 const iso = ms => new Date(ms).toISOString();
-const FROM = { id: 'NSR:StopPlace:Mortensrud', name: 'Mortensrud', lat: 59.8617, lon: 10.8285 };
+const FROM = { id: 'NSR:StopPlace:Oppsal', name: 'Oppsal', lat: 59.8900, lon: 10.8350 };
 const TO = { id: 'NSR:StopPlace:Jernbanetorget', name: 'Jernbanetorget', lat: 59.9115, lon: 10.7500 };
+/* The reported screen HAS a map and HAS the «til du bør gå» hero. A fixture
+   without them measures a screen nobody is looking at: the first run reported
+   «hero 0 · kart 16» — both blocks absent — and a fold 270px clear that the
+   reader does not have. So the legs carry stop coordinates, and the reader is
+   given a position near Oppsal so isWalkActive is true. */
+const CHAIN = [
+  ['Oppsal', 59.8900, 10.8350], ['Skøyenåsen', 59.8950, 10.8280],
+  ['Godlia', 59.9000, 10.8200], ['Hellerud', 59.9080, 10.8180],
+  ['Brynseng', 59.9130, 10.8100], ['Helsfyr', 59.9160, 10.7950],
+  ['Tøyen', 59.9160, 10.7700], ['Jernbanetorget', 59.9115, 10.7500],
+];
+const ME = { lat: 59.8885, lon: 10.8365 };   // ~200 m from Oppsal
 
 /* Six departures. Two of them are BUSES, so the mode filter has something to
    remove — that is the case where the old «neste» row pointed at a departure
@@ -43,7 +55,14 @@ const leg = (mins, dur, code, mode, colour, cancelled) => ({
     cancellation: !!cancelled,
     line: { id: 'RUT:Line:' + code, publicCode: code, transportMode: mode,
       presentation: { colour } },
-    estimatedCalls: [] },
+    estimatedCalls: CHAIN.map(([name, lat, lon], i) => ({
+      quay: { latitude: lat, longitude: lon,
+        stopPlace: { id: 'NSR:StopPlace:' + name.replace(/\W/g, ''), name, latitude: lat, longitude: lon } },
+      aimedArrivalTime: iso(NOW + (mins + i * 2) * 60000),
+      expectedArrivalTime: iso(NOW + (mins + i * 2) * 60000),
+      aimedDepartureTime: iso(NOW + (mins + i * 2) * 60000),
+      expectedDepartureTime: iso(NOW + (mins + i * 2) * 60000),
+    })) },
   situations: [], pointsOnLink: null,
 });
 const pat = (mins, dur, code, mode, colour, cancelled) => ({
@@ -94,15 +113,16 @@ const readSel = (page) => page.evaluate(() => {
   };
 });
 
-async function run(scheme, width) {
-  const W = width || 390;
+async function run(scheme, width, height) {
+  const W = width || 390; const H = height || 900;
   const ctx = await browser.newContext({
-    viewport: { width: W, height: 900 }, deviceScaleFactor: 2,
+    viewport: { width: W, height: H }, deviceScaleFactor: 2,
     colorScheme: scheme, hasTouch: true, isMobile: true,
     timezoneId: 'Europe/Oslo', locale: 'nb-NO',
+    geolocation: { latitude: ME.lat, longitude: ME.lon }, permissions: ['geolocation'],
   });
   const page = await ctx.newPage();
-  await page.addInitScript(({ now, from, to, scheme }) => {
+  await page.addInitScript(({ now, from, to, scheme, me }) => {
     const Real = Date;
     class Pinned extends Real {
       constructor(...a) { super(...(a.length ? a : [now])); }
@@ -117,12 +137,13 @@ async function run(scheme, width) {
     // stepping through the list they saw rather than the raw answer.
     localStorage.setItem('default::t.modes', JSON.stringify(
       { metro: true, bus: false, tram: false, rail: false, water: false }));
+    localStorage.setItem('default::t.homeLL', JSON.stringify(me));
     localStorage.setItem('default::t.route', JSON.stringify({
       key: 'custom-out', from: from.name, to: to.name,
       stopId: from.id, toStopId: to.id, filter: null, geo: null, toGeo: null, line: null,
       _fromLat: from.lat, _fromLon: from.lon, _toLat: to.lat, _toLon: to.lon,
     }));
-  }, { now: NOW, from: FROM, to: TO, scheme });
+  }, { now: NOW, from: FROM, to: TO, scheme, me: ME });
 
   await page.route('**/journey-planner/**', route => {
     const body = route.request().postData() || '';
@@ -134,15 +155,18 @@ async function run(scheme, width) {
         trip: { tripPatterns: PATTERNS } } }) });
   });
   await page.route('**/geocoder/**', r => r.fulfill({ status: 200, contentType: 'application/json',
-    body: JSON.stringify({ features: [] }) }));
-  await page.route(/tiles|realtime|open-meteo|overpass|valhalla|geoapify|mobility/, r => r.abort());
+    body: JSON.stringify({ features: [{
+      properties: { id: FROM.id, name: FROM.name, label: FROM.name, category: ['metroStation'] },
+      geometry: { coordinates: [FROM.lon, FROM.lat] } }] }) }));
+  await page.route(/tiles|basemaps|stadiamaps/, r => r.fulfill({ status: 200, contentType: 'image/png', body: Buffer.alloc(0) }));
+  await page.route(/realtime|open-meteo|overpass|valhalla|geoapify|mobility/, r => r.abort());
   page.on('pageerror', e => console.log('  ! sidefeil:', e.message));
 
   await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'load' });
   await page.waitForSelector('#dep-list .dep-row', { timeout: 15000 });
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(3000);
 
-  console.log(`\n══ ${scheme.toUpperCase()} · ${W} px ══`);
+  console.log(`\n══ ${scheme.toUpperCase()} · ${W}×${H} ══`);
 
   // The order the reader sees, which is what a step must follow.
   const rows = await page.$$eval('#dep-list .dep-row', els => els.map(e => ({
@@ -158,6 +182,62 @@ async function run(scheme, width) {
   await page.waitForSelector('#v-selected', { state: 'visible', timeout: 8000 });
   await page.waitForTimeout(1200);
 
+  // ── HVOR LANGT UNDER FALSEN LIGGER RADEN? ────────────────────────────
+  // Reported: «Greier du å komprimere slik at knappene blir synlige uten å
+  // måtte skrolle ned?» Measured against the viewport, block by block, so
+  // each lever can be reported for what it actually bought.
+  const fold = await page.evaluate(() => {
+    // THE FLOOR IS THE BOTTOM NAV, NOT THE VIEWPORT.
+    // A first measurement compared the row's bottom against window.innerHeight
+    // and reported «49px slack» — while the screenshot showed the buttons
+    // sitting under the TAVLA/AUTO-REISE bar. The nav is fixed and overlays
+    // the page, so the usable floor is its top edge.
+    const nav = document.querySelector('.app-nav:not([hidden])');
+    const navTop = nav ? nav.getBoundingClientRect().top : window.innerHeight;
+    const vh = Math.round(Math.min(navTop, window.innerHeight));
+    const row = document.querySelector('#s-ctas .cta-row');
+    if (!row) return null;
+    const r = row.getBoundingClientRect();
+    const h = (sel) => { const e = document.querySelector(sel);
+      if (!e) return 0;
+      const b = e.getBoundingClientRect();
+      const cs = getComputedStyle(e);
+      return Math.round(b.height + parseFloat(cs.marginBottom || 0)); };
+    return {
+      vh, navTop: Math.round(navTop), innerH: window.innerHeight,
+      topp: Math.round(r.top), bunn: Math.round(r.bottom),
+      radh: Math.round(r.height),
+      under: Math.round(r.bottom - vh),
+      blokker: {
+        chip: h('.train-chip'), rute: h('.sel-route-ctx'), vaer: h('.sel-weather'),
+        hero: h('.leaveby-hero'), grid: h('.journey-detail'), kart: h('#sel-map-wrap'),   // NOT '.map-wrap': the board has one too,
+                                    // hidden, and querySelector found that one first
+                                    // — it reported 16px for a 216px block.
+      },
+      // The two clock faces must stay on one line when one label wraps.
+      jdLinje: (() => {
+        const v = Array.from(document.querySelectorAll('.jd-val'));
+        return v.length < 2 ? 'n/a'
+          : Math.abs(v[0].getBoundingClientRect().top - v[1].getBoundingClientRect().top) < 2
+            ? 'samme linje' : 'I UTAKT';
+      })(),
+    };
+  });
+  const mapDbg = await page.evaluate(() => {
+    const w = document.getElementById('sel-map-wrap');
+    const m = document.getElementById('sel-map');
+    return { wrapDisplay: w ? getComputedStyle(w).display : 'mangler',
+      kartH: m ? Math.round(m.getBoundingClientRect().height) : 0,
+      leaflet: document.querySelectorAll('#sel-map .leaflet-map-pane').length };
+  });
+  console.log('  [kart-debug] ', JSON.stringify(mapDbg));
+  if (fold) {
+    console.log('  gulv         :', fold.vh, 'px (meny fra', fold.navTop, '· vindu', fold.innerH + ') · radens bunn', fold.bunn,
+      '→', fold.under > 0 ? fold.under + ' px UNDER falsen' : Math.abs(fold.under) + ' px slark igjen');
+    console.log('  blokker      :', Object.entries(fold.blokker).map(([k, v]) => k + ' ' + v).join(' · '));
+    console.log('  radh\u00f8yde     :', fold.radh, 'px · avg\u00e5r/ankommer:', fold.jdLinje);
+  }
+
   const start = await readSel(page);
   console.log('  åpnet        :', start.avgang, '· linje', start.linje);
   console.log('  knapperaden  :', start.knapper.map(b =>
@@ -167,7 +247,7 @@ async function run(scheme, width) {
   console.log('  gammel «neste»-rad nederst:', start.gammelRad ? 'FINNES ENNÅ' : 'borte');
 
   fs.mkdirSync('scratchpad/shots', { recursive: true });
-  await page.screenshot({ path: `scratchpad/shots/step-${scheme}-${W}.png`, animations: 'disabled' });
+  await page.screenshot({ path: `scratchpad/shots/step-${scheme}-${W}x${H}.png`, animations: 'disabled' });
 
   // ── Step back, then forward twice, reading where we land each time ──────
   const stepAndRead = async (which) => {
@@ -200,7 +280,7 @@ async function run(scheme, width) {
   console.log('  i enden      :', end.avgang, '·',
     end.knapper.map(b => `«${b.tekst}»${b.av ? '(av)' : ''}`).join(' | '));
 
-  await page.screenshot({ path: `scratchpad/shots/step-${scheme}-${W}-ende.png`, animations: 'disabled' });
+  await page.screenshot({ path: `scratchpad/shots/step-${scheme}-${W}x${H}-ende.png`, animations: 'disabled' });
 
   // ONE TIMER, not one per step. startSelRefresh clears its own, so this
   // should hold — but it is the easy mistake here and it would never show on
@@ -215,9 +295,10 @@ async function run(scheme, width) {
   await ctx.close();
 }
 
-await run('dark', 390);
-await run('light', 390);
-await run('dark', 414);
+await run('dark', 390, 700);
+await run('dark', 390, 640);
+await run('light', 390, 700);
+await run('dark', 414, 700);
 await browser.close();
 server.close();
 console.log('\nSkjermbilder: scratchpad/shots/step-*.png\n');

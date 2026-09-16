@@ -19,7 +19,8 @@
   background:rgba(var(--accent-rgb),.05);
   border:1px solid rgba(var(--border-rgb),.12);
   border-radius:6px;padding:.7rem .9rem;
-  margin-bottom:1.75rem;
+  /* 1.75rem → 1rem: air, not information. */
+  margin-bottom:1rem;
 }
 .train-chip .tc-dest{font-size:14px;font-weight:700;color:var(--accent);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .train-chip .tc-meta{font-size:11px;color:var(--text-muted);white-space:nowrap}
@@ -54,7 +55,15 @@
 }
 
 /* Hero: gå senest */
-.leaveby-hero{text-align:center;margin-bottom:2rem}
+/* The last of the dead air, and scoped to this screen: .screen-header is
+   shared by every view, and the step buttons are only tight here. */
+#v-selected .screen-header{margin-bottom:1rem}
+#v-selected .sel-weather{margin-bottom:.5rem}
+
+/* 2rem → 1.25rem, which is the value .is-focus already used. One number for
+   the gap under the hero rather than two that could drift — and 12px of pure
+   air towards getting the step buttons above the fold. No type shrinks. */
+.leaveby-hero{text-align:center;margin-bottom:1.25rem}
 .leaveby-label{font-size:10px;text-transform:uppercase;letter-spacing:.3em;color:var(--text-muted);margin-bottom:.35rem}
 .leaveby-time{
   font-family:"Bebas Neue",sans-serif;
@@ -81,7 +90,8 @@
    to what the retired gangtid screen showed, and the itinerary folds away
    below. Nothing moves except the size, so the thing you were reading is
    still where you left it. */
-.leaveby-hero.is-focus{margin-bottom:1.25rem}
+/* The margin is the hero's own now; .is-focus only changes the type. */
+.leaveby-hero.is-focus{}
 .leaveby-hero.is-focus .leaveby-time{font-size:clamp(4.2rem,22vw,6.5rem);line-height:.9}
 .leaveby-hero.is-focus .leaveby-time .lt-unit{font-size:1.1rem}
 .leaveby-hero.is-focus .leaveby-label{font-size:11px;letter-spacing:.35em}
@@ -107,7 +117,8 @@
 .journey-detail{
   display:grid;grid-template-columns:1fr 1fr;gap:1px;
   background:rgba(var(--accent-rgb),.08);border-radius:6px;overflow:hidden;
-  margin-bottom:1.75rem;
+  /* 1.75rem → 1rem: air, not information. */
+  margin-bottom:1rem;
 }
 .jd-cell{background:var(--bg);padding:.8rem 1rem}
 /* Reserve two label lines so the times align across cells even when one
@@ -186,7 +197,12 @@
 .train-bar .tb-dep{font-size:12px;color:var(--text-muted)}
 .train-bar .tb-dep span{color:var(--accent)}
 
-#sel-map{height:200px;border-radius:8px;overflow:hidden}
+/* 200 → 130. Asked for: the step buttons should be reachable without
+   scrolling, and the map was the single largest block above them. Chosen: keep
+   the order, shrink the map «litt» rather than move the buttons over it.
+   .expanded (72vh) is untouched — ⤢ still gives the big map, so nothing is
+   gone, it is only smaller at rest. */
+#sel-map{height:130px;border-radius:8px;overflow:hidden}
 #sel-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
 .sel-stop-label{font-size:10px;background:var(--surface-2);border:1px solid rgba(var(--border-rgb),.25);color:var(--accent);padding:1px 4px;border-radius:3px;white-space:nowrap}
 
@@ -207,8 +223,14 @@
    instead of thirds. Same padding, same third. */
 .cta-row .cta-btn{
   width:auto;flex:1 1 0;min-width:0;margin-top:0;
+  /* 1.1rem → .75rem, padding only — no type shrinks. The tap target stays
+     around 50px, comfortably over the 44px a thumb needs. */
+  padding-top:.75rem;padding-bottom:.75rem;
   padding-left:.4rem;padding-right:.4rem;
 }
+/* The two full-width buttons under the row follow, so the block reads as one
+   group rather than a tight row above two roomy ones. */
+#s-ctas > .cta-btn.secondary{padding-top:.75rem;padding-bottom:.75rem}
 /* The steps are quieter than «reis» and sized to sit beside it rather than
    under it — .cta-btn.secondary is built for a full-width row below the
    primary, and carries a top margin and a larger face that do not belong

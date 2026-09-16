@@ -11,7 +11,7 @@ import { updatePlanCtx } from './plan.js';
 import { logMsg } from '../ui/log.js';
 import { esc } from '../ui/fmt.js';
 import { show } from '../ui/nav.js';
-import { startBoard } from './board.js';
+import { startBoard, boardRows } from './board.js';
 import { renderAlerts } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
@@ -467,8 +467,45 @@ export function renderSelected() {
   const ctaDiv = document.createElement('div');
   ctaDiv.id = 's-ctas';
 
+  // ── Forrige · reis · neste ────────────────────────────────────────────
+  //
+  // Asked for: «bruker burde kunne hoppe tilbake til forrige avgang eller
+  // fremover til neste avgang», with «reis» at a third of its width and the
+  // two steps on either side. Until now the only way was: back, find the row
+  // again, tap it.
+  //
+  // The rows come from the board itself (boardRows), so a step lands on
+  // exactly the row above or below the one you tapped — same mode filter, same
+  // line filter, same order. The «neste» row this replaces read the raw
+  // state.deps and could point at a departure the reader had filtered away.
+  const rows = boardRows();
+  const stepRow = document.createElement('div');
+  stepRow.className = 'cta-row';
+
+  const stepBtn = (dir, label) => {
+    const b = document.createElement('button');
+    const target = stepDep(rows, c, dir);
+    b.className = 'cta-btn secondary cta-step';
+    // The time, not just an arrow: you can see what you are stepping to and
+    // whether it is worth it. At the end of the list the arrow stands alone —
+    // an empty button would be impossible to read.
+    b.textContent = target
+      ? (dir < 0 ? '← ' + clk(new Date(target.expectedDepartureTime).getTime())
+                 : clk(new Date(target.expectedDepartureTime).getTime()) + ' →')
+      : (dir < 0 ? '←' : '→');
+    b.disabled = !target;
+    b.setAttribute('aria-label', target
+      ? (dir < 0 ? 'Forrige avgang, ' : 'Neste avgang, ')
+        + clk(new Date(target.expectedDepartureTime).getTime())
+      : (dir < 0 ? 'Ingen tidligere avgang' : 'Ingen senere avgang'));
+    if (target) b.onclick = () => window.tap(target);
+    return b;
+  };
+
+  stepRow.appendChild(stepBtn(-1));
+
   const primaryBtn = document.createElement('button');
-  primaryBtn.className = 'cta-btn';
+  primaryBtn.className = 'cta-btn cta-step';
   if (departed) {
     primaryBtn.textContent = 'andre avganger';
     primaryBtn.onclick = () => {
@@ -482,7 +519,11 @@ export function renderSelected() {
     primaryBtn.disabled = depTs < now - 120000;
     primaryBtn.onclick = () => window.doBoard && window.doBoard();
   }
-  ctaDiv.appendChild(primaryBtn);
+  stepRow.appendChild(primaryBtn);
+  // Both ways stay reachable even after the departure has gone: having just
+  // missed one is exactly when the next one matters.
+  stepRow.appendChild(stepBtn(1));
+  ctaDiv.appendChild(stepRow);
 
   if (!departed) {
     const starBtn = document.createElement('button');
@@ -521,73 +562,82 @@ export function renderSelected() {
   }
 
   document.getElementById('v-selected').appendChild(ctaDiv);
-  renderSelDeps();
   _renderSelMap(state.sel, dir.from, dir.to);
 }
 
-function renderSelDeps() {
-  const old = document.getElementById('s-dep-list');
-  if (old) old.remove();
-  if (!state.deps || !state.deps.length) return;
-  const now = Date.now();
-  const selTs = state.sel ? new Date(state.sel.expectedDepartureTime).getTime() : null;
-
-  // Deduplicate by departure minute, then find the first upcoming departure
-  // that is clearly after the selected one (> 90 s gap)
-  const indexed = state.deps.map((c, i) => ({ c, i }));
-  indexed.sort((a, b) => new Date(a.c.expectedDepartureTime) - new Date(b.c.expectedDepartureTime));
-  const byMin = new Map();
-  indexed.forEach(({ c, i }) => {
-    const min = Math.floor(new Date(c.expectedDepartureTime) / 60000);
-    const arr = c._finalArrival ? new Date(c._finalArrival).getTime() : Infinity;
-    const cur = byMin.get(min);
-    if (!cur || arr < cur.arr) byMin.set(min, { c, i, arr });
-  });
-
-  const upcoming = Array.from(byMin.values())
-    .filter(({ c }) => new Date(c.expectedDepartureTime).getTime() > now - 30000);
-
-  // Pick the first departure that isn't the selected one
-  const next = upcoming.find(({ c }) => {
-    const ts = new Date(c.expectedDepartureTime).getTime();
-    return !selTs || ts > selTs + 90000;
-  });
-  if (!next) return;
-
-  const { c, i } = next;
-  const depTs = new Date(c.expectedDepartureTime).getTime();
-  const mins = Math.max(0, Math.floor((depTs - now) / 60000));
-  const ln = c.serviceJourney && c.serviceJourney.line;
-  const bg = ln && ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
-  const visLegs = c._legs ? c._legs.slice(0, 3) : null;
-  const badges = visLegs
-    ? visLegs.map(l => {
-        const ll = l.serviceJourney && l.serviceJourney.line;
-        const lbg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
-        return '<span class="line-badge" style="background:' + lbg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
-      }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
-    : '<span class="line-badge" style="background:' + bg + '">' + ((ln && ln.publicCode) || '?') + '</span>';
-  // Below an hour it cannot be another day; at or above it now routinely is,
-  // and this row sits under a headline that says a different departure.
-  const minsLabel = mins <= 0 ? 'nå' : mins < 60 ? mins + ' min' : clkDay(depTs);
-  const a11y = 'Neste avgang: ' + ((ln && ln.publicCode) || '') + ' om ' + minsLabel;
-
-  const el = document.createElement('div');
-  el.id = 's-dep-list';
-  el.innerHTML = '<div class="s-next-dep">'
-    + '<span class="s-next-label">neste</span>'
-    + badges
-    + '<span class="s-next-mins">' + minsLabel + '</span>'
-    + '</div>';
-  el.querySelector('.s-next-dep').setAttribute('role', 'button');
-  el.querySelector('.s-next-dep').setAttribute('tabindex', '0');
-  el.querySelector('.s-next-dep').setAttribute('aria-label', a11y);
-  el.querySelector('.s-next-dep').addEventListener('click', () => window.tap(c));
-  el.querySelector('.s-next-dep').addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.tap(c); }
-  });
-  document.getElementById('v-selected').appendChild(el);
+/**
+ * Is this a departure a tap could have opened?
+ *
+ * A cancelled row loses its onclick on the board (board.js), so it is not
+ * something you can navigate to there — and the step buttons must not be able
+ * to land on anything a tap on the list could not.
+ */
+function _navigable(c) {
+  return !!c && !c.cancellation && !(c.serviceJourney && c.serviceJourney.cancellation);
 }
+
+/**
+ * How a departure is recognised between two renders.
+ *
+ * `serviceJourney.id` first: it is stable across fetches and is already what
+ * the detail screen locks onto (state.lockedJourneyId). NOT `_depKey`, which
+ * embeds expectedDepartureTime and therefore moves the moment realtime does.
+ *
+ * The departure time is only a fallback, for the case the dedupe already
+ * guards against — an answer with no service journey id.
+ */
+function _sameDep(a, b) {
+  if (!a || !b) return false;
+  const ai = a.serviceJourney && a.serviceJourney.id;
+  const bi = b.serviceJourney && b.serviceJourney.id;
+  if (ai && bi) return ai === bi;
+  return !!a.expectedDepartureTime && a.expectedDepartureTime === b.expectedDepartureTime;
+}
+
+/**
+ * One step back or forward through the list the reader actually saw.
+ *
+ * Pure and exported, because «what is the next departure» had TWO answers on
+ * this screen already and these buttons would have been the third. The board's
+ * rows are now handed in; nothing here re-sorts, re-dedupes or re-filters.
+ * Stepping forward lands on exactly the row under the one you tapped.
+ *
+ * Departures that have already gone are reachable going back — chosen: the
+ * board keeps them, dimmed, and one that left two minutes ago may be delayed
+ * and still at the platform, which is precisely when you want to look.
+ *
+ * Not finding `current` at all — you arrived from the saved plan, which builds
+ * a synthetic departure — returns null both ways and the buttons are disabled.
+ * The failure mode is today's screen, not a button that opens something you
+ * never came from.
+ *
+ * @param {object[]} rows  the board's rows, in display order
+ * @param {object} current the departure on screen
+ * @param {number} dir     -1 back, +1 forward
+ */
+export function stepDep(rows, current, dir) {
+  const list = rows || [];
+  const at = list.findIndex(r => _sameDep(r, current));
+  if (at < 0) return null;
+  const step = dir < 0 ? -1 : 1;
+  for (let i = at + step; i >= 0 && i < list.length; i += step) {
+    if (_navigable(list[i])) return list[i];
+  }
+  return null;
+}
+
+/* renderSelDeps is gone.
+   It was a one-way «neste» row at the foot of this screen, and it answered
+   the same question the step buttons now answer — from a DIFFERENT list. It
+   read `state.deps`, the raw answer, and re-sorted and re-deduped it by its
+   own rule (one per departure minute, and a ninety-second gap). Measured:
+   with buses switched off it pointed at a bus, and when the next departure
+   was under ninety seconds away it showed nothing at all while the board had
+   a row. Two «next»es that can disagree are worse than either alone.
+
+   What is lost, and it is worth saying: the row carried a line badge, so you
+   could see which line was next. A time on a third of a button cannot. The
+   next row may well be another line. */
 
 export function startSelRefresh() {
   if (intervals.sel) clearInterval(intervals.sel);

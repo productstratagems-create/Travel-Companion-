@@ -155,3 +155,113 @@ describe('_journeySummary', () => {
       .toBe('Neste stopp Jernbanetorget. Siste stopp.');
   });
 });
+
+// ── Neste stasjon står på linja ─────────────────────────────────────────
+//
+// Asked for: «I dette viewet ønsker jeg at neste stasjon også skrives ut på
+// linjen.» The strip labelled both ENDS and counted stops in the caption, but
+// the stop you are pulling into had no name on it.
+//
+// And _journeyProgress had computed that name all along — renderJourneyStrip
+// held `p.next` where it built the markup and spent it on a title attribute
+// (there is no hover on a phone) and the aria-label. Same shape as the walking
+// time in v1.101.0 and the battery percentage in v1.100.1: the value was there,
+// it was simply never shown. The reproduction was this test asserting the name
+// was absent from everything but those two attributes.
+describe('neste stasjon på linja', () => {
+  const strip = async (now) => {
+    const { renderJourneyStrip } = await import('../src/views/journeyStrip.js');
+    const el = document.createElement('div');
+    const p = renderJourneyStrip(el, calls, now, null);
+    return { el, p, visible: el.innerHTML.replace(/\s(?:title|aria-label)="[^"]*"/g, '') };
+  };
+
+  it('writes the next stop where a reader can see it', async () => {
+    const { p, visible } = await strip(at(1) + DWELL + STEP / 2);
+    expect(p.next).toBe('Bøler');
+    expect(visible).toContain('js-next');
+    expect(visible).toContain('Bøler');
+  });
+
+  // THE ASSERTION THAT KEEPS THE NAME UNDER THE RIGHT DOT. The name and the
+  // position must come out of one computation; recomputing the index in the
+  // renderer would drift, and a name under the wrong dot looks entirely right.
+  it('carries the index of the very stop it names', async () => {
+    const { _journeyProgress } = await import('../src/views/journeyStrip.js');
+    for (let i = 0; i < NAMES.length - 1; i++) {
+      const p = _journeyProgress(calls, at(i), null);
+      expect(p.nextIdx).not.toBe(null);
+      expect(NAMES[p.nextIdx]).toBe(p.next);
+    }
+  });
+
+  // Math.round(frac) + 1 is NOT the same thing: standing at a stop, idx is
+  // that stop and next is the one after — but a whisker past it, round() has
+  // already moved on.
+  it('counts from where the train is, not from the nearest tick', async () => {
+    const { _journeyProgress } = await import('../src/views/journeyStrip.js');
+    const p = _journeyProgress(calls, at(2), null);   // standing at Bøler
+    expect(p.at).toBe('Bøler');
+    expect(p.next).toBe('Brynseng');
+    expect(NAMES[p.nextIdx]).toBe('Brynseng');
+  });
+
+  // Chosen: the destination already stands at the right-hand end, and the
+  // caption says «1 stopp igjen». The screen-reader text has drawn exactly
+  // this line all along («Siste stopp.»).
+  it('does not repeat the destination on the last leg', async () => {
+    const { p, visible } = await strip(at(3) + DWELL + STEP / 2);
+    expect(p.next).toBe('Jernbanetorget');
+    expect(p.next).toBe(p.to);
+    expect(visible).not.toContain('js-next');
+  });
+
+  it('says nothing once you are there', async () => {
+    const { p, visible } = await strip(at(4) + DWELL);
+    expect(p.next).toBe(null);
+    expect(visible).not.toContain('js-next');
+  });
+
+  // The label sits on the dot's OWN percent — the same pct() the tick uses, so
+  // the two cannot drift apart.
+  it('sits at the same percent as its dot', async () => {
+    const { visible } = await strip(at(1) + DWELL + STEP / 2);
+    // Bøler is index 2 of 4 → 5% + (2/4)*90% = 50%
+    expect(visible).toMatch(/js-next-name[^>]*left:50\.00%/);
+  });
+});
+
+describe('_labelAnchor', () => {
+  it('centres a label in the middle of the rail', async () => {
+    const { _labelAnchor } = await import('../src/views/journeyStrip.js');
+    expect(_labelAnchor(50)).toBe('mid');
+  });
+
+  // The first tick is at 5% and the last at 95%. Centring there would hang
+  // half the name off the rail.
+  it('pins a label near either end so it cannot overhang', async () => {
+    const { _labelAnchor } = await import('../src/views/journeyStrip.js');
+    expect(_labelAnchor(5)).toBe('left');
+    expect(_labelAnchor(95)).toBe('right');
+  });
+
+  it('treats the boundaries as pinned', async () => {
+    const { _labelAnchor, LABEL_EDGE_PCT } = await import('../src/views/journeyStrip.js');
+    expect(_labelAnchor(LABEL_EDGE_PCT)).toBe('left');
+    expect(_labelAnchor(100 - LABEL_EDGE_PCT)).toBe('right');
+    expect(_labelAnchor(LABEL_EDGE_PCT + 0.01)).toBe('mid');
+  });
+
+  it('survives a value it cannot use', async () => {
+    const { _labelAnchor } = await import('../src/views/journeyStrip.js');
+    expect(_labelAnchor(null)).toBe('mid');
+    expect(_labelAnchor(NaN)).toBe('mid');
+  });
+
+  it('never translates a pinned label, which is what would push it off', async () => {
+    const { _labelStyle } = await import('../src/views/journeyStrip.js');
+    expect(_labelStyle(5)).not.toContain('translateX');
+    expect(_labelStyle(95)).not.toContain('translateX');
+    expect(_labelStyle(50)).toContain('translateX(-50%)');
+  });
+});

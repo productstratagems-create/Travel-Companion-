@@ -190,15 +190,30 @@
 #sel-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
 .sel-stop-label{font-size:10px;background:var(--surface-2);border:1px solid rgba(var(--border-rgb),.25);color:var(--accent);padding:1px 4px;border-radius:3px;white-space:nowrap}
 
-/* Next departure nudge */
-.s-next-dep{
-  display:flex;align-items:center;gap:.5rem;
-  padding:.65rem .75rem;margin-top:.5rem;
-  background:rgba(var(--accent-rgb),.04);
-  border:1px solid rgba(var(--border-rgb),.1);border-radius:6px;
-  cursor:pointer;
-  -webkit-tap-highlight-color:transparent;
+/* ── Forrige · reis · neste ───────────────────────────────────────────
+   Asked for: «Kan Reis knappen være 1/3 av størrelsen, slik at forrige og
+   neste blir to ekstra knapper på hver side av reis knappen?»
+
+   Three equal thirds. .cta-btn is width:100%;display:block by default — a
+   flex row with flex:1 overrides both, and min-width:0 is what lets a third
+   actually BE a third rather than growing to fit «← 07:55».
+
+   This block replaces the old .s-next-dep nudge, which was a second answer to
+   «what is the next departure», read off a different list. */
+.cta-row{display:flex;gap:.5rem;align-items:stretch}
+/* Equal horizontal padding on all three, and that is load-bearing rather
+   than tidiness: flex-basis:0 is floored at the element's own padding box, so
+   «reis» with 17.6px sides and the steps with 6.4px measured 128 / 107 / 107
+   instead of thirds. Same padding, same third. */
+.cta-row .cta-btn{
+  width:auto;flex:1 1 0;min-width:0;margin-top:0;
+  padding-left:.4rem;padding-right:.4rem;
 }
-.s-next-dep:active{background:rgba(var(--accent-rgb),.08)}
-.s-next-label{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:var(--text-soft);flex-shrink:0;min-width:2.8rem}
-.s-next-mins{margin-left:auto;font-family:"Bebas Neue",sans-serif;font-size:1.3rem;line-height:1;color:#a89060;flex-shrink:0;font-variant-numeric:tabular-nums}
+/* The steps are quieter than «reis» and sized to sit beside it rather than
+   under it — .cta-btn.secondary is built for a full-width row below the
+   primary, and carries a top margin and a larger face that do not belong
+   here. */
+.cta-row .cta-step.secondary{
+  font-size:1.1rem;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}

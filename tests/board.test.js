@@ -15,7 +15,7 @@ vi.mock('../src/ui/mapIcons.js', () => ({
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/views/spectate.js', () => ({ closeSpectatePanel: vi.fn() }));
 
-import { dedupeDepartures, _headingDeg, _buildStrip, _stripSummary, _stripLabel,
+import { filterByModes, boardRows, dedupeDepartures, _headingDeg, _buildStrip, _stripSummary, _stripLabel,
   STRIP_LABEL_MAX,
   _platformState, _clusterTrains, _spreadCluster, _relaxPositions,
   _approachingVehicles, APPROACH_WINDOW_MS, _widenLo, _stopsReadable, _isolateLine, _corridorKey, CORRIDOR_MAX_M, _legCorridorStops, _journeyModesAllowed, _scrollRowIntoList, _corridorStyle, _interpolateVehiclePos, _interpolateOnPath,
@@ -1501,5 +1501,57 @@ describe('_stripGroups — the hand-off, in one unit', () => {
     const before = _stripGroups(near, 750);
     const after = _stripGroups([...near, T(310, 'f')], 750);
     [2, 17, 47].forEach(m => expect(at(after, m).pos).toBeCloseTo(at(before, m).pos, 6));
+  });
+});
+
+
+// ── The mode filter, and the one it silently stopped applying ────────────
+//
+// The guard means «if every mode is on, do not bother filtering». It was a
+// literal 4, written when BOARD_MODES had four entries; v1.97.0 added `water`
+// and left the 4 behind. Switching off exactly ONE mode therefore left four
+// active, the guard read «all on», and the filter did nothing — the pill went
+// dark and the list did not change.
+//
+// Found while building the step buttons on the detail screen, which promise
+// to walk the list the reader saw. That promise is empty if the reader's
+// filter was never applied.
+describe('filterByModes', () => {
+  const row = (mode) => ({ c: { serviceJourney: { line: { transportMode: mode } } } });
+  const ALL = ['metro', 'tram', 'bus', 'rail', 'water'];
+  const list = [row('metro'), row('bus'), row('water')];
+
+  it('does nothing when every mode is on', () => {
+    expect(filterByModes(list, ALL)).toEqual(list);
+  });
+
+  // THE CASE THAT WAS BROKEN. Four of five on, and the fifth must go.
+  it('applies with exactly one mode switched off', () => {
+    const on = ALL.filter(m => m !== 'bus');
+    const out = filterByModes(list, on);
+    expect(out.length).toBe(2);
+    expect(out.map(r => r.c.serviceJourney.line.transportMode)).not.toContain('bus');
+  });
+
+  it('applies with several switched off', () => {
+    expect(filterByModes(list, ['metro']).length).toBe(1);
+  });
+
+  it('keeps a row whose modes cannot be read', () => {
+    const unknown = [{ c: {} }];
+    expect(filterByModes(unknown, ['metro']).length).toBe(1);
+  });
+
+  it('survives a missing list or missing modes', () => {
+    expect(filterByModes(null, ['metro'])).toEqual([]);
+    expect(filterByModes(list, null).length).toBe(0);
+  });
+});
+
+// The detail screen's step buttons walk THIS list, so it has to exist and be
+// an array even before a board has been drawn.
+describe('boardRows', () => {
+  it('is an array before anything has been rendered', () => {
+    expect(Array.isArray(boardRows())).toBe(true);
   });
 });

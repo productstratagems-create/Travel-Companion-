@@ -38,6 +38,25 @@ function pad(n) { return String(n).padStart(2, '0'); }
 // from a previous render still resolves the correct departure.
 const _depMap = new Map();
 
+/**
+ * The rows the reader is looking at, in the order they are drawn.
+ *
+ * `rowDeps` is a local built fresh every render, so nothing outside this file
+ * could see what the board actually showed. The detail screen needed it: its
+ * «next departure» row read `state.deps` instead — the RAW list, undeduped,
+ * unsorted, and with neither the mode filter nor the line filter applied.
+ *
+ * Measured against a set where the reader had switched buses off: the detail
+ * screen's «neste» pointed at a bus. And when the next departure was less than
+ * ninety seconds away it showed no row at all, though the board had one.
+ *
+ * DERIVED FROM _depMap, not a second list kept beside it. _depMap is filled
+ * from rowDeps in order, in one place, and its key is documented as unique per
+ * rendered row — so its values ARE the rows. A parallel array would have been
+ * two things that must agree, which is the failure this is here to end.
+ */
+export function boardRows() { return Array.from(_depMap.values()); }
+
 // ── Mode filter ──────────────────────────────────────────────────────────────
 const MODES_KEY = 't.modes';
 const DEFAULT_MODES = { metro: true, tram: true, bus: true, rail: true, water: true, sykkel: false };
@@ -231,6 +250,29 @@ export function _journeyModesAllowed(modes, activeModes) {
   const list = modes || [];
   if (!list.length) return true;
   return list.every(m => (activeModes || []).includes(m));
+}
+
+/**
+ * The mode filter, applied to a list of rows.
+ *
+ * The guard means «if every mode is on, do not bother filtering», and it was
+ * written as a literal 4 when BOARD_MODES had four entries. v1.97.0 added
+ * `water` for the Oslo and Bergen boats and left the 4 behind — so switching
+ * off exactly ONE mode left four active, the guard read «all on», and the
+ * filter silently did nothing. The reader's pill went dark and the list did
+ * not change.
+ *
+ * Pure and exported so that stays fixed: a literal in a three-hundred-line
+ * render function is not something a test can reach, and the mutation that
+ * put the 4 back killed nothing until this came out here.
+ *
+ * @param {{c: object}[]} list rows as dedupeDepartures returns them
+ * @param {string[]} activeModes the modes still switched on
+ */
+export function filterByModes(list, activeModes) {
+  const on = activeModes || [];
+  if (on.length >= BOARD_MODES.length) return list || [];
+  return (list || []).filter(({ c }) => _journeyModesAllowed(_depModes(c), on));
 }
 
 // ── Board map (single universal map for all modes) ──────────────────────────
@@ -2522,9 +2564,7 @@ export function renderBoard() {
   // three hours would squeeze the next few trains — the ones the reader is
   // actually choosing between — into nothing. The map, the vehicles and the
   // line pills stay near-window for the same reason.
-  const applyModes = list_ => (activeModes.length < 4
-    ? list_.filter(({ c }) => _journeyModesAllowed(_depModes(c), activeModes))
-    : list_);
+  const applyModes = list_ => filterByModes(list_, activeModes);
   if (_diag) stage(_diag, 'dedup', dedupeDepartures(state.deps).map(d => d.c));
   const modeDeps = applyModes(dedupeDepartures(state.deps));
   if (_diag) stage(_diag, 'modus', modeDeps.map(d => d.c));

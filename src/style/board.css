@@ -674,6 +674,26 @@ html.view-board.map-open #dep-list{
 /* Standing at a stop rather than running between two. */
 .js-at{box-shadow:0 0 0 3px rgba(var(--accent-rgb),.14)}
 
+/* NESTE STASJON, under sin egen prikk.
+   Its own row rather than a third label in .js-ends: the two end labels are
+   absolutely positioned at left:0 and right:0 with max-width 46% each, so a
+   third would collide as soon as the next stop is near either end — and at
+   9px on a 390px screen that is the ordinary case. A row cannot collide.
+
+   Directly under the rail and above the ends, because it is the most
+   immediate fact on the strip. Accent-coloured: it is the one name here you
+   act on, while the ends are where the journey starts and finishes. */
+.js-next{
+  position:relative;height:12px;margin-top:.15rem;
+  font-family:"JetBrains Mono",ui-monospace,monospace;
+  font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+}
+.js-next-name{
+  position:absolute;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;max-width:60%;
+  color:var(--accent);
+}
+
 .js-ends{
   position:relative;height:12px;
   font-family:"JetBrains Mono",ui-monospace,monospace;

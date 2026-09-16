@@ -121,6 +121,13 @@ export function _journeyProgress(calls, now, live) {
     frac, idx, atStop,
     at: atStop ? pts[idx].name : null,
     next: behind >= last ? null : pts[behind + 1].name,
+    // The INDEX of that stop, derived from the same `behind` the name is.
+    // The strip needs both — the name to print and the position to print it
+    // at — and recomputing the index in the renderer would be two things that
+    // must agree. The drift would be a name under the wrong dot, which looks
+    // entirely correct. Note Math.round(frac) is NOT the same thing: standing
+    // at a stop, idx is that stop, and next is the one after it.
+    nextIdx: behind >= last ? null : behind + 1,
     left: Math.max(0, last - behind),
     live: liveUsed,
     total: last,
@@ -133,6 +140,31 @@ export function _journeyProgress(calls, now, live) {
  * Draw it. Ticks are evenly spaced because this is a schematic — position is
  * by stop index, not by distance, exactly as on the board's strip.
  */
+/**
+ * Where a label anchored at a percentage should actually sit.
+ *
+ * Centring on the dot's own percent is right in the middle and wrong at the
+ * ends: the first tick is at 5% and the last at 95%, so half the name would
+ * hang off the rail. Pure and exported, because «does it fit» is decided by
+ * arithmetic and should be testable without a browser.
+ */
+export const LABEL_EDGE_PCT = 15;
+
+export function _labelAnchor(pct) {
+  if (!Number.isFinite(pct)) return 'mid';
+  if (pct <= LABEL_EDGE_PCT) return 'left';
+  if (pct >= 100 - LABEL_EDGE_PCT) return 'right';
+  return 'mid';
+}
+
+/** The inline style that anchor implies. One place, so the three agree. */
+export function _labelStyle(pct) {
+  const a = _labelAnchor(pct);
+  if (a === 'left') return 'left:0;text-align:left';
+  if (a === 'right') return 'right:0;text-align:right';
+  return 'left:' + pct.toFixed(2) + '%;transform:translateX(-50%)';
+}
+
 export function renderJourneyStrip(el, calls, now, pos) {
   if (!el) return null;
   // The same resolved position the map marker uses, so the two pictures of
@@ -168,6 +200,11 @@ export function renderJourneyStrip(el, calls, now, pos) {
   const title = (p.at ? 'ved ' + p.at : p.next ? 'neste stopp ' + p.next : 'framme')
     + ' \u00b7 ' + SRC_LABEL[src];
 
+  // Null when there is nothing to say: arrived, or the next stop is the one
+  // already named at the right-hand end.
+  const nextPct = (p.next && p.nextIdx != null && p.next !== p.to)
+    ? pct(p.nextIdx) : null;
+
   el.innerHTML =
     '<div class="js-caps"><span class="js-cap">' + esc(caption) + '</span></div>'
     + '<div class="js-rail">'
@@ -177,6 +214,27 @@ export function renderJourneyStrip(el, calls, now, pos) {
     + ' style="left:' + pct(p.frac).toFixed(2) + '%"'
     + ' title="' + esc(title) + '"></span>'
     + '</div>'
+    // NESTE STASJON, UNDER SIN EGEN PRIKK.
+    //
+    // Its own row rather than a third label inside .js-ends: the two end
+    // labels are absolutely positioned at left:0 and right:0 with max-width
+    // 46% each, so a third one would collide the moment the next stop is near
+    // either end — and at 9px on a 390px screen that is the ordinary case,
+    // not an edge. A row of its own cannot collide, by structure rather than
+    // by a rule that has to keep holding.
+    //
+    // Directly under the rail, above the ends, because it is the most
+    // immediate fact on the strip.
+    //
+    // Not written when the next stop IS the destination: it already stands at
+    // the right, and the caption says «1 stopp igjen». The screen-reader text
+    // has made exactly that distinction all along (_journeySummary, «Siste
+    // stopp.»), so this is the visible strip catching up with what the app
+    // already said.
+    + (nextPct != null
+      ? '<div class="js-next"><span class="js-next-name" style="' + _labelStyle(nextPct) + '">'
+        + esc(p.next) + '</span></div>'
+      : '')
     + '<div class="js-ends">'
     + '<span class="js-end-from">' + esc(p.from || '') + '</span>'
     + '<span class="js-end-to">' + esc(p.to || '') + '</span>'

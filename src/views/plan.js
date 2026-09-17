@@ -7,7 +7,7 @@ import { confirmTap } from '../ui/confirm.js';
 import config from '../config.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
-import { createMap, drawRoute } from '../ui/map.js';
+import { createMap, bindMapExpand, drawRoute } from '../ui/map.js';
 import { loadReturn, returnWindow } from '../api/returnTrip.js';
 import { esc } from '../ui/fmt.js';
 import { geocodePlace, fetchJourneyMeta } from '../api/entur.js';
@@ -28,13 +28,11 @@ let _planInterval = null;
 let _planMap = null;
 let _planMapKey = '';
 let _planMapLayer = null;
-let _planMapExpanded = false;
 
 function _destroyPlanMap() {
   if (_planMap) { _planMap.remove(); _planMap = null; }
   _planMapKey = '';
   _planMapLayer = null;
-  _planMapExpanded = false;
 }
 
 const _normStn = stopKey;   // recipe A; stopKey is recipe A plus the T
@@ -112,18 +110,9 @@ async function _renderPlanMap(legs) {
   if (!el) return;
 
   if (!_planMap) {
-    _planMap = createMap(el, { scale: true });
+    _planMap = createMap(el, { expandable: true });
 
-    const expandBtn = document.getElementById('plan-map-expand');
-    if (expandBtn) {
-      expandBtn.onclick = () => {
-        _planMapExpanded = !_planMapExpanded;
-        el.classList.toggle('expanded', _planMapExpanded);
-        expandBtn.textContent = _planMapExpanded ? '✕' : '⤢';
-        expandBtn.setAttribute('aria-label', _planMapExpanded ? 'Minimer kart' : 'Utvid kart');
-        setTimeout(() => _planMap && _planMap.invalidateSize(), 320);
-      };
-    }
+    bindMapExpand(_planMap, el, document.getElementById('plan-map-expand'));
   }
 
   if (_planMapLayer) { _planMapLayer.clearLayers(); }

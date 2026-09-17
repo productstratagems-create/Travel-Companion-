@@ -276,6 +276,41 @@ async function run(scheme, affectsOk) {
   };
   await shoot('#board-map', 'tavla');
 
+  // THE FRAME AND THE BEHAVIOUR. One button, one open state, one height —
+  // measured rather than asserted, because «looks and feels the same» is a
+  // claim about pixels.
+  const frameOf = (sel, btnSel) => page.evaluate(([s, b]) => {
+    const el = document.querySelector(s), btn = document.querySelector(b);
+    if (!el) return null;
+    const cs = getComputedStyle(el);
+    return {
+      h: Math.round(el.getBoundingClientRect().height),
+      radius: cs.borderTopLeftRadius,
+      knapp: btn ? btn.textContent.trim() : '(ingen)',
+      tittel: btn ? btn.getAttribute('title') : '—',
+      aria: btn ? btn.getAttribute('aria-expanded') : '—',
+      // The controls, by purpose.
+      zoom: !!el.querySelector('.leaflet-control-zoom'),
+      skala: !!el.querySelector('.leaflet-control-scale'),
+      apen: el.classList.contains('expanded'),
+      sideLast: document.documentElement.classList.contains('map-open'),
+    };
+  }, [sel, btnSel]);
+
+  const lukket = await frameOf('#board-map', '#board-map-expand');
+  await page.click('#board-map-expand');
+  await page.waitForTimeout(500);
+  const apen = await frameOf('#board-map', '#board-map-expand');
+  await page.click('#board-map-expand');
+  await page.waitForTimeout(500);
+  const igjen = await frameOf('#board-map', '#board-map-expand');
+  const row = (n, f) => '   ' + n.padEnd(8) + f.h + ' px · hjørne ' + f.radius
+    + ' · knapp ' + f.knapp + ' «' + f.tittel + '» aria ' + f.aria
+    + ' · zoom ' + f.zoom + ' skala ' + f.skala + ' · siden slipper ' + f.sideLast;
+  console.log(row('lukket', lukket));
+  console.log(row('åpen', apen));
+  console.log(row('igjen', igjen));
+
   // THE SAME JOURNEY ON THE OTHER TWO SCREENS. That is the whole question:
   // a bus was dotted here and solid there, and a change was a word here and an
   // unlabelled circle there.

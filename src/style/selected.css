@@ -206,8 +206,10 @@
    the order, shrink the map «litt» rather than move the buttons over it.
    .expanded (72vh) is untouched — ⤢ still gives the big map, so nothing is
    gone, it is only smaller at rest. */
-#sel-map{height:130px;border-radius:8px;overflow:hidden}
-#sel-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
+/* A BAND, and 130px is a measurement: v1.103.1 shrank it so «reis» clears
+   the bottom menu without moving anything. It is not the full height minus a
+   bit — it is what was left. */
+#sel-map{--map-h:130px}
 .sel-stop-label{font-size:10px;background:var(--surface-2);border:1px solid rgba(var(--border-rgb),.25);color:var(--accent);padding:1px 4px;border-radius:3px;white-space:nowrap}
 
 /* ── Forrige · reis · neste ───────────────────────────────────────────

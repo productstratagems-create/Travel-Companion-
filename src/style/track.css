@@ -234,12 +234,11 @@
 .hn-new-btn:active{background:rgba(var(--accent-rgb),.06)}
 
 /* Live vehicle position map */
-#t-map{height:200px;border-radius:8px;overflow:hidden;background:var(--surface);transition:height .3s ease,border-radius .3s ease}
-#t-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
+/* 200px had no reason recorded; underveis is a full map like the rest, so it
+   simply takes the default. */
 
 /* Arrival map */
-#hn-map{height:220px;border-radius:8px;overflow:hidden;background:var(--surface);transition:height .3s ease,border-radius .3s ease}
-#hn-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
+
 .hn-map-bike{
   width:28px;height:28px;border-radius:50%;
   background:#1a2a1a;border:2px solid var(--ok);

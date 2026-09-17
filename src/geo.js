@@ -1,3 +1,4 @@
+import { findStop } from './stopId.js';
 import { state } from './state.js';
 import config from './config.js';
 import { TRANSIT_CATS, modesOf } from './api/stopCats.js';
@@ -12,10 +13,11 @@ const WALK_FROM_KEY   = 't.walkFrom';
 const HOME_LL_KEY     = 't.homeLL';
 export const SPEED_MPN = { rolig: 41.67, middels: 83.33, rask: 116.67 };
 
-// Loose station-name match: lowercase, drop trailing ", area/city" qualifiers.
-export function normStopName(s) {
-  return String(s || '').toLowerCase().replace(/,.*$/, '').trim();
-}
+
+// The stop-identity rule lives in its own leaf module (see stopId.js) and is
+// re-exported here under the name nine call sites already know.
+export { stopKey, sameStop, findStop } from './stopId.js';
+export { stopKey as normStopName } from './stopId.js';
 
 export function loadWalkSpeed() {
   return storage.get(WALK_SPEED_KEY) || 'middels';
@@ -301,14 +303,10 @@ export function walkInfo() {
  * Two missing ids are not a match. They are two unknowns.
  */
 export function nearStopMatch(stopId, name) {
-  const list = state.nearestStations || [];
-  if (stopId) {
-    const byId = list.find(s => s.id && s.id === stopId);
-    if (byId) return byId;
-  }
-  const n = normStopName(name);
-  if (!n) return null;
-  return list.find(s => normStopName(s.name) === n) || null;
+  // findStop, not sameStop: an id that no longer matches must fall through to
+  // the name here, because the saved id and the live list are from different
+  // times. See stopId.js for why the two are separate functions.
+  return findStop(state.nearestStations || [], { id: stopId || null, name });
 }
 
 /** Does the active custom route carry its own departure coordinate? */
@@ -392,7 +390,29 @@ export function mToLeave(depTs) {
   return minsToLeave(depTs, walkInfo().mins, Date.now());
 }
 
+/**
+ * Past this, «how long until I must leave» stops being a thing you act on.
+ *
+ * ONE HORIZON, TWO CONSEQUENCES. It names reachCls's missing top bucket AND,
+ * through that bucket, decides when a countdown becomes a clock time — the
+ * text is derived from the verdict rather than testing the same threshold a
+ * second time. Two numbers that must agree is the fault this release exists
+ * to pay off; adding a second one here would have been remarkable.
+ */
+export const REACH_FAR_MINS = 120;
+
+/**
+ * How reachable is this departure on foot — as a bucket, not a number.
+ *
+ * Had no doc comment and no top bucket: reachCls(6) and reachCls(360) both
+ * returned 'r-ok', and tests/geo.test.js locked that in on purpose. So a
+ * departure tomorrow morning wore the same green edge as one you have to walk
+ * for now, and the board printed «19t 53m igjen» beside it.
+ *
+ * 'r-far' is the absence of urgency, not a state of it, and carries no colour.
+ */
 export function reachCls(mtl) {
+  if (mtl > REACH_FAR_MINS) return 'r-far';
   if (mtl > 5)  return 'r-ok';
   if (mtl > 1)  return 'r-soon';
   if (mtl >= 0) return 'r-now';

@@ -30,17 +30,25 @@
  * it would have become this codebase's fourth parallel definition of «the same
  * line».
  */
+// Journey ids are compared through normJid — codespace casing varies. It used
+// to be COPIED into this file, byte for byte, directly under a comment saying
+// the ids go through normJid. v1.107.0 made that true.
+import { normJid } from './queries.js';
 
 /**
  * One line is the same line as another.
  *
- * The genuinely missing helper. There were already two rules for «the same
- * stop» (nearStopMatch, usesOf) and two for «the same journey» (normJid,
- * _sameDep) — but for lines, board.js compared raw publicCodes while auto.js
- * preferred line.id. A third caller would have invented a fourth.
+ * The genuinely missing helper. When this was written there were two rules for
+ * «the same stop» and two for «the same journey» — and for lines, board.js
+ * compared raw publicCodes while auto.js preferred line.id. A third caller
+ * would have invented a fourth.
+ *
+ * v1.107.0 paid the rest of that debt off: stopId.js now holds the one stop
+ * rule (it turned out to be four recipes across nine places, not two), and
+ * _sameDep compares through normJid.
  *
  * Id first, publicCode as the fallback, and TWO MISSING IDS ARE NOT A MATCH —
- * the same shape, and the same reasoning, as nearStopMatch.
+ * the same shape, and the same reasoning, as sameStop.
  */
 export function sameLine(a, b) {
   if (!a || !b) return false;
@@ -49,11 +57,6 @@ export function sameLine(a, b) {
   const ac = a.publicCode != null ? String(a.publicCode) : null;
   const bc = b.publicCode != null ? String(b.publicCode) : null;
   return !!ac && ac === bc;
-}
-
-/** Journey ids are compared through normJid — codespace casing varies. */
-function normJourney(id) {
-  return String(id || '').replace(/^([a-z]+):/, m => m.toUpperCase());
 }
 
 const asSet = (v) => (v instanceof Set ? v : new Set(v || []));
@@ -83,7 +86,7 @@ export function situationScope(s) {
     if (a.line && a.line.id) { lines.add(a.line.id); namesLines = true; }
     if (a.stopPlace && a.stopPlace.id) stops.add(a.stopPlace.id);
     if (a.quay && a.quay.stopPlace && a.quay.stopPlace.id) stops.add(a.quay.stopPlace.id);
-    if (a.serviceJourney && a.serviceJourney.id) journeys.add(normJourney(a.serviceJourney.id));
+    if (a.serviceJourney && a.serviceJourney.id) journeys.add(normJid(a.serviceJourney.id));
   });
 
   return { lines, stops, journeys, namesLines };
@@ -101,7 +104,7 @@ export function relevance(s, ctx) {
   const c = ctx || {};
   const mineLines = new Set((c.lineIds || []).filter(Boolean));
   const mineStops = new Set((c.stopIds || []).filter(Boolean));
-  const mineJourneys = new Set((c.journeyIds || []).filter(Boolean).map(normJourney));
+  const mineJourneys = new Set((c.journeyIds || []).filter(Boolean).map(id => normJid(id)));
   const scope = situationScope(s);
 
   // Your own service journey settles it, whatever else the message mentions.
@@ -159,6 +162,6 @@ export function addSituation(map, s, from) {
   const f = from || {};
   if (f.line) acc.lines.add(f.line);
   if (f.stop) acc.stops.add(f.stop);
-  if (f.journey) acc.journeys.add(normJourney(f.journey));
+  if (f.journey) acc.journeys.add(normJid(f.journey));
   map.set(s.id, { ...(prev || s), ...s, _from: acc });
 }

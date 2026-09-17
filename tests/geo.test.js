@@ -49,6 +49,10 @@ describe('haver()', () => {
 describe('reachCls()', () => {
   it('returns "r-ok" when more than 5 minutes', () => {
     expect(reachCls(6)).toBe('r-ok');
+    // 100 minutes is still inside REACH_FAR_MINS (120), so this line means
+    // what it always did. It was written to say «and any larger value too»,
+    // which was the bug: reachCls(360) also returned 'r-ok'. That claim is
+    // gone, and tests/stopKey.test.js now binds the horizon on its boundary.
     expect(reachCls(100)).toBe('r-ok');
   });
 

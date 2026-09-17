@@ -114,3 +114,29 @@ describe('stepDep', () => {
     expect(stepDep(rows, rows[1], 1).expectedDepartureTime).toContain('07:24');
   });
 });
+
+
+// --- Codespace casing (v1.107.0) ---
+//
+// The realtime stop board hands back «rut:ServiceJourney:…» where the trip
+// planner uses «RUT:…», and stopBoardExtras (board.js:178) stores the RAW id
+// on the row — normJid is applied only to the dedupe set beside it. So both
+// spellings of one departure reach _sameDep. It compared them raw and said no,
+// which made stepDep return null and killed both step buttons on a row that
+// happened to come from the other source.
+describe('stepDep — the same departure, spelled two ways', () => {
+  const row = (id) => ({ serviceJourney: { id }, expectedDepartureTime: '2026-09-17T08:10:00Z' });
+
+  it('finds the current departure across codespace casing', () => {
+    const rows = [row('RUT:ServiceJourney:1'), row('RUT:ServiceJourney:3-2'), row('RUT:ServiceJourney:9')];
+    const cur = row('rut:ServiceJourney:3-2');
+    expect(stepDep(rows, cur, 1)).toBe(rows[2]);
+    expect(stepDep(rows, cur, -1)).toBe(rows[0]);
+  });
+
+  // Normalising must not make two different journeys equal.
+  it('still tells two different journeys apart', () => {
+    const rows = [row('RUT:ServiceJourney:1'), row('RUT:ServiceJourney:2')];
+    expect(stepDep(rows, row('rut:ServiceJourney:1'), 1)).toBe(rows[1]);
+  });
+});

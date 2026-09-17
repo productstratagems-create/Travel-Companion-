@@ -19,6 +19,7 @@
  * out and one that helps.
  */
 import { esc } from '../ui/fmt.js';
+import { stopKey } from '../stopId.js';
 import config from '../config.js';
 import { state } from '../state.js';
 import { fetchBoard } from '../api/entur.js';
@@ -391,7 +392,7 @@ export function dirRows(dirs, desc, keep, local) {
 export function stopsAhead(call, fromName, now) {
   const t0 = now == null ? Date.now() : now;
   const sjc = (call && call.serviceJourney && call.serviceJourney.estimatedCalls) || [];
-  const norm = s => String(s || '').toLowerCase().replace(/\s+t$/i, '').trim();
+  const norm = stopKey;   // was recipe C: the comma clause was missing
   const me = norm(fromName);
   let seen = false;
   const out = [];
@@ -1644,17 +1645,20 @@ export function stopShortcuts(stops, arr, n) {
   const list = stops || [];
   const hist = (arr || []).filter(p => p && p.name);
   if (!list.length || !hist.length) return [];
+  // WAS A SECOND COPY of depUses + usesOf, keyed on lowercase-only names.
+  // The index is still built here because this function is handed its history
+  // rather than reading storage — but the KEY and the LOOKUP are now the
+  // shared ones, so a stop saved as «Ryen T» and offered as «Ryen» is one stop
+  // on this screen too. Counts add up across a merged key, as in depUses; two
+  // aggregations for one key would be the same fault one level down.
   const byId = new Map(), byName = new Map();
   hist.forEach(p => {
     const c = Number(p.count) || 0;
     if (p.stopId) byId.set(p.stopId, Math.max(c, byId.get(p.stopId) || 0));
-    const k = String(p.name).trim().toLowerCase();
-    byName.set(k, Math.max(c, byName.get(k) || 0));
+    const k = stopKey(p.name);
+    if (k) byName.set(k, (byName.get(k) || 0) + c);
   });
-  const uses = (s) => {
-    if (s.id && byId.has(s.id)) return byId.get(s.id);
-    return byName.get(String(s.name || '').trim().toLowerCase()) || 0;
-  };
+  const uses = (s) => usesOf(s, { byId, byName });
   return list
     .map((s, i) => ({ i, n: uses(s) }))
     .filter(x => x.n > 0)
@@ -1689,13 +1693,13 @@ export function stopShortcuts(stops, arr, n) {
  */
 export function findJumpTarget(dirs, guess, fromName, now) {
   if (!guess || !guess.toName || !Array.isArray(dirs)) return null;
-  const want = String(guess.toName).toLowerCase().replace(/\s+t$/i, '').trim();
+  const want = stopKey(guess.toName);
   const wantId = guess.toStopId || null;
   const byTime = dirs.slice().sort((a, b) => a.nextMs - b.nextMs);
   for (const d of byTime) {
     const stops = stopsAhead(d.call, fromName, now);
     const hit = stops.find(s => (wantId && s.id && s.id === wantId)
-      || String(s.name || '').toLowerCase().replace(/\s+t$/i, '').trim() === want);
+      || stopKey(s.name) === want);
     if (hit) return { dir: d, stop: hit };
   }
   return null;

@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { stopKey } from '../stopId.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL } from '../geo.js';
@@ -699,7 +700,7 @@ function _makeTransitStopIcon(code, bg, mode) {
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
-function normStn(s) { return s.toLowerCase().replace(/,.*$/, '').replace(/\s+t$/i, '').trim(); }
+const normStn = stopKey;   // was a private copy of the same rule
 function displayStn(s) { return String(s).replace(/,.*$/, '').trim(); }
 
 function renderStopRow(r, isNext) {

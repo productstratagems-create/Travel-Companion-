@@ -67,6 +67,9 @@
 .dep-row.r-ok  {border-left-color:rgba(74,222,128,.4)}
 .dep-row.r-soon{border-left-color:rgba(var(--warn-rgb),.6)}
 .dep-row.r-now {border-left-color:#3b82f6;background:rgba(59,130,246,.04)}
+/* r-far carries NO colour on purpose. It is the absence of urgency, not a
+   degree of it, and the three colours above are a scale a fourth entry would
+   dilute. The row simply keeps the default edge — see REACH_FAR_MINS. */
 
 .dep-mins{
   text-align:right;font-family:"Bebas Neue",sans-serif;

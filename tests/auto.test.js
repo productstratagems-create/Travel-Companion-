@@ -247,9 +247,33 @@ describe('noPosText', () => {
 
   // An unknown error code is not a denial — treating it as one would tell the
   // reader to change a permission that is already granted.
+  //
+  // This used 'timeout' as its stand-in for «unknown». From v1.108.0 that is a
+  // REAL state with words of its own (PositionError code 3), so the example
+  // moved to something genuinely unrecognised. The claim is unchanged.
   it('treats an unknown failure as still looking, not as a refusal', () => {
-    expect(noPosText('timeout')).toEqual(noPosText(null));
+    expect(noPosText('vetikke')).toEqual(noPosText(null));
     expect(noPosText(undefined)).toEqual(noPosText(null));
+  });
+
+  // The five that used to be one sentence. Each names something different the
+  // reader can do, and telling someone indoors to keep waiting — which is what
+  // «leter» does to a code-2 failure — is the worst of them.
+  it('gives every position state its own words', () => {
+    const kinds = [
+      noPosText('denied'), noPosText('unavailable'), noPosText('timeout'),
+      noPosText('unsupported'), noPosText('nostops'), noPosText(null),
+    ];
+    const bodies = new Set(kinds.map(k => k.body));
+    expect(bodies.size).toBe(kinds.length);
+  });
+
+  // «No geolocation in this browser» is not «location services are off»: the
+  // first has no switch to point at, and telling that reader to flip one sends
+  // them looking for something that is not there.
+  it('does not point at a switch that is not there', () => {
+    expect(noPosText('unsupported').body).not.toMatch(/slå på/i);
+    expect(noPosText('denied').body).toMatch(/slå på/i);
   });
 });
 

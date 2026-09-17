@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const state = { walkOvr: null, statLL: {}, homeLL: null, dIdx: 0,
-                nearestStation: null, nearestStations: [], gpsError: null, posAt: null };
+                nearestStation: null, nearestStations: [], gpsError: null, posAt: null,
+                posAsked: false, posAcc: null, posRejAt: null };
 vi.mock('../src/state.js', () => ({ state, intervals: {} }));
 vi.mock('../src/config.js', () => ({
   default: { defaultWalkMinutes: 8, dirs: [{ key: 'out' }], api: { geocoderReverse: 'https://x/reverse' } },
@@ -33,6 +34,7 @@ let cb, cleared, locateUser;
 beforeEach(async () => {
   geocode.mockClear(); setItem.mockClear();
   state.homeLL = null; state.nearestStation = null; state.posAt = null;
+  state.posAsked = false; state.posAcc = null; state.posRejAt = null; state.gpsError = null;
   cleared = [];
   vi.stubGlobal('navigator', {
     geolocation: {
@@ -135,5 +137,56 @@ describe('persisting the position', () => {
     const writes = setItem.mock.calls.filter(c => String(c[0]).includes('homeLL')).length;
     expect(writes).toBeGreaterThan(0);
     expect(writes).toBeLessThanOrEqual(8);
+  });
+});
+
+
+// ── The fix that was thrown away without a word (v1.108.0) ─────────────────
+//
+// ACC_GATE discards anything noisier than ±40 m once a fix exists — routine
+// indoors, in a tunnel, in an urban canyon — and geo.js described that discard
+// as «silent» in its own comment. The dot stopped moving, the walk time kept
+// being computed from where you used to be, and nothing on any screen could
+// say why. This is that discard, made visible.
+describe('a fix that ACC_GATE refuses', () => {
+  it('leaves a trace instead of vanishing', async () => {
+    locateUser(() => {}, () => {});
+    cb(fix(59.8600, 10.8200, 8, 1000));
+    await settle();
+    expect(state.posAt).toBe(1000);
+
+    // A metre away, but far too noisy to use.
+    cb(fix(59.8600 + M, 10.8200, 150, 2000));
+    await settle();
+
+    // The position we show is unchanged — that is the gate doing its job.
+    expect(state.posAt).toBe(1000);
+    // But it is no longer silent: both WHEN it happened and HOW noisy.
+    expect(state.posRejAt).toBe(2000);
+    expect(state.posAcc).toBe(150);
+  });
+
+  it('records the accuracy of a fix it accepts too', async () => {
+    locateUser(() => {}, () => {});
+    cb(fix(59.8600, 10.8200, 9, 1000));
+    await settle();
+    expect(state.posAcc).toBe(9);
+    expect(state.posRejAt).toBeNull();
+  });
+
+  // The very first fix is never gated, however noisy — a rough position beats
+  // none, and there is nothing yet for it to make worse.
+  it('accepts the first fix at any accuracy', async () => {
+    locateUser(() => {}, () => {});
+    cb(fix(59.8600, 10.8200, 900, 1000));
+    await settle();
+    expect(state.posAt).toBe(1000);
+    expect(state.posRejAt).toBeNull();
+  });
+
+  it('marks that the position has been asked for at all', async () => {
+    expect(state.posAsked).toBe(false);
+    locateUser(() => {}, () => {});
+    expect(state.posAsked).toBe(true);
   });
 });

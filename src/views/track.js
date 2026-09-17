@@ -4,7 +4,7 @@ import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
-import { quayLatLon, legShape } from '../api/adapt.js';
+import { quayLatLon, legShape, journeyPoints } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters } from '../api/scooters.js';
 import { fetchWeather, forecastAt, weatherAdvice, darknessNote } from '../api/weather.js';
@@ -23,7 +23,7 @@ import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { fetchWalkRoute } from '../api/route.js';
-import { createMap, drawRoute, drawWalk, userDot } from '../ui/map.js';
+import { createMap, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints } from '../ui/map.js';
 import { storage } from '../storage.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -213,7 +213,12 @@ function _renderTrackMap(now, cs, legs) {
     _tMap = createMap(mapEl);
     _tLayer = L.layerGroup().addTo(_tMap);
     const lineColor = leg.lineBg || '#7c2d12';
-    drawRoute(_tLayer, pts, { color: lineColor, weight: 4, opacity: 0.85 });
+    // THROUGH drawLeg, so a bus looks like a bus here too. This drew every
+    // mode as one solid weight-4 stroke and never asked corridorStyle, which
+    // has known the answer since v1.96 — so the same bus was dotted on the
+    // board and solid here, and a reader crossing between the two screens had
+    // to re-learn the picture.
+    drawLeg(_tLayer, { mode: leg.mode, colour: lineColor, pts, stops: [] });
     const first = pts[0], last = pts[pts.length - 1];
     const allPts = pts.slice();
 
@@ -234,7 +239,7 @@ function _renderTrackMap(now, cs, legs) {
     };
     addStopMarkers(stops.slice(1, -1), lineColor);
 
-    L.circleMarker(first, { radius: 6, color: '#fff', fillColor: lineColor, fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
+
 
     // Draw the rest of the journey's legs (after the transfer) as a lighter,
     // dashed corridor in each leg's own line colour, so the map reflects the
@@ -244,19 +249,33 @@ function _renderTrackMap(now, cs, legs) {
       const { pts: nPts, stops: nStops } = _legRoutePts(nextLeg);
       if (nPts.length < 2) continue;
       const nColor = nextLeg.lineBg || '#7c2d12';
-      L.polyline(nPts, { color: nColor, weight: 3, opacity: 0.35, lineCap: 'round', dashArray: '1,8' }).addTo(_tLayer);
+      // A FOURTH hand-rolled style lived here — `1,8` at weight 3, opacity
+      // .35 — which is a bus's dash pattern by coincidence and a metro's by
+      // nothing at all. `dim` keeps the distinction that matters (this is a
+      // leg still to come) and drops the one that did not.
+      drawLeg(_tLayer, { mode: nextLeg.mode, colour: nColor, pts: nPts, stops: [] }, { dim: true });
       addStopMarkers(nStops.slice(1, -1), nColor);
       allPts.push(...nPts);
-      // Transfer point between this leg and the previous one
-      L.circleMarker(nPts[0], { radius: 6, color: '#fff', fillColor: nColor, fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
-      if (j === legs.length - 1) {
-        L.circleMarker(nPts[nPts.length - 1], { radius: 6, color: '#fff', fillColor: tokens().accent, fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
-      }
     }
-    // Current leg is the final leg — mark its end as the destination.
-    if (cs.i === legs.length - 1) {
-      L.circleMarker(last, { radius: 6, color: '#fff', fillColor: tokens().accent, fillOpacity: 0.9, weight: 2 }).addTo(_tLayer);
-    }
+
+    // PÅ, BYTT, AV — the same three words the board uses.
+    //
+    // These were three unlabelled circles: the boarding point and each change
+    // in the line's colour, the end in the accent. Correct, and a fifth
+    // vocabulary for one idea — a change was a word on the board and a dot
+    // here. The rule that decides WHICH points is journeyPoints, fed the leg
+    // ends this screen happens to hold.
+    const jlegs = legs.slice(cs.i).map(lg => {
+      const ends = _legRoutePts(lg).pts;
+      if (ends.length < 2) return null;
+      return {
+        mode: lg.mode,
+        fromPlace: { name: lg.fromStation || '', latitude: ends[0][0], longitude: ends[0][1] },
+        toPlace: { name: lg.toStation || '', latitude: ends[ends.length - 1][0], longitude: ends[ends.length - 1][1] },
+      };
+    }).filter(Boolean);
+    drawJourneyPoints(_tLayer, journeyPoints(jlegs),
+      { colour: lineColor, project: ll => _tMap.latLngToContainerPoint(ll) });
 
     // Remember the corridor so the live user-position dot can snap onto it.
     // Rail/tram tracks aren't drawn by the basemap so the straight stop-to-stop

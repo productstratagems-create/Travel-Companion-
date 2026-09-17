@@ -14,7 +14,7 @@ vi.mock('../src/ui/themeTokens.js', () => ({
 }));
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 
-import { currentTileUrl, drawStopLine, corridorStyle, stopsReadable, ROUTE_STOP_MIN_GAP_PX } from '../src/ui/map.js';
+import { currentTileUrl, drawStopLine, corridorStyle, stopsReadable, drawLeg, drawJourneyPoints, ROUTE_STOP_MIN_GAP_PX } from '../src/ui/map.js';
 
 beforeEach(() => document.documentElement.removeAttribute('data-theme'));
 
@@ -172,5 +172,100 @@ describe('stopsReadable', () => {
 
   it('is true when there is nothing between the ends', () => {
     expect(stopsReadable(chain(1, 2))).toBe(true);
+  });
+});
+
+
+// ── One leg, drawn the one way a leg is drawn (v1.114.0) ───────────────────
+//
+// Reported: «maps across the app look and feel different». The same journey
+// was drawn three ways — corridorStyle on the board, a solid weight-4 stroke
+// on the detail screen and on underveis whatever the mode, and a fourth
+// hand-rolled `1,8` for the legs still to come. corridorStyle already knew the
+// answer; two of the three maps never asked it.
+describe('drawLeg', () => {
+  const layer = {};
+  const line = (pts) => pts;
+  beforeEach(() => { drawn.polys = []; drawn.markers = []; });
+
+  // The COLOURED stroke is the last polyline drawRoute adds; the one before it
+  // is the casing, which is the same under every line and says nothing about
+  // the mode.
+  const stroke = () => drawn.polys[drawn.polys.length - 1].opts;
+
+  it('draws a bus the way corridorStyle says a bus is drawn', () => {
+    drawLeg(layer, { mode: 'bus', colour: '#e5006d', pts: line([[0, 0], [1, 1]]) });
+    expect(stroke().dashArray).toBe(corridorStyle('bus', '#e5006d').dashArray);
+    expect(stroke().weight).toBe(corridorStyle('bus', '#e5006d').weight);
+  });
+
+  // The whole point: a metro and a bus must not come out the same.
+  it('draws rail differently from a bus', () => {
+    drawLeg(layer, { mode: 'metro', colour: '#f5a000', pts: line([[0, 0], [1, 1]]) });
+    const rail = stroke();
+    drawn.polys = [];
+    drawLeg(layer, { mode: 'bus', colour: '#f5a000', pts: line([[0, 0], [1, 1]]) });
+    expect(rail.dashArray).not.toBe(stroke().dashArray);
+  });
+
+  // `dim` is a fact about the journey — this leg is still to come — not a
+  // style. It fades the same stroke rather than drawing another kind.
+  it('fades a leg still to come without changing its shape', () => {
+    drawLeg(layer, { mode: 'bus', colour: '#e5006d', pts: line([[0, 0], [1, 1]]) });
+    const bright = stroke();
+    drawn.polys = [];
+    drawLeg(layer, { mode: 'bus', colour: '#e5006d', pts: line([[0, 0], [1, 1]]) }, { dim: true });
+    expect(stroke().opacity).toBeLessThan(bright.opacity);
+    expect(stroke().dashArray).toBe(bright.dashArray);
+  });
+
+  // A walk is the one leg you make with your own feet, and it is drawn as
+  // footsteps — never in the line's colour and never as a corridor.
+  it('draws a foot leg as a walk, not as a corridor', () => {
+    drawLeg(layer, { mode: 'foot', colour: '#e5006d', pts: line([[0, 0], [1, 1]]) });
+    expect(stroke().color).not.toBe('#e5006d');
+    expect(stroke().dashArray).not.toBe(corridorStyle('bus', '#e5006d').dashArray);
+  });
+
+  it('draws beads only for the stops you pass through', () => {
+    drawLeg(layer, { mode: 'metro', colour: '#f5a000', stops: [
+      { lat: 0, lon: 0, name: 'A' }, { lat: 1, lon: 1, name: 'B' }, { lat: 2, lon: 2, name: 'C' },
+    ] });
+    expect(drawn.markers).toHaveLength(1);
+    expect(drawn.markers[0].tip).toBe('B');
+  });
+
+  it('draws nothing it cannot draw', () => {
+    expect(drawLeg(layer, { mode: 'bus', pts: [[0, 0]] })).toEqual([]);
+    expect(drawLeg(layer, null)).toEqual([]);
+    expect(drawn.polys).toHaveLength(0);
+  });
+});
+
+describe('drawJourneyPoints', () => {
+  const layer = {};
+  beforeEach(() => { drawn.polys = []; drawn.markers = []; });
+  const p = (kind, lat, lon, name) => ({ kind, lat, lon, name });
+
+  it('marks the three points of a journey with a change', () => {
+    drawJourneyPoints(layer, [p('board', 0, 0, 'A'), p('change', 1, 1, 'B'), p('alight', 2, 2, 'C')]);
+    expect(drawn.markers).toHaveLength(3);
+  });
+
+  // A single leg has two points and gets none: boarding is where you already
+  // are, and alighting sits under a destination marker drawn anyway.
+  it('says nothing about a single leg', () => {
+    drawJourneyPoints(layer, [p('board', 0, 0, 'A'), p('alight', 2, 2, 'C')]);
+    expect(drawn.markers).toHaveLength(0);
+  });
+
+  it('names every place a merged marker stands for', () => {
+    const project = ([lat, lon]) => ({ x: lon, y: lat });
+    drawJourneyPoints(layer, [
+      p('board', 0, 0, 'A'), p('change', 0, 1, 'B'), p('change', 0, 2, 'C'),
+    ], { project });
+    expect(drawn.markers).toHaveLength(1);
+    expect(drawn.markers[0].tip).toContain('A');
+    expect(drawn.markers[0].tip).toContain('C');
   });
 });

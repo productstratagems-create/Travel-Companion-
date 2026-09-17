@@ -1,5 +1,5 @@
 /**
- * En reise med bytte, tegnet slik at den kan leses.
+ * Samme reise, tre skjermer, ett kartspråk.
  *
  * Reported with a screenshot: «Måten multi-stopps reiser tegnes opp i kart er
  * uklart og vanskelig å tyde. Både linjene og prikken. Hva betyr de?»
@@ -259,12 +259,60 @@ async function run(scheme, affectsOk) {
   console.log('   vendepunkter:', seen.ord.join(' → ') || '(ingen)');
   console.log('   utenfor kart:', seen.utenfor.join(', ') || 'ingen');
   console.log('   overlapp    :', seen.kolliderer);
-  console.log('   strekstiler :', seen.streker.join('  |  '));
+  console.log('   tavla   :', seen.streker.filter(x => !/heltrukket@(5|7|9)$/.test(x)).join('  |  '));
 
   fs.mkdirSync('scratchpad/shots', { recursive: true });
-  const map = await page.$('#board-map');
-  if (map) await map.screenshot({ path: `scratchpad/shots/byttekart-${scheme}.png`,
-    animations: 'disabled' });
+  // A map that is not on screen cannot be photographed, and the detail map is
+  // hidden until the trip has a shape to draw. Skip rather than hang — a probe
+  // that times out reports nothing about the thing it was measuring.
+  const shoot = async (sel, navn) => {
+    const el = await page.$(sel);
+    if (!el || !(await el.isVisible().catch(() => false))) {
+      console.log('   (' + navn + ': kartet er ikke synlig)');
+      return;
+    }
+    await el.screenshot({ path: `scratchpad/shots/kart-${scheme}-${navn}.png`,
+      animations: 'disabled', timeout: 4000 }).catch(() => {});
+  };
+  await shoot('#board-map', 'tavla');
+
+  // THE SAME JOURNEY ON THE OTHER TWO SCREENS. That is the whole question:
+  // a bus was dotted here and solid there, and a change was a word here and an
+  // unlabelled circle there.
+  const strokesOf = (sel) => page.evaluate((s) => {
+    const m = document.querySelector(s);
+    if (!m) return { streker: ['(ingen kart)'], ord: [] };
+    const streker = Array.from(m.querySelectorAll('path'))
+      .map(p => (p.getAttribute('stroke-dasharray') || 'heltrukket')
+        + '@' + (p.getAttribute('stroke-width') || '?'))
+      // The casing under every coloured line is drawn by drawRoute and is the
+      // same on all three; counting it would drown the difference.
+      .filter(x => !/heltrukket@(5|7|9)$/.test(x));
+    const ord = Array.from(m.querySelectorAll('.leaflet-marker-icon'))
+      .map(e => e.textContent.trim()).filter(t => /^(på|bytt|av)$/i.test(t));
+    return { streker: [...new Set(streker)], ord };
+  }, sel);
+
+  // force: something in the page intercepts the hit test on this fixture (the
+  // alerts banner the inherited mock serves sits over the list). The row's own
+  // handler is what this probe needs, not the hit test.
+  await page.click('#dep-list .dep-row', { force: true });
+  await page.waitForSelector('#v-selected', { state: 'visible', timeout: 8000 });
+  await page.waitForTimeout(1600);
+  const sel = await strokesOf('#sel-map');
+  console.log('   detalj  :', sel.streker.join('  |  '), sel.ord.length ? ' ord: ' + sel.ord.join(' → ') : '');
+  await shoot('#sel-map', 'detalj');
+
+  const reis = await page.$('#s-ctas .cta-row .cta-btn:nth-child(2)');
+  if (reis && await reis.isVisible().catch(() => false) && !(await reis.evaluate(b => b.disabled))) {
+    await reis.click({ force: true });
+    await page.waitForTimeout(2200);
+    const tr = await strokesOf('#t-map');
+    console.log('   underveis:', tr.streker.join('  |  '), tr.ord.length ? ' ord: ' + tr.ord.join(' → ') : ' (ingen ord)');
+    await shoot('#t-map', 'underveis');
+  } else {
+    console.log('   underveis: kunne ikke starte reisen fra denne fiksturen');
+  }
   await ctx.close();
 }
 

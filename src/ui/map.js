@@ -1,7 +1,7 @@
 import L from 'leaflet';
 import { addCompass } from './mapCompass.js';
 import { onThemeChange, tokens } from './themeTokens.js';
-import { makeRouteStopIcon } from './mapIcons.js';
+import { makeRouteStopIcon, makeJourneyPointIcon } from './mapIcons.js';
 
 /**
  * One place that owns basemap tiles, map init options and the live-map
@@ -205,6 +205,93 @@ export function stopsReadable(points, minGap) {
  * @param {{color?:string, mode?:string, shape?:number[][], dots?:boolean, project?:Function}} opts
  * @returns {{pts:number[][], drawn:boolean}} the points actually used
  */
+/**
+ * ONE LEG, DRAWN THE ONE WAY A LEG IS DRAWN.
+ *
+ * Reported: «maps across the app look and feel different». The same journey
+ * really was drawn three ways, and the difference was not a choice anyone made:
+ *
+ *   tavla        corridorStyle — a bus dotted and thin, rail solid and thick
+ *   underveis    drawRoute at weight 4, solid, WHATEVER THE MODE — plus a
+ *                fourth hand-rolled style, `1,8` at opacity .35, for the legs
+ *                after the one you are riding
+ *   avgangsdetaljer  drawRoute at weight 4, solid, mode never consulted
+ *
+ * So a bus was dotted on one screen and solid on the next two, and a reader
+ * moving between them had to re-learn the picture. corridorStyle already
+ * existed and already knew the answer; two of the three maps simply never
+ * asked it.
+ *
+ * `dim` is kept because it is a real distinction and not a stylistic one:
+ * underveis draws the leg you are ON and the legs still to come, and those are
+ * different facts. It fades the same stroke rather than drawing another kind.
+ *
+ * @param {object} leg  {mode, colour, shape|pts, stops}
+ * @returns {Array} the points drawn, so callers can fit and snap to them
+ */
+export function drawLeg(layer, leg, opts = {}) {
+  const { dim = false, dots = true, project = null, onStopTap = null } = opts;
+  const l = leg || {};
+  const pts = (l.pts && l.pts.length >= 2) ? l.pts
+    : (l.stops || []).filter(s => s && s.lat != null).map(s => [s.lat, s.lon]);
+  if (pts.length < 2) return [];
+
+  if (l.mode === 'foot') {
+    drawWalk(layer, pts);
+    return pts;
+  }
+
+  const base = corridorStyle(l.mode, l.colour || '#7c2d12');
+  const style = dim ? { ...base, opacity: base.opacity * 0.45 } : base;
+  drawRoute(layer, pts, style);
+
+  // The beads, on the same terms everywhere: only the stops you pass through,
+  // only when there is room to read them, and named on tap rather than always.
+  const stops = (l.stops || []).filter(s => s && s.lat != null);
+  const room = !project || stopsReadable(stops.map(st => project([st.lat, st.lon])));
+  if (dots && room && stops.length > 2) {
+    stops.slice(1, -1).forEach(st => {
+      const m = L.marker([st.lat, st.lon],
+        { icon: makeRouteStopIcon(l.colour || '#7c2d12'), keyboard: false }).addTo(layer);
+      if (onStopTap) onStopTap(m, st);
+      else m.bindTooltip(st.name || '', { className: 'map-label', direction: 'top', offset: [0, -6] });
+    });
+  }
+  return pts;
+}
+
+/**
+ * «På», «bytt», «av» — wherever a journey is drawn.
+ *
+ * v1.113.0 gave the board these three words. Underveis marked the same three
+ * places with unlabelled white-ringed circles, and avgangsdetaljer marked none
+ * of them — so a change was a word on one screen, a dot on another and nothing
+ * on the third. That is a fifth vocabulary for one idea.
+ *
+ * Takes the points rather than the legs, because the three screens hold their
+ * legs in three different shapes; `journeyPoints` is still the one rule that
+ * decides WHICH points, and each caller feeds it what it has.
+ */
+export function drawJourneyPoints(layer, points, opts = {}) {
+  const { colour = '#7c2d12', project = null, minPoints = 3 } = opts;
+  const pts = points || [];
+  // Two points is a single leg: boarding is where you already are and
+  // alighting sits under a destination marker that is drawn anyway.
+  if (pts.length < minPoints) return [];
+  const kept = mergeNearby(pts, project);
+  kept.forEach(pt => {
+    L.marker([pt.lat, pt.lon], {
+      icon: makeJourneyPointIcon(pt.kind, colour),
+      zIndexOffset: 400,
+      keyboard: false,
+    })
+      .bindTooltip(pt.names.join(' \u2192 ') || pt.name || '',
+        { className: 'map-label', direction: 'top', offset: [0, -10] })
+      .addTo(layer);
+  });
+  return kept;
+}
+
 /**
  * Markers that would sit on top of each other become one marker.
  *

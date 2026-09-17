@@ -19,7 +19,7 @@ const DIST = path.join(ROOT, 'dist'); const PORT = 4529;
 const NOW = Date.now();
 const iso = ms => new Date(ms).toISOString();
 
-const NAMES = ['Oppsal', 'Skøyenåsen', 'Godlia', 'Hellerud', 'Jernbanetorget'];
+const NAMES = ['Oppsal', 'Skøyenåsen', 'Godlia', 'Hellerud', 'Helsfyr', 'Tøyen', 'Jernbanetorget'];
 const LAT = 59.888, LON0 = 10.845, DLON = -0.018;
 // Six-minute hops, not two-and-a-half. The first cut used a journey that
 // ARRIVED before the nine minutes of silence were up, so the «stille» run
@@ -83,7 +83,7 @@ await new Promise(r => server.listen(PORT, r));
 const browser = await pw.chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 
 /** @param gapMins slack between arriving on leg 0 and leg 1 leaving */
-async function run(scheme, gapMins, extraMins) {
+async function run(scheme, gapMins, extraMins, serveCalls) {
   const W = 390;
   const ctx = await browser.newContext({
     viewport: { width: W, height: 844 }, deviceScaleFactor: 2, colorScheme: scheme,
@@ -117,7 +117,27 @@ async function run(scheme, gapMins, extraMins) {
   // so the gap this probe exists to sweep was destroyed before anything was
   // measured, and a 20-minute change reported as «5 venter». The banner reads
   // only the stored leg times, so the honest fixture is no answer at all.
-  await page.route(/journey-planner/, r => r.abort());
+  // NOT ENOUGH, and said rather than left looking measured: with calls served
+  // the tracking map still draws zero paths from this fixture, so the change
+  // to THIS screen's drawing is bound by the seam test in tests/mapVoice.test.js
+  // and has not been seen. Four goes at the fixture did not produce it; a
+  // fifth would have been sunk cost.
+  //
+  // `serveCalls` splits the two questions this probe now answers. The banner
+  // reads the STORED leg times, so serving calls would overwrite the gap it
+  // sweeps — but the MAP has nothing to draw without them. One fixture cannot
+  // be both, so it is a switch rather than a compromise.
+  await page.route(/journey-planner/, r => {
+    if (!serveCalls) return r.abort();
+    const body = r.request().postData() || '';
+    // Leg 0 runs Oppsal→Hellerud, leg 1 Hellerud→Jernbanetorget: two slices of
+    // the same chain, so the change lands where the seeded journey says it does.
+    const leg1 = body.includes('5-0820');
+    const all = calls(null);
+    const slice = leg1 ? all.slice(3) : all.slice(0, 4);
+    r.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ data: { serviceJourney: { estimatedCalls: slice } } }) });
+  });
   await page.route(/geocoder|tiles|realtime|open-meteo|overpass|valhalla|geoapify|mobility|basemaps/,
     r => r.abort());
   page.on('pageerror', e => console.log('  ! sidefeil:', e.message));
@@ -141,10 +161,36 @@ async function run(scheme, gapMins, extraMins) {
       farge: cs.color + ' / ' + cs.borderColor,
     };
   });
+  // AND THE MAP'S OWN VOCABULARY. Underveis drew every mode as one solid
+  // weight-4 stroke, a fourth hand-rolled `1,8` for the legs still to come,
+  // and three unlabelled circles where the board says PÅ/BYTT/AV.
+  const kart = await page.evaluate(() => {
+    const m = document.getElementById('t-map');
+    if (!m || getComputedStyle(m).display === 'none') return null;
+    const streker = Array.from(m.querySelectorAll('path'))
+      .map(p => (p.getAttribute('stroke-dasharray') || 'heltrukket')
+        + '@' + (p.getAttribute('stroke-width') || '?'))
+      // drawRoute's casing is the same under every line; counting it would
+      // drown the difference this probe is about.
+      .filter(x => !/heltrukket@(5|7|9)$/.test(x));
+    const ord = Array.from(m.querySelectorAll('.leaflet-marker-icon'))
+      .map(e => e.textContent.trim()).filter(t => /^(på|bytt|av)$/i.test(t));
+    return { streker: [...new Set(streker)], ord,
+      paths: m.querySelectorAll('path').length };
+  });
+  console.log('   kart  :', kart
+    ? kart.streker.join('  |  ') + '   ord: ' + (kart.ord.join(' → ') || '(ingen)')
+      + '   [paths ' + kart.paths + ']'
+    : '(ikke synlig)');
   console.log('   banner:', seen.banner);
   console.log('   klasse:', seen.klasse, '  farge:', seen.farge);
 
   fs.mkdirSync('scratchpad/shots', { recursive: true });
+  const tm = await page.$('#t-map');
+  if (serveCalls && tm && await tm.isVisible().catch(() => false)) {
+    await tm.screenshot({ path: `scratchpad/shots/kart-${scheme}-underveis.png`,
+      animations: 'disabled', timeout: 4000 }).catch(() => {});
+  }
   await page.screenshot({ path: `scratchpad/shots/bytt-${scheme}-${gapMins}-${extraMins}.png`,
     clip: { x: 0, y: 0, width: W, height: 620 }, animations: 'disabled' });
   await ctx.close();
@@ -157,6 +203,9 @@ for (const [gap, extra] of [[2, 5], [6, 0], [3, 0], [20, 0]]) {
 }
 await run('light', 2, 5);
 await run('light', 6, 0);
+// And the map, which needs the calls the banner runs deliberately withhold.
+await run('dark', 8, 0, true);
+await run('light', 8, 0, true);
 await browser.close();
 server.close();
 console.log('');

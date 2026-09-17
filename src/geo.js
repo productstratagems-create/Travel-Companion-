@@ -1,5 +1,6 @@
 import { findStop } from './stopId.js';
 import { state } from './state.js';
+import { ACC_GATE, POS_STALE_MS, gpsErrorKind } from './position.js';
 import config from './config.js';
 import { TRANSIT_CATS, modesOf } from './api/stopCats.js';
 import { enturFetch } from './api/http.js';
@@ -17,6 +18,7 @@ export const SPEED_MPN = { rolig: 41.67, middels: 83.33, rask: 116.67 };
 // The stop-identity rule lives in its own leaf module (see stopId.js) and is
 // re-exported here under the name nine call sites already know.
 export { stopKey, sameStop, findStop } from './stopId.js';
+export { ACC_GATE, POS_STALE_MS, POS_DEAD_MS, posState } from './position.js';
 export { stopKey as normStopName } from './stopId.js';
 
 export function loadWalkSpeed() {
@@ -536,7 +538,9 @@ export function findNearestStation(lat, lon, onFound, onFail) {
 // ── GPS: watchPosition with high-accuracy + EMA smoothing ────────────────────
 
 const EMA_α   = 0.3;  // weight for incoming reading (0 = frozen, 1 = raw)
-const ACC_GATE = 40;  // metres — skip updates noisier than this once we have a fix
+// ACC_GATE and POS_STALE_MS moved to position.js in v1.108.0 — the rule that
+// judges the position needs them, and a leaf module is the one place both it
+// and this file can read them from. Re-exported so no call site moved.
 
 let _watchId = null;
 
@@ -568,6 +572,8 @@ function _ema(prev, next) {
 
 export function locateUser(onFound, onFail) {
   if (!navigator.geolocation) {
+    // A state of its own: there is no switch for this reader to turn on.
+    state.gpsError = 'unsupported';
     logMsg('geolokasjon ikke tilgjengelig', 'err');
     if (onFail) onFail('geolokasjon ikke tilgjengelig');
     return;
@@ -584,6 +590,8 @@ export function locateUser(onFound, onFail) {
 
   _onFound = onFound;
   _onFail = onFail;
+  // «Asked» is the difference between «leter» and «posisjon ikke slått på».
+  state.posAsked = true;
   _startWatch();
   _bindVisibility();
 }
@@ -595,7 +603,20 @@ function _handleFix(pos) {
   const { latitude, longitude, accuracy } = pos.coords;
   state.gpsError = null;
 
-  if (!state.homeLL || accuracy <= ACC_GATE) {
+  // EVERY fix's accuracy, accepted or not. It is the only number that can say
+  // why the dot has stopped moving, and it used to reach a log line and
+  // nothing else.
+  state.posAcc = accuracy;
+  const gated = !!state.homeLL && accuracy > ACC_GATE;
+  if (gated) {
+    // The device is working; we are choosing not to use this. Recorded so the
+    // screen can say «unøyaktig (±120 m)» instead of freezing in silence —
+    // geo.js has described this discard as silent in its own comment since
+    // the gate was added.
+    state.posRejAt = pos.timestamp || Date.now();
+  }
+
+  if (!gated) {
     state.homeLL = _ema(state.homeLL, { lat: latitude, lon: longitude });
     // Kept so staleness can be told. ACC_GATE silently discards anything worse
     // than ±40m once a fix exists — routine indoors, in a tunnel or in an
@@ -633,7 +654,10 @@ function _startWatch() {
   _watchId = navigator.geolocation.watchPosition(
     _handleFix,
     err => {
-      if (err.code === 1) state.gpsError = 'denied';
+      // All three PositionError codes, not just the first. 2 and 3 used to be
+      // logged and dropped, so «the device tried and failed» and «nothing has
+      // been asked yet» rendered as the same sentence.
+      state.gpsError = gpsErrorKind(err.code);
       logMsg('posisjon: ' + err.message, 'err');
       if (!state.homeLL && _onFail) _onFail(err.message);
     },
@@ -682,7 +706,7 @@ function _flushPosition() {
  * vehicle positions, for the same reason: a reading that stopped arriving
  * drifts silently, which is worse than admitting it is old.
  */
-export const POS_STALE_MS = 60_000;
+
 
 export function posAgeMins(now) {
   if (!state.posAt) return null;

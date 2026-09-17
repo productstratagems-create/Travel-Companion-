@@ -168,12 +168,12 @@ describe('stopHeadHtml', () => {
   // The whole screen — heading, map, and the reach on every row — now leans
   // on the position being right. A twelve-minute-old fix has to say so.
   it('says when the position is stale', () => {
-    const h = stopHeadHtml(stop, 0, false, { walkMins: 5, ageMins: 12 });
+    const h = stopHeadHtml(stop, 0, false, { walkMins: 5, posNote: 'posisjon 12 min gammel' });
     expect(h).toContain('posisjon 12 min gammel');
   });
 
   it('says nothing about age while the fix is fresh', () => {
-    const h = stopHeadHtml(stop, 0, false, { walkMins: 5, ageMins: null });
+    const h = stopHeadHtml(stop, 0, false, { walkMins: 5, posNote: null });
     expect(h).not.toContain('gammel');
   });
 

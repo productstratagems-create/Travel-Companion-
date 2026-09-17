@@ -6,7 +6,7 @@ import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posAgeMins, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, _rowDest } from '../api/adapt.js';
@@ -2317,13 +2317,34 @@ function renderWalkSummary() {
     // board says it for departures. ACC_GATE discards any fix worse than
     // ±40m once one exists, which is routine indoors and in a tunnel — so the
     // walk time could quietly be computed from where you were ten minutes ago.
-    const stale = state.walkFromLL ? null : posAgeMins();
+    // Through posState, so this screen and auto-reise say one thing about one
+    // position. The string used to be written out here and again in
+    // auto.js:780. A manually set walk origin has no GPS behind it, so there
+    // is nothing to qualify.
+    const ps = state.walkFromLL ? null : posState({
+      asked: state.posAsked, homeLL: state.homeLL, posAt: state.posAt,
+      gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
+    });
+    const note = ps && ps.kind !== 'ok' ? ps.label : null;
     el.textContent = (fromLabel ? fromLabel + ' · ' : '') + wk.mins + ' min gange'
-      + (stale !== null ? ' · posisjon ' + stale + ' min gammel' : '');
-    el.className = stale !== null ? 'stale' : '';
+      + (note ? ' · ' + note : '');
+    el.className = note ? 'stale' : '';
     el.style.display = 'block';
-  } else if (state.gpsError === 'denied' && dir.key === 'out') {
-    el.textContent = 'posisjon: ikke tilgjengelig';
+  } else if (dir.key === 'out' || dir.key === 'custom-out') {
+    // 'custom-out' TOO, which is the key every real route has - main.js,
+    // settings.js, auto.js and leisure.js all write it, and isWalkActive
+    // (geo.js:317) tests for exactly that string. Plain 'out' belongs to the
+    // example route alone, so this branch - the one that says why there is no
+    // walk time - has been unreachable for every reader with a route of their
+    // own since custom routes existed.
+    // Every state that has something to say, not only a refusal. «Finner ikke
+    // posisjonen» and «leter …» were both rendered as nothing at all here.
+    const ps = posState({
+      asked: state.posAsked, homeLL: state.homeLL, posAt: state.posAt,
+      gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
+    });
+    if (ps.kind === 'ok' || ps.kind === 'ingen-stopp') { el.style.display = 'none'; return; }
+    el.textContent = ps.label;
     el.style.display = 'block';
   } else {
     el.style.display = 'none';

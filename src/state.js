@@ -23,6 +23,14 @@ export const state = {
   // could go stale silently — ACC_GATE discards noisy fixes, so the dot simply
   // stopped moving and nothing could say why.
   posAt: null,
+  // Has the watch been started at all? Without it «leter etter posisjonen»
+  // and «posisjon ikke slått på» are the same state.
+  posAsked: false,
+  // The accuracy of the LAST fix, accepted or discarded, and when a fix was
+  // last discarded by ACC_GATE. Together they are the only evidence that the
+  // device is still working while the dot has stopped moving.
+  posAcc: null,
+  posRejAt: null,
   debugOpen: false,
   serviceAlerts: [],
   // The serviceJourney ID the user is currently focused on or riding.

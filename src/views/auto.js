@@ -30,7 +30,7 @@ import { addSituation } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf, loadFreq } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
-import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, userLL, minsToLeave, reachCls, posAgeMins } from '../geo.js';
+import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, userLL, minsToLeave, reachCls, posState } from '../geo.js';
 import L from 'leaflet';
 import { createMap, drawWalk, userDot, drawStopLine } from '../ui/map.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
@@ -505,18 +505,55 @@ export function noPosText(gpsError) {
       cta: 'sett hvor du er →',
     };
   }
-  return gpsError === 'denied'
-    ? {
+  // EVERY state gets its own sentence, and each one names what the reader can
+  // actually do about it. The three below used to be one: codes 2 and 3 never
+  // reached state at all, and «not asked» and «searching» were both
+  // gpsError === null.
+  const CTA = 'sett hvor du er →';
+  if (gpsError === 'denied') {
+    return {
       where: 'Stedstjenester er avslått.',
       body: 'Uten posisjon vet ikke appen hvilket stopp du står ved. '
         + 'Slå på stedstjenester for denne siden, eller sett stoppet selv.',
-      cta: 'sett hvor du er →',
-    }
-    : {
-      where: 'Finner ikke posisjonen din ennå.',
-      body: 'Leter etter posisjonen din. Du kan sette stoppet selv mens du venter.',
-      cta: 'sett hvor du er →',
+      cta: CTA,
     };
+  }
+  if (gpsError === 'unavailable') {
+    return {
+      where: 'Finner ikke posisjonen din.',
+      // Not «leter». The device tried and gave up, so waiting will not help —
+      // and telling someone indoors to keep waiting is the worst of the five.
+      body: 'Enheten fikk ikke tak i posisjonen. Det skjer ofte innendørs og '
+        + 'i tunnel. Sett stoppet selv, eller gå ut og prøv igjen.',
+      cta: CTA,
+    };
+  }
+  if (gpsError === 'timeout') {
+    return {
+      where: 'Posisjonen tok for lang tid.',
+      body: 'Enheten svarte ikke i tide. Sett stoppet selv, så prøver vi '
+        + 'videre i bakgrunnen.',
+      cta: CTA,
+    };
+  }
+  // The two that were one. `asked` is false only before locateUser has run —
+  // a real state, and the one where «leter etter posisjonen din» is a lie.
+  if (gpsError === 'unsupported') {
+    return {
+      where: 'Enheten kan ikke oppgi posisjon.',
+      // Not «slå på stedstjenester»: there is no such switch here. The browser
+      // has no Geolocation API — an insecure context, an embedded webview, or
+      // simply an old one.
+      body: 'Denne nettleseren har ikke stedstjenester. Sett stoppet selv, '
+        + 'så husker appen det.',
+      cta: CTA,
+    };
+  }
+  return {
+    where: 'Finner ikke posisjonen din ennå.',
+    body: 'Leter etter posisjonen din. Du kan sette stoppet selv mens du venter.',
+    cta: CTA,
+  };
 }
 
 /** The button at the bottom, which is the only way on when there is no fix. */
@@ -739,7 +776,12 @@ export function stopHeadHtml(stop, count, open, extra) {
   if (extra && extra.walkMins != null) bits.push(extra.walkMins + ' min gange');
   // Only when it is stale — posAgeMins returns null while the fix is fresh, so
   // the threshold is not repeated here.
-  if (extra && extra.ageMins != null) bits.push('posisjon ' + extra.ageMins + ' min gammel');
+  // THE SENTENCE COMES FROM posState. «posisjon N min gammel» was written out
+  // here and again in board.js:2321 — two copies of one string, which is how
+  // «unøyaktig» could be added to one screen and not the other. Now both read
+  // the label off the same verdict, and this screen gains «posisjonen er
+  // unøyaktig (±120 m)» for free.
+  if (extra && extra.posNote) bits.push(extra.posNote);
 
   const facts = bits.length
     ? '<span class="auto-stop-facts">' + esc(bits.join(' · ')) + '</span>' : '';
@@ -801,6 +843,21 @@ export function pickStop(list, current, pinned) {
   return { stop: l[0], changed: l[0].id !== current.id };
 }
 
+/**
+ * What to say about the position under the stop name, or nothing.
+ *
+ * Silent while the fix is good: a line reading «posisjonen er fin» under a
+ * stop name is the noise this app keeps removing. It speaks for exactly the
+ * states a reader could act on — old, and the one that used to be invisible.
+ */
+function _posNote() {
+  const ps = posState({
+    asked: state.posAsked, homeLL: state.homeLL, posAt: state.posAt,
+    gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
+  });
+  return ps.kind === 'ok' ? null : ps.label || null;
+}
+
 function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
@@ -831,7 +888,7 @@ function _renderWhere() {
     + stopHeadHtml(_stop, others.length, open, {
       walkDist: w ? w.dist : null,
       walkMins: w ? w.mins : null,
-      ageMins: posAgeMins(),
+      posNote: _posNote(),
     })
     + '<div id="auto-alts"' + (open ? '' : ' hidden') + '>'
     // One band per mode. The count in the heading above is the number of

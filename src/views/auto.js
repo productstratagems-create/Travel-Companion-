@@ -24,6 +24,8 @@ import { state } from '../state.js';
 import { fetchBoard } from '../api/entur.js';
 import { predictDest, autoJumpDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
+import { renderAlertsInto } from '../ui/alerts.js';
+import { addSituation } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf, loadFreq } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
@@ -450,6 +452,8 @@ let _stop = null;      // { name, id, lat, lon }
 // Did the READER pick this stop, or did the app? Only the reader's choice
 // survives a better position fix. Cleared by resetAuto with everything else.
 let _stopPinned = false;
+/** This stop's own traffic messages — auto-reise threw them away entirely. */
+let _alerts = [];
 let _dirs = [];        // groupDirections output for _stop
 let _open = null;      // the direction whose stops are showing
 
@@ -1186,6 +1190,18 @@ function _load() {
   fetchBoard({ key: 'custom-out', from: _stop.name, stopId: _stop.id, to: '', line: null, filter: null },
     (stop) => {
       _dirs = groupDirections(stop.estimatedCalls || []);
+      // Keep WHERE each message hung, exactly as fetchTrip does: a stop-board
+      // answer carries the stop's own situations and each departure's, and
+      // which is which is the only thing that can tell them apart later.
+      const m = new Map();
+      (stop.situations || []).forEach(x => addSituation(m, x, { stop: _stop && _stop.id }));
+      (stop.estimatedCalls || []).forEach(c => {
+        const sj = c && c.serviceJourney;
+        const from = { line: (sj && sj.line && sj.line.id) || null, journey: (sj && sj.id) || null };
+        (c.situations || []).forEach(x => addSituation(m, x, from));
+        ((sj && sj.situations) || []).forEach(x => addSituation(m, x, from));
+      });
+      _alerts = Array.from(m.values());
       _renderBody();
     },
     (err) => {
@@ -1744,6 +1760,16 @@ export function renderAuto() {
   // typing something of your own. Shared with «velg rute» — one row, one
   // definition of "ofte brukt", and it hides itself when there is nothing,
   // which for a brand-new reader is always.
+  // Auto-reise showed the GLOBAL banner from the last board fetch — stale,
+  // and about a different stop. Now it shows its own stop's messages, scoped
+  // to the lines that actually leave from here.
+  renderAlertsInto(_el('auto-alerts'), _alerts, renderAuto, {
+    stopIds: [_stop && _stop.id].filter(Boolean),
+    lineIds: [...new Set(_dirs
+      .map(d => d && d.call && d.call.serviceJourney && d.call.serviceJourney.line
+        && d.call.serviceJourney.line.id).filter(Boolean))],
+    journeyIds: [],
+  });
   renderRouteShortcuts('auto-fav-routes', 2);
   _renderWhere();
   // After _renderWhere, which is what settles _stop for this tick — the map
@@ -1755,6 +1781,6 @@ export function renderAuto() {
 
 /** Fresh screen when the mode is entered, so it never opens on a stale stop. */
 export function resetAuto() {
-  _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null;
+  _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null; _alerts = [];
   _resetAutoMap();
   _stopsShown = false; _jumpArmed = false; }

@@ -12,7 +12,7 @@ import { logMsg } from '../ui/log.js';
 import { esc } from '../ui/fmt.js';
 import { show } from '../ui/nav.js';
 import { startBoard, boardRows } from './board.js';
-import { renderAlerts } from '../ui/alerts.js';
+import { renderAlertsInto } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
 import { createMap, drawRoute, drawWalk, userDot } from '../ui/map.js';
@@ -273,10 +273,28 @@ function _renderSelMap(dep, fromName, toName) {
 }
 
 export function renderSelected() {
-  renderAlerts();
   const c = state.sel;
   if (!c) return;
+  // This screen is about ONE departure, so the banner is too: its journey,
+  // its line, and the stops it actually calls at. AFTER `c` is bound — put
+  // above it, this read the departure from its temporal dead zone and threw
+  // «Cannot access 'c' before initialization», which the render loop caught
+  // and logged while the screen simply stayed blank.
   const dir = config.dirs[state.dIdx];
+  const _meta = state.lockedJourneyMeta;
+  renderAlertsInto(document.getElementById('s-alerts'), state.serviceAlerts, renderSelected, {
+    journeyIds: [state.lockedJourneyId].filter(Boolean),
+    lineIds: [c.serviceJourney && c.serviceJourney.line && c.serviceJourney.line.id].filter(Boolean),
+    // The journey meta arrives 15 seconds later; the departure's own calls are
+    // already in hand, so a stop-scoped message is placed correctly from the
+    // first frame rather than folding away and then reappearing.
+    stopIds: [
+      ...((_meta && _meta.calls) || []).map(x => x && x.id),
+      ...(((c.serviceJourney && c.serviceJourney.estimatedCalls) || [])
+        .map(x => x && x.quay && x.quay.stopPlace && x.quay.stopPlace.id)),
+      dir.stopId, dir.toStopId,
+    ].filter(Boolean),
+  });
   const now = Date.now();
   const ln = c.serviceJourney && c.serviceJourney.line;
   const lc = (ln && ln.publicCode) || config.line;

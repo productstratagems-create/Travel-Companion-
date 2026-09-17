@@ -47,11 +47,15 @@
      there is an example to explain, and gone the moment a route is set. -->
 <button id="demo-note" class="demo-note" type="button" style="display:none"></button>
 
-<div id="service-alerts" style="display:none"
-  role="region" aria-label="Servicevarsler" aria-live="polite"></div>
-
 <!-- ══ 1: BOARD ══ -->
 <div id="v-board" tabindex="-1">
+  <!-- INSIDE the screen, not above it. This banner used to sit outside every
+       v-* div, and show() only toggles those — so one global list of traffic
+       messages stood on every screen whatever it was about. Reported: a bus
+       from Bjørndal shown to a reader riding metro line 3. Each screen has
+       its own slot and its own context now. -->
+  <div id="service-alerts" style="display:none"
+    role="region" aria-label="Servicevarsler" aria-live="polite"></div>
   <div class="board-header-slim">
     <div style="display:flex;align-items:center;gap:.6rem;min-width:0;flex:1">
       <span class="status-dot" id="status-dot" title="trykk for logg"
@@ -125,6 +129,8 @@
     <span class="screen-label" role="heading" aria-level="2">avgangsdetaljer</span>
     <button class="nav-plan-btn" id="s-plan-btn" aria-label="Reiseplan">📋</button>
   </div>
+  <div id="s-alerts" style="display:none"
+    role="region" aria-label="Servicevarsler" aria-live="polite"></div>
   <div id="s-content"></div>
   <div class="map-wrap" id="sel-map-wrap" style="display:none">
     <div id="sel-map"></div>
@@ -142,6 +148,8 @@
       <button class="nav-plan-btn" id="t-plan-btn" aria-label="Reiseplan">📋</button>
     </div>
   </div>
+  <div id="t-alerts" style="display:none"
+    role="region" aria-label="Servicevarsler" aria-live="polite"></div>
   <div id="follow-jny-panel-track" style="display:none"></div>
   <div class="train-bar" id="t-train-bar"></div>
   <div class="map-wrap" id="t-map-wrap" style="display:none">
@@ -330,6 +338,10 @@
     <span class="screen-label" role="heading" aria-level="2">auto-reise</span>
     <button class="nav-plan-btn" id="auto-refresh" aria-label="Hent posisjon og avganger på nytt">↻</button>
   </div>
+  <!-- Outside #auto-where and #auto-body, like everything else here: both have
+       their innerHTML replaced once a second. -->
+  <div id="auto-alerts" style="display:none"
+    role="region" aria-label="Servicevarsler" aria-live="polite"></div>
   <div id="auto-where" class="set-section"></div>
   <!-- The orientation map, and it is OUTSIDE #auto-where and #auto-body for
        the same reason everything else here is: both have their innerHTML

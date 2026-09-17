@@ -2488,12 +2488,20 @@ function renderDemoNote() {
 
 export function renderBoard() {
   renderDemoNote();
-  renderAlerts();
   renderWalkSummary();
   renderModeFilter();
   const isStale = renderUpdatedStamp();
   const modes = loadModes();
   const dir = config.dirs[state.dIdx];
+  // WHAT THIS SCREEN IS SHOWING, so the banner can tell a message about this
+  // route from one about a bus that happens to call at the same stop.
+  renderAlerts({
+    stopIds: [dir.stopId, dir.toStopId].filter(Boolean),
+    lineIds: [...new Set(boardRows()
+      .map(c => c && c.serviceJourney && c.serviceJourney.line && c.serviceJourney.line.id)
+      .filter(Boolean))],
+    journeyIds: [],
+  });
   const pos = state.walkFromLL || state.homeLL || (state.statLL && state.statLL[dir.key]);
   const walkFrom = (state.statLL && state.statLL[dir.key]) || pos;
 

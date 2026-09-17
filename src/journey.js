@@ -206,6 +206,11 @@ export function saveJny() {
       _toLon:            state.jny._toLon || null,
       legs: state.jny.legs.map(leg => ({
         lineCode:    leg.lineCode,
+        // The line's own id, not just the number on its side. Without it the
+        // underveis screen loses its line identity across a reload and can no
+        // longer tell a message about ITS line from one about a bus calling at
+        // the same stop.
+        lineRef:     leg.lineRef || null,
         lineBg:      leg.lineBg,
         mode:        leg.mode,
         frontText:   leg.frontText,

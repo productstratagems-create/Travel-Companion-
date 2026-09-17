@@ -40,6 +40,82 @@ export function legShape(leg) {
 }
 
 /**
+ * The three points a multi-leg journey is actually about.
+ *
+ * Reported with a screenshot of the board map: «Måten multi-stopps reiser
+ * tegnes opp i kart er uklart og vanskelig å tyde. Både linjene og prikken.»
+ *
+ * The journey was Mortensrud → Ljan with one change, bus 73 onto bus 81. Both
+ * are RUT buses, so both corridors were drawn in the same red with the same
+ * dash pattern — one unbroken string across the map with NO VISIBLE SEAM. The
+ * change, which is the one thing on a two-leg trip you can get wrong, was not
+ * drawn at all. Neither was where you get on, nor where you get off.
+ *
+ * Six symbols were on that map and none of them said this. So this names the
+ * three, from the legs the board already has:
+ *
+ *   board   where you get on, the first transit leg's origin
+ *   change  every place you leave one vehicle or board the next
+ *   alight  where you get off for good, the last transit leg's destination
+ *
+ * FOOT LEGS MAKE NO POINTS OF THEIR OWN. A walk between two buses is already
+ * drawn as a walking line, and marking both its ends as well would put three
+ * markers on one change. But when the walk moves you to a DIFFERENT place, the
+ * two ends are two different facts — «get off here» and «get on there» — so
+ * both are kept, and `NEAR_M` is what decides whether they are one place.
+ *
+ * Pure, so «which points, in which order» is testable without a map.
+ *
+ * @param {Array} legs  a journey's legs, walks included (`_allLegs`)
+ * @returns {Array<{kind: 'board'|'change'|'alight', lat: number, lon: number,
+ *                  name: string}>}
+ */
+const NEAR_M = 60;
+
+export function journeyPoints(legs) {
+  const transit = (legs || []).filter(l => l && l.mode !== 'foot');
+  if (!transit.length) return [];
+
+  const at = (place, kind) => {
+    if (!place || place.latitude == null || place.longitude == null) return null;
+    return { kind, lat: place.latitude, lon: place.longitude, name: place.name || '' };
+  };
+
+  const out = [];
+  const push = (p) => {
+    if (!p) return;
+    const last = out[out.length - 1];
+    // Two names for one place: getting off and getting on at the same
+    // interchange is ONE marker, not two stacked on each other.
+    if (last && _closeM(last.lat, last.lon, p.lat, p.lon) < NEAR_M) {
+      // The later kind wins, so a change is never demoted back to a board.
+      if (last.kind === 'board' && p.kind === 'change') return;
+      last.name = last.name || p.name;
+      return;
+    }
+    out.push(p);
+  };
+
+  push(at(transit[0].fromPlace, 'board'));
+  for (let i = 1; i < transit.length; i++) {
+    push(at(transit[i - 1].toPlace, 'change'));
+    push(at(transit[i].fromPlace, 'change'));
+  }
+  push(at(transit[transit.length - 1].toPlace, 'alight'));
+  return out;
+}
+
+/** Metres between two points. Its own little haversine so adapt.js stays a
+ *  leaf for the geometry it already owns — geo.js imports state and the net. */
+function _closeM(aLat, aLon, bLat, bLon) {
+  const R = 6371000, r = Math.PI / 180;
+  const dLat = (bLat - aLat) * r, dLon = (bLon - aLon) * r;
+  const x = Math.sin(dLat / 2) ** 2
+    + Math.cos(aLat * r) * Math.cos(bLat * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
+}
+
+/**
  * Why the last batch of patterns was dropped.
  *
  * Six paths return null here, and the board reported only a count — so a

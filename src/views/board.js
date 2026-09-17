@@ -9,7 +9,7 @@ import { storage } from '../storage.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
-import { adaptTripPattern, quayLatLon, legShape, _rowDest } from '../api/adapt.js';
+import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
 import { renderAlerts, pruneHidden } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
@@ -18,10 +18,10 @@ import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops, _resetNearbyCache } from '../api/stops.js';
-import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
+import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, makeJourneyPointIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { fetchVehiclePositions, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
-import { createMap, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable } from '../ui/map.js';
+import { createMap, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _headingDeg, anchorDistances, pointAtDistance, projectOnPath } from '../ui/path.js';
 import { decodePolyline } from '../ui/polyline.js';
@@ -1307,6 +1307,40 @@ function renderLineRoute(visibleDeps, vehicles) {
     drawn.set(key, entry);
     if (ol && ol.publicCode && !paths.has(ol.publicCode)) paths.set(ol.publicCode, entry);
   });
+
+  // THE JOURNEY'S TURNING POINTS, drawn last so nothing sits on top of them.
+  //
+  // Reported: a two-leg trip drawn as one unbroken red string. Both legs were
+  // RUT buses, so both corridors carried the same colour and the same dash —
+  // and the change, the one thing on a two-leg trip a reader can get wrong,
+  // was not on the map at all. Neither was where you board or where you get
+  // off.
+  //
+  // Only when there IS a change: a single-leg journey's boarding point is the
+  // stop you are standing at and its alighting point is under the destination
+  // pin, so two more markers would explain nothing and cover something.
+  const jpts = journeyPoints(c._allLegs || c._legs || []);
+  if (jpts.length > 2) {
+    // The destination pin is drawn anyway, a few lines below, and «AV» landing
+    // beside it says the same thing twice — the probe photographed exactly
+    // that. Kept only when you get off somewhere the pin is not.
+    const near = (a, lat, lon) => lat != null && haver(a.lat, a.lon, lat, lon) < 80;
+    const shown = jpts.filter(pt =>
+      !(pt.kind === 'alight' && near(pt, dir._toLat, dir._toLon)));
+    // And two markers that would overlap become one that names both ends.
+    mergeNearby(shown, ll => _bMap.latLngToContainerPoint(ll)).forEach(pt => {
+      L.marker([pt.lat, pt.lon], {
+        icon: makeJourneyPointIcon(pt.kind, color),
+        // Above the corridor and the beads, which are context; these are the
+        // three facts the picture is about.
+        zIndexOffset: 400,
+        keyboard: false,
+      })
+        .bindTooltip(pt.names.join(' \u2192 ') || pt.name || '',
+          { className: 'map-label', direction: 'top', offset: [0, -10] })
+        .addTo(_bRouteLayer);
+    });
+  }
 
   // Intermediate stops are hidden until there is room to read them.
   //

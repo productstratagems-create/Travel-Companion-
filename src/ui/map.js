@@ -124,8 +124,15 @@ export function drawRoute(layer, latlngs, opts = {}) {
  * between the lines rather than as another line.
  */
 export function drawWalk(layer, latlngs) {
+  // ROUND BEADS, WELL APART — not a slightly different dash from a bus.
+  // corridorStyle draws a bus as `1 7` at weight 2 and this was `2 7` at
+  // weight 3: two faint dotted strings differing by one pixel of dash, which
+  // on a phone is no difference at all. A walk is the one leg you make with
+  // your own feet, so it is drawn as footsteps: fat round dots with air
+  // between them, in the accent rather than a line's colour.
   return drawRoute(layer, latlngs, {
-    color: tokens().accent, weight: 3, opacity: 0.85, dashArray: '2 7',
+    color: tokens().accent, weight: 4, opacity: 0.9,
+    dashArray: '0.1 10', lineCap: 'round',
   });
 }
 
@@ -198,6 +205,43 @@ export function stopsReadable(points, minGap) {
  * @param {{color?:string, mode?:string, shape?:number[][], dots?:boolean, project?:Function}} opts
  * @returns {{pts:number[][], drawn:boolean}} the points actually used
  */
+/**
+ * Markers that would sit on top of each other become one marker.
+ *
+ * The browser probe drew «BYTT» twice, overlapping, for one change: a 370 m
+ * walk between two stops is two real facts and about eight pixels at the zoom
+ * a whole journey fits in. Both were correct and the pair was unreadable.
+ *
+ * NOTHING IS DROPPED — the merged marker keeps every name, so tapping it still
+ * tells you both ends of the change. That is the same call `splitSituations`
+ * made about messages it could not prove were irrelevant: fold, do not delete.
+ *
+ * Measured in PIXELS, like stopsReadable beside it, because whether two things
+ * touch is a question about the screen and not about the map.
+ *
+ * @param {Array<{lat: number, lon: number, name?: string}>} items
+ * @param {(latlng: Array) => {x: number, y: number}} project
+ * @returns {Array} the kept items, each with `names` — every name it stands for
+ */
+export function mergeNearby(items, project, minGapPx) {
+  const gap = minGapPx == null ? ROUTE_STOP_MIN_GAP_PX : minGapPx;
+  const kept = [];
+  (items || []).forEach(it => {
+    if (!it) return;
+    const p = project ? project([it.lat, it.lon]) : null;
+    const near = p && kept.find(k => {
+      const q = project([k.lat, k.lon]);
+      return Math.hypot(q.x - p.x, q.y - p.y) < gap;
+    });
+    if (near) {
+      if (it.name && !near.names.includes(it.name)) near.names.push(it.name);
+      return;
+    }
+    kept.push({ ...it, names: it.name ? [it.name] : [] });
+  });
+  return kept;
+}
+
 export function drawStopLine(layer, stops, opts = {}) {
   const { color = '#7c2d12', mode = null, shape = null, dots = true, project = null } = opts;
   const usable = (stops || []).filter(s => s && s.lat != null && s.lon != null);

@@ -19,10 +19,10 @@ import { registerServiceWorker, initOfflineBanner } from './pwa.js';
 import './views/favs.js';
 import './views/plan.js';
 import { renderLeisure } from './views/leisure.js';
-import { renderAuto, resetAuto, armAutoJump } from './views/auto.js';
+import { renderAuto, resetAuto, armAutoJump, hasStop } from './views/auto.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
-import { landingChoice, exampleDir, isExample, upgradeToNearest } from './firstRun.js';
-import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode, autoModePref, saveAutoMode } from './geo.js';
+import { landingChoice, exampleDir, isExample, upgradeToNearest, exampleFallback, AUTO_FALLBACK_MS } from './firstRun.js';
+import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode, autoModePref, saveAutoMode, posState } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard, refreshBoard } from './views/board.js';
@@ -190,6 +190,42 @@ if (landing === 'journey') {
   armAutoJump();
   renderAuto();
   show('v-auto');
+
+  // AND IF IT HAS NOTHING TO SHOW, THE EXAMPLE BOARD ANSWERS INSTEAD.
+  //
+  // This rung is the default, so it is where strangers land — on a
+  // position-first screen. Measured with nothing stored: «Stedstjenester er
+  // avslått» and a link to the form, which is the exact first impression
+  // firstRun.js was written to remove. The example board still existed; it had
+  // simply become unreachable, because only a reader who turned auto-reise off
+  // could get to it and a first-time visitor cannot have done that.
+  //
+  // A window rather than an immediate check: GPS takes a second or two, and
+  // bouncing someone off the screen before a fix could arrive would be its own
+  // bug. And a re-read of hasStop() when it fires, not a decision made now —
+  // the fix usually lands inside the window, and then nothing happens at all.
+  setTimeout(() => {
+    if (!exampleFallback({
+      hasStop: hasStop(),
+      posKind: posState({
+        asked: state.posAsked, homeLL: state.homeLL, posAt: state.posAt,
+        gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
+      }).kind,
+      storedRoute: !!stored, savedDest, hasJourney: !!restored,
+    })) return;
+    // Only if they are still standing here. Tapping through to anything else
+    // is a choice, and this must never yank a reader off a screen they went
+    // to themselves.
+    const cur = document.querySelector('#v-auto');
+    if (!cur || cur.style.display === 'none') return;
+    // BOTH, and in this order. startBoard() deliberately does not navigate —
+    // its own comment says it assumes the board is already the visible screen,
+    // which is true at a cold start and false here. Calling it alone left the
+    // reader looking at auto-reise while a board they could not see fetched
+    // departures behind it; the probe reported no change at all and was right.
+    show('v-board');
+    startBoard();
+  }, AUTO_FALLBACK_MS);
 } else if (landing === 'leisure') {
   renderLeisure();
   show('v-leisure');

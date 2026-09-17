@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import config from '../src/config.js';
-import { landingChoice, exampleDir, isExample, upgradeToNearest, EXAMPLE_KEY } from '../src/firstRun.js';
+import { landingChoice, exampleDir, isExample, upgradeToNearest, exampleFallback, AUTO_FALLBACK_MS, EXAMPLE_KEY } from '../src/firstRun.js';
 
 describe('landingChoice', () => {
   // v1.44.0: the last rung used to be "give up and show the form" — a
@@ -152,5 +152,123 @@ describe('the cold-start index', () => {
     expect(clamp('2')).toBeLessThanOrEqual(config.dirs.length - 1);
     expect(config.dirs[clamp('2')]).toBeTruthy();
     expect(config.dirs[clamp(null)]).toBeTruthy();
+  });
+});
+
+
+// ── What a stranger actually gets (v1.110.0) ───────────────────────────────
+//
+// firstRun.js exists because the first screen was an empty two-field form:
+// «You cannot *try* something that demands to be filled in first.» The answer
+// was a working example board.
+//
+// Then v1.61.0 made the ladder's last rung auto-reise — a POSITION-FIRST
+// screen — and the example became reachable only by a reader who had turned
+// auto-reise off, which a first-time visitor cannot have done. Measured in the
+// browser with nothing stored, the first impression was «Stedstjenester er
+// avslått» and a link to the form. The same screen, by a different road.
+describe('exampleFallback', () => {
+  // THE REACHABILITY CLAIM, in one assertion. These two rules together are
+  // what a stranger meets, and testing either alone is what let the gap open:
+  // landingChoice was right, the example board was right, and no test asked
+  // whether one could reach the other.
+  it('makes the example board reachable for a stranger again', () => {
+    const stranger = {};
+    expect(landingChoice(stranger)).toBe('auto');
+    expect(exampleFallback({ ...stranger, hasStop: false })).toBe(true);
+  });
+
+  it('stays out of the way when auto-reise has a stop', () => {
+    expect(exampleFallback({ hasStop: true })).toBe(false);
+  });
+
+  // A position with no stop near it is an ANSWER, not an absence: «ingen
+  // holdeplass innenfor 850 meter» is true and about the reader, and a board
+  // about Jernbanetorget would trade that for something they cannot act on.
+  // The browser probe fell back on the granted run and caught this.
+  it('leaves a reader alone when the position already answered', () => {
+    expect(exampleFallback({ hasStop: false, posKind: 'ingen-stopp' })).toBe(false);
+  });
+
+  // The moment they have something of their own, auto-reise is a screen they
+  // chose. Throwing them onto a board about somewhere else would be worse than
+  // saying plainly that the position is missing.
+  it('never yanks a reader who has a route of their own', () => {
+    expect(exampleFallback({ hasStop: false, storedRoute: true })).toBe(false);
+    expect(exampleFallback({ hasStop: false, savedDest: 'Tøyen' })).toBe(false);
+    expect(exampleFallback({ hasStop: false, hasJourney: true })).toBe(false);
+  });
+
+  // THE TRAP THIS RULE MUST NOT FALL INTO. main.js writes saveAutoMode(true)
+  // the first time it lands on this rung, so from the second visit every
+  // stranger carries autoPref === 'on'. A fallback keyed on the preference
+  // would have worked exactly once, for exactly one visit.
+  it('does not read the auto-mode preference, which is written on first landing', () => {
+    expect(exampleFallback({ hasStop: false, autoPref: 'on' })).toBe(true);
+  });
+
+  it('survives being asked about nothing', () => {
+    expect(() => exampleFallback(null)).not.toThrow();
+  });
+
+  // A window, not a race. Zero would bounce the reader before a fix could
+  // arrive; a long one leaves a stranger looking at an apology.
+  it('gives GPS a window worth having', () => {
+    expect(AUTO_FALLBACK_MS).toBeGreaterThanOrEqual(2000);
+    expect(AUTO_FALLBACK_MS).toBeLessThanOrEqual(8000);
+  });
+});
+
+// The tenth copy of the stop normaliser, and one the v1.107.0 sweep missed:
+// this file had its own lowercase-and-trim rule for «am I standing at the
+// example's own destination».
+describe('upgradeToNearest and the shared stop rule', () => {
+  it('knows Nationaltheatret T is Nationaltheatret, and turns the route around', () => {
+    const ex = exampleDir();
+    const up = upgradeToNearest(ex, { name: ex.to + ' T', id: 'NSR:StopPlace:1' });
+    expect(up).not.toBeNull();
+    expect(up.to).toBe(ex.from);
+  });
+
+  // THE JOURNEY FROM A PLACE TO ITSELF, which the old rule could still build.
+  // The geocoder appends the municipality, so standing at the example's own
+  // destination gives «Nationaltheatret, Oslo». Under the file's own
+  // lowercase-and-trim rule that was NOT the destination — the comma survived
+  // — so the swap never happened and the reader got a board from
+  // Nationaltheatret to Nationaltheatret. stopKey cuts at the comma, so the
+  // swap fires and the route turns around instead.
+  it('turns around rather than building a journey from a place to itself', () => {
+    const ex = exampleDir();
+    const up = upgradeToNearest(ex, { name: ex.to + ', Oslo', id: 'NSR:StopPlace:2' });
+    expect(up).not.toBeNull();
+    expect(up.to).toBe(ex.from);
+    expect(up.to).not.toBe(ex.to);
+  });
+});
+
+// ── The wiring (the mutant the rules could not kill) ───────────────────────
+//
+// The rule was right and nothing happened, twice over: startBoard() states in
+// its own comment that it assumes the board is already the visible screen — it
+// does not navigate — so calling it alone left the reader looking at
+// auto-reise while a board they could not see fetched departures behind it.
+// The probe reported no change at all and was right both times.
+//
+// Asserted against the source because the landing runs at module scope in
+// main.js: importing it stands the whole app up, and the thing worth holding
+// is precisely that these two calls stay together.
+describe('the fallback actually navigates', () => {
+  it('shows the board as well as starting it', async () => {
+    const fs = await import('node:fs');
+    const src = fs.readFileSync('src/main.js', 'utf8');
+    const i = src.indexOf('exampleFallback({');
+    expect(i).toBeGreaterThan(-1);
+    // COMMENTS STRIPPED FIRST. The prose above the code names startBoard()
+    // while explaining that it does not navigate, so an ordering check against
+    // the raw text failed on this file's own documentation.
+    const block = src.slice(i, i + 2500).replace(/\/\/[^\n]*/g, '');
+    // The two calls, adjacent and in this order. Starting a board nobody can
+    // see is the bug; asserting them as a sequence is what holds them together.
+    expect(block).toMatch(/show\('v-board'\);\s*startBoard\(\);/);
   });
 });

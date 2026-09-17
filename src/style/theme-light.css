@@ -673,8 +673,12 @@ html[data-theme="light"] .alight-weather       { color: var(--text-muted); }
 html[data-theme="light"] .alight-hvanaa-hint   { color: rgba(37,99,235,.55); }
 
 /* ── CONNECTION ALERTS ── */
-html[data-theme="light"] .conn-alert-risk { background: rgba(var(--accent-rgb),.06); border-color: rgba(var(--accent-rgb),.25); color: var(--text-muted); }
-html[data-theme="light"] .conn-alert-miss { background: rgba(var(--accent-rgb),.06); border-color: rgba(var(--accent-rgb),.25); color: var(--text-muted); }
+/* The same pair, identical to each other here too — so light mode said one
+   thing about two opposite verdicts just as dark mode did. Paired with the
+   base rules in track.css rather than left to inherit, because the light
+   palette needs darker ink at these sizes to stay readable. */
+html[data-theme="light"] .conn-alert-risk { background: rgba(var(--warn-rgb),.10); border-color: rgba(180,83,9,.30); color: #b45309; }
+html[data-theme="light"] .conn-alert-miss { background: rgba(220,38,38,.07); border-color: rgba(185,28,28,.28); color: #b91c1c; }
 
 /* ── MOBILITY RANKING ── */
 html[data-theme="light"] .mob-option  { border-bottom-color: rgba(var(--border-rgb),.06); }

@@ -62,10 +62,25 @@ const _live = new Set();
 /**
  * Create a map with the app's standard options.
  * @param {HTMLElement} el
- * @param {{zoom?:boolean, scale?:boolean, compass?:boolean}} opts
+ * @param {{expandable?:boolean, zoom?:boolean, scale?:boolean, compass?:boolean}} opts
  */
 export function createMap(el, opts = {}) {
-  const { zoom = true, scale = false, compass = true } = opts;
+  // ONE RULE FOR THE CONTROLS, stated rather than accumulated.
+  //
+  // Before: zoom on five maps and missing on two, a scale bar on three of
+  // seven, and no pattern joining them — the board and the plan had a scale,
+  // underveis and the detail screen did not, and they are the same kind of map.
+  //
+  // The rule is what the map is FOR. A map you can open full-screen is a place
+  // you explore, so it carries the controls exploring needs. A band you cannot
+  // open is a glance the app has already framed for you, and a zoom button on
+  // it is an invitation to do something the screen is not for.
+  //
+  // `expandable` says which, and the caller passes the same answer it passes
+  // to bindMapExpand — so the controls cannot disagree with the button.
+  const { expandable = false, compass = true } = opts;
+  const zoom = opts.zoom === undefined ? expandable : opts.zoom;
+  const scale = opts.scale === undefined ? expandable : opts.scale;
   const map = L.map(el, {
     zoomControl: false,          // added below so every map agrees on position
     attributionControl: true,
@@ -89,6 +104,48 @@ export function createMap(el, opts = {}) {
   const remove = map.remove.bind(map);
   map.remove = function () { _live.delete(entry); return remove(); };
   return map;
+}
+
+/**
+ * Open the map full-screen, and close it again — ONE behaviour.
+ *
+ * Reported: «maps across the app look and feel different». This button was
+ * written four times, in board.js, selected.js, track.js and plan.js, and the
+ * four had drifted:
+ *
+ *   tavla    toggles `map-open` on <html> and updates `title`
+ *   detalj   neither
+ *   underveis  neither
+ *   plan     keeps its own boolean instead of reading the class back
+ *
+ * So the same control did three different things depending on which screen you
+ * pressed it on, and only one of them told a hovering cursor what it would do.
+ * Nobody chose that either; it was copied and then edited in one place.
+ *
+ * `map-open` is set on every screen now. Its CSS is scoped to
+ * `html.view-board` — the board is the one screen with a fixed layout that has
+ * to yield — so setting it elsewhere changes nothing today and stops the
+ * handler from being four handlers.
+ *
+ * @param {object} map   the Leaflet map, so it can be told its size changed
+ * @param {HTMLElement} el   the map container that grows
+ * @param {HTMLElement} btn  the button
+ */
+export function bindMapExpand(map, el, btn) {
+  if (!el || !btn) return;
+  btn.onclick = () => {
+    const open = el.classList.toggle('expanded');
+    document.documentElement.classList.toggle('map-open', open);
+    btn.textContent = open ? '\u2715' : '\u2922';
+    const label = open ? 'Minimer kart' : 'Utvid kart';
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    // The hovering cursor gets told too. Three of the four forgot this.
+    btn.title = label;
+    // After the CSS transition, not before it: Leaflet measures the container.
+    setTimeout(() => map && map.invalidateSize(), 320);
+  };
+  btn.setAttribute('aria-expanded', el.classList.contains('expanded') ? 'true' : 'false');
 }
 
 /**

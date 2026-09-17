@@ -23,7 +23,7 @@ import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { fetchWalkRoute } from '../api/route.js';
-import { createMap, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints } from '../ui/map.js';
+import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints } from '../ui/map.js';
 import { storage } from '../storage.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -210,7 +210,7 @@ function _renderTrackMap(now, cs, legs) {
     _tMapKey = key;
     _destroyTrackMap();
     _tMapKey = key;
-    _tMap = createMap(mapEl);
+    _tMap = createMap(mapEl, { expandable: true });
     _tLayer = L.layerGroup().addTo(_tMap);
     const lineColor = leg.lineBg || '#7c2d12';
     // THROUGH drawLeg, so a bus looks like a bus here too. This drew every
@@ -286,15 +286,7 @@ function _renderTrackMap(now, cs, legs) {
     _tMap.fitBounds(allPts, { padding: [28, 28], maxZoom: 16 });
     setTimeout(() => _tMap && _tMap.invalidateSize(), 100);
 
-    const expandBtn = document.getElementById('t-map-expand');
-    if (expandBtn) {
-      expandBtn.onclick = () => {
-        const exp = mapEl.classList.toggle('expanded');
-        expandBtn.textContent = exp ? '✕' : '⤢';
-        expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
-        setTimeout(() => _tMap && _tMap.invalidateSize(), 320);
-      };
-    }
+    bindMapExpand(_tMap, mapEl, document.getElementById('t-map-expand'));
   }
 
   if (!_tMap) return;
@@ -655,8 +647,13 @@ function _initArrMap(arrLL) {
   if (_arrMap) return; // already initialized — use _addBikeMarkers to update
   _arrLL = arrLL;
   _arrUserMoved = false;
-  _arrMap = createMap(el, { scale: true });
+  _arrMap = createMap(el, { expandable: true });
   _arrMap.on('dragstart', () => { _arrUserMoved = true; });
+  // A FIFTH copy lived at the bottom of this function — the only one that
+  // updated `title`, and the reason the others were found to be missing it.
+  // Its button is built in markup this file writes, not in index.html, which
+  // is why a grep of index.html made it look as though it had none.
+  bindMapExpand(_arrMap, el, document.getElementById('hn-map-expand'));
   // Arrival station marker — last transit leg's line badge
   const jLegs = state.jny && state.jny.legs;
   const jLast = jLegs && jLegs[jLegs.length - 1];
@@ -666,17 +663,6 @@ function _initArrMap(arrLL) {
   L.marker([arrLL.lat, arrLL.lon], { icon: _makeTransitStopIcon(arrCode, arrBg, arrMode) }).addTo(_arrMap);
   _fitArrMap(arrLL);
 
-  // Expand toggle
-  const expandBtn = document.getElementById('hn-map-expand');
-  if (expandBtn) {
-    expandBtn.onclick = () => {
-      const expanded = el.classList.toggle('expanded');
-      expandBtn.textContent = expanded ? '✕' : '⤢';
-      expandBtn.setAttribute('aria-label', expanded ? 'Minimer kart' : 'Utvid kart');
-      expandBtn.title = expanded ? 'Minimer kart' : 'Utvid kart';
-      setTimeout(() => _arrMap && _arrMap.invalidateSize(), 320);
-    };
-  }
 }
 
 function _fitArrMap(arrLL) {
@@ -1295,7 +1281,7 @@ function renderNextPanel() {
     // Disruptions at the far end of the trip. Deliberately near the top:
     // if the destination stop is closed, nothing below it matters.
     + '<div id="hn-dest-alerts"></div>'
-    + '<div class="map-wrap"><div id="hn-map"></div><button class="map-expand-btn" id="hn-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
+    + '<div class="map-wrap"><div id="hn-map" class="map-expandable"></div><button class="map-expand-btn" id="hn-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button></div>'
     // The single question this screen exists to answer, and directly beneath
     // it the one ranked answer — walking, bike and scooter in the same list
     // and the same units, instead of a walk box and a separate vehicle table.

@@ -76,12 +76,7 @@
 .pctx-close:active { color: var(--err); }
 
 /* ── Plan map ── */
-#plan-map {
-  height: 220px;
-  background: var(--surface);
-  transition: height .3s ease, border-radius .3s ease;
-}
-#plan-map.expanded { height: 72vh; }
+
 
 /* ── Plan screen ── */
 #saved-plan { padding: 0 0 2rem; }

@@ -22,6 +22,43 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 
 /* ── MAP SHARED ── */
 .map-wrap{position:relative;margin-bottom:1rem}
+
+/* ── How tall a map is, and what happens when you open it ──────────────────
+   Seven maps had six heights — 220, 220, 220, 200, 140, 130 and 100% — and
+   no rule joining them. Two families is the rule, and the exceptions are
+   exceptions with reasons rather than drift.
+
+   A FULL MAP is the picture the screen is about: the board, the plan, the
+   onward departures. A BAND is a glance beside something else, and its height
+   is whatever leaves room for that something else — which is why the two
+   bands differ and must: 130px on the detail screen was measured so «reis»
+   clears the menu (v1.103.1), and 140px on auto-reise so four direction rows
+   stay above the fold. Those are two measurements, not two opinions.
+
+   Underveis sat at 200 with no reason recorded anywhere. It joins the full
+   family. */
+:root{
+  --map-h-full: 220px;
+  --map-h-open: 72vh;
+}
+
+/* OPENING A MAP IS ONE THING, wherever you do it. The plan screen kept its
+   rounded corners and its side margins while the other three went full-bleed
+   — the same control leaving you with two different pictures. */
+/* THE HEIGHT IS A VARIABLE, NOT A SELECTOR FIGHT.
+   The first cut set each map's closed height on its ID and the open height on
+   .map-expandable.expanded — and an ID beats two classes, so the open rule
+   never applied and the map stayed 220px with square corners. It measured as
+   «corner 8px → 0px, button ⤢ → ✕, page yields» and a height that never moved:
+   everything about opening worked except the opening.
+   Both heights live on the same selector now, and each map contributes only
+   its own number. */
+.map-expandable{
+  height:var(--map-h, var(--map-h-full));
+  border-radius:8px;overflow:hidden;background:var(--surface);
+  transition:height .3s ease,border-radius .3s ease;
+}
+.map-expandable.expanded{height:var(--map-h-open);border-radius:0;margin:0 -1rem}
 .map-expand-btn{
   position:absolute;top:6px;right:6px;z-index:500;
   width:28px;height:28px;padding:0;

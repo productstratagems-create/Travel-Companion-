@@ -17,7 +17,7 @@ import { startBoard, boardRows } from './board.js';
 import { renderAlertsInto } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
-import { createMap, drawRoute, drawWalk, userDot, drawLeg } from '../ui/map.js';
+import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
 
 function cleanName(s) { return (s || '').replace(/,\s*\S.*$/, '').replace(/\s+T$/i, '').trim(); }
@@ -237,7 +237,7 @@ function _renderSelMap(dep, fromName, toName) {
   wrap.style.display = 'block';
   destroySelMap();
   _selMapKey = key;
-  _selMap = createMap(mapEl);
+  _selMap = createMap(mapEl, { expandable: true });
   _selLayer = L.layerGroup().addTo(_selMap);
 
   const destIsVenue = dir._toLat && dir._toLon && !dir.toStopId;
@@ -346,15 +346,7 @@ function _renderSelMap(dep, fromName, toName) {
   if (pts.length) _selMap.fitBounds(pts, { padding: [40, 40], maxZoom: 15 });
   setTimeout(() => _selMap && _selMap.invalidateSize(), 100);
 
-  const expandBtn = document.getElementById('sel-map-expand');
-  if (expandBtn) {
-    expandBtn.onclick = () => {
-      const exp = mapEl.classList.toggle('expanded');
-      expandBtn.textContent = exp ? '✕' : '⤢';
-      expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
-      setTimeout(() => _selMap && _selMap.invalidateSize(), 320);
-    };
-  }
+  bindMapExpand(_selMap, mapEl, document.getElementById('sel-map-expand'));
 }
 
 export function renderSelected() {

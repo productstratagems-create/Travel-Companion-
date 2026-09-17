@@ -233,8 +233,9 @@
   .veh-live{animation:none}
 }
 
-#board-map{height:220px;border-radius:8px;overflow:hidden;margin-bottom:.5rem}
-#board-map.expanded{height:72vh;border-radius:0;margin:0 -1rem}
+/* .map-expandable carries the frame, both heights and the open state; each
+   map contributes only its own number. */
+#board-map{margin-bottom:.5rem}
 .transfer-arrow{font-size:9px;color:var(--text-soft-hi);margin:0 .15rem;vertical-align:middle}
 
 /* Vendor identity badges */

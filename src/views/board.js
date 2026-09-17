@@ -21,7 +21,7 @@ import { fetchNearbyStops, _resetNearbyCache } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, makeJourneyPointIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { fetchVehiclePositions, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
-import { createMap, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby } from '../ui/map.js';
+import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby, drawLeg, drawJourneyPoints } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _headingDeg, anchorDistances, pointAtDistance, projectOnPath } from '../ui/path.js';
 import { decodePolyline } from '../ui/polyline.js';
@@ -462,27 +462,14 @@ function _ensureMap(pos) {
   const mapEl = document.getElementById('board-map');
   if (!mapEl || _bMap) return _bMap;
 
-  _bMap = createMap(mapEl, { scale: true });
+  _bMap = createMap(mapEl, { expandable: true });
   _bMap.on('dragstart', () => { _bUserMoved = true; });
   _bLayer = L.layerGroup().addTo(_bMap);
   // Oslo S only when the app knows nothing — geoFocus says what it does know.
   const c = pos || geoFocus();
   _bMap.setView([c.lat, c.lon], 14);
   setTimeout(() => _bMap && _bMap.invalidateSize(), 100);
-  const expandBtn = document.getElementById('board-map-expand');
-  if (expandBtn) {
-    expandBtn.onclick = () => {
-      const exp = mapEl.classList.toggle('expanded');
-      // An expanded map does not fit a fixed screen, and reshaping it to fit
-      // would change the map. The board yields instead: while it is open the
-      // page scrolls exactly as it did before the fixed layout existed.
-      document.documentElement.classList.toggle('map-open', exp);
-      expandBtn.textContent = exp ? '✕' : '⤢';
-      expandBtn.setAttribute('aria-label', exp ? 'Minimer kart' : 'Utvid kart');
-      expandBtn.title = exp ? 'Minimer kart' : 'Utvid kart';
-      setTimeout(() => _bMap && _bMap.invalidateSize(), 320);
-    };
-  }
+  bindMapExpand(_bMap, mapEl, document.getElementById('board-map-expand'));
   return _bMap;
 }
 

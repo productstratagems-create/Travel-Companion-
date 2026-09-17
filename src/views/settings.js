@@ -653,6 +653,78 @@ function _pendingReturnDir() {
   return reverseOf(base);
 }
 
+/**
+ * The nearby-stops list, folded.
+ *
+ * Reported with a screenshot: eight stops between the «fra stasjon» field and
+ * the «til stopp eller stasjon» field, so the second half of the form was off
+ * the bottom of the phone. The list is useful and it is not the point of the
+ * screen — you come here to set a route, and the stop you are standing at is
+ * already in the field above.
+ *
+ * Same shape and the same words as the folded traffic messages
+ * (`otherRowHtml`, ui/alerts.js): a count, and «vis»/«skjul». A second
+ * vocabulary for «there is more here» is exactly what this codebase keeps
+ * taking out.
+ *
+ * Pure and exported so «what does it say, and does it agree with the list
+ * under it» can be tested without a browser.
+ */
+export function nearbyLabel(n) {
+  if (!n) return '';
+  return n === 1 ? '1 stopp i nærheten' : n + ' stopp i nærheten';
+}
+
+export function nearbyToggleHtml(n, open) {
+  if (!n) return '';
+  return '<button type="button" class="nearby-toggle" id="set-nearby-toggle"'
+    + ' aria-expanded="' + (open ? 'true' : 'false') + '"'
+    + ' aria-controls="set-nearby-list">'
+    + esc(nearbyLabel(n)) + ' <span class="ah-show">' + (open ? 'skjul' : 'vis') + '</span></button>';
+}
+
+/**
+ * Closed on every entry to the screen, deliberately.
+ *
+ * A module variable rather than a stored preference — the auto-reise stop list
+ * made exactly this call in v1.83.1, and storage.js still lists the key it
+ * stopped writing. Someone who opened the list once to pick a stop has not
+ * asked to see eight rows every time they come back to change a destination.
+ */
+let _nearbyOpen = false;
+
+/** The toggle's markup and its listener, in one place. */
+function _renderNearbyToggle(count) {
+  const host = document.getElementById('set-nearby-toggle-wrap');
+  if (!host) return;
+  host.innerHTML = nearbyToggleHtml(count, _nearbyOpen);
+  host.style.display = count ? 'block' : 'none';
+  const btn = document.getElementById('set-nearby-toggle');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    _nearbyOpen = !_nearbyOpen;
+    _applyNearbyOpen();
+    // Moving focus into the list it just opened, so a keyboard or a screen
+    // reader lands on what appeared rather than being left behind it.
+    if (_nearbyOpen) {
+      const first = document.querySelector('#set-nearby-list .nearby-btn');
+      if (first) first.focus();
+    }
+  });
+}
+
+/** One place that knows what «open» looks like, so the two cannot disagree. */
+function _applyNearbyOpen() {
+  const list = document.getElementById('set-nearby-list');
+  const btn = document.getElementById('set-nearby-toggle');
+  if (list) list.style.display = _nearbyOpen ? 'block' : 'none';
+  if (btn) {
+    btn.setAttribute('aria-expanded', _nearbyOpen ? 'true' : 'false');
+    const show = btn.querySelector('.ah-show');
+    if (show) show.textContent = _nearbyOpen ? 'skjul' : 'vis';
+  }
+}
+
 export function showSettings() {
   const ns = state.nearestStation;
   const depEl = document.getElementById('set-dep');
@@ -674,10 +746,13 @@ export function showSettings() {
   renderFavRouteShortcuts();
   renderReturnSection();
 
+  // Folded again on every visit — see _nearbyOpen.
+  _nearbyOpen = false;
   const nearbyList = document.getElementById('set-nearby-list');
   if (nearbyList) {
     const stations = (state.nearestStations && state.nearestStations.length)
       ? state.nearestStations : (ns ? [ns] : []);
+    _renderNearbyToggle(stations.length);
     if (stations.length) {
       nearbyList.innerHTML = stations.map(s => {
         const spd = { rolig: 41.67, middels: 83.33, rask: 116.67 }[loadWalkSpeed()] || 83.33;
@@ -689,10 +764,14 @@ export function showSettings() {
           + (mins != null ? '<span class="nearby-dist">' + mins + ' min</span>' : '')
           + '</button>';
       }).join('');
-      nearbyList.style.display = 'block';
+      nearbyList.style.display = _nearbyOpen ? 'block' : 'none';
       nearbyList.querySelectorAll('.nearby-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           if (depEl) { depEl.value = btn.dataset.name; syncClear('set-dep', 'set-dep-clear'); }
+          // Picking one is the end of the list's job, so it folds itself away
+          // and the field below gets the focus — the same move it already made.
+          _nearbyOpen = false;
+          _applyNearbyOpen();
           const arrEl = document.getElementById('set-arr');
           if (arrEl) arrEl.focus();
         });

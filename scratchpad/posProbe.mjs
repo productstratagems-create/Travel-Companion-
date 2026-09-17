@@ -257,7 +257,19 @@ async function run(scheme, tilstand) {
       // verdict at all, which no unit test on a pure function can see.
       + (() => {
           const n = v.querySelector('.auto-pos-note');
-          return n ? '  [notat ' + getComputedStyle(n).color + ']' : '';
+          if (!n) return '';
+          // HOW MANY LINES THE NOTE ITSELF OCCUPIES, measured as text runs
+          // rather than as a box: a span that wraps mid-phrase reports two
+          // client rects, and «posisjonen er / unøyaktig (±56 m)» split across
+          // a line break is the reported fault. An element box would have said
+          // nothing — it is one box either way.
+          const rng = document.createRange(); rng.selectNodeContents(n);
+          const rects = Array.from(rng.getClientRects()).filter(r => r.width > 1);
+          const facts = v.querySelector('.auto-stop-facts');
+          const fr = facts ? facts.getBoundingClientRect() : null;
+          return '  [notat ' + getComputedStyle(n).color
+            + ' · ' + rects.length + ' linje' + (rects.length === 1 ? '' : 'r')
+            + ' · faktalinja ' + (fr ? Math.round(fr.height) : '?') + ' px]';
         })()
       || '(ingen tekst)';
   });

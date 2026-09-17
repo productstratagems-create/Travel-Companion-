@@ -398,6 +398,37 @@ describe('openLine', () => {
 describe('stopHeadHtml and the position note', () => {
   const stop = { name: 'Skullerud', distM: 374 };
 
+  // ITS OWN ROW, not a third item joined with a middot.
+  //
+  // Reported with a screenshot: «979 m å gå · 14 min gange · posisjonen er
+  // unøyaktig (±56 m)» wrapped at 390px, and it wrapped INSIDE the caution.
+  // Measured as text runs, the note took two line boxes for one phrase.
+  // A middot joins peers; how far and how long are facts about the walk, and
+  // this is a caution about the sensor.
+  it('keeps the caution out of the facts line entirely', () => {
+    const el = document.createElement('div');
+    el.innerHTML = stopHeadHtml(stop, 0, false, {
+      walkDist: 979, walkMins: 14,
+      pos: { kind: 'unoyaktig', label: 'posisjonen er unøyaktig (±56 m)' },
+    });
+    const facts = el.querySelector('.auto-stop-facts');
+    const note = el.querySelector('.auto-pos-note');
+    expect(facts.textContent).toBe('979 m å gå · 14 min gange');
+    // Not nested, and no middot left dangling between them.
+    expect(facts.contains(note)).toBe(false);
+    expect(facts.textContent.endsWith('·')).toBe(false);
+    expect(note.textContent).toBe('posisjonen er unøyaktig (±56 m)');
+  });
+
+  // A caution with no facts beside it must not leave an empty facts line.
+  it('writes no facts line when there is nothing but the caution', () => {
+    const el = document.createElement('div');
+    el.innerHTML = stopHeadHtml({ name: 'Skullerud' }, 0, false,
+      { pos: { kind: 'gammel', label: 'posisjon 3 min gammel' } });
+    expect(el.querySelector('.auto-stop-facts')).toBeNull();
+    expect(el.querySelector('.auto-pos-note').textContent).toBe('posisjon 3 min gammel');
+  });
+
   it('wraps only the note, not the whole facts line', () => {
     const h = stopHeadHtml(stop, 0, false,
       { walkDist: 374, walkMins: 7,

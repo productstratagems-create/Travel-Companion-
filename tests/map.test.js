@@ -14,7 +14,7 @@ vi.mock('../src/ui/themeTokens.js', () => ({
 }));
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 
-import { currentTileUrl, drawStopLine, corridorStyle, stopsReadable, drawLeg, drawJourneyPoints, ROUTE_STOP_MIN_GAP_PX } from '../src/ui/map.js';
+import { currentTileUrl, drawStopLine, corridorStyle, stopsReadable, drawLeg, drawJourneyPoints, fitPadding, ROUTE_STOP_MIN_GAP_PX } from '../src/ui/map.js';
 
 beforeEach(() => document.documentElement.removeAttribute('data-theme'));
 
@@ -267,5 +267,28 @@ describe('drawJourneyPoints', () => {
     expect(drawn.markers).toHaveLength(1);
     expect(drawn.markers[0].tip).toContain('A');
     expect(drawn.markers[0].tip).toContain('C');
+  });
+});
+
+// ── Air around what a map frames (v1.116.0) ────────────────────────────────
+//
+// Every fit asked for a constant 40px. On the 130px detail band that is 62% of
+// the height spent on margin, and the journey filled THREE PER CENT of the
+// map — measured, after the crowding fix made the emptiness visible.
+describe('fitPadding', () => {
+  it('leaves proportionally less air on a short band than on a full map', () => {
+    expect(fitPadding(130)).toBeLessThan(fitPadding(220));
+  });
+
+  // The number that started it: 40px on 130px. Whatever the rule returns, it
+  // must not spend most of a short band on margin.
+  it('never spends more than a quarter of a short band on margin', () => {
+    expect(fitPadding(130) * 2).toBeLessThan(130 * 0.35);
+  });
+
+  it('still leaves an edge on a map with no height yet', () => {
+    expect(fitPadding(0)).toBeGreaterThan(0);
+    expect(fitPadding(undefined)).toBeGreaterThan(0);
+    expect(fitPadding(10)).toBeGreaterThan(0);
   });
 });

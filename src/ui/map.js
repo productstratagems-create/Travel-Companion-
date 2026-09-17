@@ -107,6 +107,23 @@ export function createMap(el, opts = {}) {
 }
 
 /**
+ * How much air to leave around what a map is framing.
+ *
+ * A constant 40px was asked for on every fit, and on the 130px detail band
+ * that is 62% of the height spent on margin: the journey filled THREE PER CENT
+ * of the map. A line you cannot see is not less crowded than a line with beads
+ * on it — it is a different failure, and one the crowding fix uncovered rather
+ * than caused.
+ *
+ * Proportional, so the same call is right on a 130px band and on a 220px map,
+ * and floored so a very short one still has an edge.
+ */
+export function fitPadding(heightPx) {
+  const h = Number.isFinite(heightPx) ? heightPx : 0;
+  return Math.max(8, Math.round(h * 0.12)) || 12;
+}
+
+/**
  * Open the map full-screen, and close it again — ONE behaviour.
  *
  * Reported: «maps across the app look and feel different». This button was

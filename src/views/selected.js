@@ -5,7 +5,7 @@ import { clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL } from '../geo.js';
 import { fetchJourneyMeta } from '../api/entur.js';
-import { quayLatLon, legShape, _rowDest } from '../api/adapt.js';
+import { quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 import { addLegToPlan, isLegInPlan } from '../api/plan.js';
@@ -17,7 +17,7 @@ import { startBoard, boardRows } from './board.js';
 import { renderAlertsInto } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
-import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg } from '../ui/map.js';
+import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints, fitPadding } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
 
 function cleanName(s) { return (s || '').replace(/,\s*\S.*$/, '').replace(/\s+T$/i, '').trim(); }
@@ -238,26 +238,68 @@ function _renderSelMap(dep, fromName, toName) {
   destroySelMap();
   _selMapKey = key;
   _selMap = createMap(mapEl, { expandable: true });
+  // PADDING IN PROPORTION TO THE BAND, not a number chosen for a bigger map.
+  //
+  // Both fits below asked for 40px. On a 130px map that is 62% of the height
+  // spent on margin, and the measurement is blunt: the journey filled THREE
+  // PER CENT of the band. A line you cannot see is not less crowded than a
+  // line with beads on it — it is a different failure.
+  //
+  // Named in ui/map.js so the rule is one rule — see fitPadding.
+  const pad = fitPadding(mapEl.clientHeight);
+
   _selLayer = L.layerGroup().addTo(_selMap);
 
   const destIsVenue = dir._toLat && dir._toLon && !dir.toStopId;
   const pts = [];
+
+  // FRAME FIRST, THEN DRAW — and this is the third time that order has been
+  // the answer.
+  //
+  // The beads are hidden when there is no room, and «room» is measured in
+  // pixels against the projection. fitBounds ran at the BOTTOM of this
+  // function, after the markers were placed, so drawing had no frame at all:
+  // the first attempt threw «Set map center and zoom first» and the render
+  // died with ten markers gone. A provisional setView fixed the throw and made
+  // it worse — the gate then measured a frame the map was about to leave, and
+  // the overlaps went from three to eight.
+  //
+  // v1.102.0 learned this on the board map: gather the points, fit with the
+  // animation off, then draw. `animate:false` matters — an animated fit is a
+  // frame in motion, which is no frame to measure against.
+  const frame = [];
+  legs.forEach(lg => (lg.stops || []).forEach(st => frame.push([st.lat, st.lon])));
+  if (destIsVenue) frame.push([dir._toLat, dir._toLon]);
+  if (frame.length) _selMap.fitBounds(frame, { padding: [pad, pad], maxZoom: 15, animate: false });
 
   legs.forEach(({ stops, shape, color, mode }, li) => {
     const lc = color || tokens().accent;
     // Real alignment where the leg carried one; the stop chain otherwise. The
     // markers below still come from stops either way.
     //
-    // THROUGH drawLeg. This drew every mode as one solid weight-4 stroke and
-    // never asked corridorStyle — the third of three screens to ignore an
-    // answer the app already had, so a bus was dotted on the board and solid
-    // here. `dots:false` because this map draws its own stop markers with
-    // permanent names, which is a real choice for a 130px band and not a
-    // divergence: the names ARE the markers at that size.
+    // THE STOPS YOU PASS THROUGH, on the app's terms rather than this screen's.
+    //
+    // This map drew a THIRD and FOURTH marker style for them: a 4px circle for
+    // the ones between, a 5px one for an alighting stop. Measured at 130px, ten
+    // markers produced THREE overlapping pairs — the beads ran into each other
+    // and into the endpoints, which is what made the band look busy.
+    //
+    // makeRouteStopIcon is the bead the board and underveis draw, and
+    // stopsReadable is the gate that has decided «is there room» since v1.99.
+    // Handing both to drawLeg does two things at once: the beads look like
+    // beads everywhere, and on a band this short the gate simply removes them —
+    // which is the right answer and the reason that gate exists.
     drawLeg(_selLayer, {
       mode, colour: lc,
-      pts: shape || stops.map(s => [s.lat, s.lon]), stops: [],
-    }, { dots: false });
+      pts: shape || stops.map(s => [s.lat, s.lon]),
+      stops,
+    }, { project: ll => _selMap.latLngToContainerPoint(ll) });
+
+    // The two ENDS keep their permanent names, and that is measured rather
+    // than assumed: the two labels do not overlap each other and do not leave
+    // the frame. This screen is about ONE departure from X to Y, so the names
+    // are the fact — «PÅ» and «AV» would say what the heading above already
+    // says and lose the only thing the map adds.
     stops.forEach((s, i) => {
       pts.push([s.lat, s.lon]);
       const isFirst = li === 0 && i === 0;
@@ -265,23 +307,28 @@ function _renderSelMap(dep, fromName, toName) {
       // render it as an intermediate stop, not the terminus, so the venue pin is distinct.
       const isLast  = !destIsVenue && li === legs.length - 1 && i === stops.length - 1;
       const isAlight = destIsVenue && li === legs.length - 1 && i === stops.length - 1;
-      if (isFirst || isLast) {
-        const html = '<div style="background:' + (isLast ? tokens().accent : lc) + ';border:2px solid #fff;border-radius:50%;'
-          + 'width:14px;height:14px;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>';
-        L.marker([s.lat, s.lon], { icon: L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] }) })
-          .bindTooltip(s.name, { permanent: true, direction: isFirst ? 'bottom' : 'top', offset: [0, isFirst ? 8 : -10], className: 'sel-stop-label' })
-          .addTo(_selLayer);
-      } else if (isAlight) {
-        L.circleMarker([s.lat, s.lon], { radius: 5, color: '#fff', fillColor: lc, fillOpacity: 0.9, weight: 2 })
-          .bindTooltip(s.name, { permanent: true, direction: 'top', offset: [0, -8], className: 'sel-stop-label' })
-          .addTo(_selLayer);
-      } else {
-        L.circleMarker([s.lat, s.lon], { radius: 4, color: '#fff', fillColor: lc, fillOpacity: 0.9, weight: 1.5 })
-          .bindTooltip(s.name, { className: 'sel-stop-label', direction: 'top' })
-          .addTo(_selLayer);
-      }
+      if (!isFirst && !isLast && !isAlight) return;
+      const html = '<div style="background:' + (isLast ? tokens().accent : lc) + ';border:2px solid #fff;border-radius:50%;'
+        + 'width:14px;height:14px;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>';
+      L.marker([s.lat, s.lon], { icon: L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] }) })
+        .bindTooltip(s.name, { permanent: true, direction: isFirst ? 'bottom' : 'top', offset: [0, isFirst ? 8 : -10], className: 'sel-stop-label' })
+        .addTo(_selLayer);
     });
   });
+
+  // AND THE CHANGE, which this screen marked with nothing at all.
+  //
+  // The board says «BYTT» and underveis says «BYTT»; here a two-leg departure
+  // simply changed colour mid-line and left the reader to infer where. The
+  // same rule and the same marker, fed the leg ends this screen holds.
+  drawJourneyPoints(_selLayer, journeyPoints(legs.map((lg, i) => ({
+    mode: lg.mode,
+    fromPlace: { name: lg.stops[0].name, latitude: lg.stops[0].lat, longitude: lg.stops[0].lon },
+    toPlace: { name: lg.stops[lg.stops.length - 1].name,
+      latitude: lg.stops[lg.stops.length - 1].lat, longitude: lg.stops[lg.stops.length - 1].lon },
+  }))).filter(p => p.kind === 'change'),
+  { colour: (legs[0] && legs[0].color) || tokens().accent,
+    project: ll => _selMap.latLngToContainerPoint(ll), minPoints: 1 });
 
   // Walking extension to venue destination
   if (destIsVenue) {
@@ -343,7 +390,12 @@ function _renderSelMap(dep, fromName, toName) {
     }
   }
 
-  if (pts.length) _selMap.fitBounds(pts, { padding: [40, 40], maxZoom: 15 });
+  // The final frame, which can be wider than the one measured against: the
+  // walk from where you stand was not known when the beads were decided. The
+  // beads stay as they were rather than being re-judged mid-render — a marker
+  // that appears and disappears within one paint is worse than one drawn
+  // against a frame a little tighter than the last.
+  if (pts.length) _selMap.fitBounds(pts, { padding: [pad, pad], maxZoom: 15, animate: false });
   setTimeout(() => _selMap && _selMap.invalidateSize(), 100);
 
   bindMapExpand(_selMap, mapEl, document.getElementById('sel-map-expand'));

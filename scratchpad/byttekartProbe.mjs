@@ -334,6 +334,42 @@ async function run(scheme, affectsOk) {
   await page.click('#dep-list .dep-row', { force: true });
   await page.waitForSelector('#v-selected', { state: 'visible', timeout: 8000 });
   await page.waitForTimeout(1600);
+  // THE CROWDING ON 130 px, measured as overlapping marker boxes rather than
+  // as an impression. Six marker styles live on this map: 14px endpoints with
+  // permanent names, a 5px alight, 4px intermediates — and none of them is the
+  // shared bead the rest of the app draws.
+  const trengsel = await page.evaluate(() => {
+    const m = document.querySelector('#sel-map');
+    if (!m) return null;
+    const box = m.getBoundingClientRect();
+    const marks = Array.from(m.querySelectorAll('.leaflet-marker-icon, path.leaflet-interactive'))
+      .map(e => e.getBoundingClientRect()).filter(r => r.width > 0);
+    const labels = Array.from(m.querySelectorAll('.leaflet-tooltip'))
+      .filter(e => getComputedStyle(e).display !== 'none')
+      .map(e => ({ t: e.textContent.trim(), r: e.getBoundingClientRect() }));
+    const over = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1
+      && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+    let mo = 0, lo = 0;
+    for (let i = 0; i < marks.length; i++) for (let j = i + 1; j < marks.length; j++)
+      if (over(marks[i], marks[j])) mo++;
+    for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++)
+      if (over(labels[i].r, labels[j].r)) lo++;
+    const utenfor = labels.filter(l => l.r.left < box.left - 1 || l.r.right > box.right + 1).length;
+    // How much of the band the journey actually fills. 40px of padding on a
+    // 130px map is 62% of its height, and a fix for crowding that leaves the
+    // content too small to read has traded one fault for another.
+    const line = m.querySelector('path');
+    const lr = line ? line.getBoundingClientRect() : null;
+    const fyller = lr ? Math.round(100 * (lr.width * lr.height) / (box.width * box.height)) : 0;
+    return { h: Math.round(box.height), marks: marks.length, mo, fyller,
+      etiketter: labels.map(l => l.t), lo, utenfor };
+  });
+  console.log('   detalj-trengsel:', trengsel
+    ? trengsel.h + ' px · ' + trengsel.marks + ' markører, ' + trengsel.mo + ' overlapp · reisa fyller ' + trengsel.fyller + '%'
+      + ' · ' + trengsel.etiketter.length + ' faste etiketter ('
+      + trengsel.etiketter.join(', ') + '), ' + trengsel.lo + ' overlapp, '
+      + trengsel.utenfor + ' utenfor kanten'
+    : '(ingen kart)');
   const sel = await strokesOf('#sel-map');
   console.log('   detalj  :', sel.streker.join('  |  '), sel.ord.length ? ' ord: ' + sel.ord.join(' → ') : '');
   await shoot('#sel-map', 'detalj');

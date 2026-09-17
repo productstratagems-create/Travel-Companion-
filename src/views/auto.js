@@ -1841,6 +1841,15 @@ export function renderAuto() {
 }
 
 /** Fresh screen when the mode is entered, so it never opens on a stale stop. */
+/**
+ * Does auto-reise have a stop to be about?
+ *
+ * Exported so the landing can ask rather than reach into a module variable.
+ * The whole screen hangs off this one object: with it there are directions, a
+ * map and a walk; without it there is an apology and a link to a form.
+ */
+export function hasStop() { return !!_stop; }
+
 export function resetAuto() {
   _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null; _alerts = [];
   _resetAutoMap();

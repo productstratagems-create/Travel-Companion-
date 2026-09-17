@@ -1,4 +1,8 @@
 import config from './config.js';
+// The tenth copy of the stop normaliser, and one the v1.107.0 sweep missed:
+// this file had its own lowercase-and-trim `_norm` for «am I standing at the
+// example's own destination». Same question, so the same rule.
+import { stopKey as _norm } from './stopId.js';
 
 /**
  * What a stranger sees first.
@@ -49,6 +53,53 @@ export function landingChoice(o) {
   if (s.storedRoute) return 'stored';
   if (s.savedDest) return 'legacy';
   return s.autoPref === 'off' ? 'example' : 'auto';
+}
+
+/**
+ * How long auto-reise gets to find a stop before the example board answers.
+ *
+ * A window, not a race: GPS takes a second or two on a good day, and bouncing
+ * a reader off the screen they landed on before the fix could possibly arrive
+ * would be its own bug. Four seconds is past the ordinary fix and well short
+ * of the point where someone concludes the app is broken.
+ */
+export const AUTO_FALLBACK_MS = 4000;
+
+/**
+ * Auto-reise has nothing to show. Is the example board better than an apology?
+ *
+ * THE FIRST SCREEN WENT BACK TO BEING A FORM, and nobody noticed because the
+ * thing that was supposed to prevent it still existed. `firstRun.js` was
+ * written because a stranger met two empty text fields — «You cannot *try*
+ * something that demands to be filled in first» — and the answer was a working
+ * example board. Then v1.61.0 made the ladder's last rung auto-reise, which is
+ * a POSITION-FIRST screen, and the example became reachable only by a reader
+ * who had turned auto-reise off. A first-time visitor cannot have done that.
+ *
+ * So the measured first impression, with nothing stored, was «Stedstjenester er
+ * avslått» and a link to the form. The same screen, by a different road.
+ *
+ * YES exactly when the app holds nothing of the reader's — no stored route, no
+ * saved destination, no journey. Then this is still a first visit however many
+ * times it has happened, and a board that works beats a link to a form.
+ *
+ * NO the moment they have a route of their own: they know what auto-reise is,
+ * they chose to be here, and throwing them onto a board about somewhere else
+ * would be worse than saying plainly that the position is missing. The
+ * auto-mode preference deliberately does NOT enter into it — main.js writes it
+ * the first time it lands here, so from the second visit every stranger would
+ * look like someone who had chosen this screen.
+ */
+export function exampleFallback(o) {
+  const s = o || {};
+  if (s.hasStop) return false;
+  // A POSITION WITH NO STOP NEAR IT IS AN ANSWER, not an absence. The reader
+  // granted location, the app found them, and «ingen holdeplass innenfor 850
+  // meter» is true and about them. Replacing that with a board about
+  // Jernbanetorget would trade something they can act on for something they
+  // cannot. Caught by the probe, which fell back on the granted run too.
+  if (s.posKind === 'ingen-stopp') return false;
+  return !s.storedRoute && !s.savedDest && !s.hasJourney;
 }
 
 /**
@@ -119,6 +170,4 @@ export function upgradeToNearest(dir, ns) {
   };
 }
 
-function _norm(s) {
-  return String(s || '').toLowerCase().trim();
-}
+

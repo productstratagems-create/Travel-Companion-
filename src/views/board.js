@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { liveness } from '../api/liveness.js';
 import { normMode } from '../api/stopCats.js';
 import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
@@ -2330,14 +2331,16 @@ function renderWalkSummary() {
 
 // Data older than this can no longer be trusted for a countdown — underground
 // the connection drops silently and the board would otherwise look live.
-const STALE_AFTER_MS = 60_000;
-
+//
+// The number and the judgement moved to api/liveness.js in v1.106.0, so the
+// tracking screen could use the rule the board got right instead of growing a
+// second copy of it beside itself. The board's own WORDS stay here: the stamp
+// carries a clock time, which underveis deliberately does not.
 function renderUpdatedStamp() {
   const el = document.getElementById('board-updated');
   if (!el) return false;
   if (state.lastFetch === null) { el.style.display = 'none'; return false; }
-  const age = Date.now() - state.lastFetch;
-  const stale = age > STALE_AFTER_MS;
+  const stale = !liveness({ fetchedAt: state.lastFetch, now: Date.now() }).live;
   el.textContent = stale
     ? 'sist oppdatert ' + clk(state.lastFetch) + ' · ikke sanntid nå'
     : 'sist oppdatert ' + clk(state.lastFetch);

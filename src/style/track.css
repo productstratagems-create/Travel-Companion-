@@ -341,3 +341,32 @@
   border-radius:3px;padding:0 2px;margin-right:2px;
   vertical-align:middle;line-height:1.4
 }
+
+/* HOW OLD WHAT YOU ARE READING IS.
+   Sits under the progress strip, in the same 9px caption voice as .js-cap —
+   it qualifies that caption and should not outweigh it. Colour carries the
+   escalation, and only past «gammel»: an amber line for every ordinary
+   twenty-second gap would train the reader to stop seeing it. */
+.t-live{
+  text-align:center;
+  font-size:9px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  margin:.3rem 0 .1rem;
+}
+.t-live-gammel{color:var(--warn)}
+.t-live-borte,
+.t-live-tapt,
+.t-live-frakoblet{color:var(--err)}
+
+/* A cancelled run's countdown still says when it WOULD have arrived — struck
+   through so it cannot be read as a promise. Same voice as .hn-arr-row
+   .cancelled above, which has said this about onward arrivals since v1.88. */
+#v-track.track-cancelled .track-num,
+#v-track.track-cancelled .track-arr-clock{
+  text-decoration:line-through;
+  opacity:.45;
+}
+#v-track.track-cancelled .track-num-label,
+#v-track.track-cancelled .track-arr-label{opacity:.45}

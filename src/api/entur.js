@@ -653,6 +653,20 @@ export function fetchArrBoard(stopId, n) {
     });
 }
 
+/**
+ * The stops of one journey, and WHEN THE ANSWER ARRIVED.
+ *
+ * Returned as `{ calls, fetchedAt }` rather than a bare array from v1.106.0.
+ * The timestamp is the whole point: without it the tracking screen could not
+ * tell a fetch that just succeeded from twenty that failed in a row, because
+ * both leave the same stop list in place. It is stamped HERE, at the moment
+ * the response is parsed, because that is the only place that knows — a caller
+ * stamping `Date.now()` after its own `.then` would be timing itself.
+ *
+ * A GraphQL error is thrown rather than swallowed. It used to return null
+ * indistinguishably from «no such journey», and the caller logged both to a
+ * console the reader has no way to open.
+ */
 export function fetchTrack(journeyId) {
   return enturFetch(config.api.journeyPlanner, {
     method: 'POST',
@@ -661,8 +675,10 @@ export function fetchTrack(journeyId) {
   })
     .then(r => r.json())
     .then(j => {
+      if (j && j.errors && j.errors.length) throw new Error(j.errors[0].message);
       const sj = j && j.data && j.data.serviceJourney;
-      return (sj && sj.estimatedCalls) || null;
+      const calls = (sj && sj.estimatedCalls) || null;
+      return { calls, fetchedAt: Date.now() };
     });
 }
 

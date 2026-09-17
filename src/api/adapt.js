@@ -124,7 +124,15 @@ export function adaptTripPattern(tp) {
       expectedDepartureTime: firstDepTime,
       aimedDepartureTime:    first.fromEstimatedCall ? first.fromEstimatedCall.aimedDepartureTime : (first.aimedStartTime || firstDepTime),
       realtime:              first.fromEstimatedCall ? first.fromEstimatedCall.realtime : false,
-      cancellation:          false,
+      // NOT a hardcoded false any more.
+      //
+      // It was one, from the first version of this adapter, because nothing in
+      // the trip query ever asked — so every trip-search result claimed to be
+      // running, including the ones that are not. A departure the board shows
+      // as innstilt was shown here as ordinary. v1.106.0 asks for it on
+      // `fromEstimatedCall` and reads the answer: the call you BOARD at is the
+      // one whose cancellation makes this row useless to you.
+      cancellation:          !!(first.fromEstimatedCall && first.fromEstimatedCall.cancellation),
       destinationDisplay:    { frontText: lastAny.toPlace.name || last.toPlace.name },
       quay:                  { publicCode: (first.fromEstimatedCall && first.fromEstimatedCall.quay && first.fromEstimatedCall.quay.publicCode) || '?' },
       serviceJourney: {

@@ -143,6 +143,13 @@ describe('boardGQL(id, n)', () => {
 describe('trackGQL(jid)', () => {
   const q = trackGQL('RUT:ServiceJourney:3-123456');
 
+  // v1.106.0. The one fact that could turn the whole tracking screen into a
+  // lie — a cancelled run counted down to an arrival that will not happen —
+  // and the only field on this call that was never asked for.
+  it('asks whether the journey is cancelled', () => {
+    expect(q).toContain('cancellation');
+  });
+
   it('contains the journey ID', () => {
     expect(q).toContain('RUT:ServiceJourney:3-123456');
   });

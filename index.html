@@ -150,6 +150,10 @@
   </div>
   <div id="t-alerts" style="display:none"
     role="region" aria-label="Servicevarsler" aria-live="polite"></div>
+  <!-- Innstilt: above everything, because it invalidates everything below.
+       assertive, not polite — a cancelled run is the one thing on this screen
+       worth interrupting a reader for. -->
+  <div id="t-cancel" style="display:none" role="status" aria-live="assertive"></div>
   <div id="follow-jny-panel-track" style="display:none"></div>
   <div class="train-bar" id="t-train-bar"></div>
   <div class="map-wrap" id="t-map-wrap" style="display:none">
@@ -157,6 +161,8 @@
     <button class="map-expand-btn" id="t-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
   </div>
   <div id="j-strip" role="img" aria-label="Reisens framdrift" style="display:none"></div>
+  <!-- How old the strip above it is. Silent while the feed is fresh. -->
+  <div id="t-live" class="t-live" style="display:none" role="status" aria-live="polite"></div>
   <div class="track-center">
     <div class="track-num" id="t-num">—</div>
     <div class="track-num-label" id="t-lbl">min til ankomst</div>

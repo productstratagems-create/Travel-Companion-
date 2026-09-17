@@ -155,7 +155,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
     + (minimal ? '' : ' ' + sits)
     + ' estimatedCalls{quay{latitude longitude stopPlace{id name latitude longitude}}'
     + ' aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
-    + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime occupancyStatus quay{publicCode} destinationDisplay{frontText}}'
+    + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime cancellation occupancyStatus quay{publicCode} destinationDisplay{frontText}}'
     + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime quay{publicCode}}'
     + '} } } }';
 }
@@ -274,10 +274,25 @@ export function normJid(jid) {
   return String(jid || '').replace(/^([a-z]+):/, m => m.toUpperCase());
 }
 
+/**
+ * The stops of the journey being ridden, polled every twenty seconds.
+ *
+ * `cancellation` is asked for here from v1.106.0. It was the one fact that
+ * could turn the whole screen into a lie — a cancelled run you are standing on
+ * a platform for, counting down to an arrival that will not happen — and it
+ * was the only field on this call that was never requested.
+ *
+ * It needs NO PROBE, unlike `affects` or the per-line cap. `journeyGQL` below
+ * has asked for `cancellation` on EstimatedCall in shipped code since v1.44,
+ * against this same type on this same endpoint. The schema has already
+ * answered; asking a second time from a sandbox that cannot reach
+ * api.entur.io would prove nothing the running app has not proved.
+ */
 export function trackGQL(jid) {
   return '{serviceJourney(id:"' + normJid(jid) + '"){'
     + 'estimatedCalls{quay{latitude longitude stopPlace{id name latitude longitude}} '
-    + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime realtime}}}';
+    + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime '
+    + 'cancellation realtime}}}';
 }
 
 // Richer query used by fetchJourneyMeta — includes cancellation + platform per call.

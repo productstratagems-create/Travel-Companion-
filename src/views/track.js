@@ -17,6 +17,7 @@ import { snapToCorridor } from '../ui/corridor.js';
 import { _trainPosition, SRC_LABEL } from './trainPosition.js';
 import { renderJourneyStrip } from './journeyStrip.js';
 import { renderAlertsInto } from '../ui/alerts.js';
+import { liveness, legCancelled } from '../api/liveness.js';
 import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
@@ -33,6 +34,20 @@ let _walkTimer  = null;
 let _walkAbort  = null;
 
 const RECENT_KEY = 't.recentDests';
+
+/**
+ * WHEN AN ANSWER LAST ARRIVED, and how many asks have failed since.
+ *
+ * Module variables, not markup: the screen re-renders every second
+ * (renderTickMs), so anything kept in the DOM is rewritten before it can be
+ * read back. The same reason `expanded` lives up here.
+ *
+ * `_trackFail` counts CONSECUTIVE failures and is reset by any success — it
+ * exists for the one case age cannot describe, the very first poll of a
+ * restored journey failing, where there is no previous answer to be old.
+ */
+let _trackAt = null;
+let _trackFail = 0;
 
 let _arrBoard = null;
 let _destAlerts = null;
@@ -1675,6 +1690,66 @@ export function renderTrack() {
   _updateUserMarker();
   _renderTrackMap(now, cs, legs);
   _renderJourneyStrip(now, cs, legs);
+  _renderLive(now, cs, legs);
+}
+
+/**
+ * The two things this screen never said.
+ *
+ * «Innstilt» goes ABOVE everything, in the same bar and the same words the
+ * detail screen has used since v1.44 — a reader who saw it there and then
+ * boarded should not have to learn a second vocabulary for the same fact.
+ *
+ * Freshness goes UNDER the progress strip, because that is where the claim it
+ * qualifies is made: the strip's caption already names which sensor placed the
+ * train, and this says how long ago it spoke. Placing it by the countdown
+ * would have put the disclaimer three elements away from what it disclaims.
+ *
+ * NOTHING IS WRITTEN WHEN ALL IS WELL. A line reading «sanntid» under a strip
+ * that already says «etter sanntid» is noise, and this app has removed that
+ * shape twice before. The row appears exactly when there is something a reader
+ * could act on.
+ */
+function _renderLive(now, cs, legs) {
+  const leg = legs[cs.i] || legs[0];
+
+  const cb = document.getElementById('t-cancel');
+  if (cb) {
+    // The leg you are on, or the one you are waiting on a platform for — the
+    // same choice _fetchTrack makes about which leg to poll, so the banner and
+    // the data behind it cannot be about different legs.
+    const active = legs[cs.phase === 'platform' ? cs.next : cs.i];
+    const on = !!(active && active.cancelled);
+    cb.innerHTML = on
+      ? '<div class="jny-status-bar jny-status-cancelled">'
+        + esc('Avgangen er innstilt' + (active.cancelledAt ? ' \u2014 ' + active.cancelledAt : ''))
+        + '</div>'
+      : '';
+    cb.style.display = on ? 'block' : 'none';
+
+    // AND THE COUNTDOWN STOPS CLAIMING TO BE TRUE.
+    //
+    // The banner alone left a three-digit number counting down to an arrival
+    // that will not happen, in the largest type on the screen — the one thing
+    // a reader glancing at their phone actually reads. Struck through and
+    // dimmed, in the same voice the onward list already uses for a cancelled
+    // arrival (.hn-arr-row.cancelled), so it still says WHEN it would have
+    // been without being read as a promise.
+    const scr = document.getElementById('v-track');
+    if (scr) scr.classList.toggle('track-cancelled', on);
+  }
+
+  const el = document.getElementById('t-live');
+  if (!el) return;
+  const lv = liveness({
+    fetchedAt: _trackAt, now, failures: _trackFail,
+    online: typeof navigator === 'undefined' ? true : navigator.onLine !== false,
+  });
+  // 'fersk' says only «working», which the screen already implies.
+  if (lv.kind === 'fersk' || cs.phase === 'arrived') { el.style.display = 'none'; return; }
+  el.textContent = lv.label;
+  el.className = 't-live t-live-' + lv.kind;
+  el.style.display = 'block';
 }
 
 /**
@@ -1809,9 +1884,19 @@ function _fetchTrack() {
   if (!leg || !leg.journeyId) return;
 
   fetchTrack(leg.journeyId)
-    .then(calls => {
-      if (!calls) return;
+    .then(res => {
+      // The answer arrived. That is the fact worth recording — it is true even
+      // when the journey has no calls to give, and it is what separates «in
+      // time» from «no news since 08:12».
+      _trackAt = res.fetchedAt; _trackFail = 0;
+      const calls = res.calls;
+      if (!calls) { renderTrack(); return; }
       leg.stops = calls;
+      // Is the run you are on still running? Asked of the two calls that are
+      // yours, boarding and alighting — see legCancelled.
+      const cx = legCancelled(calls, leg.fromStation, leg.toStation);
+      leg.cancelled = cx.cancelled;
+      leg.cancelledAt = cx.at;
       // Update arrival time for this leg
       const d = findArr(calls, leg.toStation);
       if (d) {
@@ -1833,7 +1918,13 @@ function _fetchTrack() {
       }
       renderTrack();
     })
-    .catch(err => logMsg('track ✗ ' + err.message, 'err'));
+    .catch(err => {
+      // Counted, then rendered. Logging alone is what made this screen silent:
+      // logMsg writes to a panel the reader has no way to open on a phone.
+      _trackFail++;
+      logMsg('track ✗ ' + err.message, 'err');
+      renderTrack();
+    });
 
   // Pre-fetch all remaining legs while riding so cards show stops immediately,
   // and refresh their dep/arr times from live data — without this, a delay on
@@ -1844,9 +1935,15 @@ function _fetchTrack() {
       const nxt = state.jny.legs[j];
       if (nxt && nxt.journeyId) {
         fetchTrack(nxt.journeyId)
-          .then(calls => {
+          .then(res => {
+            const calls = res.calls;
             if (!calls) return;
             nxt.stops = calls;
+            // A later leg cancelled is news you can still act on — it is why
+            // this prefetch exists at all.
+            const cx = legCancelled(calls, nxt.fromStation, nxt.toStation);
+            nxt.cancelled = cx.cancelled;
+            nxt.cancelledAt = cx.at;
             if (nxt.fromStation) {
               const depStop = findArr(calls, nxt.fromStation);
               const dt = depStop && (depStop.expectedDepartureTime || depStop.aimedDepartureTime);

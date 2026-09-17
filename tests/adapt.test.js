@@ -490,3 +490,34 @@ describe('_rowDest', () => {
     expect(_rowDest(null)).toEqual({ text: '', walkMins: 0 });
   });
 });
+
+
+// --- Cancellation (v1.106.0) ---
+//
+// `cancellation: false` was hardcoded in this adapter from its first version,
+// because the trip query never asked. Every trip-search result therefore
+// claimed to be running, including the ones the board showed as innstilt.
+describe('adaptTripPattern — cancellation', () => {
+  const withBoarding = (patch) => {
+    const tp = JSON.parse(JSON.stringify(oneLeMetro));
+    Object.assign(tp.legs.find(l => l.mode !== 'foot').fromEstimatedCall, patch);
+    return tp;
+  };
+
+  it('reports a cancelled boarding call as cancelled', () => {
+    expect(adaptTripPattern(withBoarding({ cancellation: true })).cancellation).toBe(true);
+  });
+
+  it('reports an ordinary departure as running', () => {
+    expect(adaptTripPattern(withBoarding({ cancellation: false })).cancellation).toBe(false);
+  });
+
+  // The field is absent whenever the API omits it. Absent is not cancelled —
+  // the expensive direction of that mistake is striking through a departure
+  // that is running.
+  it('treats a missing flag as running, not as cancelled', () => {
+    const tp = JSON.parse(JSON.stringify(oneLeMetro));
+    delete tp.legs.find(l => l.mode !== 'foot').fromEstimatedCall.cancellation;
+    expect(adaptTripPattern(tp).cancellation).toBe(false);
+  });
+});

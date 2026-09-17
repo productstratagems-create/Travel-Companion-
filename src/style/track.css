@@ -270,8 +270,15 @@
 
 /* Connection risk banner */
 .conn-alert{margin:.75rem 0 0;padding:.6rem .85rem;border-radius:6px;font-size:12px;font-weight:600;line-height:1.35}
-.conn-alert-risk{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.65)}
-.conn-alert-miss{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.65)}
+/* TWO VERDICTS THAT LOOKED IDENTICAL. These two rules were byte-for-byte the
+   same declaration, so «you cannot make this change» and «hurry» were one grey
+   box — the probe photographed both and the colours matched exactly. Getting
+   the verdict right and then painting it the same as its opposite is the
+   v1.106.0 lesson one layer down.
+   Restrained on purpose: the row is a statement, not an alarm, and the rest of
+   this app says urgency with colour rather than with weight. */
+.conn-alert-risk{background:rgba(var(--warn-rgb),.06);border:1px solid rgba(var(--warn-rgb),.22);color:var(--warn)}
+.conn-alert-miss{background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.22);color:#ef4444}
 
 /* Delay tag on queued leg cards */
 .ct-delay-tag{margin-left:auto;font-size:10px;font-weight:700;color:#ef4444;background:rgba(239,68,68,.1);border-radius:3px;padding:1px 5px}

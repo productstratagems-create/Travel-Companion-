@@ -420,6 +420,93 @@ export function transferMargin(depTs, arrivalTs, sameQuay, extraMins) {
   return Math.floor((depTs - arrivalTs) / 60000) - cost;
 }
 
+/**
+ * ONE VERDICT ABOUT THE CHANGE YOU ARE ABOUT TO MAKE.
+ *
+ * The screen gave two. The onward list went through `transferMargin` — the
+ * platform floor, your own «ekstra tid», floored minutes — while the banner
+ * eight hundred lines below computed `Math.round((depTs - arrTs) / 60000)` and
+ * compared it against a bare `3`. So one transfer got two answers at once:
+ *
+ *   arriving 08:00, onward 08:02, different platform, «ekstra tid» 5 min
+ *     the list    margin 2 − 3 − 5 = −6   ⇒  struck through, "you missed it"
+ *     the banner  margin 2               ⇒  "3 venter · 2 min byttetid"
+ *
+ * Three separate disagreements in one expression: the floor was missing, the
+ * reader's own setting was missing, and `round` against `floor` disagrees
+ * about every half minute on top.
+ *
+ * WHETHER IT IS THE SAME PLATFORM CANNOT BE KNOWN HERE, and that is worth
+ * saying rather than guessing. `trackGQL` asks each call for
+ * `quay{latitude longitude stopPlace{…}}` and no `publicCode`, so the platform
+ * a mid-journey leg ARRIVES on is not in the data at all — only the one it
+ * departs from, via `saveJny`. So this assumes a platform change, which is the
+ * conservative direction: it costs three minutes that may not be needed,
+ * rather than promising a change that cannot be made. `arrRows` already
+ * assumes exactly this whenever `arrQuay` is null.
+ *
+ * @param {object} curLeg  the leg being ridden
+ * @param {object} nextLeg the leg after it
+ * @param {number} extraMins the reader's «ekstra tid» (t.walkBuf)
+ * @returns {{margin: number, rcls: string, kind: 'miss'|'tight'|null}|null}
+ */
+export function transferState(curLeg, nextLeg, extraMins) {
+  if (!curLeg || !nextLeg || !curLeg.arrTime || !nextLeg.depTime) return null;
+  const arrTs = new Date(curLeg.arrTime.time).getTime();
+  const depTs = new Date(nextLeg.depTime.time).getTime();
+  if (!Number.isFinite(arrTs) || !Number.isFinite(depTs)) return null;
+
+  const margin = transferMargin(depTs, arrTs, false, extraMins);
+  // THE SAME BUCKETS THE LIST USES. The banner's own `<= 3` was a second,
+  // unnamed copy of the platform floor's idea, applied to a different number —
+  // so it could call a transfer comfortable while the row for the very same
+  // departure was struck through.
+  const rcls = reachCls(margin);
+  const kind = rcls === 'missed' ? 'miss'
+    : (rcls === 'r-now' || rcls === 'r-soon') ? 'tight'
+    : null;
+  return { margin, rcls, kind };
+}
+
+/**
+ * The banner for that verdict, and the reading of the reader's own setting.
+ *
+ * THE SEAM, pulled out for the same reason `arrRows` was: the wiring is what
+ * goes wrong, not the arithmetic. `transferState` is pure and was fully
+ * tested, and two mutants still survived — one that stopped passing
+ * `loadWalkBuffer()` and one that stopped printing the margin — because
+ * nothing bound the renderer to the rule. track.js has written that lesson
+ * down once already, about a renderer that fed `Date.now()` where an arrival
+ * time belonged.
+ *
+ * @returns {string} the banner's HTML, or '' when there is nothing to warn about
+ */
+export function connAlertHtml(legs, i, extraMins) {
+  const nextLeg = legs && legs[i + 1];
+  if (!nextLeg) return '';
+  // The reader's own setting is the DEFAULT, not something the caller has to
+  // remember — forgetting it is exactly the mutant that survived a fully
+  // tested pure function. A test binds the default to loadWalkBuffer() rather
+  // than to a literal, so dropping the read cannot pass.
+  const extra = extraMins == null ? loadWalkBuffer() : extraMins;
+  const tx = transferState(legs[i], nextLeg, extra);
+  if (!tx || !tx.kind) return '';
+  if (tx.kind === 'miss') {
+    return '<div class="conn-alert conn-alert-miss">'
+      + 'Neste ' + esc(nextLeg.lineCode) + ' går fra ' + esc(displayStn(nextLeg.fromStation))
+      + (nextLeg.depTime ? ' · avg ' + esc(nextLeg.depTime.clk) : '')
+      + '</div>';
+  }
+  // The margin SHOWN is the one the verdict was made on. It used to be a
+  // different number from the one the decision used, so the banner could say
+  // «2 min byttetid» about a change it had judged comfortable.
+  return '<div class="conn-alert conn-alert-risk">'
+    + esc(nextLeg.lineCode) + ' venter'
+    + (tx.margin > 0 ? ' · ' + tx.margin + ' min byttetid' : '')
+    + (nextLeg.quay ? ' · Spor ' + esc(nextLeg.quay) : '')
+    + '</div>';
+}
+
 /** How far ahead the onward list looks. */
 export const ARR_BOARD_HORIZON_MINS = 90;
 /** How many onward departures are offered. */
@@ -701,6 +788,12 @@ function _makeTransitStopIcon(code, bg, mode) {
 }
 
 const normStn = stopKey;   // was a private copy of the same rule
+/**
+ * A stop name to PRINT. normStn beside it is a MATCHER — it is stopKey, so it
+ * lowercases — and six places on this screen printed its output, which is why
+ * the connection banner read «går fra hellerud». A name for comparing and a
+ * name for reading are two jobs; this one keeps the capitals.
+ */
 function displayStn(s) { return String(s).replace(/,.*$/, '').trim(); }
 
 function renderStopRow(r, isNext) {
@@ -1322,8 +1415,8 @@ export function renderTrack() {
     if (leg.arrTime) {
       cEl.textContent = leg.arrTime.clk;
       laEl.textContent = isLastLeg
-        ? 'ankommer ' + normStn(state.jny.dest)
-        : 'bytt på ' + normStn(leg.toStation);
+        ? 'ankommer ' + displayStn(state.jny.dest)
+        : 'bytt på ' + displayStn(leg.toStation);
     } else { cEl.textContent = ''; laEl.textContent = ''; }
   } else { // platform
     const nextLeg = legs[cs.next];
@@ -1343,7 +1436,7 @@ export function renderTrack() {
     }
     if (nextLeg && nextLeg.depTime) {
       cEl.textContent = nextLeg.depTime.clk;
-      laEl.textContent = 'avgang fra ' + normStn(nextLeg.fromStation) + (nextLeg.quay ? ' · spor ' + nextLeg.quay : '');
+      laEl.textContent = 'avgang fra ' + displayStn(nextLeg.fromStation) + (nextLeg.quay ? ' · spor ' + nextLeg.quay : '');
     } else { cEl.textContent = ''; laEl.textContent = ''; }
   }
 
@@ -1472,12 +1565,12 @@ export function renderTrack() {
         + '<span class="ct-dest">' + leg.frontText + '</span>'
         + '</div>'
         + '<div class="ct-detail ct-detail-2">'
-        + '<span class="ct-from">fra <strong>' + normStn(leg.fromStation || '') + '</strong>'
+        + '<span class="ct-from">fra <strong>' + esc(displayStn(leg.fromStation || '')) + '</strong>'
         + (leg.depTime ? ' · avg ' + leg.depTime.clk : '') + '</span>'
         + '</div>'
         + '<div class="ct-detail ct-detail-2">'
         + (arrT
-          ? '<span class="ct-time">' + (isLastLeg ? 'ank. ' : 'bytt ') + '<strong>' + normStn(leg.toStation) + '</strong> ' + arrT.clk + (mToAction ? ' · ' + mToAction : '') + '</span>'
+          ? '<span class="ct-time">' + (isLastLeg ? 'ank. ' : 'bytt ') + '<strong>' + esc(displayStn(leg.toStation)) + '</strong> ' + arrT.clk + (mToAction ? ' · ' + mToAction : '') + '</span>'
           : '<span class="ct-time" style="color:#57534e">laster…</span>')
         + (stopsLeft > 0 ? '<span class="ct-stops">' + stopsLeft + (stopsLeft === 1 ? ' stopp' : ' stopp') + '</span>' : '')
         + '</div>';
@@ -1523,24 +1616,7 @@ export function renderTrack() {
   if (connAlertEl) {
     let alertHtml = '';
     if (phase === 'riding' && i < legs.length - 1) {
-      const curLeg = legs[i];
-      const nextLeg = legs[i + 1];
-      if (curLeg.arrTime && nextLeg.depTime) {
-        const arrTs = new Date(curLeg.arrTime.time).getTime();
-        const depTs = new Date(nextLeg.depTime.time).getTime();
-        const marginMins = Math.round((depTs - arrTs) / 60000);
-        if (marginMins < 0) {
-          alertHtml = '<div class="conn-alert conn-alert-miss">'
-            + 'Neste ' + nextLeg.lineCode + ' går fra ' + normStn(nextLeg.fromStation)
-            + (nextLeg.depTime ? ' · avg ' + nextLeg.depTime.clk : '')
-            + '</div>';
-        } else if (marginMins <= 3) {
-          alertHtml = '<div class="conn-alert conn-alert-risk">'
-            + nextLeg.lineCode + ' venter' + (marginMins > 0 ? ' · ' + marginMins + ' min byttetid' : '')
-            + (nextLeg.quay ? ' · Spor ' + nextLeg.quay : '')
-            + '</div>';
-        }
-      }
+      alertHtml = connAlertHtml(legs, i);
     }
     if (alertHtml !== connAlertEl.innerHTML) connAlertEl.innerHTML = alertHtml;
   }
@@ -1570,7 +1646,7 @@ export function renderTrack() {
       const depClk = nextLeg.depTime ? nextLeg.depTime.clk : null;
       return '<div class="alight-card alight-card-transfer">'
         + '<div class="alight-card-eyebrow">bytt her</div>'
-        + '<div class="alight-card-stop">' + normStn(leg.toStation) + '</div>'
+        + '<div class="alight-card-stop">' + esc(displayStn(leg.toStation)) + '</div>'
         + '<div class="alight-card-next">'
         + '<span class="line-badge" style="background:' + nextLeg.lineBg + '">' + nextLeg.lineCode + '</span>'
         + (nextLeg.frontText ? '<span class="alight-next-dest">' + nextLeg.frontText + '</span>' : '')

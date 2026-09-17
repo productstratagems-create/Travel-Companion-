@@ -817,11 +817,22 @@ export function stopHeadHtml(stop, count, open, extra) {
       + esc(ps.label) + '</span>'
     : '';
 
-  const facts = (bits.length || note)
-    ? '<span class="auto-stop-facts">' + esc(bits.join(' \u00b7 '))
-      + (note ? (bits.length ? ' \u00b7 ' : '') + note : '')
-      + '</span>'
-    : '';
+  // THE NOTE ON ITS OWN ROW, not appended to the facts with a middot.
+  //
+  // Reported with a screenshot: «979 m å gå · 14 min gange · posisjonen er
+  // unøyaktig (±56 m)» wrapped at 390px, and it wrapped INSIDE the caution —
+  // «posisjonen er / unøyaktig (±56 m)». Measured as text runs: two line
+  // boxes for one phrase, and a facts line 32px tall instead of 16.
+  //
+  // The CSS above this once said a sentence taking two lines is not a layout
+  // fault, and that was true when the line held two numbers. v1.108.0 made it
+  // three things, and the third is a different KIND of thing: how far and how
+  // long are facts about the walk, and the note is a caution about the sensor.
+  // A middot joins peers. Its own row cannot split another fact, and cannot be
+  // split by one.
+  const factsLine = bits.length
+    ? '<span class="auto-stop-facts">' + esc(bits.join(' \u00b7 ')) + '</span>' : '';
+  const facts = factsLine + note;
   const name = esc((stop && stop.name) || '');
   // The name in its own element so it can be given an ellipsis. It used to be
   // a bare text node beside the caret, which is also why a browser probe that

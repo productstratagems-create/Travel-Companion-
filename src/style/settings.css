@@ -330,11 +330,20 @@
   margin-top: .15rem;
 }
 
-/* THE CAUTION, NOT THE WHOLE LINE. «374 m å gå» is a plain fact and stays in
-   the facts colour; the position note beside it is the part a reader should
-   notice. Restrained on purpose — this line sits under a stop name in 9px,
-   and the board's own stamp says the same thing in the same register. */
-#v-auto .auto-pos-note { color: var(--warn); }
+/* THE CAUTION, ON ITS OWN ROW. «374 m å gå» is a plain fact in the facts
+   colour; this is a caution about the sensor, which is a different kind of
+   thing — and joined to the facts with a middot it wrapped mid-phrase at
+   390px, «posisjonen er / unøyaktig (±56 m)». Its own row cannot split another
+   fact and cannot be split by one.
+   It carries its own size now that it is no longer inside .auto-stop-facts. */
+#v-auto .auto-pos-note {
+  display: block;
+  font-size: .75rem;
+  font-weight: 400;
+  letter-spacing: .05em;
+  margin-top: .1rem;
+  color: var(--warn);
+}
 #v-auto .auto-pos-note.pos-unoyaktig,
 #v-auto .auto-pos-note.pos-borte,
 #v-auto .auto-pos-note.pos-frakoblet { color: var(--err); }

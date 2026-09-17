@@ -1,4 +1,5 @@
 import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus } from '../api/plan.js';
+import { stopKey } from '../stopId.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state } from '../state.js';
 import { show, updateHeader } from '../ui/nav.js';
@@ -36,7 +37,7 @@ function _destroyPlanMap() {
   _planMapExpanded = false;
 }
 
-function _normStn(s) { return String(s).toLowerCase().replace(/,.*$/, '').trim(); }
+const _normStn = stopKey;   // recipe A; stopKey is recipe A plus the T
 
 async function _renderPlanMap(legs) {
   const wrap = document.getElementById('plan-map-wrap');

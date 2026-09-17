@@ -12,6 +12,7 @@
  * the reason api/stopCats.js exists.
  */
 import { storage } from '../storage.js';
+import { stopKey } from '../stopId.js';
 
 const FREQ_DEP_KEY = 't.freqDep';
 const FREQ_ARR_KEY = 't.freqArr';
@@ -62,8 +63,15 @@ export function trackPlace(role, name, meta) {
 /**
  * How many times each departure stop has been used, ready to look up.
  *
- * Keyed both ways: by lowercased name, which always exists, and by stopId
- * where there is one. The caller prefers the id and falls back to the name.
+ * Keyed both ways: by stopKey, which always exists, and by stopId where there
+ * is one. The caller prefers the id and falls back to the name.
+ *
+ * The name key is `stopKey` from v1.107.0, not this file's own lowercase-only
+ * normalisation. That one kept the comma and the trailing T, so a stop saved
+ * as «Ryen T» and offered back as «Ryen» — or saved as «Skullerud» and offered
+ * as «Skullerud, Oslo» — counted as never visited, and the ranking put a stop
+ * you use daily below one you have never used. The index is rebuilt from the
+ * history on every call, so changing the key orphans nothing on disk.
  */
 export function depUses() {
   const byName = new Map();
@@ -71,16 +79,26 @@ export function depUses() {
   loadFreq('dep').forEach(p => {
     if (!p || !p.name) return;
     const n = Number(p.count) || 0;
-    byName.set(String(p.name).trim().toLowerCase(), n);
+    const k = stopKey(p.name);
+    // Two history entries can now reduce to one key — «Ryen» and «Ryen T» are
+    // one stop. Their counts add up rather than the last one winning.
+    if (k) byName.set(k, (byName.get(k) || 0) + n);
     if (p.stopId) byId.set(p.stopId, n);
   });
   return { byName, byId };
 }
 
-/** How many times this stop has been departed from. 0 when never. */
+/**
+ * How many times this stop has been departed from. 0 when never.
+ *
+ * Id first, name second — the same order, and now the same name rule, as
+ * `sameStop`. The id is read from `id` or `stopId` because the live responses
+ * and the saved records disagree about which field it lives in.
+ */
 export function usesOf(stop, uses) {
   if (!stop || !uses) return 0;
-  if (stop.id && uses.byId.has(stop.id)) return uses.byId.get(stop.id);
-  const n = String(stop.name || '').trim().toLowerCase();
+  const id = stop.id || stop.stopId || null;
+  if (id && uses.byId.has(id)) return uses.byId.get(id);
+  const n = stopKey(stop.name);
   return (n && uses.byName.get(n)) || 0;
 }

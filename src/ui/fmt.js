@@ -14,6 +14,35 @@ export function fmtMins(m) {
   return h + 't' + (rm > 0 ? ' ' + rm + 'm' : '');
 }
 
+/**
+ * A countdown, or the clock time when counting down is the wrong form.
+ *
+ * «19t 53m igjen» was a real string on the detail screen. The number is
+ * correct and useless: nobody plans by counting down nineteen hours, and the
+ * fact that is actually wanted — WHEN it goes — was one field away the whole
+ * time. board.js:1897 has acknowledged this in a comment since v1.86.3
+ * («reads fine at 9 and badly at 1209») without acting on it.
+ *
+ * THE HORIZON IS NOT TESTED HERE. It is read off reachCls's verdict, which the
+ * caller already computed for the row's colour. Comparing against
+ * REACH_FAR_MINS a second time would be two numbers that must agree — and they
+ * would agree right up until someone changed one.
+ *
+ * @param {string} rcls  the bucket from reachCls, already in the caller's hand
+ * @param {number} mtl   minutes until you must leave
+ * @param {number} depTs departure timestamp, for the clock face
+ * @param {number} [now] for the day prefix
+ * @returns {{text: string, counting: boolean}} `counting` false means this is
+ *   a clock time, so a caller can drop the word «igjen» that only fits a
+ *   duration.
+ */
+export function countdownText(rcls, mtl, depTs, now) {
+  if (rcls === 'r-far' && Number.isFinite(depTs)) {
+    return { text: clkDay(depTs, now), counting: false };
+  }
+  return { text: mtl > 0 ? fmtMins(mtl) : '0 min', counting: true };
+}
+
 const _pad = (n) => String(n).padStart(2, '0');
 
 /** HH:MM, local. The one definition; board.js used to keep its own. */

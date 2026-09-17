@@ -1,5 +1,7 @@
 import config from '../config.js';
-import { clk, clkDay } from '../ui/fmt.js';
+import { normJid } from '../api/queries.js';
+import { stopKey } from '../stopId.js';
+import { clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL } from '../geo.js';
 import { fetchJourneyMeta } from '../api/entur.js';
@@ -22,12 +24,77 @@ function cleanName(s) { return (s || '').replace(/,\s*\S.*$/, '').replace(/\s+T$
 
 // Walk-deadline sub-line. States the remaining margin as a fact and leaves the
 // decision to the reader — colour carries the urgency, the words don't command.
-function leaveByMsg(rcls, mtl) {
+function leaveByMsg(rcls, mtl, depTs, now) {
   if (rcls === 'missed') {
     return '<span style="color:#dc2626">passert for ' + fmtMins(Math.abs(mtl)) + ' siden</span>';
   }
-  const cls = rcls === 'r-now' ? 'go' : 'amber';
-  return '<span class="' + cls + '">' + (mtl > 0 ? fmtMins(mtl) : '0 min') + '</span> igjen';
+  // «igjen» belongs to a duration. Past the horizon this is a clock face, and
+  // the word is dropped with it — countdownText says which it handed back
+  // rather than leaving the caller to test the threshold again.
+  const cls = rcls === 'r-far' ? 'soft' : rcls === 'r-now' ? 'go' : 'amber';
+  const ct = countdownText(rcls, mtl, depTs, now);
+  return '<span class="' + cls + '">' + esc(ct.text) + '</span>' + (ct.counting ? ' igjen' : '');
+}
+
+/**
+ * The whole sub-line, built ONCE.
+ *
+ * It was assembled twice — «gå senest HH:MM · » + leaveByMsg at the initial
+ * render, and leaveByMsg alone in the refresher, so the «gå senest» half
+ * vanished the moment journey metadata arrived. And past the horizon the two
+ * halves said the same thing: the probe printed «gå senest 11:18 · i morgen
+ * 11:25», a clock face twice on one line. Past the horizon the deadline alone
+ * is the fact; the departure is already the hero above it.
+ */
+function _subLine(rcls, mtl, leaveByTs, depTs, now) {
+  // clkDay, not clk: a departure tomorrow has a deadline tomorrow, and «gå
+  // senest 11:19» beside a hero reading «i morgen» invited the reader to leave
+  // today. The prefix is empty for today, so nothing changes in the ordinary
+  // case.
+  const deadline = 'gå senest ' + clkDay(leaveByTs, now);
+  if (rcls === 'r-far') return deadline;
+  return deadline + ' · ' + leaveByMsg(rcls, mtl, depTs, now);
+}
+
+/**
+ * The hero's class, and the hero itself — each defined ONCE.
+ *
+ * Both were written twice: renderSelected built `ltCls` and the number at
+ * :317/:332, and the post-fetch refresher built `ltCls` again at :755 and then
+ * wrote a BARE CLOCK TIME into the same element. So the big number silently
+ * changed form the moment journey metadata arrived — a countdown before the
+ * fetch, a clock face after it, in the largest type on the screen. Nobody
+ * decided that; the two copies simply disagreed.
+ */
+function _ltCls(rcls) {
+  return rcls === 'r-far'  ? 'lt-far'
+    : rcls === 'r-ok'   ? 'lt-ok'
+    : rcls === 'r-soon' ? 'lt-soon'
+    : rcls === 'r-now'  ? 'lt-now'
+    : 'lt-late';
+}
+
+/** @returns {{num: string|number, unit: string, lbl: string}} */
+function _hero(secsToLeave, depTs, now, rcls) {
+  // Past the horizon the hero stops counting down and names the departure.
+  // Derived from the bucket, like every other consequence of the horizon.
+  if (rcls === 'r-far') {
+    // The DAY goes in the label, the clock in the hero. «I MORGEN 11:26» as
+    // one giant string is mostly letters, is 358px wide on a 390px screen, and
+    // repeats the «avgår» card below it verbatim. Split, it reads as one fact
+    // with its qualifier — and the hero stays a number, which is what the type
+    // at 16vw was designed for.
+    return { num: clk(depTs), unit: '', lbl: ('avgang ' + dayPrefix(depTs, now)).trim() };
+  }
+  if (secsToLeave < 0) {
+    return { num: Math.max(0, Math.floor((depTs - now) / 60000)), unit: 'min', lbl: 'til avgang' };
+  }
+  if (secsToLeave < 60) return { num: secsToLeave, unit: 'sek', lbl: 'til du bør gå' };
+  if (secsToLeave < 3600) {
+    return { num: Math.floor(secsToLeave / 60), unit: 'min', lbl: 'til du bør gå' };
+  }
+  const h = Math.floor(secsToLeave / 3600), rm = Math.floor((secsToLeave % 3600) / 60);
+  return { num: h + 't', unit: rm > 0 ? rm + 'm' : '', lbl: 'til du bør gå' };
 }
 
 let _selWeather = null;
@@ -78,7 +145,10 @@ function _legEnds(leg) {
   return [[a.latitude, a.longitude], [b.latitude, b.longitude]];
 }
 
-function _ns(s) { return (s || '').toLowerCase().replace(/,.*$/, '').replace(/\s+t$/i, '').trim(); }
+// Was a fourth hand-rolled copy of the stop normaliser. The substring
+// matching below it is a looser rule with its own purpose and stays; only the
+// normalisation is now the shared one.
+const _ns = stopKey;
 
 function _depToRouteLegs(dep, fromName, toName) {
   if (!dep) return null;
@@ -315,8 +385,7 @@ export function renderSelected() {
   const leaveByTs = depTs - wk.mins * 60000;
   const mtl = mToLeave(depTs);
   const rcls = reachCls(mtl);
-  const ltCls = rcls === 'r-ok' ? 'lt-ok' : rcls === 'r-soon' ? 'lt-soon' : rcls === 'r-now' ? 'lt-now' : 'lt-late';
-  const urgMsg = leaveByMsg(rcls, mtl);
+  const ltCls = _ltCls(rcls);
 
   const walkActive = isWalkActive(dir);
   // Is it time to go? One question, three consequences — see walkFocus.
@@ -329,18 +398,8 @@ export function renderSelected() {
   // second (scheduler.js), so this needs no timer of its own — it needed a
   // screen, and that was the only reason gangtid was one.
   const secsToLeave = Math.floor((leaveByTs - now) / 1000);
-  let heroNum, heroUnit, heroLbl;
-  if (secsToLeave < 0) {
-    heroNum = Math.max(0, Math.floor((depTs - now) / 60000)); heroUnit = 'min';
-    heroLbl = 'til avgang';
-  } else if (secsToLeave < 60) {
-    heroNum = secsToLeave; heroUnit = 'sek'; heroLbl = 'til du bør gå';
-  } else if (secsToLeave < 3600) {
-    heroNum = Math.floor(secsToLeave / 60); heroUnit = 'min'; heroLbl = 'til du bør gå';
-  } else {
-    const h = Math.floor(secsToLeave / 3600), rm = Math.floor((secsToLeave % 3600) / 60);
-    heroNum = h + 't'; heroUnit = rm > 0 ? rm + 'm' : ''; heroLbl = 'til du bør gå';
-  }
+  const hero = _hero(secsToLeave, depTs, now, rcls);
+  const heroNum = hero.num, heroUnit = hero.unit, heroLbl = hero.lbl;
   // `_isTransfer` is already "there is more here than one train" — it is
   // `legs.length > 1 || lastAny.mode === 'foot'`. Requiring two TRANSIT legs
   // on top of that meant a single train plus a walk to your destination fell
@@ -466,7 +525,7 @@ export function renderSelected() {
           + '<div class="leaveby-label">' + heroLbl + '</div>'
           + '<div class="leaveby-time ' + ltCls + '">' + heroNum
           + '<span class="lt-unit">' + heroUnit + '</span></div>'
-          + '<div class="leaveby-sub soft">gå senest ' + clk(leaveByTs) + ' · ' + urgMsg + '</div>'
+          + '<div class="leaveby-sub soft">' + _subLine(rcls, mtl, leaveByTs, depTs, now) + '</div>'
           + '</div>'
         : '')
     // Folded once it is time to go. The itinerary is what you read while
@@ -606,8 +665,15 @@ function _navigable(c) {
  */
 function _sameDep(a, b) {
   if (!a || !b) return false;
-  const ai = a.serviceJourney && a.serviceJourney.id;
-  const bi = b.serviceJourney && b.serviceJourney.id;
+  // THROUGH normJid. The realtime stop board hands back a lowercase codespace
+  // («rut:ServiceJourney:…») where the trip planner uses the NeTEx one
+  // («RUT:…»), and stopBoardExtras (board.js:178) stores the RAW id on the
+  // row — normJid is applied only to the dedupe set beside it. So the two
+  // spellings of one departure really do reach this comparison, and it
+  // answered no: both step buttons went dead on a row that came from the
+  // other source.
+  const ai = normJid((a.serviceJourney && a.serviceJourney.id) || '');
+  const bi = normJid((b.serviceJourney && b.serviceJourney.id) || '');
   if (ai && bi) return ai === bi;
   return !!a.expectedDepartureTime && a.expectedDepartureTime === b.expectedDepartureTime;
 }
@@ -679,7 +745,7 @@ function _fetchSel() {
       // while this fetch was in flight
       const curJid = state.lockedJourneyId
         || (state.sel.serviceJourney && state.sel.serviceJourney.id);
-      if (curJid !== jid) return;
+      if (normJid(curJid) !== normJid(jid)) return;
 
       // The journey query returns the line's FULL run — calls[0] is the line's
       // origin terminal, not the user's boarding stop. All live values (departure
@@ -753,17 +819,21 @@ function _refreshSelDisplay() {
     const leaveByTs = depTs - wk.mins * 60000;
     const mtl      = mToLeave(depTs);
     const rcls     = reachCls(mtl);
-    const ltCls    = rcls === 'r-ok' ? 'lt-ok' : rcls === 'r-soon' ? 'lt-soon'
-      : rcls === 'r-now' ? 'lt-now' : 'lt-late';
+    const ltCls    = _ltCls(rcls);
+    const now      = Date.now();
+    const hero     = _hero(Math.floor((leaveByTs - now) / 1000), depTs, now, rcls);
 
     const lbEl = document.querySelector('.leaveby-time');
     if (lbEl) {
       lbEl.className = 'leaveby-time ' + ltCls;
-      lbEl.textContent = clk(leaveByTs);
+      // Through _hero, not `clk(leaveByTs)`. This line used to replace the
+      // countdown with a bare clock face the moment metadata arrived.
+      lbEl.innerHTML = esc(String(hero.num))
+        + '<span class="lt-unit">' + esc(hero.unit) + '</span>';
     }
     const lbSubEl = document.querySelector('.leaveby-sub');
     if (lbSubEl) {
-      lbSubEl.innerHTML = leaveByMsg(rcls, mtl);
+      lbSubEl.innerHTML = _subLine(rcls, mtl, leaveByTs, depTs, now);
     }
   }
 }

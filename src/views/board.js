@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { stopKey } from '../stopId.js';
 import { liveness } from '../api/liveness.js';
 import { normMode } from '../api/stopCats.js';
 import { enturFetch } from '../api/http.js';
@@ -12,7 +13,7 @@ import { adaptTripPattern, quayLatLon, legShape, _rowDest } from '../api/adapt.j
 import { loadPlan, legStatus } from '../api/plan.js';
 import { renderAlerts, pruneHidden } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
-import { fmtMins, esc, clk, clkDay } from '../ui/fmt.js';
+import { fmtMins, esc, clk, clkDay, countdownText } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
@@ -1018,7 +1019,7 @@ export function _legCorridorStops(leg, dirFallback) {
       id: (sp && sp.id) || '' });
   });
   if (stops.length < 2) return [];
-  const norm = (x) => String(x || '').toLowerCase().replace(/\s+t$/i, '').trim();
+  const norm = stopKey;   // was recipe C: the comma clause was missing
   const idxOf = (name, lat, lon) => {
     if (name) {
       const n = norm(name);
@@ -2733,7 +2734,17 @@ export function renderBoard() {
     const _jid = (c.serviceJourney && c.serviceJourney.id) || '';
     const flashing = _flashJid && _jid === _flashJid && Date.now() < _flashUntil;
     const rowCls = 'dep-row' + (isCancelled ? ' cancelled' : missed ? ' missed' : rcls ? ' ' + rcls : '') + (tooEarlyForPlan ? ' plan-early' : '') + (flashing ? ' dep-flash' : '');
-    const showReach = walkActive && rcls && !missed && (rcls !== 'r-now' || !urgentShown);
+    // r-far EXCLUDED, and for the opposite reason to the detail screen's.
+    //
+    // There the hero WAS the countdown, so past the horizon it has to become
+    // something — the clock face. Here the row already prints the departure
+    // clock at both ends (dep-mins switches to a clock at 60 minutes, which is
+    // its own older horizon, and the right-hand column shows it too). A third
+    // copy of «i morgen 11:26» in the reach line said nothing new; the probe
+    // photographed it three times in one row. The absence IS the answer: no
+    // urgency, nothing to add.
+    const showReach = walkActive && rcls && !missed && rcls !== 'r-far'
+      && (rcls !== 'r-now' || !urgentShown);
     if (rcls === 'r-now') urgentShown = true;
 
     // Occupancy: API primary, multi-signal heuristic fallback
@@ -2900,9 +2911,14 @@ export function renderBoard() {
       + (tooEarlyForPlan ? '<span class="dep-cancelled">før forrige etappe</span>' : '')
       + '</div>'
       + (showReach
-        ? '<div class="dep-reach ' + rcls + '">'
-          + (mtl > 0 ? fmtMins(mtl) : '0 min') + ' igjen'
-          + '</div>'
+        ? (() => {
+            // «19t 53m igjen» was this line. Past the horizon the row names the
+            // departure instead of counting down to it — one verdict, one
+            // consequence, and the word «igjen» goes with the duration.
+            const ct = countdownText(rcls, mtl, depTs, now);
+            return '<div class="dep-reach ' + rcls + '">'
+              + esc(ct.text) + (ct.counting ? ' igjen' : '') + '</div>';
+          })()
         : '')
       + '</div>'
       + '<div class="dep-spor' + (isRail ? ' dep-spor-rail' : '') + '"><div class="sl">spor</div><div class="sn">' + quay + '</div></div>'

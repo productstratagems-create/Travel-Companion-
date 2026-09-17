@@ -76,6 +76,10 @@
 .leaveby-time.lt-soon{color:var(--warn);text-shadow:0 0 28px rgba(var(--warn-rgb),.55),0 0 60px rgba(var(--warn-rgb),.2)}
 .leaveby-time.lt-now{color:var(--urgent);text-shadow:0 0 32px rgba(249,115,22,.6),0 0 70px rgba(249,115,22,.2)}
 .leaveby-time.lt-late{color:#dc2626;text-shadow:0 0 20px rgba(220,38,38,.4)}
+/* Past the horizon the hero is a clock face, not a countdown, so it gets the
+   calm ink and none of the glow — the glow is what says «act now». It used to
+   fall through to .lt-late, which is the red of a departure you have missed. */
+.leaveby-time.lt-far{color:var(--text-muted);text-shadow:none}
 .leaveby-sub{font-size:12px;margin-top:.5rem}
 /* The unit rides with the number rather than under it, so "45 sek" and
    "12 min" occupy one line and the digits stay the tallest thing. */

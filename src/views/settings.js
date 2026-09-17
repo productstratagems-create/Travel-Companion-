@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { stopKey, findStop } from '../stopId.js';
 import { enturFetch } from '../api/http.js';
 import { recordSmartTrip } from '../api/smart.js';
 import { state } from '../state.js';
@@ -746,15 +747,19 @@ export function applyRoute() {
     errEl.style.display = 'block';
     return false;
   }
-  if (dep.toLowerCase() === arr.toLowerCase()) {
+  if (stopKey(dep) === stopKey(arr)) {
     errEl.textContent = 'Fra og til kan ikke være samme stasjon.';
     errEl.style.display = 'block';
     return false;
   }
 
-  const depMatchesGps = ns && ns.name.toLowerCase() === dep.toLowerCase();
+  // Through stopKey: this asks nearStopMatch's question — «is the stop you
+  // typed the one we are standing at» — and asked it with a raw lowercase
+  // compare, so «Ryen» typed against «Ryen T» measured from GPS said no and
+  // the route was saved without an id at all.
+  const depMatchesGps = !!ns && stopKey(ns.name) === stopKey(dep);
   const depNearby = !depMatchesGps
-    && state.nearestStations.find(s => s.name.toLowerCase() === dep.toLowerCase());
+    && findStop(state.nearestStations, { name: dep });
   const depEntry = _depStopIds.get(dep);
   const depId  = depMatchesGps ? ns.id   : (depNearby ? depNearby.id  : (depEntry ? depEntry.id  : null));
   const depLat = depMatchesGps ? ns.lat  : (depNearby ? depNearby.lat : (depEntry ? depEntry.lat : null));
@@ -800,9 +805,13 @@ export function applyRouteFromState(arr) {
   const savedDep = loadDep();
   const dep = savedDep || (ns ? ns.name : null);
   if (!dep) return false;
-  const depMatchesGps = ns && ns.name.toLowerCase() === dep.toLowerCase();
+  // Through stopKey: this asks nearStopMatch's question — «is the stop you
+  // typed the one we are standing at» — and asked it with a raw lowercase
+  // compare, so «Ryen» typed against «Ryen T» measured from GPS said no and
+  // the route was saved without an id at all.
+  const depMatchesGps = !!ns && stopKey(ns.name) === stopKey(dep);
   const depNearby = !depMatchesGps
-    && state.nearestStations.find(s => s.name.toLowerCase() === dep.toLowerCase());
+    && findStop(state.nearestStations, { name: dep });
   const depId  = depMatchesGps ? ns.id   : (depNearby ? depNearby.id  : null);
   const depLat = depMatchesGps ? ns.lat  : (depNearby ? depNearby.lat : null);
   const depLon = depMatchesGps ? ns.lon  : (depNearby ? depNearby.lon : null);

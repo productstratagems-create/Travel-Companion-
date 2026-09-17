@@ -90,6 +90,11 @@ async function run(scheme) {
     const ab = arr ? arr.getBoundingClientRect() : null;
     return {
       knapp: t ? t.textContent.replace(/\s+/g, ' ').trim() : '(fins ikke)',
+      // The caret, and the box it is NOT in. v1.111.0 gave this a dashed
+      // border and the word «VIS»; the app now has one grammar for «there is
+      // more here», and it is auto-reise's.
+      pil: t ? (t.querySelector('.auto-stop-more') || {}).textContent : '—',
+      ramme: t ? getComputedStyle(t).borderStyle : '—',
       aria: t ? t.getAttribute('aria-expanded') : '—',
       listeSynlig: l ? getComputedStyle(l).display !== 'none' : false,
       rader: document.querySelectorAll('#set-nearby-list .nearby-btn').length,
@@ -99,7 +104,7 @@ async function run(scheme) {
 
   console.log(`\n══ ${scheme} ══`);
   const lukket = await read();
-  console.log('   lukket :', lukket.knapp, '| aria', lukket.aria,
+  console.log('   lukket :', lukket.knapp, '| pil', lukket.pil, '| ramme', lukket.ramme, '| aria', lukket.aria,
     '| liste', lukket.listeSynlig, '| «til»-feltet', lukket.tilFeltSynlig, 'px over menyen');
   await page.screenshot({ path: `scratchpad/shots/nearby-${scheme}-lukket.png`,
     clip: { x: 0, y: 0, width: 390, height: 788 }, animations: 'disabled' });
@@ -107,7 +112,7 @@ async function run(scheme) {
   await page.click('#set-nearby-toggle');
   await page.waitForTimeout(400);
   const apen = await read();
-  console.log('   åpen   :', apen.knapp, '| aria', apen.aria,
+  console.log('   åpen   :', apen.knapp, '| pil', apen.pil, '| aria', apen.aria,
     '| rader', apen.rader, '| «til»-feltet', apen.tilFeltSynlig, 'px over menyen');
   await page.screenshot({ path: `scratchpad/shots/nearby-${scheme}-apen.png`,
     clip: { x: 0, y: 0, width: 390, height: 788 }, animations: 'disabled' });

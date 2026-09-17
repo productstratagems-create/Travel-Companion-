@@ -13,7 +13,7 @@
  * the answer. Every rule about that fallback is tested here.
  */
 import { describe, it, expect } from 'vitest';
-import { groupDirections, dirRank, sortDirs, dirRows, quayLabel, nearbyAlternatives, RANKS, sortEndLabels } from '../src/views/auto.js';
+import { groupDirections, dirRank, sortDirs, dirRows, quayLabel, nearbyAlternatives, RANKS, sortEndLabels, shouldShowSort } from '../src/views/auto.js';
 import { NEAR_STOP_MAX_M } from '../src/geo.js';
 
 const NOW = Date.UTC(2026, 4, 26, 15, 0, 0);
@@ -359,7 +359,7 @@ describe('sortEndLabels names what is here', () => {
 
   it('says T-bane and Tog at an Oslo stop that has both', () => {
     expect(sortEndLabels([d('metro'), d('rail', 'NSB:Line:R14')], 'RUT:'))
-      .toEqual({ asc: 'T-bane', desc: 'Tog' });   // no boat at this stop
+      .toMatchObject({ asc: 'T-bane', desc: 'Tog' });   // no boat at this stop
   });
 
   it('says Trikk at a Bergen stop where Bybanen is the rail-bound mode', () => {
@@ -369,7 +369,83 @@ describe('sortEndLabels names what is here', () => {
   });
 
   it('falls back to the full table before anything has loaded', () => {
-    expect(sortEndLabels([], null)).toEqual({ asc: 'T-bane', desc: 'Båt' });
-    expect(sortEndLabels()).toEqual({ asc: 'T-bane', desc: 'Båt' });
+    expect(sortEndLabels([], null)).toMatchObject({ asc: 'T-bane', desc: 'Båt' });
+    expect(sortEndLabels()).toMatchObject({ asc: 'T-bane', desc: 'Båt' });
+  });
+});
+
+
+// ── A sort switch with one group to sort (v1.111.1) ────────────────────────
+//
+// Reported with a screenshot from Mortensrud: every departure was a local bus,
+// so both ends of the RANKS table named the same group and the switch offered
+// «Lokalbuss først» twice — two buttons, one highlighted, no way to tell them
+// apart and no difference if you tapped. _showSort's own doc already said «a
+// control that cannot change anything is worse than no control»; it had no way
+// to know when that was true.
+describe('sortEndLabels and a list with nothing to order', () => {
+  const dir = (mode, code) => ({
+    lines: [{ code, mode }],
+    call: { serviceJourney: { line: { transportMode: mode, publicCode: code } } },
+  });
+
+  it('is not meaningful when one group is all there is', () => {
+    const ends = sortEndLabels([dir('bus', '73'), dir('bus', '71')], 'RUT');
+    expect(ends.asc).toBe(ends.desc);
+    expect(ends.meaningful).toBe(false);
+  });
+
+  it('is meaningful the moment a second group appears', () => {
+    const ends = sortEndLabels([dir('bus', '73'), dir('metro', '3')], 'RUT');
+    expect(ends.asc).not.toBe(ends.desc);
+    expect(ends.meaningful).toBe(true);
+  });
+
+  // Before anything has loaded the full table stands in, and that has many
+  // groups — so the control is meaningful and the screen does not flicker it
+  // away and back as departures arrive.
+  it('is meaningful before anything has loaded', () => {
+    expect(sortEndLabels([], 'RUT').meaningful).toBe(true);
+  });
+});
+
+// The wiring, not the arithmetic. Two releases running have watched a correct
+// rule do nothing because a renderer stopped asking for it, and a one-line
+// condition inside a DOM function is exactly where that hides.
+describe('shouldShowSort', () => {
+  it('needs both the caller’s answer and something to order', () => {
+    expect(shouldShowSort(true, { meaningful: true })).toBe(true);
+    expect(shouldShowSort(true, { meaningful: false })).toBe(false);
+    expect(shouldShowSort(false, { meaningful: true })).toBe(false);
+  });
+
+  it('shows nothing when it has no verdict to go on', () => {
+    expect(shouldShowSort(true, null)).toBe(false);
+  });
+
+  // The reported screen, end to end: every departure a local bus.
+  it('hides the switch at a stop served by one kind of vehicle', () => {
+    const bus = (code) => ({
+      lines: [{ code, mode: 'bus' }],
+      call: { serviceJourney: { line: { transportMode: 'bus', publicCode: code } } },
+    });
+    expect(shouldShowSort(true, sortEndLabels([bus('73'), bus('71')], 'RUT'))).toBe(false);
+  });
+});
+
+// And that _showSort actually asks. The verdict is pure and tested; the call
+// is one line inside a DOM function no unit test can stand up, which is
+// precisely where the last two releases lost a correct rule. Asserted against
+// the source, with comments stripped — v1.110.0's own prose defeated this same
+// check once by naming the function it was explaining.
+describe('the sort switch asks before it shows', () => {
+  it('routes its display through shouldShowSort', async () => {
+    const fs = await import('node:fs');
+    const src = fs.readFileSync('src/views/auto.js', 'utf8').replace(/\/\/[^\n]*/g, '');
+    const i = src.indexOf('function _showSort(');
+    expect(i).toBeGreaterThan(-1);
+    const body = src.slice(i, i + 900);
+    expect(body).toMatch(/const show = shouldShowSort\(on, ends\);/);
+    expect(body).toMatch(/display = show \?/);
   });
 });

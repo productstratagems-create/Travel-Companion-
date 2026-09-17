@@ -337,13 +337,8 @@
    meaning «there is more here» would be two things to learn. Measured in the
    browser first as a bare white default button — the class existed and no
    rule matched it, which every number said was fine. */
-/* THE SAME ROW, A THIRD TIME — and shared rather than copied. «There is more
-   here, tap to see it» is one idea, and v1.105.0 already learned what a second
-   copy of it costs: .alerts-other shipped with no styling at all and rendered
-   as a bare white default button, which only a screenshot caught. */
 .alerts-other,
-.alerts-hidden,
-.nearby-toggle{
+.alerts-hidden{
   display:block;width:100%;text-align:left;
   padding:.3rem .75rem;margin:.25rem 0;
   font:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase;

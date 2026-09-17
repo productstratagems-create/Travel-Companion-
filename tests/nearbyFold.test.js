@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { nearbyLabel, nearbyToggleHtml } from '../src/views/settings.js';
-import { otherRowHtml } from '../src/ui/alerts.js';
+import { stopHeadHtml } from '../src/views/auto.js';
 
 const parse = (html) => {
   const el = document.createElement('div');
@@ -30,17 +30,17 @@ describe('nearbyLabel', () => {
 });
 
 describe('nearbyToggleHtml', () => {
-  it('opens closed, and says how to open it', () => {
+  it('opens closed, and points the way open', () => {
     const b = parse(nearbyToggleHtml(8, false));
     expect(b.getAttribute('aria-expanded')).toBe('false');
     expect(b.textContent).toContain('8 stopp i nærheten');
-    expect(b.querySelector('.ah-show').textContent).toBe('vis');
+    expect(b.querySelector('.auto-stop-more').textContent).toBe('▾');
   });
 
-  it('says how to close it once open', () => {
+  it('turns the caret over once open', () => {
     const b = parse(nearbyToggleHtml(8, true));
     expect(b.getAttribute('aria-expanded')).toBe('true');
-    expect(b.querySelector('.ah-show').textContent).toBe('skjul');
+    expect(b.querySelector('.auto-stop-more').textContent).toBe('▴');
   });
 
   // A screen reader needs to know WHICH thing this button opens; the list is
@@ -55,18 +55,34 @@ describe('nearbyToggleHtml', () => {
     expect(parse(nearbyToggleHtml(8, false)).getAttribute('type')).toBe('button');
   });
 
-  // «There is more here, tap to see it» is ONE idea, and this is its third
-  // appearance. v1.105.0 shipped .alerts-other with no styling at all — it
-  // rendered as a bare white default button, and only a screenshot caught it.
-  // A shared rule is what stops that happening a third time, so this binds the
-  // two rows to the same shape rather than trusting them to stay alike.
-  it('wears the same clothes as the folded traffic messages', () => {
-    const mine = parse(nearbyToggleHtml(2, false));
-    const theirs = parse(otherRowHtml(2, false));
-    expect(mine.tagName).toBe(theirs.tagName);
-    expect(mine.querySelector('.ah-show').textContent)
-      .toBe(theirs.querySelector('.ah-show').textContent);
-    expect(mine.getAttribute('aria-expanded')).toBe(theirs.getAttribute('aria-expanded'));
+  // «THERE IS MORE HERE» IS ONE IDEA, AND THE APP HAD TWO GRAMMARS FOR IT.
+  //
+  // v1.111.0 built this on otherRowHtml — a dashed box with the word «VIS» —
+  // which made it consistent with the traffic banner and inconsistent with
+  // «Mortensrud 7 ▾» on auto-reise, where the reader meets the same idea far
+  // more often. Asked to settle on the caret, so this now binds to
+  // stopHeadHtml instead. The claim the test makes has changed; it has not
+  // been dropped, because a fold with nobody to agree with is how the dashed
+  // box shipped unstyled in the first place.
+  it('wears the same caret as the stop list on auto-reise', () => {
+    const stop = { name: 'Mortensrud', distM: 500 };
+    const auto = parse(stopHeadHtml(stop, 7, false, {}));
+    const mine = parse(nearbyToggleHtml(7, false));
+    const caretOf = (el) => el.querySelector('.auto-stop-more').textContent.trim().slice(-1);
+    expect(caretOf(mine)).toBe(caretOf(auto));
+
+    const autoOpen = parse(stopHeadHtml(stop, 7, true, {}));
+    const mineOpen = parse(nearbyToggleHtml(7, true));
+    expect(caretOf(mineOpen)).toBe(caretOf(autoOpen));
+    // And the two carets differ from each other, or the test says nothing.
+    expect(caretOf(mine)).not.toBe(caretOf(mineOpen));
+  });
+
+  // The word is gone with the dashed box. A caret needs no verb, and leaving
+  // «vis» behind would have been half of each grammar.
+  it('carries no verb', () => {
+    expect(nearbyToggleHtml(8, false)).not.toContain('ah-show');
+    expect(nearbyToggleHtml(8, false)).not.toMatch(/\bvis\b/);
   });
 
   it('escapes what it prints', () => {

@@ -317,7 +317,22 @@ export function sortEndLabels(dirs, local) {
   const here = named.filter(r =>
     (dirs || []).some(d => dirRank(d, local) === _RANK_OF[r.key]));
   const use = here.length ? here : named;
-  return { asc: use[0].label, desc: use[use.length - 1].label };
+  return {
+    asc: use[0].label,
+    desc: use[use.length - 1].label,
+    // ONE GROUP MEANS THERE IS NOTHING TO ORDER. Reported with a screenshot
+    // from Mortensrud: every departure was a local bus, so both ends of the
+    // table named the same group and the switch offered «Lokalbuss først»
+    // twice — two buttons, one of them highlighted, and no way to tell them
+    // apart or any difference if you tapped.
+    //
+    // The labels are derived from what is actually present, which is what
+    // makes them honest; this is the same derivation carried one step further,
+    // to whether the control means anything at all. _showSort already says in
+    // its own doc that «a control that cannot change anything is worse than no
+    // control» — it simply had no way to know this was one of those times.
+    meaningful: use.length > 1,
+  };
 }
 
 /**
@@ -1464,14 +1479,32 @@ export function nextRail(dirs, fromName, now, walkMins) {
  * empty or we have no position. A control that cannot change anything is
  * worse than no control.
  */
+/**
+ * Should the sort switch be on screen at all?
+ *
+ * Its own function because the last two releases have both watched a correct
+ * rule do nothing: a pure verdict fully tested, and a renderer that quietly
+ * stopped asking for it. A one-line condition inside a DOM function is exactly
+ * where that hides.
+ *
+ * @param {boolean} on   the caller's own answer — not while a direction is
+ *   open, not while the list is empty, not without a position
+ * @param {{meaningful: boolean}|null} ends  from sortEndLabels
+ */
+export function shouldShowSort(on, ends) {
+  return !!on && !!(ends && ends.meaningful);
+}
+
 let _sortWired = false;
 function _showSort(on) {
   const el = _el('auto-sort');
   if (!el) return;
-  el.style.display = on ? '' : 'none';
-  if (!on) return;
   const { desc } = loadAutoSort();
-  const ends = sortEndLabels(_dirs, localCodespace(_dirs));
+  const ends = on ? sortEndLabels(_dirs, localCodespace(_dirs)) : null;
+  // Hidden when there is only one group on screen: see sortEndLabels.
+  const show = shouldShowSort(on, ends);
+  el.style.display = show ? '' : 'none';
+  if (!show) return;
   el.querySelectorAll('.pref-btn').forEach(b => {
     const wantsDesc = b.dataset.val === 'desc';
     const active = wantsDesc === desc;

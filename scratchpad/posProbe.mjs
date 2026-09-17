@@ -251,6 +251,14 @@ async function run(scheme, tilstand) {
     const head = v.querySelector('.auto-stop-facts');
     return (empty ? 'tom: ' + empty.textContent.replace(/\s+/g, ' ').trim() : '')
       + (head ? ' | fakta: ' + head.textContent.replace(/\s+/g, ' ').trim() : '')
+      // The note's OWN colour, not the facts line's. v1.108.0 left them in the
+      // same ink and said so out loud; this is what checks the repair — and it
+      // is also the only thing that catches a renderer that stops passing the
+      // verdict at all, which no unit test on a pure function can see.
+      + (() => {
+          const n = v.querySelector('.auto-pos-note');
+          return n ? '  [notat ' + getComputedStyle(n).color + ']' : '';
+        })()
       || '(ingen tekst)';
   });
   console.log('   auto-reise    :', auto);

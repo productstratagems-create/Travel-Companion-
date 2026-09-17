@@ -1,6 +1,7 @@
 import config from '../config.js';
 import { storage } from '../storage.js';
 import { esc } from './fmt.js';
+import { stopKey } from '../stopId.js';
 import { loadSmartHist, tripCount } from '../api/smart.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -19,7 +20,12 @@ export function saveFavs(favs) {
 export function addFav(dir) {
   if (!dir || !dir.from || !dir.to) return false;
   const favs = loadFavs();
-  if (favs.some(f => f.from === dir.from && f.to === dir.to)) return false;
+  // Through the same key the shortcut list uses. A raw === meant starring
+  // «Ryen T → Oslo S» and later «Ryen → Oslo S» left TWO stars for one route,
+  // and the twelve-entry cap then pushed a real one out to make room for the
+  // duplicate.
+  const key = _pairKey(dir.from, dir.to);
+  if (favs.some(f => _pairKey(f.from, f.to) === key)) return false;
   favs.push({
     type: 'route',
     id: 'fav_' + Date.now(),
@@ -82,8 +88,22 @@ export function addTimedFav(dep, dir) {
  */
 const STAR_TRIPS = 5;
 
+/**
+ * One route, one key — the eleventh copy of the stop rule, and the one I got
+ * wrong.
+ *
+ * v1.107.0 swept nine call sites and deliberately left this one out, on the
+ * stated grounds that it was «lagret på disk» and changing it would orphan the
+ * reader's favourites. That was simply false: this key is built and thrown
+ * away inside routeShortcuts, and what is stored is `{from, to, …}` with the
+ * names as typed. Nothing on disk depends on it, so there was never a
+ * migration to fear.
+ *
+ * With stopKey, «Ryen T → Oslo S» and «Ryen → Oslo S» are one route — which is
+ * what they are.
+ */
 function _pairKey(from, to) {
-  return String(from || '').toLowerCase().trim() + '|' + String(to || '').toLowerCase().trim();
+  return stopKey(from) + '|' + stopKey(to);
 }
 
 /**

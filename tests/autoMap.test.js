@@ -168,12 +168,13 @@ describe('stopHeadHtml', () => {
   // The whole screen — heading, map, and the reach on every row — now leans
   // on the position being right. A twelve-minute-old fix has to say so.
   it('says when the position is stale', () => {
-    const h = stopHeadHtml(stop, 0, false, { walkMins: 5, posNote: 'posisjon 12 min gammel' });
+    const h = stopHeadHtml(stop, 0, false,
+      { walkMins: 5, pos: { kind: 'gammel', label: 'posisjon 12 min gammel' } });
     expect(h).toContain('posisjon 12 min gammel');
   });
 
   it('says nothing about age while the fix is fresh', () => {
-    const h = stopHeadHtml(stop, 0, false, { walkMins: 5, posNote: null });
+    const h = stopHeadHtml(stop, 0, false, { walkMins: 5, pos: { kind: 'ok', label: '' } });
     expect(h).not.toContain('gammel');
   });
 
@@ -387,5 +388,45 @@ describe('openLine', () => {
   it('survives a direction with no call at all', () => {
     expect(() => openLine(null)).not.toThrow();
     expect(openLine(null).color).toMatch(/^#/);
+  });
+});
+
+
+// The caution gets its own element, so it can be coloured without colouring
+// «374 m å gå» beside it. v1.108.0 left the note in the same ink as the
+// distance and said so; this is that debt paid.
+describe('stopHeadHtml and the position note', () => {
+  const stop = { name: 'Skullerud', distM: 374 };
+
+  it('wraps only the note, not the whole facts line', () => {
+    const h = stopHeadHtml(stop, 0, false,
+      { walkDist: 374, walkMins: 7,
+        pos: { kind: 'unoyaktig', label: 'posisjonen er unøyaktig (±120 m)' } });
+    const el = document.createElement('div');
+    el.innerHTML = h;
+    const note = el.querySelector('.auto-pos-note');
+    expect(note).not.toBeNull();
+    expect(note.textContent).toContain('unøyaktig');
+    // The distance is outside it — that is the whole point of the split.
+    expect(note.textContent).not.toContain('374');
+    expect(el.textContent).toContain('374');
+  });
+
+  it('carries the kind, so «old» and «inaccurate» can differ', () => {
+    const mk = (kind) => {
+      const el = document.createElement('div');
+      el.innerHTML = stopHeadHtml(stop, 0, false, { pos: { kind, label: 'x' } });
+      return el.querySelector('.auto-pos-note').className;
+    };
+    expect(mk('gammel')).not.toBe(mk('unoyaktig'));
+  });
+
+  // A good position says nothing. The verdict for 'ok' carries an empty label
+  // precisely so no caller has to remember to suppress it.
+  it('writes no note element when there is nothing to caution about', () => {
+    const el = document.createElement('div');
+    el.innerHTML = stopHeadHtml(stop, 0, false, { walkMins: 7, pos: { kind: 'ok', label: '' } });
+    expect(el.querySelector('.auto-pos-note')).toBeNull();
+    expect(el.textContent).toContain('7 min gange');
   });
 });

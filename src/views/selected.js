@@ -17,7 +17,7 @@ import { startBoard, boardRows } from './board.js';
 import { renderAlertsInto } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
-import { createMap, drawRoute, drawWalk, userDot } from '../ui/map.js';
+import { createMap, drawRoute, drawWalk, userDot, drawLeg } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
 
 function cleanName(s) { return (s || '').replace(/,\s*\S.*$/, '').replace(/\s+T$/i, '').trim(); }
@@ -172,7 +172,11 @@ function _depToRouteLegs(dep, fromName, toName) {
       }).filter(Boolean);
       if (stops.length < 2) continue;
       const ll = leg.serviceJourney && leg.serviceJourney.line;
-      legs.push({ stops, shape: legShape(leg),
+      // The MODE travels with the leg now. It was the one thing this
+      // descriptor did not carry, which is why the map drew a bus and a metro
+      // with the same stroke — corridorStyle could not be asked a question
+      // with no answer in hand.
+      legs.push({ stops, shape: legShape(leg), mode: leg.mode || null,
                   color: ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : null });
     }
     return legs.length ? legs : null;
@@ -194,7 +198,8 @@ function _depToRouteLegs(dep, fromName, toName) {
   if (stops.length < 2) return null;
   const sj = dep.serviceJourney;
   const color = sj && sj.line && sj.line.presentation && sj.line.presentation.colour ? '#' + sj.line.presentation.colour : null;
-  return [{ stops, shape: legShape(dep._legs && dep._legs[0]), color }];
+  const only = dep._legs && dep._legs[0];
+  return [{ stops, shape: legShape(only), mode: (only && only.mode) || null, color }];
 }
 
 let _selMapKey = '';
@@ -238,11 +243,21 @@ function _renderSelMap(dep, fromName, toName) {
   const destIsVenue = dir._toLat && dir._toLon && !dir.toStopId;
   const pts = [];
 
-  legs.forEach(({ stops, shape, color }, li) => {
+  legs.forEach(({ stops, shape, color, mode }, li) => {
     const lc = color || tokens().accent;
     // Real alignment where the leg carried one; the stop chain otherwise. The
     // markers below still come from stops either way.
-    drawRoute(_selLayer, shape || stops.map(s => [s.lat, s.lon]), { color: lc, weight: 4, opacity: 0.85 });
+    //
+    // THROUGH drawLeg. This drew every mode as one solid weight-4 stroke and
+    // never asked corridorStyle — the third of three screens to ignore an
+    // answer the app already had, so a bus was dotted on the board and solid
+    // here. `dots:false` because this map draws its own stop markers with
+    // permanent names, which is a real choice for a 130px band and not a
+    // divergence: the names ARE the markers at that size.
+    drawLeg(_selLayer, {
+      mode, colour: lc,
+      pts: shape || stops.map(s => [s.lat, s.lon]), stops: [],
+    }, { dots: false });
     stops.forEach((s, i) => {
       pts.push([s.lat, s.lon]);
       const isFirst = li === 0 && i === 0;

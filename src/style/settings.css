@@ -330,6 +330,16 @@
   margin-top: .15rem;
 }
 
+/* THE CAUTION, NOT THE WHOLE LINE. «374 m å gå» is a plain fact and stays in
+   the facts colour; the position note beside it is the part a reader should
+   notice. Restrained on purpose — this line sits under a stop name in 9px,
+   and the board's own stamp says the same thing in the same register. */
+#v-auto .auto-pos-note { color: var(--warn); }
+#v-auto .auto-pos-note.pos-unoyaktig,
+#v-auto .auto-pos-note.pos-borte,
+#v-auto .auto-pos-note.pos-frakoblet { color: var(--err); }
+
+
 #v-auto .auto-stop-more {
   font-size: .75rem;
   font-weight: 400;

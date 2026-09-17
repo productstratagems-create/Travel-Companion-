@@ -781,10 +781,32 @@ export function stopHeadHtml(stop, count, open, extra) {
   // «unøyaktig» could be added to one screen and not the other. Now both read
   // the label off the same verdict, and this screen gains «posisjonen er
   // unøyaktig (±120 m)» for free.
-  if (extra && extra.posNote) bits.push(extra.posNote);
 
-  const facts = bits.length
-    ? '<span class="auto-stop-facts">' + esc(bits.join(' · ')) + '</span>' : '';
+  // The note gets its OWN span, and the facts line does not.
+  //
+  // v1.108.0 put the sentence here and left it in the same ink as the walking
+  // distance beside it — measured on the screen, and reported as left undone,
+  // because colouring the whole line would have coloured «374 m å gå» too.
+  // Its own element is the way out: the caution is on the caution, and the
+  // distance stays a plain fact. The board has had this since v1.60 (its
+  // stamp takes a `stale` class); this is auto-reise catching up.
+  // THE VERDICT ITSELF, not a label and a kind passed side by side. The first
+  // cut took `posNote` and `posKind` as two fields, and a mutant that simply
+  // stopped passing the second survived every test: the class fell back to
+  // «gammel», so an inaccurate position would have been amber where it should
+  // be red. Two things that must agree, one release after the last one. One
+  // object cannot disagree with itself.
+  const ps = extra && extra.pos;
+  const note = ps && ps.kind && ps.kind !== 'ok' && ps.label
+    ? '<span class="auto-pos-note ' + esc('pos-' + ps.kind) + '">'
+      + esc(ps.label) + '</span>'
+    : '';
+
+  const facts = (bits.length || note)
+    ? '<span class="auto-stop-facts">' + esc(bits.join(' \u00b7 '))
+      + (note ? (bits.length ? ' \u00b7 ' : '') + note : '')
+      + '</span>'
+    : '';
   const name = esc((stop && stop.name) || '');
   // The name in its own element so it can be given an ellipsis. It used to be
   // a bare text node beside the caret, which is also why a browser probe that
@@ -850,13 +872,13 @@ export function pickStop(list, current, pinned) {
  * stop name is the noise this app keeps removing. It speaks for exactly the
  * states a reader could act on — old, and the one that used to be invisible.
  */
-function _posNote() {
-  const ps = posState({
+function _posState() {
+  return posState({
     asked: state.posAsked, homeLL: state.homeLL, posAt: state.posAt,
     gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
   });
-  return ps.kind === 'ok' ? null : ps.label || null;
 }
+
 
 function _renderWhere() {
   const el = _el('auto-where');
@@ -888,7 +910,7 @@ function _renderWhere() {
     + stopHeadHtml(_stop, others.length, open, {
       walkDist: w ? w.dist : null,
       walkMins: w ? w.mins : null,
-      posNote: _posNote(),
+      pos: _posState(),
     })
     + '<div id="auto-alts"' + (open ? '' : ' hidden') + '>'
     // One band per mode. The count in the heading above is the number of

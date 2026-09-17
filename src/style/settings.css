@@ -340,7 +340,12 @@
 #v-auto .auto-pos-note.pos-frakoblet { color: var(--err); }
 
 
-#v-auto .auto-stop-more {
+/* UNSCOPED from #v-auto in v1.111.1. «There is more here» is one idea, and the
+   app had two grammars for it: this caret on auto-reise, and a dashed box
+   saying «VIS» in the traffic banner and — as of v1.111.0 — in this form too.
+   Asked to settle on the caret, so the rule that paints it has to be reachable
+   from both screens. One definition, not two that must stay alike. */
+.auto-stop-more {
   font-size: .75rem;
   font-weight: 400;
   letter-spacing: .05em;
@@ -524,3 +529,18 @@
   flex-direction: row;
 }
 
+
+
+/* The folded nearby-stops list, in auto-reise's grammar rather than the
+   alerts row's: no dashed box, no verb, just what it is and a caret. It sits
+   directly under the «fra stasjon» field, so it stays quiet — the field above
+   it is the thing being set. */
+.nearby-toggle {
+  display: flex; align-items: baseline; gap: .4rem;
+  width: 100%; padding: .35rem .25rem; margin: .1rem 0 .4rem;
+  font: inherit; font-size: .8rem; letter-spacing: .04em;
+  color: var(--text-muted); background: none; border: 0;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.nearby-toggle:active { opacity: .6; }
+.nearby-toggle-label { text-align: left; }

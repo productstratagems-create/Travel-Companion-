@@ -677,10 +677,19 @@ export function nearbyLabel(n) {
 
 export function nearbyToggleHtml(n, open) {
   if (!n) return '';
+  // AUTO-REISE'S CARET, not the alerts row's «vis»/«skjul».
+  //
+  // v1.111.0 built this on otherRowHtml — a dashed box with the word «VIS» —
+  // and the app then had two grammars for one idea: the dashed box in the
+  // traffic banner, and «Mortensrud 7 ▾» on auto-reise. Asked to settle on the
+  // second. ▾ closed, ▴ open, the count beside it, the same .auto-stop-more
+  // rule painting both. A caret needs no verb.
   return '<button type="button" class="nearby-toggle" id="set-nearby-toggle"'
     + ' aria-expanded="' + (open ? 'true' : 'false') + '"'
     + ' aria-controls="set-nearby-list">'
-    + esc(nearbyLabel(n)) + ' <span class="ah-show">' + (open ? 'skjul' : 'vis') + '</span></button>';
+    + '<span class="nearby-toggle-label">' + esc(nearbyLabel(n)) + '</span>'
+    + '<span class="auto-stop-more">' + (open ? '\u25b4' : '\u25be') + '</span>'
+    + '</button>';
 }
 
 /**
@@ -720,8 +729,8 @@ function _applyNearbyOpen() {
   if (list) list.style.display = _nearbyOpen ? 'block' : 'none';
   if (btn) {
     btn.setAttribute('aria-expanded', _nearbyOpen ? 'true' : 'false');
-    const show = btn.querySelector('.ah-show');
-    if (show) show.textContent = _nearbyOpen ? 'skjul' : 'vis';
+    const caret = btn.querySelector('.auto-stop-more');
+    if (caret) caret.textContent = _nearbyOpen ? '\u25b4' : '\u25be';
   }
 }
 

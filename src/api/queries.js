@@ -29,10 +29,37 @@ export function lookbackISO(now) {
  * because these names cannot be checked against the live API from a
  * sandbox that cannot reach it.
  */
-export function sitsGQL(basic) {
+/**
+ * What a situation is ABOUT, when the schema will tell us.
+ *
+ * A situation carries no identifiers otherwise — id, summary, description,
+ * advice, severity, validity, and nothing that says which line or stop it
+ * concerns. Reported: a bus from Bjørndal shown to a reader riding metro line
+ * 3, because the message hung on the destination stop and nothing could tell
+ * the two apart.
+ *
+ * `affects` is the field that can. It is ASKED AS A PROBE: these type names
+ * cannot be checked against the live schema from a sandbox that reaches
+ * neither api.entur.io nor Entur's docs, and an unknown field takes the whole
+ * query down with `{errors, data:null}` on HTTP 200. So the caller drops it
+ * and remembers on a rejection, exactly as it already does for `coach` and
+ * `searchWindow`.
+ *
+ * Without it the app falls back to provenance alone — where the message hung
+ * — which is today's behaviour, not something worse.
+ */
+export const AFFECTS_GQL = ' affects{__typename'
+  + ' ... on AffectedLine{line{id}}'
+  + ' ... on AffectedStopPlace{stopPlace{id}}'
+  + ' ... on AffectedQuay{quay{stopPlace{id}}}'
+  + ' ... on AffectedServiceJourney{serviceJourney{id}}}';
+
+export function sitsGQL(basic, withAffects) {
   return 'situations{id summary{language value}'
     + (basic ? '' : ' description{language value} advice{language value}')
-    + ' severity validityPeriod{startTime endTime}}';
+    + ' severity validityPeriod{startTime endTime}'
+    + (withAffects ? AFFECTS_GQL : '')
+    + '}';
 }
 
 /**
@@ -61,8 +88,8 @@ export function sitsGQL(basic) {
  */
 export const TRIP_SEARCH_WINDOW = 1440;
 
-export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTime, coach, window) {
-  const sits = sitsGQL(minimal);
+export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTime, coach, window, affects) {
+  const sits = sitsGQL(minimal, affects);
   const fromIsCoord = fromId && typeof fromId === 'object';
   // Only the stop places the reader actually named.
   //

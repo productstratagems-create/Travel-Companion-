@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { splitSituations } from '../api/situations.js';
 import { storage } from '../storage.js';
 import config from '../config.js';
 import { esc } from './fmt.js';
@@ -148,6 +149,30 @@ export function alertHtml(s) {
     + '</button>' + hide + '</div>';
 }
 
+/**
+ * «2 andre meldinger ›» — the ones that are not about your journey.
+ *
+ * Reported: a bus from Bjørndal shown to a reader riding metro line 3. The
+ * fix sorts messages by whether they concern the journey on screen — but our
+ * matching rests on where a message hung and on a field we cannot verify from
+ * here, so NOTHING IS DELETED. Hiding a real closure because we could not
+ * prove it was relevant is the expensive mistake; one tap opens them.
+ *
+ * Deliberately the same shape as the put-away row above rather than a new
+ * one: two rows meaning «there is more here» would be two things a reader has
+ * to learn.
+ */
+export function otherLabel(n) {
+  if (!n) return '';
+  return n === 1 ? '1 annen melding' : n + ' andre meldinger';
+}
+
+export function otherRowHtml(n, open) {
+  if (!n) return '';
+  return '<button type="button" class="alerts-other" aria-expanded="' + (open ? 'true' : 'false') + '">'
+    + esc(otherLabel(n)) + ' <span class="ah-show">' + (open ? 'skjul' : 'vis') + '</span></button>';
+}
+
 /** The one line that says something is put away, and takes you back. */
 export function hiddenRowHtml(n) {
   if (!n) return '';
@@ -160,6 +185,10 @@ export function hiddenRowHtml(n) {
  * is rebuilt on every render tick, so per-element handlers would be attached
  * and thrown away once a second.
  */
+let _otherOpen = false;
+export function _setOtherOpen(v) { _otherOpen = !!v; }
+export function _isOtherOpen() { return _otherOpen; }
+
 export function bindAlertToggles(el, onChange) {
   if (!el) return;
   if (onChange) el._saChange = onChange;
@@ -174,6 +203,16 @@ export function bindAlertToggles(el, onChange) {
     const hide = t.closest('.sa-hide');
     if (hide && el.contains(hide)) {
       hideAlert(hide.dataset.sid, hide.dataset.sev);
+      if (el._saChange) el._saChange();
+      return;
+    }
+
+    // Expanded-ness cannot live in the markup: this container is rewritten
+    // once a second, so a class on the button would be gone before the finger
+    // lifted. Same reasoning as the folded stop list on auto-reise.
+    const other = t.closest('.alerts-other');
+    if (other && el.contains(other)) {
+      _otherOpen = !_otherOpen;
       if (el._saChange) el._saChange();
       return;
     }
@@ -216,10 +255,20 @@ export function sevClass(s) {
  * destination banner both come through here, so what counts as hidden cannot
  * differ between them.
  */
-export function renderAlertsInto(el, situations, onChange) {
+export function renderAlertsInto(el, situations, onChange, ctx) {
   if (!el) return;
   const active = activeSituations(situations);
-  const { shown, hiddenCount, escalated } = visibleAlerts(active, loadHidden());
+  // WHICH OF THESE ARE ABOUT THE JOURNEY ON SCREEN.
+  //
+  // Reported: a bus from Bjørndal shown to a reader riding metro line 3. The
+  // banner used to be one global list rendered identically on every screen;
+  // now each screen hands in what it knows it is showing, and the rest fold
+  // into one line rather than disappearing.
+  //
+  // No ctx — the caller has no context to offer — means everything is «mine»,
+  // which is exactly today's behaviour.
+  const split = ctx ? splitSituations(active, ctx) : { mine: active, other: [] };
+  const { shown, hiddenCount, escalated } = visibleAlerts(split.mine, loadHidden());
   // A message that got worse is shown again and forgets it was ever put away,
   // so the reader can put it away again on its own terms.
   if (escalated.length) {
@@ -227,17 +276,22 @@ export function renderAlertsInto(el, situations, onChange) {
     escalated.forEach(id => delete map[id]);
     saveHidden(map);
   }
+  // The other pile goes through the SAME put-away rules: a message set aside
+  // as someone else's should still stay away once the reader dismisses it.
+  const otherVis = visibleAlerts(split.other, loadHidden());
   const items = shown.map(alertHtml).filter(Boolean);
-  const row = hiddenRowHtml(hiddenCount);
-  if (!items.length && !row) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  const otherItems = _otherOpen ? otherVis.shown.map(alertHtml).filter(Boolean) : [];
+  const other = otherRowHtml(otherVis.shown.length, _otherOpen);
+  const row = hiddenRowHtml(hiddenCount + otherVis.hiddenCount);
+  if (!items.length && !other && !row) { el.innerHTML = ''; el.style.display = 'none'; return; }
 
   // Expanded state lives on the DOM, and the banner is rebuilt every tick —
   // so remember which ids were open and restore them, or an alert someone is
   // reading would snap shut a second later.
   const open = new Set([...el.querySelectorAll('.sa-open')]
     .map(b => b.parentElement && b.parentElement.dataset.sid));
-  el.innerHTML = items.join('') + row;
-  shown.forEach(s => {
+  el.innerHTML = items.join('') + other + otherItems.join('') + row;
+  shown.concat(_otherOpen ? otherVis.shown : []).forEach(s => {
     if (!s.id || !open.has(s.id)) return;
     const box = el.querySelector('.service-alert[data-sid="' + (window.CSS && CSS.escape ? CSS.escape(s.id) : s.id) + '"]');
     const btn = box && box.querySelector('.sa-more');
@@ -247,10 +301,21 @@ export function renderAlertsInto(el, situations, onChange) {
   el.style.display = 'block';
 }
 
-export function renderAlerts() {
+/**
+ * The board's own banner.
+ *
+ * `#service-alerts` used to sit OUTSIDE every v-* div in index.html, and
+ * show() only toggles those — so one global banner stood on every screen
+ * whatever it was about. It lives inside the board now, and the other screens
+ * have their own slots with their own context.
+ *
+ * @param {object} [ctx] what the board is showing: {lineIds, journeyIds, stopIds}
+ */
+export function renderAlerts(ctx) {
   renderAlertsInto(
     document.getElementById('service-alerts'),
     state.serviceAlerts,
-    renderAlerts,
+    () => renderAlerts(ctx),
+    ctx,
   );
 }

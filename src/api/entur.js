@@ -2,6 +2,7 @@ import config from '../config.js';
 import { enturFetch } from './http.js';
 import { arrBoardGQL, boardGQL, inflightGQL, journeyGQL, normJid, trackGQL, tripGQL } from './queries.js';
 import { quayLatLon } from './adapt.js';
+import { addSituation } from './situations.js';
 import { logMsg, setDot } from '../ui/log.js';
 import { noteLookbackLost } from './diagnose.js';
 import { loadWalkSpeed, focusParam } from '../geo.js';
@@ -169,6 +170,22 @@ export function resolveToPlace(dir, signal) {
  * the schema will not accept must cost one request, not one per poll for the
  * rest of the day.
  */
+/**
+ * Whether the schema refused `affects` on situations.
+ *
+ * The one field that can say WHICH LINE a traffic message is about. Reported:
+ * a bus from Bjørndal shown to a reader riding metro line 3, because the
+ * message hung on the destination stop and nothing could tell them apart.
+ *
+ * Its type names cannot be checked from here — the proxy reaches neither
+ * api.entur.io nor Entur's docs — so it is a probe with the same ladder
+ * `coach` and `searchWindow` already have. Refused once, dropped for the
+ * session; the fallback is provenance alone, which is today's behaviour.
+ */
+let _affectsRejected = false;
+export function _affectsRefused() { return _affectsRejected; }
+export function _resetAffectsProbe() { _affectsRejected = false; }
+
 let _coachRejected = false;
 
 /** Test seam. */
@@ -192,26 +209,34 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
   const signal = tripController.signal;
 
   setDot('loading');
+  // The two named stop places, held where the SECOND .then can see them: the
+  // situations that arrive attached to those stops have to be labelled with
+  // which stop they came from, and the destructured ids below are scoped to
+  // the first callback only. Missing them threw a ReferenceError that .catch
+  // swallowed into onError — the board simply never arrived.
+  let namedFrom = null, namedTo = null;
   Promise.all([resolveStop(dir, signal), resolveToPlace(dir, signal), resolveViaStop(dir, signal)])
     .then(([fromId, toId, viaId]) => {
       if (signal.aborted) return;
+      namedFrom = typeof fromId === 'string' ? fromId : null;
+      namedTo = typeof toId === 'string' ? toId : null;
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
       const label = p => (p && typeof p === 'object') ? p.lat + ',' + p.lon : p;
       logMsg('trip → ' + label(fromId) + (viaId ? ' via ' + viaId : '') + ' → ' + label(toId));
-      const ask = (withLookback, withCoach, withWindow) => enturFetch(config.api.journeyPlanner, {
+      const ask = (withLookback, withCoach, withWindow, withAffects) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: withLookback
             ? tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? undefined : atMs,
-              false, false, withCoach, withWindow)
+              false, false, withCoach, withWindow, withAffects)
             // The retry deliberately drops dateTime: it is the argument that
             // could never be verified against the live API, so it is the one
             // the fallback exists to shed. The cost is real — this poll loses
             // the two-minute lookback, and with it a train standing at the
             // platform a minute late — so the diagnostic records that it
             // happened rather than trading a silent loss for a silent outage.
-            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow),
+            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow, withAffects),
         }),
         signal,
       })
@@ -244,39 +269,61 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
           // refused, so they are shed one at a time in order of what their
           // loss costs the reader: the wider window (rural journeys we never
           // had), then the coaches, then the two-minute lookback.
+          // Affects goes first of all. Shedding it costs only how well the
+          // messages are sorted; shedding any of the others costs departures.
+          // The cheapest loss leads, as the comment above says.
+          if (withAffects && !j.data && j.errors) {
+            _affectsRejected = true;
+            logMsg('situasjoner: affects avvist, sorteres på herkomst' + why, 'err');
+            return ask(withLookback, withCoach, withWindow, false);
+          }
           if (withWindow && !j.data && j.errors) {
             _windowRejected = true;
             logMsg('søkevindu: searchWindow avvist' + why, 'err');
-            return ask(withLookback, withCoach, false);
+            return ask(withLookback, withCoach, false, withAffects);
           }
           if (withCoach && !j.data && j.errors) {
             _coachRejected = true;
             logMsg('ekspressbuss: coach avvist' + why, 'err');
-            return ask(withLookback, false, withWindow);
+            return ask(withLookback, false, withWindow, withAffects);
           }
           if (withLookback && !j.data && j.errors) {
             logMsg('trip: dateTime avvist, tilbakeblikket tapt denne pollen' + why, 'err');
             noteLookbackLost();
-            return ask(false, withCoach, withWindow);
+            return ask(false, withCoach, withWindow, withAffects);
           }
           return j;
         });
-      return ask(true, !_coachRejected, !_windowRejected);
+      return ask(true, !_coachRejected, !_windowRejected, !_affectsRejected);
     })
     .then(j => {
       if (!j || signal.aborted) return;
       if (!j.data) throw new Error((j.errors && j.errors[0] && j.errors[0].message) || 'No data');
       const patterns = (j.data.trip && j.data.trip.tripPatterns) || [];
+      // WHERE EACH MESSAGE HUNG IS KEPT.
+      //
+      // This was `sitMap.set(s.id, s)`: the last hit won, and the only handle
+      // this app has on relevance was thrown away on the very line that had
+      // it. A situation carries no line or stop of its own, so the fact that
+      // it arrived attached to the DESTINATION rather than to your leg is the
+      // difference between «Skullerud er stengt» and a bus from Bjørndal.
       const sitMap = new Map();
-      const addSits = (arr) => (arr || []).forEach(s => s && s.id && sitMap.set(s.id, s));
+      const addSits = (arr, from) => (arr || []).forEach(s => addSituation(sitMap, s, from));
       // Both ends the reader named…
-      addSits((j.data.stopPlace || {}).situations);
-      addSits((j.data.dest || {}).situations);
+      // Null when the route was given as raw coordinates: there is no id to
+      // attribute the message to, so it stays unscoped — shown, not buried.
+      addSits((j.data.stopPlace || {}).situations, { stop: namedFrom });
+      addSits((j.data.dest || {}).situations, { stop: namedTo });
       // …and the journeys they would actually ride. This used to come from
       // the origin's next five departures instead, whatever line those ran.
       patterns.forEach(tp => (tp.legs || []).forEach(leg => {
-        addSits(leg.situations);
-        if (leg.serviceJourney) addSits(leg.serviceJourney.situations);
+        const sj = leg.serviceJourney;
+        const from = {
+          line: (leg.line && leg.line.id) || (sj && sj.line && sj.line.id) || null,
+          journey: (sj && sj.id) || null,
+        };
+        addSits(leg.situations, from);
+        if (sj) addSits(sj.situations, from);
       }));
       setDot('ok');
       onSuccess(patterns, Array.from(sitMap.values()));

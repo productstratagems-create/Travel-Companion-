@@ -329,6 +329,12 @@
 .sa-hide:hover,.sa-hide:focus-visible{opacity:1}
 /* One line saying something is put away — never let a hidden message be
    invisible, or a closed line could pass unnoticed. */
+/* «2 andre meldinger ›» — the ones that are not about this journey.
+   Deliberately the same shape as the put-away row below it: two rows both
+   meaning «there is more here» would be two things to learn. Measured in the
+   browser first as a bare white default button — the class existed and no
+   rule matched it, which every number said was fine. */
+.alerts-other,
 .alerts-hidden{
   display:block;width:100%;text-align:left;
   padding:.3rem .75rem;margin:.25rem 0;

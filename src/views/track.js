@@ -16,7 +16,7 @@ import { makeVehicleIcon, makeRouteStopIcon, mobilityCluster, vendorColour } fro
 import { snapToCorridor } from '../ui/corridor.js';
 import { _trainPosition, SRC_LABEL } from './trainPosition.js';
 import { renderJourneyStrip } from './journeyStrip.js';
-import { renderAlerts, renderAlertsInto } from '../ui/alerts.js';
+import { renderAlertsInto } from '../ui/alerts.js';
 import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
@@ -1247,11 +1247,23 @@ function computeState(now) {
 }
 
 export function renderTrack() {
-  renderAlerts();
-  if (!state.jny || !state.jny.legs || !state.jny.legs.length) return;
+  if (!state.jny || !state.jny.legs || !state.jny.legs.length) {
+    renderAlertsInto(document.getElementById('t-alerts'), state.serviceAlerts, renderTrack, null);
+    return;
+  }
   const now = Date.now();
   const legs = state.jny.legs;
   const cs = computeState(now);
+  // THE LEG YOU ARE ACTUALLY ON. Reported: a bus from Bjørndal shown here
+  // while the reader rode metro line 3 — the banner was the board's whole
+  // list, gathered when the route was planned, rendered unchanged.
+  const _leg = legs[cs.i] || legs[0];
+  renderAlertsInto(document.getElementById('t-alerts'), state.serviceAlerts, renderTrack, {
+    journeyIds: [_leg && _leg.journeyId].filter(Boolean),
+    lineIds: [_leg && _leg.lineRef].filter(Boolean),
+    stopIds: ((_leg && _leg.stops) || [])
+      .map(st => st && st.quay && st.quay.stopPlace && st.quay.stopPlace.id).filter(Boolean),
+  });
   const { phase, i } = cs;
 
   // Auto-exit 5 min after final arrival — end the journey fully so the

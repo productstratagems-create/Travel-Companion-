@@ -71,3 +71,51 @@ describe('every map asks the same questions', () => {
     expect(s).toMatch(/drawLeg\(_selLayer, \{\s*mode,/);
   });
 });
+
+// ── The detail screen's own circles (v1.116.0) ─────────────────────────────
+//
+// Six marker styles lived on a 130px band: 14px endpoints with permanent
+// names, a 5px alighting circle, 4px intermediates — none of them the bead the
+// rest of the app draws. Measured: ten markers, THREE overlapping pairs.
+describe('avgangsdetaljer draws the shared bead', () => {
+  const s = () => src('src/views/selected.js');
+
+  it('leaves no bespoke stop circles behind', () => {
+    expect(s()).not.toMatch(/L\.circleMarker\(\[s\.lat, s\.lon\], \{ radius: 4/);
+    expect(s()).not.toMatch(/L\.circleMarker\(\[s\.lat, s\.lon\], \{ radius: 5/);
+  });
+
+  // The gate that decides «is there room» must be given a projection, or it
+  // has nothing to measure and every bead is drawn.
+  it('hands the readability gate a projection to measure against', () => {
+    expect(s()).toMatch(/drawLeg\(_selLayer,[\s\S]{0,200}project:/);
+  });
+
+  // FRAME FIRST, THEN DRAW — the third time that order has been the answer.
+  // fitBounds ran at the bottom, so drawing had no frame: the first attempt
+  // threw «Set map center and zoom first» and lost all ten markers, and a
+  // provisional view made it worse by measuring a frame the map was leaving.
+  it('fits before it draws, without animating', () => {
+    const t = s();
+    const frame = t.indexOf('_selMap.fitBounds(frame');
+    const draw = t.indexOf('drawLeg(_selLayer');
+    expect(frame).toBeGreaterThan(-1);
+    expect(frame).toBeLessThan(draw);
+    expect(t).toMatch(/fitBounds\(frame,[^)]*animate: false/);
+  });
+
+  // The two ends keep their permanent names — measured as not overlapping and
+  // inside the frame — because this screen is about ONE departure from X to Y
+  // and «PÅ»/«AV» would repeat the heading while losing the only thing the map
+  // adds. But the CHANGE was marked with nothing at all.
+  it('marks the change, and keeps the endpoint names', () => {
+    expect(s()).toMatch(/drawJourneyPoints\(_selLayer/);
+    expect(s()).toMatch(/kind === 'change'/);
+    expect(s()).toMatch(/permanent: true/);
+  });
+
+  it('asks for its padding by rule rather than by number', () => {
+    expect(s()).toMatch(/fitPadding\(mapEl\.clientHeight\)/);
+    expect(s()).not.toMatch(/padding: \[40, 40\]/);
+  });
+});

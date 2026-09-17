@@ -337,6 +337,50 @@ export function makeStopIcon(mode, count, opts = {}) {
                      iconAnchor: [Math.round(size / 2), Math.round(size / 2)] });
 }
 
+/**
+ * Where you get on, where you change, where you get off.
+ *
+ * Reported with a screenshot: a two-leg journey drawn as one unbroken red
+ * string, because both legs were RUT buses and nothing marked the seam. Six
+ * symbols were on that map and not one of them said «here is where you
+ * change» — the single thing on a two-leg trip that a reader can get wrong.
+ *
+ * THE LABEL IS THE ICON. The map already has five kinds of coloured circle,
+ * and a sixth would have been one more thing to decode. These say what they
+ * are in words, which is the only shape nobody has to learn — and it is what
+ * the app does everywhere else it can (the strip names its next stop, the
+ * banner spells out «Avgangen er innstilt»).
+ *
+ * `change` is the loud one on purpose. Boarding is where you already are and
+ * alighting is next to a destination pin that is drawn anyway; the change is
+ * the one that is neither, and the one this release exists for.
+ */
+const _POINT_WORD = { board: 'på', change: 'bytt', alight: 'av' };
+
+export function makeJourneyPointIcon(kind, color) {
+  const halo = _halo();
+  const word = _POINT_WORD[kind] || '';
+  const loud = kind === 'change';
+  const bg = loud ? (color || _MODE_COLOUR.rail) : halo;
+  const fg = loud ? halo : (halo === '#ffffff' ? '#1e293b' : '#f8fafc');
+  const pad = loud ? '2px 7px' : '1px 6px';
+  const html = '<span style="display:inline-block;padding:' + pad + ';'
+    + 'background:' + bg + ';color:' + fg + ';'
+    + 'border:1.7px solid ' + (loud ? halo : (color || _MODE_COLOUR.rail)) + ';'
+    + 'border-radius:9px;'
+    + "font-family:'JetBrains Mono',ui-monospace,monospace;"
+    + 'font-size:' + (loud ? '10px' : '9px') + ';font-weight:700;line-height:1.1;'
+    + 'letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;'
+    + 'box-shadow:0 1px 3px rgba(0,0,0,.4)">' + word + '</span>';
+  // Anchored at its middle so the word sits ON the stop it names, the way the
+  // line badges already do. Width varies with the word, so it is measured
+  // rather than assumed — a fixed anchor put «bytt» a few pixels off its stop.
+  const w = word.length * (loud ? 7 : 6) + (loud ? 18 : 14);
+  const h = loud ? 18 : 15;
+  return L.divIcon({ className: '', html, iconSize: [w, h],
+    iconAnchor: [Math.round(w / 2), Math.round(h / 2)] });
+}
+
 export function makeRouteStopIcon(color) {
   // Demoted: these are context, not decisions. Smaller and quieter than the
   // markers that answer a question.

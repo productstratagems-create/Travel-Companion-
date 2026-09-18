@@ -252,9 +252,54 @@ describe('_timesHtml reach', () => {
 
   // The whole case in one assertion: five minutes on foot, so the departure
   // in two is gone and the one in twelve is the one to read.
+  //
+  // This used to assert `class="auto-t-next missed"` — that the EMPHASIS sat
+  // on the departure you cannot reach. It was pinning a rule that had gone out
+  // of date: «the first time is the one you act on» was true before walk time
+  // was on this screen, and false afterwards. The strike is unchanged; what
+  // moved is which time is loud.
   it('marks a departure you cannot walk to in time as missed', () => {
     const h = _timesHtml(dir, NOW, 5);
-    expect(h).toMatch(/class="auto-t-next missed"/);
+    expect(h).toMatch(/class="auto-t-dim missed">2</);
+  });
+
+  // THE REPORTED CASE, in one assertion. «nå · 15 · 30 min» with fourteen
+  // minutes on foot: the bright number was «nå», the one you cannot reach, and
+  // the one to walk for was faded to 55%.
+  it('puts the emphasis on the first departure you can still make', () => {
+    const el = document.createElement('div');
+    el.innerHTML = _timesHtml({ times: [at(0), at(15), at(30)], mins: 0 }, NOW, 14);
+    const loud = el.querySelector('.auto-t-next');
+    expect(loud.textContent).toBe('15');
+    expect(loud.className).not.toContain('missed');
+  });
+
+  // NOTHING IS REMOVED by moving the emphasis — the ones you missed are still
+  // there, struck, because you may choose to run and «nå» tells you the line
+  // just went.
+  it('keeps the ones you cannot make, struck through', () => {
+    const el = document.createElement('div');
+    el.innerHTML = _timesHtml({ times: [at(0), at(15), at(30)], mins: 0 }, NOW, 14);
+    expect(el.textContent).toContain('nå');
+    expect(el.querySelectorAll('.missed')).toHaveLength(1);
+    expect(el.querySelectorAll('span[class*="auto-t"]')).toHaveLength(5);
+  });
+
+  // Every departure out of reach: the emphasis has nowhere honest to go, so it
+  // stays on the first — the old rule, which is right when there is nothing to
+  // aim for.
+  it('falls back to the first when none can be made', () => {
+    const el = document.createElement('div');
+    el.innerHTML = _timesHtml({ times: [at(1), at(2)], mins: 1 }, NOW, 30);
+    expect(el.querySelector('.auto-t-next').textContent).toBe('1');
+  });
+
+  // And with no walk time there is no verdict at all, so the first time is the
+  // one you act on — the rule this replaces, still right where it applies.
+  it('emphasises the first when there is no walking time to judge by', () => {
+    const el = document.createElement('div');
+    el.innerHTML = _timesHtml({ times: [at(2), at(12)], mins: 2 }, NOW);
+    expect(el.querySelector('.auto-t-next').textContent).toBe('2');
   });
 
   it('leaves a departure you can comfortably make alone', () => {

@@ -414,7 +414,8 @@
    the rest tell you what missing it costs. Text in the same span rather than
    new flex children: the rule above exists because a third child pushed the
    label adrift under space-between. */
-#v-auto .auto-dir .auto-t-more { opacity: .55; }
+#v-auto .auto-dir .auto-t-dim,
+#v-auto .auto-dir .auto-t-sep { opacity: .55; }
 /* CAN YOU ACTUALLY MAKE IT — the reason the walking time is on this screen.
    The classes come from reachCls, the same four the departure board has used
    all along; they had no styling HERE, so the marks were in the DOM and
@@ -436,9 +437,16 @@
 }
 #v-auto .auto-dir .r-soon { color: var(--warn); }
 #v-auto .auto-dir .r-now  { color: #60a5fa; }
-/* The first time is the one you act on, so a missed first time has to be
-   legible as struck-through rather than merely faint. */
-#v-auto .auto-dir .auto-t-next.missed { opacity: .5; }
+/* THE ONE YOU AIM FOR, marked as such — always, not only when it is tight.
+   r-soon and r-now already coloured a departure you have to hurry for, but a
+   comfortable one got nothing, so the positive signal was missing exactly when
+   everything was fine. Weight rather than colour: the colours here mean
+   urgency, and «this is the one» is not urgency.
+   The rule this replaces said «the first time is the one you act on, so a
+   missed first time has to be legible as struck-through». True before walk
+   time was on this screen; false since, and nothing moved with it. */
+#v-auto .auto-dir .auto-t-next { font-weight: 700; }
+#v-auto .auto-dir .auto-t-next.missed { opacity: .5; font-weight: 400; }
 /* Where to stand, beside which way you are going — two halves of the same
    question. Quieter than the destination, which is what you scan for.
    Never shrinks: the destination is the long, variable part and gives way

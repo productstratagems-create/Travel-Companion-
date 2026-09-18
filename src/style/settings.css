@@ -408,6 +408,17 @@
    the same affordance — a pointer, not a map's grab cursor. */
 #v-auto #auto-map .auto-map-pin { cursor: pointer; }
 
+/* WHAT THE LIST DOES NOT SHOW.
+   Quiet on purpose: it is a caveat about the list, not a warning about a
+   departure, and the colours on this screen already mean urgency. Same
+   register as the position note above it. */
+#v-auto .auto-more-note {
+  margin: .5rem .25rem 0;
+  font-size: .75rem;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+}
+
 /* A DISRUPTION, ON THE ROW IT CONCERNS.
    Four line-specific messages used to stand above «du er ved», the map and
    every departure — at Jernbanetorget that is the whole screen before a single

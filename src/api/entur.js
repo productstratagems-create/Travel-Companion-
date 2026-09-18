@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { enturFetch } from './http.js';
-import { arrBoardGQL, boardGQL, inflightGQL, journeyGQL, normJid, trackGQL, tripGQL } from './queries.js';
+import { arrBoardGQL, boardGQL, boardTruncated, nextBoardAsk, inflightGQL, journeyGQL, normJid, trackGQL, tripGQL } from './queries.js';
 import { quayLatLon } from './adapt.js';
 import { addSituation } from './situations.js';
 import { logMsg, setDot } from '../ui/log.js';
@@ -590,13 +590,48 @@ export function fetchBoard(dir, onSuccess, onError, want, perLine) {
           }
           return j;
         });
-      return ask(_perLineRejected ? 0 : perLine, false);
+      // ONE MORE RUNG, AND ONLY AT A HUB. An answer that comes back exactly at
+      // the cap was cut by it, and at Jernbanetorget 30 departures is about
+      // ninety seconds of traffic — line 3 toward Mortensrud was never in it.
+      // A small stop never trips this and keeps the cheap request it has
+      // always made; a hub pays one extra. Same shape as the per-line ladder
+      // above, for the same reason: the right number cannot be known before
+      // asking.
+      const askedCount = count;
+      return ask(_perLineRejected ? 0 : perLine, false).then(j => {
+        const got = ((j && j.data && j.data.stopPlace
+          && j.data.stopPlace.estimatedCalls) || []).length;
+        if (!boardTruncated(got, askedCount)) return j;
+        const more = nextBoardAsk(askedCount);
+        if (!more) return j;
+        logMsg('board: ' + got + ' av ' + askedCount + ' — spør om ' + more);
+        return enturFetch(config.api.journeyPlanner, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: boardGQL(id, more, null, false, null, null,
+              _perLineRejected ? undefined : (perLine || undefined)),
+          }),
+          signal,
+        })
+          .then(r => (r && r.ok && !signal.aborted ? r.json() : j))
+          // A hub that answers once and fails the second time keeps the first
+          // answer — a short list beats none, and the notice will say it is
+          // short.
+          .then(j2 => ((j2 && j2.data && j2.data.stopPlace) ? Object.assign(j2, { _asked: more }) : j))
+          .catch(() => j);
+      }).then(j => (j && !j._asked ? Object.assign(j, { _asked: askedCount }) : j));
     })
     .then(j => {
       if (!j || signal.aborted) return;
       if (j.errors && !j.data) throw new Error(j.errors[0].message);
       const stop = j.data && j.data.stopPlace;
       if (!stop) throw new Error('Ingen data');
+      // WHAT THE LIST DOES NOT SHOW travels with it. The screen cannot say
+      // «there may be more» unless something tells it, and this is the only
+      // place that knows both halves.
+      stop._asked = j._asked || count;
+      stop._truncated = boardTruncated((stop.estimatedCalls || []).length, stop._asked);
       onSuccess(stop);
     })
     .catch(err => {

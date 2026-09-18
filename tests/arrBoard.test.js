@@ -142,8 +142,16 @@ describe('_renderArrBoardHtml reads the journey, not the clock', () => {
     const m = await import('../src/views/track.js');
     return m;
   };
+  // HALF A MINUTE PAST THE BOUNDARY, deliberately. These rows are built from
+  // Date.now() and rendered a few milliseconds later, and the render floors to
+  // whole minutes — so a row built at …999 ms rendered as one minute less, and
+  // «falls back to now when no journey is under way» failed once in a full run
+  // and passed alone. A flake in the instrument is worse than a flake in the
+  // code: everything else in this suite is trusted because this one is.
+  // Same lesson as v1.101.0, which pinned a clock 40 seconds past the minute
+  // so floor and round could not agree by accident.
   const row = (msFromNow, quay) => ({
-    depTs: Date.now() + msFromNow, quay, ln: { publicCode: '3' }, dest: 'Kolsås',
+    depTs: Date.now() + msFromNow + 30_000, quay, ln: { publicCode: '3' }, dest: 'Kolsås',
   });
 
   it('shows minutes from ARRIVAL, not from now', async () => {

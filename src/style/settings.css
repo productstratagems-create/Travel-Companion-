@@ -408,6 +408,27 @@
    the same affordance — a pointer, not a map's grab cursor. */
 #v-auto #auto-map .auto-map-pin { cursor: pointer; }
 
+/* A DISRUPTION, ON THE ROW IT CONCERNS.
+   Four line-specific messages used to stand above «du er ved», the map and
+   every departure — at Jernbanetorget that is the whole screen before a single
+   time is visible. They belong where the choice is made.
+   Sized and coloured like the line badges it sits with, because it is about
+   that line; warn rather than err, because «trikk 12 kjører ikke mellom to
+   stopp» is something to know, not an emergency. The full text is in the
+   folded banner and in the row's own label — this is the mark, not the
+   message. */
+#v-auto .auto-dir-alert {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 15px; height: 15px; margin-left: .3rem; padding: 0 3px;
+  border-radius: 4px;
+  background: rgba(var(--warn-rgb), .16);
+  border: 1px solid rgba(var(--warn-rgb), .4);
+  color: var(--warn);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px; font-weight: 700; line-height: 1;
+  flex-shrink: 0;
+}
+
 #v-auto .auto-lane + .auto-lane { margin-top: .5rem; }
 #v-auto .auto-lane .set-label { margin-bottom: .25rem; }
 /* Three times, and not three equal weights — the first is the one you act on,

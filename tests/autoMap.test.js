@@ -506,3 +506,47 @@ describe('stopHeadHtml and the position note', () => {
     expect(el.textContent).toContain('7 min gange');
   });
 });
+
+// ── The banner claims no line until you pick one (v1.120.0) ────────────────
+//
+// «The lines that actually leave from here» is three lines at Mortensrud and
+// every line in Oslo at Jernbanetorget — so the filter that was right at one
+// stop was vacuous at the other, and four line-specific messages pushed every
+// departure off the screen.
+describe('auto-reise and the traffic banner', () => {
+  const src = () => require('node:fs')
+    .readFileSync('src/views/auto.js', 'utf8').replace(/\/\/[^\n]*/g, '');
+
+  it('does not pass the stop’s own lines as the reader’s', () => {
+    const t = src();
+    const i = t.indexOf("renderAlertsInto(_el('auto-alerts')");
+    expect(i).toBeGreaterThan(-1);
+    const block = t.slice(i, i + 400);
+    expect(block).toMatch(/lineIds: \[\]/);
+    expect(block).not.toMatch(/serviceJourney\.line/);
+  });
+
+  // The stop's own messages still belong in the banner: «ruteendringer i
+  // høstferien» names no line and no row can carry it.
+  it('still claims the stop itself', () => {
+    const t = src();
+    const i = t.indexOf("renderAlertsInto(_el('auto-alerts')");
+    expect(t.slice(i, i + 400)).toMatch(/stopIds: \[_stop/);
+  });
+
+  // The line's own id is what lets a row be asked whether a message is about
+  // it. It was the one field the descriptor did not carry — the same shape as
+  // the detail map drawing every mode alike until v1.114.0 added `mode`.
+  it('carries the line id on the badge descriptor', () => {
+    expect(src()).toMatch(/lines: code \? \[\{ code, colour, id:/);
+  });
+
+  // There is no hover on a phone, so the mark cannot be the only place the
+  // message exists — the row's own label has to say it, and the full text
+  // stays in the folded banner.
+  it('puts the message in the row’s label, not only in a mark', () => {
+    const t = src();
+    expect(t).toMatch(/const full = 'mot ' \+ d\.frontText[\s\S]{0,200}dirMsgs/);
+    expect(t).toMatch(/auto-dir-alert/);
+  });
+});

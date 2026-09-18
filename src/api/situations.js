@@ -93,6 +93,40 @@ export function situationScope(s) {
 }
 
 /**
+ * Which messages belong to which line.
+ *
+ * Reported with a screenshot of auto-reise at Jernbanetorget: four traffic
+ * messages filled the screen above «du er ved», the map and every departure.
+ * All four named specific lines — trams 12 and 15, line 17, tram 18 — and the
+ * reader had not chosen a line yet.
+ *
+ * THE RULE FROM v1.105.0 WAS RIGHT AND ITS CONTEXT MADE IT EMPTY. auto.js
+ * passed «the lines that actually leave from here» as the reader's own lines.
+ * At Mortensrud that is three lines and the filter works. At Jernbanetorget it
+ * is every line in Oslo, so every message matched and nothing was ever folded.
+ *
+ * What the reader needs before they have chosen anything is not a wall of
+ * text: it is to know which DEPARTURE a disruption changes. So the messages
+ * are handed to the rows instead — one mark on the line it concerns, where the
+ * choice is actually made.
+ *
+ * @param {Array} list  active situations
+ * @returns {Map<string, Array>} line id → the messages naming that line
+ */
+export function byLine(list) {
+  const out = new Map();
+  (list || []).forEach(s => {
+    if (!s) return;
+    situationScope(s).lines.forEach(id => {
+      if (!out.has(id)) out.set(id, []);
+      const at = out.get(id);
+      if (!at.includes(s)) at.push(s);
+    });
+  });
+  return out;
+}
+
+/**
  * Is this message about the journey the reader is looking at?
  *
  * @param {object} s   a situation

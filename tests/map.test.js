@@ -14,7 +14,7 @@ vi.mock('../src/ui/themeTokens.js', () => ({
 }));
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 
-import { currentTileUrl, drawStopLine, corridorStyle, stopsReadable, drawLeg, drawJourneyPoints, fitPadding, ROUTE_STOP_MIN_GAP_PX } from '../src/ui/map.js';
+import { currentTileUrl, drawStopLine, corridorStyle, stopsReadable, drawLeg, drawJourneyPoints, mergeNearby, fitPadding, ROUTE_STOP_MIN_GAP_PX } from '../src/ui/map.js';
 
 beforeEach(() => document.documentElement.removeAttribute('data-theme'));
 
@@ -290,5 +290,55 @@ describe('fitPadding', () => {
     expect(fitPadding(0)).toBeGreaterThan(0);
     expect(fitPadding(undefined)).toBeGreaterThan(0);
     expect(fitPadding(10)).toBeGreaterThan(0);
+  });
+});
+
+// ── A projection that throws must not blank a map (v1.117.0) ───────────────
+//
+// Leaflet answers «Set map center and zoom first» when asked where a point
+// lands before the map has a view. v1.114.0 gave the tracking screen the
+// shared PÅ/BYTT/AV markers, whose merge projects each point — and its fit ran
+// at the BOTTOM of the block. The throw aborted everything before the fit, so
+// the map was left with no centre: no tiles, no lines, nothing. scheduler.js
+// wraps each tick in try/catch, so it never reached the console, and the
+// tracking map was blank for two releases.
+//
+// The order is the fix and a test holds callers to it. This is the second line
+// of defence: unmerged beads are a small fault, an empty map is a total one.
+describe('drawing against a map with no view yet', () => {
+  const boom = () => { throw new Error('Set map center and zoom first.'); };
+  beforeEach(() => { drawn.polys = []; drawn.markers = []; });
+
+  it('still draws the line when the projection throws', () => {
+    drawLeg({}, { mode: 'metro', colour: '#f5a000', stops: [
+      { lat: 0, lon: 0, name: 'A' }, { lat: 1, lon: 1, name: 'B' }, { lat: 2, lon: 2, name: 'C' },
+    ] }, { project: boom });
+    expect(drawn.polys.length).toBeGreaterThan(0);
+  });
+
+  // Beads are the thing given up, and that is the right thing to give up:
+  // without a projection there is no way to know whether they would collide.
+  it('gives up the beads rather than the map', () => {
+    drawLeg({}, { mode: 'metro', colour: '#f5a000', stops: [
+      { lat: 0, lon: 0, name: 'A' }, { lat: 1, lon: 1, name: 'B' }, { lat: 2, lon: 2, name: 'C' },
+    ] }, { project: boom });
+    expect(drawn.markers).toHaveLength(0);
+  });
+
+  it('still marks the turning points when the merge cannot measure', () => {
+    drawJourneyPoints({}, [
+      { kind: 'board', lat: 0, lon: 0, name: 'A' },
+      { kind: 'change', lat: 1, lon: 1, name: 'B' },
+      { kind: 'alight', lat: 2, lon: 2, name: 'C' },
+    ], { project: boom });
+    expect(drawn.markers).toHaveLength(3);
+  });
+
+  it('keeps every name when it cannot merge', () => {
+    const out = mergeNearby([
+      { name: 'A', lat: 0, lon: 0 }, { name: 'B', lat: 0, lon: 0 },
+    ], boom);
+    expect(out).toHaveLength(2);
+    expect(out.map(p => p.name)).toEqual(['A', 'B']);
   });
 });

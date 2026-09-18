@@ -10,7 +10,7 @@
  * built around.
  */
 import { describe, it, expect } from 'vitest';
-import { sameLine, situationScope, relevance, splitSituations, addSituation }
+import { sameLine, situationScope, relevance, splitSituations, addSituation, byLine }
   from '../src/api/situations.js';
 
 const L3 = 'RUT:Line:3', L71 = 'RUT:Line:71';
@@ -180,5 +180,81 @@ describe('addSituation', () => {
     const m = new Map();
     addSituation(m, sit('a'), { journey: 'rut:ServiceJourney:9' });
     expect([...situationScope(m.get('a')).journeys]).toEqual(['RUT:ServiceJourney:9']);
+  });
+});
+
+// ── Meldingen hører til raden den gjelder (v1.120.0) ───────────────────────
+//
+// Reported with a screenshot of auto-reise at Jernbanetorget: four traffic
+// messages filled the screen above «du er ved», the map and every departure.
+// Measured before the change: five cards open, «du er ved» at 351px, the first
+// departure at 609px on an 844px screen.
+//
+// The rule above was right and its CONTEXT made it empty. auto.js passed «the
+// lines that actually leave from here» as the reader's own lines. At
+// Mortensrud that is three lines and the filter works; at Jernbanetorget it is
+// every line in Oslo, so every line-specific message counted as the reader's
+// and nothing was ever folded.
+describe('byLine', () => {
+  const L = (n) => 'RUT:Line:' + n;
+  const msg = (id, lines) => ({
+    id, summary: [{ language: 'no', value: id }],
+    ...(lines ? { affects: lines.map(l => ({ line: { id: L(l) } })) } : {}),
+  });
+
+  it('hands each message to the lines it names', () => {
+    const m = byLine([msg('a', ['12', '15']), msg('b', ['17'])]);
+    expect([...m.keys()].sort()).toEqual([L('12'), L('15'), L('17')]);
+    expect(m.get(L('12')).map(s => s.id)).toEqual(['a']);
+    expect(m.get(L('15')).map(s => s.id)).toEqual(['a']);
+  });
+
+  // The one that belongs in the banner: it is about the stop, not a line, and
+  // no row can carry it.
+  it('gives a message that names no line to nobody', () => {
+    expect(byLine([msg('høstferien', null)]).size).toBe(0);
+  });
+
+  it('gathers two messages about one line under that line', () => {
+    const m = byLine([msg('a', ['3']), msg('b', ['3'])]);
+    expect(m.get(L('3')).map(s => s.id)).toEqual(['a', 'b']);
+  });
+
+  // A message reaching a line twice — named by `affects` and found hanging on
+  // it — is one message, not two. situationScope returns a Set, so this one
+  // holds by construction.
+  it('does not repeat one message under one line', () => {
+    const both = { ...msg('a', ['3']), _from: { lines: new Set([L('3')]) } };
+    expect(byLine([both]).get(L('3'))).toHaveLength(1);
+  });
+
+  // AND THE CASE THE GUARD IS ACTUALLY FOR: the same message twice in the
+  // list. `_alerts` comes from a Map today so it cannot happen — but the guard
+  // is the difference between «cannot happen» and «shows the same disruption
+  // twice on one row», and an untested guard is one a later edit removes.
+  it('counts one message once however many times it is handed over', () => {
+    const one = msg('a', ['3']);
+    expect(byLine([one, one]).get(L('3'))).toHaveLength(1);
+  });
+
+  it('survives junk', () => {
+    expect(byLine(null).size).toBe(0);
+    expect(byLine([null, msg('a', null)]).size).toBe(0);
+  });
+
+  // THE REPORTED SCREEN, END TO END. With the stop's own lines passed as the
+  // reader's, every message is «mine» and the banner keeps all of them; with
+  // no line claimed yet, the line-specific ones fold and go to the rows.
+  it('splits a hub’s messages once no line is claimed', () => {
+    const hub = ['1', '2', '3', '4', '5', '12', '15', '17', '18', '19'].map(L);
+    const msgs = [msg('høst', null), msg('t12', ['12']), msg('t17', ['17']), msg('t18', ['18'])];
+    const somAlle = splitSituations(msgs, { stopIds: ['S'], lineIds: hub, journeyIds: [] });
+    expect(somAlle.mine).toHaveLength(4);
+
+    const somNå = splitSituations(msgs, { stopIds: ['S'], lineIds: [], journeyIds: [] });
+    expect(somNå.mine.map(s => s.id)).toEqual(['høst']);
+    expect(somNå.other).toHaveLength(3);
+    // NOTHING IS DROPPED, as ever.
+    expect(somNå.mine.length + somNå.other.length).toBe(msgs.length);
   });
 });

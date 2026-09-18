@@ -26,6 +26,7 @@ import { fetchBoard } from '../api/entur.js';
 import { predictDest, autoJumpDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { renderAlertsInto } from '../ui/alerts.js';
+import { byLine } from '../api/situations.js';
 import { addSituation } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf, loadFreq } from '../api/usage.js';
@@ -145,7 +146,12 @@ export function groupDirections(calls, now) {
     if (!prev) {
       byText.set(key, {
         frontText: front,
-        lines: code ? [{ code, colour }] : [],
+        // THE LINE'S OWN ID travels with the badge now. It was the one field
+        // the descriptor did not carry, and without it a row cannot be asked
+        // whether a disruption is about its line — the same shape as the
+        // detail map drawing every mode alike until `mode` was added in
+        // v1.114.0. `lineKey` above has had it in hand all along.
+        lines: code ? [{ code, colour, id: (ln && ln.id) || null }] : [],
         nextMs: ms,
         call: c,
         // Every departure this way, not just the first. Asked for: "tiden til
@@ -456,6 +462,36 @@ export function autoRoute(from, to) {
 }
 
 /** One line badge, the same shape the board and the shortcuts already use. */
+/** A message's one-line summary, in the reader's language where there is one. */
+function _sitTitle(s) {
+  const arr = (s && s.summary) || [];
+  const no = arr.find(x => x && x.language === 'no') || arr[0];
+  return (no && no.value) || '';
+}
+
+/**
+ * A disruption, on the row it concerns.
+ *
+ * Inside `.auto-badges` on purpose. This row is a flex with space-between, and
+ * settings.css warns in plain words — twice, because it has happened — that a
+ * third child pushes the destination adrift. The badges span is already a
+ * container of small things about the line, and a disruption about that line
+ * belongs with them.
+ *
+ * The mark says HOW MANY and the row says WHAT, through its label: on a phone
+ * there is no hover, so the text has to be somewhere a screen reader and a
+ * long press can both reach. The full message stays in the folded banner —
+ * nothing is only here.
+ */
+/** The messages for a row's lines, deduped across the lines it carries. */
+function _dirAlerts(dir, perLine) {
+  const out = [];
+  ((dir && dir.lines) || []).forEach(l => {
+    (perLine.get(l && l.id) || []).forEach(m => { if (!out.includes(m)) out.push(m); });
+  });
+  return out;
+}
+
 export function badgeHtml(l) {
   return '<span class="line-badge" style="background:#'
     + esc(l.colour || '7c2d12') + '">' + esc(l.code || '?') + '</span>';
@@ -1719,6 +1755,8 @@ function _renderBody() {
     return;
   }
   _showSort(true);
+  // Once for the list, not once per row: byLine walks every message.
+  const perLine = byLine(_alerts);
   body.innerHTML = '<div class="set-label">hvor skal du?</div>'
     + live.map(({ d, i }) => {
       const hint = usual && d.frontText.toLowerCase() === usual;
@@ -1726,11 +1764,19 @@ function _renderBody() {
       // The destination is the part that gives way, so the whole of it has to
       // survive somewhere: aria-label for a screen reader, title for a long
       // press. A row reading "mot Jernb…" must still be able to say what it is.
-      const full = 'mot ' + d.frontText + (q ? ', ' + q : '');
+      const dirMsgs = _dirAlerts(d, perLine);
+      // The mark says how many; the LABEL says what. There is no hover on a
+      // phone, so the text has to be somewhere a screen reader and a long
+      // press can both reach — and the full message is still in the folded
+      // banner, so nothing lives only here.
+      const full = 'mot ' + d.frontText + (q ? ', ' + q : '')
+        + (dirMsgs.length ? '. ' + dirMsgs.map(m => _sitTitle(m)).join('. ') : '');
       return '<button class="nearby-btn auto-dir' + (hint ? ' auto-usual' : '') + '"'
         + ' type="button" data-i="' + i + '"'
         + ' title="' + esc(full) + '" aria-label="' + esc(full) + '">'
-        + '<span class="auto-badges">' + d.lines.map(badgeHtml).join('') + '</span>'
+        + '<span class="auto-badges">' + d.lines.map(badgeHtml).join('')
+        + (dirMsgs.length ? '<span class="auto-dir-alert" aria-hidden="true">!</span>' : '')
+        + '</span>'
         + '<span class="nearby-name">mot ' + esc(d.frontText) + '</span>'
         // Its own element, not part of the name: a long destination and the
         // platform on one line wrapped the row to two on a 414px screen —
@@ -1915,11 +1961,22 @@ export function renderAuto() {
   // Auto-reise showed the GLOBAL banner from the last board fetch — stale,
   // and about a different stop. Now it shows its own stop's messages, scoped
   // to the lines that actually leave from here.
+  // NO LINE IS YOURS UNTIL YOU HAVE PICKED ONE.
+  //
+  // This passed «the lines that actually leave from here» as the reader's own.
+  // At Mortensrud that is three lines and the filter works. At Jernbanetorget
+  // it is every line in Oslo — so every line-specific message counted as
+  // yours, nothing was ever folded, and four of them pushed «du er ved», the
+  // map and every departure below the fold. The rule from v1.105.0 was right;
+  // this context made it empty.
+  //
+  // The banner now keeps what is about THE STOP — «ruteendringer i
+  // høstferien», a closed entrance — and a message that names lines goes to
+  // the rows for those lines instead, where the choice is made. Nothing is
+  // dropped: the folded row still counts every one.
   renderAlertsInto(_el('auto-alerts'), _alerts, renderAuto, {
     stopIds: [_stop && _stop.id].filter(Boolean),
-    lineIds: [...new Set(_dirs
-      .map(d => d && d.call && d.call.serviceJourney && d.call.serviceJourney.line
-        && d.call.serviceJourney.line.id).filter(Boolean))],
+    lineIds: [],
     journeyIds: [],
   });
   renderRouteShortcuts('auto-fav-routes', 2);

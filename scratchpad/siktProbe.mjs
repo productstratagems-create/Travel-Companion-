@@ -43,6 +43,24 @@ const DEPS = [
   ['Lillestrøm',      'R14', 'rail',  'NSB:Line:R14', '3', [11, 41]],
   ['OSL-ekspressen',  'FB10','bus',   'FLI:Line:FB10','J', [32]],
 ];
+/* A HUB'S WORTH OF MESSAGES, as reported at Jernbanetorget: four that name
+   specific lines, and one that names none. Before the change all five stood
+   above «du er ved», the map and every departure. */
+const sit = (id, text, lines) => ({
+  id, severity: 'normal',
+  summary: [{ language: 'no', value: text }],
+  description: [{ language: 'no', value: text }],
+  validityPeriod: { startTime: iso(NOW - 3600000), endTime: iso(NOW + 3600000) },
+  ...(lines ? { affects: lines.map(l => ({ __typename: 'AffectedLine', line: { id: l } })) } : {}),
+});
+const SITS = [
+  sit('host', 'Ruteendringer i høstferien (uke 40)', null),
+  sit('t79', 'Linje 79 kjører ikke mellom Grorud og Ammerud', ['RUT:Line:79']),
+  sit('t3', 'Linje 3 har redusert hastighet', ['RUT:Line:3']),
+  sit('t70', 'Buss for linje 70E mandag–fredag', ['RUT:Line:70E']),
+  sit('t19', 'Trikk 19 går fra plattform C', ['RUT:Line:19']),
+];
+
 const CALLS = DEPS.flatMap(([front, code, mode, lineId, quay, mins]) =>
   mins.map(m => ({
     realtime: true, cancellation: false,
@@ -110,7 +128,8 @@ async function open(dark) {
       contentType: 'application/json', body: JSON.stringify({ data: { stopPlaces: [] } }) }); }
     if (body.includes('estimatedCalls')) return route.fulfill({ status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ data: { stopPlace: { id: HERE.id, name: HERE.name, estimatedCalls: CALLS } } }) });
+      body: JSON.stringify({ data: { stopPlace: { id: HERE.id, name: HERE.name,
+        estimatedCalls: CALLS, situations: SITS } } }) });
     return route.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify({ data: { stopPlace: { situations: [] }, trip: { tripPatterns: [] } } }) });
   });
@@ -145,6 +164,29 @@ const vis = (rs) => rs.slice(0, 6).forEach(r => console.log(
   + r.tider.map(t => (t.loud ? '[' + t.t + ']' : ' ' + t.t + ' ')
       + (t.strek ? '̶' : '') + '(v' + t.vekt + ' o' + t.op + ')').join(' · ')));
 
+/** The alert banner above the list, and the marks on the rows. */
+const varsler = (page) => page.evaluate(() => {
+  const box = document.getElementById('auto-alerts');
+  const vis = box && getComputedStyle(box).display !== 'none';
+  const kort = vis ? box.querySelectorAll('.service-alert').length : 0;
+  const foldet = vis ? (box.querySelector('.alerts-other') || {}).textContent : null;
+  const merker = [...document.querySelectorAll('#v-auto .auto-dir')]
+    .map(e => ({
+      navn: e.querySelector('.nearby-name').textContent.trim(),
+      merke: !!e.querySelector('.auto-dir-alert'),
+      etikett: (e.getAttribute('aria-label') || '').slice(0, 70),
+    }));
+  // How far down the first departure sits — the reported cost of the wall.
+  const first = document.querySelector('#v-auto .auto-dir');
+  const head = document.querySelector('#v-auto .auto-stop');
+  return {
+    kort, foldet: foldet ? foldet.replace(/\s+/g, ' ').trim() : '(ingen)',
+    merker,
+    tilFørste: first ? Math.round(first.getBoundingClientRect().top) : null,
+    tilOverskrift: head ? Math.round(head.getBoundingClientRect().top) : null,
+  };
+});
+
 // THE REPORTED CASE: a walk long enough that the first departures are gone.
 // The fixture stands the reader AT the stop, so nothing was ever out of reach
 // and the fault could not appear. Moved ~1 km away, as the screenshot was.
@@ -164,6 +206,13 @@ vis(await tider(page));
 // THE ONE ASSERTION THIS PROBE EXISTS FOR: the loud one must be one you can
 // still make. A bright number you cannot reach is the reported fault.
 const galt = (await tider(page)).filter(r => r.tider.some(t => t.loud && t.strek));
+const v = await varsler(page);
+console.log('\n══ trafikkmeldinger ══');
+console.log('   banner    :', v.kort, 'kort åpne · foldet:', v.foldet);
+console.log('   «du er ved» står på', v.tilOverskrift, 'px · første avgang på', v.tilFørste, 'px');
+v.merker.filter(m => m.merke).forEach(m => console.log('   merke     :', m.navn, '→', m.etikett));
+console.log('   rader med merke:', v.merker.filter(m => m.merke).length, 'av', v.merker.length);
+
 console.log('\n   rader der den framhevede er gjennomstrøket:',
   galt.length ? galt.map(r => r.navn).join(', ') : 'ingen');
 
@@ -175,8 +224,10 @@ for (const theme of ['dark', 'light']) {
     document.documentElement.setAttribute('data-theme', t);
   }, theme);
   await page.waitForTimeout(400);
-  const el = await page.$('#auto-body');
-  if (el) await el.screenshot({ path: `scratchpad/shots/sikt-${theme}.png`, animations: 'disabled' });
+  // The WHOLE screen, because the report is about what you can see without
+  // scrolling — a crop of the list cannot show that.
+  await page.screenshot({ path: `scratchpad/shots/sikt-${theme}.png`,
+    clip: { x: 0, y: 0, width: 390, height: 760 }, animations: 'disabled' });
 }
 
 await ctx.close();

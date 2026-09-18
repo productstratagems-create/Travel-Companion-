@@ -2,7 +2,7 @@ import config from '../config.js';
 import { stopKey } from '../stopId.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
-import { findArr, haver, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL } from '../geo.js';
+import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon, legShape, journeyPoints } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
@@ -23,7 +23,7 @@ import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { fetchWalkRoute } from '../api/route.js';
-import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints } from '../ui/map.js';
+import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints, fitPadding } from '../ui/map.js';
 import { storage } from '../storage.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -693,15 +693,68 @@ function _initArrMap(arrLL) {
 
 }
 
+/**
+ * What the arrival map should frame.
+ *
+ * It framed YOU as well, always — and four minutes before Jernbanetorget you
+ * are still eight kilometres east, so the map spanned 6.9 km and the place you
+ * were arriving at was a clump against one edge. Measured on the reported
+ * screen.
+ *
+ * The comment that added it was right about its own case: once you are there,
+ * «du er her» must not sit off the map. That is true when you ARE there, and
+ * only then. So your position joins the frame when it is at the arrival — and
+ * while you are still riding, the map is about where you are going.
+ */
+export function arrMapPoints(arrLL, walkDestLL, homeLL) {
+  if (!arrLL) return [];
+  const pts = [[arrLL.lat, arrLL.lon]];
+  // The onward walk you set yourself is always part of the picture: you asked
+  // for it, and it is the one thing on this screen that is not near the stop.
+  if (walkDestLL) pts.push([walkDestLL.lat, walkDestLL.lon]);
+  if (homeLL && atPlace(homeLL, arrLL)) pts.push([homeLL.lat, homeLL.lon]);
+  return pts;
+}
+
+/**
+ * The onward destination to start from, or nothing.
+ *
+ * The panel prefilled this from the journey's destination whenever that
+ * destination had coordinates. Right for a venue the vehicle does not reach —
+ * «Aker brygge» — where the last stretch really is on foot. Wrong when the
+ * destination IS the arrival stop, which is the ordinary case: the field then
+ * held the name of the place you were standing, and the ranked answer beneath
+ * it offered to walk you zero metres and to unlock a city bike for it.
+ *
+ * Nothing to walk to is not a small walk. It is no walk, and the section can
+ * ask its question instead of answering it.
+ */
+export function onwardPrefill(dest, arrLL, arrName) {
+  if (!dest || !Number.isFinite(dest.lat) || !Number.isFinite(dest.lon)) return null;
+  // BY NAME FIRST, and that is not belt-and-braces. The coordinates come from
+  // `leg.stops`, which only exist once fetchTrack has answered — and the panel
+  // renders before that. Measured: with the distance test alone the field was
+  // still prefilled with «Jernbanetorget», because on the render that set it
+  // there was nothing to compare against. The name is in hand from the moment
+  // the journey is stored.
+  if (arrName && dest.label && stopKey(dest.label) === stopKey(arrName)) return null;
+  if (arrLL && atPlace(dest, arrLL)) return null;
+  return dest;
+}
+
 function _fitArrMap(arrLL) {
   if (!_arrMap || _arrUserMoved) return;
-  const pts = [[arrLL.lat, arrLL.lon]];
-  if (_walkDestLL) pts.push([_walkDestLL.lat, _walkDestLL.lon]);
-  // …and you. The dot was drawn and then framed out: nothing put the reader's
-  // own position into the bounds, so «du er her» could sit off the map.
-  if (state.homeLL) pts.push([state.homeLL.lat, state.homeLL.lon]);
+  const pts = arrMapPoints(arrLL, _walkDestLL, state.homeLL);
+  if (!pts.length) return;
+  // 15, as it was. One point is «here is the place you are arriving», and at
+  // 16 you see the platform and nothing around it — the question this screen
+  // answers is which neighbourhood you are stepping into. Changing it to 16
+  // was an unexplained number, which is the thing this session keeps removing.
   if (pts.length === 1) { _arrMap.setView(pts[0], 15); return; }
-  _arrMap.fitBounds(pts, { padding: [24, 24], maxZoom: 16 });
+  // Padding by the shared rule rather than a number chosen for another map.
+  const el = document.getElementById('hn-map');
+  const pad = fitPadding(el ? el.clientHeight : 0);
+  _arrMap.fitBounds(pts, { padding: [pad, pad], maxZoom: 16, animate: false });
 }
 
 function _drawMobilityMarkers(ranked) {
@@ -1321,6 +1374,12 @@ function renderNextPanel() {
     + '<div id="t-walk-sugg" class="stop-sugg" hidden></div>'
     + '<div id="t-walk-result"></div>'
     + '<div id="hn-mobility-content">' + _mobilitySectionHtml() + '</div>'
+    // THE SAME INTENT, SO THE SAME SECTION. «ny reise fra X» was a button at
+    // the very bottom of the panel, a whole screen away from the field that
+    // asks the same question — search here, or open the form. Two doors for
+    // one intent, and the far one is the one a reader scrolls past.
+    + '<button class="hn-alt-link" id="t-new-btn">\u2026 eller planlegg en hel reise fra '
+    + esc(displayStn(arrStation)) + ' \u2192</button>'
     + '</div>'
     // Browsing is a different intent from getting somewhere, so it folds away.
     + '<details class="hn-details" id="hn-places-details">'
@@ -1329,7 +1388,6 @@ function renderNextPanel() {
     + _catPillsHtml(activeCatIdx >= 0 ? activeCatIdx : PLACE_CATS.indexOf(_cat))
     + '<div id="hn-places-content">' + _placesSectionHtml() + '</div>'
     + '</details>'
-    + '<button class="hn-new-btn" id="t-new-btn">ny reise fra ' + esc(displayStn(arrStation)) + ' →</button>'
     + '</div>';
 
   if (_walkDestLL) _applyWalkResult();
@@ -1694,8 +1752,16 @@ export function renderTrack() {
     // ── Final leg: open-ended arrival ─────────────────────────────────────
     if (mLeft > 5) return '';
 
-    const isVenueDest = state.jny._toLat && state.jny._toLon;
-    // Pre-arm walk destination silently so "Hva nå?" panel is instant
+    // Pre-arm walk destination silently so "Hva nå?" panel is instant — but
+    // only when there is something to walk TO. See onwardPrefill.
+    const lastStopLL = (() => {
+      const st = leg.stops && leg.stops[leg.stops.length - 1];
+      const ll = st && quayLatLon(st.quay);
+      return ll || null;
+    })();
+    const isVenueDest = !!onwardPrefill(
+      { lat: state.jny._toLat, lon: state.jny._toLon, label: state.jny.dest },
+      lastStopLL, leg.toStation);
     if (isVenueDest && !_walkDestLL) {
       _walkDestLL = { lat: state.jny._toLat, lon: state.jny._toLon, label: state.jny.dest };
     }
@@ -1770,7 +1836,13 @@ export function renderTrack() {
       cards += buildLegCard(j, cardLabel(legs[j].mode, j === i + 1), false);
     }
     if (state.jny._toLat && state.jny._toLon) {
-      cards += '<button class="t-explore-link" id="t-explore-btn">🌟 utforsk ' + state.jny.dest.toLowerCase() + ' →</button>';
+      // «utforsk X» lived here, above the divider, and opened the same browsing
+    // the panel below already folds away under «steder i nærheten». One idea,
+    // two doors, on one screen — and this one came first, before the reader
+    // had been told where they were arriving. The section stays; the duplicate
+    // link goes. _exploreDestination is untouched: it is the door that closes,
+    // not the room.
+    cards += '';
     }
   } else { // platform
     const nextIdx = cs.next;

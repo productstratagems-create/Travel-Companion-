@@ -225,13 +225,19 @@
 .hn-arr-mid{display:flex;align-items:center;gap:.35rem;min-width:0}
 .hn-arr-dest{font-size:12px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hn-arr-spor{font-size:10px;color:var(--text-soft);flex-shrink:0}
-.hn-new-btn{
-  display:block;width:100%;margin-top:.5rem;padding:.75rem;
-  background:none;border:1px solid rgba(var(--border-rgb),.2);border-radius:6px;
-  font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--accent);cursor:pointer;text-align:left;
+/* THE SECOND WAY TO ASK ONE QUESTION, and it reads as the second way.
+   «ny reise fra X» was a bordered button at the very bottom of the panel — the
+   same visual weight as the section that asks the same thing, a whole screen
+   above it. It is an alternative to the field it now sits under, so it is
+   drawn as one: a quiet line, not a competing box. */
+.hn-alt-link{
+  display:block;width:100%;margin-top:.5rem;padding:.4rem 0;
+  background:none;border:0;
+  font-family:inherit;font-size:11px;letter-spacing:.06em;
+  color:var(--accent);opacity:.75;cursor:pointer;text-align:left;
+  -webkit-tap-highlight-color:transparent;
 }
-.hn-new-btn:active{background:rgba(var(--accent-rgb),.06)}
+.hn-alt-link:active{opacity:1}
 
 /* Live vehicle position map */
 /* 200px had no reason recorded; underveis is a full map like the rest, so it

@@ -421,6 +421,37 @@ export function reachCls(mtl) {
   return 'missed';
 }
 
+/**
+ * Close enough to be the same place.
+ *
+ * Reported with a screenshot of the arrival panel: the map framed eight
+ * kilometres of Oslo four minutes before arriving, and the «where next» field
+ * was prefilled with the stop being arrived AT — «Gå · 0 m · 1 min», and a
+ * city bike offered for the distance across a platform.
+ *
+ * Both faults are one missing question: IS THIS WHERE I ALREADY AM. The panel
+ * answered it with `state.homeLL` in one place and with nothing at all in the
+ * other, so one framed a journey's worth of map and the other proposed a walk
+ * to yourself.
+ *
+ * 120 metres because a large interchange is that big — Jernbanetorget's quays
+ * span it, and two points inside it are the same place to anyone standing
+ * there. Small enough that a real onward walk survives: the case this prefill
+ * exists for is a venue the vehicle does not reach, and those are hundreds of
+ * metres at least.
+ */
+export const AT_PLACE_M = 120;
+
+export function atPlace(a, b) {
+  if (!a || !b) return false;
+  const aLat = a.lat != null ? a.lat : a.latitude;
+  const aLon = a.lon != null ? a.lon : a.longitude;
+  const bLat = b.lat != null ? b.lat : b.latitude;
+  const bLon = b.lon != null ? b.lon : b.longitude;
+  if (![aLat, aLon, bLat, bLon].every(Number.isFinite)) return false;
+  return haver(aLat, aLon, bLat, bLon) <= AT_PLACE_M;
+}
+
 export function findArr(calls, name) {
   if (!calls || !name) return null;
   const norm = s => s.toLowerCase().replace(/\s+t$/i, '').trim();

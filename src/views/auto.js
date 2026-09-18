@@ -1392,19 +1392,44 @@ export function _timesHtml(d, now, walkMins) {
   // row, applied again now that the row is allowed to age.
   const keep = mins.map((m, i) => ({ m, ms: raw ? raw[i] : null })).filter(x => x.m >= 0);
   if (!keep.length) return '';
-  const cls = (x) => {
+  const rcls = (x) => {
     if (walkMins == null || x.ms == null) return '';
-    return ' ' + reachCls(minsToLeave(x.ms, walkMins, now));
+    return reachCls(minsToLeave(x.ms, walkMins, now));
   };
   const label = (x) => (x.m === 0 ? 'nå' : String(x.m));
-  const rest = keep.slice(1);
-  return '<span class="auto-t-next' + cls(keep[0]) + '">' + label(keep[0]) + '</span>'
-    + (rest.length
-      ? '<span class="auto-t-more"> · '
-        + rest.map(x => '<span class="' + cls(x).trim() + '">' + label(x) + '</span>').join(' · ')
-        + '</span>'
-      : '')
-    + (keep[0].m === 0 && !rest.length ? '' : ' min');
+
+  // THE ONE YOU AIM FOR IS THE ONE THAT CARRIES THE EMPHASIS.
+  //
+  // Reported with a screenshot: «Noen avgangstider er gjennomstrekede, antar
+  // fordi de er utenfor gangrekkevidde?» — and the word «antar» is the
+  // report. The strike is right, and nothing says what it means.
+  //
+  // The sharper fault was underneath it. The row lit the FIRST time and dimmed
+  // the rest, so at «nå · 15 · 30 min» with fourteen minutes on foot, the
+  // bright number was the departure you cannot reach and the one you should
+  // walk for was faded to 55%. The emphasis pointed at the wrong departure.
+  //
+  // The CSS beside this says «the first time is the one you act on, so a
+  // missed first time has to be legible as struck-through». That was true when
+  // it was written — before walk time was on this screen there was nothing to
+  // miss, and the first departure WAS the one you act on. Walk time made it
+  // false, and nothing moved the emphasis with it.
+  //
+  // So the loud one is the first you can still make. Then the strike explains
+  // itself without a legend: not those, THIS one.
+  const first = keep.findIndex(x => rcls(x) !== 'missed');
+  const aim = first === -1 ? -1 : first;
+
+  const html = keep.map((x, i) => {
+    const r = rcls(x);
+    // No walk time means no verdict, and then the old rule is the right one:
+    // the first departure is the one you act on.
+    const loud = aim === -1 ? i === 0 : i === aim;
+    return '<span class="' + (loud ? 'auto-t-next' : 'auto-t-dim')
+      + (r ? ' ' + r : '') + '">' + label(x) + '</span>';
+  }).join('<span class="auto-t-sep"> · </span>');
+
+  return html + (keep[0].m === 0 && keep.length === 1 ? '' : ' min');
 }
 
 /**

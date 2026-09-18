@@ -222,6 +222,53 @@ export const BOARD_MODES_COACH = [...BOARD_MODES, 'coach'];
  * `fetchStopBoardSummary` never inspect `j.errors` at all, so a rejected
  * argument there would be a silently empty board rather than a fallback.
  */
+/**
+ * Did the answer come back at the cap?
+ *
+ * Reported: standing at Jernbanetorget, «hvorfor er ikke linje 3 Mortensrud på
+ * lista her?» It was not filtered out and not below the fold — it was never in
+ * the answer. `numberOfDepartures` caps the WHOLE stop, every line and mode
+ * sharing it, and auto-reise asked for 30. The comment above that number says
+ * where it came from: «Measured on a Tveita-shaped stop (five directions)».
+ * Jernbanetorget has every metro line both ways, six tram lines and a dozen
+ * bus routes; 30 departures there is about ninety seconds of traffic.
+ *
+ * AND IT WAS SILENT. The list was drawn as though it were complete, so the
+ * reader had no way to know it was cut — which is the failure this codebase
+ * keeps naming: silence reads as «alt er i orden». Worse, the list IS complete
+ * at a small stop, so it earns trust there and spends it at a hub.
+ *
+ * Exactly at the cap means cut: an API that had fewer to give would have given
+ * fewer. It cannot tell «cut at 30» from «has exactly 30», and that is the
+ * safe direction — saying «there may be more» about a list that happens to be
+ * complete costs a line of text; the other way costs a departure.
+ */
+export function boardTruncated(got, asked) {
+  return Number.isFinite(got) && Number.isFinite(asked) && asked > 0 && got >= asked;
+}
+
+/**
+ * How many to ask for once the first answer came back cut.
+ *
+ * A ladder rather than a bigger constant, because the right number cannot be
+ * known before asking and differs by two orders of magnitude between a
+ * suburban kerb and Jernbanetorget. Small stops keep the cheap request they
+ * have always made; a hub pays one extra.
+ *
+ * The ceiling is NOT a measurement and is not claimed as one — it cannot be
+ * checked from a sandbox that does not reach api.entur.io. It is high enough
+ * to cover a stop with forty line-and-direction combinations at three each,
+ * and the notice below the list covers whatever a bigger hub still exceeds.
+ * The design does not depend on this number being right.
+ */
+export const BOARD_ASK_MAX = 120;
+
+export function nextBoardAsk(asked, max) {
+  const ceiling = Number.isFinite(max) ? max : BOARD_ASK_MAX;
+  if (!Number.isFinite(asked) || asked <= 0) return ceiling;
+  return asked >= ceiling ? 0 : ceiling;
+}
+
 export function boardGQL(id, n, now, basic, fwdMins, modes, perLine) {
   const sits = sitsGQL(basic);
   const wl = (Array.isArray(modes) ? modes.filter(m => BOARD_MODES_COACH.includes(m)) : []);

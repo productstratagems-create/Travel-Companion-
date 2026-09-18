@@ -504,6 +504,8 @@ let _stop = null;      // { name, id, lat, lon }
 // Did the READER pick this stop, or did the app? Only the reader's choice
 // survives a better position fix. Cleared by resetAuto with everything else.
 let _stopPinned = false;
+/** Did the answer come back at the query's cap? See boardTruncated. */
+let _truncated = false;
 /** This stop's own traffic messages — auto-reise threw them away entirely. */
 let _alerts = [];
 let _dirs = [];        // groupDirections output for _stop
@@ -1344,6 +1346,10 @@ function _load() {
         ((sj && sj.situations) || []).forEach(x => addSituation(m, x, from));
       });
       _alerts = Array.from(m.values());
+      // WHAT THE LIST DOES NOT SHOW. At a hub the answer is cut by the query's
+      // own cap, and drawing it as though it were complete is the failure this
+      // release exists for — «hvorfor er ikke linje 3 Mortensrud på lista?»
+      _truncated = !!stop._truncated;
       _renderBody();
     },
     (err) => {
@@ -1791,7 +1797,15 @@ function _renderBody() {
         // under space-between — and that warning is there because it happened.
         + '<span class="nearby-dist">' + _timesHtml(d, now, walkMins) + '</span>'
         + '</button>';
-    }).join('');
+    }).join('')
+    // SAID, NOT IMPLIED. The list is complete at a small stop and cut at a
+    // hub, and it looked identical either way — so it earned trust where it
+    // was right and spent it where it was not. One quiet line, only when
+    // there is something to admit.
+    + (_truncated
+      ? '<div class="auto-more-note">flere avganger enn vi får plass til \u2014 '
+        + 'vis flere stopp eller velg en linje for hele lista</div>'
+      : '');
   body.querySelectorAll('.auto-dir').forEach(b => {
     b.addEventListener('click', () => { _open = _dirs[Number(b.dataset.i)]; _renderBody(); });
   });
@@ -2000,5 +2014,6 @@ export function hasStop() { return !!_stop; }
 
 export function resetAuto() {
   _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null; _alerts = [];
+  _truncated = false;
   _resetAutoMap();
   _stopsShown = false; _jumpArmed = false; }

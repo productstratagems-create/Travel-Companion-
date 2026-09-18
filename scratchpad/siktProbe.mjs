@@ -61,7 +61,26 @@ const SITS = [
   sit('t19', 'Trikk 19 går fra plattform C', ['RUT:Line:19']),
 ];
 
-const CALLS = DEPS.flatMap(([front, code, mode, lineId, quay, mins]) =>
+const PER_DIR = Number(process.env.PER_DIR || 5);
+
+/* A HUB'S WORTH OF TRAFFIC. Twelve directions, five departures each — sixty,
+   double the thirty the board asks for. The real Jernbanetorget is several
+   times that again. Sorted by time, as the API returns them, so the cap cuts
+   the far end exactly as it does in production: without that, the fixture
+   simply cannot reproduce the reported fault.
+
+   The first run had 25 and never tripped the cap — a fixture measuring its own
+   absence, which this session has now seen five times. */
+const HUB_DEPS = DEPS.map(([front, code, mode, lineId, quay, mins]) => {
+  const out = mins.slice();
+  // PER_DIR=5 gives sixty — the ladder's second rung covers it, and the reader
+  // gets the whole list. PER_DIR=13 gives 156, past the ceiling, which is the
+  // case the notice exists for. Both are run, because «we asked again» and «we
+  // admitted we could not fit it» are two different promises.
+  while (out.length < PER_DIR) out.push(out[out.length - 1] + 11);
+  return [front, code, mode, lineId, quay, out];
+});
+const CALLS = HUB_DEPS.flatMap(([front, code, mode, lineId, quay, mins]) =>
   mins.map(m => ({
     realtime: true, cancellation: false,
     aimedDepartureTime: iso(NOW + m * 60000), expectedDepartureTime: iso(NOW + m * 60000),
@@ -79,7 +98,8 @@ const CALLS = DEPS.flatMap(([front, code, mode, lineId, quay, mins]) =>
         aimedDepartureTime: iso(NOW + (m + 12) * 60000), expectedDepartureTime: iso(NOW + (m + 12) * 60000),
       }],
     },
-  })));
+  }))).sort((a, b) =>
+  new Date(a.expectedDepartureTime) - new Date(b.expectedDepartureTime));
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };
@@ -94,6 +114,7 @@ await new Promise(r => server.listen(PORT, r));
 
 const browser = await pw.chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 let hubCalls = 0;
+const asks = [];
 
 async function open(dark) {
   const ctx = await browser.newContext({
@@ -126,10 +147,17 @@ async function open(dark) {
     const body = route.request().postData() || '';
     if (body.includes('stopPlaces(')) { hubCalls++; return route.fulfill({ status: 200,
       contentType: 'application/json', body: JSON.stringify({ data: { stopPlaces: [] } }) }); }
-    if (body.includes('estimatedCalls')) return route.fulfill({ status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ data: { stopPlace: { id: HERE.id, name: HERE.name,
-        estimatedCalls: CALLS, situations: SITS } } }) });
+    if (body.includes('estimatedCalls')) {
+      // THE CAP, HONOURED. The real API returns at most numberOfDepartures,
+      // and a fixture that ignores it cannot reproduce the reported fault at
+      // all — the list would simply always be complete.
+      const m = body.match(/numberOfDepartures:(\d+)/);
+      const cap = m ? parseInt(m[1], 10) : CALLS.length;
+      asks.push(cap);
+      return route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ data: { stopPlace: { id: HERE.id, name: HERE.name,
+          estimatedCalls: CALLS.slice(0, cap), situations: SITS } } }) });
+    }
     return route.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify({ data: { stopPlace: { situations: [] }, trip: { tripPatterns: [] } } }) });
   });
@@ -207,6 +235,12 @@ vis(await tider(page));
 // still make. A bright number you cannot reach is the reported fault.
 const galt = (await tider(page)).filter(r => r.tider.some(t => t.loud && t.strek));
 const v = await varsler(page);
+console.log('\n══ avkortet liste ══');
+console.log('   avganger i fiksturen:', CALLS.length, '· spurt om:', asks.join(' → '));
+const note = await page.$eval('#v-auto .auto-more-note', e => e.textContent.trim()).catch(() => null);
+console.log('   notat      :', note || '(ingen)');
+console.log('   rader       :', (await tider(page)).length);
+
 console.log('\n══ trafikkmeldinger ══');
 console.log('   banner    :', v.kort, 'kort åpne · foldet:', v.foldet);
 console.log('   «du er ved» står på', v.tilOverskrift, 'px · første avgang på', v.tilFørste, 'px');

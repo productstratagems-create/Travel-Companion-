@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tripGQL, boardGQL, trackGQL, arrBoardGQL, sitsGQL, LOOKBACK_MINS, BOARD_MODES, BOARD_MODES_COACH } from '../src/api/queries.js';
+import { tripGQL, boardGQL, trackGQL, arrBoardGQL, sitsGQL, boardTruncated, nextBoardAsk, BOARD_ASK_MAX, LOOKBACK_MINS, BOARD_MODES, BOARD_MODES_COACH } from '../src/api/queries.js';
 
 // --- tripGQL ---
 
@@ -459,5 +459,64 @@ describe('boardGQL and the per-line cap', () => {
     expect(boardGQL('NSR:StopPlace:1', 12, 1780000000000, false, 180)).not.toContain(ARG);
     // fetchStopBoardSummary
     expect(boardGQL('NSR:StopPlace:1', 20, null, true, null, ['metro'])).not.toContain(ARG);
+  });
+});
+
+// ── En avkortet liste sier det (v1.121.0) ──────────────────────────────────
+//
+// Reported, standing at Jernbanetorget: «hvorfor er ikke linje 3 Mortensrud på
+// lista her?» It was not filtered and not below the fold — it was never in the
+// answer. `numberOfDepartures` caps the WHOLE stop, and auto-reise asked for
+// 30 because that number was measured on «a Tveita-shaped stop (five
+// directions)». At Jernbanetorget 30 departures is about ninety seconds.
+//
+// And the list was drawn as though complete, so nothing said it was cut.
+describe('boardTruncated', () => {
+  it('calls an answer that came back at the cap cut', () => {
+    expect(boardTruncated(30, 30)).toBe(true);
+  });
+
+  it('leaves a short answer alone', () => {
+    expect(boardTruncated(11, 30)).toBe(false);
+  });
+
+  // It cannot tell «cut at 30» from «has exactly 30», and this is the safe
+  // direction: saying «there may be more» about a complete list costs a line
+  // of text; the other way costs a departure.
+  it('errs toward admitting there may be more', () => {
+    expect(boardTruncated(31, 30)).toBe(true);
+  });
+
+  it('says nothing when it was not asked anything', () => {
+    expect(boardTruncated(0, 0)).toBe(false);
+    expect(boardTruncated(5, undefined)).toBe(false);
+    expect(boardTruncated(undefined, 30)).toBe(false);
+  });
+});
+
+describe('nextBoardAsk', () => {
+  // A ladder, not a bigger constant: the right number differs by two orders of
+  // magnitude between a suburban kerb and Jernbanetorget, and cannot be known
+  // before asking. A small stop never trips it.
+  it('climbs to the ceiling once, from wherever it started', () => {
+    expect(nextBoardAsk(30)).toBe(BOARD_ASK_MAX);
+    expect(nextBoardAsk(12)).toBe(BOARD_ASK_MAX);
+  });
+
+  // THE ONE WAY A LADDER BECOMES A LOOP. A hub that fills the ceiling too must
+  // stop asking — the notice covers what is left.
+  it('stops at the ceiling rather than climbing for ever', () => {
+    expect(nextBoardAsk(BOARD_ASK_MAX)).toBe(0);
+    expect(nextBoardAsk(BOARD_ASK_MAX + 50)).toBe(0);
+  });
+
+  it('is high enough for a hub’s worth of lines', () => {
+    // Forty line-and-direction combinations at three departures each.
+    expect(BOARD_ASK_MAX).toBeGreaterThanOrEqual(40 * 3);
+  });
+
+  it('survives being asked about nothing', () => {
+    expect(nextBoardAsk(0)).toBe(BOARD_ASK_MAX);
+    expect(nextBoardAsk(undefined)).toBe(BOARD_ASK_MAX);
   });
 });

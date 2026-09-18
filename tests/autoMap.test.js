@@ -550,3 +550,48 @@ describe('auto-reise and the traffic banner', () => {
     expect(t).toMatch(/auto-dir-alert/);
   });
 });
+
+// The screen has to be told, or it cannot say it (v1.121.0).
+describe('auto-reise and a cut list', () => {
+  const src = () => require('node:fs')
+    .readFileSync('src/views/auto.js', 'utf8').replace(/\/\/[^\n]*/g, '');
+
+  it('reads the truncation off the answer rather than guessing', () => {
+    expect(src()).toMatch(/_truncated = !!stop\._truncated/);
+  });
+
+  // SAID, NOT IMPLIED. The list looked identical whether complete or cut.
+  it('writes a note when the list is cut, and only then', () => {
+    const t = src();
+    expect(t).toMatch(/_truncated\s*\?\s*'<div class="auto-more-note">/);
+    expect(t).toMatch(/: ''/);
+  });
+
+  it('forgets it when the screen resets', () => {
+    expect(src()).toMatch(/_truncated = false;/);
+  });
+});
+
+// And the fetch has to carry it (v1.121.0).
+describe('fetchBoard reports what it could not fit', () => {
+  const src = () => require('node:fs')
+    .readFileSync('src/api/entur.js', 'utf8').replace(/\/\/[^\n]*/g, '');
+
+  it('asks once more when the answer came back at the cap', () => {
+    const t = src();
+    expect(t).toMatch(/boardTruncated\(got, askedCount\)/);
+    expect(t).toMatch(/nextBoardAsk\(askedCount\)/);
+  });
+
+  // A hub that answers once and fails the second time keeps the first answer:
+  // a short list beats none, and the notice will say it is short.
+  it('keeps the first answer when the second attempt fails', () => {
+    expect(src()).toMatch(/\.catch\(\(\) => j\)/);
+  });
+
+  it('hands the verdict to the screen', () => {
+    const t = src();
+    expect(t).toMatch(/stop\._truncated = boardTruncated/);
+    expect(t).toMatch(/stop\._asked = /);
+  });
+});

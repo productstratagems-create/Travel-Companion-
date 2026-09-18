@@ -146,6 +146,15 @@ async function run(scheme, gapMins, extraMins, serveCalls) {
 
   await page.waitForTimeout(900);
 
+  // FORCE ONE MORE RENDER, with the app's own debug hook. _simBytt sets leg 0's
+  // arrival and calls renderTrack — so if the stops have landed, the map gets
+  // a render that cannot have been skipped by a matching struct key. It is the
+  // difference between «the drawing is broken» and «the drawing never ran».
+  if (serveCalls) {
+    await page.evaluate(() => window._simBytt && window._simBytt(6));
+    await page.waitForTimeout(1200);
+  }
+
   console.log(`\n══ ${scheme} · ${gapMins} min mellomrom · ekstra ${extraMins} ══`);
 
   const seen = await page.evaluate(() => {
@@ -165,23 +174,79 @@ async function run(scheme, gapMins, extraMins, serveCalls) {
   // weight-4 stroke, a fourth hand-rolled `1,8` for the legs still to come,
   // and three unlabelled circles where the board says PÅ/BYTT/AV.
   const kart = await page.evaluate(() => {
+    // THE WRAPPER, NOT THE MAP. _renderTrackMap hides #t-map-wrap and tears
+    // the map down when it has nothing to draw — and a child of a hidden
+    // parent keeps its OWN computed display, so asking #t-map returned
+    // «block» for a map that was gone. This probe reported «the map is
+    // visible, zero paths» four times about a map that had been removed.
+    // Fourth instrument error this session: wrong element, again.
+    const wrap = document.getElementById('t-map-wrap');
     const m = document.getElementById('t-map');
-    if (!m || getComputedStyle(m).display === 'none') return null;
+    const wrapVis = wrap ? getComputedStyle(wrap).display : '(ingen wrap)';
+    if (!m || !wrap || wrapVis === 'none') return { skjult: wrapVis };
     const streker = Array.from(m.querySelectorAll('path'))
       .map(p => (p.getAttribute('stroke-dasharray') || 'heltrukket')
         + '@' + (p.getAttribute('stroke-width') || '?'))
       // drawRoute's casing is the same under every line; counting it would
       // drown the difference this probe is about.
       .filter(x => !/heltrukket@(5|7|9)$/.test(x));
-    const ord = Array.from(m.querySelectorAll('.leaflet-marker-icon'))
-      .map(e => e.textContent.trim()).filter(t => /^(på|bytt|av)$/i.test(t));
-    return { streker: [...new Set(streker)], ord,
+    const box = m.getBoundingClientRect();
+    const words = Array.from(m.querySelectorAll('.leaflet-marker-icon'))
+      .filter(e => /^(på|bytt|av)$/i.test(e.textContent.trim()));
+    const ord = words.map(e => e.textContent.trim());
+    // INSIDE THE FRAME, not merely drawn. The fit must cover every leg — with
+    // only the ridden leg framed, «AV» sits off the edge and the reader is
+    // shown half a journey. A marker outside the box measures as present and
+    // reads as absent.
+    const utenfor = words.filter(e => {
+      const r = e.getBoundingClientRect();
+      return r.left < box.left - 1 || r.right > box.right + 1
+        || r.top < box.top - 1 || r.bottom > box.bottom + 1;
+    }).map(e => e.textContent.trim());
+    // The BEADS, which is what the early frame actually decides. The final fit
+    // at the bottom of the block re-frames with every point, so leaving the
+    // onward legs out of the early one does not move the view — it moves the
+    // projection stopsReadable measures against, and so changes which stops
+    // get a bead. That is the only observable the early frame owns.
+    const perler = Array.from(m.querySelectorAll('.leaflet-marker-icon'))
+      .filter(e => !/^(på|bytt|av)$/i.test(e.textContent.trim())).length;
+    return { streker: [...new Set(streker)], ord, utenfor, perler,
       paths: m.querySelectorAll('path').length };
   });
-  console.log('   kart  :', kart
-    ? kart.streker.join('  |  ') + '   ord: ' + (kart.ord.join(' → ') || '(ingen)')
-      + '   [paths ' + kart.paths + ']'
-    : '(ikke synlig)');
+  console.log('   kart  :', !kart ? '(ingen)'
+    : kart.skjult ? 'wrapperen er ' + kart.skjult + ' — kartet er revet'
+    : kart.streker.join('  |  ') + '   ord: ' + (kart.ord.join(' → ') || '(ingen)')
+      + '   [paths ' + kart.paths + ' · perler ' + kart.perler + ' · utenfor kanten: '
+        + (kart.utenfor.length ? kart.utenfor.join(', ') : 'ingen') + ']');
+  // THE GATE CHAIN, first false one is the answer. Four rounds of guessing at
+  // the fixture produced nothing; this asks the app instead.
+  if (serveCalls) {
+    const port = await page.evaluate(() => {
+      const g = window.__trackGates;
+      return g ? g() : null;
+    });
+    const inni = await page.evaluate(() => {
+      const m = document.getElementById('t-map');
+      if (!m) return null;
+      const r = m.getBoundingClientRect();
+      return {
+        str: Math.round(r.width) + '×' + Math.round(r.height),
+        paner: Array.from(m.querySelectorAll('.leaflet-pane'))
+          .map(p => p.className.replace('leaflet-pane ', '') + ':' + p.children.length),
+        svg: m.querySelectorAll('svg').length,
+        canvas: m.querySelectorAll('canvas').length,
+        markers: m.querySelectorAll('.leaflet-marker-icon').length,
+        fliser: m.querySelectorAll('img.leaflet-tile').length,
+      };
+    });
+    console.log('   inni  :', inni ? inni.str + ' · ' + inni.paner.join(' ')
+      + ' · svg ' + inni.svg + ' canvas ' + inni.canvas
+      + ' · markører ' + inni.markers + ' · fliser ' + inni.fliser : '(ingen)');
+    console.log('   porter:', port
+      ? 'fase ' + port.phase + ' · bein ' + port.i + ' · stops ' + port.stops
+        + ' · pts ' + port.pts + ' · fra «' + port.from + '» til «' + port.to + '»'
+      : '(ingen diagnose eksponert)');
+  }
   console.log('   banner:', seen.banner);
   console.log('   klasse:', seen.klasse, '  farge:', seen.farge);
 

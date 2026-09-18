@@ -322,7 +322,12 @@ export function drawLeg(layer, leg, opts = {}) {
   // The beads, on the same terms everywhere: only the stops you pass through,
   // only when there is room to read them, and named on tap rather than always.
   const stops = (l.stops || []).filter(s => s && s.lat != null);
-  const room = !project || stopsReadable(stops.map(st => project([st.lat, st.lon])));
+  // Same guard as mergeNearby: a viewless map costs beads, not the whole map.
+  let room = true;
+  if (project) {
+    try { room = stopsReadable(stops.map(st => project([st.lat, st.lon]))); }
+    catch { room = false; }
+  }
   if (dots && room && stops.length > 2) {
     stops.slice(1, -1).forEach(st => {
       const m = L.marker([st.lat, st.lon],
@@ -387,12 +392,21 @@ export function drawJourneyPoints(layer, points, opts = {}) {
 export function mergeNearby(items, project, minGapPx) {
   const gap = minGapPx == null ? ROUTE_STOP_MIN_GAP_PX : minGapPx;
   const kept = [];
+  // A PROJECTION THAT THROWS MUST NOT BLANK A MAP.
+  //
+  // Leaflet answers «Set map center and zoom first» when asked where a point
+  // lands before the map has a view, and that throw took the tracking screen's
+  // whole map down for two releases — scheduler.js catches every tick, so it
+  // was silent. Callers should fit before they draw, and a test holds them to
+  // it; this is the second line of defence, because unmerged markers are a
+  // small fault and an empty map is a total one.
+  const at = (ll) => { try { return project ? project(ll) : null; } catch { return null; } };
   (items || []).forEach(it => {
     if (!it) return;
-    const p = project ? project([it.lat, it.lon]) : null;
+    const p = at([it.lat, it.lon]);
     const near = p && kept.find(k => {
-      const q = project([k.lat, k.lon]);
-      return Math.hypot(q.x - p.x, q.y - p.y) < gap;
+      const q = at([k.lat, k.lon]);
+      return q && Math.hypot(q.x - p.x, q.y - p.y) < gap;
     });
     if (near) {
       if (it.name && !near.names.includes(it.name)) near.names.push(it.name);

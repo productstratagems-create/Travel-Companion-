@@ -213,6 +213,32 @@ function _renderTrackMap(now, cs, legs) {
     _tMap = createMap(mapEl, { expandable: true });
     _tLayer = L.layerGroup().addTo(_tMap);
     const lineColor = leg.lineBg || '#7c2d12';
+
+    // FRAME FIRST, THEN DRAW — and this map is why the rule is worth a comment.
+    //
+    // v1.114.0 gave this screen the shared PÅ/BYTT/AV markers, and
+    // drawJourneyPoints projects each point to decide whether two would touch.
+    // The fit ran at the BOTTOM of this block, so the projection had no view
+    // to project onto: Leaflet threw «Set map center and zoom first», the whole
+    // block aborted before the fit, and the map was left without a centre —
+    // no tiles, no lines, nothing. scheduler.js wraps each tick in try/catch,
+    // so the throw never reached the console.
+    //
+    // THE TRACKING MAP HAS BEEN BLANK SINCE THAT RELEASE. It shipped because
+    // the release note said the screen had not been seen and shipped anyway.
+    // Every leg's points are gathered here, before anything is drawn, and the
+    // fit is not animated — a frame in motion is no frame to measure against.
+    // The onward legs are in here so the early frame equals the final one. On
+    // THIS screen that is tidiness rather than load-bearing — its beads are
+    // drawn unconditionally, not through stopsReadable — and a mutant that
+    // dropped them changed nothing measurable. Said rather than defended with
+    // a test that would only be testing itself.
+    const frame = pts.slice();
+    for (let j = cs.i + 1; j < legs.length; j++) {
+      const nx = _legRoutePts(legs[j]).pts;
+      if (nx.length >= 2) frame.push(...nx);
+    }
+    if (frame.length) _tMap.fitBounds(frame, { padding: [28, 28], maxZoom: 16, animate: false });
     // THROUGH drawLeg, so a bus looks like a bus here too. This drew every
     // mode as one solid weight-4 stroke and never asked corridorStyle, which
     // has known the answer since v1.96 — so the same bus was dotted on the
@@ -283,7 +309,9 @@ function _renderTrackMap(now, cs, legs) {
     _tRoutePts = pts;
     _tSnapDist = leg.mode === 'bus' ? 25 : 50;
 
-    _tMap.fitBounds(allPts, { padding: [28, 28], maxZoom: 16 });
+    // The frame was set before anything was drawn; `allPts` is the same set of
+    // points, so this only re-seats it after the markers have been placed.
+    if (allPts.length) _tMap.fitBounds(allPts, { padding: [28, 28], maxZoom: 16, animate: false });
     setTimeout(() => _tMap && _tMap.invalidateSize(), 100);
 
     bindMapExpand(_tMap, mapEl, document.getElementById('t-map-expand'));

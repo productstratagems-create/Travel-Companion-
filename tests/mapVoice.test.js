@@ -119,3 +119,34 @@ describe('avgangsdetaljer draws the shared bead', () => {
     expect(s()).not.toMatch(/padding: \[40, 40\]/);
   });
 });
+
+// ── Frame before projection, on every map that projects (v1.117.0) ─────────
+//
+// THIRD TIME THIS ORDER HAS BEEN THE ANSWER: the board map in v1.102.0, the
+// detail map in v1.116.0, and the tracking map here — where getting it wrong
+// left the screen with no map at all for two releases, silently, because
+// scheduler.js catches every tick.
+describe('every map fits before it projects', () => {
+  const order = (file, fitNeedle) => {
+    const t = src(file);
+    return { fit: t.indexOf(fitNeedle), project: t.indexOf('latLngToContainerPoint') };
+  };
+
+  it('underveis fits before it asks where a point lands', () => {
+    const o = order('src/views/track.js', '_tMap.fitBounds(frame');
+    expect(o.fit).toBeGreaterThan(-1);
+    expect(o.project).toBeGreaterThan(-1);
+    expect(o.fit).toBeLessThan(o.project);
+  });
+
+  it('avgangsdetaljer does too', () => {
+    const o = order('src/views/selected.js', '_selMap.fitBounds(frame');
+    expect(o.fit).toBeLessThan(o.project);
+  });
+
+  // An animated fit is a frame in motion, which is no frame to measure against.
+  it('does not measure against a frame still moving', () => {
+    expect(src('src/views/track.js')).toMatch(/fitBounds\(frame,[^)]*animate: false/);
+    expect(src('src/views/selected.js')).toMatch(/fitBounds\(frame,[^)]*animate: false/);
+  });
+});

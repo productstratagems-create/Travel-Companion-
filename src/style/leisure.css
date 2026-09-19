@@ -109,3 +109,7 @@
 .exp-ask-input{font-size:13px}
 .exp-ask-note{font-size:11px;color:var(--text-muted);margin-top:.3rem}
 .exp-ask-note[data-kind="ingenting"],.exp-ask-note[data-kind="delvis"]{color:var(--text-soft-hi)}
+
+/* Why a suggestion is on top (v1.125.0). Beside the name, never instead
+   of it — the reason is context, and the name is the answer. */
+.sugg-why{float:right;font-size:10px;color:var(--text-soft);letter-spacing:.04em}

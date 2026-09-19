@@ -88,6 +88,28 @@ describe('bindPlaceInput', () => {
     expect(sugg.hidden).toBe(true);
   });
 
+  // The app has known «you use this one daily» for releases and spent it
+  // on sort order alone. An unexplained reordering is just a list that
+  // moved; the reason is what makes it trustworthy.
+  it('shows the reason a suggestion is on top, beside the name', async () => {
+    const { inp, sugg } = mount();
+    bindPlaceInput(inp, sugg, async () => [{ label: 'Ski stasjon', why: 'ofte brukt' }], () => {});
+    type(inp, 'ski');
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    const btn = sugg.querySelector('button');
+    expect(btn.querySelector('.sugg-why').textContent).toBe('ofte brukt');
+    // Beside, never instead of: the name is the answer.
+    expect(btn.textContent).toContain('Ski stasjon');
+  });
+
+  it('shows no reason when there is none', async () => {
+    const { inp, sugg } = mount();
+    bindPlaceInput(inp, sugg, async () => [{ label: 'Skien' }], () => {});
+    type(inp, 'ski');
+    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
+    expect(sugg.querySelector('.sugg-why')).toBe(null);
+  });
+
   it('hides rather than showing an empty list', async () => {
     const { inp, sugg } = mount();
     bindPlaceInput(inp, sugg, async () => [], () => {});

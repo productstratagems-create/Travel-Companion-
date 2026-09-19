@@ -5,6 +5,7 @@ import { esc, clk, clkDay, fmtMins } from '../ui/fmt.js';
 import { bindPlaceInput } from '../ui/suggest.js';
 import { parseAsk } from '../api/askParse.js';
 import { geocodeDest, fetchTrip } from '../api/entur.js';
+import { loadFreq } from '../api/usage.js';
 import { adaptTripPattern } from '../api/adapt.js';
 import { setActiveRoute } from './settings.js';
 import { renderPlaces } from './leisure.js';
@@ -283,7 +284,13 @@ function _attach(el) {
     bindPlaceInput(
       document.getElementById('exp-' + side),
       document.getElementById('exp-' + side + '-sugg'),
-      q => geocodeDest(q),
+      // The reader's own history and position decide the order. Both are
+      // already on the device; neither leaves it.
+      q => geocodeDest(q, {
+        role: side === 'from' ? 'dep' : 'arr',
+        here: state.homeLL,
+        freq: loadFreq(side === 'from' ? 'dep' : 'arr'),
+      }),
       r => {
         const v = { label: r.label, id: r.id || null, lat: r.lat, lon: r.lon };
         if (side === 'from') _from = v; else { _to = v; _placesOpen = false; }

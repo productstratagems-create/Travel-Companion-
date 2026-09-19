@@ -120,3 +120,17 @@ describe('the rule reaches the screens a departure opens onto', () => {
     expect(await has('src/views/track.js', "stop-clock\">' + (r.arrT ? clk(r.arrT)")).toBe(true);
   });
 });
+
+// Auto-reise could not write a day at all until v1.122.0: `_timesHtml` shows
+// minute counts and drops anything already past, so a departure on Monday
+// would have rendered as a raw «2900». The stop that reported this —
+// Storaas Gjestegård — is the same one scratchpad/tomorrowProbe.mjs was
+// written for, one screen over.
+describe('auto-reise can say which day', () => {
+  it('uses clkDay for a departure beyond today', () => {
+    const src = require('node:fs')
+      .readFileSync('src/views/auto.js', 'utf8').replace(/\/\/[^\n]*/g, '');
+    expect(src).toMatch(/clkDay\(next, now\)/);
+    expect(src).toMatch(/from '\.\.\/ui\/fmt\.js'/);
+  });
+});

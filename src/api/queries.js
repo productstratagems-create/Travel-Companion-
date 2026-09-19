@@ -269,6 +269,26 @@ export function nextBoardAsk(asked, max) {
   return asked >= ceiling ? 0 : ceiling;
 }
 
+/**
+ * How far to look when the next ninety minutes are empty.
+ *
+ * Reported from Storaas Gjestegård on a Saturday: «vår app viser ingen
+ * avganger, men Entur har avganger». Entur had none that day either — its own
+ * message reads «Vi finner ingen reiser etter dette tidspunktet på lørdag. Vi
+ * viser første mulige reise», and the list under it is MONDAY. The stop has no
+ * weekend service.
+ *
+ * So the app was right and unhelpful: «Ingen avganger herfra nå» reads as «try
+ * again later today», and the truth is «not until Monday morning». The board
+ * asks for ninety minutes (`fwdMins || 90` below) and cannot tell the two
+ * apart.
+ *
+ * Two days, because that is what a weekend without service costs: a Saturday
+ * morning reader needs Monday. Not a week — a stop with nothing for two days
+ * is better served by saying so than by a date nobody will act on.
+ */
+export const NEXT_DEPARTURE_HORIZON_MINS = 48 * 60;
+
 export function boardGQL(id, n, now, basic, fwdMins, modes, perLine) {
   const sits = sitsGQL(basic);
   const wl = (Array.isArray(modes) ? modes.filter(m => BOARD_MODES_COACH.includes(m)) : []);

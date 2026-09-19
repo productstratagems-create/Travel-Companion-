@@ -523,6 +523,47 @@ html[data-theme="light"] .lei-cat-btn.active {
   border-color: rgba(var(--accent-rgb),.35);
   color: var(--accent);
 }
+/* UTFORSK: journey search. The borders are the part that needs saying —
+   --border-rgb is tuned for a dark surface and reads as a grey smear on a
+   light one, which is why the pills above already override it. */
+html[data-theme="light"] .exp-label,
+html[data-theme="light"] .exp-note,
+html[data-theme="light"] .exp-dur,
+html[data-theme="light"] .exp-bytt,
+html[data-theme="light"] .exp-walk,
+html[data-theme="light"] .exp-fold-caret { color: var(--text-muted); }
+html[data-theme="light"] .exp-input,
+html[data-theme="light"] .exp-at {
+  background: #fff;
+  border-color: rgba(var(--accent-rgb),.18);
+  color: var(--accent);
+}
+html[data-theme="light"] .exp-input:focus,
+html[data-theme="light"] .exp-at:focus { border-color: rgba(var(--accent-rgb),.45); }
+html[data-theme="light"] .exp-when-btn {
+  background: rgba(var(--accent-rgb),.06);
+  border-color: rgba(var(--accent-rgb),.12);
+  color: var(--text-muted);
+}
+html[data-theme="light"] .exp-when-btn.active {
+  background: rgba(var(--accent-rgb),.14);
+  border-color: rgba(var(--accent-rgb),.35);
+  color: var(--accent);
+}
+html[data-theme="light"] .exp-go {
+  background: rgba(var(--accent-rgb),.1);
+  border-color: rgba(var(--accent-rgb),.3);
+  color: var(--accent);
+}
+html[data-theme="light"] .exp-row { border-bottom-color: rgba(var(--accent-rgb),.1); }
+html[data-theme="light"] .exp-dep { color: var(--accent); }
+html[data-theme="light"] .exp-arr,
+html[data-theme="light"] .exp-verdict,
+html[data-theme="light"] .exp-when-chosen { color: var(--text-muted); }
+html[data-theme="light"] .exp-line { background: rgba(var(--accent-rgb),.12); color: var(--accent); }
+html[data-theme="light"] .exp-places { border-top-color: rgba(var(--accent-rgb),.1); }
+html[data-theme="light"] .exp-fold { color: var(--text-soft); }
+
 html[data-theme="light"] .lei-venue-card { border-bottom-color: rgba(var(--border-rgb),.07); }
 html[data-theme="light"] .lei-venue-card.active { border-left-color: var(--accent); }
 html[data-theme="light"] .lei-venue-name { color: var(--accent); }

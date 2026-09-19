@@ -125,6 +125,44 @@ export function returnWindow(r, now) {
 }
 
 /**
+ * WHEN this route is planned from — the single derivation.
+ *
+ * Until «Utforsk» there was only one way a route could be about a time that
+ * is not now: the trip home, a HH:MM on today's clock inside a ±45/90 minute
+ * window. A journey search that can ask about tomorrow morning adds a second
+ * way, and two places deciding «what instant do we send as dateTime» is the
+ * failure shape this codebase has produced about twenty times.
+ *
+ * So it is decided here, once. `dir.atMs` — an explicit instant the reader
+ * chose — wins over the return-trip window, because a deliberate choice must
+ * outrank an automatic one; that is the same rule `shouldSwitch` already
+ * follows for the route itself.
+ *
+ * `undefined` means «now», which is what `fetchTrip` expects: not a
+ * timestamp equal to this instant, but the absence of one, so the planner
+ * keeps its two-minute lookback and the departure at the platform survives.
+ *
+ * @returns {number|undefined}
+ */
+export function departAtMs(dir, now, opts) {
+  const t = now == null ? Date.now() : now;
+  if (dir && Number.isFinite(dir.atMs)) return dir.atMs > t ? dir.atMs : undefined;
+  const o = opts || {};
+  const r = o.ret === undefined ? loadReturn() : o.ret;
+  if (!r || !dir || dir.from !== r.from || dir.to !== r.to) return undefined;
+  // Declining the switch has to mean declining the question too. `shouldSwitch`
+  // honours the skip flag; this did not, so after tapping ✕ the board kept
+  // asking Entur for departures around the RETURN time — up to 45 minutes in
+  // the future — while the reader stood on the platform now. Every imminent
+  // departure is then legitimately absent from the response, with nothing on
+  // screen to say why.
+  const skip = o.skipDay === undefined ? loadSkip() : o.skipDay;
+  if (skip === dayKey(t)) return undefined;
+  const w = returnWindow(r, t);
+  return (w.active && w.before) ? w.at : undefined;
+}
+
+/**
  * Whether the board should switch itself over.
  *
  * The rule that matters most is the second one: a route the reader picked

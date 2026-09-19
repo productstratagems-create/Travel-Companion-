@@ -118,7 +118,7 @@ const _enter = {
   'v-settings': () => window._showSettings && window._showSettings(),
   'v-prefs':    () => window._showPrefs && window._showPrefs(),
   'v-saved':    () => window._renderSaved && window._renderSaved(),
-  'v-leisure':  () => window._renderLeisure && window._renderLeisure(),
+  'v-leisure':  () => window._renderExplore && window._renderExplore(),
   // Reset first, like both other doors into this screen already do. Without
   // it a restore repainted the stop you were at when you left, with times
   // that had aged — and this screen's whole claim is "from where you are".
@@ -568,7 +568,7 @@ export function attachEventListeners() {
     // No saveWeekendMode: going to a screen is not choosing it as the one the
     // app opens on. Reported — this entry silently rewrote that preference.
     show('v-leisure');
-    window._renderLeisure && window._renderLeisure();
+    window._renderExplore && window._renderExplore();
   });
 
   document.getElementById('spectate-btn').addEventListener('click', () => {

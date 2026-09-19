@@ -13,7 +13,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fs from 'node:fs';
-import { exploreState, journeySummary, searchDir } from '../src/views/explore.js';
+import { exploreState, journeySummary, searchDir, askSummary } from '../src/views/explore.js';
 import { TRIP_SCAN_MINS, TRIP_PICK_HORIZON_MINS, TRIP_PICK_HORIZON_DAYS } from '../src/api/tripTime.js';
 
 const NOW = new Date(2026, 8, 19, 8, 47).getTime();
@@ -185,5 +185,53 @@ describe('journeySummary', () => {
   it('survives a pattern with nothing in it', () => {
     expect(journeySummary(null)).toBe(null);
     expect(journeySummary({}).lines).toEqual([]);
+  });
+});
+
+/**
+ * The sentence, read back.
+ *
+ * The free-text field proposes; it never acts. That only makes a
+ * misreading cheap if the reading is VISIBLE — «til Bergen · mandag 07:00»
+ * beside the fields it filled, so a wrong day is caught before the search
+ * rather than after the bus.
+ */
+describe('askSummary', () => {
+  const p = (o) => ({ from: null, to: null, atMs: null, understood: [], ...o });
+
+  it('says what it read, in the app\'s own words', () => {
+    const s = askSummary(p({ from: 'kongsberg', to: 'bergen', atMs: NOW + 3600_000 }), NOW);
+    expect(s.kind).toBe('lest');
+    expect(s.label).toContain('fra kongsberg');
+    expect(s.label).toContain('til bergen');
+  });
+
+  // A day that is not today must be spelled with its day. «07:05» alone,
+  // two days out, is the v1.122.0 mistake in a new field.
+  it('spells the day when the time is not today', () => {
+    const mandag = new Date(2026, 8, 21, 7, 5).getTime();
+    expect(askSummary(p({ to: 'oslo s', atMs: mandag }), NOW).label).toMatch(/man/);
+  });
+
+  // Half a sentence is the dangerous case: fields filled, destination
+  // missing, and nothing saying so.
+  it('says when the destination is missing rather than looking complete', () => {
+    const s = askSummary(p({ from: 'ski', atMs: NOW + 3600_000 }), NOW);
+    expect(s.kind).toBe('delvis');
+    expect(s.label).toMatch(/mangler/);
+  });
+
+  it('says it understood nothing rather than staying silent', () => {
+    expect(askSummary(p({}), NOW).kind).toBe('ingenting');
+  });
+
+  // THE SAFETY PROPERTY. Reading the sentence fills the form; it must not
+  // start a search. A parser that searched on its own guess would turn a
+  // misreading into a wasted journey.
+  it('the free-text field never triggers a search on its own', () => {
+    const src = fs.readFileSync('src/views/explore.js', 'utf8');
+    const block = src.slice(src.indexOf('const ask = document.getElementById'), src.indexOf('const go = document.getElementById'));
+    expect(block).toMatch(/parseAsk/);
+    expect(block).not.toMatch(/_search\(/);
   });
 });

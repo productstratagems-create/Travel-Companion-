@@ -3,6 +3,7 @@ import { saveWeekendMode } from '../geo.js';
 import { show } from '../ui/nav.js';
 import { esc, clk, clkDay, fmtMins } from '../ui/fmt.js';
 import { bindPlaceInput } from '../ui/suggest.js';
+import { parseAsk } from '../api/askParse.js';
 import { geocodeDest, fetchTrip } from '../api/entur.js';
 import { adaptTripPattern } from '../api/adapt.js';
 import { setActiveRoute } from './settings.js';
@@ -112,6 +113,8 @@ let _error = false;
 let _rows = null;
 let _placesOpen = false;
 let _reqId = 0;
+let _askNote = null;   // what the sentence was read as, shown for correction
+let _askText = '';
 
 /** The starting point offered, and WHERE IT CAME FROM — never a bare claim. */
 function _defaultFrom() {
@@ -207,6 +210,39 @@ function _placesHtml() {
     + '</div>';
 }
 
+/**
+ * Say what the sentence was READ AS, in the app's own words.
+ *
+ * The whole safety of this feature is that a misreading costs a glance.
+ * That only holds if the reading is visible: «til Bergen · mandag 07:00»
+ * beside the fields it filled, so a wrong day is caught before a search,
+ * not after a missed bus. Silence here would turn a helpful guess into an
+ * invisible one.
+ */
+export function askSummary(parsed, now) {
+  if (!parsed) return null;
+  const bits = [];
+  if (parsed.from) bits.push('fra ' + parsed.from);
+  if (parsed.to) bits.push('til ' + parsed.to);
+  if (parsed.atMs != null) bits.push(clkDay(parsed.atMs, now));
+  if (!bits.length) return { kind: 'ingenting', label: 'Forsto ikke. Fyll ut feltene under.' };
+  const missed = !parsed.to ? ' — mangler hvor du skal' : '';
+  return { kind: missed ? 'delvis' : 'lest', label: 'Leste: ' + bits.join(' · ') + missed };
+}
+
+function _askHtml() {
+  const note = _askNote
+    ? '<div class="exp-ask-note" data-kind="' + _askNote.kind + '">' + esc(_askNote.label) + '</div>'
+    : '';
+  return '<div class="exp-ask">'
+    + '<input id="exp-ask" class="exp-input exp-ask-input" type="text"'
+    + ' autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
+    + ' placeholder="f.eks. til Sandvika fredag halv ni"'
+    + ' value="' + esc(_askText) + '">'
+    + note
+    + '</div>';
+}
+
 export function renderExplore() {
   const el = document.getElementById('v-leisure');
   if (!el) return;
@@ -217,6 +253,7 @@ export function renderExplore() {
     + '<div class="lei-title">Utforsk</div>'
     + '<button class="lei-mode-btn" id="exp-back">' + (state.jny ? '← reise' : '← pendler') + '</button>'
     + '</div>'
+    + _askHtml()
     + '<div class="exp-form">'
     + _placeHtml('from', _from)
     + _placeHtml('to', _to)
@@ -275,6 +312,27 @@ function _attach(el) {
     _asked = false; _rows = null; _error = false;
     renderExplore();
   });
+
+  const ask = document.getElementById('exp-ask');
+  if (ask) {
+    const read = () => {
+      _askText = ask.value;
+      const p = parseAsk(_askText, Date.now());
+      _askNote = _askText.trim() ? askSummary(p, Date.now()) : null;
+      // A PROPOSAL, NOT AN ACTION. The fields are filled and shown; no
+      // search runs until the reader presses «finn reiser», so a wrong
+      // reading costs a glance rather than a journey.
+      if (p.atMs != null) _atMs = p.atMs;
+      if (p.to) _to = { label: p.to, id: null, lat: null, lon: null, _typed: true };
+      if (p.from) _from = { label: p.from, id: null, lat: null, lon: null, _typed: true };
+      _asked = false; _rows = null; _error = false;
+      renderExplore();
+      const again = document.getElementById('exp-ask');
+      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    };
+    ask.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); read(); } });
+    ask.addEventListener('blur', () => { if (ask.value !== _askText) read(); });
+  }
 
   const go = document.getElementById('exp-go');
   if (go) go.addEventListener('click', () => _search());
@@ -348,6 +406,7 @@ function _follow(dep) {
 /** Test seam: the module keeps its answer between renders. */
 export function _resetExplore() {
   _from = null; _to = null; _atMs = null; _pickOpen = false;
+  _askNote = null; _askText = '';
   _asked = false; _loading = false; _error = false; _rows = null;
   _placesOpen = false; _reqId = 0;
 }

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   RETURN_LEAD_MS, RETURN_TAIL_MS, loadReturn, saveReturn, clearReturn,
   reverseOf, returnDir, returnWindow, shouldSwitch, skipToday, loadSkip,
-  dayKey, atMs, suggestHHMM,
+  dayKey, atMs, suggestHHMM, departAtMs,
 } from '../src/api/returnTrip.js';
 
 const at = (h, m) => new Date(2026, 4, 26, h, m, 0, 0).getTime();   // a Tuesday
@@ -200,5 +200,57 @@ describe('_returnDepartAt', () => {
     expect(_returnDepartAt(config.dirs[2])).toBeUndefined();
     vi.setSystemTime(at(15, 40));
     expect(_returnDepartAt({ from: 'Annet', to: 'Sted' })).toBeUndefined();
+  });
+});
+
+/**
+ * ONE derivation of «when is this route planned from».
+ *
+ * board.js used to hold its own copy of the return-window rule. «Utforsk»
+ * adds a second caller with an explicit instant, and two places deciding
+ * which `dateTime` to send is the failure shape this codebase keeps
+ * producing. So the rule moved here — and these cases exist to prove the
+ * move changed nothing for the board.
+ */
+describe('departAtMs', () => {
+  const OUT = { key: 'custom-out', from: 'Mortensrud', to: 'Nationaltheatret' };
+  const RET = { from: 'Mortensrud', to: 'Nationaltheatret', atHHMM: '16:20' };
+
+  it('means «now» when nothing says otherwise', () => {
+    expect(departAtMs(OUT, at(9, 0))).toBe(undefined);
+  });
+
+  // THE OLD BEHAVIOUR, unchanged. Inside the window and before the time.
+  it('still returns the return-trip instant inside its window', () => {
+    saveReturn(RET);
+    expect(departAtMs(OUT, at(16, 0))).toBe(at(16, 20));
+  });
+
+  it('still declines outside the window, past the time, and on another route', () => {
+    saveReturn(RET);
+    expect(departAtMs(OUT, at(9, 0))).toBe(undefined);          // too early
+    expect(departAtMs(OUT, at(16, 30))).toBe(undefined);        // already gone
+    expect(departAtMs({ ...OUT, to: 'Jernbanetorget' }, at(16, 0))).toBe(undefined);
+  });
+
+  it('still honours the skip flag', () => {
+    saveReturn(RET);
+    skipToday(at(16, 0));
+    expect(departAtMs(OUT, at(16, 0))).toBe(undefined);
+  });
+
+  // THE NEW CASE. A time the reader typed outranks the automatic one —
+  // the same rule shouldSwitch already follows for the route itself.
+  it('lets an explicit instant outrank the return window', () => {
+    saveReturn(RET);
+    const imorgen = at(16, 0) + 20 * 3600_000;
+    expect(departAtMs({ ...OUT, atMs: imorgen }, at(16, 0))).toBe(imorgen);
+  });
+
+  // An explicit instant that has passed is not a search we can run, and
+  // sending it would answer with departures that already left.
+  it('ignores an explicit instant that has passed', () => {
+    expect(departAtMs({ ...OUT, atMs: at(8, 0) }, at(9, 0))).toBe(undefined);
+    expect(departAtMs({ ...OUT, atMs: NaN }, at(9, 0))).toBe(undefined);
   });
 });

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
 import { tripGQL, boardGQL, trackGQL, arrBoardGQL, sitsGQL, boardTruncated, nextBoardAsk, BOARD_ASK_MAX, NEXT_DEPARTURE_HORIZON_MINS, LOOKBACK_MINS, BOARD_MODES, BOARD_MODES_COACH } from '../src/api/queries.js';
 
 // --- tripGQL ---
@@ -540,5 +541,40 @@ describe('NEXT_DEPARTURE_HORIZON_MINS', () => {
   // The board's own window is unchanged — this is a separate, rarer question.
   it('leaves the board’s ninety minutes alone', () => {
     expect(boardGQL('X', 10)).toContain('timeRange:' + ((2 + 90) * 60));
+  });
+});
+
+/**
+ * A chosen departure time must survive the retry.
+ *
+ * `fetchTrip`'s fallback ladder sheds `dateTime` — it is the argument that
+ * could never be checked against the live API. That is right for the board,
+ * which means «now» anyway. It is wrong for «Utforsk», where the reader
+ * asked about 08:00 tomorrow: answering with departures going right now is
+ * the wrong answer wearing the right answer's clothes.
+ *
+ * `keepTime` is what makes the difference, and until «Utforsk» nothing
+ * tested it at all.
+ */
+describe('keepTime', () => {
+  const AT = new Date(2026, 8, 21, 8, 0).getTime();
+
+  it('is dropped on the minimal retry when nobody asked for a time', () => {
+    expect(tripGQL('A', 'B', null, 12, 1.3, AT, true, false)).not.toContain('dateTime');
+  });
+
+  it('survives the minimal retry when the reader chose the time', () => {
+    const q = tripGQL('A', 'B', null, 12, 1.3, AT, true, true);
+    expect(q).toContain('dateTime');
+  });
+
+  // The binding: fetchTrip must pass «did the caller give a time» as
+  // keepTime. A mutant that hardcodes false here loses the feature silently,
+  // returning a full and plausible list of the wrong journeys.
+  it('is what fetchTrip passes on its retry', () => {
+    const src = fs.readFileSync('src/api/entur.js', 'utf8');
+    const line = src.split('\n').find(l => l.includes('tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true,'));
+    expect(line).toBeTruthy();
+    expect(line).toContain('atMs != null');
   });
 });

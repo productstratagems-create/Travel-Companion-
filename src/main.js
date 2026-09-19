@@ -19,6 +19,7 @@ import { registerServiceWorker, initOfflineBanner } from './pwa.js';
 import './views/favs.js';
 import './views/plan.js';
 import { renderLeisure } from './views/leisure.js';
+import { renderExplore } from './views/explore.js';
 import { renderAuto, resetAuto, armAutoJump, hasStop } from './views/auto.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
 import { landingChoice, exampleDir, isExample, upgradeToNearest, exampleFallback, AUTO_FALLBACK_MS } from './firstRun.js';
@@ -81,7 +82,11 @@ window._updateWalkDbg = updateWalkDbg;
 window._showSettings = showSettings;
 window._showPrefs = showPrefs;
 window._applyRoute = applyRoute;
-window._renderLeisure = renderLeisure;
+// «Utforsk» means journey search now; the places browser is a section of
+// it, reached through renderPlaces. Both globals stay: the ⋯-menu door and
+// the saved landing preference both name this screen.
+window._renderLeisure = renderExplore;
+void renderLeisure;
 
 // Auto-reise is a mode now (see src/views/auto.js and the ⚡ item in nav.js).
 // What used to live here guessed your destination from history and refused to
@@ -227,7 +232,7 @@ if (landing === 'journey') {
     startBoard();
   }, AUTO_FALLBACK_MS);
 } else if (landing === 'leisure') {
-  renderLeisure();
+  renderExplore();
   show('v-leisure');
 } else if (hasRoute) {
   // deeplink, stored, legacy and example all open the same screen.

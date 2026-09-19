@@ -8,6 +8,7 @@ import { saveWeekendMode } from '../geo.js';
 import { geocodePlace } from '../api/entur.js';
 import config from '../config.js';
 import { show, updateHeader } from '../ui/nav.js';
+import { bindPlaceInput } from '../ui/suggest.js';
 import { esc, venueDetailHtml } from '../ui/fmt.js';
 
 const HANDEL = { label: 'handel', emoji: '🛍', amenities: 'commercial.clothing,commercial.shoes,commercial.sport,commercial.books,commercial.electronics,commercial.shopping_mall,commercial.department_store,commercial.gift,commercial.jewelry' };
@@ -22,19 +23,50 @@ let _expanded  = null;   // expanded venue card index
 let _locOvr    = null;   // { lat, lon, label } — user-set position override
 let _radius    = 1000;   // metres
 let _venueReqId = 0;     // guards against stale fetchNearbyPlaces responses
+let _anchorKey = '';     // which point the loaded venues are about
+
+// Where this screen is drawn, and what it is drawn ABOUT.
+//
+// «Utforsk» used to mean this browser, anchored to the GPS dot. It now means
+// finding journeys, and the places became a folded section under the answer
+// — about the DESTINATION, which is the point a reader who has just found a
+// journey to Kongsberg is asking about. Nothing was deleted to make room;
+// the browser takes its point from outside instead of reading state.homeLL.
+let _mountId = 'v-leisure';
+let _embedded = false;
+let _anchorLabel = null;
+let _anchor = null;      // the point the section is about, decided once
 
 // Map state
 let _lMap         = null;
 let _venueMarkers = [];
 let _userMarker   = null;
 
-export function renderLeisure() {
-  const el = document.getElementById('v-leisure');
+export function renderLeisure(opts) {
+  const o = opts || {};
+  _mountId = o.mountId || 'v-leisure';
+  _embedded = !!o.mountId;
+  _anchorLabel = o.label || null;
+
+  const el = document.getElementById(_mountId);
   if (!el) return;
 
   _destroyLeisureMap();
 
-  const pos = _locOvr || state.homeLL;
+  const pos = o.pos || _locOvr || state.homeLL;
+  _anchor = pos;
+
+  // The anchor moved, so what is loaded is about somewhere else. Showing it
+  // under a new heading would be the «relevant, not just right» failure: a
+  // true list of cafés, next to the name of a different town.
+  const key = pos ? pos.lat.toFixed(4) + ',' + pos.lon.toFixed(4) : '';
+  if (key !== _anchorKey) {
+    _anchorKey = key;
+    _venues = null;
+    _weather = null;
+    _expanded = null;
+  }
+
   el.innerHTML = _buildHtml(pos);
   _attachListeners(el, pos);
   _initLeisureMap(pos);
@@ -47,6 +79,11 @@ export function renderLeisure() {
   }
 }
 
+/** The places browser, as a section of another screen, about a given point. */
+export function renderPlaces(mountId, pos, label) {
+  return renderLeisure({ mountId, pos, label });
+}
+
 function _activeCat() {
   if (_catIdx !== null) return LEISURE_CATS[_catIdx];
   const tc = timeCategory();
@@ -54,6 +91,7 @@ function _activeCat() {
 }
 
 function _locLabel(pos) {
+  if (_anchorLabel) return _anchorLabel;
   if (_locOvr) return _locOvr.label;
   if (pos) return (state.nearestStation && state.nearestStation.name) || 'GPS posisjon';
   return 'søk etter sted';
@@ -108,10 +146,11 @@ function _buildHtml(pos) {
   }
 
   const backLabel = state.jny ? '← reise' : '← pendler';
-  return '<div class="lei-header">'
+  const header = _embedded ? '' : ('<div class="lei-header">'
     + '<div class="lei-title">Utforsk</div>'
     + '<button class="lei-mode-btn" id="lei-commute-btn">' + backLabel + '</button>'
-    + '</div>'
+    + '</div>');
+  return header
     + wHtml
     + locHtml
     + radiusHtml
@@ -121,7 +160,8 @@ function _buildHtml(pos) {
 }
 
 function _attachListeners(el, pos) {
-  document.getElementById('lei-commute-btn').addEventListener('click', () => {
+  const commuteBtn = document.getElementById('lei-commute-btn');
+  if (commuteBtn) commuteBtn.addEventListener('click', () => {
     _destroyLeisureMap();
     // Navigation only. This used to clear weekend mode on the way out — and
     // only when no journey was running, so whether leaving this screen
@@ -157,7 +197,7 @@ function _attachListeners(el, pos) {
         b.classList.toggle('active', Number(b.dataset.r) === r));
       _venues = null;
       _expanded = null;
-      const p = _locOvr || state.homeLL;
+      const p = _anchor;
       if (p) _loadVenues(_activeCat(), p);
     });
   });
@@ -174,7 +214,7 @@ function _attachListeners(el, pos) {
       const venEl = document.getElementById('lei-venues');
       if (venEl) venEl.innerHTML = '<div class="lei-loading">laster steder…</div>';
       _clearVenueMarkers();
-      const p = _locOvr || state.homeLL;
+      const p = _anchor;
       if (p) _loadVenues(LEISURE_CATS[idx], p);
     });
   });
@@ -183,45 +223,20 @@ function _attachListeners(el, pos) {
 }
 
 function _attachLocInput(el) {
-  const inp = document.getElementById('lei-loc-input');
-  if (!inp) return;
-  let _timer = null;
-
-  inp.addEventListener('input', () => {
-    const q = inp.value.trim();
-    const sugg = document.getElementById('lei-loc-sugg');
-    clearTimeout(_timer);
-    if (!sugg || q.length < 2) { if (sugg) { sugg.hidden = true; sugg.innerHTML = ''; } return; }
-    _timer = setTimeout(() => {
-      geocodePlace(q).then(results => {
-        const s = document.getElementById('lei-loc-sugg');
-        if (!s) return;
-        s.innerHTML = '';
-        if (!results.length) { s.hidden = true; return; }
-        results.slice(0, 5).forEach(r => {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.textContent = r.label;
-          btn.addEventListener('mousedown', ev => ev.preventDefault());
-          btn.addEventListener('click', () => {
-            _locOvr = { lat: r.lat, lon: r.lon, label: r.label };
-            _venues = null;
-            _weather = null;
-            renderLeisure();  // full re-render: new pos, new weather, new venues
-          });
-          s.appendChild(btn);
-        });
-        s.hidden = false;
-      }).catch(() => {});
-    }, 250);
-  });
-
-  inp.addEventListener('blur', () => {
-    setTimeout(() => {
-      const s = document.getElementById('lei-loc-sugg');
-      if (s) s.hidden = true;
-    }, 150);
-  });
+  // One suggestion loop, in ui/suggest.js. This function used to hold its
+  // own debounce, its own five-result slice and its own blur delay; the
+  // route form holds a second copy, and «Utforsk» would have been a third.
+  bindPlaceInput(
+    document.getElementById('lei-loc-input'),
+    document.getElementById('lei-loc-sugg'),
+    q => geocodePlace(q),
+    r => {
+      _locOvr = { lat: r.lat, lon: r.lon, label: r.label };
+      _venues = null;
+      _weather = null;
+      renderLeisure();  // full re-render: new pos, new weather, new venues
+    },
+  );
 }
 
 function _attachVenueListeners(el) {
@@ -234,8 +249,7 @@ function _attachVenueListeners(el) {
       const idx = Number(card.dataset.idx);
       _expanded = (_expanded === idx) ? null : idx;
       _reRenderVenues(el);
-      const pos = _locOvr || state.homeLL;
-      _updateLeisureMarkers(pos);
+      _updateLeisureMarkers(_anchor);
       if (_expanded !== null && _lMap && _venues && _venues[_expanded]) {
         const v = _venues[_expanded];
         _lMap.panTo([v.lat, v.lon]);
@@ -293,6 +307,8 @@ function _cardHtml(v, i) {
 
 function _reisDit(venue) {
   const ns = state.nearestStation;
+  // DELIBERATELY not `_anchor`. The section may be about the far end of a
+  // journey, but «reis dit» plans from where the reader actually is.
   const pos = _locOvr || state.homeLL;
   setActiveRoute({
     key: 'custom-out',
@@ -439,12 +455,7 @@ function _destroyLeisureMap() {
 
 window._renderLeisure = renderLeisure;
 
-window._exploreDestination = function(lat, lon, label) {
-  _locOvr = { lat, lon, label: label || 'destinasjon' };
-  _venues = null;
-  _weather = null;
-  _expanded = null;
-  saveWeekendMode(true);
-  show('v-leisure');
-  renderLeisure();
-};
+// `window._exploreDestination` used to live here, repointing this browser at
+// a place. It now sets the JOURNEY SEARCH's destination and opens the places
+// under it — the same information, one phase earlier — and lives in
+// views/explore.js beside the state it sets.

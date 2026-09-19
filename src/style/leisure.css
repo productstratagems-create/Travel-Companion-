@@ -56,3 +56,49 @@
   display:inline-block;margin-top:.35rem;font-size:11px;
   color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(var(--accent-rgb),.4);
 }
+
+/* ── UTFORSK: journey search (v1.123.0) ──────────────────────
+   Same register as the route form and the departure rows: this is one more
+   way to ask «hvilke avganger gjelder meg», not a screen of its own idiom.
+   Nothing here scrolls the primary button out of reach at 390 px — the
+   vision's «ro» is measured, not asserted. */
+
+.exp-form{margin-bottom:1rem}
+.exp-field{position:relative;margin-bottom:.6rem}
+.exp-label{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-soft);margin-bottom:.2rem}
+.exp-input{width:100%;box-sizing:border-box;background:rgba(var(--accent-rgb),.04);border:1px solid rgba(var(--border-rgb),.14);border-radius:6px;padding:.5rem .6rem;font-family:inherit;font-size:13px;color:var(--accent)}
+.exp-input:focus{outline:none;border-color:rgba(var(--border-rgb),.4)}
+.exp-note{font-size:10px;color:var(--text-soft);margin-top:.2rem}
+
+.exp-when{margin:.2rem 0 .7rem}
+.exp-when-row{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.15rem}
+.exp-when-btn{background:rgba(var(--accent-rgb),.04);border:1px solid rgba(var(--border-rgb),.1);border-radius:20px;padding:.25rem .6rem;font-family:inherit;font-size:10px;color:var(--text-soft);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.exp-when-btn.active{background:rgba(var(--accent-rgb),.12);border-color:rgba(var(--border-rgb),.35);color:var(--accent)}
+.exp-when-pick{margin-top:.45rem}
+.exp-at{width:100%;box-sizing:border-box;background:rgba(var(--accent-rgb),.04);border:1px solid rgba(var(--border-rgb),.14);border-radius:6px;padding:.45rem .6rem;font-family:inherit;font-size:12px;color:var(--accent)}
+.exp-when-chosen{font-size:11px;color:var(--text-muted);margin-top:.3rem}
+
+.exp-go{display:block;width:100%;padding:.65rem .75rem;background:rgba(var(--accent-rgb),.1);border:1px solid rgba(var(--border-rgb),.3);border-radius:6px;font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.exp-go:active{background:rgba(var(--accent-rgb),.16)}
+.exp-go[disabled]{opacity:.5}
+
+.exp-verdict{padding:.6rem 0;font-size:12px;color:var(--text-muted)}
+
+.exp-results{margin-bottom:.8rem}
+.exp-row{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid rgba(var(--border-rgb),.07);padding:.6rem 0;font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.exp-row:last-child{border-bottom:none}
+.exp-row:active{background:rgba(var(--accent-rgb),.05)}
+.exp-row.cancelled .exp-dep{text-decoration:line-through}
+.exp-row-top{display:flex;align-items:baseline;gap:.5rem}
+.exp-dep{font-size:15px;color:var(--accent)}
+.exp-arr{font-size:12px;color:var(--text-muted)}
+.exp-dur{margin-left:auto;font-size:11px;color:var(--text-soft)}
+.exp-row-bot{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-top:.3rem}
+.exp-line{font-size:10px;padding:.05rem .35rem;border-radius:3px;background:rgba(var(--accent-rgb),.12);color:var(--accent)}
+.exp-direct{font-size:10px;color:var(--ok)}
+.exp-bytt{font-size:10px;color:var(--text-soft)}
+.exp-walk{font-size:10px;color:var(--text-soft)}
+
+.exp-places{border-top:1px solid rgba(var(--border-rgb),.07);padding-top:.5rem}
+.exp-fold{display:flex;align-items:center;gap:.4rem;width:100%;background:none;border:none;padding:.5rem 0;font-family:inherit;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-soft-hi);cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent}
+.exp-fold-caret{color:var(--text-soft)}

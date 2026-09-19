@@ -32,7 +32,7 @@ import { isExample } from '../firstRun.js';
 import { newRecord, stage, showRecord, takeLookbackLost } from '../api/diagnose.js';
 import { BOARD_MODES, LOOKBACK_MINS, normJid } from '../api/queries.js';
 import { takeDropReasons } from '../api/adapt.js';
-import { loadReturn, returnWindow, loadSkip, dayKey } from '../api/returnTrip.js';
+import { loadReturn, returnWindow, loadSkip, dayKey, departAtMs } from '../api/returnTrip.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -3102,17 +3102,10 @@ function _showBoardError(msg) {
  * while it is still ahead of us, otherwise nothing and the board means "now".
  */
 export function _returnDepartAt(dir) {
-  const r = loadReturn();
-  if (!r || !dir || dir.from !== r.from || dir.to !== r.to) return undefined;
-  // Declining the switch has to mean declining the question too. `shouldSwitch`
-  // honours the skip flag; this did not, so after tapping ✕ the board kept
-  // asking Entur for departures around the RETURN time — up to 45 minutes in
-  // the future — while the reader stood on the platform now. Every imminent
-  // departure is then legitimately absent from the response, with nothing on
-  // screen to say why.
-  if (loadSkip() === dayKey(Date.now())) return undefined;
-  const w = returnWindow(r, Date.now());
-  return (w.active && w.before) ? w.at : undefined;
+  // One derivation, in api/returnTrip.js. This used to hold its own copy of
+  // the skip check and the window check; «Utforsk» added a second caller
+  // that had to agree with it, which is where the two would have drifted.
+  return departAtMs(dir, Date.now());
 }
 
 /**

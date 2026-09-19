@@ -102,3 +102,10 @@
 .exp-places{border-top:1px solid rgba(var(--border-rgb),.07);padding-top:.5rem}
 .exp-fold{display:flex;align-items:center;gap:.4rem;width:100%;background:none;border:none;padding:.5rem 0;font-family:inherit;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-soft-hi);cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent}
 .exp-fold-caret{color:var(--text-soft)}
+
+/* Fritekst → reise (v1.124.0). The note under the field is not decoration:
+   it is what makes a misreading cost a glance instead of a missed bus. */
+.exp-ask{margin:.2rem 0 .9rem}
+.exp-ask-input{font-size:13px}
+.exp-ask-note{font-size:11px;color:var(--text-muted);margin-top:.3rem}
+.exp-ask-note[data-kind="ingenting"],.exp-ask-note[data-kind="delvis"]{color:var(--text-soft-hi)}

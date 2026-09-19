@@ -561,6 +561,7 @@ html[data-theme="light"] .exp-arr,
 html[data-theme="light"] .exp-verdict,
 html[data-theme="light"] .exp-when-chosen { color: var(--text-muted); }
 html[data-theme="light"] .exp-line { background: rgba(var(--accent-rgb),.12); color: var(--accent); }
+html[data-theme="light"] .exp-ask-note { color: var(--text-muted); }
 html[data-theme="light"] .exp-places { border-top-color: rgba(var(--accent-rgb),.1); }
 html[data-theme="light"] .exp-fold { color: var(--text-soft); }
 

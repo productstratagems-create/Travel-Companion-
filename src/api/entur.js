@@ -16,6 +16,7 @@ let tripController = null;
 // name and invisible when you stood next to them.
 export { TRANSIT_CATS as TRANSIT_CAT } from './stopCats.js';
 import { TRANSIT_CATS as TRANSIT_CAT } from './stopCats.js';
+import { rankPlaces } from './rankPlaces.js';
 
 export function resolveStop(dir, signal) {
   // Prefer the stop id. Passing coordinates instead makes OTP run a foot-access
@@ -97,7 +98,14 @@ export function resolveViaStop(dir, signal) {
     });
 }
 
-export function geocodeDest(query) {
+/**
+ * @param {string} query
+ * @param {object} [ctx] — {role, here, freq, now} for api/rankPlaces.js.
+ *   Omitted, the order is exactly what it has always been: transit first,
+ *   then Entur's own. So a caller that has no context costs nothing, and
+ *   the ranking is opt-in per screen rather than a global behaviour change.
+ */
+export function geocodeDest(query, ctx) {
   return enturFetch(config.api.geocoder
     + '?text=' + encodeURIComponent(query)
     + '&size=10&layers=venue,address' + focusParam())
@@ -119,12 +127,15 @@ export function geocodeDest(query) {
       // the same label, keep only the transit one. Transit results sort first.
       const seen = new Map();
       mapped.sort((a, b) => (b.id ? 1 : 0) - (a.id ? 1 : 0));
-      return mapped.filter(r => {
+      const deduped = mapped.filter(r => {
         const key = r.label.toLowerCase();
         if (seen.has(key)) return false;
         seen.set(key, true);
         return true;
       });
+      // Reordered, never filtered — the dedupe above is the only thing
+      // allowed to drop a row.
+      return ctx ? rankPlaces(deduped, { ...ctx, query }) : deduped;
     });
 }
 

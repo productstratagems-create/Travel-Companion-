@@ -59,6 +59,15 @@ export function bindPlaceInput(input, sugg, fetchFn, onPick) {
           btn.type = 'button';
           btn.className = 'sugg-btn';
           btn.textContent = r.label;
+          // SAY WHY IT IS ON TOP. The app has known «you use this one
+          // daily» for releases and spent it on sort order alone; an
+          // unexplained reordering is just a list that moved.
+          if (r.why) {
+            const why = document.createElement('span');
+            why.className = 'sugg-why';
+            why.textContent = r.why;
+            btn.appendChild(why);
+          }
           btn.addEventListener('mousedown', ev => ev.preventDefault());
           btn.addEventListener('click', () => { hide(); onPick(r); });
           sugg.appendChild(btn);

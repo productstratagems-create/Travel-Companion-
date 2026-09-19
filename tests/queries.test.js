@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tripGQL, boardGQL, trackGQL, arrBoardGQL, sitsGQL, boardTruncated, nextBoardAsk, BOARD_ASK_MAX, LOOKBACK_MINS, BOARD_MODES, BOARD_MODES_COACH } from '../src/api/queries.js';
+import { tripGQL, boardGQL, trackGQL, arrBoardGQL, sitsGQL, boardTruncated, nextBoardAsk, BOARD_ASK_MAX, NEXT_DEPARTURE_HORIZON_MINS, LOOKBACK_MINS, BOARD_MODES, BOARD_MODES_COACH } from '../src/api/queries.js';
 
 // --- tripGQL ---
 
@@ -518,5 +518,27 @@ describe('nextBoardAsk', () => {
   it('survives being asked about nothing', () => {
     expect(nextBoardAsk(0)).toBe(BOARD_ASK_MAX);
     expect(nextBoardAsk(undefined)).toBe(BOARD_ASK_MAX);
+  });
+});
+
+// The window the board asks for cannot see Monday (v1.122.0).
+describe('NEXT_DEPARTURE_HORIZON_MINS', () => {
+  // A Saturday-morning reader at a stop with no weekend service needs Monday.
+  it('reaches across a weekend without service', () => {
+    const lørdagMorgen = new Date(2026, 8, 19, 8, 47, 0).getTime();
+    const mandagTidlig = new Date(2026, 8, 21, 7, 5, 0).getTime();
+    expect(NEXT_DEPARTURE_HORIZON_MINS * 60000)
+      .toBeGreaterThan(mandagTidlig - lørdagMorgen);
+  });
+
+  // And not a week: a stop with nothing for two days is better served by
+  // saying so than by a date nobody will act on.
+  it('does not reach so far that the answer stops being useful', () => {
+    expect(NEXT_DEPARTURE_HORIZON_MINS).toBeLessThanOrEqual(3 * 24 * 60);
+  });
+
+  // The board's own window is unchanged — this is a separate, rarer question.
+  it('leaves the board’s ninety minutes alone', () => {
+    expect(boardGQL('X', 10)).toContain('timeRange:' + ((2 + 90) * 60));
   });
 });

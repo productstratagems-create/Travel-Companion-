@@ -18,11 +18,12 @@
  * exactly as well. That is the difference between an engine that locks you
  * out and one that helps.
  */
-import { esc } from '../ui/fmt.js';
+import { esc, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import config from '../config.js';
 import { state } from '../state.js';
-import { fetchBoard } from '../api/entur.js';
+import { fetchNextDeparture, fetchBoard } from '../api/entur.js';
+import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
 import { predictDest, autoJumpDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { renderAlertsInto } from '../ui/alerts.js';
@@ -492,6 +493,74 @@ function _dirAlerts(dir, perLine) {
   return out;
 }
 
+/**
+ * What «ingen avganger» actually means this time.
+ *
+ * Reported from Storaas Gjestegård on a Saturday: «vår app viser ingen
+ * avganger, men Entur har avganger.» Entur had none that day either — its own
+ * message says so and then shows MONDAY. The stop has no weekend service. So
+ * the app was right, and «Ingen avganger herfra nå.» read as «something is
+ * broken, try later» when the truth was «not until Monday 07:05».
+ *
+ * AND THAT ONE SENTENCE MEANT SIX THINGS. It was written from two places on a
+ * bare `!_dirs.length`, and covered: nothing in the ninety-minute window;
+ * everything in the answer already gone; calls with no front text; everything
+ * filtered out by mode; stale rows aged out at the one-second tick; and —
+ * plainly a bug — THE SCREEN HAVING ASKED NOTHING YET, because `pinStop`
+ * empties `_dirs` and renders before `_load` runs.
+ *
+ * One pure verdict, as `liveness` (v1.106.0) and `posState` (v1.108.0) are,
+ * and the screen takes its words from the kind rather than testing the inputs
+ * again.
+ *
+ * @param {{asked: boolean, dirs: Array, live: Array, nextMs: number|null,
+ *          now: number, horizonMins: number}} o
+ * @returns {{kind: string, label: string}}
+ */
+export function boardState(o) {
+  const c = o || {};
+  const now = Number.isFinite(c.now) ? c.now : Date.now();
+
+  // NOT ASKED IS NOT EMPTY. This is the bug, not the wording: the screen said
+  // «ingen avganger» about something it had not looked at.
+  if (!c.asked) return { kind: 'henter', label: 'Henter avganger \u2026' };
+
+  const dirs = c.dirs || [];
+  const live = c.live || [];
+
+  // Rows exist and every one has aged past its last departure. A different
+  // fact from «the stop gave us nothing», and the reader can act on it: a
+  // refresh will help here and will not help there.
+  if (dirs.length && !live.length) {
+    return { kind: 'passert', label: 'Avgangene herfra har g\u00e5tt. Hent p\u00e5 nytt.' };
+  }
+
+  if (!dirs.length) {
+    // UNDEFINED IS «STILL LOOKING», null is «looked and found nothing». The
+    // first cut normalised both to null before testing, so the «still
+    // looking» branch could never fire and the screen jumped straight to
+    // «ingen avganger» — the flicker this state exists to prevent, written
+    // into the very function meant to prevent it.
+    if (c.nextMs === undefined) return { kind: 'henter', label: 'Henter avganger \u2026' };
+    const next = Number.isFinite(c.nextMs) ? c.nextMs : null;
+    if (next && next > now) {
+      return { kind: 'senere', label: 'Neste avgang herfra: ' + clkDay(next, now) };
+    }
+    // Asked two days ahead and found nothing. Said plainly rather than left
+    // as «nå», which invites a reader to wait for something that is not
+    // coming.
+    const days = Math.round((c.horizonMins || 0) / (24 * 60));
+    return {
+      kind: 'ingen',
+      label: days >= 1
+        ? 'Ingen avganger herfra de neste ' + (days === 1 ? 'd\u00f8gnet' : days + ' d\u00f8gnene') + '.'
+        : 'Ingen avganger herfra n\u00e5.',
+    };
+  }
+
+  return { kind: 'ok', label: '' };
+}
+
 export function badgeHtml(l) {
   return '<span class="line-badge" style="background:#'
     + esc(l.colour || '7c2d12') + '">' + esc(l.code || '?') + '</span>';
@@ -504,6 +573,10 @@ let _stop = null;      // { name, id, lat, lon }
 // Did the READER pick this stop, or did the app? Only the reader's choice
 // survives a better position fix. Cleared by resetAuto with everything else.
 let _stopPinned = false;
+/** Has a board answer arrived for this stop yet? «Not asked» is not «empty». */
+let _asked = false;
+/** The next departure beyond the board's window: ms, null when none, undefined while looking. */
+let _nextMs = undefined;
 /** Did the answer come back at the query's cap? See boardTruncated. */
 let _truncated = false;
 /** This stop's own traffic messages — auto-reise threw them away entirely. */
@@ -953,7 +1026,7 @@ function _renderWhere() {
   // A different stop is a different board. Without this the departures below
   // would keep belonging to the stop the reader has walked away from — and
   // the guard in renderAuto only refetches when _dirs is empty.
-  if (picked.changed) { _dirs = []; _open = null; }
+  if (picked.changed) { _dirs = []; _open = null; _asked = false; _nextMs = undefined; }
   if (!_stop) {
     el.innerHTML = '<div class="set-label">du er ved</div>'
       + '<div class="dest-prev-empty">' + esc(noPosText(state.gpsError).where) + '</div>';
@@ -1306,7 +1379,13 @@ export function pinStop(id) {
   // The reader chose. From here a new fix refreshes the distance but does
   // not overrule the choice — until they leave the screen.
   _stopPinned = true;
-  _open = null; _dirs = [];
+  // A NEW STOP HAS NOT BEEN ASKED ABOUT. Clearing the rows without clearing
+  // these two left the previous stop's answer standing: «asked» stayed true,
+  // so the screen said «ingen avganger» about a stop nothing had looked at,
+  // and `_nextMs` would have offered the OLD stop's next departure as this
+  // one's. Found by a mutant that survived — the «not asked» guard was
+  // unreachable because nothing ever set it back.
+  _open = null; _dirs = []; _asked = false; _nextMs = undefined;
   // Deliberately NOT collapsing here. Having the list shut under the
   // finger that just picked from it is a movement nobody asked for, and
   // it makes trying two stops in a row needlessly hard.
@@ -1350,6 +1429,24 @@ function _load() {
       // own cap, and drawing it as though it were complete is the failure this
       // release exists for — «hvorfor er ikke linje 3 Mortensrud på lista?»
       _truncated = !!stop._truncated;
+      _asked = true;
+      // AN EMPTY ANSWER IS A QUESTION, not a conclusion. Asked once, and only
+      // when there is nothing — a stop with departures never pays for this.
+      // Same ladder shape as the per-line cap and v1.121.0's ceiling rung.
+      if (!_dirs.length) {
+        _nextMs = undefined;
+        const forStop = _stop && _stop.id;
+        fetchNextDeparture({ key: 'custom-out', from: _stop.name, stopId: _stop.id,
+          to: '', line: null, filter: null })
+          .then(ms => {
+            // The reader may have moved on while we were asking.
+            if (!_stop || _stop.id !== forStop) return;
+            _nextMs = ms;
+            _renderBody();
+          });
+      } else {
+        _nextMs = null;
+      }
       _renderBody();
     },
     (err) => {
@@ -1721,7 +1818,16 @@ function _renderBody() {
   _setManual(MANUAL_CTA);
   if (!_dirs.length) {
     _showSort(false);
-    body.innerHTML = '<div class="dest-prev-empty">Ingen avganger herfra nå.</div>';
+    body.innerHTML = '<div class="dest-prev-empty">'
+      // Date.now() rather than the `now` fifty lines below: that one is a
+      // `const` declared later in this function, so reading it here is a
+      // temporal dead zone — it threw «Cannot access before initialization»,
+      // the render died, and the screen fell through to «Fikk ikke avganger
+      // herfra» — an error message for a stop that had answered perfectly.
+      // Caught by the probe; no test could see it, because the throw is in
+      // the renderer.
+      + esc(boardState({ asked: _asked, dirs: _dirs, live: [], nextMs: _nextMs,
+        now: Date.now(), horizonMins: NEXT_DEPARTURE_HORIZON_MINS }).label) + '</div>';
     return;
   }
   // ONE ARMING, TWO STEPS — and the arming is consumed HERE, by the caller.
@@ -1757,7 +1863,9 @@ function _renderBody() {
   const live = dirRows(_dirs, loadAutoSort().desc, d => _timesHtml(d, now), localCodespace(_dirs));
   if (!live.length) {
     _showSort(false);
-    body.innerHTML = '<div class="dest-prev-empty">Ingen avganger herfra nå.</div>';
+    body.innerHTML = '<div class="dest-prev-empty">'
+      + esc(boardState({ asked: _asked, dirs: _dirs, live, nextMs: _nextMs,
+        now, horizonMins: NEXT_DEPARTURE_HORIZON_MINS }).label) + '</div>';
     return;
   }
   _showSort(true);
@@ -2014,6 +2122,6 @@ export function hasStop() { return !!_stop; }
 
 export function resetAuto() {
   _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null; _alerts = [];
-  _truncated = false;
+  _truncated = false; _asked = false; _nextMs = undefined;
   _resetAutoMap();
   _stopsShown = false; _jumpArmed = false; }

@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { enturFetch } from './http.js';
-import { arrBoardGQL, boardGQL, boardTruncated, nextBoardAsk, inflightGQL, journeyGQL, normJid, trackGQL, tripGQL } from './queries.js';
+import { arrBoardGQL, boardGQL, boardTruncated, nextBoardAsk, NEXT_DEPARTURE_HORIZON_MINS, inflightGQL, journeyGQL, normJid, trackGQL, tripGQL } from './queries.js';
 import { quayLatLon } from './adapt.js';
 import { addSituation } from './situations.js';
 import { logMsg, setDot } from '../ui/log.js';
@@ -529,6 +529,45 @@ let _perLineRejected = false;
 
 /** Test seam. */
 export function _resetPerLineProbe() { _perLineRejected = false; }
+
+/**
+ * The next departure from here, whenever that is.
+ *
+ * Asked ONLY when the ordinary board came back empty, and asked for ONE row:
+ * this is not a board, it is a sentence — «neste herfra: mandag 07:05». The
+ * ninety-minute window the board uses cannot see Monday, and widening the
+ * board itself would pay for two days of departures on every stop in the
+ * country to serve the handful that need it.
+ *
+ * `boardGQL` already takes `now` and `fwdMins`; nothing new is asked of the
+ * API. Whether Entur answers a two-day window the same way it answers ninety
+ * minutes cannot be checked from a sandbox that does not reach api.entur.io —
+ * so a failure here resolves to null and the screen falls back to what it says
+ * today. The fallback is today's behaviour, not something worse.
+ *
+ * @returns {Promise<number|null>} the departure time in ms, or null
+ */
+export function fetchNextDeparture(dir, horizonMins) {
+  return resolveStop(dir)
+    .then(id => enturFetch(config.api.journeyPlanner, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: boardGQL(id, 1, null, true,
+          horizonMins || NEXT_DEPARTURE_HORIZON_MINS),
+      }),
+    }))
+    .then(r => (r && r.ok ? r.json() : null))
+    .then(j => {
+      const calls = (j && j.data && j.data.stopPlace
+        && j.data.stopPlace.estimatedCalls) || [];
+      const c = calls[0];
+      if (!c) return null;
+      const t = new Date(c.expectedDepartureTime || c.aimedDepartureTime).getTime();
+      return Number.isFinite(t) ? t : null;
+    })
+    .catch(() => null);
+}
 
 export function fetchBoard(dir, onSuccess, onError, want, perLine) {
   if (boardController) boardController.abort();

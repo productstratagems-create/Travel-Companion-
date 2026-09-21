@@ -747,3 +747,10 @@ html[data-theme="light"] .mem-empty { color: var(--text-dim); }
 html[data-theme="light"] .mem-text { color: var(--text-muted); }
 html[data-theme="light"] .mem-row { border-bottom-color: rgba(var(--accent-rgb),.1); }
 html[data-theme="light"] .mem-clear { color: #dc2626; border-color: rgba(220,38,38,.3); }
+
+/* ⋮ i lyst tema */
+html[data-theme="light"] .hdr-more-btn {
+  border-color: rgba(var(--accent-rgb),.16);
+  color: var(--text-muted);
+}
+html[data-theme="light"] .board-more-menu { box-shadow: 0 8px 28px rgba(43,39,36,.14); }

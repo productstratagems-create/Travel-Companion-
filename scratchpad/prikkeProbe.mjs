@@ -1,0 +1,135 @@
+/**
+ * ⋮ på eksakt samme sted — målt, ikke påstått.
+ *
+ * WHAT ONLY A BROWSER CAN SETTLE: «same place» is a pixel claim. The three
+ * header idioms have different padding (.6rem on the board, .75rem on the
+ * rest), and «Utforsk» builds its own in JS — so the only way to know is to
+ * navigate to every screen and read the button's centre in viewport
+ * coordinates.
+ *
+ * It also measures the two things that would quietly undo the change: that
+ * opening the menu does not push the page down (it used to, inside the
+ * board), and that «del denne tavla» is on the board and nowhere else.
+ */
+import fs from 'node:fs'; import path from 'node:path'; import http from 'node:http';
+import { fileURLToPath } from 'node:url';
+import pw from '/opt/node22/lib/node_modules/playwright/index.js';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const DIST = path.join(ROOT, 'dist'); const PORT = 4571;
+const NOW = Date.parse('2026-09-21T08:00:00+02:00');
+const HERE = { id: 'NSR:StopPlace:6021', name: 'Ryen', lat: 59.8944, lon: 10.8133 };
+
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+  '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };
+const server = http.createServer((req, res) => {
+  const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
+  const f = path.join(DIST, rel);
+  if (!f.startsWith(DIST) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return void res.writeHead(404).end('x');
+  res.writeHead(200, { 'content-type': TYPES[path.extname(f)] || 'application/octet-stream' });
+  res.end(fs.readFileSync(f));
+});
+await new Promise(r => server.listen(PORT, r));
+const browser = await pw.chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+
+async function open(dark) {
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 }, deviceScaleFactor: 2,
+    colorScheme: dark ? 'dark' : 'light', hasTouch: true, isMobile: true,
+    timezoneId: 'Europe/Oslo', locale: 'nb-NO',
+    geolocation: { latitude: HERE.lat, longitude: HERE.lon }, permissions: ['geolocation'],
+  });
+  const page = await ctx.newPage();
+  await page.addInitScript(({ now, here }) => {
+    const Real = Date;
+    class Pinned extends Real {
+      constructor(...a) { super(...(a.length ? a : [now])); }
+      static now() { return now; }
+    }
+    globalThis.Date = Pinned;
+    localStorage.setItem('__activeProfile', 'default');
+    localStorage.setItem('default::t.theme', 'system');
+    localStorage.setItem('default::t.autoMode', '0');
+    localStorage.setItem('default::t.homeLL', JSON.stringify({ lat: here.lat, lon: here.lon }));
+    localStorage.setItem('default::t.route', JSON.stringify({
+      key: 'custom-out', from: 'Ryen', to: 'Oslo S',
+      stopId: here.id, toStopId: 'NSR:StopPlace:337', geo: 'Ryen', toGeo: 'Oslo S',
+    }));
+    localStorage.setItem('default::t.dir', '2');
+  }, { now: NOW, here: HERE });
+
+  await page.route('**/journey-planner/**', r => r.fulfill({ status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ data: { stopPlace: { situations: [] }, dest: { situations: [] },
+      trip: { tripPatterns: [] } } }) }));
+  await page.route('**/geocoder/**', r => r.fulfill({ status: 200, contentType: 'application/json',
+    body: JSON.stringify({ features: [{ properties: { id: HERE.id, label: HERE.name, name: HERE.name,
+      category: ['metroStation'] }, geometry: { coordinates: [HERE.lon, HERE.lat] } }] }) }));
+  await page.route(/tiles\.stadiamaps|tile\.openstreetmap|open-meteo|overpass|valhalla|geoapify|mobility|realtime/,
+    r => r.abort());
+  page.on('pageerror', e => console.log('  ! sidefeil:', e.message));
+  await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'load' });
+  await page.waitForTimeout(900);
+  return { ctx, page };
+}
+
+/** The ⋮ that is actually on screen, and where its centre sits. */
+const spot = page => page.evaluate(() => {
+  const vis = [...document.querySelectorAll('[data-more]')].filter(b => {
+    const r = b.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  });
+  if (vis.length !== 1) return { n: vis.length };
+  const b = vis[0];
+  const r = b.getBoundingClientRect();
+  const hdr = b.parentElement, hr = hdr.getBoundingClientRect();
+  const view = b.closest('[id^="v-"]');
+  const vs = view ? getComputedStyle(view) : {};
+  return { n: 1, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
+    hdr: hdr.className || hdr.id, hdrTop: Math.round(hr.top), hdrRight: Math.round(hr.right),
+    viewPadL: vs.paddingLeft, viewPadT: vs.paddingTop };
+});
+
+// The bottom bar, which is the door a reader actually uses.
+const SCREENS = [
+  ['tavla', 'v-board'], ['auto-reise', 'v-auto'],
+  ['lagret', 'v-saved'], ['utforsk', 'v-leisure'],
+];
+const goTo = (p, view) => p.click(`.app-nav-btn[data-view="${view}"]`);
+
+for (const dark of [true, false]) {
+  const theme = dark ? 'mørk' : 'lys';
+  console.log(`\n══ ${theme} modus, 390 px ══`);
+  const { ctx, page } = await open(dark);
+  const seen = [];
+  for (const [navn, view] of SCREENS) {
+    try { await goTo(page, view); } catch (e) { console.log(`   ${navn}: kunne ikke navigere — ${e.message.split('\n')[0]}`); continue; }
+    await page.waitForTimeout(500);
+    const s = await spot(page);
+    if (s.n !== 1) { console.log(`   ${navn.padEnd(12)} ⚠ ${s.n} synlige ⋮`); continue; }
+    seen.push({ navn, ...s });
+    console.log(`   ${navn.padEnd(12)} ⋮ (${s.x}, ${s.y})  hdr «${s.hdr}» top=${s.hdrTop} right=${s.hdrRight}`
+      + `  view pad ${s.viewPadL}/${s.viewPadT}`);
+  }
+  const xs = [...new Set(seen.map(s => s.x))], ys = [...new Set(seen.map(s => s.y))];
+  console.log(`   → spredning: x ${xs.length === 1 ? 'lik' : xs.join('/')}, `
+    + `y ${ys.length === 1 ? 'lik' : ys.join('/')}`);
+
+  // Opening the menu must not push the page down — it used to, inside the board.
+  await goTo(page, 'v-board');
+  await page.waitForTimeout(400);
+  const before = await page.evaluate(() => (document.getElementById('dep-list') || document.body).getBoundingClientRect().top);
+  await page.click('[data-more]:not([style*="display: none"])').catch(() => {});
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(() => (document.getElementById('dep-list') || document.body).getBoundingClientRect().top);
+  const share = await page.evaluate(() => {
+    const s = document.getElementById('share-btn');
+    return s ? getComputedStyle(s).display : 'mangler';
+  });
+  console.log(`   meny på tavla: innhold flyttet ${Math.round(after - before)} px, «del denne tavla» = ${share}`);
+  await page.screenshot({ path: `scratchpad/prikker-${theme}-meny.png` });
+  await ctx.close();
+}
+
+await browser.close();
+server.close();

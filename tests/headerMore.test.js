@@ -31,22 +31,30 @@ function insideAView(src, needle) {
   return seg.split('<div').length > seg.split('</div>').length;
 }
 
-describe('én knapp, ett sted', () => {
-  it('finnes nøyaktig én ⋮ i markupen', () => {
-    expect((html().match(/data-more/g) || []).length).toBe(1);
+describe('én knapp i hver overskrift', () => {
+  // Seven: the board plus the six .screen-header screens. «Utforsk» builds
+  // its own in JS, so it is counted in explore.js instead.
+  it('finnes i hver overskrift, og bare én gang hver', () => {
+    expect((html().match(/data-more/g) || []).length).toBe(7);
+    const explore = fs.readFileSync('src/views/explore.js', 'utf8');
+    expect((explore.match(/data-more/g) || []).length).toBe(1);
   });
 
-  // The whole point. Seven buttons in three header idioms cannot be in the
-  // same place; one pinned to the viewport is, by construction.
-  it('er festet til viewporten, ikke til en overskrift', () => {
+  // IN THE ROW, not pinned to the viewport. v1.129.0 pinned it, which made
+  // it the same place on every screen and orphaned it from the two buttons
+  // it belongs with — and put it on top of the traffic banner.
+  it('ligger i raden, ikke festet til viewporten', () => {
     const rule = css().slice(css().indexOf('.hdr-more-btn{'), css().indexOf('.hdr-more-btn:active'));
-    expect(rule).toMatch(/position:fixed/);
-    expect(rule).toMatch(/top:1rem/);
-    expect(rule).toMatch(/right:1rem/);
+    expect(rule).not.toMatch(/position:fixed/);
   });
 
-  it('og ligger utenfor hver eneste skjerm', () => {
-    expect(insideAView(html(), 'id="board-more-btn"')).toBe(false);
+  // THE CONFLICT, fixed at the source: the banner used to push the header
+  // down. Now the header is the first thing on every screen, which is what
+  // lets the row sit at the same height without leaving it.
+  it('trafikkmeldingen står under overskriften, ikke over', () => {
+    const src = html();
+    expect(src.indexOf('class="board-header-slim"'))
+      .toBeLessThan(src.indexOf('id="service-alerts"'));
   });
 
   // It used to live inside #v-board, which is why ⋮ existed on one screen.
@@ -66,8 +74,14 @@ describe('én knapp, ett sted', () => {
     expect((rule.match(/background:/g) || []).length).toBe(1);
   });
 
-  it('overskriftene gir plass til den framfor å løpe under', () => {
-    expect(css()).toMatch(/\.board-header-slim,\.screen-header,#v-leisure \.lei-header\{padding-right/);
+  // Three header idioms brought into line. Each rule fixes one measured
+  // gap; without them the probe read (357,41), (238,33), (357,38), (341,49).
+  it('de tre overskriftsidiomene er brakt på linje', () => {
+    expect(css()).toMatch(/#v-leisure \.lei-header\{margin-right:-1rem;padding-top:0\}/);
+    expect(css()).toMatch(/\.screen-header-solo > \.hdr-more-btn\{position:absolute/);
+    expect(css()).toMatch(/\.hdr-more-btn\{align-self:flex-start\}/);
+    // And the board's button row, which its taller header centred.
+    expect(css()).toMatch(/\.board-header-slim > div:last-child\{align-self:flex-start\}/);
   });
 });
 

@@ -87,6 +87,15 @@ const spot = page => page.evaluate(() => {
   const vs = view ? getComputedStyle(view) : {};
   return { n: 1, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
     hdr: hdr.className || hdr.id, hdrTop: Math.round(hr.top), hdrRight: Math.round(hr.right),
+    // WHAT sits above the header, if anything — the 3px has to come from
+    // somewhere, and a hardcoded -3px would be a magic number that drifts.
+    above: (() => {
+      const prev = hdr.previousElementSibling;
+      const vt = view ? Math.round(view.getBoundingClientRect().top) : null;
+      const cs = getComputedStyle(hdr);
+      return (prev ? prev.tagName + '#' + (prev.id || '?') + ' h=' + Math.round(prev.getBoundingClientRect().height) : 'ingenting')
+        + ' | view.top=' + vt + ' hdr.mt=' + cs.marginTop + ' pt=' + cs.paddingTop;
+    })(),
     viewPadL: vs.paddingLeft, viewPadT: vs.paddingTop };
 });
 
@@ -109,11 +118,37 @@ for (const dark of [true, false]) {
     if (s.n !== 1) { console.log(`   ${navn.padEnd(12)} ⚠ ${s.n} synlige ⋮`); continue; }
     seen.push({ navn, ...s });
     console.log(`   ${navn.padEnd(12)} ⋮ (${s.x}, ${s.y})  hdr «${s.hdr}» top=${s.hdrTop} right=${s.hdrRight}`
-      + `  view pad ${s.viewPadL}/${s.viewPadT}`);
+      + `\n                 over: ${s.above}`);
   }
   const xs = [...new Set(seen.map(s => s.x))], ys = [...new Set(seen.map(s => s.y))];
   console.log(`   → spredning: x ${xs.length === 1 ? 'lik' : xs.join('/')}, `
     + `y ${ys.length === 1 ? 'lik' : ys.join('/')}`);
+
+  // THE CONFLICT THE SCREENSHOT SHOWED: a traffic banner used to sit above
+  // the header, pushing it down — and the pinned ⋮ landed on top of the
+  // banner. The banner moved below the header, so this measures both: that
+  // the row does not move, and that the two do not overlap.
+  await goTo(page, 'v-board');
+  await page.waitForTimeout(300);
+  const withBanner = await page.evaluate(() => {
+    const el = document.getElementById('service-alerts');
+    el.style.display = 'block';
+    el.innerHTML = '<div class="alert-box"><strong>Høstferie</strong><br>'
+      + 'Det kjøres sjeldnere avganger i høstferien (uke 40). '
+      + 'Sjekk Ruter-appen før du reiser.</div>';
+    const b = document.querySelector('[data-more]');
+    const br = b.getBoundingClientRect(), ar = el.getBoundingClientRect();
+    const overlap = br.right > ar.left && br.left < ar.right
+      && br.bottom > ar.top && br.top < ar.bottom;
+    // And the three buttons must share a line.
+    const row = [...document.querySelectorAll('.board-header-slim .board-more-btn')]
+      .map(x => Math.round(x.getBoundingClientRect().top));
+    return { y: Math.round(br.top + br.height / 2), overlap,
+      sammeLinje: new Set(row).size === 1, knapper: row.length };
+  });
+  console.log(`   med trafikkmelding: ⋮ på y=${withBanner.y}, overlapp=${withBanner.overlap ? 'JA ⚠' : 'nei'}, `
+    + `${withBanner.knapper} knapper på ${withBanner.sammeLinje ? 'samme linje' : 'ULIKE LINJER ⚠'}`);
+  await page.screenshot({ path: `scratchpad/prikker-${theme}-banner.png` });
 
   // Opening the menu must not push the page down — it used to, inside the board.
   await goTo(page, 'v-board');

@@ -62,8 +62,6 @@
        would have been three magic numbers that drift the next time a header
        changes. One element pinned to the viewport is the same place by
        construction, and it is six fewer buttons than the alternative. -->
-  <button class="hdr-more-btn" id="board-more-btn" data-more type="button"
-    aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋮</button>
   <div id="board-more-menu" class="board-more-menu" style="display:none" role="menu">
     <div id="board-profile-switcher" class="board-profile-row"></div>
     <button id="smart-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">⚡</span>auto-reise</button>
@@ -81,13 +79,7 @@
     <div class="board-more-version" id="board-version"></div>
   </div>
 <div id="v-board" tabindex="-1">
-  <!-- INSIDE the screen, not above it. This banner used to sit outside every
-       v-* div, and show() only toggles those — so one global list of traffic
-       messages stood on every screen whatever it was about. Reported: a bus
-       from Bjørndal shown to a reader riding metro line 3. Each screen has
-       its own slot and its own context now. -->
-  <div id="service-alerts" style="display:none"
-    role="region" aria-label="Servicevarsler" aria-live="polite"></div>
+
   <div class="board-header-slim">
     <div style="display:flex;align-items:center;gap:.6rem;min-width:0;flex:1">
       <span class="status-dot" id="status-dot" title="trykk for logg"
@@ -106,9 +98,17 @@
       <div style="display:flex;align-items:center;gap:.5rem">
         <button class="board-more-btn dir-btn" id="dir-btn" type="button" aria-label="Bytt retning">⇄</button>
         <button class="board-more-btn board-refresh-btn" id="board-refresh-btn" type="button" aria-label="Oppdater avganger" title="Oppdater">↻</button>
+        <button class="board-more-btn hdr-more-btn" id="board-more-btn" data-more type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋮</button>
       </div>
     </div>
   </div>
+  <!-- BELOW the header, not above it. Up there it pushed the station name —
+       the screen's own identity — off the top, and the ⋮ landed on top of
+       the banner. Still inside the screen: it used to sit outside every v-*
+       div, and show() only toggles those, so one global list of traffic
+       messages stood on every screen whatever it was about. -->
+  <div id="service-alerts" style="display:none"
+    role="region" aria-label="Servicevarsler" aria-live="polite"></div>
   <div id="smart-toast" class="smart-toast" style="display:none" role="status" aria-live="polite">
     <span>⚡ auto → <strong class="smart-toast-dest"></strong></span>
     <button class="smart-toast-cancel" type="button" aria-label="Avbryt auto-reise">✕</button>
@@ -144,6 +144,7 @@
     <button class="nav-back" id="s-back">← avganger</button>
     <span class="screen-label" role="heading" aria-level="2">avgangsdetaljer</span>
     <button class="nav-plan-btn" id="s-plan-btn" aria-label="Reiseplan">📋</button>
+      <button class="hdr-more-btn" data-more type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋮</button>
   </div>
   <div id="s-alerts" style="display:none"
     role="region" aria-label="Servicevarsler" aria-live="polite"></div>
@@ -163,6 +164,7 @@
       <button class="nav-plan-btn" id="t-spec-btn" aria-label="Finn reise">🔗</button>
       <button class="nav-plan-btn" id="t-plan-btn" aria-label="Reiseplan">📋</button>
     </div>
+      <button class="hdr-more-btn" data-more type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋮</button>
   </div>
   <div id="t-alerts" style="display:none"
     role="region" aria-label="Servicevarsler" aria-live="polite"></div>
@@ -201,6 +203,7 @@
          mine» had no answer on this screen. -->
     <button class="nav-plan-btn" id="set-fav-open" aria-label="Favoritter">★</button>
     <button class="nav-plan-btn" id="set-plan-btn" aria-label="Reiseplan">📋</button>
+      <button class="hdr-more-btn" data-more type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋮</button>
   </div>
   <div id="set-fav-routes" class="set-section" style="display:none"></div>
   <div id="set-dep-wrap" class="set-section">
@@ -302,6 +305,7 @@
   <div class="screen-header">
     <button class="nav-back" id="prefs-back">← tilbake</button>
     <span class="screen-label" role="heading" aria-level="2">innstillinger</span>
+      <button class="hdr-more-btn" data-more type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋮</button>
   </div>
   <div class="set-section">
     <div class="set-label">tempo</div>
@@ -379,6 +383,7 @@
   <div class="screen-header screen-header-solo">
     <span class="screen-label" role="heading" aria-level="2">auto-reise</span>
     <button class="nav-plan-btn" id="auto-refresh" aria-label="Hent posisjon og avganger på nytt">↻</button>
+      <button class="hdr-more-btn" data-more type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋮</button>
   </div>
   <!-- Outside #auto-where and #auto-body, like everything else here: both have
        their innerHTML replaced once a second. -->
@@ -422,6 +427,7 @@
   <div class="screen-header">
     <button class="nav-back" id="saved-back">← avganger</button>
     <span class="screen-label" role="heading" aria-level="2">lagret</span>
+      <button class="hdr-more-btn" data-more type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋮</button>
   </div>
   <div class="saved-tabs" role="tablist">
     <button class="saved-tab" type="button" role="tab" data-tab="favs">favoritter</button>

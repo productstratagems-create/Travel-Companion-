@@ -253,6 +253,10 @@ export function renderExplore() {
   el.innerHTML = '<div class="lei-header">'
     + '<div class="lei-title">Utforsk</div>'
     + '<button class="lei-mode-btn" id="exp-back">' + (state.jny ? '← reise' : '← pendler') + '</button>'
+    // Rebuilt with the header each time. The click is caught by the one
+    // delegated listener in ui/nav.js, so re-rendering costs nothing.
+    + '<button class="hdr-more-btn" data-more type="button" aria-haspopup="true"'
+    + ' aria-expanded="false" aria-label="Mer">⋮</button>'
     + '</div>'
     + _askHtml()
     + '<div class="exp-form">'

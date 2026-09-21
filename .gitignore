@@ -4,3 +4,7 @@ dist/
 .env
 .env.local
 scratchpad/shots/
+# Prøvebilder. Playwright-prøvene i scratchpad/*.mjs lager dem på nytt når
+# som helst, så de hører ikke i historikken — v1.126.0–v1.127.0 dro med seg
+# 6,4 MB av dem inn i en PR før de ble luket ut igjen.
+scratchpad/*.png

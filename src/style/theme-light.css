@@ -754,3 +754,5 @@ html[data-theme="light"] .hdr-more-btn {
   color: var(--text-muted);
 }
 html[data-theme="light"] .board-more-menu { box-shadow: 0 8px 28px rgba(43,39,36,.14); }
+
+html[data-theme="light"] .auto-side { color: var(--text-dim); }

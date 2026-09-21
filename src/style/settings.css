@@ -611,3 +611,12 @@
 .mem-empty{font-size:11px;color:var(--text-soft);padding:.5rem 0;line-height:1.45}
 .mem-clear{display:block;width:100%;padding:.5rem .75rem;background:none;border:1px solid rgba(var(--border-rgb),.2);border-radius:6px;font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#f87171;cursor:pointer}
 .mem-clear:active{background:rgba(248,113,113,.08)}
+
+/* «mot sentrum» / «fra sentrum» (v1.133.0). A quieter register than
+   «hvor skal du?» above it — these divide the answer, they are not a
+   second question. */
+.auto-side{
+  font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--text-soft);margin:.7rem 0 .35rem;
+}
+.auto-side:first-of-type{margin-top:.2rem}

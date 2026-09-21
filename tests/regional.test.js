@@ -31,11 +31,21 @@ describe('nothing writes the focus point by hand any more', () => {
     files.forEach(f => expect(read(f)).not.toMatch(/focus\.point\.lat=[0-9]/));
   });
 
-  it('has Oslo S in exactly one place: geo.js', () => {
+  // STILL EXACTLY ONE PLACE — it moved, it did not multiply. The coordinate
+  // lives in api/centre.js, which imports nothing and so cannot sit in an
+  // import cycle; geo.js re-exports it under the name every caller already
+  // uses. v1.133.0 needed the same point to judge «mot sentrum», and a
+  // second copy of it is the exact shape that once broke the app in Bergen.
+  it('has Oslo S in exactly one place: api/centre.js', () => {
     files.forEach(f => expect(read(f)).not.toContain('59.9139'));
+    const centre = read('../src/api/centre.js');
+    expect((centre.match(/59\.9139/g) || []).length).toBe(1);
     const geo = read('../src/geo.js');
-    expect((geo.match(/59\.9139/g) || []).length).toBe(1);
-    expect(geo).toMatch(/FALLBACK_FOCUS/);
+    expect(geo).not.toContain('59.9139');
+    expect(geo).toMatch(/FALLBACK_FOCUS = CENTRE/);
+    // And the leaf must stay a leaf, or the cycle it was moved to avoid
+    // comes straight back.
+    expect(read('../src/api/centre.js')).not.toMatch(/^import /m);
   });
 
   // The radius that used to be measured from a constant is gone entirely —

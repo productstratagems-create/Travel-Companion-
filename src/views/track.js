@@ -1,5 +1,6 @@
 import config from '../config.js';
 import { stopKey } from '../stopId.js';
+import { stopsUntil, alightEyebrow } from '../api/alight.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL } from '../geo.js';
@@ -1634,23 +1635,11 @@ export function renderTrack() {
         const m = Math.floor((new Date(arrT.time).getTime() - now) / 60000);
         return m <= 0 ? 'nå' : 'om ' + fmtMins(m);
       })() : null;
-      // Count directly from leg.stops using arrival time so we count
-      // stops the train is currently AT (just departed) as already visited.
-      const stopsLeft = (() => {
-        if (!leg.stops) return rows.length;
-        const fromN = normStn(leg.fromStation || '');
-        const toN   = normStn(leg.toStation   || '');
-        let pastFrom = !leg.fromStation, count = 0;
-        for (const s of leg.stops) {
-          const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
-          if (!pastFrom) { if (normStn(nm) === fromN) pastFrom = true; continue; }
-          const isEnd = toN && normStn(nm) === toN;
-          const arrT2 = s.expectedArrivalTime || s.aimedArrivalTime || s.expectedDepartureTime || s.aimedDepartureTime;
-          if (!arrT2 || new Date(arrT2).getTime() > now - 30000 || isEnd) count++;
-          if (isEnd) break;
-        }
-        return count;
-      })();
+      // The count moved to api/alight.js, where it can be tested. It was
+      // twenty-five lines inlined here, and its answer — the single most
+      // decision-relevant number a rider has — was printed at twelve
+      // pixels in a muted colour at the far right of the row below.
+      const stopsLeft = stopsUntil(leg, now);
       headerHtml = '<div class="ct-detail">'
         + '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
         + '<span class="ct-dest">' + leg.frontText + '</span>'
@@ -1735,8 +1724,14 @@ export function renderTrack() {
       })();
       // Show clock time for the connection — certainty beats countdown
       const depClk = nextLeg.depTime ? nextLeg.depTime.clk : null;
+      // The eyebrow says the count when it knows it. Timing is untouched:
+      // `mLeft > 2` above still decides whether this card exists at all.
+      const eb = alightEyebrow({
+        stopsLeft: leg.stops ? stopsUntil(leg, now) : null,
+        arriving: mLeft <= 0, transfer: true,
+      });
       return '<div class="alight-card alight-card-transfer">'
-        + '<div class="alight-card-eyebrow">bytt her</div>'
+        + '<div class="alight-card-eyebrow">' + esc(eb.label) + '</div>'
         + '<div class="alight-card-stop">' + esc(displayStn(leg.toStation)) + '</div>'
         + '<div class="alight-card-next">'
         + '<span class="line-badge" style="background:' + nextLeg.lineBg + '">' + nextLeg.lineCode + '</span>'
@@ -1788,10 +1783,16 @@ export function renderTrack() {
         + (w.advice ? ' · ' + w.advice : '');
     })();
 
-    const alightNow = mLeft <= 0;
+    // «Snart fremme» sat directly above a strip reading «1 stopp igjen».
+    // Same fact, two places, and only one of them useful. Timing is
+    // untouched — `mLeft > 5` above still decides whether this appears.
+    const eb = alightEyebrow({
+      stopsLeft: leg.stops ? stopsUntil(leg, now) : null,
+      arriving: mLeft <= 0, transfer: false,
+    });
     const arrQuay = state.jny.arrQuay;
     return '<div class="alight-card alight-card-dest">'
-      + '<div class="alight-card-eyebrow">' + (alightNow ? 'Gå av nå' : 'Snart fremme') + '</div>'
+      + '<div class="alight-card-eyebrow">' + esc(eb.label) + '</div>'
       + '<div class="alight-card-dest-name">' + esc(displayStn(state.jny.dest)) + '</div>'
       + (arrQuay ? '<div class="alight-quay">spor ' + esc(arrQuay) + '</div>' : '')
       + (walkMins !== null

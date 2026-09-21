@@ -16,6 +16,20 @@ export function addCompass(map, mapEl) {
   const wrap = mapEl.parentElement;
   if (!wrap) return;
 
+  // THE WRAPPER MUST BE A POSITIONING CONTEXT, and this is where that is
+  // guaranteed rather than in each wrapper's own stylesheet.
+  //
+  // `.map-compass` is `position:absolute; top:6px; right:40px` — relative to
+  // its nearest POSITIONED ancestor. Most map wrappers are `.map-wrap`,
+  // which sets `position:relative`. auto-reise's is a `.set-section`, which
+  // does not — so the compass climbed past it to the next positioned
+  // ancestor, `.screen-header-solo`, and rendered in the header beside the
+  // ⋮, far outside the map it belongs to.
+  //
+  // Reported after it landed on top of another button. Fixing the one
+  // wrapper would have left the next map to find this again.
+  if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
+
   let btn = wrap.querySelector('.map-compass');
   if (!btn) {
     btn = document.createElement('button');

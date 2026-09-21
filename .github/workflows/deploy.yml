@@ -14,6 +14,25 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# ONE NAME FOR THE ARTIFACT, derived — not written down twice.
+#
+# Re-running a workflow keeps the previous attempt's artifacts and uploads a
+# new one, so attempt 2 leaves the run holding TWO artifacts called
+# «github-pages» and deploy-pages refuses to choose between them:
+#
+#   Found 2 artifact(s)
+#   Error: Multiple artifacts named "github-pages" were unexpectedly found
+#          for this workflow run
+#
+# That is what stopped v1.134.0 and v1.135.0 from publishing. The default
+# name is fixed, so every re-run of a Pages workflow walks into it.
+#
+# The attempt number makes each upload distinct. Both steps read it from
+# here, so the uploader and the deployer cannot drift apart — the shape this
+# repo keeps finding, in its CI this time.
+env:
+  PAGES_ARTIFACT: github-pages-${{ github.run_attempt }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,6 +49,7 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+          name: ${{ env.PAGES_ARTIFACT }}
 
   deploy:
     needs: build
@@ -40,3 +60,5 @@ jobs:
     steps:
       - uses: actions/deploy-pages@v4
         id: deployment
+        with:
+          artifact_name: ${{ env.PAGES_ARTIFACT }}

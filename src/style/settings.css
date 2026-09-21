@@ -593,3 +593,21 @@
 }
 .nearby-toggle:active { opacity: .6; }
 .nearby-toggle-label { text-align: left; }
+
+/* «Hva appen husker» (v1.128.0). The list and the map are not decoration:
+   they are how «open about it» is kept checkable. Off by default. */
+.mem-toggle{display:flex;align-items:flex-start;gap:.6rem;padding:.4rem 0;cursor:pointer}
+.mem-toggle input{margin-top:.15rem;flex-shrink:0}
+.mem-toggle-text{font-size:12px;color:var(--text-muted-hi);line-height:1.45}
+.mem-why{font-size:11px;color:var(--text-soft);line-height:1.45;margin:.1rem 0 .6rem}
+.mem-map-wrap{margin:.2rem 0 .6rem;border-radius:7px;overflow:hidden}
+#mem-map{height:150px}
+.mem-list{max-height:260px;overflow-y:auto;margin-bottom:.6rem}
+.mem-row{display:flex;gap:.45rem;align-items:baseline;padding:.3rem 0;border-bottom:1px solid rgba(var(--border-rgb),.07);font-size:11px}
+.mem-row:last-child{border-bottom:none}
+.mem-when{color:var(--text-soft);flex-shrink:0;font-variant-numeric:tabular-nums}
+.mem-kind{color:var(--accent);flex-shrink:0;letter-spacing:.04em}
+.mem-text{color:var(--text-muted-hi);word-break:break-word}
+.mem-empty{font-size:11px;color:var(--text-soft);padding:.5rem 0;line-height:1.45}
+.mem-clear{display:block;width:100%;padding:.5rem .75rem;background:none;border:1px solid rgba(var(--border-rgb),.2);border-radius:6px;font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#f87171;cursor:pointer}
+.mem-clear:active{background:rgba(248,113,113,.08)}

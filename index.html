@@ -329,6 +329,25 @@
     </div>
   </div>
   <div class="set-section">
+    <div class="set-label">hva appen husker</div>
+    <!-- Off by default, and the text names position rather than hiding it in
+         «bruksdata». What is stored is shown below it, in full: the list and
+         the map are not a courtesy, they are how «open about it» is kept
+         honest. -->
+    <label class="mem-toggle">
+      <input type="checkbox" id="mem-consent">
+      <span class="mem-toggle-text">La appen huske reisene, søkene og
+        posisjonene mine de siste sju dagene</span>
+    </label>
+    <div class="mem-why">Alt blir liggende på telefonen. Ingenting sendes noe
+      sted. Du kan slå det av og slette når som helst.</div>
+    <div id="mem-body" hidden>
+      <div class="mem-map-wrap"><div id="mem-map"></div></div>
+      <div id="mem-list" class="mem-list"></div>
+      <button type="button" class="mem-clear" id="mem-clear">slett alt appen husker</button>
+    </div>
+  </div>
+  <div class="set-section">
     <div class="set-label">om appen</div>
     <a class="set-link" href="privacy.html">personvern</a>
     <a class="set-link" href="install.html">legg til på hjemskjermen</a>

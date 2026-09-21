@@ -137,6 +137,36 @@ for (const dark of [true, false]) {
     console.log(`   ${navn.padEnd(12)} ⋮ (${s.x}, ${s.y})  hdr «${s.hdr}» top=${s.hdrTop} right=${s.hdrRight}`
       + `  ${s.clash ? '⚠ OVERLAPP x' + s.clash : 'ingen overlapp'}  størrelser: ${s.sizes}`);
   }
+  // THE COMPASS MUST BE INSIDE ITS MAP. It is absolutely positioned against
+  // its wrapper, and a wrapper that is not a positioning context lets it
+  // climb to whatever is — on auto-reise, the header, where it landed on
+  // top of the ⋮. Rotating the map is what makes it appear at all.
+  for (const [navn, view] of SCREENS) {
+    try { await goTo(page, view); } catch { continue; }
+    await page.waitForTimeout(400);
+    const c = await page.evaluate(() => {
+      const maps = [...document.querySelectorAll('.leaflet-container')]
+        .filter(m => m.getBoundingClientRect().width > 0);
+      if (!maps.length) return null;
+      // Rotate every live map so the compass is shown.
+      for (const m of maps) { if (m._leaflet_map) m._leaflet_map.setBearing(30); }
+      const out = [];
+      for (const btn of document.querySelectorAll('.map-compass')) {
+        btn.style.display = 'flex';          // show it regardless of bearing
+        const wrap = btn.parentElement;
+        const map = wrap.querySelector('.leaflet-container');
+        if (!map) { out.push('kompass uten kart'); continue; }
+        const b = btn.getBoundingClientRect(), m = map.getBoundingClientRect();
+        if (m.width === 0) continue;
+        const inside = b.left >= m.left - 1 && b.right <= m.right + 1
+          && b.top >= m.top - 1 && b.bottom <= m.bottom + 1;
+        out.push(inside ? 'inne i kartet' : `UTENFOR (kompass ${Math.round(b.top)}, kart ${Math.round(m.top)})`);
+      }
+      return out;
+    });
+    if (c && c.length) console.log(`   kompass ${navn.padEnd(12)} ${c.join(' · ')}`);
+  }
+
   const xs = [...new Set(seen.map(s => s.x))], ys = [...new Set(seen.map(s => s.y))];
   console.log(`   → spredning: x ${xs.length === 1 ? 'lik' : xs.join('/')}, `
     + `y ${ys.length === 1 ? 'lik' : ys.join('/')}`);

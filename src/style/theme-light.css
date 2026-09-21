@@ -734,3 +734,7 @@ html[data-theme="light"] .mob-breakdown { color: var(--text-dim); }
 html[data-theme="light"] .mob-loading  { color: var(--text-muted); }
 html[data-theme="light"] .mob-rank     { background: rgba(var(--accent-rgb),.1); color: var(--accent); }
 html[data-theme="light"] .mob-best .mob-rank { background: rgba(var(--accent-rgb),.18); color: var(--accent); }
+
+/* «Din vanlige 08:12 …» */
+html[data-theme="light"] .board-usual { color: var(--text-muted); }
+html[data-theme="light"] .board-usual-innstilt { color: #dc2626; }

@@ -13,6 +13,7 @@ import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest } from 
 import { loadPlan, legStatus } from '../api/plan.js';
 import { renderAlerts, pruneHidden } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
+import { pickUsual, usualState } from '../api/usual.js';
 import { fmtMins, esc, clk, clkDay, countdownText } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
@@ -30,7 +31,7 @@ import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
 import { isExample } from '../firstRun.js';
 import { newRecord, stage, showRecord, takeLookbackLost } from '../api/diagnose.js';
-import { BOARD_MODES, LOOKBACK_MINS, normJid } from '../api/queries.js';
+import { BOARD_MODES, LOOKBACK_MINS, normJid, BOARD_WINDOW_MINS } from '../api/queries.js';
 import { takeDropReasons } from '../api/adapt.js';
 import { loadReturn, returnWindow, loadSkip, dayKey, departAtMs } from '../api/returnTrip.js';
 
@@ -2532,6 +2533,35 @@ function renderDemoNote() {
   // board.js is the lower layer and importing nav here would make a cycle.
 }
 
+/**
+ * «Din vanlige 08:12 går ikke nå.»
+ *
+ * Both halves were already here — a starred departure with its time, and
+ * today's departures — and `loadFavs` was imported into this file and never
+ * called. The connection existed as a dead import.
+ *
+ * Silent in the ordinary case, which is most cases: if your 08:12 is
+ * running, the board showing it is the whole answer.
+ */
+function renderUsual() {
+  const el = document.getElementById('board-usual');
+  if (!el) return;
+  const dir = config.dirs[state.dIdx];
+  // The window we actually asked about — not a guess at one. Saying «it is
+  // not running» about something outside it is the v1.122.0 fault.
+  const fwd = BOARD_WINDOW_MINS;
+  const fav = pickUsual(loadFavs(), dir, Date.now(), fwd);
+  const v = usualState({ fav, deps: boardRows(), now: Date.now(), windowMins: fwd });
+  // The verdict, even when it is silent. Four of the six states say nothing,
+  // and «says nothing» is most of what this feature does — a probe that
+  // cannot tell them apart cannot prove the silence is the RIGHT silence.
+  el.dataset.kind = v.kind;
+  if (!v.label) { el.style.display = 'none'; el.textContent = ''; return; }
+  el.textContent = v.label;
+  el.className = 'board-usual board-usual-' + v.kind;
+  el.style.display = 'block';
+}
+
 export function renderBoard() {
   renderDemoNote();
   renderWalkSummary();
@@ -2725,6 +2755,13 @@ export function renderBoard() {
   // ISO departure time, and keying on that alone made a tap open the wrong one.
   _depMap.clear();
   rowDeps.forEach(v => _depMap.set(_depKey(v.c, v.origIdx), v.c));
+
+  // AFTER the rows exist, not before. Called from the top of this function
+  // it read `boardRows()` while `_depMap` was still the previous render's —
+  // empty on the first one — so a departure that was plainly on the board
+  // was reported missing. Same shape as v1.114.0: a value used before the
+  // thing that computes it has run.
+  renderUsual();
 
   // Where the loaded pages begin. One honest line: they are not refreshed by
   // the 20-second poll, so the board says when they were fetched rather than

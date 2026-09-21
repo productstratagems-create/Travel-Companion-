@@ -208,6 +208,19 @@ for (const dark of [true, false]) {
     const s = document.getElementById('share-btn');
     return s ? getComputedStyle(s).display : 'mangler';
   });
+  // OPACITY AS A NUMBER, in both themes. A screenshot needs someone to look
+  // at it — and looking at one of two is exactly how the light menu shipped
+  // unreadable over the map for four releases.
+  const solid = await page.evaluate(() => {
+    const m = document.getElementById('board-more-menu');
+    if (!m) return 'mangler';
+    const bg = getComputedStyle(m).backgroundColor;
+    const a = /rgba?\(([^)]*)\)/.exec(bg);
+    const parts = a ? a[1].split(',').map(x => x.trim()) : [];
+    return { bg, alfa: parts.length > 3 ? Number(parts[3]) : 1 };
+  });
+  console.log(`   menyens bakgrunn: ${solid.bg} → alfa ${solid.alfa}`
+    + (solid.alfa < 1 ? '  ⚠ GJENNOMSKINNELIG' : '  (ugjennomsiktig)'));
   console.log(`   meny på tavla: innhold flyttet ${Math.round(after - before)} px, «del denne tavla» = ${share}`);
   await page.screenshot({ path: `scratchpad/prikker-${theme}-meny.png` });
   await ctx.close();

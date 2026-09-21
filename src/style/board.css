@@ -151,11 +151,27 @@
   .board-refresh-btn.is-busy{ animation:none; opacity:.5 }
 }
 
+/* THE MENU FLOATS. In the flow it pushed the board's departures down when
+   opened; now that it is shared by eight screens, that would have been eight
+   layouts jumping. Anchored under the header row, which is the same place on
+   every screen. */
 .board-more-menu{
+  /* ABOVE LEAFLET. The map's own controls sit at z-index 1000+, so at 40
+     the zoom buttons and the attribution drew straight through the menu —
+     it looked transparent and was merely underneath. The app's own scale
+     tops out at 500 (base.css), so 1100 clears both. */
+  position:fixed;top:3.6rem;right:1rem;z-index:1100;
+  min-width:13rem;max-width:calc(100vw - 2rem);
+  box-shadow:0 8px 28px rgba(0,0,0,.35);
   display:flex;flex-direction:column;gap:.3rem;
-  margin-bottom:.5rem;padding:.4rem;
+  padding:.4rem;
   border:1px solid rgba(var(--border-rgb),.15);border-radius:8px;
-  background:rgba(var(--accent-rgb),.03);
+  /* OPAQUE, now that it floats. In the flow the old rgba(...,.03) sat on the
+     page's own background and looked solid; over the map it let the mode
+     pills, the zoom controls and the attribution read straight through it.
+     Two background declarations in one rule, and the later one won — caught
+     in a screenshot, not in any number. */
+  background:var(--bg);
 }
 .board-more-item{
   display:flex;align-items:center;gap:.6rem;
@@ -755,3 +771,18 @@ html.view-board.map-open #dep-list{
    in the ordinary case. Only «innstilt» earns a warmer colour. */
 .board-usual{font-size:12px;color:var(--text-muted-hi);padding:.4rem 0 .5rem;letter-spacing:.02em}
 .board-usual-innstilt{color:#f87171}
+
+/* ⋮ — one button, one size, the rightmost thing in every header. */
+.hdr-more-btn{
+  position:fixed;top:1rem;right:1rem;z-index:1101;
+  background:var(--bg);border:1px solid rgba(var(--border-rgb),.14);border-radius:8px;
+  width:2.1rem;height:2.1rem;flex-shrink:0;
+  font-family:inherit;font-size:16px;line-height:1;color:var(--text-muted-hi);
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+  display:flex;align-items:center;justify-content:center;
+}
+.hdr-more-btn:active{background:rgba(var(--accent-rgb),.08);color:var(--accent)}
+
+/* Room for it. Every header now stops short of the fixed button rather
+   than running under it. */
+.board-header-slim,.screen-header,#v-leisure .lei-header{padding-right:2.6rem}

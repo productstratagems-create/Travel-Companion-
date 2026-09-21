@@ -48,6 +48,38 @@
 <button id="demo-note" class="demo-note" type="button" style="display:none"></button>
 
 <!-- ══ 1: BOARD ══ -->
+<!-- ONE MENU, OUTSIDE EVERY SCREEN.
+     It used to live inside #v-board, which meant show() hid it along with
+     the board and no other screen could reach it — the reason ⋮ existed on
+     exactly one view. Absolutely positioned now rather than in the flow:
+     inside the board it pushed the departures down when opened, and seven
+     more screens would have inherited that. -->
+  <!-- ONE BUTTON, FIXED TO THE VIEWPORT.
+       «Eksakt samme sted på alle views» cannot be had from seven buttons in
+       three different header idioms: the probe measured (357,41), (238,33),
+       (357,38) and (341,49), and each gap had its own cause — headers of
+       different heights, a doubled side padding, a centred row. Chasing them
+       would have been three magic numbers that drift the next time a header
+       changes. One element pinned to the viewport is the same place by
+       construction, and it is six fewer buttons than the alternative. -->
+  <button class="hdr-more-btn" id="board-more-btn" data-more type="button"
+    aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋮</button>
+  <div id="board-more-menu" class="board-more-menu" style="display:none" role="menu">
+    <div id="board-profile-switcher" class="board-profile-row"></div>
+    <button id="smart-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">⚡</span>auto-reise</button>
+    <button id="route-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">🛤</span>endre rute</button>
+    <button id="fav-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">★</span>favoritter</button>
+    <button id="plan-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">📋</span>reiseplan</button>
+    <button id="leisure-btn" class="board-more-item bab-leisure" type="button" role="menuitem"><span class="bmi-ic">🌟</span>utforsk</button>
+    <button id="spectate-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">🔗</span>finn reise</button>
+    <!-- Hidden until the board has both ends: the receiver applies a route
+         only when from AND to are present, so a link from a board with no
+         destination would open the app and do nothing. -->
+    <button id="share-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">↗</span>del denne tavla</button>
+    <div class="board-more-msg" id="share-msg" role="status" aria-live="polite" style="display:none"></div>
+    <button id="prefs-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">⚙</span>innstillinger</button>
+    <div class="board-more-version" id="board-version"></div>
+  </div>
 <div id="v-board" tabindex="-1">
   <!-- INSIDE the screen, not above it. This banner used to sit outside every
        v-* div, and show() only toggles those — so one global list of traffic
@@ -74,25 +106,8 @@
       <div style="display:flex;align-items:center;gap:.5rem">
         <button class="board-more-btn dir-btn" id="dir-btn" type="button" aria-label="Bytt retning">⇄</button>
         <button class="board-more-btn board-refresh-btn" id="board-refresh-btn" type="button" aria-label="Oppdater avganger" title="Oppdater">↻</button>
-        <button class="board-more-btn" id="board-more-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋯</button>
       </div>
     </div>
-  </div>
-  <div id="board-more-menu" class="board-more-menu" style="display:none" role="menu">
-    <div id="board-profile-switcher" class="board-profile-row"></div>
-    <button id="smart-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">⚡</span>auto-reise</button>
-    <button id="route-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">🛤</span>endre rute</button>
-    <button id="fav-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">★</span>favoritter</button>
-    <button id="plan-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">📋</span>reiseplan</button>
-    <button id="leisure-btn" class="board-more-item bab-leisure" type="button" role="menuitem"><span class="bmi-ic">🌟</span>utforsk</button>
-    <button id="spectate-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">🔗</span>finn reise</button>
-    <!-- Hidden until the board has both ends: the receiver applies a route
-         only when from AND to are present, so a link from a board with no
-         destination would open the app and do nothing. -->
-    <button id="share-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">↗</span>del denne tavla</button>
-    <div class="board-more-msg" id="share-msg" role="status" aria-live="polite" style="display:none"></div>
-    <button id="prefs-btn" class="board-more-item" type="button" role="menuitem"><span class="bmi-ic">⚙</span>innstillinger</button>
-    <div class="board-more-version" id="board-version"></div>
   </div>
   <div id="smart-toast" class="smart-toast" style="display:none" role="status" aria-live="polite">
     <span>⚡ auto → <strong class="smart-toast-dest"></strong></span>

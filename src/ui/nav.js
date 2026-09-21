@@ -10,20 +10,21 @@ import { confirmTap } from './confirm.js';
 import { stopSelRefresh } from '../views/selected.js';
 import { toggleSpectatePanel, closeSpectatePanel } from '../views/spectate.js';
 
+/** Every ⋮ on the page, on whichever screen is showing. */
+function _moreBtns() { return document.querySelectorAll('[data-more]'); }
+
 export function closeBoardMenu() {
   const menu = document.getElementById('board-more-menu');
-  const btn = document.getElementById('board-more-btn');
   if (menu) menu.style.display = 'none';
-  if (btn) btn.setAttribute('aria-expanded', 'false');
+  _moreBtns().forEach(b => b.setAttribute('aria-expanded', 'false'));
 }
 
 export function toggleBoardMenu() {
   const menu = document.getElementById('board-more-menu');
-  const btn = document.getElementById('board-more-btn');
-  if (!menu || !btn) return;
+  if (!menu) return;
   const open = menu.style.display === 'none' || !menu.style.display;
   menu.style.display = open ? 'flex' : 'none';
-  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  _moreBtns().forEach(b => b.setAttribute('aria-expanded', open ? 'true' : 'false'));
   // Chipen styrer samme meny, så den bærer samme tilstand.
   const chip = document.getElementById('header-profile-chip');
   if (chip) chip.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -31,8 +32,15 @@ export function toggleBoardMenu() {
     renderBoardProfileSwitcher();
     // Decided on each opening rather than once: the route changes, and an
     // item that quietly does nothing is worse than no item.
+    // ONE decision about this item, in one place. «Del denne tavla» is the
+    // only entry that is about the screen you are standing on — v1.105.0
+    // exists because a banner was global, and a menu item that means nothing
+    // on underveis is the same fault, smaller. A second rule in CSS would
+    // have lost to this inline style anyway.
+    const board = document.getElementById('v-board');
+    const onBoard = !board || board.style.display !== 'none';
     const share = document.getElementById('share-btn');
-    if (share) share.style.display = canShare(config.dirs[state.dIdx]) ? 'flex' : 'none';
+    if (share) share.style.display = (onBoard && canShare(config.dirs[state.dIdx])) ? 'flex' : 'none';
     const msg = document.getElementById('share-msg');
     if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
   }
@@ -465,7 +473,14 @@ export function attachEventListeners() {
     show('v-settings');
   });
 
-  document.getElementById('board-more-btn').addEventListener('click', toggleBoardMenu);
+  // ONE delegated listener, not one per screen. Eight copies of the same
+  // binding is the failure shape AGENTS.md names, and «Utforsk» rebuilds its
+  // header in JS — a listener bound at startup would be lost on every
+  // re-render there.
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-more]');
+    if (b) { e.preventDefault(); toggleBoardMenu(); }
+  });
 
   const shareBtn = document.getElementById('share-btn');
   if (shareBtn) shareBtn.addEventListener('click', shareBoard);

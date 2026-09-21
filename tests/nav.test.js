@@ -21,7 +21,7 @@ const { show, toggleBoardMenu, navTo, NAV_ITEMS, navActive, navHidden } = await 
 beforeEach(() => {
   document.body.innerHTML = VIEWS
     .map(v => `<div id="${v}" tabindex="-1"${v === 'v-board' ? '' : ' style="display:none"'}></div>`)
-    .join('') + '<div id="board-more-menu"></div><button id="board-more-btn"></button>';
+    .join('') + '<div id="board-more-menu"></div><button id="board-more-btn" data-more></button>';
   document.documentElement.className = '';
   // state is a module singleton, so the view leaks between tests — and navTo
   // deliberately refuses to move to the screen you are already on.

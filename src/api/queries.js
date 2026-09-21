@@ -280,7 +280,7 @@ export function nextBoardAsk(asked, max) {
  *
  * So the app was right and unhelpful: «Ingen avganger herfra nå» reads as «try
  * again later today», and the truth is «not until Monday morning». The board
- * asks for ninety minutes (`fwdMins || 90` below) and cannot tell the two
+ * asks for BOARD_WINDOW_MINS (below) and cannot tell the two
  * apart.
  *
  * Two days, because that is what a weekend without service costs: a Saturday
@@ -288,6 +288,17 @@ export function nextBoardAsk(asked, max) {
  * is better served by saying so than by a date nobody will act on.
  */
 export const NEXT_DEPARTURE_HORIZON_MINS = 48 * 60;
+
+/**
+ * How far forward the stop board asks, IN MINUTES, when no caller says.
+ *
+ * It was the literal `90` in `fwdMins || 90` below, which was fine while
+ * exactly one place knew it. v1.127.0 needs the same number to decide
+ * whether a starred 08:12 is something we asked about at all — and «it is
+ * not running» said about a window we never queried is the v1.122.0 fault.
+ * Two copies of that number would put the two out of step silently.
+ */
+export const BOARD_WINDOW_MINS = 90;
 
 export function boardGQL(id, n, now, basic, fwdMins, modes, perLine) {
   const sits = sitsGQL(basic);
@@ -299,7 +310,7 @@ export function boardGQL(id, n, now, basic, fwdMins, modes, perLine) {
   // startTime/timeRange rather than a bare numberOfDepartures, for the same
   // reason as tripGQL above. These two argument names are already in
   // production in inflightGQL, so unlike tripGQL's dateTime they are proven.
-  const back = LOOKBACK_MINS, fwd = fwdMins || 90;
+  const back = LOOKBACK_MINS, fwd = fwdMins || BOARD_WINDOW_MINS;
   return '{stopPlace(id:"' + id + '"){id name latitude longitude ' + sits + ' '
     + 'estimatedCalls(startTime:"' + lookbackISO(now) + '",timeRange:' + ((back + fwd) * 60)
     + ',numberOfDepartures:' + (n || 10)

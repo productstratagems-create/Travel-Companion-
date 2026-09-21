@@ -16,6 +16,19 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 
+/**
+ * The alpha of an rgba(), including `rgba(var(--x), .03)`.
+ *
+ * ONE definition, used by both the guard and the case that proves the guard
+ * can see. The first cut had a copy in each — so weakening one left the
+ * other passing, and the mutant survived. Two places writing down the same
+ * rule, in the test written to catch exactly that.
+ *
+ * Nested parens are the whole difficulty: a pattern stopping at the first
+ * ')' reads the alpha as absent and calls three per cent opaque.
+ */
+export const ALPHA = /rgba\((?:[^()]|\([^()]*\))*,\s*([\d.]+)\s*\)/;
+
 const html = () => fs.readFileSync('index.html', 'utf8');
 const nav = () => fs.readFileSync('src/ui/nav.js', 'utf8');
 const css = () => fs.readFileSync('src/style/board.css', 'utf8');
@@ -91,9 +104,48 @@ describe('én knapp i hver overskrift', () => {
     const rule = css().slice(css().indexOf('.board-more-menu{'), css().indexOf('.board-more-item{'));
     const z = /z-index:(\d+)/.exec(rule);
     expect(Number(z[1])).toBeGreaterThan(1000);
-    expect(rule).toMatch(/background:var\(--bg\)/);
     // Two background declarations in one rule, and the later one won.
     expect((rule.match(/background:/g) || []).length).toBe(1);
+  });
+
+  /**
+   * UGJENNOMSIKTIG I ALLE TEMAER, ikke bare i den filen jeg så i.
+   *
+   * The previous version read board.css alone. It proved the dark rule was
+   * right and said nothing about theme-light.css overriding it with three
+   * per cent — higher specificity and later in the load order, so it won,
+   * and the menu was unreadable over the map in light mode. The screenshot
+   * showing it had been on disk since v1.131.0; I took both and looked at
+   * one.
+   */
+  it('har ingen gjennomskinnelig bakgrunn i noen stilfil', () => {
+    const sheer = [];
+    for (const f of fs.readdirSync('src/style').filter(x => x.endsWith('.css'))) {
+      const src = fs.readFileSync('src/style/' + f, 'utf8');
+      for (const rule of src.matchAll(/[^}]*\.board-more-menu[^{]*\{([^}]*)\}/g)) {
+        for (const bg of rule[1].matchAll(/background\s*:\s*([^;}]+)/g)) {
+          const a = ALPHA.exec(bg[1]);
+          if (a && Number(a[1]) < 1) sheer.push(f + ': ' + bg[1].trim());
+        }
+      }
+    }
+    expect(sheer, 'gjennomskinnelig: ' + sheer.join(', ')).toEqual([]);
+  });
+
+  // The guard must be able to SEE a sheer one, or the case above passes for
+  // the wrong reason — which is how this shipped. Same ALPHA, so weakening
+  // it fails here too.
+  it('og vakten ser en gjennomskinnelig når den finnes', () => {
+    expect(ALPHA.exec('rgba(var(--accent-rgb),.03)')[1]).toBe('.03');
+    expect(ALPHA.exec('rgba(43,39,36,.14)')[1]).toBe('.14');
+    expect(ALPHA.exec('var(--bg)')).toBe(null);
+  });
+
+  // One place decides the menu's look per theme. Two was the shape that
+  // produced this.
+  it('beskriver menyen ett sted per tema', () => {
+    const light = fs.readFileSync('src/style/theme-light.css', 'utf8');
+    expect((light.match(/\.board-more-menu/g) || []).length).toBe(1);
   });
 
   // Three header idioms brought into line. Each rule fixes one measured

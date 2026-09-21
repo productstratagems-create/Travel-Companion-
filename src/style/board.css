@@ -614,7 +614,11 @@ html.view-board #v-board > *:not(#dep-list){ flex:0 0 auto }
 html.view-board.map-open,
 html.view-board.map-open body{
   height:auto;
+  /* Scrolling here is deliberate — the expanded map cannot fit a fixed
+     screen. The HEIGHT still must not be the large viewport, or the page is
+     taller than the visible area before a single pixel of map is involved. */
   min-height:100vh;
+  min-height:100dvh;
   overflow:visible;
 }
 html.view-board.map-open .wrap,

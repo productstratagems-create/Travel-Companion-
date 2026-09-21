@@ -1,6 +1,15 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{
+  /* 100vh on iOS is the LARGE viewport — the height with the browser chrome
+     collapsed. With the address bar expanded the document is taller than
+     what is visible, the page can scroll by exactly that much, and the top
+     of the screen slides under the URL bar. Reported on the board's station
+     name, clipped in half.
+     board.css fixed this for the board in its own block and wrote the
+     reason down; the fix never reached here, so every OTHER screen kept it.
+     100vh stays first as the fallback. */
   min-height:100vh;
+  min-height:100dvh;
   background:var(--bg-gradient);
   background-attachment:fixed;
   color:var(--text);

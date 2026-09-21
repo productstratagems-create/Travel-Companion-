@@ -416,7 +416,6 @@ html[data-theme="light"] .ct-quay { color: var(--text-dim); }
 html[data-theme="light"] .ct-from { color: var(--text-muted); }
 html[data-theme="light"] .ct-from strong { color: var(--text-dim); }
 html[data-theme="light"] .ct-stops { color: var(--text-dim); }
-
 html[data-theme="light"] .hn-place-cat {
   background: rgba(var(--accent-rgb),.06);
   border-color: rgba(var(--accent-rgb),.14);

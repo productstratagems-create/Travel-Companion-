@@ -1,4 +1,5 @@
 import { findStop } from './stopId.js';
+import { CENTRE } from './api/centre.js';
 import { state } from './state.js';
 import { ACC_GATE, POS_STALE_MS, gpsErrorKind } from './position.js';
 import config from './config.js';
@@ -152,7 +153,10 @@ export function saveLandingPref(v) {
  * Bergen was discarded 306 km outside a circle the reader could not move.
  * Reported as the answer to «vil appen fungere i Bergen»: it did not.
  */
-export const FALLBACK_FOCUS = { lat: 59.9139, lon: 10.7522 };
+/* The coordinate itself lives in api/centre.js, which imports nothing and so
+   cannot sit in an import cycle. This keeps the name every caller already
+   uses, and there is still exactly one pair of numbers. */
+export const FALLBACK_FOCUS = CENTRE;
 
 /**
  * Where searching should be centred: on you.

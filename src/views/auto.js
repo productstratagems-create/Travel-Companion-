@@ -37,6 +37,7 @@ import L from 'leaflet';
 import { createMap, drawWalk, userDot, drawStopLine } from '../ui/map.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
 import { ensureApproach, approachPoints, AT_STOP_M } from '../api/approach.js';
+import { centreward, CENTRE_LABEL } from '../api/centre.js';
 
 const MIN = 60000;
 /**
@@ -1871,8 +1872,34 @@ function _renderBody() {
   _showSort(true);
   // Once for the list, not once per row: byLine walks every message.
   const perLine = byLine(_alerts);
+  // MOT ELLER FRA SENTRUM. Eight rows of «mot Lysaker», «mot Ski», «mot
+  // Stabekk» are each correct and none answers the question a person
+  // actually holds, which is almost always one of two.
+  //
+  // `centreward` returns null wherever it does not know — outside Oslo, at
+  // the centre itself, or for a line that neither approaches nor recedes by
+  // a real margin. When nothing can be judged the headings never appear and
+  // this screen is exactly what it was.
+  const here = (_stop && _stop.lat != null) ? { lat: _stop.lat, lon: _stop.lon } : null;
+  const side = new Map();
+  for (const { d, i } of live) {
+    side.set(i, centreward(here, stopsAhead(d.call, _stop && _stop.name, now)));
+  }
+  // PARTITIONED, not a heading emitted whenever the value changes. The list
+  // is already sorted by the reader's own choice (T-bane først / Lokalbuss
+  // først), and a heading-on-change would interleave «mot sentrum» through
+  // that order three times over. Within each group the chosen order is kept
+  // exactly as it was.
+  const groups = [['mot', []], ['fra', []], [null, []]];
+  for (const row of live) {
+    (groups.find(g => g[0] === side.get(row.i)) || groups[2])[1].push(row);
+  }
+  const grouped = groups.some(([k, rows]) => k && rows.length);
+  const ordered = grouped ? groups.flatMap(([, rows]) => rows) : live;
+
+  let shown;
   body.innerHTML = '<div class="set-label">hvor skal du?</div>'
-    + live.map(({ d, i }) => {
+    + ordered.map(({ d, i }) => {
       const hint = usual && d.frontText.toLowerCase() === usual;
       const q = quayLabel(d.call);
       // The destination is the part that gives way, so the whole of it has to
@@ -1885,7 +1912,21 @@ function _renderBody() {
       // banner, so nothing lives only here.
       const full = 'mot ' + d.frontText + (q ? ', ' + q : '')
         + (dirMsgs.length ? '. ' + dirMsgs.map(m => _sitTitle(m)).join('. ') : '');
-      return '<button class="nearby-btn auto-dir' + (hint ? ' auto-usual' : '') + '"'
+      // The heading is emitted by the first row of each group, so the
+      // order the list is already sorted in is the order the groups appear
+      // in — no second sort that could disagree with the first.
+      // Emitted by the first row of each group, now that the rows are in
+      // group order and cannot interleave.
+      let head = '';
+      if (grouped) {
+        const k = side.get(i) || null;
+        if (k !== shown) {
+          shown = k;
+          head = '<div class="auto-side">'
+            + esc(k ? CENTRE_LABEL[k] : 'andre retninger') + '</div>';
+        }
+      }
+      return head + '<button class="nearby-btn auto-dir' + (hint ? ' auto-usual' : '') + '"'
         + ' type="button" data-i="' + i + '"'
         + ' title="' + esc(full) + '" aria-label="' + esc(full) + '">'
         + '<span class="auto-badges">' + d.lines.map(badgeHtml).join('')

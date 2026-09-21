@@ -5,6 +5,11 @@ import { recordSmartTrip } from '../api/smart.js';
 import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
 import { loadFreq, trackPlace } from '../api/usage.js';
+import { logEvent, recentEvents, describeEvent, clearEvents, MEMORY_DAYS } from '../api/eventLog.js';
+import { loadConsent, saveConsent } from '../api/consent.js';
+import L from 'leaflet';
+import { createMap } from '../ui/map.js';
+import { tokens } from '../ui/themeTokens.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, landingPref, saveLandingPref, focusParam } from '../geo.js';
 import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
@@ -317,6 +322,7 @@ function _fetchDestVenues() {
 }
 
 export function initSettings() {
+  initMemory();
   const depEl = document.getElementById('set-dep');
   const arrEl = document.getElementById('set-arr');
 
@@ -821,8 +827,105 @@ export function showSettings() {
   }
 }
 
+/**
+ * «Hva appen husker» — the contents, not a description of the contents.
+ *
+ * The list and the map ARE the openness. A consent text that says «positions»
+ * and a screen that shows nothing is a promise; a screen that renders every
+ * stored field, including the coordinates, is a thing the reader can check.
+ *
+ * Everything drawn here comes from `describeEvent`, which is built from
+ * `FIELD_LABELS` — so a field added to the log without a label cannot appear,
+ * and `tests/eventLog.test.js` fails if one is stored anyway.
+ */
+let _memMap = null;
+let _memLayer = null;
+
+function _destroyMemMap() {
+  if (_memMap) { _memMap.remove(); _memMap = null; }
+  _memLayer = null;
+}
+
+export function renderMemory() {
+  const box = document.getElementById('mem-body');
+  const cb = document.getElementById('mem-consent');
+  if (!box || !cb) return;
+  const on = loadConsent();
+  cb.checked = on;
+  box.hidden = !on;
+  if (!on) { _destroyMemMap(); return; }
+
+  const events = recentEvents(Date.now()).map(describeEvent).filter(Boolean);
+  const listEl = document.getElementById('mem-list');
+  if (listEl) {
+    listEl.innerHTML = events.length
+      ? events.map(e => '<div class="mem-row">'
+          + '<span class="mem-when">' + esc(e.when) + '</span>'
+          + '<span class="mem-kind">' + esc(e.kind) + '</span>'
+          + '<span class="mem-text">' + esc(e.text) + '</span>'
+          + '</div>').join('')
+      : '<div class="mem-empty">Ingenting husket ennå. Loggen fylles etter hvert '
+        + 'som du reiser, og tømmes automatisk etter ' + MEMORY_DAYS + ' døgn.</div>';
+  }
+  // NEXT FRAME, deliberately. `prefs-btn` calls _showPrefs() BEFORE
+  // show('v-prefs') (ui/nav.js:534), so at this moment the container is
+  // still display:none and Leaflet measures zero — every point then
+  // projects off-screen, drawn and invisible. The probe measured «10
+  // tegnet, 2 synlige». Deferring one frame lets the layout settle
+  // whatever order the caller used, rather than depending on it.
+  const pts = events.filter(e => e.pos);
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => _renderMemMap(pts));
+  else _renderMemMap(pts);
+}
+
+function _renderMemMap(withPos) {
+  const el = document.getElementById('mem-map');
+  const wrap = document.querySelector('.mem-map-wrap');
+  if (!el) return;
+  if (!withPos.length) { if (wrap) wrap.style.display = 'none'; _destroyMemMap(); return; }
+  if (wrap) wrap.style.display = 'block';
+  if (!_memMap) _memMap = createMap(el, { zoom: false });
+  // FRAME BEFORE PROJECTION. This screen is built while #v-prefs is still
+  // display:none, so Leaflet measures a container of zero size and every
+  // fitBounds after that lands the points off-screen — drawn, reported by
+  // the layer, and invisible. The probe measured «10 tegnet, 2 synlige».
+  // v1.102.0, v1.116.0 and v1.117.0 each learned this; this is the fourth.
+  _memMap.invalidateSize(false);
+  if (_memLayer) _memMap.removeLayer(_memLayer);
+  _memLayer = L.layerGroup().addTo(_memMap);
+  const pts = [];
+  for (const e of withPos) {
+    const ll = [e.pos.lat, e.pos.lon];
+    pts.push(ll);
+    L.circleMarker(ll, { radius: 5, color: tokens().accent, weight: 2, fillOpacity: .5 })
+      .bindTooltip(e.when, { direction: 'top' })
+      .addTo(_memLayer);
+    // The accuracy, drawn rather than only written. A point the app is sure
+    // of and one it is not look identical as a dot.
+    if (Number.isFinite(e.pos.noyaktighet) && e.pos.noyaktighet > 0) {
+      L.circle(ll, { radius: e.pos.noyaktighet, color: tokens().accent,
+        weight: 1, opacity: .35, fillOpacity: .05 }).addTo(_memLayer);
+    }
+  }
+  _memMap.fitBounds(L.latLngBounds(pts), { padding: [24, 24], maxZoom: 15, animate: false });
+}
+
+export function initMemory() {
+  const cb = document.getElementById('mem-consent');
+  if (cb) cb.addEventListener('change', () => {
+    saveConsent(cb.checked);
+    // Turning it off EMPTIES the log. Leaving it sitting there unused would
+    // mean the app still holds a week of positions after being told not to.
+    if (!cb.checked) clearEvents();
+    renderMemory();
+  });
+  const clr = document.getElementById('mem-clear');
+  if (clr) clr.addEventListener('click', () => { clearEvents(); renderMemory(); });
+}
+
 export function showPrefs() {
   _highlightPrefs();
+  renderMemory();
 }
 
 export function applyRoute() {
@@ -1016,6 +1119,13 @@ function _recordChoice(dir) {
   trackPlace('dep', dir.from, { lat: dir._fromLat, lon: dir._fromLon, stopId: dir.stopId || null });
   trackPlace('arr', dir.to,   { lat: dir._toLat,   lon: dir._toLon,   stopId: dir.toStopId || null });
   recordSmartTrip(dir.from, dir.to, dir.toStopId || null, dir._toLat, dir._toLon, dir.stopId || null);
+  // The same choice, kept as an EVENT rather than folded into a counter.
+  // recordSmartTrip above aggregates as it writes — destination, two-hour
+  // bucket, weekday — so «four trips last week» and «four trips since May»
+  // are the same row afterwards. logEvent does nothing at all without
+  // consent; the guard is inside it, not here.
+  logEvent('reise', { fra: dir.from, til: dir.to, linje: dir.line || null },
+    state.homeLL ? { lat: state.homeLL.lat, lon: state.homeLL.lon, acc: state.posAcc } : null);
 }
 
 /**

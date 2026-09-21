@@ -26,6 +26,11 @@ const ALL_KEYS = [
   // matters: the privacy page promises the app does not track you, so a
   // remembered position has to die with the profile that made it.
   't.destPeek', 't.freqArr', 't.freqDep', 't.homeLL', 't.palette', 't.walkDist',
+  // What the app remembers about the last seven days, and whether it was
+  // allowed to. The log can hold coordinates, so it is the single most
+  // personal key here — and it belongs in this list for exactly the reason
+  // the list exists: a key missing from it survives a profile deletion.
+  't.events', 't.memoryConsent',
 ];
 
 const PROFILES_KEY = '__profiles';

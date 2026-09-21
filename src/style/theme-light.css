@@ -738,3 +738,12 @@ html[data-theme="light"] .mob-best .mob-rank { background: rgba(var(--accent-rgb
 /* «Din vanlige 08:12 …» */
 html[data-theme="light"] .board-usual { color: var(--text-muted); }
 html[data-theme="light"] .board-usual-innstilt { color: #dc2626; }
+
+/* «Hva appen husker» */
+html[data-theme="light"] .mem-toggle-text { color: var(--text-muted); }
+html[data-theme="light"] .mem-why,
+html[data-theme="light"] .mem-when,
+html[data-theme="light"] .mem-empty { color: var(--text-dim); }
+html[data-theme="light"] .mem-text { color: var(--text-muted); }
+html[data-theme="light"] .mem-row { border-bottom-color: rgba(var(--accent-rgb),.1); }
+html[data-theme="light"] .mem-clear { color: #dc2626; border-color: rgba(220,38,38,.3); }

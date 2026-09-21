@@ -81,11 +81,27 @@ const spot = page => page.evaluate(() => {
   });
   if (vis.length !== 1) return { n: vis.length };
   const b = vis[0];
+  // OVERLAP AND SIZE, the two faults the screenshots showed. Every other
+  // button in the same header must be the same size as ⋮ and must not
+  // intersect it.
+  const br0 = b.getBoundingClientRect();
+  const hdrEl = b.closest('.board-header-slim, .screen-header, .lei-header');
+  const sibs = hdrEl ? [...hdrEl.querySelectorAll('button')].filter(x => x !== b) : [];
+  const clash = sibs.filter(x => {
+    const r = x.getBoundingClientRect();
+    return r.width > 0 && r.right > br0.left && r.left < br0.right
+      && r.bottom > br0.top && r.top < br0.bottom;
+  }).length;
+  const sizes = [b, ...sibs].filter(x => x.getBoundingClientRect().width > 0)
+    .map(x => { const r = x.getBoundingClientRect();
+      return (x.id || x.className.split(' ')[0] || '?') + ' '
+        + Math.round(r.width) + 'x' + Math.round(r.height); });
   const r = b.getBoundingClientRect();
   const hdr = b.parentElement, hr = hdr.getBoundingClientRect();
   const view = b.closest('[id^="v-"]');
   const vs = view ? getComputedStyle(view) : {};
-  return { n: 1, x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
+  return { n: 1, clash, sizes: [...new Set(sizes)].join(' '),
+    x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
     hdr: hdr.className || hdr.id, hdrTop: Math.round(hr.top), hdrRight: Math.round(hr.right),
     // WHAT sits above the header, if anything — the 3px has to come from
     // somewhere, and a hardcoded -3px would be a magic number that drifts.
@@ -117,8 +133,9 @@ for (const dark of [true, false]) {
     const s = await spot(page);
     if (s.n !== 1) { console.log(`   ${navn.padEnd(12)} ⚠ ${s.n} synlige ⋮`); continue; }
     seen.push({ navn, ...s });
+    await page.screenshot({ path: `scratchpad/prikker-${theme}-${navn}.png`, clip: { x: 0, y: 0, width: 390, height: 140 } });
     console.log(`   ${navn.padEnd(12)} ⋮ (${s.x}, ${s.y})  hdr «${s.hdr}» top=${s.hdrTop} right=${s.hdrRight}`
-      + `\n                 over: ${s.above}`);
+      + `  ${s.clash ? '⚠ OVERLAPP x' + s.clash : 'ingen overlapp'}  størrelser: ${s.sizes}`);
   }
   const xs = [...new Set(seen.map(s => s.x))], ys = [...new Set(seen.map(s => s.y))];
   console.log(`   → spredning: x ${xs.length === 1 ? 'lik' : xs.join('/')}, `

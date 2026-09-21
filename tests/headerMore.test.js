@@ -51,6 +51,28 @@ describe('én knapp i hver overskrift', () => {
   // THE CONFLICT, fixed at the source: the banner used to push the header
   // down. Now the header is the first thing on every screen, which is what
   // lets the row sit at the same height without leaving it.
+  // SAME SIZE AS ITS NEIGHBOURS, and the same on every screen. ⇄ and ↻ are
+  // 36x44 (`.board-refresh-btn,.dir-btn`); ⋮ was 2.1rem, then 44px, and
+  // both made it a different width from the two buttons it sits between.
+  // And since it is anchored to the right edge, a width that varied between
+  // screens would move its centre and undo «same place».
+  it('har samme bredde som knappene den står mellom', () => {
+    const rule = css().slice(css().indexOf('.hdr-more-btn{'), css().indexOf('.hdr-more-btn:active'));
+    expect(rule).toMatch(/width:36px;height:44px/);
+    expect(css()).toMatch(/\.board-refresh-btn,\.dir-btn\{width:36px/);
+  });
+
+  // auto-reise pins both its action buttons to the right edge. They used to
+  // share the corner with different vertical anchors — ⋮ at top:0, the
+  // other at top:50% — so they overlapped and looked stacked.
+  it('auto-reises to knapper deler ikke hjørne', () => {
+    const sel = fs.readFileSync('src/style/selected.css', 'utf8');
+    expect(sel).toMatch(/\.screen-header-solo > \.nav-plan-btn\{ position:absolute; right:36px; top:0 \}/);
+    // And the header is tall enough to hold them: absolutely positioned,
+    // they add no height, and a 44px button hung below the bottom border.
+    expect(sel).toMatch(/min-height:44px/);
+  });
+
   it('trafikkmeldingen står under overskriften, ikke over', () => {
     const src = html();
     expect(src.indexOf('class="board-header-slim"'))

@@ -781,8 +781,14 @@ html.view-board.map-open #dep-list{
      the first thing on every screen and the row sits at the same height
      without the button having to leave it. */
   background:none;border:1px solid rgba(var(--border-rgb),.14);border-radius:8px;
-  width:2.1rem;height:2.1rem;flex-shrink:0;
-  font-family:inherit;font-size:16px;line-height:1;color:var(--text-muted-hi);
+  /* 36x44 — the size ⇄ and ↻ already are (`.board-refresh-btn,.dir-btn`
+     above). It was 2.1rem, then 44px, and both made ⋮ a different width
+     from the two buttons it sits between on the board.
+     THE SAME WIDTH ON EVERY SCREEN, not just on the board: the button is
+     anchored to the right edge, so a width that changed between screens
+     would move its centre and undo «same place». One size, one place. */
+  width:36px;height:44px;flex-shrink:0;
+  font-family:inherit;font-size:1rem;line-height:1;color:var(--text-muted-hi);
   cursor:pointer;-webkit-tap-highlight-color:transparent;
   display:flex;align-items:center;justify-content:center;
 }
@@ -801,8 +807,10 @@ html.view-board.map-open #dep-list{
         makes the position follow where the header STARTS — the same on
         every screen now that nothing is above it. */
 #v-leisure .lei-header{margin-right:-1rem;padding-top:0}
+/* auto-reise centres its whole row, so ⋮ is pinned to the corner. The other
+   action button steps aside in selected.css, where that rule already lived —
+   an override here loses, because selected.css loads after this file. */
 .screen-header-solo > .hdr-more-btn{position:absolute;right:0;top:0}
-.screen-header-solo > .nav-plan-btn{right:2.6rem}
 .hdr-more-btn{align-self:flex-start}
 /* And on the board the whole button row, not just the ⋮ — it is nested in a
    column wrapper that `.board-header-slim{align-items:center}` centres in a

@@ -10,8 +10,18 @@
    has only a title and one action. space-between would push the title hard
    left against the edge and leave it reading as a stray label rather than a
    heading; this keeps it centred where every other screen has it. */
-.screen-header-solo{ justify-content:center; position:relative }
-.screen-header-solo > .nav-plan-btn{ position:absolute; right:0; top:50%; transform:translateY(-50%) }
+.screen-header-solo{ justify-content:center; position:relative;
+  /* Tall enough to hold the action buttons. They are absolutely positioned
+     here, so they add no height of their own — and a 44px button in a
+     shorter header hung below the bottom border. The other screens keep
+     theirs in the flow, where the header grows to fit. */
+  min-height:44px }
+/* auto-reise centres its whole row, so its action buttons are pinned to the
+   right edge. ⋮ takes the corner; this one steps a full button's width in.
+   It used to be at right:0 with top:50% — the same corner as ⋮ and half a
+   button lower, so the two overlapped and looked stacked. The override lived
+   in board.css for one build and lost: this file loads after it. */
+.screen-header-solo > .nav-plan-btn{ position:absolute; right:36px; top:0 }
 
 /* Train summary chip */
 .train-chip{

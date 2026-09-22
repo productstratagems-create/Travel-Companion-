@@ -2489,6 +2489,47 @@ export function _mergePage(existing, near, incoming) {
   return { pages: existing.concat(added), added: added.length };
 }
 
+/**
+ * The rows the board is ABOUT TO DRAW, from what it holds right now.
+ *
+ * `boardRows()` answers a different question — what is in the DOM — and the
+ * banner was asking it at the wrong moment. `renderBoard` calls the banner on
+ * its ninth line and fills `_depMap` on its 191st, in the same function, so
+ * the banner was told which lines the board shows 182 lines before they were
+ * worked out: empty on the first draw, last second's rows after that.
+ *
+ * Reported as «det oppfører seg rart», and it is exactly that: with no line to
+ * match, `relevance` falls to rule 3 — «names lines, none of yours» — and the
+ * message about the replacement bus at YOUR departure stop was folded away as
+ * someone else's. A tick later the map held the rows and it could unfold again.
+ *
+ * The same shape as v1.127.0, word for word: same function, same trap, another
+ * call. One name now, read by the banner and by the list, so they cannot
+ * disagree about what this screen is about.
+ *
+ * Pure, and given everything it needs: `_lineOn` and the modes are passed in
+ * rather than reached for, so the rule can be tested without the screen.
+ */
+export function boardRowDeps(deps, pages, modes, lineOn) {
+  const activeModes = BOARD_MODES.filter(m => modes && modes[m]);
+  const base = (pages && pages.length)
+    ? (deps || []).concat(pages)
+    : (deps || []);
+  return filterByModes(dedupeDepartures(base), activeModes)
+    .filter(({ c }) => {
+      const ln = c && c.serviceJourney && c.serviceJourney.line;
+      return !ln || !lineOn || lineOn(ln.publicCode);
+    });
+}
+
+/** The line ids a set of rows is about, deduped. */
+export function lineIdsOf(rows) {
+  return [...new Set((rows || [])
+    .map(r => r && r.c && r.c.serviceJourney && r.c.serviceJourney.line
+      && r.c.serviceJourney.line.id)
+    .filter(Boolean))];
+}
+
 export function dedupeDepartures(deps) {
   const indexed = (deps || []).map((c, i) => ({ c, origIdx: i }));
   indexed.sort((a, b) =>
@@ -2572,12 +2613,18 @@ export function renderBoard() {
   const dir = config.dirs[state.dIdx];
   // WHAT THIS SCREEN IS SHOWING, so the banner can tell a message about this
   // route from one about a bus that happens to call at the same stop.
+  //
+  // From the rows this draw is ABOUT TO make, not from `_depMap`, which holds
+  // the last draw's — and nothing at all on the first. See boardRowDeps.
+  const _rows = boardRowDeps(state.deps, _pages, modes, _lineOn);
   renderAlerts({
     stopIds: [dir.stopId, dir.toStopId].filter(Boolean),
-    lineIds: [...new Set(boardRows()
-      .map(c => c && c.serviceJourney && c.serviceJourney.line && c.serviceJourney.line.id)
-      .filter(Boolean))],
+    lineIds: lineIdsOf(_rows),
     journeyIds: [],
+    // The same subject word auto-reise uses, so the folded row does not read
+    // «1 melding til» on one screen and «1 melding om en annen linje» on the
+    // other about the very same message.
+    otherWord: { one: 'melding om en annen linje', many: 'meldinger om andre linjer' },
   });
   const pos = state.walkFromLL || state.homeLL || (state.statLL && state.statLL[dir.key]);
   const walkFrom = (state.statLL && state.statLL[dir.key]) || pos;
@@ -2678,8 +2725,11 @@ export function renderBoard() {
     return !ln || _lineOn(ln.publicCode);
   };
   const visibleDeps = modeDeps.filter(onSelectedLine);
-  // The rows, and only the rows, see the loaded pages.
-  const rowDeps = _pages.length ? modeAll.filter(onSelectedLine) : visibleDeps;
+  // THE SAME DERIVATION THE BANNER WAS TOLD ABOUT, not a second one computed
+  // here. `_rows` already applied the modes, the pages and the line filter —
+  // the three things that decide what a row is — so re-deriving them would be
+  // two places that must agree about the screen's own contents.
+  const rowDeps = _rows;
   if (_diag) {
     stage(_diag, 'linje', visibleDeps.map(d => d.c));
     stage(_diag, 'rader', rowDeps.map(d => d.c));

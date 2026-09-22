@@ -116,28 +116,18 @@ describe('boardRowDeps', () => {
   });
 });
 
-describe('hvem som leser den', () => {
+/**
+ * v1.149.0 tok tavlas banner bort, så «banneret leser avledningen» finnes
+ * ikke lenger som påstand. `boardRowDeps` blir — lista tegner av den — og
+ * testene over binder den. At banneret er borte bindes av
+ * tests/boardNoAlerts.test.js.
+ */
+describe('avledningen har fortsatt én leser', () => {
   const src = () => require('node:fs')
     .readFileSync('src/views/board.js', 'utf8').replace(/\/\/[^\n]*/g, '');
 
-  // Banneret må lese avledningen, ikke DOM-kartet fra forrige tikk.
-  it('banneret leser avledningen, ikke boardRows()', () => {
-    const s = src();
-    const i = s.indexOf('renderAlerts({');
-    const kall = s.slice(i, i + 400);
-    expect(kall).toMatch(/lineIds: lineIdsOf\(_rows\)/);
-    expect(kall).not.toMatch(/boardRows\(\)/);
-  });
-
-  // Og lista må lese den samme, ellers er de to igjen.
-  it('lista leser den samme avledningen', () => {
+  it('lista leser den', () => {
     expect(src()).toMatch(/const _rows = boardRowDeps\(/);
     expect(src()).toMatch(/const rowDeps = _rows;/);
-  });
-
-  // Den foldede raden sa «1 melding til» på tavla og «1 melding om en annen
-  // linje» på auto-reise, om det samme.
-  it('sender det samme emneordet som auto-reise', () => {
-    expect(src()).toMatch(/otherWord: \{ one: 'melding om en annen linje'/);
   });
 });

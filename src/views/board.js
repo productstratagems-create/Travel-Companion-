@@ -12,7 +12,7 @@ import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
 import { collectStopSituations } from '../api/situations.js';
-import { renderAlerts, pruneHidden } from '../ui/alerts.js';
+import { pruneHidden } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
 import { pickUsual, usualState } from '../api/usual.js';
 import { fmtMins, esc, clk, clkDay, countdownText } from '../ui/fmt.js';
@@ -2522,14 +2522,6 @@ export function boardRowDeps(deps, pages, modes, lineOn) {
     });
 }
 
-/** The line ids a set of rows is about, deduped. */
-export function lineIdsOf(rows) {
-  return [...new Set((rows || [])
-    .map(r => r && r.c && r.c.serviceJourney && r.c.serviceJourney.line
-      && r.c.serviceJourney.line.id)
-    .filter(Boolean))];
-}
-
 export function dedupeDepartures(deps) {
   const indexed = (deps || []).map((c, i) => ({ c, origIdx: i }));
   indexed.sort((a, b) =>
@@ -2611,21 +2603,11 @@ export function renderBoard() {
   const isStale = renderUpdatedStamp();
   const modes = loadModes();
   const dir = config.dirs[state.dIdx];
-  // WHAT THIS SCREEN IS SHOWING, so the banner can tell a message about this
-  // route from one about a bus that happens to call at the same stop.
-  //
-  // From the rows this draw is ABOUT TO make, not from `_depMap`, which holds
-  // the last draw's — and nothing at all on the first. See boardRowDeps.
+  // NO BANNER HERE ANY MORE (v1.149.0). The rows this draw is about are still
+  // needed by the list below; what left is the message banner that used to
+  // read them. Tavla still COLLECTS the messages — track, selected and auto
+  // all read state.serviceAlerts from here — it just does not show them.
   const _rows = boardRowDeps(state.deps, _pages, modes, _lineOn);
-  renderAlerts({
-    stopIds: [dir.stopId, dir.toStopId].filter(Boolean),
-    lineIds: lineIdsOf(_rows),
-    journeyIds: [],
-    // The same subject word auto-reise uses, so the folded row does not read
-    // «1 melding til» on one screen and «1 melding om en annen linje» on the
-    // other about the very same message.
-    otherWord: { one: 'melding om en annen linje', many: 'meldinger om andre linjer' },
-  });
   const pos = state.walkFromLL || state.homeLL || (state.statLL && state.statLL[dir.key]);
   const walkFrom = (state.statLL && state.statLL[dir.key]) || pos;
 

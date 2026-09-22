@@ -86,10 +86,12 @@ describe('én knapp i hver overskrift', () => {
     expect(sel).toMatch(/min-height:44px/);
   });
 
-  it('trafikkmeldingen står under overskriften, ikke over', () => {
-    const src = html();
-    expect(src.indexOf('class="board-header-slim"'))
-      .toBeLessThan(src.indexOf('id="service-alerts"'));
+  // v1.149.0 tok tavlas banner bort, så det finnes ingen #service-alerts å
+  // plassere lenger. Lærdommen fra v1.105.0 — at et banner ligger INNE i sin
+  // egen skjerm, ikke utenfor der show() ikke når det — gjelder fortsatt for
+  // de tre som er igjen, og bindes av tests/boardNoAlerts.test.js.
+  it('tavla har ingen trafikkmelding å plassere', () => {
+    expect(html()).not.toMatch(/id="service-alerts"/);
   });
 
   // It used to live inside #v-board, which is why ⋮ existed on one screen.

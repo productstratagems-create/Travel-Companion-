@@ -102,13 +102,12 @@
       </div>
     </div>
   </div>
-  <!-- BELOW the header, not above it. Up there it pushed the station name —
-       the screen's own identity — off the top, and the ⋮ landed on top of
-       the banner. Still inside the screen: it used to sit outside every v-*
-       div, and show() only toggles those, so one global list of traffic
-       messages stood on every screen whatever it was about. -->
-  <div id="service-alerts" style="display:none"
-    role="region" aria-label="Servicevarsler" aria-live="polite"></div>
+  <!-- TAVLA VISER INGEN MELDINGER (v1.149.0). «Kutt all meldingsvisning
+       øverst på tavle. Den oppfører seg uansett feil.» Fem utgivelser på rad
+       handlet om banneret som sto her, og tre av dem kom av at jeg la til noe
+       som ikke var bedt om. Det er de andre skjermene som viser meldinger nå
+       — #auto-alerts, #s-alerts og #t-alerts — mens tavla fortsatt HENTER
+       dem for dem. -->
   <div id="smart-toast" class="smart-toast" style="display:none" role="status" aria-live="polite">
     <span>⚡ auto → <strong class="smart-toast-dest"></strong></span>
     <button class="smart-toast-cancel" type="button" aria-label="Avbryt auto-reise">✕</button>

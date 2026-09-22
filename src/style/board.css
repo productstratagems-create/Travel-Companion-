@@ -316,7 +316,6 @@
 }
 .spec-track-btn:active{background:rgba(var(--accent-rgb),.06)}
 
-#service-alerts{margin:.4rem 0}
 .service-alert{
   padding:.5rem .75rem;margin:.25rem 0;
   font-size:11px;line-height:1.4;

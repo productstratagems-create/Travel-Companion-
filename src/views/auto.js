@@ -1881,9 +1881,23 @@ function _renderBody() {
   // a real margin. When nothing can be judged the headings never appear and
   // this screen is exactly what it was.
   const here = (_stop && _stop.lat != null) ? { lat: _stop.lat, lon: _stop.lon } : null;
+  // ONCE PER DRAW, not once per row. This screen redraws every second, and
+  // eleven rows each reading and re-indexing the history would be eleven
+  // times the work for one answer.
+  const freq = loadFreq('arr');
   const side = new Map();
+  const ahead = new Map();
+  const pick = new Map();
   for (const { d, i } of live) {
-    side.set(i, centreward(here, stopsAhead(d.call, _stop && _stop.name, now)));
+    // The onward stops were already computed here for the centre grouping
+    // and thrown away. Keeping them is what makes this release almost free.
+    const stops = stopsAhead(d.call, _stop && _stop.name, now);
+    ahead.set(i, stops);
+    side.set(i, centreward(here, stops));
+    // THIS ROW'S OWN STOPS. v1.105.0 exists because something was global;
+    // a shortcut under «mot Kolsås» that belongs to «mot Ski» is the same
+    // fault, and using the row's own list is what makes it impossible.
+    pick.set(i, stopShortcuts(stops, freq, INLINE_STOPS));
   }
   // PARTITIONED, not a heading emitted whenever the value changes. The list
   // is already sorted by the reader's own choice (T-bane først / Lokalbuss
@@ -1945,7 +1959,24 @@ function _renderBody() {
         // warns in plain words that a third child pushes the label adrift
         // under space-between — and that warning is there because it happened.
         + '<span class="nearby-dist">' + _timesHtml(d, now, walkMins) + '</span>'
-        + '</button>';
+        + '</button>'
+        // YOUR OWN STOPS ON THIS LINE, indented under it. They were a tap
+        // away, on a screen you then had to come back from — and the one you
+        // wanted was usually the first thing on it.
+        //
+        // Nothing at all until you have travelled: stopShortcuts keeps only
+        // stops with a use count above zero, so a new reader sees exactly
+        // today's screen and this falls out by itself.
+        + (pick.get(i) || []).map(si => {
+          const st = (ahead.get(i) || [])[si];
+          if (!st) return '';
+          return '<button class="auto-inline-stop" type="button"'
+            + ' data-dir="' + i + '" data-stop="' + si + '"'
+            + ' aria-label="' + esc('mot ' + d.frontText + ', gå av ' + st.name) + '">'
+            + '<span class="ais-name">' + esc(st.name) + '</span>'
+            + (st.mins != null ? '<span class="ais-mins">' + st.mins + ' min</span>' : '')
+            + '</button>';
+        }).join('');
     }).join('')
     // SAID, NOT IMPLIED. The list is complete at a small stop and cut at a
     // hub, and it looked identical either way — so it earned trust where it
@@ -1957,6 +1988,16 @@ function _renderBody() {
       : '');
   body.querySelectorAll('.auto-dir').forEach(b => {
     b.addEventListener('click', () => { _open = _dirs[Number(b.dataset.i)]; _renderBody(); });
+  });
+  // THE SAME DOOR the stop in the drill-down goes through, so the two cannot
+  // drift apart: autoRoute, then the one route-setter every caller uses.
+  body.querySelectorAll('.auto-inline-stop').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      const st = (ahead.get(Number(b.dataset.dir)) || [])[Number(b.dataset.stop)];
+      const dir = st && autoRoute(_stop, st);
+      if (dir) window._useRouteDir && window._useRouteDir(dir, null);
+    });
   });
 }
 
@@ -1972,6 +2013,17 @@ function _renderBody() {
  * are meant to spare you.
  */
 export const STOP_SHORTCUTS = 3;
+
+/**
+ * How many of your most-used stops sit indented under a direction row.
+ *
+ * TWO, where the drill-down shows three — a different choice for a different
+ * reason, which is why it is its own constant rather than a reuse of that
+ * one. In the drill-down the shortcuts are the only thing on screen; here
+ * they hang under as many as eleven rows, and three apiece would make the
+ * list three times as long to answer the same question.
+ */
+export const INLINE_STOPS = 2;
 
 /**
  * The stops on THIS direction that the reader travels to most.

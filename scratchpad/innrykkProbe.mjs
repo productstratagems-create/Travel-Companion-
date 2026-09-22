@@ -99,7 +99,7 @@ async function run(label, hist, scheme) {
     geolocation: { latitude: HERE.lat, longitude: HERE.lon }, permissions: ["geolocation"],
   });
   const page = await ctx.newPage();
-  await page.addInitScript(({ now, here, hist }) => {
+  await page.addInitScript(({ now, here, hist, scheme }) => {
     const Real = Date;
     class Pinned extends Real {
       constructor(...a) { super(...(a.length ? a : [now])); }
@@ -107,6 +107,10 @@ async function run(label, hist, scheme) {
     }
     globalThis.Date = Pinned;
     localStorage.setItem('__activeProfile', 'default');
+    // EXPLICIT. The context's colorScheme alone changed nothing — the app
+    // reads t.theme, so both screenshots came out identical (byte for byte)
+    // and «lys modus» was the dark screen under another name.
+    localStorage.setItem('default::t.theme', scheme === 'light' ? 'light' : 'dark');
     localStorage.setItem('default::t.autoMode', '1');
     localStorage.setItem('default::t.homeLL', JSON.stringify(here));
     localStorage.setItem('default::t.smartHist', JSON.stringify(hist));
@@ -116,7 +120,7 @@ async function run(label, hist, scheme) {
     localStorage.setItem('default::t.freqArr', JSON.stringify(
       hist.map(h => ({ name: h.toName, stopId: h.toStopId, lat: h.toLat, lon: h.toLon,
         count: h.count, lastUsed: h.lastUsed }))));
-  }, { now: NOW, here: HERE, hist });
+  }, { now: NOW, here: HERE, hist, scheme });
 
   await page.route('**/geocoder/**', r => r.fulfill({ status: 200, contentType: 'application/json',
     body: JSON.stringify({ features: NEARBY }) }));

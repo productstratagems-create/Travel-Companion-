@@ -59,7 +59,12 @@ describe('hvordan skjermen bruker den', () => {
   it('tar stoppene fra radens egen liste', () => {
     const s = src();
     const loop = s.slice(s.indexOf('const side = new Map();'), s.indexOf('// PARTITIONED'));
-    expect(loop).toMatch(/const stops = stopsAhead\(d\.call/);
+    // v1.142.0: avgangen er radens EGEN `catchable`, ikke lenger den
+    // tidligste uansett — men den kommer fortsatt fra denne raden, som er
+    // det relevansgarantien handler om. `d.call` står igjen som reserve for
+    // en rad uten noe å rekke, så stoppene tegnes selv da.
+    expect(loop).toMatch(/const ride = catchable\(d, walkMins, now\)\[0\]/);
+    expect(loop).toMatch(/stopsAhead\(\(ride && ride\.call\) \|\| d\.call/);
     expect(loop).toMatch(/ahead\.set\(i, stops\)/);
     expect(loop).toMatch(/pick\.set\(i, stopShortcuts\(stops, freq, INLINE_STOPS\)\)/);
   });
@@ -203,7 +208,9 @@ describe('hva tallet betyr', () => {
     const s = src();
     expect((s.match(/arriveText\(/g) || []).length).toBeGreaterThanOrEqual(4);
     expect(s).toMatch(/class="ais-mins">' \+ arriveText\(st\)/);
-    expect(s).toMatch(/class="nearby-dist">' \+ arriveText\(s\)/);
+    // v1.142.0: klokka tier når ingen avgang er innenfor rekkevidde, men det
+    // er fortsatt arriveText som sier den.
+    expect(s).toMatch(/class="nearby-dist">' \+ \(ride \? arriveText\(s\) : ''\)/);
     expect(s).toMatch(/bindTooltip\(st\.name \+ \(arriveText\(st\)/);
     // og ingen som fortsatt skriver ut minuttene for et stopp framover
     expect(s).not.toMatch(/st\.mins \+ ' min'/);

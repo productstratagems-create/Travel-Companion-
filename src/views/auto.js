@@ -18,7 +18,7 @@
  * exactly as well. That is the difference between an engine that locks you
  * out and one that helps.
  */
-import { esc, clkDay } from '../ui/fmt.js';
+import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import config from '../config.js';
 import { state } from '../state.js';
@@ -430,10 +430,37 @@ export function stopsAhead(call, fromName, now) {
       id: (sp && sp.id) || null,
       lat: sp && sp.latitude != null ? sp.latitude : (c.quay && c.quay.latitude),
       lon: sp && sp.longitude != null ? sp.longitude : (c.quay && c.quay.longitude),
+      // BOTH DERIVED FROM ONE TIMESTAMP. `at` is what the screen shows and
+      // `mins` is what the map ranks by; two independently computed copies
+      // of the same arrival is exactly how they would drift apart.
+      at: ms,
       mins: ms ? Math.max(0, Math.round((ms - t0) / MIN)) : null,
     });
   });
   return out;
+}
+
+/**
+ * When you are there — said as a clock, once, for every screen that says it.
+ *
+ * Reported as a question: «Hva betyr tidsangivelsen på det innrykkede
+ * stoppet?» The row above it counted down to the DEPARTURE («12 min») and the
+ * stop under it counted down to the ARRIVAL («26 min»). Two different events
+ * in the same shape, one above the other, with nothing saying which was which
+ * — and the reader is left to guess whether 26 is a later train, a journey
+ * time, or a clock.
+ *
+ * A clock time fixes it by being a different kind of thing to look at: the
+ * countdown says when to move, the clock says when you are there. The word
+ * carries the rest, and there is only one word — anything longer would buy
+ * the clarity back in clutter, on a row that is a detail of the row above it.
+ *
+ * One function, three callers (the indented stop, the drill-down list, the
+ * map tooltip), because the same sentence written down three times is the
+ * fault this codebase keeps finding.
+ */
+export function arriveText(st) {
+  return (st && st.at != null) ? 'framme ' + clk(st.at) : '';
 }
 
 /**
@@ -1305,7 +1332,7 @@ function _renderMap() {
         icon: makeStopIcon(normMode(mode), 0, { primary: last || picked }),
         keyboard: false, zIndexOffset: picked ? 1000 : (last ? 500 : 250),
       })
-        .bindTooltip(st.name + (st.mins != null ? ' · ' + st.mins + ' min' : ''),
+        .bindTooltip(st.name + (arriveText(st) ? ' · ' + arriveText(st) : ''),
           { className: 'map-label', direction: 'top', offset: [0, -8],
             permanent: picked })
         .on('click', () => _pickLineStop(i))
@@ -1881,9 +1908,23 @@ function _renderBody() {
   // a real margin. When nothing can be judged the headings never appear and
   // this screen is exactly what it was.
   const here = (_stop && _stop.lat != null) ? { lat: _stop.lat, lon: _stop.lon } : null;
+  // ONCE PER DRAW, not once per row. This screen redraws every second, and
+  // eleven rows each reading and re-indexing the history would be eleven
+  // times the work for one answer.
+  const freq = loadFreq('arr');
   const side = new Map();
+  const ahead = new Map();
+  const pick = new Map();
   for (const { d, i } of live) {
-    side.set(i, centreward(here, stopsAhead(d.call, _stop && _stop.name, now)));
+    // The onward stops were already computed here for the centre grouping
+    // and thrown away. Keeping them is what makes this release almost free.
+    const stops = stopsAhead(d.call, _stop && _stop.name, now);
+    ahead.set(i, stops);
+    side.set(i, centreward(here, stops));
+    // THIS ROW'S OWN STOPS. v1.105.0 exists because something was global;
+    // a shortcut under «mot Kolsås» that belongs to «mot Ski» is the same
+    // fault, and using the row's own list is what makes it impossible.
+    pick.set(i, stopShortcuts(stops, freq, INLINE_STOPS));
   }
   // PARTITIONED, not a heading emitted whenever the value changes. The list
   // is already sorted by the reader's own choice (T-bane først / Lokalbuss
@@ -1945,7 +1986,31 @@ function _renderBody() {
         // warns in plain words that a third child pushes the label adrift
         // under space-between — and that warning is there because it happened.
         + '<span class="nearby-dist">' + _timesHtml(d, now, walkMins) + '</span>'
-        + '</button>';
+        + '</button>'
+        // YOUR OWN STOPS ON THIS LINE, indented under it. They were a tap
+        // away, on a screen you then had to come back from — and the one you
+        // wanted was usually the first thing on it.
+        //
+        // Nothing at all until you have travelled: stopShortcuts keeps only
+        // stops with a use count above zero, so a new reader sees exactly
+        // today's screen and this falls out by itself.
+        + (pick.get(i) || []).map(si => {
+          const st = (ahead.get(i) || [])[si];
+          if (!st) return '';
+          // REUSES .nearby-btn, like the route row at settings.css:257 does.
+          // The geometry is the row's own, so the two cannot differ — and
+          // a stop that is harder to hit than the line above it is not
+          // really being offered. Measured before: 54 px against 29.
+          return '<button class="nearby-btn auto-inline-stop" type="button"'
+            + ' data-dir="' + i + '" data-stop="' + si + '"'
+            // The clock belongs in the spoken label too, or the one reader
+            // who cannot see the right-hand column hears only a stop name.
+            + ' aria-label="' + esc('mot ' + d.frontText + ', gå av ' + st.name
+              + (arriveText(st) ? ', ' + arriveText(st) : '')) + '">'
+            + '<span class="ais-name">' + esc(st.name) + '</span>'
+            + (arriveText(st) ? '<span class="ais-mins">' + arriveText(st) + '</span>' : '')
+            + '</button>';
+        }).join('');
     }).join('')
     // SAID, NOT IMPLIED. The list is complete at a small stop and cut at a
     // hub, and it looked identical either way — so it earned trust where it
@@ -1957,6 +2022,16 @@ function _renderBody() {
       : '');
   body.querySelectorAll('.auto-dir').forEach(b => {
     b.addEventListener('click', () => { _open = _dirs[Number(b.dataset.i)]; _renderBody(); });
+  });
+  // THE SAME DOOR the stop in the drill-down goes through, so the two cannot
+  // drift apart: autoRoute, then the one route-setter every caller uses.
+  body.querySelectorAll('.auto-inline-stop').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      const st = (ahead.get(Number(b.dataset.dir)) || [])[Number(b.dataset.stop)];
+      const dir = st && autoRoute(_stop, st);
+      if (dir) window._useRouteDir && window._useRouteDir(dir, null);
+    });
   });
 }
 
@@ -1972,6 +2047,17 @@ function _renderBody() {
  * are meant to spare you.
  */
 export const STOP_SHORTCUTS = 3;
+
+/**
+ * How many of your most-used stops sit indented under a direction row.
+ *
+ * TWO, where the drill-down shows three — a different choice for a different
+ * reason, which is why it is its own constant rather than a reuse of that
+ * one. In the drill-down the shortcuts are the only thing on screen; here
+ * they hang under as many as eleven rows, and three apiece would make the
+ * list three times as long to answer the same question.
+ */
+export const INLINE_STOPS = 2;
 
 /**
  * The stops on THIS direction that the reader travels to most.
@@ -2071,7 +2157,7 @@ function _renderStops(body) {
     + (extra || '') + (_linePicked === i ? ' picked' : '')
     + '" type="button" data-i="' + i + '">'
     + '<span class="nearby-name">' + esc(s.name) + '</span>'
-    + '<span class="nearby-dist">' + (s.mins != null ? s.mins + ' min' : '') + '</span>'
+    + '<span class="nearby-dist">' + arriveText(s) + '</span>'
     + '</button>';
 
   // Nothing at all until the reader has travelled — which is the whole of

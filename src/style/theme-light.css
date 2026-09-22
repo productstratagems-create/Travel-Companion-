@@ -766,3 +766,8 @@ html[data-theme="light"] .hdr-more-btn {
 }
 
 html[data-theme="light"] .auto-side { color: var(--text-dim); }
+
+/* Dine egne stopp under linja */
+html[data-theme="light"] .auto-inline-stop { border-color: rgba(var(--accent-rgb),.12); }
+html[data-theme="light"] .ais-name { color: var(--text-muted); }
+html[data-theme="light"] .ais-mins { color: var(--text-dim); }

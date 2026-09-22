@@ -157,12 +157,20 @@ export function groupDirections(calls, now) {
         // v1.114.0. `lineKey` above has had it in hand all along.
         lines: code ? [{ code, colour, id: (ln && ln.id) || null }] : [],
         nextMs: ms,
-        call: c,
-        // Every departure this way, not just the first. Asked for: "tiden til
-        // avgang for de tre neste avgangene". Collected here because this is
-        // the only place the raw calls are still in scope — the caller keeps
-        // the grouped rows and drops the array.
-        all: [ms],
+        // EVERY DEPARTURE THIS WAY, as the CALLS and not just their times.
+        //
+        // It kept `all: [ms]` — timestamps — and threw every call away but
+        // the soonest. So there was no way to ask what the SECOND departure
+        // passes on its way, and the arrival under the row was therefore
+        // always the first one's. On a screen that had already struck that
+        // departure out as unreachable, that is a clock time for a journey
+        // the reader cannot take.
+        //
+        // Collected here because this is the only place the raw calls are
+        // still in scope — the caller keeps the grouped rows and drops the
+        // array. `call` and `times` are derived from this below, so there is
+        // one record of which departures the row has.
+        calls: [{ ms, call: c }],
       });
       return;
     }
@@ -170,12 +178,8 @@ export function groupDirections(calls, now) {
     // reaching an existing row belongs to the line already on it. `lines`
     // stays an array rather than a single field so badgeHtml and the row
     // template keep one shape to render — it is simply always length 1.
-    prev.all.push(ms);
-    // The soonest call owns the row — and it is the one whose onward stops
-    // the reader will see, so it must be the same call the time came from.
-    // It stays the soonest even now that the row shows three times: tapping
-    // opens a journey, and it has to be the journey the first time refers to.
-    if (ms < prev.nextMs) { prev.nextMs = ms; prev.call = c; }
+    prev.calls.push({ ms, call: c });
+    if (ms < prev.nextMs) prev.nextMs = ms;
   });
   return [...byText.values()]
     .sort((a, b) => a.nextMs - b.nextMs)
@@ -184,9 +188,14 @@ export function groupDirections(calls, now) {
     // fire, sitting where one used to hide departed vehicles behind "nå", is
     // worse than none: it tells the next reader that negatives get here.
     .map(d => {
-      const { all, ...rest } = d;
+      const calls = d.calls.slice().sort((a, b) => a.ms - b.ms);
       return {
-        ...rest,
+        ...d,
+        calls,
+        // The soonest call still owns the row — tapping opens a journey, and
+        // it has to be the journey the first time refers to. DERIVED now,
+        // rather than tracked alongside: one record, the rest follows.
+        call: calls[0].call,
         mins: Math.round((d.nextMs - t0) / MIN),
         // The next three, soonest first, as ABSOLUTE times. Fewer when fewer
         // run — a row with one time means one departure, and padding it would
@@ -197,7 +206,7 @@ export function groupDirections(calls, now) {
         // representations that must agree is exactly the bug v1.68.0 fixed
         // (_bRoutePts against _bRoutePtsKey); one value, converted where it
         // is shown.
-        times: all.slice().sort((a, b) => a - b).slice(0, 3),
+        times: calls.slice(0, 3).map(x => x.ms),
       };
     });
 }
@@ -1768,6 +1777,46 @@ export function _minsUntil(ms, now) {
  *
  * @param {number|null} walkMins minutes on foot to this stop, or null
  */
+/**
+ * The departures on this row you can still catch, soonest first.
+ *
+ * ONE DEFINITION OF «rekker du den». It was written down twice already —
+ * `_timesHtml` struck a time out with `reachCls(minsToLeave(...))` while
+ * `nextRail` looked for `(ms - t) / MIN >= need`. They agreed, and nothing
+ * bound them. And the arrival under the row read neither: it came from the
+ * soonest departure whatever the strike said, which produced «framme 19:58»
+ * under a row whose 19:33 was crossed out.
+ *
+ * `walkMins == null` — no position, so no walk — means everything counts,
+ * which is exactly the rule `_timesHtml` already wrote for that case and
+ * exactly today's screen.
+ *
+ * Carries the CALL, not just the time: the whole point is being able to ask
+ * that departure what it passes on the way.
+ */
+export function canCatch(ms, walkMins, now) {
+  if (!Number.isFinite(ms)) return false;
+  // No position, so no walk: everything counts. That is today's screen, and
+  // the rule `_timesHtml` already wrote for this case.
+  if (walkMins == null) return true;
+  return minsToLeave(ms, walkMins, now) >= 0;
+}
+
+/**
+ * The same rule over a row's departures, carrying the call.
+ *
+ * The predicate above is what a TIME is judged by; this is what a ROW is
+ * asked. Both exist because the two callers hold different things —
+ * `_timesHtml` renders `times`, and the arrival needs the call — and they
+ * decide with one rule so the strike and the clock cannot disagree.
+ */
+export function catchable(d, walkMins, now) {
+  const t = Number.isFinite(now) ? now : Date.now();
+  return ((d && d.calls) || [])
+    .filter(x => x && x.ms >= t && canCatch(x.ms, walkMins, t))
+    .sort((a, b) => a.ms - b.ms);
+}
+
 export function _timesHtml(d, now, walkMins) {
   const raw = (d.times && d.times.length) ? d.times : null;
   const mins = raw ? raw.map(ms => _minsUntil(ms, now)) : [d.mins];
@@ -1776,9 +1825,13 @@ export function _timesHtml(d, now, walkMins) {
   // row, applied again now that the row is allowed to age.
   const keep = mins.map((m, i) => ({ m, ms: raw ? raw[i] : null })).filter(x => x.m >= 0);
   if (!keep.length) return '';
+  // THE STRIKE AND THE CLOCK BELOW IT READ THE SAME RULE. `reachCls` still
+  // grades how comfortable a reachable departure is — far, ok, soon, now —
+  // but WHETHER it is reachable at all is `catchable`'s answer, so the row
+  // and the arrival under it cannot disagree about which departure it means.
   const rcls = (x) => {
     if (walkMins == null || x.ms == null) return '';
-    return reachCls(minsToLeave(x.ms, walkMins, now));
+    return canCatch(x.ms, walkMins, now) ? reachCls(minsToLeave(x.ms, walkMins, now)) : 'missed';
   };
   const label = (x) => (x.m === 0 ? 'nå' : String(x.m));
 
@@ -2137,10 +2190,27 @@ function _renderBody() {
   const side = new Map();
   const ahead = new Map();
   const pick = new Map();
+  // Whether this row has a departure the reader can still catch. The onward
+  // stops are drawn either way — «this line goes there» is worth knowing —
+  // but only a reachable departure can carry a clock time.
+  const reach = new Map();
   for (const { d, i } of live) {
+    // THE DEPARTURE YOU CAN ACTUALLY CATCH, not the soonest one.
+    //
+    // Reported from Mortensrud with fourteen minutes on foot: the row read
+    // «3̶ · 18 · 33 min» and the stop under it «framme 19:58» — the arrival of
+    // the 19:33 the row had just struck out. 19:33 + 25 min = 19:58; the
+    // arithmetic was right and the departure was one the reader could not
+    // take. `catchable` is the same list the strike above is drawn from.
+    //
+    // Nothing catchable — the neighbouring row had one departure, nine
+    // minutes out — means there is no arrival to state. The row has already
+    // crossed out every time it has, so this silence is not mute.
+    const ride = catchable(d, walkMins, now)[0];
     // The onward stops were already computed here for the centre grouping
     // and thrown away. Keeping them is what makes this release almost free.
-    const stops = stopsAhead(d.call, _stop && _stop.name, now);
+    const stops = stopsAhead((ride && ride.call) || d.call, _stop && _stop.name, now);
+    reach.set(i, !!ride);
     ahead.set(i, stops);
     side.set(i, centreward(here, stops));
     // THIS ROW'S OWN STOPS. v1.105.0 exists because something was global;
@@ -2231,9 +2301,10 @@ function _renderBody() {
             // The clock belongs in the spoken label too, or the one reader
             // who cannot see the right-hand column hears only a stop name.
             + ' aria-label="' + esc('mot ' + d.frontText + ', gå av ' + st.name
-              + (arriveText(st) ? ', ' + arriveText(st) : '')) + '">'
+              + (reach.get(i) && arriveText(st) ? ', ' + arriveText(st) : '')) + '">'
             + '<span class="ais-name">' + esc(st.name) + '</span>'
-            + (arriveText(st) ? '<span class="ais-mins">' + arriveText(st) + '</span>' : '')
+            + (reach.get(i) && arriveText(st)
+              ? '<span class="ais-mins">' + arriveText(st) + '</span>' : '')
             + '</button>';
         }).join('');
     }).join('')
@@ -2389,7 +2460,14 @@ export function findJumpTarget(dirs, guess, fromName, now) {
 }
 
 function _renderStops(body) {
-  const stops = stopsAhead(_open.call, _stop.name);
+  // THE SAME DEPARTURE THE LIST OUTSIDE USES. This drill-down reads the row's
+  // onward stops too, and it read them off the soonest call — so a reader who
+  // could not catch that one got arrival times for a journey already struck
+  // out on the screen they came from. Two places showing one fact, and only
+  // one of them fixed would be the fault this release is about.
+  const walk = walkMinsTo(_stop);
+  const ride = catchable(_open, walk ? walk.mins : null, Date.now())[0];
+  const stops = stopsAhead((ride && ride.call) || _open.call, _stop.name);
   // `.picked` is the mark a tap on the map leaves. It is a CLASS on the row
   // rather than state in the markup, because this innerHTML is replaced once a
   // second — anything stored here would be gone before the finger lifted.
@@ -2397,7 +2475,7 @@ function _renderStops(body) {
     + (extra || '') + (_linePicked === i ? ' picked' : '')
     + '" type="button" data-i="' + i + '">'
     + '<span class="nearby-name">' + esc(s.name) + '</span>'
-    + '<span class="nearby-dist">' + arriveText(s) + '</span>'
+    + '<span class="nearby-dist">' + (ride ? arriveText(s) : '') + '</span>'
     + '</button>';
 
   // Nothing at all until the reader has travelled — which is the whole of

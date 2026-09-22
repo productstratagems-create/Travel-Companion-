@@ -609,3 +609,23 @@ describe('fetchBoard reports what it could not fit', () => {
     expect(t).toMatch(/stop\._asked = /);
   });
 });
+
+// Skjermen må faktisk sende båndet videre til marginen. Uten det er hele
+// regelen over død kode: rangeringen setter den du går mot først, og
+// marginen holder overskriften på den bak deg. En mutant som droppet
+// argumentet overlevde alle oppførselstestene, fordi de kaller pickStop
+// direkte.
+describe('auto-reise gir marginen båndet den skal måle med', () => {
+  const src = () => require('node:fs')
+    .readFileSync('src/views/auto.js', 'utf8').replace(/\/\/[^\n]*/g, '');
+
+  it('sender bånd-oppslaget inn i pickStop', () => {
+    expect(src()).toMatch(/pickStop\(list, _stop, _stopPinned, _bandOf\(\)\)/);
+  });
+
+  it('og bånd-oppslaget er rangeringens eget', () => {
+    const t = src();
+    expect(t).toMatch(/function _bandOf\(\)[\s\S]{0,200}stopBand\(s, uses, state\.posTrail\)/);
+    expect(t).toMatch(/rankStops\(list, depUses\(\), state\.posTrail\)/);
+  });
+});

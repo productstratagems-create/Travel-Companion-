@@ -142,3 +142,111 @@ describe('usesOf', () => {
     expect(usesOf({ name: 'x' }, null)).toBe(0);
   });
 });
+
+/**
+ * Retningen veier tyngre enn avstanden.
+ *
+ * Spurt: «…sannsynliggjøre hvilken linje vedkommende er interessert i — og
+ * dermed veier tyngst når du skal sette verdien for «Du er ved»?»
+ *
+ * rankStops hadde ingen retning i det hele tatt. En holdeplass du går FRA og
+ * en du går MOT så helt like ut for den: begge var bare et antall meter.
+ *
+ * Fiksturen er en gange nordover: målingene ligger sør for Nordstopp og nord
+ * for Sørstopp, så du nærmer deg det ene og går fra det andre.
+ */
+describe('rankStops med en serie posisjoner', () => {
+  const M = 1 / 111_320;
+  const her = (n) => ({ lat: 59.8300 + n * M, lon: 10.8050, at: n * 500, acc: 8 });
+  // Seks målinger over ti sekunder, to meter i sekundet nordover.
+  const GAAR_NORD = [0, 2, 4, 6, 8, 10].map((m, i) => ({ ...her(m), at: i * 2000 }));
+
+  const stopp = (name, distM, n) =>
+    ({ name, id: 'NSR:StopPlace:' + name, distM, lat: 59.8300 + n * M, lon: 10.8050 });
+  // Like langt unna, hver sin vei.
+  const NORD = stopp('Nordstopp', 300, 300);
+  const SOER = stopp('Sørstopp', 300, -300);
+
+  // FØR-BILDET: uten serien skiller ingenting dem, og rekkefølgen blir den
+  // geokoderen tilfeldigvis ga.
+  it('lar den du går mot slå den du går fra', () => {
+    const ut = rankStops([SOER, NORD], depUses(), GAAR_NORD);
+    expect(names(ut)[0]).toBe('Nordstopp');
+  });
+
+  // En du nærmer deg er verdt mer enn en du aldri har brukt og går fra, også
+  // når den andre er litt nærmere.
+  it('løfter den du nærmer deg over en nærmere du går fra', () => {
+    const naermere = stopp('Sørstopp', 250, -250);
+    const ut = rankStops([naermere, NORD], depUses(), GAAR_NORD);
+    expect(names(ut)[0]).toBe('Nordstopp');
+  });
+
+  // BÅND 0 ER URØRT. Står du ved holdeplassen, krangler ikke appen med deg —
+  // uansett hvilken vei serien sier at du beveger deg.
+  it('rører ikke den du står ved', () => {
+    const ved = stopp('Sørstopp', 20, -20);
+    const ut = rankStops([NORD, ved], depUses(), GAAR_NORD);
+    expect(names(ut)[0]).toBe('Sørstopp');
+  });
+
+  // «Vet ikke» må la skjermen være nøyaktig som i dag — og det er tilstanden
+  // en ny leser, en fersk fane og en telefon på bordet er i.
+  it('er identisk med dagens uten en serie', () => {
+    const uten = names(rankStops(MORTENSRUD, depUses()));
+    expect(names(rankStops(MORTENSRUD, depUses(), []))).toEqual(uten);
+    expect(names(rankStops(MORTENSRUD, depUses(), null))).toEqual(uten);
+    // Og én måling er ingen serie.
+    expect(names(rankStops(MORTENSRUD, depUses(), [her(0)]))).toEqual(uten);
+  });
+
+  // Historikken skal fortsatt telle: retningen legges til, den erstatter ikke.
+  it('lar en brukt holdeplass du nærmer deg slå en ubrukt du nærmer deg', () => {
+    const a = stopp('Ubrukt', 280, 280);
+    const b = stopp('Brukt', 320, 320);
+    used('Brukt', 3);
+    expect(names(rankStops([a, b], depUses(), GAAR_NORD))[0]).toBe('Brukt');
+  });
+});
+
+/**
+ * Og de tre reglene hver for seg.
+ *
+ * Testene over bandt UTFALLET — «Nordstopp først» — som `dir`-bryteren alene
+ * er nok til å gi. Tre mutanter overlevde dem: båndløftet fjernet, bånd 0
+ * utsatt for retningen, og «vet-ikke» lest som «fra». Hver av dem trenger et
+ * tilfelle der nettopp den regelen er det eneste som skiller.
+ */
+describe('rankStops, regel for regel', () => {
+  const M = 1 / 111_320;
+  const GAAR_NORD = [0, 2, 4, 6, 8, 10].map((m, i) =>
+    ({ lat: 59.8300 + m * M, lon: 10.8050, at: i * 2000, acc: 8 }));
+  const stopp = (name, distM, n) =>
+    ({ name, id: 'NSR:StopPlace:' + name, distM, lat: 59.8300 + n * M, lon: 10.8050 });
+
+  // BÅNDLØFTET. En ubrukt du går mot skal slå en BRUKT du går fra — uten
+  // løftet er den brukte i bånd 1 og vinner på båndet alene.
+  it('lar en ubrukt du går mot slå en brukt du går fra', () => {
+    const mot = stopp('Nordstopp', 300, 300);
+    const fra = stopp('Sørstopp', 300, -300);
+    used('Sørstopp', 4);
+    expect(names(rankStops([fra, mot], depUses(), GAAR_NORD))[0]).toBe('Nordstopp');
+  });
+
+  // BÅND 0. To holdeplasser du står mellom, begge innenfor CLOSE_M: der er
+  // avstanden svaret, og retningen skal ikke få ordet. Står du på perrongen,
+  // krangler ikke appen med deg fordi du snudde deg.
+  it('lar avstanden avgjøre mellom to du står ved', () => {
+    const naer = stopp('Sørstopp', 15, -15);
+    const fjern = stopp('Nordstopp', CLOSE_M - 5, CLOSE_M - 5);
+    expect(names(rankStops([fjern, naer], depUses(), GAAR_NORD))[0]).toBe('Sørstopp');
+  });
+
+  // «VET IKKE» ER IKKE «FRA». En holdeplass geokoderen ga uten koordinater
+  // kan ikke bedømmes — og «vi vet ikke» skal ikke straffes som «du går fra».
+  it('straffer ikke en holdeplass den ikke kan bedømme', () => {
+    const ukjent = { name: 'Ukjent', id: 'NSR:StopPlace:U', distM: 300 };
+    const fra = stopp('Sørstopp', 300, -300);
+    expect(names(rankStops([fra, ukjent], depUses(), GAAR_NORD))[0]).toBe('Ukjent');
+  });
+});

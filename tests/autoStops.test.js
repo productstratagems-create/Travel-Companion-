@@ -23,7 +23,8 @@ vi.mock('../src/storage.js', () => {
   } };
 });
 
-import { stopHeadHtml, stopsOpen, pickStop, resetAuto, _setStopsOpen } from '../src/views/auto.js';
+import { stopHeadHtml, stopsOpen, pickStop, resetAuto, _setStopsOpen, stopBand, PICK_MARGIN_M }
+  from '../src/views/auto.js';
 import { storage } from '../src/storage.js';
 
 beforeEach(() => storage._reset());
@@ -221,3 +222,143 @@ describe('pickStop', () => {
   });
 });
 
+
+/**
+ * Marginen: overskriften skal ikke blafre.
+ *
+ * Retningen kom inn i rangeringen i v1.141.0, og med den kan to holdeplasser
+ * du går MELLOM bytte på å vinne: hver gang du passerer midtpunktet snur
+ * lukkeraten fortegn, og navnet over skjermen skifter fram og tilbake mens du
+ * går. Rettesnorens punkt 5 er at ingenting skal blafre.
+ *
+ * Utfordreren må derfor være tydelig bedre enn den sittende. `pinned` slår
+ * fortsatt alt, som før — dette gjelder bare valget appen gjør selv.
+ */
+describe('pickStop holder på valget sitt', () => {
+  const s = (id, distM) => ({ id, name: id, distM });
+
+  // Den sittende ligger fortsatt i lista, bare ikke først. Et par meter er
+  // ikke en ny opplysning.
+  it('bytter ikke på noen få meter', () => {
+    const { stop, changed } = pickStop(
+      [s('Nordstopp', 298), s('Sørstopp', 300)], s('Sørstopp', 300), false);
+    expect(stop.id).toBe('Sørstopp');
+    expect(changed).toBe(false);
+    // og metrene er ferske, som for et pinnet stopp
+    expect(stop.distM).toBe(300);
+  });
+
+  it('men bytter når utfordreren er tydelig bedre', () => {
+    const { stop, changed } = pickStop(
+      [s('Nordstopp', 100), s('Sørstopp', 400)], s('Sørstopp', 400), false);
+    expect(stop.id).toBe('Nordstopp');
+    expect(changed).toBe(true);
+  });
+
+  // Faller den sittende helt ut av lista, er det ikke lenger et tett løp —
+  // da er det ingenting å holde på.
+  it('slipper den sittende når den er ute av lista', () => {
+    const { stop, changed } = pickStop([s('Nordstopp', 298)], s('Sørstopp', 300), false);
+    expect(stop.id).toBe('Nordstopp');
+    expect(changed).toBe(true);
+  });
+});
+
+/**
+ * Si hvorfor navnet står der det står.
+ *
+ * Fra v1.141.0 kan rangeringen foretrekke en holdeplass du går MOT framfor en
+ * som er nærmere — så navnet over skjermen kan skifte av en grunn metrene
+ * ikke forklarer. Verdien er regnet ut uansett; da skal den stå på skjermen.
+ */
+describe('stopHeadHtml sier hvorfor', () => {
+  const st = { name: 'Nordstopp', distM: 300 };
+
+  it('sier at du går mot den, med tiden igjen', () => {
+    const h = stopHeadHtml(st, 0, false, { way: 'mot', wayEtaS: 40 });
+    expect(h).toContain('du går mot den');
+    expect(h).toContain('40 s');
+  });
+
+  it('runder til minutter når det er langt igjen', () => {
+    expect(stopHeadHtml(st, 0, false, { way: 'mot', wayEtaS: 200 })).toContain('3 min');
+  });
+
+  // Et anslag på ti minutter fra en serie på ett minutt er ikke et anslag.
+  it('lover ingen tid når det er for langt fram', () => {
+    const h = stopHeadHtml(st, 0, false, { way: 'mot', wayEtaS: 4000 });
+    expect(h).toContain('du går mot den');
+    expect(h).not.toContain('ca ');
+  });
+
+  // «Du går fra den» om holdeplassen som navngis ville vært en rar setning,
+  // og «vet ikke» er stillhet med vilje — den vanligste tilstanden av alle,
+  // og da skal skjermen være nøyaktig som i dag.
+  it('tier om de andre tilstandene', () => {
+    for (const way of ['fra', 'staar', 'vet-ikke', undefined]) {
+      expect(stopHeadHtml(st, 0, false, { way })).not.toContain('du går');
+    }
+  });
+});
+
+/**
+ * Marginen må vokte det riktige.
+ *
+ * FUNNET AV NETTLESERPRØVEN, ikke av testene: marginen var skrevet i METER
+ * mens rangeringen ikke handler om meter. Gikk du nordover, la rangeringen
+ * holdeplassen foran deg først — og marginen holdt overskriften på den bak
+ * deg, fordi den bak fortsatt var den nærmeste av de to. Den voktet mot feil
+ * ting.
+ *
+ * Et bedre BÅND er en grunn, og marginen gjelder ikke for den: utfordreren er
+ * ikke et par meter nærmere, den er en annen slags kandidat.
+ */
+describe('marginen og båndet', () => {
+  const s = (id, distM) => ({ id, name: id, distM });
+  // Et bånd-oppslag som etterlikner «du går mot Nordstopp».
+  const bandOf = (x) => (x.id === 'Nordstopp' ? 1 : 2);
+
+  it('bytter til den du går mot, selv om den bak er nærmere', () => {
+    const { stop, changed } = pickStop(
+      [s('Nordstopp', 272), s('Sørstopp', 228)], s('Sørstopp', 228), false, bandOf);
+    expect(stop.id).toBe('Nordstopp');
+    expect(changed).toBe(true);
+  });
+
+  // Og marginen gjelder fortsatt når båndene er like — ellers er den borte.
+  it('men holder på valget når båndene er like', () => {
+    const likt = () => 1;
+    const { stop } = pickStop(
+      [s('Nordstopp', 298), s('Sørstopp', 300)], s('Sørstopp', 300), false, likt);
+    expect(stop.id).toBe('Sørstopp');
+  });
+
+  // Og uten et bånd-oppslag er dette nøyaktig v1.141.0-marginen.
+  it('er uendret uten et bånd-oppslag', () => {
+    const { stop } = pickStop(
+      [s('Nordstopp', 298), s('Sørstopp', 300)], s('Sørstopp', 300), false);
+    expect(stop.id).toBe('Sørstopp');
+  });
+});
+
+describe('stopBand er den ene definisjonen', () => {
+  // Rangeringen og marginen leste hvert sitt begrep om «bedre». Nå er det ett.
+  const M = 1 / 111_320;
+  const GAAR_NORD = [0, 2, 4, 6, 8, 10].map((m, i) =>
+    ({ lat: 59.8300 + m * M, lon: 10.8050, at: i * 2000, acc: 8 }));
+  const st = (n, distM) => ({ id: 'x' + n, name: 'x' + n, distM, lat: 59.8300 + n * M, lon: 10.8050 });
+
+  it('setter den du står ved øverst uansett retning', () => {
+    expect(stopBand(st(-20, 20), null, GAAR_NORD)).toBe(0);
+  });
+
+  it('løfter den du går mot over den du går fra', () => {
+    expect(stopBand(st(300, 300), null, GAAR_NORD)).toBe(1);
+    expect(stopBand(st(-300, 300), null, GAAR_NORD)).toBe(2);
+  });
+
+  it('er uendret uten en serie', () => {
+    expect(stopBand(st(300, 300), null, [])).toBe(2);
+    expect(stopBand(st(-300, 300), null, null)).toBe(2);
+  });
+});

@@ -39,6 +39,63 @@
  */
 export const ACC_GATE = 40;
 
+/**
+ * Metres per second. Faster than any Norwegian service, so a reading that
+ * implies more than this is not a movement — it is a bad reading.
+ *
+ * Chosen against the traffic this app serves, not measured: an airliner or a
+ * 250 km/h train would hit the ceiling, and the app would then SAY so rather
+ * than fall silent, which is the right way round to be wrong.
+ */
+export const MAX_SPEED_MS = 70;
+
+/**
+ * Metres. Below this, no claim is made about speed at all.
+ *
+ * Found by the suite, not by reasoning: `watchPosition` can deliver fixes a
+ * millisecond or two apart, and two metres in one millisecond is 2000 m/s. The
+ * veto fired on jitter, threw the position away and forced a fresh lookup —
+ * five where there should have been two.
+ *
+ * A teleport is what this rule is for. Two metres is not a teleport whatever
+ * the clock says, and at short intervals the clock is the least trustworthy
+ * part of the reading.
+ */
+export const JUMP_MIN_M = 250;
+
+/**
+ * Does this reading require a speed nobody travels at?
+ *
+ * The reported screen — «DU ER VED Jernbanetorget · 10221 m å gå · posisjonen
+ * er unøyaktig (±148 m)» — happened because there was nothing to compare the
+ * one reading against. With the previous fix in hand it is arithmetic.
+ *
+ * Says nothing when time does not move forward: the tab was backgrounded, or
+ * the clock was set. An undefined speed is not evidence of a jump, and
+ * treating it as one would reject every fix after a resume.
+ */
+export function fixJump(prev, next) {
+  const no = { jumped: false, speed: null, metres: null };
+  if (!prev || !next) return no;
+  if (![prev.lat, prev.lon, prev.at, next.lat, next.lon, next.at].every(Number.isFinite)) return no;
+  const dt = (next.at - prev.at) / 1000;
+  if (!(dt > 0)) return no;
+  const m = _metres(prev, next);
+  const speed = m / dt;
+  return { jumped: m >= JUMP_MIN_M && speed > MAX_SPEED_MS, speed, metres: m };
+}
+
+// Own copy, because this module imports nothing — the same reason geo.js's
+// haver() cannot be reached from here.
+function _metres(a, b) {
+  const rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLon = rad(b.lon - a.lon);
+  const s = Math.sin(dLat / 2) ** 2
+    + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6_371_000 * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
 /** Past this the fix behind the dot is old enough to say so. */
 export const POS_STALE_MS = 60_000;
 

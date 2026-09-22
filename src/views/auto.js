@@ -26,6 +26,7 @@ import { fetchNextDeparture, fetchBoard } from '../api/entur.js';
 import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
 import { predictDest, autoJumpDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
+import { approach } from '../trail.js';
 import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
   SEVERITY_RANK } from '../ui/alerts.js';
 import { byLine } from '../api/situations.js';
@@ -846,17 +847,63 @@ export const CLOSE_M = 100;
  * With no history at all every stop falls to band 3, so a new reader sees
  * precisely today's list.
  */
-export function rankStops(list, uses) {
-  const band = (s) => {
-    if (s.distM != null && s.distM <= CLOSE_M) return 0;
-    return usesOf(s, uses) > 0 ? 1 : 2;
-  };
+/**
+ * Which band a stop falls in — the one definition, read by both the ranking
+ * and the margin that decides whether the heading may change.
+ *
+ * It was inline in `rankStops`, and `pickStop`'s margin was therefore written
+ * in METRES while the ranking was not about metres. The browser probe caught
+ * it: walking north, the ranking put the stop ahead of you first and the
+ * margin kept the heading on the one behind you, because the one behind was
+ * still the nearer of the two. The margin was guarding against the wrong
+ * thing. One name, both callers.
+ */
+export function stopBand(s, uses, trail) {
+  if (!s) return 2;
+  // BAND 0 IS UNTOUCHED. You are standing there; the app does not argue with
+  // you about where you are, whatever direction the series reads.
+  if (s.distM != null && s.distM <= CLOSE_M) return 0;
+  if (usesOf(s, uses) > 0) return 1;
+  // A stop you are walking towards is worth as much as one you have used
+  // before — it is the best evidence available about where you are going.
+  return stopWay(s, trail) === 'mot' ? 1 : 2;
+}
+
+/**
+ * What the series says about one stop, or 'vet-ikke'.
+ *
+ * 'vet-ikke' whenever the series cannot say — a fresh tab, a phone on a table,
+ * two fixes a moment apart, a stop the geocoder gave without coordinates. That
+ * is the commonest state of all, and in it the ranking is exactly what it was.
+ */
+export function stopWay(s, trail) {
+  return (trail && trail.length && s && s.lat != null)
+    ? approach(trail, { lat: s.lat, lon: s.lon }).kind : 'vet-ikke';
+}
+
+export function rankStops(list, uses, trail) {
+  // WHICH WAY YOU ARE WALKING, which this function had no notion of at all: a
+  // stop you are walking away from and one you are walking towards were both
+  // just a number of metres to it.
+  const way = (s) => stopWay(s, trail);
+  const band = (s) => stopBand(s, uses, trail);
   const d = (s) => (s.distM == null ? Infinity : s.distM);
+  // Approaching beats standing beats walking away, inside a band.
+  const dir = (s) => ({ mot: 0, 'vet-ikke': 1, staar: 1, fra: 2 }[way(s)]);
   return (list || []).slice().sort((a, b) =>
     (band(a) - band(b))
-    // Inside the used band, count decides and distance breaks the tie — so
-    // two equally used stops still order predictably rather than by whatever
-    // the geocoder happened to return.
+    // DIRECTION BEFORE HISTORY, and never above band 0: at the platform the
+    // question is settled and the metres answer it.
+    //
+    // Walking away from a stop is live evidence about this trip; history is a
+    // prior about trips in general. So your daily stop, being walked away
+    // from, yields to one you are walking towards — which is the whole of
+    // «hvilken linje vedkommende er interessert i». With no series every stop
+    // reads 'vet-ikke', this comparison is always zero, and the order below is
+    // exactly what it was before.
+    || (band(a) === 0 ? 0 : dir(a) - dir(b))
+    // Then count, and distance breaks the tie — so two equally used stops
+    // still order predictably rather than by whatever the geocoder returned.
     || (band(a) === 1 ? usesOf(b, uses) - usesOf(a, uses) : 0)
     || (d(a) - d(b)));
 }
@@ -871,7 +918,15 @@ function _stops() {
   // state.nearestStations itself is left alone: "fra stasjon" in settings
   // reads the same array and should stay purely nearest-first. Sorting it in
   // place would move a list nobody asked to move.
-  return rankStops(list, depUses());
+  // The trail is read here, once, for the same reason the ranking is: the
+  // heading and the alternatives must not disagree about the order.
+  return rankStops(list, depUses(), state.posTrail);
+}
+
+/** The band function the heading's margin asks with — the ranking's own. */
+function _bandOf() {
+  const uses = depUses();
+  return (s) => stopBand(s, uses, state.posTrail);
 }
 
 /**
@@ -989,6 +1044,11 @@ export function _setStopsOpen(v) { _stopsShown = !!v; }
  * The count shows only while the list is closed. Open, the stops are on
  * screen, and a number counting what you are looking at is noise.
  */
+/** Seconds as something to read: «40 s», «3 min». */
+function _etaOrd(sec) {
+  return sec < 90 ? Math.round(sec / 10) * 10 + ' s' : Math.round(sec / 60) + ' min';
+}
+
 export function stopHeadHtml(stop, count, open, extra) {
   // TWO LINES, and that is the repair rather than a CSS patch on one.
   //
@@ -1023,6 +1083,28 @@ export function stopHeadHtml(stop, count, open, extra) {
   if (extra && extra.walkDist != null) bits.push(extra.walkDist + ' m å gå');
   else if (stop && stop.distM != null) bits.push(stop.distM + ' m');
   if (extra && extra.walkMins != null) bits.push(extra.walkMins + ' min gange');
+  // WHY THIS STOP AND NOT ANOTHER.
+  //
+  // From v1.141.0 the ranking can prefer a stop you are walking TOWARDS over
+  // one that is nearer — so the name over the screen can change for a reason
+  // the metres do not explain. A name that moves without saying why is the
+  // unrest the rettesnor names; and the value is computed either way, which
+  // is the other half of the same rule.
+  //
+  // Only «mot»: «du går fra den» about the stop being named would be an odd
+  // thing to say, and 'vet-ikke' is silence by design — the commonest state
+  // of all, and today's screen exactly.
+  // Its own row, not a fourth fact joined by a middot — the SAME lesson the
+  // position note carries twenty lines below, learned the same way: at 414 px
+  // «365 m å gå · 7 min gange · du går mot den · ca 60 s» broke across two
+  // lines, splitting «ca / 60 s». A middot joins peers, and this is not a
+  // peer of the metres: they describe the walk, this says why THIS stop is
+  // the one being named.
+  const wayNote = (extra && extra.way === 'mot')
+    ? '<span class="auto-way-note">' + esc(extra.wayEtaS != null && extra.wayEtaS < 600
+      ? 'du går mot den · ca ' + _etaOrd(extra.wayEtaS)
+      : 'du går mot den') + '</span>'
+    : '';
   // Only when it is stale — posAgeMins returns null while the fix is fresh, so
   // the threshold is not repeated here.
   // THE SENTENCE COMES FROM posState. «posisjon N min gammel» was written out
@@ -1066,7 +1148,7 @@ export function stopHeadHtml(stop, count, open, extra) {
   // split by one.
   const factsLine = bits.length
     ? '<span class="auto-stop-facts">' + esc(bits.join(' \u00b7 ')) + '</span>' : '';
-  const facts = factsLine + note;
+  const facts = factsLine + wayNote + note;
   const name = esc((stop && stop.name) || '');
   // The name in its own element so it can be given an ellipsis. It used to be
   // a bare text node beside the caret, which is also why a browser probe that
@@ -1111,7 +1193,7 @@ export function stopHeadHtml(stop, count, open, extra) {
  *
  * @returns {{stop: object|null, changed: boolean}} changed = a different stop
  */
-export function pickStop(list, current, pinned) {
+export function pickStop(list, current, pinned, bandOf) {
   const l = list || [];
   if (!current) return { stop: l.length ? l[0] : null, changed: !!l.length };
   if (pinned) {
@@ -1122,8 +1204,41 @@ export function pickStop(list, current, pinned) {
     return { stop: fresh || current, changed: false };
   }
   if (!l.length) return { stop: current, changed: false };
-  return { stop: l[0], changed: l[0].id !== current.id };
+  const top = l[0];
+  if (top.id === current.id) return { stop: top, changed: false };
+  // A MARGIN, SO THE HEADING DOES NOT FLUTTER.
+  //
+  // Direction entered the ranking in v1.141.0, and with it two stops you are
+  // walking BETWEEN can take turns winning: every time you pass the midpoint
+  // the closing rate changes sign and the name over the screen swaps. Nothing
+  // on this screen is allowed to flicker.
+  //
+  // So a challenger has to be clearly better than the incumbent, and only
+  // while the incumbent is still on offer at all — once it drops out of the
+  // list it is not a close race any more, it is gone. `pinned` still outranks
+  // everything, above; this is only about the choice the app makes itself.
+  const held = l.find(x => x.id === current.id);
+  // A BETTER BAND IS A REASON, and the margin does not apply to it: the
+  // challenger is not merely a few metres nearer, it is a different kind of
+  // candidate — the one you are walking towards rather than the one behind
+  // you. The margin exists for the case where metres are the only difference.
+  const better = bandOf ? bandOf(top) < bandOf(held || current) : false;
+  if (!better && held && held.distM != null && top.distM != null
+    && held.distM - top.distM < PICK_MARGIN_M) {
+    return { stop: held, changed: false };
+  }
+  return { stop: top, changed: true };
 }
+
+/**
+ * How much better a challenger must be before the heading changes, in metres.
+ *
+ * Wide enough to cover ordinary GPS wobble between two stops on the same
+ * street, narrow enough that walking decisively towards one still wins. Not
+ * measured against real traces — the sandbox has none — so this is the number
+ * most likely to need moving once someone walks with it.
+ */
+export const PICK_MARGIN_M = 40;
 
 /**
  * What to say about the position under the stop name, or nothing.
@@ -1144,7 +1259,7 @@ function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
   const list = _stops();
-  const picked = pickStop(list, _stop, _stopPinned);
+  const picked = pickStop(list, _stop, _stopPinned, _bandOf());
   _stop = picked.stop;
   // A different stop is a different board. Without this the departures below
   // would keep belonging to the stop the reader has walked away from — and
@@ -1164,6 +1279,9 @@ function _renderWhere() {
   const open = stopsOpen(others.length);
 
   const w = walkMinsTo(_stop);
+  const _way = (_stop && _stop.lat != null)
+    ? approach(state.posTrail, { lat: _stop.lat, lon: _stop.lon })
+    : { kind: 'vet-ikke', etaS: null };
   // posAgeMins already returns null while the fix is fresh (POS_STALE_MS), so
   // the threshold is not repeated here. One definition of "stale".
   el.innerHTML = '<div class="set-label">du er ved</div>'
@@ -1171,6 +1289,10 @@ function _renderWhere() {
       walkDist: w ? w.dist : null,
       walkMins: w ? w.mins : null,
       pos: _posState(),
+      // The same approach() the ranking used, asked about the stop it chose —
+      // so the sentence and the choice cannot say different things.
+      way: _way.kind,
+      wayEtaS: _way.etaS,
     })
     + '<div id="auto-alts"' + (open ? '' : ' hidden') + '>'
     // One band per mode. The count in the heading above is the number of

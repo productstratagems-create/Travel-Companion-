@@ -126,12 +126,14 @@ describe('hvert hentested bruker den ene innsamlingen', () => {
   // annet, treffer regel 4 aldri, og meldingen om ditt eget stopp blir
   // «andres». Mutanten `collectStopSituations(stop, null)` overlevde en
   // kildetest som bare så etter kallet.
-  it('stopptavla på tavla, med stoppet banneret spør med', () => {
+  // v1.149.0 tok tavlas banner bort, så det finnes ingen kontekst der å møte
+  // herkomsten lenger. Innsamlingen står — tavla henter fortsatt for
+  // underveis, avgangsdetaljer og auto-reise — og at den samler på stoppets
+  // eget navn er fortsatt det som gjør herkomsten brukbar der.
+  it('stopptavla på tavla samler fortsatt, med stoppets eget navn', () => {
     const b = read('src/views/board.js');
     expect(b).toMatch(/collectStopSituations\(stop, dir\.stopId\)/);
     expect(b).not.toMatch(/sitMap\.set\(s\.id, s\)/);
-    // det samme dir.stopId som konteksten er bygget av
-    expect(b).toMatch(/stopIds: \[dir\.stopId, dir\.toStopId\]/);
   });
 
   it('ankomsttavla for destinasjonen', () => {

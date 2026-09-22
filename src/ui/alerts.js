@@ -445,21 +445,8 @@ export function renderAlertsInto(el, situations, onChange, ctx) {
   el.style.display = 'block';
 }
 
-/**
- * The board's own banner.
- *
- * `#service-alerts` used to sit OUTSIDE every v-* div in index.html, and
- * show() only toggles those — so one global banner stood on every screen
- * whatever it was about. It lives inside the board now, and the other screens
- * have their own slots with their own context.
- *
- * @param {object} [ctx] what the board is showing: {lineIds, journeyIds, stopIds}
- */
-export function renderAlerts(ctx) {
-  renderAlertsInto(
-    document.getElementById('service-alerts'),
-    state.serviceAlerts,
-    () => renderAlerts(ctx),
-    ctx,
-  );
-}
+/* The board's own banner used to live here — `renderAlerts(ctx)`, wrapping
+   `#service-alerts`. It was removed in v1.149.0: «kutt all meldingsvisning
+   øverst på tavle». `renderAlertsInto` below still carries auto-reise, the
+   departure details and underveis, and tavla still collects the messages for
+   all three. Git history has the wrapper if it is ever wanted back. */

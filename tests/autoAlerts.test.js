@@ -10,7 +10,7 @@
  * grupperingen ikke ga mening: den var sann, og den var om ingenting.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { renderAlertsInto, promoteSevere, otherLabel, unhideAlert, moreLabel }
+import { renderAlertsInto, promoteSevere, otherLabel, moreLabel }
   from '../src/ui/alerts.js';
 import { splitSituations } from '../src/api/situations.js';
 import { rowMessages, dirAlertHtml, rowKey } from '../src/views/auto.js';
@@ -438,85 +438,60 @@ describe('den ene raden', () => {
   });
 });
 
-describe('utfoldingen rommer begge', () => {
+/**
+ * «Hva er disse pil-knappene? Gir ingen mening!»
+ *
+ * v1.144.0 tegnet de bortlagte meldingene inne i folden, dempet, hver med sin
+ * egen ↩, og hengte en «hent alle tilbake» under dem. Det var en ny slags
+ * knapp og en ny slags melding å lære, oppfunnet for å holde på én rad — mens
+ * regelen appen allerede hadde sier det rett ut: ✕ legger bort, «vis» henter
+ * tilbake.
+ *
+ * Raden er fortsatt én. Verbet er det gamle.
+ */
+describe('utfoldingen', () => {
   const åpne = (box) => { box.querySelector('.alerts-more').click(); };
 
-  it('viser den bortlagte, merket som bortlagt', () => {
-    const box = el();
-    storage.set(config.storage.alertHid, JSON.stringify({ s1: 2 }));
-    const draw = () => renderAlertsInto(box, [onStop('s1', JBT), onLine('m1', 'RUT:Line:9')],
-      draw, ctx([]));
-    draw(); åpne(box); draw();
-    const away = box.querySelector('.service-alert.sa-put-away');
-    expect(away).not.toBeNull();
-    expect(away.textContent).toContain('melding om ' + JBT);
-    // og den andre bunken står der også
-    expect(box.querySelectorAll('.service-alert').length).toBe(2);
-  });
-
-  // ↩, ikke ✕: den ene er lagt bort og skal kunne hentes, ikke legges bort
-  // en gang til.
-  it('tilbyr å hente den tilbake, ikke å legge den bort', () => {
-    const box = el();
-    storage.set(config.storage.alertHid, JSON.stringify({ s1: 2 }));
-    const draw = () => renderAlertsInto(box, [onStop('s1', JBT), onLine('m1', 'RUT:Line:9')],
-      draw, ctx([]));
-    draw(); åpne(box); draw();
-    const away = box.querySelector('.service-alert.sa-put-away');
-    expect(away.querySelector('.sa-back')).not.toBeNull();
-    expect(away.querySelector('.sa-hide')).toBeNull();
-  });
-
-  // DEN EGENTLIGE GEVINSTEN. «Vis» på den gamle raden kalte unhideAll() og
-  // hentet tilbake alt du hadde lagt bort, på hver skjerm. Nå én om gangen.
-  it('henter tilbake bare den ene', () => {
+  it('tegner ingen piler og ingen «hent alle tilbake»', () => {
     const box = el();
     storage.set(config.storage.alertHid, JSON.stringify({ s1: 2, s2: 2 }));
     const draw = () => renderAlertsInto(box,
       [onStop('s1', JBT), onStop('s2', JBT), onLine('m1', 'RUT:Line:9')], draw, ctx([]));
     draw(); åpne(box); draw();
-    box.querySelector('.service-alert.sa-put-away .sa-back').click();
-    expect(Object.keys(JSON.parse(storage.get(config.storage.alertHid)))).toEqual(['s2']);
+    expect(box.querySelector('.sa-back')).toBeNull();
+    expect(box.querySelector('.alerts-back-all')).toBeNull();
+    expect(box.querySelector('.sa-put-away')).toBeNull();
   });
 
-  // unhideAll kastes ikke — den får et sted å bo, for den som vil ha alt
-  // tilbake på én gang.
-  it('tilbyr å hente alle tilbake når det er flere', () => {
+  // «Vis» betyr det den alltid har betydd: hent fram det som holdes unna deg.
+  it('henter de bortlagte tilbake når du folder ut', () => {
     const box = el();
     storage.set(config.storage.alertHid, JSON.stringify({ s1: 2, s2: 2 }));
-    const draw = () => renderAlertsInto(box, [onStop('s1', JBT), onStop('s2', JBT)],
+    const draw = () => renderAlertsInto(box,
+      [onStop('s1', JBT), onStop('s2', JBT), onLine('m1', 'RUT:Line:9')], draw, ctx([]));
+    draw();
+    expect(box.querySelector('.alerts-more').textContent).toContain('3 meldinger til');
+    åpne(box); draw();
+    expect(storage.get(config.storage.alertHid)).toBeNull();
+    // og de står der som vanlige meldinger, med ✕
+    expect(box.querySelectorAll('.service-alert .sa-hide').length).toBe(3);
+  });
+
+  // Å folde IGJEN henter ingenting tilbake. Åpningen er verbet, ikke begge
+  // veier — og forskjellen er ikke teoretisk: legg bort en melding MENS
+  // folden er åpen, fold igjen, og en ubetinget unhideAll ville slettet
+  // bortleggingen du nettopp gjorde.
+  it('beholder en bortlegging du gjør mens folden er åpen', () => {
+    const box = el();
+    const draw = () => renderAlertsInto(box, [onStop('s1', JBT), onLine('m1', 'RUT:Line:9')],
       draw, ctx([]));
     draw(); åpne(box); draw();
-    expect(box.querySelector('.alerts-back-all')).not.toBeNull();
-    box.querySelector('.alerts-back-all').click();
-    expect(storage.get(config.storage.alertHid)).toBeNull();
-  });
-
-  it('tilbyr ikke «alle» når det bare er én', () => {
-    const box = el();
-    storage.set(config.storage.alertHid, JSON.stringify({ s1: 2 }));
-    const draw = () => renderAlertsInto(box, [onStop('s1', JBT)], draw, ctx([]));
-    draw(); åpne(box); draw();
-    expect(box.querySelector('.alerts-back-all')).toBeNull();
-  });
-});
-
-
-describe('unhideAlert', () => {
-  // Mutanten «fjern den første nøkkelen» overlevde første runde, fordi
-  // fiksturen tilfeldigvis hentet nettopp den første tilbake. Her er den
-  // ANDRE den som hentes.
-  it('henter tilbake den som ble bedt om, ikke den første', () => {
-    storage.set(config.storage.alertHid, JSON.stringify({ a: 2, b: 2, c: 2 }));
-    unhideAlert('b');
-    expect(Object.keys(JSON.parse(storage.get(config.storage.alertHid)))).toEqual(['a', 'c']);
-  });
-
-  it('rører ingenting når id-en ikke er lagt bort', () => {
-    storage.set(config.storage.alertHid, JSON.stringify({ a: 2 }));
-    unhideAlert('ukjent');
-    unhideAlert(null);
-    expect(Object.keys(JSON.parse(storage.get(config.storage.alertHid)))).toEqual(['a']);
+    // ✕ på meldingen om stoppet, mens folden står åpen
+    box.querySelector('.service-alert .sa-hide').click(); draw();
+    expect(Object.keys(JSON.parse(storage.get(config.storage.alertHid)))).toEqual(['s1']);
+    // fold igjen — bortleggingen skal stå
+    åpne(box); draw();
+    expect(Object.keys(JSON.parse(storage.get(config.storage.alertHid)))).toEqual(['s1']);
   });
 });
 

@@ -75,23 +75,6 @@ export function unhideAll() {
 }
 
 /**
- * Bring ONE back.
- *
- * The folded row used to offer only unhideAll — one tap that undid every
- * dismissal you had ever made, on every screen. It was the row's only verb,
- * and that is why the put-away count needed a row of its own: two verbs on one
- * tap is worse than two rows. One message at a time makes it one verb, and
- * the row can be one row.
- */
-export function unhideAlert(id) {
-  if (!id) return;
-  const map = loadHidden();
-  if (!(id in map)) return;
-  delete map[id];
-  saveHidden(map);
-}
-
-/**
  * Forget entries for messages that are no longer in the response at all,
  * so the key cannot grow without limit over months of use.
  */
@@ -241,23 +224,6 @@ export function moreRowHtml(nOther, nHidden, open, what) {
 }
 
 /**
- * A message the reader put away, shown inside the fold.
- *
- * The same .service-alert as any other, so a message looks like a message —
- * with ↩ where ✕ would be, because this one is already away and the only
- * thing left to do with it is bring it back.
- */
-export function putAwayHtml(s) {
-  const inner = alertHtml(s);
-  if (!inner) return '';
-  return inner
-    .replace('class="service-alert', 'class="service-alert sa-put-away')
-    .replace(/<button type="button" class="sa-hide"[^>]*>✕<\/button>/,
-      '<button type="button" class="sa-back" data-sid="' + esc(String((s && s.id) || '')) + '"'
-      + ' aria-label="Hent meldingen tilbake">↩</button>');
-}
-
-/**
  * A closure is never someone else's problem.
  *
  * `relevance` sorts by SUBJECT — whose line, whose stop. Nothing in it asks
@@ -333,24 +299,14 @@ export function bindAlertToggles(el, onChange) {
     // Expanded-ness cannot live in the markup: this container is rewritten
     // once a second, so a class on the button would be gone before the finger
     // lifted. Same reasoning as the folded stop list on auto-reise.
-    // Bring ONE back. Checked before the expander, like ✕ above: the reader
-    // who taps ↩ does not want the text unfolding on the way out.
-    const back = t.closest('.sa-back');
-    if (back && el.contains(back)) {
-      unhideAlert(back.dataset.sid);
-      if (el._saChange) el._saChange();
-      return;
-    }
-    const all = t.closest('.alerts-back-all');
-    if (all && el.contains(all)) {
-      unhideAll();
-      if (el._saChange) el._saChange();
-      return;
-    }
-
     const other = t.closest('.alerts-more');
     if (other && el.contains(other)) {
-      el._saOtherOpen = !(el._saOtherOpen == null ? _otherOpen : el._saOtherOpen);
+      const opening = !(el._saOtherOpen == null ? _otherOpen : el._saOtherOpen);
+      el._saOtherOpen = opening;
+      // OPENING BRINGS THE PUT-AWAY ONES BACK, which is what «vis» has always
+      // done on the row that counted them. They return as ordinary messages —
+      // ✕ is there to put them away again, and that is the whole vocabulary.
+      if (opening) unhideAll();
       if (el._saChange) el._saChange();
       return;
     }
@@ -435,22 +391,22 @@ export function renderAlertsInto(el, situations, onChange, ctx) {
   // the v1.105.0 fault in miniature.
   const isOpen = el._saOtherOpen == null ? _otherOpen : el._saOtherOpen;
   const items = shown.map(alertHtml).filter(Boolean);
-  // EVERYTHING THE FOLD HOLDS, both kinds. The messages the reader put away
-  // are in `active` still — only filtered out of `shown` — so naming them is
-  // a matter of looking, not of keeping a second list.
+  // EVERYTHING THE FOLD STANDS FOR, both kinds — counted in one row.
+  //
+  // ONE ROW, ONE VERB. «Vis» means what it has always meant on this banner:
+  // show me what is being kept from me. The messages the reader put away come
+  // back as ordinary messages, with ✕ to put away again.
+  //
+  // The first cut of this row drew them dimmed, each with its own ↩, and hung
+  // a «hent alle tilbake» under them. Reported: «Hva er disse pil-knappene?
+  // Gir ingen mening!» — and it was right. That was a new kind of button and a
+  // new kind of message to learn, invented to keep a single row, where the
+  // rule the app already had says it plainly: ✕ puts away, «vis» brings back.
   const hid = loadHidden();
-  const away = active.filter(s => s && s.id && s.id in hid
-    && !escalated.includes(s.id));
+  const awayCount = active.filter(s => s && s.id && s.id in hid).length;
   const otherItems = isOpen ? otherVis.shown.map(alertHtml).filter(Boolean) : [];
-  const awayItems = isOpen ? away.map(putAwayHtml).filter(Boolean) : [];
-  // ONE ROW. Two rows both meaning «there is more here» is the report, and
-  // the comment over otherLabel has said so since it was written.
-  const more = moreRowHtml(otherVis.shown.length, away.length, isOpen,
+  const more = moreRowHtml(otherVis.shown.length, awayCount, isOpen,
     ctx && ctx.otherWord);
-  // unhideAll is not thrown away — it lives here now, where it is about
-  // something visible, and only when there is more than one to bring back.
-  const backAll = (isOpen && away.length > 1)
-    ? '<button type="button" class="alerts-back-all">hent alle tilbake</button>' : '';
   if (!items.length && !more) { el.innerHTML = ''; el.style.display = 'none'; return; }
 
   // Expanded state lives on the DOM, and the banner is rebuilt every tick —
@@ -458,7 +414,7 @@ export function renderAlertsInto(el, situations, onChange, ctx) {
   // reading would snap shut a second later.
   const open = new Set([...el.querySelectorAll('.sa-open')]
     .map(b => b.parentElement && b.parentElement.dataset.sid));
-  el.innerHTML = items.join('') + more + otherItems.join('') + awayItems.join('') + backAll;
+  el.innerHTML = items.join('') + more + otherItems.join('');
   shown.concat(isOpen ? otherVis.shown : []).forEach(s => {
     if (!s.id || !open.has(s.id)) return;
     const box = el.querySelector('.service-alert[data-sid="' + (window.CSS && CSS.escape ? CSS.escape(s.id) : s.id) + '"]');

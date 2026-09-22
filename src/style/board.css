@@ -365,6 +365,14 @@
   border:1px dashed rgba(var(--text-muted-rgb),.3);border-radius:4px;
   cursor:pointer;-webkit-tap-highlight-color:transparent;
 }
+/* ÅPEN ER DEN EN OVERSKRIFT, ikke en foldet boks. Den stiplede rammen sier
+   «her ligger noe sammenfoldet»; når det er foldet ut er det en løgn, og
+   leseren leste raden som om det fortsatt var noe mer. Samme form som
+   .set-label ellers i appen: det er slik en seksjonsoverskrift ser ut her. */
+.alerts-more.alerts-more-open{
+  border:none;padding:.4rem .15rem .15rem;margin:.35rem 0 0;
+  color:var(--text-muted);
+}
 .ah-show{color:var(--accent);margin-left:.3rem}
 .sa-title{display:block;font-weight:600}
 /* Two lines until tapped: a full Entur description can run several

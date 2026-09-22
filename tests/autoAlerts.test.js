@@ -10,7 +10,7 @@
  * grupperingen ikke ga mening: den var sann, og den var om ingenting.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { renderAlertsInto, promoteSevere, otherLabel, moreLabel }
+import { renderAlertsInto, promoteSevere, otherLabel, moreLabel, moreRowHtml }
   from '../src/ui/alerts.js';
 import { splitSituations } from '../src/api/situations.js';
 import { rowMessages, dirAlertHtml, rowKey } from '../src/views/auto.js';
@@ -511,5 +511,70 @@ describe('moreLabel', () => {
   it('bruker emnet bare når ingenting er lagt bort', () => {
     expect(moreLabel(2, 0, w)).toBe('2 meldinger om andre linjer');
     expect(moreLabel(2, 1, w)).toBe('3 meldinger til');
+  });
+});
+
+/**
+ * Raden må si noe annet når den er åpen.
+ *
+ * Rapportert med skjermbilde fra tavla:
+ *
+ *   Det kjøres sjeldnere avganger i høstferien (uke 40)…    ✕
+ *   1 MELDING OM EN ANNEN LINJE   SKJUL
+ *   Linje 3 (Buss for T-bane 3B): Mellom Skullerud og…      ✕
+ *
+ * «Det er to meldinger, begge vises, men likevel vises også folden. Og den
+ * har en uforståelig tekst.»
+ *
+ * Begge deler er den samme feilen: teksten er skrevet for LUKKET tilstand —
+ * «det finnes 1 til, skjult» — og brukes uendret når den er åpen. Da står det
+ * en telling av noe leseren ser rett under den, og raden leses som om det
+ * fortsatt er noe mer.
+ *
+ * Åpen er raden ikke et løfte om noe skjult. Den er OVERSKRIFTEN over det den
+ * nettopp åpnet — alt under den er den andre bunken — og en overskrift teller
+ * ikke, den navngir.
+ */
+describe('folderaden i åpen tilstand', () => {
+  const box = (html) => { const d = el(); d.innerHTML = html; return d; };
+  const w = { one: 'melding om en annen linje', many: 'meldinger om andre linjer' };
+
+  // LUKKET: en telling, for da er det et løfte om noe du ikke ser.
+  it('teller når den er lukket', () => {
+    const b = box(moreRowHtml(1, 0, false, w));
+    expect(b.textContent).toContain('1 melding om en annen linje');
+    expect(b.textContent).toContain('vis');
+  });
+
+  // ÅPEN: ingen telling. Det som telles står rett under.
+  it('teller ikke når den er åpen', () => {
+    const b = box(moreRowHtml(1, 0, true, w));
+    expect(b.textContent).not.toMatch(/\d/);
+    expect(b.textContent).toContain('meldinger om andre linjer');
+    expect(b.textContent).toContain('skjul');
+  });
+
+  it('bruker det nøytrale emnet uten emneord', () => {
+    expect(box(moreRowHtml(2, 0, true)).textContent).toContain('andre meldinger');
+    expect(box(moreRowHtml(2, 0, true)).textContent).not.toMatch(/\d/);
+  });
+
+  // Og den ser ut som en overskrift når den er åpen, ikke som en foldet boks.
+  it('bærer en egen klasse når den er åpen, så den kan se ut som en overskrift', () => {
+    expect(moreRowHtml(1, 0, true, w)).toContain('alerts-more-open');
+    expect(moreRowHtml(1, 0, false, w)).not.toContain('alerts-more-open');
+  });
+
+  // ÅPEN OG TOM ER INGEN OVERSKRIFT. Folder du ut og legger bort den siste
+  // meldingen med ✕, er det ingenting igjen å være overskrift over — og en
+  // overskrift alene ville lovet noe under seg.
+  it('forsvinner når det ikke er noe å folde, også når den er åpen', () => {
+    expect(moreRowHtml(0, 0, true, w)).toBe('');
+    expect(moreRowHtml(0, 0, false, w)).toBe('');
+  });
+
+  it('sier fortsatt om den er åpen for en skjermleser', () => {
+    expect(moreRowHtml(1, 0, true, w)).toContain('aria-expanded="true"');
+    expect(moreRowHtml(1, 0, false, w)).toContain('aria-expanded="false"');
   });
 });

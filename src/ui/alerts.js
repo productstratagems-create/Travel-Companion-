@@ -216,10 +216,30 @@ export function moreLabel(nOther, nHidden, what) {
   return n === 1 ? '1 melding til' : n + ' meldinger til';
 }
 
+/**
+ * OPEN, THE ROW IS NOT A PROMISE. It is the heading over what it just opened.
+ *
+ * Reported with a screenshot: two messages, both on screen, and between them
+ * «1 MELDING OM EN ANNEN LINJE · SKJUL». «Begge vises, men likevel vises også
+ * folden. Og den har en uforståelig tekst.»
+ *
+ * Both halves of that are one fault. The text was written for the CLOSED
+ * state — «there is one more, out of sight» — and used unchanged when open,
+ * where it counts something the reader can see directly underneath. A
+ * heading does not count; it names.
+ */
+export function moreHeading(what) {
+  return (what && what.many) || OTHER_WORD.many;
+}
+
 export function moreRowHtml(nOther, nHidden, open, what) {
-  const label = moreLabel(nOther, nHidden, what);
-  if (!label) return '';
-  return '<button type="button" class="alerts-more" aria-expanded="' + (open ? 'true' : 'false') + '">'
+  const label = open ? moreHeading(what) : moreLabel(nOther, nHidden, what);
+  if (!moreLabel(nOther, nHidden, what)) return '';
+  // Its own class when open, so it can look like a section label rather than
+  // a folded box — the same idiom «hvor skal du?» and «ofte brukt» use, which
+  // is what a heading over a section looks like everywhere else in this app.
+  return '<button type="button" class="alerts-more' + (open ? ' alerts-more-open' : '') + '"'
+    + ' aria-expanded="' + (open ? 'true' : 'false') + '">'
     + esc(label) + ' <span class="ah-show">' + (open ? 'skjul' : 'vis') + '</span></button>';
 }
 

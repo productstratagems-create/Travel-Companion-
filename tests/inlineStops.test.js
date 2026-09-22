@@ -11,7 +11,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
-import { stopShortcuts, STOP_SHORTCUTS, INLINE_STOPS } from '../src/views/auto.js';
+import { stopShortcuts, stopsAhead, arriveText, STOP_SHORTCUTS, INLINE_STOPS } from '../src/views/auto.js';
 
 const src = () => fs.readFileSync('src/views/auto.js', 'utf8');
 const css = () => fs.readFileSync('src/style/settings.css', 'utf8');
@@ -160,5 +160,63 @@ describe('trykkflaten', () => {
   // shrink back under the floor.
   it('setter ikke sin egen padding', () => {
     expect(rule()).not.toMatch(/padding/);
+  });
+});
+
+/**
+ * «Hva betyr tidsangivelsen på det innrykkede stoppet?»
+ *
+ * Raden talte ned til AVGANGEN («12 min»), stoppet under den til ANKOMSTEN
+ * («26 min»). To ulike hendelser i samme form, rett over hverandre, uten at
+ * noe sa hvilken som var hvilken. Klokkeslettet er en annen slags ting å se
+ * på enn en nedtelling, og ett ord bærer resten.
+ */
+describe('hva tallet betyr', () => {
+  const at = new Date(2026, 0, 5, 7, 42).getTime();
+
+  it('sier ankomsten som klokkeslett, med ett ord foran', () => {
+    expect(arriveText({ name: 'Oslo S', at })).toBe('framme 07:42');
+  });
+
+  it('sier ingenting når ankomsten ikke er kjent', () => {
+    expect(arriveText({ name: 'Oslo S', at: null })).toBe('');
+    expect(arriveText(null)).toBe('');
+  });
+
+  // Nedtelling og klokke må komme fra samme tidspunkt, ellers er de to
+  // uavhengige påstander om samme ankomst.
+  it('henter klokka og nedtellingen fra samme tidspunkt', () => {
+    const now = at - 26 * 60000;
+    const call = { serviceJourney: { estimatedCalls: [
+      { quay: { stopPlace: { name: 'Hauketo', id: 'A' } }, expectedArrivalTime: new Date(now).toISOString() },
+      { quay: { stopPlace: { name: 'Oslo S', id: 'B' } }, expectedArrivalTime: new Date(at).toISOString() },
+    ] } };
+    const [s] = stopsAhead(call, 'Hauketo', now);
+    expect(s.at).toBe(at);
+    expect(s.mins).toBe(26);
+    expect(arriveText(s)).toBe('framme 07:42');
+  });
+
+  // Den innrykkede raden, nedtrekkslista og kartets tooltip sier det samme.
+  // Tre håndskrevne kopier er nettopp feilformen denne kodebasen gjentar.
+  it('sier det på samme måte alle tre stedene', () => {
+    const s = src();
+    expect((s.match(/arriveText\(/g) || []).length).toBeGreaterThanOrEqual(4);
+    expect(s).toMatch(/class="ais-mins">' \+ arriveText\(st\)/);
+    expect(s).toMatch(/class="nearby-dist">' \+ arriveText\(s\)/);
+    expect(s).toMatch(/bindTooltip\(st\.name \+ \(arriveText\(st\)/);
+    // og ingen som fortsatt skriver ut minuttene for et stopp framover
+    expect(s).not.toMatch(/st\.mins \+ ' min'/);
+    expect(s).not.toMatch(/s\.mins \+ ' min'/);
+  });
+
+  // Den som ikke ser høyrekolonnen hører ellers bare et stoppnavn.
+  it('tar klokka med i den opplesbare merkelappen', () => {
+    const s = src();
+    // Bare selve attributt-uttrykket: et vindu på 260 tegn nådde ned i
+    // .ais-mins-spannet under, og besto da merkelappen var tom.
+    const from = s.indexOf("aria-label=\"' + esc('mot ' + d.frontText");
+    const label = s.slice(from, s.indexOf("'\">'", from));
+    expect(label).toMatch(/arriveText\(st\)/);
   });
 });

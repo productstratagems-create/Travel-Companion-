@@ -18,7 +18,7 @@
  * exactly as well. That is the difference between an engine that locks you
  * out and one that helps.
  */
-import { esc, clkDay } from '../ui/fmt.js';
+import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import config from '../config.js';
 import { state } from '../state.js';
@@ -430,10 +430,37 @@ export function stopsAhead(call, fromName, now) {
       id: (sp && sp.id) || null,
       lat: sp && sp.latitude != null ? sp.latitude : (c.quay && c.quay.latitude),
       lon: sp && sp.longitude != null ? sp.longitude : (c.quay && c.quay.longitude),
+      // BOTH DERIVED FROM ONE TIMESTAMP. `at` is what the screen shows and
+      // `mins` is what the map ranks by; two independently computed copies
+      // of the same arrival is exactly how they would drift apart.
+      at: ms,
       mins: ms ? Math.max(0, Math.round((ms - t0) / MIN)) : null,
     });
   });
   return out;
+}
+
+/**
+ * When you are there — said as a clock, once, for every screen that says it.
+ *
+ * Reported as a question: «Hva betyr tidsangivelsen på det innrykkede
+ * stoppet?» The row above it counted down to the DEPARTURE («12 min») and the
+ * stop under it counted down to the ARRIVAL («26 min»). Two different events
+ * in the same shape, one above the other, with nothing saying which was which
+ * — and the reader is left to guess whether 26 is a later train, a journey
+ * time, or a clock.
+ *
+ * A clock time fixes it by being a different kind of thing to look at: the
+ * countdown says when to move, the clock says when you are there. The word
+ * carries the rest, and there is only one word — anything longer would buy
+ * the clarity back in clutter, on a row that is a detail of the row above it.
+ *
+ * One function, three callers (the indented stop, the drill-down list, the
+ * map tooltip), because the same sentence written down three times is the
+ * fault this codebase keeps finding.
+ */
+export function arriveText(st) {
+  return (st && st.at != null) ? 'framme ' + clk(st.at) : '';
 }
 
 /**
@@ -1305,7 +1332,7 @@ function _renderMap() {
         icon: makeStopIcon(normMode(mode), 0, { primary: last || picked }),
         keyboard: false, zIndexOffset: picked ? 1000 : (last ? 500 : 250),
       })
-        .bindTooltip(st.name + (st.mins != null ? ' · ' + st.mins + ' min' : ''),
+        .bindTooltip(st.name + (arriveText(st) ? ' · ' + arriveText(st) : ''),
           { className: 'map-label', direction: 'top', offset: [0, -8],
             permanent: picked })
         .on('click', () => _pickLineStop(i))
@@ -1976,9 +2003,12 @@ function _renderBody() {
           // really being offered. Measured before: 54 px against 29.
           return '<button class="nearby-btn auto-inline-stop" type="button"'
             + ' data-dir="' + i + '" data-stop="' + si + '"'
-            + ' aria-label="' + esc('mot ' + d.frontText + ', gå av ' + st.name) + '">'
+            // The clock belongs in the spoken label too, or the one reader
+            // who cannot see the right-hand column hears only a stop name.
+            + ' aria-label="' + esc('mot ' + d.frontText + ', gå av ' + st.name
+              + (arriveText(st) ? ', ' + arriveText(st) : '')) + '">'
             + '<span class="ais-name">' + esc(st.name) + '</span>'
-            + (st.mins != null ? '<span class="ais-mins">' + st.mins + ' min</span>' : '')
+            + (arriveText(st) ? '<span class="ais-mins">' + arriveText(st) + '</span>' : '')
             + '</button>';
         }).join('');
     }).join('')
@@ -2127,7 +2157,7 @@ function _renderStops(body) {
     + (extra || '') + (_linePicked === i ? ' picked' : '')
     + '" type="button" data-i="' + i + '">'
     + '<span class="nearby-name">' + esc(s.name) + '</span>'
-    + '<span class="nearby-dist">' + (s.mins != null ? s.mins + ' min' : '') + '</span>'
+    + '<span class="nearby-dist">' + arriveText(s) + '</span>'
     + '</button>';
 
   // Nothing at all until the reader has travelled — which is the whole of

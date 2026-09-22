@@ -1,5 +1,13 @@
 /**
- * Dine egne stopp, innrykket under linja.
+ * Dine egne stopp — nå som en blokk øverst, ikke innrykket per rad.
+ *
+ * v1.143.0 snudde aksen: fire rader som alle nådde Jernbanetorget ble til én
+ * overskrift med ankomsten på. Innrykkene er ikke slettet, de er foldet opp i
+ * den — `stopShortcuts` bærer fortsatt nedtrekkslista, og `stopsAhead`
+ * sammen med `catchable` er kjernen i `destinations`.
+ *
+ * Historien under står igjen fordi den forklarer hvorfor stoppene ble hentet
+ * hit i det hele tatt.
  *
  * «Hvor skal du?» er elleve rader på Mortensrud. Trykker du på én, får du
  * stopplista for den linja — med «ofte brukt» øverst. Svaret du som regel
@@ -52,80 +60,59 @@ describe('utvelgelsen', () => {
   });
 });
 
-describe('hvordan skjermen bruker den', () => {
-  // v1.105.0 exists because something was global. A shortcut under «mot
-  // Kolsås» that belongs to «mot Ski» is the same fault, and taking the
-  // stops from the row's own list is what makes it impossible.
-  it('tar stoppene fra radens egen liste', () => {
+describe('hvordan skjermen bruker dem nå', () => {
+  // v1.105.0 finnes fordi noe var globalt. Blokka arver garantien: hvert
+  // alternativ bærer sin EGEN rad, og ankomsten er den radens egen.
+  it('tar alternativene fra radenes egne stopp', () => {
     const s = src();
-    const loop = s.slice(s.indexOf('const side = new Map();'), s.indexOf('// PARTITIONED'));
-    // v1.142.0: avgangen er radens EGEN `catchable`, ikke lenger den
-    // tidligste uansett — men den kommer fortsatt fra denne raden, som er
-    // det relevansgarantien handler om. `d.call` står igjen som reserve for
-    // en rad uten noe å rekke, så stoppene tegnes selv da.
-    expect(loop).toMatch(/const ride = catchable\(d, walkMins, now\)\[0\]/);
-    expect(loop).toMatch(/stopsAhead\(\(ride && ride\.call\) \|\| d\.call/);
-    expect(loop).toMatch(/ahead\.set\(i, stops\)/);
-    expect(loop).toMatch(/pick\.set\(i, stopShortcuts\(stops, freq, INLINE_STOPS\)\)/);
+    expect(s).toMatch(/const dests = destinations\(live, freq, walkMins, now, _stop && _stop\.name\)/);
+    expect(s).toMatch(/prev\.options\.push\(\{ i, d, call: ride\.call/);
   });
 
-  // AND THE RENDER MUST READ THE SAME ROW. The case above only proved the
-  // maps were FILLED per row; a mutant that drew every row's shortcuts from
-  // ahead.get(0) — every line offering the first line's stops — passed it.
-  // Filling per row and reading per row are two facts, and only the second
-  // one is the relevance guarantee.
-  it('og tegner dem fra samme rad', () => {
-    const s = src();
-    const render = s.slice(s.indexOf("+ (pick.get(i) || []).map"), s.indexOf("}).join('');"));
-    expect(render).toMatch(/ahead\.get\(i\)/);
-    expect(render).not.toMatch(/ahead\.get\((?!i\))/);
-    expect(s).toMatch(/\(pick\.get\(i\) \|\| \[\]\)\.map/);
-  });
-
-  // The screen redraws every second. Eleven rows each reading and
-  // re-indexing the history would be eleven times the work for one answer.
-  it('leser historikken én gang per tegning, ikke per rad', () => {
+  // The screen redraws every second. Reading and re-indexing the history per
+  // row would be eleven times the work for one answer.
+  it('leser historikken én gang per tegning', () => {
     const s = src();
     const body = s.slice(s.indexOf('const here = (_stop && _stop.lat'), s.indexOf('// PARTITIONED'));
     expect(body).toMatch(/const freq = loadFreq\('arr'\);/);
-    const loop = s.slice(s.indexOf('for (const { d, i } of live) {'), s.indexOf('// PARTITIONED'));
+    const loop = s.slice(s.indexOf('for (const { d, i } of live) {'), s.indexOf('// WHERE YOU ARE GOING'));
     expect(loop).not.toMatch(/loadFreq/);
   });
 
-  // stopsAhead was already computed here and discarded — reusing it is what
-  // makes this release nearly free.
-  it('gjenbruker stoppene grupperingen alt regnet ut', () => {
-    const loop = src().slice(src().indexOf('const side = new Map();'), src().indexOf('// PARTITIONED'));
+  // stopsAhead ble alt regnet ut her for grupperingen; gjenbruken er det som
+  // gjør dette nesten gratis.
+  it('regner stoppene per rad bare én gang', () => {
+    const loop = src().slice(src().indexOf('const side = new Map();'),
+      src().indexOf('// WHERE YOU ARE GOING'));
     expect((loop.match(/stopsAhead\(/g) || []).length).toBe(1);
   });
 
-  // The same door the drill-down's stop goes through, so the two cannot
-  // drift apart.
+  // Én vei videre for alle tre inngangene: blokka, nedtrekket og «ofte brukt».
   it('bruker samme vei videre som stoppet i nedtrekket', () => {
     const s = src();
-    const handler = s.slice(s.indexOf("body.querySelectorAll('.auto-inline-stop')"));
-    expect(handler.slice(0, 600)).toMatch(/autoRoute\(_stop, st\)/);
-    expect(handler.slice(0, 600)).toMatch(/_useRouteDir/);
-    // And it must not also open the direction it sits under.
-    expect(handler.slice(0, 600)).toMatch(/stopPropagation/);
+    const handler = s.slice(s.indexOf("body.querySelectorAll('.auto-dest')"));
+    expect(handler.slice(0, 500)).toMatch(/autoRoute\(_stop, \{ name: x\.name, id: x\.id \}\)/);
+    expect(handler.slice(0, 500)).toMatch(/_useRouteDir/);
   });
 
-  it('tegner ingen knapp for et stopp som ikke finnes', () => {
-    expect(src()).toMatch(/if \(!st\) return '';/);
+  // Uten historikk finnes ingen destinasjon, og da tegnes ingen overskrift
+  // heller — skjermen er nøyaktig dagens.
+  it('tegner ingen blokk uten destinasjoner', () => {
+    expect(src()).toMatch(/dests\.length\s*\n?\s*\? '<div class="set-label">dit du skal<\/div>'/);
   });
 });
 
 /**
  * «Det innrykkede stoppet må være like klikkbart som linjen det tilhører.»
  *
- * Målt før rettelsen: rad 54x382 px, stopp 29x356 px — under halve radens
- * høyde og under de 44 px en trykkflate skal ha. Etter: 44x356, og 0 px
- * utenfor radens høyrekant.
+ * Kravet flytter med til blokka: målt på innrykket var det 29 px mot radens
+ * 54, altså under de 44 px en trykkflate skal ha. Overskriften i blokka er
+ * det viktigste trykket på hele skjermen og må ikke være dårligere.
  */
 describe('trykkflaten', () => {
   const rule = () => {
     const c = css();
-    const i = c.indexOf('#v-auto .auto-inline-stop{');
+    const i = c.indexOf('#v-auto .auto-dest{');
     expect(i).toBeGreaterThan(-1);
     // Kommentarene her nevner både «padding» og tallet de forklarer; det er
     // erklæringene som gjelder.
@@ -133,38 +120,27 @@ describe('trykkflaten', () => {
   };
 
   // The geometry is the row's own: same padding, same font, same box.
-  // Anything the stop set for itself is a second copy that can drift.
-  it('bærer .nearby-btn, som raden selv', () => {
-    expect(src()).toMatch(/class="nearby-btn auto-inline-stop"/);
+  // Anything the block sets for itself is a second copy that can drift.
+  it('bærer .nearby-btn, som radene under', () => {
+    expect(src()).toMatch(/class="nearby-btn auto-dest"/);
   });
 
   it('har et gulv på 44 px', () => {
     expect(rule()).toMatch(/min-height:\s*44px/);
   });
 
-  // `#v-auto .nearby-btn{width:100%}` is an id selector. A bare class loses
-  // to it wherever it sits in the file, and it lost silently: the button hung
-  // 26 px past the row's right edge.
+  // `#v-auto .nearby-btn{width:100%}` er en id-selektor. En bar klasse taper
+  // for den uansett hvor i fila den står, og den tapte stille: knappen hang
+  // 26 px utenfor radens høyrekant.
   it('er scopet til #v-auto, som regelen den må slå', () => {
-    expect(css()).toMatch(/#v-auto \.auto-inline-stop\{/);
-    expect(css()).not.toMatch(/(^|[^ ])\n\.auto-inline-stop\{/);
+    expect(css()).toMatch(/#v-auto \.auto-dest\{/);
+    expect(css()).not.toMatch(/(^|[^ ])\n\.auto-dest\{/);
   });
 
-  // Innrykk og bredde er ett tall, ikke to som må være enige.
-  it('trekker innrykket fra bredden, fra ett navn', () => {
-    const r = rule();
-    expect(r).toMatch(/--ais-indent:\s*[\d.]+rem/);
-    expect(r).toMatch(/width:calc\(100% - var\(--ais-indent\)\)/);
-    expect(r).toMatch(/margin-left:var\(--ais-indent\)/);
-    // Og ingen håndskrevet kopi av tallet ved siden av.
-    const indent = r.match(/--ais-indent:\s*([\d.]+rem)/)[1];
-    expect(r.split(indent).length - 1).toBe(1);
-  });
-
-  // .nearby-btn brings its own padding; the stop must not undo it and
-  // shrink back under the floor.
-  it('setter ikke sin egen padding', () => {
-    expect(rule()).not.toMatch(/padding/);
+  // Overskriften har to linjer og må få lov til å være høyere enn en rad —
+  // men aldri lavere, som innrykket var.
+  it('setter ikke et tak som kan ta den under gulvet', () => {
+    expect(rule()).not.toMatch(/max-height/);
   });
 });
 
@@ -202,28 +178,26 @@ describe('hva tallet betyr', () => {
     expect(arriveText(s)).toBe('framme 07:42');
   });
 
-  // Den innrykkede raden, nedtrekkslista og kartets tooltip sier det samme.
-  // Tre håndskrevne kopier er nettopp feilformen denne kodebasen gjentar.
-  it('sier det på samme måte alle tre stedene', () => {
+  // Nedtrekkslista og kartets tooltip sier det samme. Det innrykkede stoppet
+  // var det tredje stedet; blokka erstattet det, og den sier ankomsten på sin
+  // egen måte — «framme 20:13» i sitt eget spann. Fortsatt ett uttrykk per
+  // sted, ingen håndskrevne kopier.
+  it('sier det på samme måte begge stedene som bruker arriveText', () => {
     const s = src();
-    expect((s.match(/arriveText\(/g) || []).length).toBeGreaterThanOrEqual(4);
-    expect(s).toMatch(/class="ais-mins">' \+ arriveText\(st\)/);
-    // v1.142.0: klokka tier når ingen avgang er innenfor rekkevidde, men det
-    // er fortsatt arriveText som sier den.
     expect(s).toMatch(/class="nearby-dist">' \+ \(ride \? arriveText\(s\) : ''\)/);
     expect(s).toMatch(/bindTooltip\(st\.name \+ \(arriveText\(st\)/);
-    // og ingen som fortsatt skriver ut minuttene for et stopp framover
     expect(s).not.toMatch(/st\.mins \+ ' min'/);
     expect(s).not.toMatch(/s\.mins \+ ' min'/);
   });
 
-  // Den som ikke ser høyrekolonnen hører ellers bare et stoppnavn.
-  it('tar klokka med i den opplesbare merkelappen', () => {
+  // Og blokka bruker clk() på det samme feltet, ikke en egen formatering.
+  it('lar blokka lese ankomsten fra det samme feltet', () => {
+    expect(src()).toMatch(/'framme ' \+ clk\(o\.at\)/);
+  });
+
+  // Den som ikke ser skjermen skal høre hele svaret, ikke bare et stedsnavn.
+  it('tar hele svaret med i den opplesbare merkelappen', () => {
     const s = src();
-    // Bare selve attributt-uttrykket: et vindu på 260 tegn nådde ned i
-    // .ais-mins-spannet under, og besto da merkelappen var tom.
-    const from = s.indexOf("aria-label=\"' + esc('mot ' + d.frontText");
-    const label = s.slice(from, s.indexOf("'\">'", from));
-    expect(label).toMatch(/arriveText\(st\)/);
+    expect(s).toMatch(/'reis til ' \+ x\.name \+ ', framme ' \+ clk\(o\.at\) \+ ', ' \+ how/);
   });
 });

@@ -678,36 +678,45 @@
 }
 .auto-side:first-of-type{margin-top:.2rem}
 
-/* Dine egne stopp på linja over (v1.137.0).
-   BÆRER .nearby-btn, som raden selv — bare det som SKILLER dem står her.
-   Geometrien er dermed radens egen, og de to kan ikke bli ulike å treffe:
-   det første utkastet hadde sin egen padding og ble 29 px høyt mot radens
-   54, altså under minste trykkflate og vanskeligere å treffe enn linja det
-   tilbyr seg under. Innrykket og den roligere fargen gjør forskjellen, ikke
-   størrelsen. */
-/* SCOPED TO #v-auto, like the rule it has to beat.
-   `#v-auto .nearby-btn { width: 100% }` (line 379 above) is an id selector,
-   so a bare `.auto-inline-stop{width:auto}` loses to it however late it
-   comes in the file — and it lost silently: the stop simply hung 26 px past
-   the right edge of the line above it, measured, not seen. */
-#v-auto .auto-inline-stop{
-  /* The indent, taken out of the width so the right edge still lines up
-     with the row above. `auto` was tried and shrank the button to its text
-     — the parent does not stretch its children, which is exactly why the
-     `width:100%` rule above exists at all.
-     ONE name, twice derived: the inset and the width must agree or the
-     button hangs past the row, and two hand-written 1.6rem would be the
-     usual way that goes wrong. */
-  --ais-indent:1.6rem;
-  width:calc(100% - var(--ais-indent));
-  margin-left:var(--ais-indent);
-  /* A floor on the target. 44 px is the size this app already uses for a
-     thing meant to be tapped — .nav-plan-btn and .board-more-btn both. The
-     row above is 54 only because its right column is two lines; the padding
-     is now the row's own, so what remains is the floor. */
+/* DIT DU SKAL, over linjene som går dit (v1.143.0).
+   Arver .auto-inline-stop-reglene den erstatter: den knappen bar .nearby-btn
+   så geometrien var radens egen, og hadde et gulv på 44 px fordi den målte
+   29 mot radens 54 — «det innrykkede stoppet må være like klikkbart som
+   linjen det tilhører». Dette er det viktigste trykket på skjermen nå, så
+   kravet flytter med.
+
+   SCOPET TIL #v-auto, som regelen den må slå: `#v-auto .nearby-btn{width:100%}`
+   er en id-selektor, og en bar klasse taper for den uansett hvor sent den
+   kommer i fila. Den tapte stille sist — knappen hang 26 px utenfor
+   høyrekanten, målt, ikke sett. */
+#v-auto .auto-dest{
   min-height:44px;
-  background:none;
-  border-color:rgba(var(--border-rgb),.08);
+  display:flex; flex-direction:column; align-items:stretch; gap:.15rem;
+  text-align:left;
+  background:rgba(var(--accent-rgb),.06);
+  border-color:rgba(var(--accent-rgb),.25);
 }
-.ais-name{flex:1;color:var(--text-muted-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ais-mins{color:var(--text-soft);flex-shrink:0;margin-left:.5rem}
+/* To linjer, og de sier forskjellige ting: den øverste er SVARET — hvor og
+   når — og den nederste er det du trenger for å handle på det. */
+#v-auto .auto-dest-top{
+  display:flex; align-items:baseline; justify-content:space-between; gap:.5rem;
+}
+#v-auto .auto-dest-name{
+  font-size:1rem; font-weight:600; color:var(--text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#v-auto .auto-dest-at{
+  flex-shrink:0; color:var(--accent); font-weight:600;
+  font-family:'JetBrains Mono', ui-monospace, monospace;
+}
+/* IKKE space-between. Første utkast hadde tellingen som et høyrestilt
+   flex-barn, og på 414 px brøt «linje 3 mot Kolsås · spor 1 · går 07:59» til
+   to linjer mens «+2 andre veier» ble stående oppe til høyre — så man leste
+   «… spor 1 ·», hoppet til høyre, og tilbake ned til «går 07:59».
+   Leserekkefølgen, ikke bare plassen. Vanlig tekst som brytes der den må. */
+#v-auto .auto-dest-how{
+  font-size:.8125rem; color:var(--text-soft); line-height:1.4;
+}
+/* Tellingen, ikke lista: fire alternativer under overskriften ville vært
+   nettopp lista denne blokka finnes for å erstatte. */
+#v-auto .auto-dest-more{ color:var(--text-muted); }

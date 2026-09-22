@@ -336,6 +336,18 @@
    390px, «posisjonen er / unøyaktig (±56 m)». Its own row cannot split another
    fact and cannot be split by one.
    It carries its own size now that it is no longer inside .auto-stop-facts. */
+/* WHY THIS STOP AND NOT ANOTHER, on a row of its own.
+   Same shape and same reason as .auto-pos-note below: at 414 px this as a
+   fourth middot-joined fact wrapped, and split «ca / 60 s» across two lines.
+   Quieter than the metres — it explains the name, it is not a fact about the
+   walk. */
+#v-auto .auto-way-note {
+  display: block;
+  font-size: .8125rem;
+  color: var(--text-soft);
+  letter-spacing: .01em;
+}
+
 #v-auto .auto-pos-note {
   display: block;
   font-size: .75rem;

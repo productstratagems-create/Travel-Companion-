@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const state = { walkOvr: null, statLL: {}, homeLL: null, dIdx: 0,
                 nearestStation: null, nearestStations: [], gpsError: null, posAt: null,
-                posAsked: false, posAcc: null, posRejAt: null };
+                posAsked: false, posAcc: null, posRejAt: null,
+                posTrail: [], posJumpAt: null, posJumpM: null };
 vi.mock('../src/state.js', () => ({ state, intervals: {} }));
 vi.mock('../src/config.js', () => ({
   default: { defaultWalkMinutes: 8, dirs: [{ key: 'out' }], api: { geocoderReverse: 'https://x/reverse' } },
@@ -35,6 +36,7 @@ beforeEach(async () => {
   geocode.mockClear(); setItem.mockClear();
   state.homeLL = null; state.nearestStation = null; state.posAt = null;
   state.posAsked = false; state.posAcc = null; state.posRejAt = null; state.gpsError = null;
+  state.posTrail = []; state.posJumpAt = null; state.posJumpM = null;
   cleared = [];
   vi.stubGlobal('navigator', {
     geolocation: {
@@ -329,5 +331,100 @@ describe('punktet oppslaget gjøres fra', () => {
     }
     await settle();
     expect(geocode.mock.calls.length).toBe(etter);
+  });
+});
+
+/**
+ * Vetoet: en fysisk umulig måling er ikke en posisjon.
+ *
+ * Før serien fantes, hadde appen ingenting å sammenlikne den ene målingen
+ * med. Nå har den det — men ett veto må ikke låse appen ute: kommer du ut av
+ * en tunnel, eller våkner telefonen etter en togtur, er hoppet ekte. Serien
+ * avgjør, ikke punktet: én uteligger er støy, tre på rad er en flytting.
+ */
+describe('en måling som krever en umulig fart', () => {
+  const HAUKETO = [59.8300, 10.8050];
+  const km = (n) => [59.8300 + n * 1000 * M, 10.8050];
+
+  it('holdes tilbake, og flytter ikke prikken', async () => {
+    locateUser(() => {}, () => {});
+    cb(fix(...HAUKETO, 8, 1_000));
+    await settle();
+    const før = { ...state.homeLL };
+
+    // Ti kilometer på to sekunder — 5000 m/s.
+    cb(fix(...km(10), 8, 3_000));
+    await settle();
+    expect(state.homeLL).toEqual(før);
+    expect(state.posAt).toBe(1_000);
+  });
+
+  // Stillhet leses som «alt er i orden». En stille tilbakeholdt måling er
+  // nøyaktig den feilen 'unoyaktig' ble lagt til for å rette i v1.108.0.
+  it('og skjermen får vite det', async () => {
+    locateUser(() => {}, () => {});
+    cb(fix(...HAUKETO, 8, 1_000));
+    await settle();
+    cb(fix(...km(10), 8, 3_000));
+    await settle();
+    expect(state.posJumpAt).toBe(3_000);
+    expect(state.posJumpM).toBeGreaterThan(9_000);
+  });
+
+  // TUNNELEN. Hoppet var ekte, og tre enige målinger må slippe gjennom —
+  // ellers har vetoet låst appen ute der den trengs mest.
+  it('men slipper gjennom når de neste målingene er enige', async () => {
+    locateUser(() => {}, () => {});
+    cb(fix(...HAUKETO, 8, 1_000));
+    await settle();
+    cb(fix(...km(10), 8, 3_000));
+    cb(fix(...km(10), 8, 4_000));
+    cb(fix(...km(10), 8, 5_000));
+    await settle();
+    // Prikken har flyttet seg dit, og det er sagt fra om at den gjorde det.
+    expect(Math.round((state.homeLL.lat - 59.8300) / M)).toBeGreaterThan(9_000);
+    expect(state.posJumpAt).toBeNull();
+  });
+
+  // Og uenige målinger er ikke en bekreftelse: tre viltre sprang hver sin vei
+  // er nettopp det støy ser ut som.
+  it('men ikke når de spriker', async () => {
+    locateUser(() => {}, () => {});
+    cb(fix(...HAUKETO, 8, 1_000));
+    await settle();
+    cb(fix(...km(10), 8, 3_000));
+    cb(fix(...km(30), 8, 4_000));
+    cb(fix(...km(50), 8, 5_000));
+    await settle();
+    expect(Math.round((state.homeLL.lat - 59.8300) / M)).toBeLessThan(100);
+  });
+
+  // Serien må ikke dra en linje tvers over landet gjennom hoppet: gjorde den
+  // det, ville lukkeraten lese fem kilometer i sekundet mot hver holdeplass.
+  it('og serien begynner på nytt der du faktisk er', async () => {
+    locateUser(() => {}, () => {});
+    cb(fix(...HAUKETO, 8, 1_000));
+    cb(fix(59.8300 + 2 * M, 10.8050, 8, 2_000));
+    await settle();
+    cb(fix(...km(10), 8, 3_000));
+    cb(fix(...km(10), 8, 4_000));
+    cb(fix(...km(10), 8, 5_000));
+    await settle();
+    expect(state.posTrail.length).toBe(1);
+    expect(Math.round((state.posTrail[0].lat - 59.8300) / M)).toBeGreaterThan(9_000);
+  });
+});
+
+describe('serien', () => {
+  it('holder på de siste målingene, unøyaktige også', async () => {
+    locateUser(() => {}, () => {});
+    cb(fix(59.8300, 10.8050, 8, 1_000));
+    await settle();
+    // ACC_GATE forkaster den for prikkens del — serien skal likevel ha den.
+    cb(fix(59.8300 + 3 * M, 10.8050, 150, 2_000));
+    await settle();
+    expect(state.posTrail.length).toBe(2);
+    expect(state.posTrail[1].acc).toBe(150);
+    expect(state.posAt).toBe(1_000);   // prikken står, som før
   });
 });

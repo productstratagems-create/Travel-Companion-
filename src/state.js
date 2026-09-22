@@ -31,6 +31,15 @@ export const state = {
   // device is still working while the dot has stopped moving.
   posAcc: null,
   posRejAt: null,
+  // THE LAST MINUTE OF WHERE YOU HAVE BEEN. In memory only, for as long as the
+  // tab lives: never written to disk, never in the event log, never sent
+  // anywhere. See src/trail.js for why that line is drawn where it is.
+  posTrail: [],
+  // When a fix was last held back for demanding a speed nobody travels at,
+  // and how far it wanted to move you. Recorded so the screen can SAY it —
+  // a silently withheld fix is exactly the fault 'unoyaktig' was added to fix.
+  posJumpAt: null,
+  posJumpM: null,
   debugOpen: false,
   serviceAlerts: [],
   // The serviceJourney ID the user is currently focused on or riding.

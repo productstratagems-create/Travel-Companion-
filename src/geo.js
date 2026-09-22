@@ -1,7 +1,8 @@
 import { findStop } from './stopId.js';
 import { CENTRE } from './api/centre.js';
 import { state } from './state.js';
-import { ACC_GATE, POS_STALE_MS, gpsErrorKind } from './position.js';
+import { ACC_GATE, POS_STALE_MS, gpsErrorKind, fixJump } from './position.js';
+import { pushFix } from './trail.js';
 import config from './config.js';
 import { TRANSIT_CATS, modesOf } from './api/stopCats.js';
 import { enturFetch } from './api/http.js';
@@ -634,9 +635,52 @@ export function locateUser(onFound, onFail) {
 let _onFound = null;
 let _onFail = null;
 
+/**
+ * Fixes held back for demanding an impossible speed, and still unconfirmed.
+ *
+ * A VETO MUST NOT LOCK THE APP OUT. Come out of a tunnel, or wake a phone that
+ * slept through a train ride, and the jump is real — so the SERIES decides,
+ * not the single point: the first disagreeing fix is held, and if the ones
+ * after it agree with it, it is accepted. One outlier is noise; three in a row
+ * is a move.
+ */
+let _pending = [];
+const JUMP_CONFIRM = 3;
+/** Two held fixes agree when they are near each other, not near the old spot. */
+const JUMP_AGREE_M = 200;
+
 function _handleFix(pos) {
   const { latitude, longitude, accuracy } = pos.coords;
   state.gpsError = null;
+  const at = pos.timestamp || Date.now();
+  const here = { lat: latitude, lon: longitude, at, acc: accuracy };
+
+  // IS THIS A POSITION AT ALL? Nothing could ask before, because the previous
+  // fix was never kept. «DU ER VED Jernbanetorget · 10221 m å gå» is what one
+  // unchecked reading looks like on a screen.
+  const last = state.posTrail[state.posTrail.length - 1];
+  if (fixJump(last, here).jumped) {
+    _pending = _pending.filter(p => haver(p.lat, p.lon, latitude, longitude) <= JUMP_AGREE_M);
+    _pending.push(here);
+    if (_pending.length < JUMP_CONFIRM) {
+      state.posJumpAt = at;
+      state.posJumpM = Math.round(fixJump(last, here).metres);
+      logMsg('posisjon holdt tilbake: ' + state.posJumpM + ' m på ett sprang', 'err');
+      return;
+    }
+    // Confirmed: the phone really is somewhere else. Start the series over
+    // there rather than dragging a line across the country through it.
+    state.posTrail = [];
+    state.homeLL = null;
+    _stationAnchor = null;
+  }
+  _pending = [];
+  state.posJumpAt = null;
+  state.posJumpM = null;
+  // THE SERIES TAKES A NOISY FIX TOO, with its accuracy. ACC_GATE owns the
+  // dot; a trail that inherited the gate would be blind in exactly the streets
+  // and tunnels it exists for.
+  state.posTrail = pushFix(state.posTrail, here);
 
   // EVERY fix's accuracy, accepted or not. It is the only number that can say
   // why the dot has stopped moving, and it used to reach a log line and
@@ -648,7 +692,7 @@ function _handleFix(pos) {
     // screen can say «unøyaktig (±120 m)» instead of freezing in silence —
     // geo.js has described this discard as silent in its own comment since
     // the gate was added.
-    state.posRejAt = pos.timestamp || Date.now();
+    state.posRejAt = at;
   }
 
   if (!gated) {
@@ -657,7 +701,7 @@ function _handleFix(pos) {
     // than ±40m once a fix exists — routine indoors, in a tunnel or in an
     // urban canyon — and without a timestamp the dot simply froze and nothing
     // could say so.
-    state.posAt = pos.timestamp || Date.now();
+    state.posAt = at;
     const now = Date.now();
     if (now - _savedAt >= SAVE_EVERY_MS) {
       _savedAt = now;
@@ -683,23 +727,23 @@ function _handleFix(pos) {
   //
   // The anchor moved too, so the NEXT good fix saw ten kilometres of drift and
   // resolved again — the fault a step further on rather than gone.
-  const at = state.homeLL;
-  if (!at) return;
+  const accepted = state.homeLL;
+  if (!accepted) return;
   // Measured from the anchor, so a walk accumulates towards the threshold
   // instead of resetting at every fix.
   const drift = _stationAnchor
-    ? haver(_stationAnchor.lat, _stationAnchor.lon, at.lat, at.lon)
+    ? haver(_stationAnchor.lat, _stationAnchor.lon, accepted.lat, accepted.lon)
     : Infinity;
   if (drift <= STATION_REFRESH_M) return;
 
   const first = !_stationAnchor;
-  _stationAnchor = { lat: at.lat, lon: at.lon };
+  _stationAnchor = { lat: accepted.lat, lon: accepted.lon };
   if (first) {
     logMsg('✓ posisjon ±' + Math.round(accuracy) + 'm', 'ok');
-    findNearestStation(at.lat, at.lon, _onFound || (() => {}), _onFail || (() => {}));
+    findNearestStation(accepted.lat, accepted.lon, _onFound || (() => {}), _onFail || (() => {}));
   } else {
     logMsg('posisjon oppdatert ±' + Math.round(accuracy) + 'm (' + Math.round(drift) + 'm drift)', 'ok');
-    findNearestStation(at.lat, at.lon, () => {}, () => {});
+    findNearestStation(accepted.lat, accepted.lon, () => {}, () => {});
   }
 }
 

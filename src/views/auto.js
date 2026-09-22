@@ -30,7 +30,7 @@ import { approach } from '../trail.js';
 import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
   SEVERITY_RANK } from '../ui/alerts.js';
 import { byLine } from '../api/situations.js';
-import { addSituation } from '../api/situations.js';
+import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf, loadFreq } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
@@ -1667,18 +1667,11 @@ function _load() {
   fetchBoard({ key: 'custom-out', from: _stop.name, stopId: _stop.id, to: '', line: null, filter: null },
     (stop) => {
       _dirs = groupDirections(stop.estimatedCalls || []);
-      // Keep WHERE each message hung, exactly as fetchTrip does: a stop-board
-      // answer carries the stop's own situations and each departure's, and
-      // which is which is the only thing that can tell them apart later.
-      const m = new Map();
-      (stop.situations || []).forEach(x => addSituation(m, x, { stop: _stop && _stop.id }));
-      (stop.estimatedCalls || []).forEach(c => {
-        const sj = c && c.serviceJourney;
-        const from = { line: (sj && sj.line && sj.line.id) || null, journey: (sj && sj.id) || null };
-        (c.situations || []).forEach(x => addSituation(m, x, from));
-        ((sj && sj.situations) || []).forEach(x => addSituation(m, x, from));
-      });
-      _alerts = Array.from(m.values());
+      // Keep WHERE each message hung. This screen has done it right since
+      // v1.137.0 — by writing the loop out here. It was the fourth copy of
+      // one loop, and two of the four had lost the origin entirely; the
+      // collection has a name now, and every path reads it.
+      _alerts = collectStopSituations(stop, _stop && _stop.id);
       // WHAT THE LIST DOES NOT SHOW. At a hub the answer is cut by the query's
       // own cap, and drawing it as though it were complete is the failure this
       // release exists for — «hvorfor er ikke linje 3 Mortensrud på lista?»

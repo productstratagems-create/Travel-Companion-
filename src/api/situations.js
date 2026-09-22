@@ -183,6 +183,46 @@ export function splitSituations(list, ctx) {
 }
 
 /**
+ * Every situation a stop board answered with, counted once, with its origin.
+ *
+ * THE SAME LOOP WAS WRITTEN DOWN FOUR TIMES. v1.105.0 gave situations an
+ * origin — the stop, the line, the journey they hung on — because nothing
+ * else can tell «linje 3 er innstilt» from «heisen på Ljan er ute av drift».
+ * The repair was made in `fetchTrip`. It was never made in the other three:
+ *
+ *   api/entur.js  fetchTrip       addSituation(...)   ✓ v1.105.0
+ *   views/auto.js stop board      addSituation(...)   ✓ v1.137.0
+ *   views/board.js stop board     sitMap.set(s.id, s) ✗
+ *   api/entur.js  fetchArrBoard   sitMap.set(s.id, s) ✗
+ *
+ * With no `_from`, `situationScope` is empty and `relevance` falls through to
+ * its «nothing is known» branch — which means MINE. So on a plain stop board
+ * and on the destination panel the whole of v1.105.0 was dead: every message
+ * stood open as though it were about your journey, and the same message
+ * behaved differently depending on which way it had been fetched.
+ *
+ * Reported as «meldingshåndteringen er wonky», and that is exactly what it is
+ * from the outside: the rules are real, and they applied on two screens out
+ * of four.
+ *
+ * One name, and the copies cannot come back.
+ */
+export function collectStopSituations(stop, stopId) {
+  const map = new Map();
+  (stop && stop.situations || []).forEach(s => addSituation(map, s, { stop: stopId }));
+  ((stop && stop.estimatedCalls) || []).forEach(c => {
+    const sj = c && c.serviceJourney;
+    const from = {
+      line: (sj && sj.line && sj.line.id) || null,
+      journey: (sj && sj.id) || null,
+    };
+    ((c && c.situations) || []).forEach(s => addSituation(map, s, from));
+    ((sj && sj.situations) || []).forEach(s => addSituation(map, s, from));
+  });
+  return Array.from(map.values());
+}
+
+/**
  * Merge a situation into a map, keeping every place it was found.
  *
  * fetchTrip used `sitMap.set(s.id, s)`, so the last hit won and the provenance

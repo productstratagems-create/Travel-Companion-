@@ -10,7 +10,8 @@
  * grupperingen ikke ga mening: den var sann, og den var om ingenting.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { renderAlertsInto, promoteSevere, otherLabel } from '../src/ui/alerts.js';
+import { renderAlertsInto, promoteSevere, otherLabel, unhideAlert, moreLabel }
+  from '../src/ui/alerts.js';
 import { splitSituations } from '../src/api/situations.js';
 import { rowMessages, dirAlertHtml, rowKey } from '../src/views/auto.js';
 import { storage } from '../src/storage.js';
@@ -72,7 +73,7 @@ describe('banneret på Jernbanetorget', () => {
   it('beholder meldingen om en linje som ikke har noen rad', () => {
     const box = el();
     renderAlertsInto(box, FIVE, () => {}, ctx(['m1', 'm2', 'm3']));
-    const row = box.querySelector('.alerts-other');
+    const row = box.querySelector('.alerts-more');
     expect(row).not.toBeNull();
     expect(row.textContent).toContain('2 meldinger om andre linjer');
   });
@@ -93,7 +94,7 @@ describe('banneret på Jernbanetorget', () => {
     const box = el();
     renderAlertsInto(box, [onLine('bad', 'RUT:Line:2', 'severe')], () => {}, ctx(['bad']));
     expect(box.querySelectorAll('.service-alert').length).toBe(1);
-    expect(box.querySelector('.alerts-other')).toBeNull();
+    expect(box.querySelector('.alerts-more')).toBeNull();
   });
 });
 
@@ -119,27 +120,35 @@ describe('promoteSevere', () => {
     storage.set(config.storage.alertHid, JSON.stringify({ bad: 1 }));
     renderAlertsInto(box, [onLine('bad', 'RUT:Line:9', 'severe')], () => {}, ctx([]));
     expect(box.querySelector('.service-alert')).toBeNull();
-    expect(box.querySelector('.alerts-hidden')).not.toBeNull();
+    // v1.144.0: én rad for begge slagene, så den bortlagte telles der.
+    expect(box.querySelector('.alerts-more').textContent).toContain('1 melding til');
   });
 });
 
-describe('den bortlagte raden', () => {
-  // Reported shape: one message dismissed INSIDE a collapsed pile produced a
-  // second content-free row at the top, about a pile the reader cannot see.
-  it('teller bare din egen bunk, ikke den sammenfoldede', () => {
+/**
+ * v1.139.0 delte tellingen i to: toppraden talte bare din egen bunk, og den
+ * sammenfoldede bunkens bortlegginger ble talt inne i den. Det var riktig så
+ * lenge det VAR to rader. v1.144.0 slo dem sammen, og da er det én telling —
+ * bundet av «den ene raden» lenger ned.
+ *
+ * Det som må overleve sammenslåingen er garantien under: en bortlagt melding
+ * skal aldri bli usynlig, for da kan en stengt linje passere ubemerket.
+ */
+describe('en bortlagt melding blir aldri usynlig', () => {
+  it('telles i raden, uansett hvilken bunk den lå i', () => {
     const box = el();
     storage.set(config.storage.alertHid, JSON.stringify({ m1: 2 }));
     renderAlertsInto(box, FIVE, () => {}, ctx([]));
-    expect(box.querySelector('.alerts-hidden')).toBeNull();
-    // og den er fortsatt talt — nede i bunken den hører til
-    expect(box.querySelector('.alerts-other').textContent).toContain('4 meldinger');
+    expect(box.querySelector('.alerts-more')).not.toBeNull();
+    // fire andre + én bortlagt
+    expect(box.querySelector('.alerts-more').textContent).toContain('5 meldinger til');
   });
 
-  it('teller din egen bunk når det er der den ligger', () => {
+  it('også når den er den eneste meldingen som finnes', () => {
     const box = el();
     storage.set(config.storage.alertHid, JSON.stringify({ s1: 2 }));
     renderAlertsInto(box, [onStop('s1', JBT)], () => {}, ctx([]));
-    expect(box.querySelector('.alerts-hidden').textContent).toContain('1 melding skjult');
+    expect(box.querySelector('.alerts-more').textContent).toContain('1 melding til');
   });
 });
 
@@ -161,11 +170,11 @@ describe('to bannere på samme side', () => {
     const a = el(); const b = el();
     renderAlertsInto(a, FIVE, () => {}, ctx([]));
     renderAlertsInto(b, FIVE, () => {}, ctx([]));
-    a.querySelector('.alerts-other').click();
+    a.querySelector('.alerts-more').click();
     renderAlertsInto(a, FIVE, () => {}, ctx([]));
     renderAlertsInto(b, FIVE, () => {}, ctx([]));
-    expect(a.querySelector('.alerts-other').getAttribute('aria-expanded')).toBe('true');
-    expect(b.querySelector('.alerts-other').getAttribute('aria-expanded')).toBe('false');
+    expect(a.querySelector('.alerts-more').getAttribute('aria-expanded')).toBe('true');
+    expect(b.querySelector('.alerts-more').getAttribute('aria-expanded')).toBe('false');
   });
 });
 
@@ -359,5 +368,173 @@ describe('nøkkelen i markupen', () => {
       frontText: 'Ski', lines: [{ id: 'RUT:Line:L2' }] }), 3);
     expect(mark).not.toContain('\u0000');
     expect(mark).toContain('data-i="3"');
+  });
+});
+
+/**
+ * Én rad der det sto to.
+ *
+ * Rapportert med skjermbilde fra tavla, Mortensrud → Jernbanetorget:
+ *
+ *   1 ANNEN MELDING   VIS
+ *   1 MELDING SKJULT  VIS
+ *
+ * To stablede rader som begge betyr «det er mer her». Kommentaren over
+ * `otherLabel` sa det selv, fra dagen den ble skrevet: «two rows both meaning
+ * «there is more here» would be two things a reader has to learn». Formen ble
+ * delt; det ble aldri én rad.
+ *
+ * Jeg lot dem stå i v1.139.0 fordi verbene er ulike — den ene folder ut, den
+ * andre kaller unhideAll() og henter tilbake ALT på hver skjerm. Den
+ * begrunnelsen holder bare så lenge det andre verbet må være globalt.
+ */
+describe('den ene raden', () => {
+  const bortlagt = (id) => storage.set(config.storage.alertHid, JSON.stringify({ [id]: 2 }));
+
+  // FØR-BILDET: én i andre-bunken og én bortlagt gir to rader i dag.
+  it('holder begge slagene', () => {
+    const box = el();
+    bortlagt('s1');
+    renderAlertsInto(box, [onStop('s1', JBT), onLine('m1', 'RUT:Line:9')], () => {}, ctx([]));
+    expect(box.querySelectorAll('.alerts-more').length).toBe(1);
+    expect(box.querySelector('.alerts-other')).toBeNull();
+    expect(box.querySelector('.alerts-hidden')).toBeNull();
+    expect(box.querySelector('.alerts-more').textContent).toContain('2 meldinger til');
+  });
+
+  // Uten emneord er det den nøytrale bøyningen. (Med emneord og BARE
+  // andre-bunken vinner emnet — se testen lenger ned; jeg skrev denne først
+  // med emneordet på og motsa min egen regel.)
+  it('bøyer entall', () => {
+    const box = el();
+    renderAlertsInto(box, [onLine('m1', 'RUT:Line:9')], () => {},
+      { stopIds: [JBT], lineIds: [], journeyIds: [] });
+    expect(box.querySelector('.alerts-more').textContent).toContain('1 melding til');
+  });
+
+  // Teller den bare den ene bunken, blir den andre usynlig.
+  it('teller begge bunkene', () => {
+    const box = el();
+    bortlagt('s1');
+    renderAlertsInto(box, [onStop('s1', JBT), onLine('m1', 'RUT:Line:9'),
+      onLine('m2', 'RUT:Line:8')], () => {}, ctx([]));
+    expect(box.querySelector('.alerts-more').textContent).toContain('3 meldinger til');
+  });
+
+  it('forsvinner når det verken er andre eller bortlagte', () => {
+    const box = el();
+    renderAlertsInto(box, [onStop('s1', JBT)], () => {}, ctx([]));
+    expect(box.querySelector('.alerts-more')).toBeNull();
+    expect(box.querySelectorAll('.service-alert').length).toBe(1);
+  });
+
+  // Emneordet fra v1.139.0 gjelder fortsatt når det BARE er andre-bunken —
+  // da vet skjermen hva de handler om.
+  it('bruker emneordet når det bare er andre-bunken', () => {
+    const box = el();
+    renderAlertsInto(box, [onLine('m1', 'RUT:Line:9')], () => {}, ctx([]));
+    expect(box.querySelector('.alerts-more').textContent)
+      .toContain('1 melding om en annen linje');
+  });
+});
+
+describe('utfoldingen rommer begge', () => {
+  const åpne = (box) => { box.querySelector('.alerts-more').click(); };
+
+  it('viser den bortlagte, merket som bortlagt', () => {
+    const box = el();
+    storage.set(config.storage.alertHid, JSON.stringify({ s1: 2 }));
+    const draw = () => renderAlertsInto(box, [onStop('s1', JBT), onLine('m1', 'RUT:Line:9')],
+      draw, ctx([]));
+    draw(); åpne(box); draw();
+    const away = box.querySelector('.service-alert.sa-put-away');
+    expect(away).not.toBeNull();
+    expect(away.textContent).toContain('melding om ' + JBT);
+    // og den andre bunken står der også
+    expect(box.querySelectorAll('.service-alert').length).toBe(2);
+  });
+
+  // ↩, ikke ✕: den ene er lagt bort og skal kunne hentes, ikke legges bort
+  // en gang til.
+  it('tilbyr å hente den tilbake, ikke å legge den bort', () => {
+    const box = el();
+    storage.set(config.storage.alertHid, JSON.stringify({ s1: 2 }));
+    const draw = () => renderAlertsInto(box, [onStop('s1', JBT), onLine('m1', 'RUT:Line:9')],
+      draw, ctx([]));
+    draw(); åpne(box); draw();
+    const away = box.querySelector('.service-alert.sa-put-away');
+    expect(away.querySelector('.sa-back')).not.toBeNull();
+    expect(away.querySelector('.sa-hide')).toBeNull();
+  });
+
+  // DEN EGENTLIGE GEVINSTEN. «Vis» på den gamle raden kalte unhideAll() og
+  // hentet tilbake alt du hadde lagt bort, på hver skjerm. Nå én om gangen.
+  it('henter tilbake bare den ene', () => {
+    const box = el();
+    storage.set(config.storage.alertHid, JSON.stringify({ s1: 2, s2: 2 }));
+    const draw = () => renderAlertsInto(box,
+      [onStop('s1', JBT), onStop('s2', JBT), onLine('m1', 'RUT:Line:9')], draw, ctx([]));
+    draw(); åpne(box); draw();
+    box.querySelector('.service-alert.sa-put-away .sa-back').click();
+    expect(Object.keys(JSON.parse(storage.get(config.storage.alertHid)))).toEqual(['s2']);
+  });
+
+  // unhideAll kastes ikke — den får et sted å bo, for den som vil ha alt
+  // tilbake på én gang.
+  it('tilbyr å hente alle tilbake når det er flere', () => {
+    const box = el();
+    storage.set(config.storage.alertHid, JSON.stringify({ s1: 2, s2: 2 }));
+    const draw = () => renderAlertsInto(box, [onStop('s1', JBT), onStop('s2', JBT)],
+      draw, ctx([]));
+    draw(); åpne(box); draw();
+    expect(box.querySelector('.alerts-back-all')).not.toBeNull();
+    box.querySelector('.alerts-back-all').click();
+    expect(storage.get(config.storage.alertHid)).toBeNull();
+  });
+
+  it('tilbyr ikke «alle» når det bare er én', () => {
+    const box = el();
+    storage.set(config.storage.alertHid, JSON.stringify({ s1: 2 }));
+    const draw = () => renderAlertsInto(box, [onStop('s1', JBT)], draw, ctx([]));
+    draw(); åpne(box); draw();
+    expect(box.querySelector('.alerts-back-all')).toBeNull();
+  });
+});
+
+
+describe('unhideAlert', () => {
+  // Mutanten «fjern den første nøkkelen» overlevde første runde, fordi
+  // fiksturen tilfeldigvis hentet nettopp den første tilbake. Her er den
+  // ANDRE den som hentes.
+  it('henter tilbake den som ble bedt om, ikke den første', () => {
+    storage.set(config.storage.alertHid, JSON.stringify({ a: 2, b: 2, c: 2 }));
+    unhideAlert('b');
+    expect(Object.keys(JSON.parse(storage.get(config.storage.alertHid)))).toEqual(['a', 'c']);
+  });
+
+  it('rører ingenting når id-en ikke er lagt bort', () => {
+    storage.set(config.storage.alertHid, JSON.stringify({ a: 2 }));
+    unhideAlert('ukjent');
+    unhideAlert(null);
+    expect(Object.keys(JSON.parse(storage.get(config.storage.alertHid)))).toEqual(['a']);
+  });
+});
+
+describe('moreLabel', () => {
+  const w = { one: 'melding om en annen linje', many: 'meldinger om andre linjer' };
+
+  it('legger sammen begge slagene', () => {
+    expect(moreLabel(2, 1)).toBe('3 meldinger til');
+    expect(moreLabel(0, 1)).toBe('1 melding til');
+    expect(moreLabel(1, 0)).toBe('1 melding til');
+    expect(moreLabel(0, 0)).toBe('');
+  });
+
+  // Emnet bare når bunken ER det emnet. En bortlagt melding om stoppet ditt
+  // er ikke «en melding om en annen linje», og å telle den inn i den
+  // setningen ville sagt noe usant om den.
+  it('bruker emnet bare når ingenting er lagt bort', () => {
+    expect(moreLabel(2, 0, w)).toBe('2 meldinger om andre linjer');
+    expect(moreLabel(2, 1, w)).toBe('3 meldinger til');
   });
 });

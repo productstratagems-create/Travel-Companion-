@@ -666,21 +666,40 @@ function _handleFix(pos) {
     updateWalkDbg();
   }
 
+  // ONE POSITION, NOT TWO. Everything below reads the fix the app ACCEPTED —
+  // `state.homeLL` — and never the raw reading again.
+  //
+  // It used to measure the drift and call findNearestStation from raw
+  // latitude/longitude, outside the gate above. So a fix too noisy to move the
+  // dot still chose the stop, and the screen said, on a phone in Oslo:
+  //
+  //   DU ER VED Jernbanetorget · 10221 m å gå · 125 min gange
+  //   posisjonen er unøyaktig (±148 m)
+  //
+  // Ten kilometres is a two-hour walk. Both numbers could not be true: the
+  // name came from the discarded reading and the distance from the kept one.
+  // Two places wrote down where you are and drifted apart — and one of them
+  // was the reading this function had just refused.
+  //
+  // The anchor moved too, so the NEXT good fix saw ten kilometres of drift and
+  // resolved again — the fault a step further on rather than gone.
+  const at = state.homeLL;
+  if (!at) return;
   // Measured from the anchor, so a walk accumulates towards the threshold
   // instead of resetting at every fix.
   const drift = _stationAnchor
-    ? haver(_stationAnchor.lat, _stationAnchor.lon, latitude, longitude)
+    ? haver(_stationAnchor.lat, _stationAnchor.lon, at.lat, at.lon)
     : Infinity;
   if (drift <= STATION_REFRESH_M) return;
 
   const first = !_stationAnchor;
-  _stationAnchor = { lat: latitude, lon: longitude };
+  _stationAnchor = { lat: at.lat, lon: at.lon };
   if (first) {
     logMsg('✓ posisjon ±' + Math.round(accuracy) + 'm', 'ok');
-    findNearestStation(latitude, longitude, _onFound || (() => {}), _onFail || (() => {}));
+    findNearestStation(at.lat, at.lon, _onFound || (() => {}), _onFail || (() => {}));
   } else {
     logMsg('posisjon oppdatert ±' + Math.round(accuracy) + 'm (' + Math.round(drift) + 'm drift)', 'ok');
-    findNearestStation(latitude, longitude, () => {}, () => {});
+    findNearestStation(at.lat, at.lon, () => {}, () => {});
   }
 }
 

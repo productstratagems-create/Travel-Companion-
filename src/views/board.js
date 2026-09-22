@@ -11,6 +11,7 @@ import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary,
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
+import { collectStopSituations } from '../api/situations.js';
 import { renderAlerts, pruneHidden } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
 import { pickUsual, usualState } from '../api/usual.js';
@@ -3328,14 +3329,12 @@ function _fetchBoard() {
     return;
   }
   fetchBoard(dir, (stop) => {
-    const sitMap = new Map();
-    const addSits = (arr) => (arr || []).forEach(s => s && s.id && sitMap.set(s.id, s));
-    addSits(stop.situations);
-    (stop.estimatedCalls || []).forEach(call => {
-      addSits(call.situations);
-      if (call.serviceJourney) addSits(call.serviceJourney.situations);
-    });
-    state.serviceAlerts = Array.from(sitMap.values());
+    // WITH THEIR ORIGIN. This loop deduplicated on id alone and kept nothing
+    // about WHERE each message hung — so `relevance` had nothing to judge by,
+    // fell through to «nothing is known», and every message on a plain stop
+    // board counted as yours. The same message fetched as part of a trip was
+    // sorted correctly. One collection now, for every path.
+    state.serviceAlerts = collectStopSituations(stop, dir.stopId);
     pruneHidden(state.serviceAlerts);
     logMsg('situations: ' + state.serviceAlerts.length, state.serviceAlerts.length ? 'ok' : null);
     if (stop.latitude && stop.longitude) {

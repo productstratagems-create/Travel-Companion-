@@ -415,6 +415,12 @@ function _destAlertsHtml() {
   return '<div class="hn-dest-alerts-slot"></div>';
 }
 
+/** The leg whose line is taking you to the far end, or null. */
+function _destCtxLeg() {
+  const legs = (state.jny && state.jny.legs) || [];
+  return legs.length ? legs[legs.length - 1] : null;
+}
+
 function _updateDestAlertsSection() {
   // Same renderer as the board's banner, so "put away" means the same thing
   // on both screens rather than two implementations drifting apart. Every
@@ -424,7 +430,19 @@ function _updateDestAlertsSection() {
     document.getElementById('hn-dest-alerts'),
     ...document.querySelectorAll('.hn-dest-alerts-slot'),
   ].filter(Boolean);
-  els.forEach(el => renderAlertsInto(el, _destAlerts, _updateDestAlertsSection));
+  // THE FAR END'S OWN CONTEXT. This rendered with no ctx at all, so
+  // splitSituations never ran and every message about the arrival stop —
+  // including ones about lines you are not on — stood open as yours. The
+  // rule has been there since v1.105.0; this screen simply never handed it
+  // anything to judge by.
+  const leg = _destCtxLeg();
+  const ctx = {
+    stopIds: [_arrBoardStopId].filter(Boolean),
+    lineIds: [leg && leg.lineRef].filter(Boolean),
+    journeyIds: [leg && leg.journeyId].filter(Boolean),
+    otherWord: { one: 'melding om en annen linje', many: 'meldinger om andre linjer' },
+  };
+  els.forEach(el => renderAlertsInto(el, _destAlerts, _updateDestAlertsSection, ctx));
 }
 
 /**
@@ -1449,7 +1467,13 @@ function computeState(now) {
 
 export function renderTrack() {
   if (!state.jny || !state.jny.legs || !state.jny.legs.length) {
-    renderAlertsInto(document.getElementById('t-alerts'), state.serviceAlerts, renderTrack, null);
+    // NO JOURNEY IS NOT NO CONTEXT. `null` here meant splitSituations never
+    // ran and the whole board list stood open — the very thing v1.105.0 was
+    // written to stop. With no journey we know no line and no stop, so the
+    // context is empty rather than absent: a message that names a line is
+    // then someone else's, and an unscoped one is still shown.
+    renderAlertsInto(document.getElementById('t-alerts'), state.serviceAlerts, renderTrack,
+      { stopIds: [], lineIds: [], journeyIds: [] });
     return;
   }
   const now = Date.now();

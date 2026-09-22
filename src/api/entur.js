@@ -2,7 +2,7 @@ import config from '../config.js';
 import { enturFetch } from './http.js';
 import { arrBoardGQL, boardGQL, boardTruncated, nextBoardAsk, NEXT_DEPARTURE_HORIZON_MINS, inflightGQL, journeyGQL, normJid, trackGQL, tripGQL } from './queries.js';
 import { quayLatLon } from './adapt.js';
-import { addSituation } from './situations.js';
+import { addSituation, collectStopSituations } from './situations.js';
 import { logMsg, setDot } from '../ui/log.js';
 import { noteLookbackLost } from './diagnose.js';
 import { loadWalkSpeed, focusParam } from '../geo.js';
@@ -708,14 +708,11 @@ export function fetchArrBoard(stopId, n) {
       const calls = (stop && stop.estimatedCalls) || [];
       const now = Date.now();
 
-      // Deduplicate across the three levels the API reports them at.
-      const sitMap = new Map();
-      const addSits = arr => (arr || []).forEach(s => s && s.id && sitMap.set(s.id, s));
-      addSits(stop && stop.situations);
-      calls.forEach(c => {
-        addSits(c.situations);
-        if (c.serviceJourney) addSits(c.serviceJourney.situations);
-      });
+      // Deduplicated across the three levels the API reports them at, AND
+      // carrying where each one hung. This kept only the id, so the
+      // destination panel judged every message «yours» whatever it was about
+      // — the same list, fetched another way, sorted correctly.
+      const sits = collectStopSituations(stop, stopId);
       // Cancelled departures stay in the list — hiding them sends the user
       // to a platform for a service that isn't coming.
       const departures = calls
@@ -733,7 +730,7 @@ export function fetchArrBoard(stopId, n) {
       return {
         stop: stop ? { name: stop.name, lat: stop.latitude, lon: stop.longitude } : null,
         departures,
-        situations: Array.from(sitMap.values()),
+        situations: sits,
       };
     });
 }

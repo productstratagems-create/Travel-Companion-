@@ -621,15 +621,36 @@
 }
 .auto-side:first-of-type{margin-top:.2rem}
 
-/* Dine egne stopp på linja over (v1.137.0). Innrykket og roligere enn raden
-   de hører til — dette er en utdyping av den, ikke en ny rad. */
-.auto-inline-stop{
-  display:flex;align-items:baseline;gap:.5rem;width:calc(100% - 1.6rem);
-  margin:.15rem 0 .15rem 1.6rem;padding:.35rem .6rem;
-  background:none;border:1px solid rgba(var(--border-rgb),.08);border-radius:6px;
-  font-family:inherit;text-align:left;cursor:pointer;
-  -webkit-tap-highlight-color:transparent;
+/* Dine egne stopp på linja over (v1.137.0).
+   BÆRER .nearby-btn, som raden selv — bare det som SKILLER dem står her.
+   Geometrien er dermed radens egen, og de to kan ikke bli ulike å treffe:
+   det første utkastet hadde sin egen padding og ble 29 px høyt mot radens
+   54, altså under minste trykkflate og vanskeligere å treffe enn linja det
+   tilbyr seg under. Innrykket og den roligere fargen gjør forskjellen, ikke
+   størrelsen. */
+/* SCOPED TO #v-auto, like the rule it has to beat.
+   `#v-auto .nearby-btn { width: 100% }` (line 379 above) is an id selector,
+   so a bare `.auto-inline-stop{width:auto}` loses to it however late it
+   comes in the file — and it lost silently: the stop simply hung 26 px past
+   the right edge of the line above it, measured, not seen. */
+#v-auto .auto-inline-stop{
+  /* The indent, taken out of the width so the right edge still lines up
+     with the row above. `auto` was tried and shrank the button to its text
+     — the parent does not stretch its children, which is exactly why the
+     `width:100%` rule above exists at all.
+     ONE name, twice derived: the inset and the width must agree or the
+     button hangs past the row, and two hand-written 1.6rem would be the
+     usual way that goes wrong. */
+  --ais-indent:1.6rem;
+  width:calc(100% - var(--ais-indent));
+  margin-left:var(--ais-indent);
+  /* A floor on the target. 44 px is the size this app already uses for a
+     thing meant to be tapped — .nav-plan-btn and .board-more-btn both. The
+     row above is 54 only because its right column is two lines; the padding
+     is now the row's own, so what remains is the floor. */
+  min-height:44px;
+  background:none;
+  border-color:rgba(var(--border-rgb),.08);
 }
-.auto-inline-stop:active{background:rgba(var(--accent-rgb),.06)}
-.ais-name{flex:1;font-size:12px;color:var(--text-muted-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ais-mins{font-size:11px;color:var(--text-soft);flex-shrink:0}
+.ais-name{flex:1;color:var(--text-muted-hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ais-mins{color:var(--text-soft);flex-shrink:0;margin-left:.5rem}

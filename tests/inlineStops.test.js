@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import { stopShortcuts, STOP_SHORTCUTS, INLINE_STOPS } from '../src/views/auto.js';
 
 const src = () => fs.readFileSync('src/views/auto.js', 'utf8');
+const css = () => fs.readFileSync('src/style/settings.css', 'utf8');
 const stop = (name, mins) => ({ name, id: 'NSR:StopPlace:' + name, mins });
 const used = (name, count) => ({ name, count, lastUsed: Date.now() });
 
@@ -106,5 +107,58 @@ describe('hvordan skjermen bruker den', () => {
 
   it('tegner ingen knapp for et stopp som ikke finnes', () => {
     expect(src()).toMatch(/if \(!st\) return '';/);
+  });
+});
+
+/**
+ * «Det innrykkede stoppet må være like klikkbart som linjen det tilhører.»
+ *
+ * Målt før rettelsen: rad 54x382 px, stopp 29x356 px — under halve radens
+ * høyde og under de 44 px en trykkflate skal ha. Etter: 44x356, og 0 px
+ * utenfor radens høyrekant.
+ */
+describe('trykkflaten', () => {
+  const rule = () => {
+    const c = css();
+    const i = c.indexOf('#v-auto .auto-inline-stop{');
+    expect(i).toBeGreaterThan(-1);
+    // Kommentarene her nevner både «padding» og tallet de forklarer; det er
+    // erklæringene som gjelder.
+    return c.slice(i, c.indexOf('}', i)).replace(/\/\*[\s\S]*?\*\//g, '');
+  };
+
+  // The geometry is the row's own: same padding, same font, same box.
+  // Anything the stop set for itself is a second copy that can drift.
+  it('bærer .nearby-btn, som raden selv', () => {
+    expect(src()).toMatch(/class="nearby-btn auto-inline-stop"/);
+  });
+
+  it('har et gulv på 44 px', () => {
+    expect(rule()).toMatch(/min-height:\s*44px/);
+  });
+
+  // `#v-auto .nearby-btn{width:100%}` is an id selector. A bare class loses
+  // to it wherever it sits in the file, and it lost silently: the button hung
+  // 26 px past the row's right edge.
+  it('er scopet til #v-auto, som regelen den må slå', () => {
+    expect(css()).toMatch(/#v-auto \.auto-inline-stop\{/);
+    expect(css()).not.toMatch(/(^|[^ ])\n\.auto-inline-stop\{/);
+  });
+
+  // Innrykk og bredde er ett tall, ikke to som må være enige.
+  it('trekker innrykket fra bredden, fra ett navn', () => {
+    const r = rule();
+    expect(r).toMatch(/--ais-indent:\s*[\d.]+rem/);
+    expect(r).toMatch(/width:calc\(100% - var\(--ais-indent\)\)/);
+    expect(r).toMatch(/margin-left:var\(--ais-indent\)/);
+    // Og ingen håndskrevet kopi av tallet ved siden av.
+    const indent = r.match(/--ais-indent:\s*([\d.]+rem)/)[1];
+    expect(r.split(indent).length - 1).toBe(1);
+  });
+
+  // .nearby-btn brings its own padding; the stop must not undo it and
+  // shrink back under the floor.
+  it('setter ikke sin egen padding', () => {
+    expect(rule()).not.toMatch(/padding/);
   });
 });

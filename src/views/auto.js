@@ -1970,7 +1970,11 @@ function _renderBody() {
         + (pick.get(i) || []).map(si => {
           const st = (ahead.get(i) || [])[si];
           if (!st) return '';
-          return '<button class="auto-inline-stop" type="button"'
+          // REUSES .nearby-btn, like the route row at settings.css:257 does.
+          // The geometry is the row's own, so the two cannot differ — and
+          // a stop that is harder to hit than the line above it is not
+          // really being offered. Measured before: 54 px against 29.
+          return '<button class="nearby-btn auto-inline-stop" type="button"'
             + ' data-dir="' + i + '" data-stop="' + si + '"'
             + ' aria-label="' + esc('mot ' + d.frontText + ', gå av ' + st.name) + '">'
             + '<span class="ais-name">' + esc(st.name) + '</span>'

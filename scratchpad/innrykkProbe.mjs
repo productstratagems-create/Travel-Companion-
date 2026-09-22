@@ -156,6 +156,21 @@ async function run(label, hist, scheme) {
           + e.textContent.replace(/\s+/g, ' ').trim().slice(0, 46)),
       // RELEVANCE, measured: every indented stop must belong to the row
       // above it, not to some other line.
+      // HOW BIG IS THE TARGET, next to the row it belongs to. A stop that
+      // is harder to hit than the line above it is not really offered.
+      treff: (() => {
+        const row = document.querySelector('#auto-body .auto-dir');
+        const stop = document.querySelector('#auto-body .auto-inline-stop');
+        if (!row || !stop) return null;
+        const r = row.getBoundingClientRect(), s = stop.getBoundingClientRect();
+        const cs = getComputedStyle(stop);
+        return { rad: Math.round(r.height) + 'x' + Math.round(r.width),
+          stopp: Math.round(s.height) + 'x' + Math.round(s.width),
+          venstre: Math.round(s.left - r.left) + ' px innrykk',
+          // THE RIGHT EDGE is the one that can be wrong without looking it:
+          // a positive number means the stop hangs past the line above it.
+          hoyre: Math.round(s.right - r.right) + ' px utenfor radens høyrekant' };
+      })(),
       feilplassert: (() => {
         const rows = [...document.querySelectorAll('#auto-body .auto-dir')];
         let bad = 0;
@@ -176,6 +191,8 @@ async function run(label, hist, scheme) {
   console.log('  skjerm:', a.skjerm);
   a.liste.forEach(r => console.log('  ' + r));
   console.log('  feilplasserte innrykk:', a.feilplassert);
+  if (a.treff) console.log('  trykkflate  : rad ' + a.treff.rad + '  ·  stopp ' + a.treff.stopp
+    + '  ·  ' + a.treff.venstre + '  ·  ' + a.treff.hoyre);
   fs.mkdirSync('scratchpad/shots', { recursive: true });
   await page.screenshot({ path: 'scratchpad/innrykk-' + label + '-' + scheme + '.png', fullPage: true });
   await ctx.close();

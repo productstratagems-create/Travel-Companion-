@@ -26,7 +26,8 @@ import { fetchNextDeparture, fetchBoard } from '../api/entur.js';
 import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
 import { predictDest, autoJumpDest } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
-import { renderAlertsInto } from '../ui/alerts.js';
+import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
+  SEVERITY_RANK } from '../ui/alerts.js';
 import { byLine } from '../api/situations.js';
 import { addSituation } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
@@ -491,12 +492,9 @@ export function autoRoute(from, to) {
 }
 
 /** One line badge, the same shape the board and the shortcuts already use. */
-/** A message's one-line summary, in the reader's language where there is one. */
-function _sitTitle(s) {
-  const arr = (s && s.summary) || [];
-  const no = arr.find(x => x && x.language === 'no') || arr[0];
-  return (no && no.value) || '';
-}
+// A message's heading is `situationTitle` from ui/alerts.js. There used to be
+// a private copy here doing the same language pick — one fact, two places,
+// free to drift.
 
 /**
  * A disruption, on the row it concerns.
@@ -507,11 +505,108 @@ function _sitTitle(s) {
  * container of small things about the line, and a disruption about that line
  * belongs with them.
  *
- * The mark says HOW MANY and the row says WHAT, through its label: on a phone
- * there is no hover, so the text has to be somewhere a screen reader and a
- * long press can both reach. The full message stays in the folded banner —
- * nothing is only here.
+ * THE MARK SAYS HOW MANY, AND OPENS TO SAY WHAT.
+ *
+ * It used to be a bare `!` with the text on the row's `title` attribute —
+ * invisible on a phone, which is point 2 of the rettesnor word for word. The
+ * answer was computed and then put somewhere nobody looks. And it said `!`
+ * while the comment here said it said how many: one fact, two places.
+ *
+ * Now the banner no longer repeats these at all, so this IS where the message
+ * is. A button, with the text folded out under the row.
  */
+export function dirAlertHtml(msgs, openKeys, key, idx) {
+  if (!msgs || !msgs.length) return { mark: '', block: '' };
+  const open = !!openKeys && openKeys.has(key);
+  // Warn rather than err is the rule for the mark — but a closure is not a
+  // warning, and the colour is the only thing that says so before the tap.
+  const severe = msgs.some(m => sevRank(m && m.severity) <= SEVERITY_RANK.severe);
+  const label = msgs.length === 1
+    ? 'Vis meldingen om denne linjen'
+    : 'Vis ' + msgs.length + ' meldinger om denne linjen';
+  const mark = '<button type="button" class="auto-dir-alert' + (severe ? ' sev-severe' : '') + '"'
+    + ' data-i="' + esc(String(idx)) + '"'
+    + ' aria-expanded="' + (open ? 'true' : 'false') + '"'
+    + ' aria-label="' + esc(label) + '">'
+    + (msgs.length > 1 ? msgs.length : '!') + '</button>';
+  // A SIBLING of the row, not a child: .auto-dir is itself a button, and
+  // ui/alerts.js explains beside its own ✕ why a button inside a button is
+  // invalid markup and one unpredictable tap target. Same classes as the
+  // banner's alerts, so a message looks like a message wherever it is.
+  const block = open
+    ? '<div class="auto-dir-msg">' + msgs.map(m => '<div class="service-alert' + sevClass(m && m.severity) + '">'
+        + '<span class="sa-title">' + esc(situationTitle(m)) + '</span>'
+        + (situationBody(m) ? '<span class="sa-body">' + esc(situationBody(m)) + '</span>' : '')
+        + '</div>').join('') + '</div>'
+    : '';
+  return { mark, block };
+}
+
+/**
+ * Which rows have their messages open.
+ *
+ * Keyed by SITUATION ID, not by row index: «T-bane først / Lokalbuss først»
+ * re-sorts the list and every index moves. And not in the markup either —
+ * this body is rewritten once a second, so a class would be gone before the
+ * finger lifted (the same reason the folded stop list keeps its state here).
+ */
+let _openMsgs = new Set();
+export function _setOpenMsgs(ids) { _openMsgs = new Set(ids || []); }
+
+/**
+ * The rows this screen draws right now.
+ *
+ * ONE definition, because two callers need the same answer in the same tick:
+ * _renderBody draws them, and renderAuto has to know which messages they
+ * carry before it draws the banner. A direction whose departures have all
+ * gone is filtered out here — and a message whose only row was filtered out
+ * has nowhere else to be said, which is exactly what the banner is for.
+ */
+function _liveRows(now) {
+  return dirRows(_dirs, loadAutoSort().desc, d => _timesHtml(d, now), localCodespace(_dirs));
+}
+
+/**
+ * The messages each live row carries, and the ids that therefore need no
+ * line in the banner.
+ *
+ * Derived from `live`, never from `_dirs`: at a hub the departure list is
+ * capped (`_truncated`) and rows age out, so `_dirs` would claim delivery to
+ * rows that are not on screen — and the message would be folded away as
+ * «already shown» while nothing showed it.
+ */
+export function rowMessages(live, perLine) {
+  const byRow = new Map();
+  const keys = new Map();
+  const ids = new Set();
+  (live || []).forEach(({ d, i }) => {
+    const msgs = _dirAlerts(d, perLine);
+    byRow.set(i, msgs);
+    keys.set(i, rowKey(d));
+    msgs.forEach(m => { if (m && m.id) ids.add(m.id); });
+  });
+  return { byRow, keys, ids };
+}
+
+/**
+ * A row's identity, for remembering which one is open.
+ *
+ * NOT the row index: «T-bane først / Lokalbuss først» re-sorts the list and
+ * every index moves under the reader's finger.
+ *
+ * NOT the situation id either, which was the first attempt and the probe
+ * caught it: the same closure hangs on every L2 row, so opening «mot Ski»
+ * unfolded «mot Stabekk» and «mot Lysaker» too — the same three sentences
+ * three times down the screen. The mark belongs to the row that was tapped.
+ *
+ * Its own tiny function rather than openKey's, which also carries a stop
+ * count and means «is the drill-down still showing the same line».
+ */
+export function rowKey(dir) {
+  const ln = (dir && dir.lines && dir.lines[0] && dir.lines[0].id) || '';
+  return (dir && dir.frontText ? dir.frontText : '') + '\u0000' + ln;
+}
+
 /** The messages for a row's lines, deduped across the lines it carries. */
 function _dirAlerts(dir, perLine) {
   const out = [];
@@ -1888,7 +1983,7 @@ function _renderBody() {
   // choice any more. The screen counts down now (v1.71.0), so rows can age
   // past their own contents — and a row naming a direction with no time
   // beside it promises something the stop board is not saying.
-  const live = dirRows(_dirs, loadAutoSort().desc, d => _timesHtml(d, now), localCodespace(_dirs));
+  const live = _liveRows(now);
   if (!live.length) {
     _showSort(false);
     body.innerHTML = '<div class="dest-prev-empty">'
@@ -1899,6 +1994,11 @@ function _renderBody() {
   _showSort(true);
   // Once for the list, not once per row: byLine walks every message.
   const perLine = byLine(_alerts);
+  // The same named derivation renderAuto hands to the banner as `delivered`.
+  const rm = rowMessages(live, perLine);
+  // Forget rows that are no longer here — a direction that has left, or a
+  // whole new stop — so the set cannot grow across a morning of stops.
+  _openMsgs.forEach(k => { if (![...rm.keys.values()].includes(k)) _openMsgs.delete(k); });
   // MOT ELLER FRA SENTRUM. Eight rows of «mot Lysaker», «mot Ski», «mot
   // Stabekk» are each correct and none answers the question a person
   // actually holds, which is almost always one of two.
@@ -1946,13 +2046,15 @@ function _renderBody() {
       // The destination is the part that gives way, so the whole of it has to
       // survive somewhere: aria-label for a screen reader, title for a long
       // press. A row reading "mot Jernb…" must still be able to say what it is.
-      const dirMsgs = _dirAlerts(d, perLine);
-      // The mark says how many; the LABEL says what. There is no hover on a
-      // phone, so the text has to be somewhere a screen reader and a long
-      // press can both reach — and the full message is still in the folded
-      // banner, so nothing lives only here.
-      const full = 'mot ' + d.frontText + (q ? ', ' + q : '')
-        + (dirMsgs.length ? '. ' + dirMsgs.map(m => _sitTitle(m)).join('. ') : '');
+      // The row's own messages, from the same rowMessages the banner is told
+      // about, so a message cannot be folded there while missing here.
+      const dirMsgs = rm.byRow.get(i) || [];
+      const msg = dirAlertHtml(dirMsgs, _openMsgs, rm.keys.get(i), i);
+      // The label names the row, and only the row. The message text used to
+      // be appended here because there was nowhere visible to put it; it has
+      // its own button now, with its own label, and reading it three times in
+      // a row is not an improvement.
+      const full = 'mot ' + d.frontText + (q ? ', ' + q : '');
       // The heading is emitted by the first row of each group, so the
       // order the list is already sorted in is the order the groups appear
       // in — no second sort that could disagree with the first.
@@ -1971,7 +2073,7 @@ function _renderBody() {
         + ' type="button" data-i="' + i + '"'
         + ' title="' + esc(full) + '" aria-label="' + esc(full) + '">'
         + '<span class="auto-badges">' + d.lines.map(badgeHtml).join('')
-        + (dirMsgs.length ? '<span class="auto-dir-alert" aria-hidden="true">!</span>' : '')
+        + msg.mark
         + '</span>'
         + '<span class="nearby-name">mot ' + esc(d.frontText) + '</span>'
         // Its own element, not part of the name: a long destination and the
@@ -1987,6 +2089,7 @@ function _renderBody() {
         // under space-between — and that warning is there because it happened.
         + '<span class="nearby-dist">' + _timesHtml(d, now, walkMins) + '</span>'
         + '</button>'
+        + msg.block
         // YOUR OWN STOPS ON THIS LINE, indented under it. They were a tap
         // away, on a screen you then had to come back from — and the one you
         // wanted was usually the first thing on it.
@@ -2025,6 +2128,21 @@ function _renderBody() {
   });
   // THE SAME DOOR the stop in the drill-down goes through, so the two cannot
   // drift apart: autoRoute, then the one route-setter every caller uses.
+  // TAPPING THE MARK OPENS THE MESSAGE, and does not also open the direction:
+  // the mark sits inside .auto-dir, which drills down. Same stopPropagation
+  // as the indented stop below (v1.138.0).
+  body.querySelectorAll('.auto-dir-alert').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      // THE KEY STAYS IN JS. It was in the attribute, and it contains a
+      // \u0000 separator — which in an HTML attribute is not a character but
+      // a parse error: every row collapsed to its line badge alone. The
+      // markup carries the row index; rm.keys is right here in scope.
+      const k = rm.keys.get(Number(b.dataset.i)) || '';
+      if (_openMsgs.has(k)) _openMsgs.delete(k); else _openMsgs.add(k);
+      _renderBody();
+    });
+  });
   body.querySelectorAll('.auto-inline-stop').forEach(b => {
     b.addEventListener('click', e => {
       e.stopPropagation();
@@ -2221,12 +2339,25 @@ export function renderAuto() {
   //
   // The banner now keeps what is about THE STOP — «ruteendringer i
   // høstferien», a closed entrance — and a message that names lines goes to
-  // the rows for those lines instead, where the choice is made. Nothing is
-  // dropped: the folded row still counts every one.
+  // the rows for those lines instead, where the choice is made.
+  //
+  // AND THE BANNER HAS TO KNOW THAT HAPPENED. Reported from Jernbanetorget:
+  // «5 ANDRE MELDINGER · VIS» stood above «du er ved», and the five were
+  // precisely the ones the rows below were already marking. The rule was
+  // right and the banner counted them a second time, under a heading that
+  // said nothing about any of them.
+  //
+  // `delivered` comes from the SAME rowMessages the rows are drawn from, so
+  // the two cannot disagree about what is on screen. A line with no row —
+  // the list is capped at a hub — keeps its line in the banner, and a
+  // closure is never folded at all.
+  const rm = rowMessages(_liveRows(Date.now()), byLine(_alerts));
   renderAlertsInto(_el('auto-alerts'), _alerts, renderAuto, {
     stopIds: [_stop && _stop.id].filter(Boolean),
     lineIds: [],
     journeyIds: [],
+    delivered: rm.ids,
+    otherWord: { one: 'melding om en annen linje', many: 'meldinger om andre linjer' },
   });
   renderRouteShortcuts('auto-fav-routes', 2);
   _renderWhere();
@@ -2251,4 +2382,4 @@ export function resetAuto() {
   _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null; _alerts = [];
   _truncated = false; _asked = false; _nextMs = undefined;
   _resetAutoMap();
-  _stopsShown = false; _jumpArmed = false; }
+  _stopsShown = false; _jumpArmed = false; _openMsgs = new Set(); }

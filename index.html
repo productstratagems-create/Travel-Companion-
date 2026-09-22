@@ -385,11 +385,17 @@
     <button class="nav-plan-btn" id="auto-refresh" aria-label="Hent posisjon og avganger på nytt">↻</button>
       <button class="hdr-more-btn" data-more type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋮</button>
   </div>
-  <!-- Outside #auto-where and #auto-body, like everything else here: both have
-       their innerHTML replaced once a second. -->
+  <div id="auto-where" class="set-section"></div>
+  <!-- BELOW the identity, not above it — the same lesson #service-alerts
+       carries above, which auto-reise never got. Reported with a screenshot
+       from Jernbanetorget: «5 ANDRE MELDINGER» and «1 MELDING SKJULT» stood
+       above «DU ER VED», pushing the station name, the map and every
+       departure down.
+
+       Outside #auto-where and #auto-body, like everything else here: both
+       have their innerHTML replaced once a second. -->
   <div id="auto-alerts" style="display:none"
     role="region" aria-label="Servicevarsler" aria-live="polite"></div>
-  <div id="auto-where" class="set-section"></div>
   <!-- The orientation map, and it is OUTSIDE #auto-where and #auto-body for
        the same reason everything else here is: both have their innerHTML
        replaced once a second, and a Leaflet map drawn inside one of them

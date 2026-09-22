@@ -425,9 +425,12 @@
    time is visible. They belong where the choice is made.
    Sized and coloured like the line badges it sits with, because it is about
    that line; warn rather than err, because «trikk 12 kjører ikke mellom to
-   stopp» is something to know, not an emergency. The full text is in the
-   folded banner and in the row's own label — this is the mark, not the
-   message. */
+   stopp» is something to know, not an emergency.
+
+   IT IS NOW WHERE THE MESSAGE IS. This comment used to say «the full text is
+   in the folded banner and in the row's own label» — and the banner no longer
+   repeats these at all, so that sentence would have been a promise pointing
+   nowhere. Tap it and it opens. */
 #v-auto .auto-dir-alert {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 15px; height: 15px; margin-left: .3rem; padding: 0 3px;
@@ -438,6 +441,48 @@
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 10px; font-weight: 700; line-height: 1;
   flex-shrink: 0;
+  /* THE BOX STAYS 15 px, THE TARGET DOES NOT. Growing the box would push the
+     destination adrift — this sits inside .auto-badges, and the rule above
+     warns twice that a third child does exactly that. So the target is grown
+     outwards instead: the finger gets its 44 px (v1.138.0's floor) without
+     the layout learning about it. */
+  position: relative;
+}
+#v-auto .auto-dir-alert::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: 44px; height: 44px; transform: translate(-50%, -50%);
+}
+/* A closure is not a warning, and the colour is the only thing that says so
+   before the tap. */
+/* rgba(220,38,38) written out, as .service-alert.sev-severe and eight other
+   rules in this app already do — there is no --err-rgb token. One more copy
+   rather than a token introduced for a single rule; the token is worth doing
+   once, for all of them at the same time. */
+#v-auto .auto-dir-alert.sev-severe {
+  background: rgba(220, 38, 38, .14);
+  border-color: rgba(220, 38, 38, .45);
+  color: var(--err);
+}
+
+/* The message itself, under the row it belongs to. Indented like the stops
+   below it (v1.138.0) so the two read as the same kind of thing: a detail of
+   the line above, not a new line. .service-alert inside brings the banner's
+   own appearance, so a message looks like a message wherever it stands. */
+#v-auto .auto-dir-msg {
+  margin: .25rem 0 .25rem 1.6rem;
+}
+/* A COLUMN, not a row. .service-alert is `display:flex` because in the banner
+   it holds the text button beside the ✕; here the title and the body ARE the
+   children, and they came out in two columns side by side — seen in the
+   screenshot, invisible in every number. */
+#v-auto .auto-dir-msg .service-alert {
+  margin: 0 0 .25rem;
+  flex-direction: column; gap: .15rem;
+}
+/* And not clamped. The banner clamps to two lines because it stands above
+   everything unasked; this one is here BECAUSE the reader tapped for it. */
+#v-auto .auto-dir-msg .sa-body {
+  display: block; -webkit-line-clamp: unset; overflow: visible;
 }
 
 #v-auto .auto-lane + .auto-lane { margin-top: .5rem; }

@@ -354,8 +354,10 @@
    meaning «there is more here» would be two things to learn. Measured in the
    browser first as a bare white default button — the class existed and no
    rule matched it, which every number said was fine. */
-.alerts-other,
-.alerts-hidden{
+/* ÉN RAD, der det sto to (v1.144.0). Klassen over sa selv, fra den ble
+   skrevet, at to rader som begge betyr «det er mer her» er to ting å lære —
+   og så ble det to likevel, fordi verbene var ulike. De er ett nå. */
+.alerts-more{
   display:block;width:100%;text-align:left;
   padding:.3rem .75rem;margin:.25rem 0;
   font:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
@@ -364,6 +366,25 @@
   cursor:pointer;-webkit-tap-highlight-color:transparent;
 }
 .ah-show{color:var(--accent);margin-left:.3rem}
+/* En melding du har lagt bort, inne i folden. Samme boks som enhver annen —
+   en melding skal se ut som en melding — men dempet, fordi den ER borte:
+   den står her for å kunne hentes, ikke for å kreve noe. */
+.service-alert.sa-put-away{opacity:.62}
+.sa-back{
+  flex-shrink:0;background:none;border:none;color:var(--accent);opacity:.8;
+  font-size:.95rem;line-height:1;padding:.1rem .15rem;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.sa-back:hover,.sa-back:focus-visible{opacity:1}
+/* unhideAll kastet ikke — den bor her nå, der den er om noe synlig, og bare
+   når det er mer enn én å hente. */
+.alerts-back-all{
+  display:block;width:100%;text-align:left;
+  padding:.3rem .75rem;margin:.25rem 0 0;
+  font:inherit;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--accent);background:none;border:none;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+}
 .sa-title{display:block;font-weight:600}
 /* Two lines until tapped: a full Entur description can run several
    sentences, and unclamped it would push the departures off the screen. */

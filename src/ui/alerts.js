@@ -75,6 +75,23 @@ export function unhideAll() {
 }
 
 /**
+ * Bring ONE back.
+ *
+ * The folded row used to offer only unhideAll — one tap that undid every
+ * dismissal you had ever made, on every screen. It was the row's only verb,
+ * and that is why the put-away count needed a row of its own: two verbs on one
+ * tap is worse than two rows. One message at a time makes it one verb, and
+ * the row can be one row.
+ */
+export function unhideAlert(id) {
+  if (!id) return;
+  const map = loadHidden();
+  if (!(id in map)) return;
+  delete map[id];
+  saveHidden(map);
+}
+
+/**
  * Forget entries for messages that are no longer in the response at all,
  * so the key cannot grow without limit over months of use.
  */
@@ -189,10 +206,55 @@ export function otherLabel(n, what) {
 /** The default subject: «1 annen melding» / «3 andre meldinger». */
 export const OTHER_WORD = { one: 'annen melding', many: 'andre meldinger' };
 
-export function otherRowHtml(n, open, what) {
+/**
+ * ONE ROW, where there were two.
+ *
+ * Reported with a screenshot from the board:
+ *
+ *     1 ANNEN MELDING   VIS
+ *     1 MELDING SKJULT  VIS
+ *
+ * Two stacked rows both meaning «there is more here» — which the comment over
+ * otherLabel has said was wrong since the day it was written. The SHAPE was
+ * shared; it never became one row.
+ *
+ * It stayed two because the verbs differed: one folded out in place, the other
+ * called unhideAll(). Putting the dismissed messages INSIDE the fold, one at a
+ * time, makes it one verb — and makes the restore local instead of global.
+ *
+ * `what` still names the subject when the screen knows it, but only when the
+ * pile is purely «other»: mixing a dismissed message into «meldinger om andre
+ * linjer» would say something about it that is not true.
+ */
+export function moreLabel(nOther, nHidden, what) {
+  const n = (nOther || 0) + (nHidden || 0);
   if (!n) return '';
-  return '<button type="button" class="alerts-other" aria-expanded="' + (open ? 'true' : 'false') + '">'
-    + esc(otherLabel(n, what)) + ' <span class="ah-show">' + (open ? 'skjul' : 'vis') + '</span></button>';
+  if (what && !nHidden) return otherLabel(nOther, what);
+  return n === 1 ? '1 melding til' : n + ' meldinger til';
+}
+
+export function moreRowHtml(nOther, nHidden, open, what) {
+  const label = moreLabel(nOther, nHidden, what);
+  if (!label) return '';
+  return '<button type="button" class="alerts-more" aria-expanded="' + (open ? 'true' : 'false') + '">'
+    + esc(label) + ' <span class="ah-show">' + (open ? 'skjul' : 'vis') + '</span></button>';
+}
+
+/**
+ * A message the reader put away, shown inside the fold.
+ *
+ * The same .service-alert as any other, so a message looks like a message —
+ * with ↩ where ✕ would be, because this one is already away and the only
+ * thing left to do with it is bring it back.
+ */
+export function putAwayHtml(s) {
+  const inner = alertHtml(s);
+  if (!inner) return '';
+  return inner
+    .replace('class="service-alert', 'class="service-alert sa-put-away')
+    .replace(/<button type="button" class="sa-hide"[^>]*>✕<\/button>/,
+      '<button type="button" class="sa-back" data-sid="' + esc(String((s && s.id) || '')) + '"'
+      + ' aria-label="Hent meldingen tilbake">↩</button>');
 }
 
 /**
@@ -271,16 +333,24 @@ export function bindAlertToggles(el, onChange) {
     // Expanded-ness cannot live in the markup: this container is rewritten
     // once a second, so a class on the button would be gone before the finger
     // lifted. Same reasoning as the folded stop list on auto-reise.
-    const other = t.closest('.alerts-other');
-    if (other && el.contains(other)) {
-      el._saOtherOpen = !(el._saOtherOpen == null ? _otherOpen : el._saOtherOpen);
+    // Bring ONE back. Checked before the expander, like ✕ above: the reader
+    // who taps ↩ does not want the text unfolding on the way out.
+    const back = t.closest('.sa-back');
+    if (back && el.contains(back)) {
+      unhideAlert(back.dataset.sid);
+      if (el._saChange) el._saChange();
+      return;
+    }
+    const all = t.closest('.alerts-back-all');
+    if (all && el.contains(all)) {
+      unhideAll();
       if (el._saChange) el._saChange();
       return;
     }
 
-    const back = t.closest('.alerts-hidden');
-    if (back && el.contains(back)) {
-      unhideAll();
+    const other = t.closest('.alerts-more');
+    if (other && el.contains(other)) {
+      el._saOtherOpen = !(el._saOtherOpen == null ? _otherOpen : el._saOtherOpen);
       if (el._saChange) el._saChange();
       return;
     }
@@ -365,22 +435,30 @@ export function renderAlertsInto(el, situations, onChange, ctx) {
   // the v1.105.0 fault in miniature.
   const isOpen = el._saOtherOpen == null ? _otherOpen : el._saOtherOpen;
   const items = shown.map(alertHtml).filter(Boolean);
+  // EVERYTHING THE FOLD HOLDS, both kinds. The messages the reader put away
+  // are in `active` still — only filtered out of `shown` — so naming them is
+  // a matter of looking, not of keeping a second list.
+  const hid = loadHidden();
+  const away = active.filter(s => s && s.id && s.id in hid
+    && !escalated.includes(s.id));
   const otherItems = isOpen ? otherVis.shown.map(alertHtml).filter(Boolean) : [];
-  const other = otherRowHtml(otherVis.shown.length, isOpen, ctx && ctx.otherWord);
-  // The top row is about YOUR pile only. Counting the folded pile's dismissals
-  // here raised a second content-free row about something not on screen; that
-  // count now sits inside the pile it belongs to, below.
-  const row = hiddenRowHtml(hiddenCount);
-  const otherRow = isOpen ? hiddenRowHtml(otherVis.hiddenCount, true) : '';
-  if (!items.length && !other && !row) { el.innerHTML = ''; el.style.display = 'none'; return; }
-
+  const awayItems = isOpen ? away.map(putAwayHtml).filter(Boolean) : [];
+  // ONE ROW. Two rows both meaning «there is more here» is the report, and
+  // the comment over otherLabel has said so since it was written.
+  const more = moreRowHtml(otherVis.shown.length, away.length, isOpen,
+    ctx && ctx.otherWord);
+  // unhideAll is not thrown away — it lives here now, where it is about
+  // something visible, and only when there is more than one to bring back.
+  const backAll = (isOpen && away.length > 1)
+    ? '<button type="button" class="alerts-back-all">hent alle tilbake</button>' : '';
+  if (!items.length && !more) { el.innerHTML = ''; el.style.display = 'none'; return; }
 
   // Expanded state lives on the DOM, and the banner is rebuilt every tick —
   // so remember which ids were open and restore them, or an alert someone is
   // reading would snap shut a second later.
   const open = new Set([...el.querySelectorAll('.sa-open')]
     .map(b => b.parentElement && b.parentElement.dataset.sid));
-  el.innerHTML = items.join('') + other + otherItems.join('') + otherRow + row;
+  el.innerHTML = items.join('') + more + otherItems.join('') + awayItems.join('') + backAll;
   shown.concat(isOpen ? otherVis.shown : []).forEach(s => {
     if (!s.id || !open.has(s.id)) return;
     const box = el.querySelector('.service-alert[data-sid="' + (window.CSS && CSS.escape ? CSS.escape(s.id) : s.id) + '"]');

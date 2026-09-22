@@ -542,12 +542,26 @@ describe('auto-reise and the traffic banner', () => {
   });
 
   // There is no hover on a phone, so the mark cannot be the only place the
-  // message exists — the row's own label has to say it, and the full text
-  // stays in the folded banner.
-  it('puts the message in the row’s label, not only in a mark', () => {
+  // message exists. This used to require the text on the row's `title` and
+  // `aria-label` — a workaround for having nowhere visible to put it. The
+  // mark is a button now and the text is rendered; the requirement is the
+  // same, the place is better. The claim is asserted against real DOM in
+  // tests/autoAlerts.test.js, not against this file's text.
+  it('lets the mark be tapped for the message', () => {
     const t = src();
-    expect(t).toMatch(/const full = 'mot ' \+ d\.frontText[\s\S]{0,200}dirMsgs/);
+    expect(t).toMatch(/dirAlertHtml\(dirMsgs, _openMsgs, rm\.keys\.get\(i\), i\)/);
     expect(t).toMatch(/auto-dir-alert/);
+    // and the label is the row's own, not the message repeated into it
+    expect(t).toMatch(/const full = 'mot ' \+ d\.frontText \+ \(q \? ', ' \+ q : ''\);/);
+  });
+
+  // The banner is told what the rows already carry, from the same derivation
+  // the rows are drawn from.
+  it('tells the banner what the rows already say', () => {
+    const t = src();
+    const i = t.indexOf("renderAlertsInto(_el('auto-alerts')");
+    expect(t.slice(i - 200, i + 400)).toMatch(/delivered: rm\.ids/);
+    expect(t).toMatch(/const rm = rowMessages\(_liveRows\(Date\.now\(\)\), byLine\(_alerts\)\)/);
   });
 });
 

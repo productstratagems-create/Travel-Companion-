@@ -162,22 +162,83 @@ export function alertHtml(s) {
  * one: two rows meaning «there is more here» would be two things a reader has
  * to learn.
  */
-export function otherLabel(n) {
+/**
+ * `what` names the SUBJECT of the pile when the screen knows it. Auto-reise
+ * passes «meldinger om andre linjer», because there the pile is exactly the
+ * lines that got no row.
+ *
+ * Both forms are given, not derived: the first draft grew the singular out of
+ * the plural with a regex, which is two facts pretending to be one and is
+ * wrong the first time Norwegian disagrees with the pattern.
+ *
+ * An optional word on the one label function rather than a second function:
+ * two labels for one row is how the two drift apart.
+ *
+ * What it must NOT say is which lines. `_from.lines` holds ids, not
+ * publicCodes, and the lines we could name from the rows' own badges are
+ * precisely the ones that are `delivered` and no longer in this pile. «Linjer
+ * som ikke går herfra» would be false whenever the list is capped — a claim,
+ * not an observation.
+ */
+export function otherLabel(n, what) {
   if (!n) return '';
-  return n === 1 ? '1 annen melding' : n + ' andre meldinger';
+  const w = what || OTHER_WORD;
+  return n + ' ' + (n === 1 ? w.one : w.many);
 }
 
-export function otherRowHtml(n, open) {
+/** The default subject: «1 annen melding» / «3 andre meldinger». */
+export const OTHER_WORD = { one: 'annen melding', many: 'andre meldinger' };
+
+export function otherRowHtml(n, open, what) {
   if (!n) return '';
   return '<button type="button" class="alerts-other" aria-expanded="' + (open ? 'true' : 'false') + '">'
-    + esc(otherLabel(n)) + ' <span class="ah-show">' + (open ? 'skjul' : 'vis') + '</span></button>';
+    + esc(otherLabel(n, what)) + ' <span class="ah-show">' + (open ? 'skjul' : 'vis') + '</span></button>';
 }
 
-/** The one line that says something is put away, and takes you back. */
-export function hiddenRowHtml(n) {
+/**
+ * A closure is never someone else's problem.
+ *
+ * `relevance` sorts by SUBJECT — whose line, whose stop. Nothing in it asks
+ * how bad the thing is, so a stengt strekning about a line you might take
+ * could fold into «5 andre meldinger» and be read by nobody. This lifts the
+ * severe ones back out, and `delivered` cannot fold them either: a row shows
+ * a MARK, not a closure.
+ *
+ * Its own function, in this file and not in situations.js: `relevance` is
+ * about subject and this is about weight, and the two-pile contract there
+ * («never drops a message») has to stay a statement about subject alone.
+ *
+ * Called BEFORE visibleAlerts, so a reader who put a closure away keeps it
+ * away. Promotion decides where a message belongs, not whether the reader is
+ * allowed to be done with it.
+ */
+export function promoteSevere(split) {
+  const bad = s => sevRank(s && s.severity) <= SEVERITY_RANK.severe;
+  const lifted = (split.other || []).filter(bad);
+  if (!lifted.length) return split;
+  return {
+    mine: (split.mine || []).concat(lifted).sort((a, b) => sevRank(a.severity) - sevRank(b.severity)),
+    other: (split.other || []).filter(s => !bad(s)),
+  };
+}
+
+/**
+ * The one line that says something is put away, and takes you back.
+ *
+ * It used to count BOTH piles. One message dismissed inside a collapsed pile
+ * then raised a row at top level about something the reader cannot see — the
+ * second content-free row in the report. The other pile's count now sits
+ * inside the other pile, where it is about something on screen.
+ *
+ * `here` is that inner one. Not merged with the row above it: this one calls
+ * unhideAll(), which also undoes the board's dismissals, while «andre
+ * meldinger» merely folds out in place. Two verbs on one tap is worse than
+ * two rows.
+ */
+export function hiddenRowHtml(n, here) {
   if (!n) return '';
   return '<button type="button" class="alerts-hidden">'
-    + esc(hiddenLabel(n)) + ' <span class="ah-show">vis</span></button>';
+    + esc(hiddenLabel(n) + (here ? ' her' : '')) + ' <span class="ah-show">vis</span></button>';
 }
 
 /**
@@ -212,7 +273,7 @@ export function bindAlertToggles(el, onChange) {
     // lifted. Same reasoning as the folded stop list on auto-reise.
     const other = t.closest('.alerts-other');
     if (other && el.contains(other)) {
-      _otherOpen = !_otherOpen;
+      el._saOtherOpen = !(el._saOtherOpen == null ? _otherOpen : el._saOtherOpen);
       if (el._saChange) el._saChange();
       return;
     }
@@ -267,7 +328,26 @@ export function renderAlertsInto(el, situations, onChange, ctx) {
   //
   // No ctx — the caller has no context to offer — means everything is «mine»,
   // which is exactly today's behaviour.
-  const split = ctx ? splitSituations(active, ctx) : { mine: active, other: [] };
+  const raw = ctx ? splitSituations(active, ctx) : { mine: active, other: [] };
+  // WEIGHT, after subject. A stengt strekning about a line you might take
+  // could fold into «5 andre meldinger» and be read by nobody.
+  const split = promoteSevere(raw);
+  // WHAT THIS SCREEN ALREADY SAYS SOMEWHERE ELSE.
+  //
+  // Reported from Jernbanetorget: «5 ANDRE MELDINGER · VIS» stood above the
+  // screen's own identity, and the five were exactly the messages the line
+  // rows underneath were already marking. The row was true and about nothing.
+  //
+  // A message the caller has delivered elsewhere needs no line here. Not
+  // subtracted by the caller before the call: then this function could not
+  // see it, and the severity rule above would have to be written down a
+  // second time over there.
+  //
+  // Only the other pile, and never a closure: a row carries a MARK, not a
+  // stenging.
+  const deliv = (ctx && ctx.delivered) || null;
+  const onARow = s => !!deliv && !!(s && s.id) && deliv.has(s.id);
+  const orphans = deliv ? (split.other || []).filter(s => !onARow(s)) : split.other;
   const { shown, hiddenCount, escalated } = visibleAlerts(split.mine, loadHidden());
   // A message that got worse is shown again and forgets it was ever put away,
   // so the reader can put it away again on its own terms.
@@ -278,20 +358,30 @@ export function renderAlertsInto(el, situations, onChange, ctx) {
   }
   // The other pile goes through the SAME put-away rules: a message set aside
   // as someone else's should still stay away once the reader dismisses it.
-  const otherVis = visibleAlerts(split.other, loadHidden());
+  const otherVis = visibleAlerts(orphans, loadHidden());
+  // PER CONTAINER, not per module. One flag shared by the board, auto, both
+  // underveis banners and the departure details meant opening one opened all
+  // of them — and track.js renders several containers in one loop. That is
+  // the v1.105.0 fault in miniature.
+  const isOpen = el._saOtherOpen == null ? _otherOpen : el._saOtherOpen;
   const items = shown.map(alertHtml).filter(Boolean);
-  const otherItems = _otherOpen ? otherVis.shown.map(alertHtml).filter(Boolean) : [];
-  const other = otherRowHtml(otherVis.shown.length, _otherOpen);
-  const row = hiddenRowHtml(hiddenCount + otherVis.hiddenCount);
+  const otherItems = isOpen ? otherVis.shown.map(alertHtml).filter(Boolean) : [];
+  const other = otherRowHtml(otherVis.shown.length, isOpen, ctx && ctx.otherWord);
+  // The top row is about YOUR pile only. Counting the folded pile's dismissals
+  // here raised a second content-free row about something not on screen; that
+  // count now sits inside the pile it belongs to, below.
+  const row = hiddenRowHtml(hiddenCount);
+  const otherRow = isOpen ? hiddenRowHtml(otherVis.hiddenCount, true) : '';
   if (!items.length && !other && !row) { el.innerHTML = ''; el.style.display = 'none'; return; }
+
 
   // Expanded state lives on the DOM, and the banner is rebuilt every tick —
   // so remember which ids were open and restore them, or an alert someone is
   // reading would snap shut a second later.
   const open = new Set([...el.querySelectorAll('.sa-open')]
     .map(b => b.parentElement && b.parentElement.dataset.sid));
-  el.innerHTML = items.join('') + other + otherItems.join('') + row;
-  shown.concat(_otherOpen ? otherVis.shown : []).forEach(s => {
+  el.innerHTML = items.join('') + other + otherItems.join('') + otherRow + row;
+  shown.concat(isOpen ? otherVis.shown : []).forEach(s => {
     if (!s.id || !open.has(s.id)) return;
     const box = el.querySelector('.service-alert[data-sid="' + (window.CSS && CSS.escape ? CSS.escape(s.id) : s.id) + '"]');
     const btn = box && box.querySelector('.sa-more');

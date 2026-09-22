@@ -165,12 +165,12 @@ describe('hvor skjermen leser regelen', () => {
   const src = () => require('node:fs')
     .readFileSync('src/views/auto.js', 'utf8').replace(/\/\/[^\n]*/g, '');
 
-  it('tegner ingen klokke på en rad uten noe å rekke', () => {
+  // v1.143.0: innrykkene er foldet opp i destinasjonsblokka, så regelen
+  // leses nå der — en rad uten noe å rekke gir ingen `options`, og faller ut
+  // uten en gren. Det som ble bundet her, bindes av destinations.test.js.
+  it('lar blokka lese den gjennom catchable', () => {
     const s = src();
-    expect(s).toMatch(/reach\.set\(i, !!ride\)/);
-    // begge stedene raden sier ankomsten: spannet og den opplesbare merkelappen
-    expect(s).toMatch(/reach\.get\(i\) && arriveText\(st\)\s*\n?\s*\? '<span class="ais-mins">/);
-    expect(s).toMatch(/reach\.get\(i\) && arriveText\(st\) \? ', ' \+ arriveText\(st\) : ''/);
+    expect(s).toMatch(/const ride = catchable\(d, walkMins, now\)\[0\];\s*\n\s*if \(!ride\) return;/);
   });
 
   it('lar nedtrekkslista lese den samme regelen', () => {

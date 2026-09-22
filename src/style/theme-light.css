@@ -768,6 +768,7 @@ html[data-theme="light"] .hdr-more-btn {
 html[data-theme="light"] .auto-side { color: var(--text-dim); }
 
 /* Dine egne stopp under linja */
-html[data-theme="light"] .auto-inline-stop { border-color: rgba(var(--accent-rgb),.12); }
-html[data-theme="light"] .ais-name { color: var(--text-muted); }
-html[data-theme="light"] .ais-mins { color: var(--text-dim); }
+/* Dit du skal (v1.143.0), som arvet .auto-inline-stop sine regler her. */
+html[data-theme="light"] .auto-dest { border-color: rgba(var(--accent-rgb),.25); }
+html[data-theme="light"] .auto-dest-how { color: var(--text-muted); }
+html[data-theme="light"] .auto-dest-more { color: var(--text-dim); }

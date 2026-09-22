@@ -2188,36 +2188,24 @@ function _renderBody() {
   // times the work for one answer.
   const freq = loadFreq('arr');
   const side = new Map();
-  const ahead = new Map();
-  const pick = new Map();
-  // Whether this row has a departure the reader can still catch. The onward
-  // stops are drawn either way — «this line goes there» is worth knowing —
-  // but only a reachable departure can carry a clock time.
-  const reach = new Map();
   for (const { d, i } of live) {
-    // THE DEPARTURE YOU CAN ACTUALLY CATCH, not the soonest one.
-    //
-    // Reported from Mortensrud with fourteen minutes on foot: the row read
-    // «3̶ · 18 · 33 min» and the stop under it «framme 19:58» — the arrival of
-    // the 19:33 the row had just struck out. 19:33 + 25 min = 19:58; the
-    // arithmetic was right and the departure was one the reader could not
-    // take. `catchable` is the same list the strike above is drawn from.
-    //
-    // Nothing catchable — the neighbouring row had one departure, nine
-    // minutes out — means there is no arrival to state. The row has already
-    // crossed out every time it has, so this silence is not mute.
+    // The row's own onward stops, for the centre grouping. Read from the
+    // departure you can catch, so the row is judged by the journey the
+    // reader would actually take (v1.142.0).
     const ride = catchable(d, walkMins, now)[0];
-    // The onward stops were already computed here for the centre grouping
-    // and thrown away. Keeping them is what makes this release almost free.
-    const stops = stopsAhead((ride && ride.call) || d.call, _stop && _stop.name, now);
-    reach.set(i, !!ride);
-    ahead.set(i, stops);
-    side.set(i, centreward(here, stops));
-    // THIS ROW'S OWN STOPS. v1.105.0 exists because something was global;
-    // a shortcut under «mot Kolsås» that belongs to «mot Ski» is the same
-    // fault, and using the row's own list is what makes it impossible.
-    pick.set(i, stopShortcuts(stops, freq, INLINE_STOPS));
+    side.set(i, centreward(here, stopsAhead((ride && ride.call) || d.call, _stop && _stop.name, now)));
   }
+  // WHERE YOU ARE GOING, over where the lines are going.
+  //
+  // The same stops that used to be drawn indented under each row, grouped by
+  // DESTINATION instead of by row. On the reported screen four rows each
+  // carried «Jernbanetorget» with a different clock time, and the reader had
+  // to sort four numbers to find the earliest. Now it is said once, ranked.
+  //
+  // The indented stops are not deleted — they are this, folded up. Saying the
+  // same clock time in two places is the fault this codebase spends most of
+  // its time on.
+  const dests = destinations(live, freq, walkMins, now, _stop && _stop.name);
   // PARTITIONED, not a heading emitted whenever the value changes. The list
   // is already sorted by the reader's own choice (T-bane først / Lokalbuss
   // først), and a heading-on-change would interleave «mot sentrum» through
@@ -2230,8 +2218,43 @@ function _renderBody() {
   const grouped = groups.some(([k, rows]) => k && rows.length);
   const ordered = grouped ? groups.flatMap(([, rows]) => rows) : live;
 
+  /**
+   * One destination, said once: where, when you are there, and how.
+   *
+   * The heading carries the ANSWER — «Jernbanetorget · framme 20:13» — and
+   * the line under it carries what you need to act: which line, which
+   * platform, when it leaves. A reader standing at a hub has to know which
+   * row to walk to, and that is the whole of it.
+   *
+   * The rest are counted, not listed. They are the same journey by a slower
+   * road, and four of them under a heading would be the list this block
+   * exists to replace.
+   */
+  const destHtml = (x, n) => {
+    const o = x.options[0];
+    const q = quayLabel(o.call);
+    const how = 'linje ' + ((o.d.lines[0] && o.d.lines[0].code) || '?')
+      + ' mot ' + o.d.frontText + (q ? ' · ' + q : '')
+      + ' · går ' + clk(o.ms);
+    const flere = x.options.length - 1;
+    return '<button class="nearby-btn auto-dest" type="button" data-d="' + n + '"'
+      + ' aria-label="' + esc('reis til ' + x.name + ', framme ' + clk(o.at) + ', ' + how) + '">'
+      + '<span class="auto-dest-top">'
+      + '<span class="auto-dest-name">' + esc(x.name) + '</span>'
+      + '<span class="auto-dest-at">' + esc('framme ' + clk(o.at)) + '</span>'
+      + '</span>'
+      + '<span class="auto-dest-how">' + esc(how)
+      + (flere ? '<span class="auto-dest-more">'
+        + esc(' · +' + flere + (flere === 1 ? ' annen vei' : ' andre veier')) + '</span>' : '')
+      + '</span>'
+      + '</button>';
+  };
+
   let shown;
-  body.innerHTML = '<div class="set-label">hvor skal du?</div>'
+  body.innerHTML = (dests.length
+    ? '<div class="set-label">dit du skal</div>' + dests.map(destHtml).join('')
+    : '')
+    + '<div class="set-label">hvor skal du?</div>'
     + ordered.map(({ d, i }) => {
       const hint = usual && d.frontText.toLowerCase() === usual;
       const q = quayLabel(d.call);
@@ -2281,32 +2304,7 @@ function _renderBody() {
         // under space-between — and that warning is there because it happened.
         + '<span class="nearby-dist">' + _timesHtml(d, now, walkMins) + '</span>'
         + '</button>'
-        + msg.block
-        // YOUR OWN STOPS ON THIS LINE, indented under it. They were a tap
-        // away, on a screen you then had to come back from — and the one you
-        // wanted was usually the first thing on it.
-        //
-        // Nothing at all until you have travelled: stopShortcuts keeps only
-        // stops with a use count above zero, so a new reader sees exactly
-        // today's screen and this falls out by itself.
-        + (pick.get(i) || []).map(si => {
-          const st = (ahead.get(i) || [])[si];
-          if (!st) return '';
-          // REUSES .nearby-btn, like the route row at settings.css:257 does.
-          // The geometry is the row's own, so the two cannot differ — and
-          // a stop that is harder to hit than the line above it is not
-          // really being offered. Measured before: 54 px against 29.
-          return '<button class="nearby-btn auto-inline-stop" type="button"'
-            + ' data-dir="' + i + '" data-stop="' + si + '"'
-            // The clock belongs in the spoken label too, or the one reader
-            // who cannot see the right-hand column hears only a stop name.
-            + ' aria-label="' + esc('mot ' + d.frontText + ', gå av ' + st.name
-              + (reach.get(i) && arriveText(st) ? ', ' + arriveText(st) : '')) + '">'
-            + '<span class="ais-name">' + esc(st.name) + '</span>'
-            + (reach.get(i) && arriveText(st)
-              ? '<span class="ais-mins">' + arriveText(st) + '</span>' : '')
-            + '</button>';
-        }).join('');
+        + msg.block;
     }).join('')
     // SAID, NOT IMPLIED. The list is complete at a small stop and cut at a
     // hub, and it looked identical either way — so it earned trust where it
@@ -2336,11 +2334,13 @@ function _renderBody() {
       _renderBody();
     });
   });
-  body.querySelectorAll('.auto-inline-stop').forEach(b => {
-    b.addEventListener('click', e => {
-      e.stopPropagation();
-      const st = (ahead.get(Number(b.dataset.dir)) || [])[Number(b.dataset.stop)];
-      const dir = st && autoRoute(_stop, st);
+  // THE SAME DOOR the indented stop went through, and the «ofte brukt» row
+  // still does: autoRoute, then the one route-setter every caller uses. Three
+  // ways in, one way on.
+  body.querySelectorAll('.auto-dest').forEach(b => {
+    b.addEventListener('click', () => {
+      const x = dests[Number(b.dataset.d)];
+      const dir = x && autoRoute(_stop, { name: x.name, id: x.id });
       if (dir) window._useRouteDir && window._useRouteDir(dir, null);
     });
   });
@@ -2395,6 +2395,94 @@ export const INLINE_STOPS = 2;
  * @param {Array} arr   loadFreq('arr')
  * @returns {number[]} indices, most used first
  */
+/**
+ * How many destinations the block may name at once.
+ *
+ * Two, like INLINE_STOPS and for the mirror of its reason: the indented stops
+ * sat UNDER up to eleven rows, and this sits OVER them. Anything that pushes
+ * the departures off the screen has taken more than it gave.
+ */
+export const DEST_BLOCK = 2;
+
+/**
+ * YOUR OWN DESTINATIONS, and every way of getting to each from here.
+ *
+ * Reported with a screenshot from Mortensrud: four rows — mot Kolsås, mot
+ * Stortinget, mot Avløs, mot Jernbanetorget — and under every one of them the
+ * same stop, Jernbanetorget, with a different clock time. FOUR ROWS, FOUR
+ * CLOCK TIMES, ONE QUESTION: when am I at Jernbanetorget? The reader had to
+ * sort them in their head.
+ *
+ * The list is keyed on the DEPARTURE while the answer is a DESTINATION. This
+ * turns the axis: group by where you are going, rank by when you arrive.
+ *
+ * ── Nothing new is fetched ──────────────────────────────────────────────
+ *
+ * Both halves of the join already exist and were never put together:
+ * `stopsAhead` has been computed per row since v1.133.0, and `loadFreq('arr')`
+ * has held the reader's destinations since long before. The same computation,
+ * grouped by destination instead of by row, is the whole block.
+ *
+ * ── The rules ───────────────────────────────────────────────────────────
+ *
+ * Only what the reader USES, by `usesOf` and `stopKey` — the same key the
+ * indented stops and depUses share, so «Ryen» and «Ryen T» are one place here
+ * too. Without it every stop on every line would become a heading.
+ *
+ * Options sorted by ARRIVAL, because that is the question. Destinations
+ * sorted by USE, because a heading that reorders itself while the minutes
+ * count down is the unrest this app keeps removing.
+ *
+ * One row is one way there however many departures it has, and its arrival is
+ * the one from the departure you can still catch (v1.142.0). A row with
+ * nothing catchable yields no option at all — it falls out of `catchable`
+ * without a branch, which is the same reason «framme 20:04» stopped being
+ * printed under a row you could not use.
+ *
+ * `fromName` is the stop you are standing at, passed rather than read off
+ * module state: this is a rule, and a rule that reaches for `_stop` cannot be
+ * tested without the whole screen around it.
+ */
+export function destinations(live, freq, walkMins, now, fromName) {
+  const hist = (freq || []).filter(p => p && p.name);
+  if (!hist.length) return [];
+  // The index is built the way stopShortcuts builds it, from the same fields,
+  // so the two cannot disagree about what counts as used.
+  const byId = new Map(), byName = new Map();
+  hist.forEach(p => {
+    const c = Number(p.count) || 0;
+    if (p.stopId) byId.set(p.stopId, Math.max(c, byId.get(p.stopId) || 0));
+    const k = stopKey(p.name);
+    if (k) byName.set(k, (byName.get(k) || 0) + c);
+  });
+
+  const out = new Map();
+  (live || []).forEach(({ d, i }) => {
+    const ride = catchable(d, walkMins, now)[0];
+    if (!ride) return;
+    stopsAhead(ride.call, fromName, now).forEach(st => {
+      const n = usesOf(st, { byId, byName });
+      if (!n) return;
+      const key = stopKey(st.name);
+      if (!key) return;
+      const prev = out.get(key)
+        || { name: st.name, id: st.id, uses: n, options: [] };
+      // The same row twice keeps only its own earliest arrival: one row is
+      // one way there, whatever it is called on the way.
+      const seen = prev.options.find(o => o.i === i);
+      if (seen) { if (st.at < seen.at) { seen.at = st.at; seen.call = ride.call; } }
+      else prev.options.push({ i, d, call: ride.call, ms: ride.ms, at: st.at });
+      prev.uses = Math.max(prev.uses, n);
+      out.set(key, prev);
+    });
+  });
+
+  return [...out.values()]
+    .map(x => ({ ...x, options: x.options.slice().sort((a, b) => a.at - b.at) }))
+    .sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name, 'nb'))
+    .slice(0, DEST_BLOCK);
+}
+
 export function stopShortcuts(stops, arr, n) {
   const list = stops || [];
   const hist = (arr || []).filter(p => p && p.name);

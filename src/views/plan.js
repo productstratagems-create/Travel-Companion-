@@ -1,8 +1,6 @@
 import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus } from '../api/plan.js';
-import { legIcs, leadMins } from '../api/ics.js';
-import { storage } from '../storage.js';
+import { shareLegCalendar } from '../api/calShare.js';
 import { logMsg } from '../ui/log.js';
-import { loadWalkBuffer, walkMinsTo } from '../geo.js';
 import { stopKey } from '../stopId.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state } from '../state.js';
@@ -447,52 +445,8 @@ window._planDelLeg = (id) => {
  */
 window._planCalLeg = async (id) => {
   const leg = loadPlan().find(l => l.id === id);
-  if (!leg) return;
-  // The walk cannot always be known — a leg stores no coordinates for its
-  // origin — and leadMins says which of the two it used, so the entry can too.
-  const w = walkMinsTo(state.statLL && state.statLL[config.dirs[state.dIdx].key]);
-  const lead = leadMins(leg, {
-    walkMins: w ? w.mins : null,
-    buffer: loadWalkBuffer(),
-    fallback: config.defaultWalkMinutes,
-  });
-  const text = legIcs(leg, lead, _calSeq(leg.id));
-  const name = 'reise-' + leg.line + '-' + leg.depIso.slice(11, 16).replace(':', '') + '.ics';
-  const file = new File([text], name, { type: 'text/calendar' });
-
-  try {
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Linje ' + leg.line + ' → ' + leg.to });
-      return;
-    }
-  } catch { /* the reader cancelled, or the sheet refused — fall through */ }
-
-  try {
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url; a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-    return;
-  } catch { /* no download either */ }
-
-  logMsg('kunne ikke lage kalenderoppføring her', 'err');
+  if (leg) await shareLegCalendar(leg);
 };
-
-/**
- * SEQUENCE per leg, so a second export of the same leg MOVES the entry the
- * calendar already holds instead of leaving a stale alarm beside a new one.
- * The UID is the leg's own; this is the number that says «this is newer».
- */
-const CAL_SEQ_KEY = 't.calSeq';
-function _calSeq(id) {
-  let map = {};
-  try { map = JSON.parse(storage.get(CAL_SEQ_KEY) || '{}') || {}; } catch { map = {}; }
-  const next = (Number(map[id]) || 0) + 1;
-  map[id] = next;
-  try { storage.set(CAL_SEQ_KEY, JSON.stringify(map)); } catch { /* full */ }
-  return next - 1;
-}
 
 window._tapPlanLeg = (id) => {
   const leg = loadPlan().find(l => l.id === id);

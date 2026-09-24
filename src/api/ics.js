@@ -32,6 +32,7 @@
  * exported helpers below, tested on their own.
  */
 import { LEG_FALLBACK_MINS } from './plan.js';
+import { storage } from '../storage.js';
 
 /** Part of the UID, so a re-export REPLACES rather than adds. */
 export const ICS_DOMAIN = 'travel-companion.local';
@@ -87,8 +88,40 @@ export function icsFold(line) {
 const stamp = (ms) => new Date(ms).toISOString().replace(/[-:]|\.\d{3}/g, '');
 
 /**
+ * How far ahead the reader wants to be warned.
+ *
+ * LEAD_AUTO is the «gå nå» rule — walk plus margin — and it is a VALUE IN THE
+ * SAME LIST as the fixed numbers, not a switch beside it. That is deliberate:
+ * a hidden automatic mode that silently overrides a number the reader picked
+ * is two rules that must agree, and this codebase has paid for that shape
+ * about fifteen times. One list, one stored value, one reader.
+ */
+export const LEAD_AUTO = 'auto';
+export const LEAD_KEY = 't.lead';
+export const LEAD_CHOICES = [LEAD_AUTO, 5, 10, 15, 30];
+
+export function loadLeadPref() {
+  const v = storage.get(LEAD_KEY);
+  if (v == null || v === '' || v === LEAD_AUTO) return LEAD_AUTO;
+  const n = Number(v);
+  // A stored value that is not one of the offered numbers is not trusted into
+  // an alarm — it falls back to the rule rather than to an arbitrary minute.
+  return LEAD_CHOICES.includes(n) ? n : LEAD_AUTO;
+}
+
+export function saveLeadPref(v) {
+  storage.set(LEAD_KEY, String(v));
+}
+
+/**
  * How long before the departure the alarm should fire, and where that number
  * came from.
+ *
+ * Three sources, and the entry SAYS WHICH ONE — rettesnorens punkt 4:
+ *
+ *   valgt     the reader picked a number in settings; it always wins
+ *   gange     measured walking time plus the margin («gå nå»)
+ *   standard  no coordinates for the origin stop, so the walk was guessed
  *
  * `addLegToPlan` stores no coordinates for the origin stop, so `walkMinsTo`
  * has nothing to measure against and the walk cannot always be known. Then
@@ -97,6 +130,11 @@ const stamp = (ms) => new Date(ms).toISOString().replace(/[-:]|\.\d{3}/g, '');
  */
 export function leadMins(leg, o) {
   const c = o || {};
+  // The reader's own number wins, and is not quietly raised by a long walk:
+  // «15 min før» must mean 15, or the setting is a lie.
+  if (Number.isFinite(c.pref) && c.pref != null) {
+    return { mins: Math.max(1, Math.round(c.pref)), source: 'valgt' };
+  }
   const buffer = Number.isFinite(c.buffer) ? c.buffer : 2;
   const known = Number.isFinite(c.walkMins) && c.walkMins != null;
   const walk = known ? c.walkMins
@@ -119,9 +157,12 @@ export function legIcs(leg, lead, seq) {
   const arr = leg.arrIso ? new Date(leg.arrIso).getTime()
     : dep + LEG_FALLBACK_MINS * 60000;
   const mins = (lead && lead.mins) || 1;
-  const why = (lead && lead.source) === 'gange'
-    ? mins + ' min før avgang: gangtid og margin'
-    : mins + ' min før avgang: standard gangtid, ikke målt for dette stoppet';
+  const src = lead && lead.source;
+  const why = src === 'valgt'
+    ? mins + ' min før avgang: slik du har valgt i innstillinger'
+    : src === 'gange'
+      ? mins + ' min før avgang: gangtid og margin'
+      : mins + ' min før avgang: standard gangtid, ikke målt for dette stoppet';
   const desc = 'Alarmen sier GÅ NÅ, ikke at avgangen går nå — den er satt '
     + why + '.\n'
     + 'Avgang ' + new Date(dep).toISOString().slice(11, 16) + ' UTC fra ' + leg.from + '.\n'

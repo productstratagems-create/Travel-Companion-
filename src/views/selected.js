@@ -9,6 +9,7 @@ import { quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 import { addLegToPlan, isLegInPlan } from '../api/plan.js';
+import { shareLegCalendar, canShareCal } from '../api/calShare.js';
 import { updatePlanCtx } from './plan.js';
 import { logMsg } from '../ui/log.js';
 import { esc } from '../ui/fmt.js';
@@ -686,9 +687,20 @@ export function renderSelected() {
     planBtn.textContent = alreadyInPlan ? '📋 i reiseplan' : '📋 legg til i reiseplan';
     if (!alreadyInPlan) {
       planBtn.onclick = () => {
-        addLegToPlan(c, dir);
+        const leg = addLegToPlan(c, dir);
         updatePlanCtx();
         renderSelected();
+        // THE SHEET OPENS HERE, while the tap is still fresh. `addLegToPlan`
+        // and `renderSelected` are both synchronous — they write localStorage
+        // and rebuild the DOM — so transient user activation survives them and
+        // the browser still lets `navigator.share` open. An await in front of
+        // this line would spend the activation and the sheet would be refused.
+        //
+        // `shareOnly` because this is offered UNASKED: on a desktop, where
+        // there is no sheet, falling through to the download rung would drop a
+        // file in Downloads every time a leg is added. The bell on the plan
+        // card still offers that rung, because there the reader asked.
+        if (leg && canShareCal()) shareLegCalendar(leg, { shareOnly: true });
       };
     } else {
       planBtn.style.opacity = '.6';

@@ -119,14 +119,14 @@ await new Promise(r => server.listen(PORT, r));
 
 const browser = await pw.chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 
-async function run(label, hist, scheme) {
+async function run(label, hist, scheme, lead) {
   const ctx = await browser.newContext({
     viewport: { width: 414, height: 860 }, deviceScaleFactor: 2, colorScheme: scheme,
     hasTouch: true, isMobile: true, timezoneId: 'Europe/Oslo', locale: 'nb-NO',
     geolocation: { latitude: HERE.lat, longitude: HERE.lon }, permissions: ["geolocation"],
   });
   const page = await ctx.newPage();
-  await page.addInitScript(({ now, here, hist, scheme }) => {
+  await page.addInitScript(({ now, here, hist, scheme, lead }) => {
     const Real = Date;
     class Pinned extends Real {
       constructor(...a) { super(...(a.length ? a : [now])); }
@@ -139,6 +139,7 @@ async function run(label, hist, scheme) {
     // and «lys modus» was the dark screen under another name.
     localStorage.setItem('default::t.theme', scheme === 'light' ? 'light' : 'dark');
     localStorage.setItem('default::t.autoMode', '1');
+    if (lead) localStorage.setItem('default::t.lead', String(lead));
     // EN PLAN: én etappe som ikke har begynt, og én som er i gang.
     localStorage.setItem('default::t.plan', JSON.stringify([
       { id: 'leg_fremtid', line: '3', lineColour: 'f5a000',
@@ -156,6 +157,13 @@ async function run(label, hist, scheme) {
     navigator.canShare = () => true;
     navigator.share = async (d) => {
       const f = d.files && d.files[0];
+      // AKTIVERINGEN MÅLES HER, og det er det eneste stedet den kan måles.
+      // Stubben min er en vanlig funksjon og bryr seg ikke om brukertrykk —
+      // så en prøve som bare sjekker at den ble kalt, beviser INGENTING om
+      // at en ekte nettleser ville åpnet arket. `navigator.userActivation`
+      // er nettleserens eget svar på «er trykket ennå ferskt», og den er
+      // falsk i samme øyeblikk et await har spist det.
+      window.__aktiv = !!(navigator.userActivation && navigator.userActivation.isActive);
       window.__delt = { navn: f && f.name, type: f && f.type,
         tekst: f ? await f.text() : null };
     };
@@ -170,7 +178,7 @@ async function run(label, hist, scheme) {
     localStorage.setItem('default::t.freqArr', JSON.stringify(
       hist.map(h => ({ name: h.toName, stopId: h.toStopId, lat: h.toLat, lon: h.toLon,
         count: h.count, lastUsed: h.lastUsed }))));
-  }, { now: NOW, here: HERE, hist, scheme });
+  }, { now: NOW, here: HERE, hist, scheme, lead });
 
   await page.route('**/geocoder/**', r => r.fulfill({ status: 200, contentType: 'application/json',
     body: JSON.stringify({ features: NEARBY }) }));
@@ -307,6 +315,62 @@ async function run(label, hist, scheme) {
       console.log('    linjer over 75 oktetter: ' + forLang.length);
     }
   }
+  /* OG DET SOM FAKTISK BLE BEDT OM: arket i samme øyeblikk etappen legges til.
+   *
+   * Trykket må være EKTE. `window.tap(...)` fra evaluate gir ingen
+   * brukeraktivering, og da ville prøven målt stubben sin egen godvilje
+   * framfor nettleserens regel. Derfor legges det en virkelig knapp i siden
+   * som åpner avgangen, og Playwright klikker den — og så klikkes «legg til
+   * i reiseplan» like virkelig.
+   *
+   * OG SKJERMEN SJEKKES FØR DEN MÅLES. To prøver i dette repoet har meldt
+   * tall fra en skjerm de aldri kom til. */
+  const lagtTil = await (async () => {
+    await page.evaluate((DEP) => {
+      localStorage.setItem('default::t.plan', '[]');
+      window.__delt = null; window.__aktiv = null;
+      // `state` er ikke på window — avgangen sendes inn i stedet, slik
+      // `tap()` tar den når den ikke er en indeks. (Første utgave leste
+      // window.state.deps og fikk null, og prøven meldte at den ikke nådde
+      // skjermen — instrumentet, ikke koden.)
+      window.__dep = DEP;
+      const b = document.createElement('button');
+      b.id = 'probe-open'; b.textContent = 'åpne';
+      b.style.cssText = 'position:fixed;top:0;left:0;z-index:99999';
+      b.onclick = () => window.tap(window.__dep);
+      document.body.appendChild(b);
+    }, CALLS[0]);
+    if (!await page.evaluate(() => !!window.__dep)) return { naadde: false, hvorfor: 'ingen avgang i state.deps' };
+    await page.click('#probe-open');
+    await page.waitForTimeout(900);
+    const synlig = await page.evaluate(() => {
+      const e = document.getElementById('v-selected');
+      return !!e && e.style.display !== 'none' && e.offsetHeight > 0;
+    });
+    if (!synlig) return { naadde: false, hvorfor: 'kom aldri til v-selected' };
+    const knapper = await page.evaluate(() =>
+      [...document.querySelectorAll('#v-selected .cta-btn')].map(b => b.textContent.trim()));
+    const i = knapper.findIndex(t => /legg til i reiseplan/i.test(t));
+    if (i < 0) return { naadde: true, delt: false, hvorfor: 'fant ingen tilleggsknapp', knapper };
+    await page.locator('#v-selected .cta-btn').nth(i).click();
+    await page.waitForTimeout(700);
+    return await page.evaluate(() => ({
+      naadde: true, delt: !!window.__delt, aktiv: window.__aktiv,
+      navn: window.__delt && window.__delt.navn,
+      trigger: window.__delt && (window.__delt.tekst.split('\r\n')
+        .find(l => l.startsWith('TRIGGER:')) || null),
+      iPlan: JSON.parse(localStorage.getItem('default::t.plan') || '[]').length,
+    }));
+  })();
+  console.log('  — tillegg —');
+  if (!lagtTil.naadde) console.log('  ✗ nådde ikke skjermen: ' + lagtTil.hvorfor);
+  else if (!lagtTil.delt) console.log('  ✗ ingenting delt: ' + (lagtTil.hvorfor || '')
+    + (lagtTil.knapper ? ' · knapper: ' + JSON.stringify(lagtTil.knapper) : ''));
+  else console.log('  arket kom uoppfordret: ' + lagtTil.navn
+    + ' · ' + lagtTil.trigger
+    + ' · etapper i plan: ' + lagtTil.iPlan
+    + ' · brukeraktivering fersk: ' + lagtTil.aktiv);
+
   await page.screenshot({ path: 'scratchpad/kalender-' + label + '-' + scheme + '.png', fullPage: true });
 
   await ctx.close();
@@ -325,6 +389,10 @@ const HIST = [
 ];
 await run('plan', HIST, 'dark');
 await run('plan', HIST, 'light');
+// OG MED ET VALGT TALL. «automatisk» over ga TRIGGER:-PT10M (standard
+// gangtid, ingen koordinater for stoppet); med 15 valgt skal alarmen være
+// nøyaktig 15 — ikke 15 pluss margin, og ikke hevet av gangtiden.
+await run('valgt15', HIST, 'dark', 15);
 // AND THE CASE THAT MATTERS MOST: outside the city the app knows, the
 // headings must not appear at all and the screen is what it was.
 

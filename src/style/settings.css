@@ -13,6 +13,19 @@
   margin-bottom: .5rem;
 }
 
+/* The one line under a choice that says what the choice MEANS.
+ *
+ * «automatisk» is not self-explanatory — it is the walk-plus-margin rule, and
+ * a reader who cannot see that cannot tell it from a fixed number. Quieter
+ * than .set-label and not shouted in caps, because it is read once. It takes
+ * its colour from the same token, so light mode needs no second rule. */
+.set-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(var(--accent-rgb),.55);
+  margin-top: .45rem;
+}
+
 .set-field {
   position: relative;
 }

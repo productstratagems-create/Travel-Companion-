@@ -189,10 +189,16 @@ describe('knappen i reiseplanen', () => {
     expect(src()).toMatch(/plan-leg-cal" onclick="event\.stopPropagation\(\)/);
   });
 
+  // Stigen og marginen bor nå i src/api/calShare.js: da tillegget på
+  // avgangsskjermen ville ha det samme arket, ville en kopi her vært to
+  // steder som bygger den samme fila. Påstandene er de samme — de leser bare
+  // eieren. At reiseplanen ikke bygger fila selv bindes av addLegShare.test.js.
+  const lad = () => require('node:fs')
+    .readFileSync('src/api/calShare.js', 'utf8').replace(/\/\/[^\n]*/g, '');
+
   // Stigen: delearket først (iOS-veien), så nedlasting, så et ord.
   it('prøver delearket før nedlasting', () => {
-    const s = src();
-    const h = s.slice(s.indexOf('window._planCalLeg'));
+    const h = lad();
     expect(h.indexOf('navigator.canShare')).toBeLessThan(h.indexOf('a.download'));
     expect(h).toMatch(/type: 'text\/calendar'/);
     expect(h).toMatch(/logMsg\(/);
@@ -200,8 +206,8 @@ describe('knappen i reiseplanen', () => {
 
   // Marginen skal komme fra leadMins, ikke fra et tall skrevet her.
   it('lar leadMins bestemme marginen', () => {
-    const s = src();
-    expect(s).toMatch(/const lead = leadMins\(leg, \{/);
+    const s = lad();
+    expect(s).toMatch(/return leadMins\(leg, \{/);
     expect(s).toMatch(/buffer: loadWalkBuffer\(\)/);
     expect(s).toMatch(/fallback: config\.defaultWalkMinutes/);
   });

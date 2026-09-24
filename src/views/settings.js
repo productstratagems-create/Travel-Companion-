@@ -10,6 +10,7 @@ import { loadConsent, saveConsent } from '../api/consent.js';
 import L from 'leaflet';
 import { createMap } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
+import { loadLeadPref, saveLeadPref, LEAD_AUTO } from '../api/ics.js';
 import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, landingPref, saveLandingPref, focusParam } from '../geo.js';
 import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
@@ -188,6 +189,12 @@ function _highlightPrefs() {
   document.querySelectorAll('#pref-landing .pref-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.val === landing);
   });
+  // String() so the automatic rule and the numbers compare the same way — the
+  // stored value is one list, and `data-val` is always text.
+  const lead = String(loadLeadPref());
+  document.querySelectorAll('#pref-lead .pref-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === lead);
+  });
 }
 
 function initPrefs() {
@@ -199,6 +206,13 @@ function initPrefs() {
   });
   document.querySelectorAll('#pref-theme .pref-btn').forEach(btn => {
     btn.addEventListener('click', () => { setTheme(btn.dataset.val); _highlightPrefs(); });
+  });
+  document.querySelectorAll('#pref-lead .pref-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = btn.dataset.val;
+      saveLeadPref(v === LEAD_AUTO ? LEAD_AUTO : Number(v));
+      _highlightPrefs();
+    });
   });
   document.querySelectorAll('#pref-palette .pref-btn').forEach(btn => {
     btn.addEventListener('click', () => { setPalette(btn.dataset.val); _highlightPrefs(); });

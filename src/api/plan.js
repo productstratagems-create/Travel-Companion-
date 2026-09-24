@@ -27,7 +27,10 @@ export function addLegToPlan(c, dir) {
   const lineColour = (ln && ln.presentation && ln.presentation.colour) || '7c2d12';
   const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to;
   const arrIso = c._finalArrival || null;
-  legs.push({
+  // RETURNS THE LEG, not just true: the departure screen offers the calendar
+  // sheet for the leg it just added, and it must be the same object — looking
+  // it up again by a second rule is how the wrong leg gets exported.
+  const leg = {
     id: 'leg_' + Date.now(),
     line, lineColour,
     from: dir.from,
@@ -36,9 +39,10 @@ export function addLegToPlan(c, dir) {
     arrIso,
     serviceJourneyId,
     addedAt: Date.now(),
-  });
+  };
+  legs.push(leg);
   savePlan(legs);
-  return true;
+  return leg;
 }
 
 export function removeLegFromPlan(id) {

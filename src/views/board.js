@@ -11,6 +11,7 @@ import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary,
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
+import { samePlace } from '../api/place.js';
 import { collectStopSituations } from '../api/situations.js';
 import { pruneHidden } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
@@ -2759,9 +2760,10 @@ export function renderBoard() {
   if (planLegs.length) {
     const lastLeg = planLegs[planLegs.length - 1];
     if (lastLeg.arrIso && legStatus(lastLeg, now) !== 'done') {
-      const fromNorm = normStopName(dir.from);
-      const toNorm = normStopName(lastLeg.to);
-      if (fromNorm && toNorm && (fromNorm.includes(toNorm) || toNorm.includes(fromNorm))) {
+      // samePlace, ikke delstreng: «Bryn» og «Brynseng» er to stopp, og
+      // delstrengtesten her gjorde dem til ett. Den avleder id først og
+      // faller til `stopKey` som LIKHET — appens ene navneregel.
+      if (samePlace(dir && dir.from, lastLeg.to)) {
         planMinDepTs = new Date(lastLeg.arrIso).getTime();
       }
     }

@@ -1,7 +1,7 @@
-import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus } from '../api/plan.js';
+import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent } from '../api/plan.js';
 import { shareLegCalendar } from '../api/calShare.js';
+import { placeName, placeLL, samePlace } from '../api/place.js';
 import { logMsg } from '../ui/log.js';
-import { stopKey } from '../stopId.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state } from '../state.js';
 import { show, updateHeader } from '../ui/nav.js';
@@ -37,7 +37,6 @@ function _destroyPlanMap() {
   _planMapLayer = null;
 }
 
-const _normStn = stopKey;   // recipe A; stopKey is recipe A plus the T
 
 async function _renderPlanMap(legs) {
   const wrap = document.getElementById('plan-map-wrap');
@@ -57,22 +56,27 @@ async function _renderPlanMap(legs) {
   // (journeyGQL returns lat/lon per stop), fall back to geocoding otherwise
   const legData = await Promise.all(legs.map(async (leg) => {
     const color = '#' + (leg.lineColour || '7c2d12');
-    const fromNorm = _normStn(leg.from);
-    const toNorm = _normStn(leg.to);
+
+    // ETAPPEN BÆRER LISTA SI. Ingen henting, ingen gjetting, og kartet
+    // tegnes selv uten nett. Den ble tatt vare på i det øyeblikket etappen
+    // ble lagret — den samme lista `_renderSelMap` tegnet av på skjermen da.
+    const egne = Array.isArray(leg.stops) ? leg.stops.filter(x => x && x.lat != null && x.lon != null) : [];
+    if (egne.length >= 2) {
+      const { fromIdx, toIdx } = legExtent(egne, leg);
+      const slice = egne.slice(fromIdx, toIdx + 1);
+      const pts = (slice.length >= 2 ? slice : egne).map(c => [c.lat, c.lon]);
+      return { leg, color,
+        fromCoord: { lat: pts[0][0], lon: pts[0][1] },
+        toCoord: { lat: pts[pts.length - 1][0], lon: pts[pts.length - 1][1] },
+        routePts: pts };
+    }
 
     if (leg.serviceJourneyId) {
       try {
         const meta = await fetchJourneyMeta(leg.serviceJourneyId);
         if (meta && meta.calls && meta.calls.length) {
-          // Find from/to stop indices by name
-          let fromIdx = -1, toIdx = -1;
-          meta.calls.forEach((c, i) => {
-            const nm = _normStn(c.name);
-            if (fromIdx < 0 && nm.includes(fromNorm)) fromIdx = i;
-            if (nm.includes(toNorm)) toIdx = i;
-          });
-          if (fromIdx < 0) fromIdx = 0;
-          if (toIdx < 0) toIdx = meta.calls.length - 1;
+          // Regelen har ett navn nå, i api/plan.js, så den kan måles.
+          const { fromIdx, toIdx } = legExtent(meta.calls, leg);
 
           // Route: all stops from fromIdx to toIdx (inclusive)
           const slice = meta.calls.slice(fromIdx, toIdx + 1);
@@ -92,8 +96,8 @@ async function _renderPlanMap(legs) {
 
     // Geocoding fallback
     const [fromR, toR] = await Promise.all([
-      geocodePlace(leg.from).catch(() => []),
-      geocodePlace(leg.to).catch(() => []),
+      geocodePlace(placeName(leg.from)).catch(() => []),
+      geocodePlace(placeName(leg.to)).catch(() => []),
     ]);
     const fromCoord = fromR[0] ? { lat: fromR[0].lat, lon: fromR[0].lon } : null;
     const toCoord   = toR[0]   ? { lat: toR[0].lat,   lon: toR[0].lon   } : null;
@@ -135,7 +139,7 @@ async function _renderPlanMap(legs) {
     if (i === 0 && fromCoord) {
       L.circleMarker([fromCoord.lat, fromCoord.lon], {
         radius: 7, color: '#fff', fillColor: tokens().accent, fillOpacity: 0.9, weight: 2,
-      }).bindTooltip(leg.from.toLowerCase(), { className: 'map-label', direction: 'top' })
+      }).bindTooltip(placeName(leg.from).toLowerCase(), { className: 'map-label', direction: 'top' })
         .addTo(_planMapLayer);
     }
 
@@ -146,7 +150,7 @@ async function _renderPlanMap(legs) {
         + leg.line + '</span></div>';
       const icon = L.divIcon({ className: '', html: badgeHtml, iconSize: [0, 0], iconAnchor: [0, 0] });
       L.marker([toCoord.lat, toCoord.lon], { icon })
-        .bindTooltip(leg.to.toLowerCase(), { className: 'map-label', direction: 'top' })
+        .bindTooltip(placeName(leg.to).toLowerCase(), { className: 'map-label', direction: 'top' })
         .addTo(_planMapLayer);
     }
   });
@@ -208,7 +212,7 @@ export function updatePlanCtx() {
     '<button class="pctx-main" aria-label="Se reise underveis">'
     + '<span class="pctx-label">etappe ' + n + '</span>'
     + '<span class="line-badge pctx-badge" style="background:#' + last.lineColour + '">' + last.line + '</span>'
-    + '<span class="pctx-dest">' + last.to.toLowerCase() + '</span>'
+    + '<span class="pctx-dest">' + placeName(last.to).toLowerCase() + '</span>'
     + (arrTs ? '<span class="pctx-arr">ank. ' + clkDay(arrTs) + '</span>' : '')
     + '<span id="pctx-status" class="' + statusClass + '">' + statusText + '</span>'
     + '</button>'
@@ -346,8 +350,8 @@ export function renderPlan() {
       + '<div class="plan-leg-top">'
       + '<span class="line-badge" style="background:#' + leg.lineColour + '">' + leg.line + '</span>'
       + '<div class="plan-leg-route">'
-      + '<div class="plan-leg-from">' + leg.from.toLowerCase() + '</div>'
-      + '<div class="plan-leg-to">' + leg.to.toLowerCase() + '</div>'
+      + '<div class="plan-leg-from">' + placeName(leg.from).toLowerCase() + '</div>'
+      + '<div class="plan-leg-to">' + placeName(leg.to).toLowerCase() + '</div>'
       + '</div>'
       + '</div>'
       + '<div class="plan-leg-times">'
@@ -457,7 +461,7 @@ window._tapPlanLeg = (id) => {
   const prevDepsFrom = (config.dirs[state.dIdx] && config.dirs[state.dIdx].from || '').toLowerCase();
 
   // Set direction context to match the plan leg's route
-  const dIdx = config.dirs.findIndex(d => d.from.toLowerCase() === leg.from.toLowerCase());
+  const dIdx = config.dirs.findIndex(d => samePlace(d && d.from, leg.from));
   if (dIdx >= 0 && dIdx !== state.dIdx) {
     state.dIdx = dIdx;
     updateHeader();
@@ -465,7 +469,7 @@ window._tapPlanLeg = (id) => {
 
   // Only use live board data if it was fetched from the same station as this leg's
   // departure — prevents a time-collision match from a different station's departures
-  const legFrom = leg.from.toLowerCase();
+  const legFrom = placeName(leg.from).toLowerCase();
   if (prevDepsFrom === legFrom && state.deps && state.deps.length) {
     const live = state.deps.find(d => d.expectedDepartureTime === leg.depIso);
     if (live) { window.tap(live); return; }
@@ -482,7 +486,7 @@ window._tapPlanLeg = (id) => {
       },
       estimatedCalls: [],
     },
-    destinationDisplay: { frontText: leg.to },
+    destinationDisplay: { frontText: leg.frontText || placeName(leg.to) },
     quay: { publicCode: '?' },
     expectedDepartureTime: leg.depIso,
     aimedDepartureTime: leg.depIso,

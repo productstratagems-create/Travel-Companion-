@@ -92,7 +92,24 @@ describe('posState — the five that were one', () => {
 
   it('survives junk', () => {
     expect(() => posState(null)).not.toThrow();
-    expect(ps({ asked: true, homeLL: LL, posAt: 'i går' }).kind).toBe('ok');
+  });
+
+  /* Og et tidsstempel som ikke er et tall er IKKE «fersk».
+   *
+   * Denne testen bandt før `kind === 'ok'` for `posAt: 'i går'`, og det var
+   * nettopp feilen: uten en brukbar alder falt alle alderssjekkene bort og
+   * funksjonen endte på 'ok'. Samme hull traff en ekte sak — en posisjon
+   * gjenopprettet fra forrige økt, der `geo.js` lagret lat/lon men ikke
+   * tidsstempelet. Den ble kalt fersk, vant over ruteplanen på
+   * underveis-skjermen, og sa noe annet enn stripen to centimeter over, som
+   * dømte den samme posisjonen etter sin egen regel.
+   *
+   * «Vi vet ikke hvor gammel den er» er sin egen setning. */
+  it('kaller en posisjon uten brukbar alder for ukjent, ikke fersk', () => {
+    const r = ps({ asked: true, homeLL: LL, posAt: 'i går' });
+    expect(r.kind).toBe('ukjent-alder');
+    expect(r.usable).toBe(false);
+    expect(ps({ asked: true, homeLL: LL, posAt: null }).kind).toBe('ukjent-alder');
   });
 });
 

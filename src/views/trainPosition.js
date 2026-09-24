@@ -18,11 +18,10 @@ import { _interpolateOnPath } from './board.js';
  * no operator feed — which appears to be all of T-banen.
  */
 
-export const SRC_LABEL = {
-  gps:     'din gps',
-  live:    'sanntid',
-  rutetid: 'etter rutetid',
-};
+// Ordene bor i en bladmodul nå, så stopplista kan lese dem uten å dra inn
+// board.js. Re-eksportert under navnet kallestedene alt kjenner — samme grep
+// som geo.js gjør med stopKey.
+export { SRC_LABEL } from '../api/posSource.js';
 
 /**
  * @returns {{lat:number, lon:number, heading:number|null, src:'gps'|'live'|'rutetid'}|null}

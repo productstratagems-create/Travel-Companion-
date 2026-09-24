@@ -153,6 +153,21 @@ async function run(label, hist, scheme, lead) {
         arrIso: new Date(now + 10 * 60000).toISOString(),
         serviceJourneyId: 'RUT:ServiceJourney:2', addedAt: now },
     ]));
+    // FANG ANKERET. Etter at stigen ble snudd er det ankeret som går først,
+    // og en prøve som bare stubber navigator.share ville meldt «ingenting ble
+    // delt» om en kalenderfil som virker. Det er klikket på <a download> som
+    // gir iOS «vil du tillate en kalenderinvitasjon».
+    const RealClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (this.download && /\.ics$/.test(this.download)) {
+        window.__aktiv = !!(navigator.userActivation && navigator.userActivation.isActive);
+        fetch(this.href).then(r => r.text()).then(t => {
+          window.__anker = { navn: this.download, tekst: t };
+        });
+        return;
+      }
+      return RealClick.call(this);
+    };
     // FANG FILA framfor å åpne et delingsark prøven ikke kan se.
     navigator.canShare = () => true;
     navigator.share = async (d) => {
@@ -297,10 +312,11 @@ async function run(label, hist, scheme, lead) {
   if (await knapp.count()) {
     await knapp.click();
     await page.waitForTimeout(500);
-    const delt = await page.evaluate(() => window.__delt || null);
+    await page.waitForTimeout(300);
+    const delt = await page.evaluate(() => window.__anker || window.__delt || null);
     if (!delt) console.log('  ✗ ingenting ble delt');
     else {
-      console.log('  delt: ' + delt.navn + ' · ' + delt.type);
+      console.log('  via ' + (delt.type ? 'delingsark' : 'anker (kalenderinvitasjon)') + ': ' + delt.navn);
       const l = delt.tekst.replace(/\r\n[ \t]/g, '').split('\r\n');
       ['SUMMARY', 'DTSTART', 'TRIGGER', 'UID', 'SEQUENCE'].forEach(f => {
         const rad = l.find(x => x.startsWith(f + ':'));
@@ -328,7 +344,7 @@ async function run(label, hist, scheme, lead) {
   const lagtTil = await (async () => {
     await page.evaluate((DEP) => {
       localStorage.setItem('default::t.plan', '[]');
-      window.__delt = null; window.__aktiv = null;
+      window.__delt = null; window.__aktiv = null; window.__anker = null;
       // `state` er ikke på window — avgangen sendes inn i stedet, slik
       // `tap()` tar den når den ikke er en indeks. (Første utgave leste
       // window.state.deps og fikk null, og prøven meldte at den ikke nådde
@@ -355,10 +371,12 @@ async function run(label, hist, scheme, lead) {
     await page.locator('#v-selected .cta-btn').nth(i).click();
     await page.waitForTimeout(700);
     return await page.evaluate(() => ({
-      naadde: true, delt: !!window.__delt, aktiv: window.__aktiv,
-      navn: window.__delt && window.__delt.navn,
-      trigger: window.__delt && (window.__delt.tekst.split('\r\n')
-        .find(l => l.startsWith('TRIGGER:')) || null),
+      naadde: true, delt: !!(window.__anker || window.__delt), aktiv: window.__aktiv,
+      vei: window.__anker ? 'anker (kalenderinvitasjon)' : 'delingsark',
+      navn: (window.__anker || window.__delt || {}).navn,
+      trigger: (window.__anker || window.__delt) &&
+        ((window.__anker || window.__delt).tekst.split('\r\n')
+          .find(l => l.startsWith('TRIGGER:')) || null),
       iPlan: JSON.parse(localStorage.getItem('default::t.plan') || '[]').length,
     }));
   })();
@@ -366,7 +384,7 @@ async function run(label, hist, scheme, lead) {
   if (!lagtTil.naadde) console.log('  ✗ nådde ikke skjermen: ' + lagtTil.hvorfor);
   else if (!lagtTil.delt) console.log('  ✗ ingenting delt: ' + (lagtTil.hvorfor || '')
     + (lagtTil.knapper ? ' · knapper: ' + JSON.stringify(lagtTil.knapper) : ''));
-  else console.log('  arket kom uoppfordret: ' + lagtTil.navn
+  else console.log('  kom uoppfordret via ' + lagtTil.vei + ': ' + lagtTil.navn
     + ' · ' + lagtTil.trigger
     + ' · etapper i plan: ' + lagtTil.iPlan
     + ' · brukeraktivering fersk: ' + lagtTil.aktiv);

@@ -65,8 +65,18 @@ export function legCalFile(leg) {
   return new File([text], name, { type: 'text/calendar' });
 }
 
-/** True when this device can hand a calendar file to the OS sheet. */
-export function canShareCal() {
+/**
+ * Er dette en telefon som selv kan ta imot en kalenderfil?
+ *
+ * ET STEDFORTREDENDE MÅL, og det sies rett ut: det finnes ingen ærlig måte å
+ * spørre nettleseren «har du en Kalender-app». Støtte for å dele FILER via
+ * operativsystemets ark er det nærmeste — sant på iOS og Android, falskt på
+ * de fleste skrivebord — og det er derfor det brukes her, selv om stigen selv
+ * ikke lenger deler. Den brukes BARE til å avgjøre om kalenderen skal tilbys
+ * uoppfordret når en etappe legges til, så et skrivebord ikke får en fil i
+ * Nedlastinger hver gang. Bjella tilbyr den uansett, for der har leseren spurt.
+ */
+export function canOfferCalendar() {
   try {
     if (!navigator.canShare || !navigator.share) return false;
     const probe = new File(['BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n'],
@@ -76,23 +86,24 @@ export function canShareCal() {
 }
 
 /**
+ * RETTET MOT TELEFONEN, etter et skjermbilde: delingsarket sto først, og det
+ * arket er til for å sende en fil til en PERSON — det lister kontakter,
+ * Meldinger, AirDrop. «Legg til i Kalender» er ikke der.
+ *
+ * Det som faktisk åpner Kalender er ANKERET: iOS svarer på en text/calendar-
+ * ressurs med «… prøver å vise deg en kalenderinvitasjon. Vil du tillate
+ * det?», og «Tillat» legger den inn. Leseren så nettopp det — men bare fordi
+ * hen AVVISTE delingsarket, `navigator.share` avviste med AbortError, og
+ * koden falt gjennom hit. Reserven gjorde jobben som skulle vært først.
+ *
+ * Så ankeret er trinn én. Delingsarket blir igjen som reserve for et sted
+ * uten nedlasting, ikke som veien.
+ *
  * @param {object} leg
- * @param {object} [o] `o.shareOnly` skips the download rung — used when the
- *   sheet is offered unasked, so a desktop does not quietly drop a file in
- *   Downloads every time a leg is added.
  */
-export async function shareLegCalendar(leg, o) {
+export async function shareLegCalendar(leg) {
   if (!leg) return false;
   const file = legCalFile(leg);
-
-  try {
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Linje ' + leg.line + ' → ' + leg.to });
-      return true;
-    }
-  } catch { /* the reader cancelled, or the sheet refused — fall through */ }
-
-  if (o && o.shareOnly) return false;
 
   try {
     const url = URL.createObjectURL(file);
@@ -101,7 +112,14 @@ export async function shareLegCalendar(leg, o) {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
     return true;
-  } catch { /* no download either */ }
+  } catch { /* fall through to the sheet */ }
+
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Linje ' + leg.line + ' → ' + leg.to });
+      return true;
+    }
+  } catch { /* the reader cancelled, or the sheet refused */ }
 
   logMsg('kunne ikke lage kalenderoppføring her', 'err');
   return false;

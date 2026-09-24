@@ -2,6 +2,7 @@ import { esc } from '../ui/fmt.js';
 import { haver } from '../geo.js';
 import { projectOnSegment } from '../ui/corridor.js';
 import { SRC_LABEL } from './trainPosition.js';
+import { callPlace } from '../api/place.js';
 
 /**
  * The journey progress strip on the "underveis" screen.
@@ -17,26 +18,30 @@ import { SRC_LABEL } from './trainPosition.js';
  * reads as frozen. Stops move in steps a person can see.
  */
 
+/**
+ * GJENNOM ÉTT NAVN. `callPlace` kjenner både den rå quay-innpakkede formen og
+ * den lagrede — og en reise hentet fra lagringen har den siste. Leste denne
+ * bare `call.quay.stopPlace`, forsvant hele stripen etter en oppfriskning
+ * uten nett, som er nøyaktig tilfellet den er mest verdt i.
+ */
 function _time(call, arrival) {
-  if (arrival) return call.expectedArrivalTime || call.aimedArrivalTime
-    || call.expectedDepartureTime || call.aimedDepartureTime;
-  return call.expectedDepartureTime || call.aimedDepartureTime
-    || call.expectedArrivalTime || call.aimedArrivalTime;
+  const p = callPlace(call) || {};
+  return arrival ? (p.arr || p.dep) : (p.dep || p.arr);
 }
 
 /** The calls reduced to what the strip needs, or null if they cannot carry it. */
 function _points(calls) {
   if (!Array.isArray(calls) || calls.length < 2) return null;
   const pts = calls.map(c => {
-    const sp = c.quay && c.quay.stopPlace;
+    const sp = callPlace(c);
     const arr = _time(c, true), dep = _time(c, false);
     if (!arr || !dep) return null;
     const at = new Date(arr).getTime(), dt = new Date(dep).getTime();
     if (!at || isNaN(at) || !dt || isNaN(dt)) return null;
     return {
       name: (sp && sp.name) || null,
-      lat: sp && sp.latitude != null ? sp.latitude : null,
-      lon: sp && sp.longitude != null ? sp.longitude : null,
+      lat: sp && sp.lat != null ? sp.lat : null,
+      lon: sp && sp.lon != null ? sp.lon : null,
       arr: at, dep: dt,
     };
   }).filter(Boolean);

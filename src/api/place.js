@@ -132,3 +132,30 @@ export function stopsOf(c) {
     return { ...p, at };
   }).filter(Boolean);
 }
+
+/**
+ * ÉTT STOPP PÅ EN ETAPPE, uansett hvem som skrev det ned.
+ *
+ * Tre steder bygger lista:
+ *
+ *   journey.js  joinJourney — bygget for hånd av meta.calls
+ *   journey.js  doBoard     — rå estimatedCalls
+ *   track.js    _fetchTrack — rå calls
+ *
+ * Alle tre gir den samme quay-innpakkede formen. Da lista også skulle
+ * overleve en oppfriskning, var faren at den LAGREDE formen ble en fjerde —
+ * og at `collectLegStopRows` måtte kjenne to. Derfor leses alle gjennom
+ * dette ene navnet, og den lagrede formen er nøyaktig det denne returnerer.
+ *
+ * @returns {{id, name, lat, lon, arr: string|null, dep: string|null}|null}
+ */
+export function callPlace(call) {
+  if (!call) return null;
+  const p = placeOf(call.quay || call);
+  if (!p) return null;
+  return {
+    ...p,
+    arr: call.arr || call.expectedArrivalTime || call.aimedArrivalTime || null,
+    dep: call.dep || call.expectedDepartureTime || call.aimedDepartureTime || null,
+  };
+}

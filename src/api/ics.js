@@ -33,6 +33,7 @@
  */
 import { LEG_FALLBACK_MINS } from './plan.js';
 import { storage } from '../storage.js';
+import { placeName } from './place.js';
 
 /** Part of the UID, so a re-export REPLACES rather than adds. */
 export const ICS_DOMAIN = 'travel-companion.local';
@@ -165,7 +166,7 @@ export function legIcs(leg, lead, seq) {
       : mins + ' min før avgang: standard gangtid, ikke målt for dette stoppet';
   const desc = 'Alarmen sier GÅ NÅ, ikke at avgangen går nå — den er satt '
     + why + '.\n'
-    + 'Avgang ' + new Date(dep).toISOString().slice(11, 16) + ' UTC fra ' + leg.from + '.\n'
+    + 'Avgang ' + new Date(dep).toISOString().slice(11, 16) + ' UTC fra ' + placeName(leg.from) + '.\n'
     + 'En forsinkelse når ikke kalenderen. Sjekk appen før du går.';
 
   const rows = [
@@ -179,13 +180,13 @@ export function legIcs(leg, lead, seq) {
     'DTSTAMP:' + stamp(Date.now()),
     'DTSTART:' + stamp(dep),
     'DTEND:' + stamp(arr),
-    'SUMMARY:' + icsEscape('Linje ' + leg.line + ' → ' + leg.to),
-    'LOCATION:' + icsEscape(leg.from),
+    'SUMMARY:' + icsEscape('Linje ' + leg.line + ' → ' + placeName(leg.to)),
+    'LOCATION:' + icsEscape(placeName(leg.from)),
     'DESCRIPTION:' + icsEscape(desc),
     'BEGIN:VALARM',
     'ACTION:DISPLAY',
     'TRIGGER:-PT' + mins + 'M',
-    'DESCRIPTION:' + icsEscape('Gå nå — linje ' + leg.line + ' fra ' + leg.from),
+    'DESCRIPTION:' + icsEscape('Gå nå — linje ' + leg.line + ' fra ' + placeName(leg.from)),
     'END:VALARM',
     'END:VEVENT',
     'END:VCALENDAR',

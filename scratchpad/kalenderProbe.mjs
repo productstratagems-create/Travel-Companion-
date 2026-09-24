@@ -119,14 +119,14 @@ await new Promise(r => server.listen(PORT, r));
 
 const browser = await pw.chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 
-async function run(label, hist, scheme, lead) {
+async function run(label, hist, scheme, lead, planKind) {
   const ctx = await browser.newContext({
     viewport: { width: 414, height: 860 }, deviceScaleFactor: 2, colorScheme: scheme,
     hasTouch: true, isMobile: true, timezoneId: 'Europe/Oslo', locale: 'nb-NO',
     geolocation: { latitude: HERE.lat, longitude: HERE.lon }, permissions: ["geolocation"],
   });
   const page = await ctx.newPage();
-  await page.addInitScript(({ now, here, hist, scheme, lead }) => {
+  await page.addInitScript(({ now, here, hist, scheme, lead, planKind }) => {
     const Real = Date;
     class Pinned extends Real {
       constructor(...a) { super(...(a.length ? a : [now])); }
@@ -141,18 +141,41 @@ async function run(label, hist, scheme, lead) {
     localStorage.setItem('default::t.autoMode', '1');
     if (lead) localStorage.setItem('default::t.lead', String(lead));
     // EN PLAN: én etappe som ikke har begynt, og én som er i gang.
+    // EN PLAN MED GEOGRAFI, slik lag 1 lagrer den — og én GAMMEL etappe
+    // med bare navn, for å bevise at en plan lagret før endringen virker.
     localStorage.setItem('default::t.plan', JSON.stringify([
       { id: 'leg_fremtid', line: '3', lineColour: 'f5a000',
-        from: 'Mortensrud', to: 'Jernbanetorget, Oslo',
+        from: { id: 'NSR:StopPlace:Mortensrud', name: 'Mortensrud', lat: 59.8455, lon: 10.8265 },
+        to: { id: 'NSR:StopPlace:JBT', name: 'Jernbanetorget, Oslo', lat: 59.9115, lon: 10.7503 },
+        frontText: 'Kolsås',
+        stops: [
+          { id: 'NSR:StopPlace:Mortensrud', name: 'Mortensrud', lat: 59.8455, lon: 10.8265 },
+          { id: 'NSR:StopPlace:Skullerud', name: 'Skullerud', lat: 59.8520, lon: 10.8320 },
+          { id: 'NSR:StopPlace:Ryen', name: 'Ryen T', lat: 59.8850, lon: 10.8180 },
+          { id: 'NSR:StopPlace:JBT', name: 'Jernbanetorget, Oslo', lat: 59.9115, lon: 10.7503 },
+        ],
         depIso: new Date(now + 40 * 60000).toISOString(),
         arrIso: new Date(now + 65 * 60000).toISOString(),
         serviceJourneyId: 'RUT:ServiceJourney:1', addedAt: now },
       { id: 'leg_aktiv', line: '74', lineColour: 'c81e1e',
-        from: 'Hauketo', to: 'Bjørndal',
+        from: { id: 'NSR:StopPlace:Hauketo', name: 'Hauketo', lat: 59.8300, lon: 10.8050 },
+        to: { id: 'NSR:StopPlace:Bjorndal', name: 'Bjørndal', lat: 59.8150, lon: 10.8150 },
+        stops: [
+          { id: 'NSR:StopPlace:Hauketo', name: 'Hauketo', lat: 59.8300, lon: 10.8050 },
+          { id: 'NSR:StopPlace:Bjorndal', name: 'Bjørndal', lat: 59.8150, lon: 10.8150 },
+        ],
         depIso: new Date(now - 5 * 60000).toISOString(),
         arrIso: new Date(now + 10 * 60000).toISOString(),
         serviceJourneyId: 'RUT:ServiceJourney:2', addedAt: now },
     ]));
+    // EN PLAN LAGRET FØR ENDRINGEN: stedene er rene strenger og det finnes
+    // ingen stoppliste. Den skal fortsatt vises og tegnes — «ingenting kastes».
+    if (planKind === 'gammel') {
+      const gammel = JSON.parse(localStorage.getItem('default::t.plan')).map(l => ({
+        ...l, from: l.from.name || l.from, to: l.to.name || l.to, stops: undefined,
+      }));
+      localStorage.setItem('default::t.plan', JSON.stringify(gammel));
+    }
     // FANG ANKERET. Etter at stigen ble snudd er det ankeret som går først,
     // og en prøve som bare stubber navigator.share ville meldt «ingenting ble
     // delt» om en kalenderfil som virker. Det er klikket på <a download> som
@@ -193,7 +216,7 @@ async function run(label, hist, scheme, lead) {
     localStorage.setItem('default::t.freqArr', JSON.stringify(
       hist.map(h => ({ name: h.toName, stopId: h.toStopId, lat: h.toLat, lon: h.toLon,
         count: h.count, lastUsed: h.lastUsed }))));
-  }, { now: NOW, here: HERE, hist, scheme, lead });
+  }, { now: NOW, here: HERE, hist, scheme, lead, planKind });
 
   await page.route('**/geocoder/**', r => r.fulfill({ status: 200, contentType: 'application/json',
     body: JSON.stringify({ features: NEARBY }) }));
@@ -289,9 +312,39 @@ async function run(label, hist, scheme, lead) {
   });
 
   console.log('\n══ ' + label + ' · ' + scheme + ' ══');
+
+  /* TELL NETTKALL FRA OG MED NÅ. Lag 1 sitt løfte er at plankartet tegnes av
+   * etappens EGEN stoppliste — så det skal ikke spørre noen. Å telle er
+   * bedre enn å blokkere: blokkering viser bare at det ikke krasjer, mens
+   * tellingen viser om det fortsatt henter. */
+  let nettkall = 0;
+  const tell = (req) => {
+    const u = req.url();
+    if (/journey-planner|geocoder/.test(u)) nettkall++;
+  };
+  page.on('request', tell);
+
   // Til reiseplanen.
   await page.evaluate(() => { const b = document.getElementById('plan-btn'); if (b) b.click(); });
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1600);
+  page.off('request', tell);
+
+  const kart = await page.evaluate(() => {
+    const w = document.getElementById('plan-map-wrap');
+    const synlig = !!w && w.style.display !== 'none' && w.offsetHeight > 0;
+    // Leaflet tegner ruta som en <path> i et <svg> inne i kartet.
+    const linjer = w ? w.querySelectorAll('svg path').length : 0;
+    const merker = w ? w.querySelectorAll('.leaflet-marker-icon').length : 0;
+    return { synlig, linjer, merker };
+  });
+  console.log('  plankart synlig: ' + kart.synlig
+    + ' · ruter: ' + kart.linjer + ' · merker: ' + kart.merker);
+  // En gammel plan MÅ hente — den har ingen stoppliste. Det den skal bevise
+  // er at den fortsatt virker, ikke at den er gratis.
+  const ventet = planKind === 'gammel';
+  console.log('  nettkall for å tegne det: ' + nettkall
+    + (ventet ? '  (ventet: en gammel plan har ingen liste)'
+             : (nettkall ? '  ← skal være 0' : '  ✓')));
   const sett = await page.evaluate(() => ({
     paaPlan: (() => { const e = document.getElementById('v-saved') || document.getElementById('v-plan');
       return !!e && e.style.display !== 'none'; })(),
@@ -331,6 +384,11 @@ async function run(label, hist, scheme, lead) {
       console.log('    linjer over 75 oktetter: ' + forLang.length);
     }
   }
+  // REISEPLANEN SELV, før prøven navigerer videre. (Skjermbildet ble før
+  // tatt til slutt, og viste derfor avgangsdetaljer — ikke skjermen det
+  // gjaldt. Samme feil som to tidligere prøver i dette repoet.)
+  await page.screenshot({ path: 'scratchpad/kalender-' + label + '-' + scheme + '-plan.png', fullPage: true });
+
   /* OG DET SOM FAKTISK BLE BEDT OM: arket i samme øyeblikk etappen legges til.
    *
    * Trykket må være EKTE. `window.tap(...)` fra evaluate gir ingen
@@ -411,6 +469,9 @@ await run('plan', HIST, 'light');
 // gangtid, ingen koordinater for stoppet); med 15 valgt skal alarmen være
 // nøyaktig 15 — ikke 15 pluss margin, og ikke hevet av gangtiden.
 await run('valgt15', HIST, 'dark', 15);
+// OG EN PLAN LAGRET FØR ENDRINGEN. Den har bare navn, så den MÅ hente — og
+// det den skal bevise er at den fortsatt virker, ikke at den er gratis.
+await run('gammel plan', HIST, 'dark', null, 'gammel');
 // AND THE CASE THAT MATTERS MOST: outside the city the app knows, the
 // headings must not appear at all and the screen is what it was.
 

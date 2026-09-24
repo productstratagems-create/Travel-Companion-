@@ -23,6 +23,7 @@
  */
 import { legIcs, leadMins, loadLeadPref, LEAD_AUTO } from './ics.js';
 import { storage } from '../storage.js';
+import { placeName, placeLL } from './place.js';
 import { logMsg } from '../ui/log.js';
 import { loadWalkBuffer, walkMinsTo } from '../geo.js';
 import { state } from '../state.js';
@@ -47,9 +48,19 @@ export function calSeq(id) {
 /** The alarm offset for a leg, read from the one setting. */
 export function legLead(leg) {
   const pref = loadLeadPref();
-  // The walk cannot always be known — a leg stores no coordinates for its
-  // origin — and leadMins says which of the three it used, so the entry can too.
-  const w = walkMinsTo(state.statLL && state.statLL[config.dirs[state.dIdx].key]);
+  // TIL ETAPPENS EGET STOPP.
+  //
+  // Dette målte før til `state.statLL[dirs[dIdx].key]` — stoppet for den
+  // retningen du TILFELDIGVIS hadde valgt akkurat nå, ikke etappens. For en
+  // plan med to etapper var det målbart feil på minst én av dem, og for en
+  // plan du åpnet fra en annen rute var det feil på alle.
+  //
+  // Etappen bærer nå koordinatene sine, så det finnes et riktig svar. En
+  // gammel lagret etappe har dem ikke; da faller det tilbake på den gamle
+  // veien, og `leadMins` sier at gangtiden er gjettet.
+  const egen = placeLL(leg && leg.from);
+  const w = walkMinsTo(egen
+    || (state.statLL && state.statLL[config.dirs[state.dIdx].key]));
   return leadMins(leg, {
     pref: pref === LEAD_AUTO ? null : pref,
     walkMins: w ? w.mins : null,
@@ -116,7 +127,7 @@ export async function shareLegCalendar(leg) {
 
   try {
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Linje ' + leg.line + ' → ' + leg.to });
+      await navigator.share({ files: [file], title: 'Linje ' + leg.line + ' → ' + placeName(leg.to) });
       return true;
     }
   } catch { /* the reader cancelled, or the sheet refused */ }

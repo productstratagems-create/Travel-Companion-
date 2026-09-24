@@ -3,6 +3,7 @@ import { clk, clkDay } from './ui/fmt.js';
 import { state, intervals } from './state.js';
 import { findArr } from './geo.js';
 import { storage } from './storage.js';
+import { callPlace } from './api/place.js';
 import { logMsg } from './ui/log.js';
 import { updateOnboardChip } from './ui/chip.js';
 import { show } from './ui/nav.js';
@@ -220,6 +221,15 @@ export function saveJny() {
         depTime:     leg.depTime,
         arrTime:     leg.arrTime,
         quay:        leg.quay,
+        // STOPPLISTA OVERLEVER NÅ. Den ble utelatt med vilje da den bare var
+        // pynt; med v1.154.0 er den grunnlaget for at posisjonen kan svare i
+        // det hele tatt. Uten den falt underveis tilbake til klokka etter
+        // hver oppfriskning — og i en tunnel for godt.
+        //
+        // Lagret som `callPlace` gir den, ikke som rå estimatedCalls: den
+        // formen er en tiendedel så stor, og den er den SAMME formen alle
+        // lesere alt går gjennom, så en lagret liste ikke blir en fjerde form.
+        stops: (leg.stops || []).map(callPlace).filter(Boolean),
       })),
     }));
   } catch {}
@@ -239,7 +249,10 @@ export function loadJny() {
       storage.remove(config.storage.journey);
       return null;
     }
-    j.legs = j.legs.map(leg => ({ ...leg, stops: [] }));
+    // Stoppene beholdes. En reise lagret før v1.155.0 har ingen, og får en
+    // tom liste som før — den fylles av første _fetchTrack.
+    j.legs = j.legs.map(leg => ({
+      ...leg, stops: Array.isArray(leg.stops) ? leg.stops : [] }));
     return j;
   } catch { return null; }
 }

@@ -60,6 +60,15 @@ async function run(kind, scheme) {
     globalThis.Date = Pinned;
     localStorage.setItem('__activeProfile','default');
     localStorage.setItem('default::t.theme', scheme === 'light' ? 'light' : 'dark');
+    // EN LAGRET REISE, slik saveJny nå skriver den: stoppene i callPlace sin
+    // form, ikke rå estimatedCalls. Sammen med `uten nett` under er dette
+    // hele påstanden i lag 3 — og den eneste av mutantene ingen enhetstest
+    // kunne drepe, fordi collectLegStopRows ikke er eksportert.
+    const lagretStopp = kind === 'lagret' ? stopp.map(([id, name, lat, lon, m]) => ({
+      id, name, lat, lon,
+      arr: new Date(now + m * 60000).toISOString(),
+      dep: new Date(now + m * 60000).toISOString(),
+    })) : undefined;
     localStorage.setItem('default::t.jny', JSON.stringify({
       dest: 'Manglerud', from: 'Mortensrud', boardedAt: now - 60000,
       lineCode: '3', lineBg: '#f5a000', frontText: 'Manglerud',
@@ -70,14 +79,14 @@ async function run(kind, scheme) {
         fromStation: 'Mortensrud', toStation: 'Manglerud',
         depTime: { time: new Date(now).toISOString(), clk: '08:00' },
         arrTime: { time: new Date(now + 9*60000).toISOString(), clk: '08:09' },
-        quay: { publicCode: '1' } }],
+        quay: { publicCode: '1' }, stops: lagretStopp }],
     }));
     // Posisjonen: ved Ryen, to stopp foran det klokka tror.
     //
     // `at` MÅ være med. Uten tidsstempel er alderen ukjent, og da skal
     // posisjonen IKKE vinne over ruteplanen — det er hele rettelsen i
     // v1.154.0. «uten alder» under er nettopp det tilfellet.
-    if (kind === 'ved ryen') {
+    if (kind === 'ved ryen' || kind === 'lagret') {
       localStorage.setItem('default::t.homeLL',
         JSON.stringify({ lat: 59.8600, lon: 10.8200, at: now - 5000 }));
     } else if (kind === 'uten alder') {
@@ -90,6 +99,8 @@ async function run(kind, scheme) {
 
   // Sporingsspørringen svares lokalt — sandkassen når ikke api.entur.io.
   await page.route('**/journey-planner/**', (route) => {
+    // UTEN NETT for den lagrede reisa: det er tunnelen, og hele poenget.
+    if (kind === 'lagret') return void route.abort();
     route.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify({ data: { serviceJourney: { id: 'RUT:ServiceJourney:1',
         estimatedCalls: STOPP.map(call) } } }) });
@@ -150,6 +161,10 @@ async function run(kind, scheme) {
   await ctx.close();
 }
 
+// Den lagrede reisa, uten nett i det hele tatt: stopplista skal tegnes av
+// det som ligger lagret, og posisjonen skal fortsatt kunne svare.
+await run('lagret', 'dark');
+await run('lagret', 'light');
 await run('ved ryen', 'dark');
 await run('ved ryen', 'light');
 // En posisjon lagret før v1.154.0: den har ingen alder, og skal derfor tape

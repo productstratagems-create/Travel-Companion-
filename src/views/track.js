@@ -4,7 +4,7 @@ import { stopsUntil, alightEyebrow } from '../api/alight.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { whereAmI, whereAmILabel } from '../api/whereAmI.js';
-import { placeOf } from '../api/place.js';
+import { callPlace, placeLL } from '../api/place.js';
 import { posState } from '../position.js';
 import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
@@ -118,7 +118,7 @@ function _legRouteStops(leg) {
   let pastFrom = !leg.fromStation;
   const out = [];
   for (const s of leg.stops) {
-    const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
+    const nm = (callPlace(s) || {}).name || '?';
     if (!pastFrom) {
       if (normStn(nm) === from) pastFrom = true;
       else continue;
@@ -139,8 +139,8 @@ function _legRoutePts(leg) {
   // a few thousand points.
   const shape = legShape(leg);
   _legRouteStops(leg).forEach(s => {
-    const sp = s.quay && s.quay.stopPlace;
-    const ll = quayLatLon(s.quay);
+    const sp = callPlace(s);
+    const ll = placeLL(sp) || quayLatLon(s.quay);
     if (!ll) return;
     const last = pts[pts.length - 1];
     if (last && last[0] === ll.lat && last[1] === ll.lon) return;
@@ -1500,7 +1500,7 @@ export function renderTrack() {
     journeyIds: [_leg && _leg.journeyId].filter(Boolean),
     lineIds: [_leg && _leg.lineRef].filter(Boolean),
     stopIds: ((_leg && _leg.stops) || [])
-      .map(st => st && st.quay && st.quay.stopPlace && st.quay.stopPlace.id).filter(Boolean),
+      .map(st => (callPlace(st) || {}).id).filter(Boolean),
   });
   const { phase, i } = cs;
 
@@ -1646,25 +1646,29 @@ export function renderTrack() {
     const to = normStn(leg.toStation || '');
     const rows = [];
     let pastFrom = !leg.fromStation, pastTo = false;
-    leg.stops.forEach(s => {
+    leg.stops.forEach(raw => {
       if (pastTo) return;
-      const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
+      // GJENNOM ÉTT NAVN. Lista kommer fra tre skrivere OG fra lagringen, og
+      // `s.quay.stopPlace.name` kjenner bare den ene formen — en lagret liste
+      // ville lest som en rad med «?» og ingen koordinater.
+      const s = callPlace(raw) || {};
+      const nm = s.name || '?';
       if (!pastFrom) {
         if (normStn(nm) === from) { pastFrom = true; return; }
         else return;
       }
       const isEnd = to && normStn(nm) === to;
-      const depT = s.expectedDepartureTime || s.aimedDepartureTime;
+      const depT = s.dep;
       const passed = depT && new Date(depT).getTime() < now - 10000;
       if (passed && !isEnd) return;
-      const arrT = s.expectedArrivalTime || s.aimedArrivalTime || depT;
+      const arrT = s.arr || depT;
       const arrTs = arrT ? new Date(arrT).getTime() : null;
       const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
       const relTxt = ma === null ? '—' : ma <= 0 ? 'nå' : 'om ' + fmtMins(ma);
       // STEDET BLIR MED. Sporingsspørringen henter alt
       // `quay{latitude longitude stopPlace{id name latitude longitude}}`, så
       // koordinatene har ligget her hele tiden — de ble bare aldri lest.
-      rows.push({ nm, arrT, ma, relTxt, place: placeOf(s && s.quay),
+      rows.push({ nm, arrT, ma, relTxt, place: s,
         isTransfer: !isLastLeg && isEnd, isDest: isLastLeg && isEnd });
       if (isEnd) pastTo = true;
     });
@@ -1677,11 +1681,12 @@ export function renderTrack() {
     const fromNorm = normStn(leg.fromStation);
     let nextPreStop = null, stopsAway = 0;
     for (const s of leg.stops) {
-      const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
+      const c = callPlace(s) || {};
+      const nm = c.name || '?';
       if (normStn(nm) === fromNorm) break;
-      const depT = s.expectedDepartureTime || s.aimedDepartureTime;
+      const depT = c.dep;
       if (depT && new Date(depT).getTime() < now - 10000) continue;
-      if (!nextPreStop) nextPreStop = { nm, arrT: s.expectedArrivalTime || s.aimedArrivalTime || depT };
+      if (!nextPreStop) nextPreStop = { nm, arrT: c.arr || depT };
       stopsAway++;
     }
     if (!nextPreStop) return '';
@@ -1838,8 +1843,7 @@ export function renderTrack() {
       const stopLL = (() => {
         if (!leg.stops || !leg.stops.length) return null;
         const last = leg.stops[leg.stops.length - 1];
-        const sp = last && last.quay && last.quay.stopPlace;
-        return sp && sp.latitude ? { lat: sp.latitude, lon: sp.longitude } : null;
+        return placeLL(callPlace(last));
       })();
       if (!stopLL) return null;
       const d = haver(stopLL.lat, stopLL.lon, state.jny._toLat, state.jny._toLon);

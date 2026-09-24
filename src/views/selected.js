@@ -9,7 +9,7 @@ import { quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 import { addLegToPlan, isLegInPlan } from '../api/plan.js';
-import { shareLegCalendar, canShareCal } from '../api/calShare.js';
+import { shareLegCalendar, canOfferCalendar } from '../api/calShare.js';
 import { updatePlanCtx } from './plan.js';
 import { logMsg } from '../ui/log.js';
 import { esc } from '../ui/fmt.js';
@@ -696,11 +696,10 @@ export function renderSelected() {
         // the browser still lets `navigator.share` open. An await in front of
         // this line would spend the activation and the sheet would be refused.
         //
-        // `shareOnly` because this is offered UNASKED: on a desktop, where
-        // there is no sheet, falling through to the download rung would drop a
-        // file in Downloads every time a leg is added. The bell on the plan
-        // card still offers that rung, because there the reader asked.
-        if (leg && canShareCal()) shareLegCalendar(leg, { shareOnly: true });
+        // Bare der telefonen selv kan ta imot fila: på et skrivebord ville
+        // dette lagt en fil i Nedlastinger hver gang en etappe legges til.
+        // Bjella på plankortet tilbyr den uansett, for der har leseren spurt.
+        if (leg && canOfferCalendar()) shareLegCalendar(leg);
       };
     } else {
       planBtn.style.opacity = '.6';

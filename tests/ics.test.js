@@ -196,12 +196,34 @@ describe('knappen i reiseplanen', () => {
   const lad = () => require('node:fs')
     .readFileSync('src/api/calShare.js', 'utf8').replace(/\/\/[^\n]*/g, '');
 
-  // Stigen: delearket først (iOS-veien), så nedlasting, så et ord.
-  it('prøver delearket før nedlasting', () => {
+  /* Stigen: ANKERET først, delingsarket som reserve.
+   *
+   * Rapportert med to skjermbilder: trykket ga delingsarket — kontakter,
+   * Meldinger, AirDrop — og «Legg til i Kalender» var ikke der. Det som
+   * faktisk åpner Kalender er ankeret, og leseren så det bare fordi hen
+   * avviste arket og koden falt gjennom til reserven.
+   *
+   * OG MÅLT INNE I FUNKSJONEN. Etter at rekkefølgen ble snudd besto denne
+   * testen fortsatt, fordi `navigator.canShare` også står i
+   * `canOfferCalendar` lenger oppe i fila — den fant riktig streng på feil
+   * sted og målte ingenting. */
+  const stigen = () => {
     const h = lad();
-    expect(h.indexOf('navigator.canShare')).toBeLessThan(h.indexOf('a.download'));
-    expect(h).toMatch(/type: 'text\/calendar'/);
+    const i = h.indexOf('export async function shareLegCalendar');
+    expect(i).toBeGreaterThan(-1);
+    return h.slice(i);
+  };
+
+  it('prøver ankeret før delearket', () => {
+    const h = stigen();
+    expect(h.indexOf('a.download')).toBeLessThan(h.indexOf('navigator.canShare'));
+  });
+
+  it('og faller tilbake på delearket, framfor ingenting', () => {
+    const h = stigen();
+    expect(h).toMatch(/navigator\.share\(/);
     expect(h).toMatch(/logMsg\(/);
+    expect(lad()).toMatch(/type: 'text\/calendar'/);
   });
 
   // Marginen skal komme fra leadMins, ikke fra et tall skrevet her.

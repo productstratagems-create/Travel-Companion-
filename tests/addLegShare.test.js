@@ -74,13 +74,11 @@ describe('arket åpnes mens trykket ennå er ferskt', () => {
     expect(h).toMatch(/shareLegCalendar\(leg/);
   });
 
-  // Tilbudt uten å bli spurt: på et skrivebord uten delingsark skal det IKKE
-  // falle gjennom til nedlasting, ellers havner en fil i Nedlastinger hver
-  // eneste gang en etappe legges til.
-  it('faller ikke gjennom til nedlasting når det tilbys uoppfordret', () => {
-    const h = handler();
-    expect(h).toMatch(/canShareCal\(\)/);
-    expect(h).toMatch(/shareOnly: true/);
+  // Tilbudt uten å bli spurt, og derfor bare der telefonen selv kan ta imot
+  // fila: på et skrivebord ville det lagt en fil i Nedlastinger hver eneste
+  // gang en etappe legges til.
+  it('tilbys bare der telefonen kan ta imot fila', () => {
+    expect(handler()).toMatch(/canOfferCalendar\(\)/);
   });
 
   // Og fila bygges uten nettverk — et fetch her ville brukt opp aktiveringen

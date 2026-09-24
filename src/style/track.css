@@ -383,3 +383,28 @@
 #v-track.track-cancelled .track-num-label,
 #v-track.track-cancelled .track-arr-label{opacity:.45}
 
+
+
+/* Hvem svarte på «hvor er jeg nå».
+ *
+ * Underveis var skjermen rent klokkedrevet, og sa ingenting om det. Nå kan
+ * posisjonen overstyre ruteplanen, og da MÅ det stå hvilken av de to som
+ * svarte — ellers er «neste» to ulike påstander som ser like ut.
+ *
+ * Stille og liten: den leses én gang, og skal ikke konkurrere med
+ * nedtellingen. Fargen er samme token som resten av kortet, så lys modus
+ * trenger ingen egen regel. */
+.tc-source {
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(var(--accent-rgb), .5);
+  padding: .1rem 0 .45rem;
+}
+
+/* Avstanden til neste stopp, ved siden av navnet. Den var regnet ut for å
+ * avgjøre hvilken rad som er neste — da skal den også stå på skjermen. */
+.stop-near {
+  margin-left: .45rem;
+  font-size: 11px;
+  color: rgba(var(--accent-rgb), .55);
+}

@@ -3,6 +3,9 @@ import { stopKey } from '../stopId.js';
 import { stopsUntil, alightEyebrow } from '../api/alight.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
+import { whereAmI, whereAmILabel } from '../api/whereAmI.js';
+import { placeOf } from '../api/place.js';
+import { posState } from '../position.js';
 import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon, legShape, journeyPoints } from '../api/adapt.js';
@@ -901,14 +904,24 @@ const normStn = stopKey;   // was a private copy of the same rule
  */
 function displayStn(s) { return String(s).replace(/,.*$/, '').trim(); }
 
-function renderStopRow(r, isNext) {
+function renderStopRow(r, isNext, hvor) {
   const tag = r.isTransfer ? '<span class="stop-tag bytt-tag">bytt</span>'
     : r.isDest ? '<span class="stop-tag">stå av</span>'
     : isNext ? '<span class="stop-tag">neste</span>' : '';
   const cls = r.isTransfer ? ' transfer' : r.isDest ? ' dest' : isNext ? ' next' : '';
+  // VIS DET DU ALLEREDE VET. Avstanden er regnet ut for å avgjøre hvilken rad
+  // som er neste; da skal den stå på skjermen og ikke bare i regnestykket.
+  // Ikke når du STÅR der: «0 m» ved siden av «du er ved stoppet» er to
+  // setninger om det samme, og den ene er et tall uten innhold.
+  const nær = isNext && hvor && hvor.source === 'posisjon'
+      && hvor.approaching !== 'staar' && hvor.distM != null
+    ? '<span class="stop-near">' + (hvor.distM < 1000
+        ? hvor.distM + ' m'
+        : (hvor.distM / 1000).toFixed(1) + ' km') + '</span>'
+    : '';
   return '<div class="stop' + cls + '">'
     + '<div class="stop-dot"></div>'
-    + '<div class="stop-name">' + tag + r.nm + '</div>'
+    + '<div class="stop-name">' + tag + r.nm + nær + '</div>'
     + '<div class="stop-clock">' + (r.arrT ? clk(r.arrT) : '—') + '</div>'
     + '<div class="stop-rel">' + r.relTxt + '</div>'
     + '</div>';
@@ -1558,8 +1571,37 @@ export function renderTrack() {
 
   // ── Inner helpers (close over now / legs) ────────────────────────────────
 
+  /**
+   * Hvor er jeg nå — og hvem svarte.
+   *
+   * `clockIdx` er nøyaktig den regelen skjermen brukte før: første rad som
+   * verken er bytte eller avstigning. Den er fortsatt svaret når posisjonen
+   * ikke kan brukes, så det som skjer her er at det kommer EN dommer over de
+   * to — ikke at den gamle regelen byttes ut i det skjulte.
+   */
+  function _whereNow(rows) {
+    let clockIdx = rows.findIndex(r => !r.isTransfer && !r.isDest);
+    if (clockIdx < 0) clockIdx = 0;
+    return whereAmI({
+      stops: rows.map(r => r.place),
+      clockIdx,
+      trail: state.posTrail,
+      pos: userLL(),
+      quality: posState({
+        asked: state.posAsked, homeLL: state.homeLL, posAt: state.posAt,
+        gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
+        now: Date.now(),
+      }),
+    });
+  }
+
   function renderStopRows(rows, cardIdx) {
     const TAIL = 2;
+    const hvor = _whereNow(rows);
+    // Raden posisjonen (eller klokka) peker på. Bytte og avstigning har sine
+    // egne merkelapper og skal ikke også hete «neste».
+    const nextIdx = rows[hvor.idx] && !rows[hvor.idx].isTransfer && !rows[hvor.idx].isDest
+      ? hvor.idx : -1;
     let out = '', firstRendered = false;
     const exp = expanded[cardIdx];
     if (!exp && rows.length > TAIL + 1) {
@@ -1568,20 +1610,22 @@ export function renderTrack() {
           out += '<button class="stop-collapse" onclick="window._expandStops&&window._expandStops(' + cardIdx + ')">· ' + r.count + ' stopp ·</button>';
           return;
         }
-        const isNext = !firstRendered && !r.isTransfer && !r.isDest;
+        const isNext = rows.indexOf(r) === nextIdx;
         if (isNext) firstRendered = true;
-        out += renderStopRow(r, isNext);
+        out += renderStopRow(r, isNext, hvor);
       });
     } else {
       rows.forEach(r => {
-        const isNext = !firstRendered && !r.isTransfer && !r.isDest;
+        const isNext = rows.indexOf(r) === nextIdx;
         if (isNext) firstRendered = true;
-        out += renderStopRow(r, isNext);
+        out += renderStopRow(r, isNext, hvor);
       });
       if (rows.length > TAIL + 1)
         out += '<button class="stop-collapse" onclick="window._expandStops&&window._expandStops(' + cardIdx + ')">· vis færre ·</button>';
     }
-    return out;
+    // SI HVEM SOM SVARTE. «ikke spurt», «leter», «avslått», «unøyaktig» og
+    // «gammel» er ikke samme setning, og stillhet leses som «alt er i orden».
+    return '<div class="tc-source">' + esc(whereAmILabel(hvor)) + '</div>' + out;
   }
 
   function buildCard(label, headerHtml, stopsHtml) {
@@ -1617,7 +1661,11 @@ export function renderTrack() {
       const arrTs = arrT ? new Date(arrT).getTime() : null;
       const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
       const relTxt = ma === null ? '—' : ma <= 0 ? 'nå' : 'om ' + fmtMins(ma);
-      rows.push({ nm, arrT, ma, relTxt, isTransfer: !isLastLeg && isEnd, isDest: isLastLeg && isEnd });
+      // STEDET BLIR MED. Sporingsspørringen henter alt
+      // `quay{latitude longitude stopPlace{id name latitude longitude}}`, så
+      // koordinatene har ligget her hele tiden — de ble bare aldri lest.
+      rows.push({ nm, arrT, ma, relTxt, place: placeOf(s && s.quay),
+        isTransfer: !isLastLeg && isEnd, isDest: isLastLeg && isEnd });
       if (isEnd) pastTo = true;
     });
     return rows;

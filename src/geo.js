@@ -705,7 +705,14 @@ function _handleFix(pos) {
     const now = Date.now();
     if (now - _savedAt >= SAVE_EVERY_MS) {
       _savedAt = now;
-      storage.set(HOME_LL_KEY, JSON.stringify({ lat: state.homeLL.lat, lon: state.homeLL.lon }));
+      // ALDEREN FØLGER MED. Kommentaren to linjer over sier at tidsstempelet
+      // er tatt vare på «so staleness can be told» — men bare lat/lon ble
+      // lagret, så ved neste oppstart hadde posisjonen ingen alder. posState
+      // hoppet da over alle alderssjekkene og kalte en posisjon fra i går
+      // fersk, mens _trainPosition avviste den samme posisjonen. To dommer
+      // om ett faktum, og de var uenige nøyaktig ved oppstart.
+      storage.set(HOME_LL_KEY, JSON.stringify({
+        lat: state.homeLL.lat, lon: state.homeLL.lon, at: state.posAt }));
     }
     updateWalkDbg();
   }
@@ -826,5 +833,14 @@ if (_wfSaved && _wfSaved.lat && _wfSaved.lon) {
 }
 try {
   const _hlSaved = storage.get(HOME_LL_KEY);
-  if (_hlSaved) { const p = JSON.parse(_hlSaved); if (p && p.lat) state.homeLL = p; }
+  if (_hlSaved) {
+    const p = JSON.parse(_hlSaved);
+    if (p && p.lat) {
+      state.homeLL = { lat: p.lat, lon: p.lon };
+      // Og alderen med den, så staleness kan dømmes på et gjenopprettet punkt
+      // akkurat som på et ferskt. En verdi lagret før dette har ingen `at`,
+      // og da forblir posAt null — som posState nå sier fra om.
+      if (Number.isFinite(p.at)) state.posAt = p.at;
+    }
+  }
 } catch { /* ignore */ }

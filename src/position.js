@@ -157,6 +157,22 @@ export function posState(o) {
       : mk('ikke-spurt', 'leter etter posisjonen …', false);
   }
 
+  // VI VET IKKE HVOR GAMMEL DEN ER — og det er ikke det samme som «fersk».
+  //
+  // Dette var hullet: uten tidsstempel falt alle alderssjekkene under bort,
+  // og funksjonen endte på 'ok'. En posisjon gjenopprettet fra forrige økt
+  // ble dermed kalt fersk, vant over ruteplanen på underveis-skjermen, og sa
+  // noe annet enn stripen to centimeter over — som dømte den samme
+  // posisjonen etter sin egen regel.
+  //
+  // FØR 'nostops', og det er ikke tilfeldig: «ingen holdeplass i nærheten»
+  // er en påstand om omgivelsene, ikke om sensoren, og den kortsluttet til
+  // usable: true uten å ha sett på alderen i det hele tatt. En posisjon av
+  // ukjent alder kan heller ikke bære DEN påstanden.
+  if (ageMs == null) {
+    return mk('ukjent-alder', 'vet ikke hvor gammel posisjonen er', false);
+  }
+
   // Position fine, nothing within the radius. Its own fact, and the one state
   // here that is not about the sensor at all.
   if (c.gpsError === 'nostops') return mk('ingen-stopp', 'ingen holdeplass i nærheten', true);

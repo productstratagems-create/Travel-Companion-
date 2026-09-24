@@ -1,4 +1,8 @@
 import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus } from '../api/plan.js';
+import { legIcs, leadMins } from '../api/ics.js';
+import { storage } from '../storage.js';
+import { logMsg } from '../ui/log.js';
+import { loadWalkBuffer, walkMinsTo } from '../geo.js';
 import { stopKey } from '../stopId.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state } from '../state.js';
@@ -334,6 +338,13 @@ export function renderPlan() {
       + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window._tapPlanLeg(\'' + leg.id + '\')}">'
       + '<div class="plan-leg-dot ' + st + '"></div>'
       + '<button class="plan-leg-del" onclick="event.stopPropagation();window._planDelLeg(\'' + leg.id + '\')" aria-label="Fjern etappe">×</button>'
+      // VARSELET, og bare på en etappe som ikke har begynt: en alarm for en
+      // reise du alt sitter på er støy. event.stopPropagation() av samme grunn
+      // som slettknappen over — kortet under åpner etappen.
+      + (st === 'future'
+        ? '<button class="plan-leg-cal" onclick="event.stopPropagation();window._planCalLeg(\'' + leg.id + '\')"'
+          + ' aria-label="Legg etappen i kalenderen med alarm når du må gå">🔔</button>'
+        : '')
       + '<div class="plan-leg-top">'
       + '<span class="line-badge" style="background:#' + leg.lineColour + '">' + leg.line + '</span>'
       + '<div class="plan-leg-route">'
@@ -422,6 +433,66 @@ window._planDelLeg = (id) => {
   updatePlanCtx();
   renderPlan();
 };
+
+/**
+ * The leg into the reader's own calendar, with the alarm on «gå nå».
+ *
+ * A LADDER, like the rest of this app's outward edges: share sheet first
+ * because that is the iOS path — a text/calendar File lands in Kalender from
+ * there — then a download for desktop and Android, then a word rather than
+ * nothing. `ui/nav.js` shares a link the same way, one rung shorter.
+ *
+ * Nothing leaves the phone that the reader did not send: the file is built
+ * here and handed to the operating system, which asks them where it goes.
+ */
+window._planCalLeg = async (id) => {
+  const leg = loadPlan().find(l => l.id === id);
+  if (!leg) return;
+  // The walk cannot always be known — a leg stores no coordinates for its
+  // origin — and leadMins says which of the two it used, so the entry can too.
+  const w = walkMinsTo(state.statLL && state.statLL[config.dirs[state.dIdx].key]);
+  const lead = leadMins(leg, {
+    walkMins: w ? w.mins : null,
+    buffer: loadWalkBuffer(),
+    fallback: config.defaultWalkMinutes,
+  });
+  const text = legIcs(leg, lead, _calSeq(leg.id));
+  const name = 'reise-' + leg.line + '-' + leg.depIso.slice(11, 16).replace(':', '') + '.ics';
+  const file = new File([text], name, { type: 'text/calendar' });
+
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Linje ' + leg.line + ' → ' + leg.to });
+      return;
+    }
+  } catch { /* the reader cancelled, or the sheet refused — fall through */ }
+
+  try {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    return;
+  } catch { /* no download either */ }
+
+  logMsg('kunne ikke lage kalenderoppføring her', 'err');
+};
+
+/**
+ * SEQUENCE per leg, so a second export of the same leg MOVES the entry the
+ * calendar already holds instead of leaving a stale alarm beside a new one.
+ * The UID is the leg's own; this is the number that says «this is newer».
+ */
+const CAL_SEQ_KEY = 't.calSeq';
+function _calSeq(id) {
+  let map = {};
+  try { map = JSON.parse(storage.get(CAL_SEQ_KEY) || '{}') || {}; } catch { map = {}; }
+  const next = (Number(map[id]) || 0) + 1;
+  map[id] = next;
+  try { storage.set(CAL_SEQ_KEY, JSON.stringify(map)); } catch { /* full */ }
+  return next - 1;
+}
 
 window._tapPlanLeg = (id) => {
   const leg = loadPlan().find(l => l.id === id);

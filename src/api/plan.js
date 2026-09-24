@@ -45,9 +45,19 @@ export function removeLegFromPlan(id) {
   savePlan(loadPlan().filter(l => l.id !== id));
 }
 
+/**
+ * How long a leg is assumed to last when the board gave no arrival.
+ *
+ * It was written out as `30 * 60000` here and nowhere else — until the
+ * calendar export needed the same number for DTEND. Two hand-written copies
+ * of one assumption is the fault this codebase keeps finding, so it has a
+ * name before the second reader exists.
+ */
+export const LEG_FALLBACK_MINS = 30;
+
 export function legStatus(leg, now) {
   const dep = new Date(leg.depIso).getTime();
-  const arr = leg.arrIso ? new Date(leg.arrIso).getTime() : dep + 30 * 60000;
+  const arr = leg.arrIso ? new Date(leg.arrIso).getTime() : dep + LEG_FALLBACK_MINS * 60000;
   if (arr <= now) return 'done';
   if (dep <= now) return 'active';
   return 'future';

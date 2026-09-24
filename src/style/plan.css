@@ -230,6 +230,23 @@
   line-height: 1;
 }
 
+/* VARSELET. Samme hjørne som slettknappen, motsatt side: den ene fjerner
+   etappen, den andre tar vare på den. 44 px trykkflate som ellers i appen
+   (v1.138.0), vokst utover med ::after så kortets egen layout ikke flytter
+   seg — samme grep som merket på auto-reise. */
+.plan-leg-cal{
+  position:absolute; top:.35rem; right:2rem;
+  background:none; border:none; padding:0; line-height:1;
+  font-size:.95rem; opacity:.6; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.plan-leg-cal::after{
+  content:''; position:absolute; left:50%; top:50%;
+  width:44px; height:44px; transform:translate(-50%,-50%);
+}
+.plan-leg-cal:hover,.plan-leg-cal:focus-visible{opacity:1}
+
+
 .plan-leg-del:active { color: var(--err); }
 
 .plan-actions {

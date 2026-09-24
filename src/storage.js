@@ -2,7 +2,7 @@
 const ALL_KEYS = [
   't.dest', 't.dep', 't.via', 't.walkSpeed', 't.walkBuf', 't.walkFrom',
   't.weekendMode', 't.theme', 't.dir', 't.jny', 't.favs', 't.plan',
-  't.modes', 't.recentDests', 't.lastBoard', 't.route', 't.return', 't.returnSkip', 't.alertHid',
+  't.calSeq', 't.modes', 't.recentDests', 't.lastBoard', 't.route', 't.return', 't.returnSkip', 't.alertHid',
   // Both decide which screen the app opens on — t.autoMode directly, and
   // t.smartHist because the landing ladder falls through to auto-reise
   // exactly when there is no history. A key that picks the first screen has

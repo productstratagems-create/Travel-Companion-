@@ -60,6 +60,9 @@ async function run(kind, scheme) {
     globalThis.Date = Pinned;
     localStorage.setItem('__activeProfile','default');
     localStorage.setItem('default::t.theme', scheme === 'light' ? 'light' : 'dark');
+    // REISELOGGEN krever et ja. Uten samtykke skal ingenting lagres — og det
+    // er også en påstand prøven måler, ved å kjøre ett tilfelle uten.
+    localStorage.setItem('default::t.memoryConsent', kind === 'uten samtykke' ? '0' : '1');
     // EN LAGRET REISE, slik saveJny nå skriver den: stoppene i callPlace sin
     // form, ikke rå estimatedCalls. Sammen med `uten nett` under er dette
     // hele påstanden i lag 3 — og den eneste av mutantene ingen enhetstest
@@ -214,6 +217,32 @@ async function run(kind, scheme) {
     + (plass.staaAv != null && plass.staaAv < plass.fold ? 'OVER folden ✓' : 'UNDER folden ✗'));
   console.log('        · ' + plass.blokker.join('\n        · '));
   console.log('  stripe: ' + m.stripe.trim());
+
+  /* REISELOGGEN. Turen skal etterlate seg noe et menneske kan lese.
+   * Kartknappen trykkes, så `kart`-hendelsen finnes å lese tilbake. */
+  const knapp = page.locator('#j-strip-map');
+  if (await knapp.count()) { await knapp.click(); await page.waitForTimeout(400); }
+  const logg = await page.evaluate(() => {
+    const raw = localStorage.getItem('default::t.events');
+    return raw ? JSON.parse(raw) : [];
+  });
+  console.log('  LOGG · ' + logg.length + ' hendelser'
+    + (logg.length ? ': ' + logg.map(e => e.kind).join(', ') : ''));
+  // ORDENE. Stripen sier «din gps»; loggen må ikke si «posisjon». Nøklene i
+  // SRC_LABEL er fasiten, og dette er det eneste stedet det kan måles ende
+  // til ende — enhetstesten logger sine egne verdier og beviser ingenting om
+  // hva SKJERMEN faktisk skriver.
+  const LOVLIGE = ['gps', 'rutetid'];
+  const ulovlige = logg.filter(e => e.kind === 'kilde' && !LOVLIGE.includes(e.svarte));
+  if (logg.some(e => e.kind === 'kilde')) {
+    console.log('       · ord: ' + (ulovlige.length
+      ? '✗ ' + ulovlige.map(e => e.svarte).join(', ') + ' — ikke appens egne'
+      : '✓ appens egne (' + LOVLIGE.join('/') + ')'));
+  }
+  logg.forEach(e => {
+    const felt = Object.keys(e).filter(k => k !== 'kind' && k !== 'at' && k !== 'pos');
+    console.log('       · ' + e.kind + ' — ' + felt.map(f => f + ': ' + e[f]).join(' · '));
+  });
   await page.screenshot({ path: 'scratchpad/underveis-' + kind + '-' + scheme + '.png', fullPage: true });
   await ctx.close();
 }
@@ -228,4 +257,7 @@ await run('ved ryen', 'light');
 // for ruteplanen — og si hvorfor.
 await run('uten alder', 'dark');
 await run('avslatt', 'dark');
+// OG UTEN SAMTYKKE skal loggen være tom. Løftet i privacy.html er at
+// ingenting huskes før du sier ja.
+await run('uten samtykke', 'dark');
 await browser.close(); server.close();

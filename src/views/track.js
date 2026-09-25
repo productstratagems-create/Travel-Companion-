@@ -5,6 +5,7 @@ import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { whereAmI, whereAmILabel } from '../api/whereAmI.js';
 import { callPlace, placeLL } from '../api/place.js';
+import { logEvent, skalLogges } from '../api/eventLog.js';
 import { posState } from '../position.js';
 import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
@@ -84,6 +85,20 @@ let _tRoutePts = null;
 let _tSnapDist = null;
 let _tMapKey = null;
 let _tMapOpen = false;
+
+/**
+ * Hvor ofte et kildeskifte får lov til å skrive seg ned.
+ *
+ * `whereAmI` regnes ut hver tegning, altså 1 Hz. En tunnel kan få kilden til
+ * å flakke mellom «din gps» og «etter rutetid», og uten demping ville én tjue
+ * minutters tur skrevet over tusen hendelser — mens `EVENT_MAX` er 300. Turen
+ * hadde da slettet sitt eget bevis, og alt annet appen husker med det.
+ *
+ * Ett navngitt tall, ikke en terskel spredt utover.
+ */
+const KILDE_MIN_MS = 30000;
+let _sisteKilde = null;
+let _sisteKildeAt = 0;
 
 // How long a tapped stop's name tooltip stays visible on the tracking map —
 // matches the board map's route-stop tooltip behaviour.
@@ -1644,9 +1659,33 @@ export function renderTrack() {
     });
   }
 
+  /**
+   * Skriv ned hvem som svarte — men bare når svaret ENDRER SEG.
+   *
+   * Dette er reiseloggens halvdel av v1.154.0: skjermen sier alt hvem som
+   * svarte, men det forsvinner i samme øyeblikk. Uten en logg finnes det
+   * ingen måte å svare på om posisjonen noensinne vant i en tunnel — og det
+   * var hele forbeholdet den utgivelsen ble sendt med.
+   */
+  function _loggKilde(hvor, rows) {
+    if (!hvor) return;
+    const naa = Date.now();
+    const nokkel = hvor.source + '|' + (hvor.why || '');
+    if (!skalLogges({ key: _sisteKilde, at: _sisteKildeAt }, nokkel, naa, KILDE_MIN_MS)) return;
+    _sisteKilde = nokkel;
+    _sisteKildeAt = naa;
+    const rad = rows && rows[hvor.idx];
+    logEvent('kilde', {
+      svarte: hvor.source,
+      hvorfor: hvor.why || null,
+      stopp: (rad && rad.nm) || null,
+    }, userLL() ? { ...userLL(), acc: state.posAcc } : null);
+  }
+
   function renderStopRows(rows, cardIdx) {
     const TAIL = 2;
     const hvor = _whereNow(rows);
+    _loggKilde(hvor, rows);
     // Raden posisjonen (eller klokka) peker på. Bytte og avstigning har sine
     // egne merkelapper og skal ikke også hete «neste».
     const nextIdx = rows[hvor.idx] && !rows[hvor.idx].isTransfer && !rows[hvor.idx].isDest
@@ -2310,6 +2349,9 @@ window._simEtterBytt = function() {
  */
 window._toggleTrackMap = () => {
   _tMapOpen = !_tMapOpen;
+  // Q4 fra v1.156.0: er stripen nok, eller åpner du kartet likevel? Ett
+  // trykk, ett svar — og det er leseren som svarer, ikke jeg.
+  logEvent('kart', { handling: _tMapOpen ? 'åpnet' : 'lukket' });
   renderTrack();
   const el = document.getElementById('t-map');
   const wrap = document.getElementById('t-map-wrap');

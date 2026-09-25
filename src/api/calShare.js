@@ -24,6 +24,7 @@
 import { legIcs, leadMins, loadLeadPref, LEAD_AUTO } from './ics.js';
 import { storage } from '../storage.js';
 import { placeName, placeLL } from './place.js';
+import { logEvent } from './eventLog.js';
 import { logMsg } from '../ui/log.js';
 import { loadWalkBuffer, walkMinsTo } from '../geo.js';
 import { state } from '../state.js';
@@ -71,7 +72,12 @@ export function legLead(leg) {
 
 /** The file for a leg, built without touching the network. */
 export function legCalFile(leg) {
-  const text = legIcs(leg, legLead(leg), calSeq(leg.id));
+  const lead = legLead(leg);
+  // Q3: var «gå nå» bygget av målt gangtid, en gjetning eller ditt eget valg?
+  // Marginen er regnet ut her uansett; uten loggen forsvinner den inn i fila
+  // og kan aldri sammenliknes med om du faktisk rakk avgangen.
+  logEvent('gaa', { minutter: lead.mins, grunnlag: lead.source });
+  const text = legIcs(leg, lead, calSeq(leg.id));
   const name = 'reise-' + leg.line + '-' + leg.depIso.slice(11, 16).replace(':', '') + '.ics';
   return new File([text], name, { type: 'text/calendar' });
 }

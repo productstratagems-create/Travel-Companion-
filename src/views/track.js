@@ -1453,8 +1453,10 @@ function renderNextPanel() {
     // the very bottom of the panel, a whole screen away from the field that
     // asks the same question — search here, or open the form. Two doors for
     // one intent, and the far one is the one a reader scrolls past.
-    + '<button class="hn-alt-link" id="t-new-btn">\u2026 eller planlegg en hel reise fra '
-    + esc(displayStn(arrStation)) + ' \u2192</button>'
+    // «HERFRA», ikke stedsnavnet igjen. Knappen står inne i panelet hvis egen
+    // overskrift er «fremme ved <stedet>», rett over. Issue #396.
+    + '<button class="hn-alt-link" id="t-new-btn">\u2026 eller planlegg en hel reise '
+    + 'herfra \u2192</button>'
     + '</div>'
     // Browsing is a different intent from getting somewhere, so it folds away.
     + '<details class="hn-details" id="hn-places-details">'
@@ -1796,10 +1798,9 @@ export function renderTrack() {
     let headerHtml;
     if (rideMode) {
       const arrT = leg.arrTime;
-      const mToAction = arrT ? (() => {
-        const m = Math.floor((new Date(arrT.time).getTime() - now) / 60000);
-        return m <= 0 ? 'nå' : 'om ' + fmtMins(m);
-      })() : null;
+      // `mToAction` bodde her og regnet ut «om N min» til raden under. Raden
+      // er borte (issue #396) fordi helten to blokker over sier det samme
+      // tallet større. Regnestykket forsvinner med sin eneste leser.
       // The count moved to api/alight.js, where it can be tested. It was
       // twenty-five lines inlined here, and its answer — the single most
       // decision-relevant number a rider has — was printed at twelve
@@ -1809,16 +1810,42 @@ export function renderTrack() {
         + '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
         + '<span class="ct-dest">' + leg.frontText + '</span>'
         + '</div>'
+        /* «N stopp igjen» FLYTTET HIT, opp på raden den hører til.
+         *
+         * Den var høyre halvdel av en to-delt rad: «ank. X 06:09 · om 9 min»
+         * til venstre, «3 stopp» til høyre. Da venstre halvdel falt bort
+         * (gjentakelsen), ble tallet stående alene og høyrestilt med et stort
+         * tomrom foran seg — det leste som en strøtanke.
+         *
+         * Tallene i testene var grønne hele tiden. Det var skjermbildet som
+         * viste det, og det er derfor arbeidsgangen sier «se på den ferdige
+         * skjermen». */
         + '<div class="ct-detail ct-detail-2">'
         + '<span class="ct-from">fra <strong>' + esc(displayStn(leg.fromStation || '')) + '</strong>'
         + (leg.depTime ? ' · avg ' + leg.depTime.clk : '') + '</span>'
+        + (arrT && stopsLeft > 0
+          ? '<span class="ct-stops">' + stopsLeft + ' stopp igjen</span>' : '')
         + '</div>'
-        + '<div class="ct-detail ct-detail-2">'
-        + (arrT
-          ? '<span class="ct-time">' + (isLastLeg ? 'ank. ' : 'bytt ') + '<strong>' + esc(displayStn(leg.toStation)) + '</strong> ' + arrT.clk + (mToAction ? ' · ' + mToAction : '') + '</span>'
-          : '<span class="ct-time" style="color:#57534e">laster…</span>')
-        + (stopsLeft > 0 ? '<span class="ct-stops">' + stopsLeft + (stopsLeft === 1 ? ' stopp' : ' stopp') + '</span>' : '')
-        + '</div>';
+        /* KORTET DU SITTER PÅ GJENTAR IKKE DET HELTEN ALT SIER.
+         *
+         * Issue #396. Denne raden sa «ank. Manglerud 06:09 · om 9 min» —
+         * tre fakta, alle tre skrevet i `.track-center` to blokker over:
+         * tallet, klokka og navnet. Målt på skjermen sto destinasjonen åtte
+         * ganger, klokka fire og minuttallet to.
+         *
+         * OG DET GJELDER BARE DETTE KORTET. De framtidige etappene har ingen
+         * helt over seg — der er kortet eneste sted opplysningen finnes, og
+         * da er den ikke en gjentakelse. Issuets egen advarsel: to steder er
+         * ikke støy hvis de leses i ulike situasjoner.
+         *
+         * `stopsLeft` blir igjen, og det er med vilje: den står ingen andre
+         * steder, og kommentaren over kaller den «the single most
+         * decision-relevant number a rider has». */
+        + (!arrT
+          ? '<div class="ct-detail ct-detail-2">'
+            + '<span class="ct-time" style="color:#57534e">laster…</span>'
+            + '</div>'
+          : '');
     } else {
       const mToDep = leg.depTime
         ? Math.round((new Date(leg.depTime.time).getTime() - now) / 60000)

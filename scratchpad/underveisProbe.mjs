@@ -218,6 +218,58 @@ async function run(kind, scheme) {
   console.log('        · ' + plass.blokker.join('\n        · '));
   console.log('  stripe: ' + m.stripe.trim());
 
+  /* GJENTAKELSENE, TALT PÅ SKJERMEN — ikke av meg på et skjermbilde.
+   *
+   * Issue #396. Regelen kodebasen bruker på koden, «én navngitt definisjon»,
+   * anvendt på skjermen: samme faktum skal ikke stå to steder uten grunn.
+   *
+   * Case-uavhengig, fordi flere av stedene er store bokstaver via CSS og
+   * ikke i teksten. Linjekoden telles som DOM-elementer og ikke som tekst —
+   * et ensifret linjenummer treffer ellers klokkeslett og minuttall. */
+  const gjentak = await page.evaluate(() => {
+    const v = document.getElementById('v-track');
+    const tekst = (v.innerText || '').toLowerCase();
+    const tell = (n) => n ? (tekst.match(new RegExp(
+      n.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length : 0;
+    const jny = JSON.parse(localStorage.getItem('default::t.jny') || '{}');
+    const dest = (jny.dest || '').split(',')[0].trim();
+    // KLOKKA LESES FRA SKJERMEN, ikke fra fiksturen. Fiksturens `clk` er en
+    // hardkodet streng mens appen formaterer fra `time` i kjørerens sone —
+    // de to var uenige, og telleren meldte 0 forekomster av en klokke som
+    // sto rett foran den.
+    const klokke = ((document.getElementById('t-clock') || {}).textContent || '').trim();
+    // Minutter igjen: tallet nedtellingen viser akkurat nå.
+    const hero = (document.getElementById('t-num') || {}).textContent || '';
+    const min = (hero.match(/\d+/) || [''])[0];
+    return {
+      dest: { ord: dest, n: tell(dest) },
+      klokke: { ord: klokke, n: tell(klokke) },
+      minutter: { ord: min + ' min', n: min ? tell(min + ' min') : 0 },
+      stopp: { ord: 'stopp', n: tell('stopp') },
+      linje: { ord: 'linjemerker', n: v.querySelectorAll('.line-badge').length },
+    };
+  });
+  /* TAKENE. Issue #396 krever at prøven binder tallet, ellers kryper det opp
+   * igjen. De er satt til det som ER, ikke til et ideal — et tak ingen kan
+   * holde blir slått av, og da måler det ingenting.
+   *
+   * Hver gjenstående forekomst har en jobb: toppstripas identitet, stripens
+   * akse, heltens forklaring av tallet, skiltet på vogna, lista si markering
+   * av raden du går av på, og overskriften på ankomstpanelet. */
+  const TAK = { dest: 6, klokke: 3, minutter: 1 };
+  const brudd = Object.entries(TAK)
+    .filter(([k, t]) => gjentak[k].n > t)
+    .map(([k, t]) => k + ' ' + gjentak[k].n + ' > ' + t);
+  console.log('  GJENTAK · ' + Object.values(gjentak)
+    .map(g => g.ord + ': ' + g.n).join(' · ')
+    + (brudd.length ? '   ✗ OVER TAK: ' + brudd.join(', ') : '   ✓'));
+
+  // SKJERMBILDET FØR KARTKNAPPEN. Trykket under åpner kartet, og et bilde
+  // tatt etterpå viser en tilstand leseren ikke starter i. (Bildet ble også
+  // overskrevet av mutasjonskjøringen én gang — se etter at det du ser på
+  // faktisk er bygget du tror.)
+  await page.screenshot({ path: 'scratchpad/underveis-' + kind + '-' + scheme + '.png', fullPage: true });
+
   /* REISELOGGEN. Turen skal etterlate seg noe et menneske kan lese.
    * Kartknappen trykkes, så `kart`-hendelsen finnes å lese tilbake. */
   const knapp = page.locator('#j-strip-map');
@@ -243,7 +295,6 @@ async function run(kind, scheme) {
     const felt = Object.keys(e).filter(k => k !== 'kind' && k !== 'at' && k !== 'pos');
     console.log('       · ' + e.kind + ' — ' + felt.map(f => f + ': ' + e[f]).join(' · '));
   });
-  await page.screenshot({ path: 'scratchpad/underveis-' + kind + '-' + scheme + '.png', fullPage: true });
   await ctx.close();
 }
 

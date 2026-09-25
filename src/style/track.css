@@ -408,3 +408,26 @@
   font-size: 11px;
   color: rgba(var(--accent-rgb), .55);
 }
+
+
+/* Kartknappen i reisestripen.
+ *
+ * Den erstatter et kart som alltid sto åpent i 220 px. Plassert i stripens
+ * overskriftsrad, til høyre for «N stopp igjen · din gps», fordi det er der
+ * spørsmålet «hvor er jeg» allerede besvares — og fordi en knapp som åpner
+ * noe stort skal stå ved siden av det lille svaret, ikke et annet sted.
+ *
+ * 44 px trykkflate via ::after, samme idiom som resten av appen. */
+.js-caps{display:flex;align-items:center;justify-content:center;gap:.6rem}
+.js-map-btn{
+  position:relative;
+  background:none;border:0;padding:0;
+  font:inherit;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:rgba(var(--accent-rgb),.75);
+  cursor:pointer;
+}
+.js-map-btn::after{
+  content:'';position:absolute;left:50%;top:50%;
+  width:44px;height:44px;transform:translate(-50%,-50%);
+}
+.js-map-btn:hover{color:rgb(var(--accent-rgb))}

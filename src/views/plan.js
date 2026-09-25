@@ -28,6 +28,7 @@ let _planInterval = null;
 // ── Plan map ────────────────────────
 
 let _planMap = null;
+let _planUserMoved = false;
 let _planMapKey = '';
 let _planMapLayer = null;
 
@@ -116,9 +117,11 @@ async function _renderPlanMap(legs) {
   if (!el) return;
 
   if (!_planMap) {
-    _planMap = createMap(el, { expandable: true });
+    _planUserMoved = false;
+  _planMap = createMap(el, { expandable: true });
 
-    bindMapExpand(_planMap, el, document.getElementById('plan-map-expand'));
+    _planMap.on('dragstart zoomstart', () => { _planUserMoved = true; });
+  bindMapExpand(_planMap, el, document.getElementById('plan-map-expand'));
   }
 
   if (_planMapLayer) { _planMapLayer.clearLayers(); }
@@ -155,10 +158,19 @@ async function _renderPlanMap(legs) {
     }
   });
 
-  if (allPts.length > 1) {
-    _planMap.fitBounds(allPts, { padding: [32, 32], maxZoom: 15 });
-  } else if (allPts.length === 1) {
-    _planMap.setView(allPts[0], 14);
+  // DRO DU KARTET, EIER DU DET.
+  //
+  // Denne rammet inn på nytt ved hver tegning. Dro du kartet til side for å se
+  // hvor du skulle, hoppet det tilbake neste gang planen oppdaterte seg —
+  // rettesnorens «ingenting skal hoppe», brutt under fingeren. `board.js` har
+  // hatt vakten hele tiden (`_bUserMoved`, satt på `dragstart`); den er den
+  // samme her.
+  if (!_planUserMoved) {
+    if (allPts.length > 1) {
+      _planMap.fitBounds(allPts, { padding: [32, 32], maxZoom: 15 });
+    } else if (allPts.length === 1) {
+      _planMap.setView(allPts[0], 14);
+    }
   }
 }
 

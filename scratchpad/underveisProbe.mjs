@@ -48,7 +48,7 @@ const browser = await pw.chromium.launch({ executablePath: '/opt/pw-browsers/chr
  * @param {'ved ryen'|'avslatt'|'gammel'} kind hva posisjonen er verdt
  */
 async function run(kind, scheme) {
-  const ctx = await browser.newContext({ viewport:{width:414,height:900}, deviceScaleFactor:2 });
+  const ctx = await browser.newContext({ viewport:{width:414,height:896}, deviceScaleFactor:2 });
   const page = await ctx.newPage();
 
   await page.addInitScript(({ now, scheme, kind, stopp }) => {
@@ -156,6 +156,63 @@ async function run(kind, scheme) {
   console.log('  kilde: ' + m.kilde.trim());
   console.log('  neste: ' + m.neste.trim() + ' · avstand: ' + m.avstand.trim());
   console.log('  rader: ' + JSON.stringify(m.rader));
+
+  /* PLASSEN. Tallene som avgjør om skjermen er til å bruke i bevegelse.
+   *
+   * `stå av`-raden er den ENE opplysningen underveis-skjermen finnes for, og
+   * påstanden som skal prøves er at den ligger under folden i dag. Folden er
+   * 896 px minus bunnmenyen, som er position:fixed — den har lurt en tidligere
+   * måling i dette repoet, så den trekkes fra her. */
+  const plass = await page.evaluate(() => {
+    const v = document.getElementById('v-track');
+    // `.app-nav`, og ikke en gjetning. Første utgave lette etter
+    // «.bottom-bar» som ikke finnes, fant ingenting, og satte folden til hele
+    // vindushøyden — som gjorde at «stå av» så ut til å ligge OVER folden.
+    const bunn = document.querySelector('.app-nav');
+    const fold = window.innerHeight - (bunn ? bunn.getBoundingClientRect().height : 0);
+    const synligeKart = [...document.querySelectorAll('#v-track .leaflet-container')]
+      .filter(e => e.offsetHeight > 0);
+    const topp = v.getBoundingClientRect().top + window.scrollY;
+    const rad = [...document.querySelectorAll('#v-track .stop')]
+      .find(e => /stå av/i.test(e.textContent));
+    return {
+      hoyde: Math.round(v.scrollHeight),
+      fold: Math.round(fold),
+      kart: synligeKart.map(e => Math.round(e.offsetHeight)),
+      staaAv: rad ? Math.round(rad.getBoundingClientRect().top + window.scrollY - topp) : null,
+      bunnFinnes: !!bunn,
+      bunnHoyde: bunn ? Math.round(bunn.getBoundingClientRect().height) : null,
+      bunnSkjult: bunn ? getComputedStyle(bunn).display === 'none' : null,
+      // MÅLT, IKKE ESTIMERT. Jeg anslo «hva nå?» til 1600–1800 px ut fra
+      // CSS-verdier; hele siden er 1469. Anslag av denne typen har tatt feil
+      // hver gang i dette repoet.
+      blokker: [
+        ['reisestripe', '#j-strip'],
+        ['nedtelling', '.track-center'],
+        ['kortstabel', '#t-cards'],
+        ['hva nå?', '#t-next'],
+        ['søkefelt videre', '#t-walk-dest'],
+      ].map(([navn, sel]) => {
+        const e = document.querySelector(sel);
+        if (!e || !e.offsetHeight) return navn + ': —';
+        const r = e.getBoundingClientRect();
+        return navn + ': ' + Math.round(r.top + window.scrollY - topp)
+          + ' px (' + Math.round(r.height) + ')';
+      }),
+    };
+  });
+  const skjermer = (plass.hoyde / plass.fold).toFixed(1);
+  console.log('  PLASS · høyde ' + plass.hoyde + ' px = ' + skjermer + ' skjermfulle'
+    + ' · fold ' + plass.fold + ' px'
+    + ' (app-nav: ' + (plass.bunnFinnes
+        ? (plass.bunnSkjult ? 'skjult på denne skjermen' : plass.bunnHoyde + ' px')
+        : 'finnes ikke') + ')');
+  console.log('        · kart samtidig: ' + plass.kart.length
+    + (plass.kart.length ? ' (' + plass.kart.join(' + ') + ' px = '
+        + Math.round(plass.kart.reduce((a, b) => a + b, 0) / plass.hoyde * 100) + ' %)' : ''));
+  console.log('        · «stå av» ligger på ' + plass.staaAv + ' px → '
+    + (plass.staaAv != null && plass.staaAv < plass.fold ? 'OVER folden ✓' : 'UNDER folden ✗'));
+  console.log('        · ' + plass.blokker.join('\n        · '));
   console.log('  stripe: ' + m.stripe.trim());
   await page.screenshot({ path: 'scratchpad/underveis-' + kind + '-' + scheme + '.png', fullPage: true });
   await ctx.close();

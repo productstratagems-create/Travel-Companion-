@@ -83,6 +83,7 @@ let _tUserMarker = null;
 let _tRoutePts = null;
 let _tSnapDist = null;
 let _tMapKey = null;
+let _tMapOpen = false;
 
 // How long a tapped stop's name tooltip stays visible on the tracking map —
 // matches the board map's route-stop tooltip behaviour.
@@ -207,6 +208,39 @@ function _renderTrackMap(now, cs, legs) {
     return;
   }
 
+  /* KORRIDOREN HUSKES UANSETT OM KARTET TEGNES.
+   *
+   * `_tRoutePts` ble satt som en BIVIRKNING av å tegne kartet, og brukes til
+   * noe helt annet: å snappe posisjonen din til linja, slik at stripen kan si
+   * «din gps». Da kartet ble lukket i hvile, mistet stripen kilden sin og
+   * falt til «etter rutetid» — en regresjon prøven fanget med én gang.
+   *
+   * To ting som hang sammen uten at noen hadde sagt det. Nå settes de her,
+   * før avgjørelsen om å tegne. */
+  _tRoutePts = pts;
+  _tSnapDist = leg.mode === 'bus' ? 25 : 50;
+
+  /* KARTET ER ET SVAR, IKKE TAPET.
+   *
+   * Målt på underveis-skjermen: to kart à 220 px sto samtidig og tok 30 % av
+   * siden, mens reisestripen — som svarer på det samme spørsmålet på 61 px —
+   * lå under dem. «Hvor er jeg på linja» er stripens jobb; kartet trengs når
+   * du faktisk vil se terrenget, og da trengs det STORT, ikke som en 220 px
+   * stripe av grå flate.
+   *
+   * Så: lukket i hvile, åpnet på trykk — og da i full høyde. Knappen står i
+   * stripen, der spørsmålet oppstår. */
+  if (!_tMapOpen) {
+    wrap.style.display = 'none';
+    _destroyTrackMap();
+    // ETTER opprydningen: `_destroyTrackMap` nullstiller korridoren, og den
+    // trengs uansett — stripen snapper posisjonen din til den for å kunne si
+    // «din gps». Settes den før, blir den strøket her.
+    _tRoutePts = pts;
+    _tSnapDist = leg.mode === 'bus' ? 25 : 50;
+    return;
+  }
+
   wrap.style.display = 'block';
 
   const key = _trackMapStructKey(legs, cs.i);
@@ -306,12 +340,6 @@ function _renderTrackMap(now, cs, legs) {
     }).filter(Boolean);
     drawJourneyPoints(_tLayer, journeyPoints(jlegs),
       { colour: lineColor, project: ll => _tMap.latLngToContainerPoint(ll) });
-
-    // Remember the corridor so the live user-position dot can snap onto it.
-    // Rail/tram tracks aren't drawn by the basemap so the straight stop-to-stop
-    // segments only approximate them — use a looser snap than for buses.
-    _tRoutePts = pts;
-    _tSnapDist = leg.mode === 'bus' ? 25 : 50;
 
     // The frame was set before anything was drawn; `allPts` is the same set of
     // points, so this only re-seats it after the markers have been placed.
@@ -1478,6 +1506,27 @@ function computeState(now) {
   return { phase: 'arrived', i: legs.length - 1 };
 }
 
+/**
+ * Ankomstkartet, når det faktisk gjelder.
+ *
+ * Samme terskel som avstigningskortet (`mLeft <= 5`) — ett tall, ikke to som
+ * må være enige om hva «nærmer seg» betyr. Er du ikke der ennå, står
+ * «hva nå?»-panelet uten kart, og de 220 pikslene er skjermplass du bruker
+ * til reisen du faktisk er på.
+ */
+function _maybeInitArrMap() {
+  const wrap = document.querySelector('#t-next .map-wrap');
+  if (!wrap) return;
+  const legs = (state.jny && state.jny.legs) || [];
+  const cs = computeState(Date.now());
+  const leg = legs[cs.i];
+  const arrTs = leg && leg.arrTime ? new Date(leg.arrTime.time).getTime() : null;
+  const mLeft = arrTs != null ? Math.floor((arrTs - Date.now()) / 60000) : null;
+  const naer = cs.phase !== 'riding' || (mLeft != null && mLeft <= 5);
+  wrap.style.display = naer ? '' : 'none';
+  if (naer && _arrLL && !_arrMap) _initArrMap(_arrLL);
+}
+
 export function renderTrack() {
   if (!state.jny || !state.jny.legs || !state.jny.legs.length) {
     // NO JOURNEY IS NOT NO CONTEXT. `null` here meant splitSituations never
@@ -1949,6 +1998,7 @@ export function renderTrack() {
   _updateUserMarker();
   _renderTrackMap(now, cs, legs);
   _renderJourneyStrip(now, cs, legs);
+  _maybeInitArrMap();
   _renderLive(now, cs, legs);
 }
 
@@ -2106,7 +2156,11 @@ export function startTracking() {
       _updateWeatherSection();
       return;
     }
-    _initArrMap(ll);
+    // ALDRI TO KART SAMTIDIG. Ankomstkartet hører til ankomsten; bygget her
+    // sto det fra avgang, 220 px av en skjerm du bruker til noe annet.
+    // Koordinatene huskes, og kartet bygges når avstigningen nærmer seg.
+    _arrLL = ll;
+    _maybeInitArrMap();
     _addBikeMarkers(ll);
     fetchWeather(ll.lat, ll.lon)
       .then(w => { _arrWeather = w; _updateWeatherSection(); })
@@ -2245,6 +2299,31 @@ window._simEtterBytt = function() {
   state.jny.legs[1].depTime = ts;
   _fetchTrack();
   renderTrack();
+};
+
+/**
+ * Kartet åpnes fra stripen, og da i full høyde.
+ *
+ * Hviletilstanden er ingen kart: reisestripen svarer på «hvor er jeg på
+ * linja» på 61 px. Trenger du terrenget, skal du få det stort — ikke som en
+ * 220 px stripe grå flate som verken orienterer eller lar seg lese.
+ */
+window._toggleTrackMap = () => {
+  _tMapOpen = !_tMapOpen;
+  renderTrack();
+  const el = document.getElementById('t-map');
+  const wrap = document.getElementById('t-map-wrap');
+  if (_tMapOpen && el && wrap) {
+    wrap.style.display = 'block';
+    el.classList.add('expanded');
+    document.documentElement.classList.add('map-open');
+    setTimeout(() => { if (_tMap) _tMap.invalidateSize(); }, 320);
+  } else {
+    if (el) el.classList.remove('expanded');
+    document.documentElement.classList.remove('map-open');
+  }
+  const b = document.getElementById('j-strip-map');
+  if (b) b.textContent = _tMapOpen ? '✕ lukk kart' : '⤢ kart';
 };
 
 window._expandStops = (idx) => { expanded[idx] = !expanded[idx]; renderTrack(); };

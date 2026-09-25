@@ -211,7 +211,15 @@ export function renderJourneyStrip(el, calls, now, pos) {
     ? pct(p.nextIdx) : null;
 
   el.innerHTML =
-    '<div class="js-caps"><span class="js-cap">' + esc(caption) + '</span></div>'
+    '<div class="js-caps"><span class="js-cap">' + esc(caption) + '</span>'
+    // KARTKNAPPEN STÅR HER, der spørsmålet oppstår. Stripen svarer «hvor er
+    // jeg på linja»; vil du se terrenget, åpner denne det i full høyde.
+    // Tidligere sto kartet alltid åpent i 220 px over stripen og svarte på
+    // det samme, dårligere.
+    + '<button class="js-map-btn" id="j-strip-map" type="button"'
+    + ' onclick="window._toggleTrackMap&&window._toggleTrackMap()"'
+    + ' aria-label="Vis kartet over reisen">⤢ kart</button>'
+    + '</div>'
     + '<div class="js-rail">'
     + '<span class="js-done" style="width:' + pct(p.frac).toFixed(2) + '%"></span>'
     + ticks

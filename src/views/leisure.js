@@ -39,6 +39,7 @@ let _anchor = null;      // the point the section is about, decided once
 
 // Map state
 let _lMap         = null;
+let _leiUserMoved = false;
 let _venueMarkers = [];
 let _userMarker   = null;
 
@@ -373,7 +374,9 @@ function _initLeisureMap(pos) {
   const el = document.getElementById('lei-map');
   if (!el) return;
 
+  _leiUserMoved = false;
   _lMap = createMap(el, { zoom: false });
+  _lMap.on('dragstart zoomstart', () => { _leiUserMoved = true; });
 
   if (pos) {
     _lMap.setView([pos.lat, pos.lon], 15);
@@ -440,10 +443,14 @@ function _updateLeisureMarkers(pos) {
     bounds.push([v.lat, v.lon]);
   });
 
-  if (bounds.length > 1) {
-    _lMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 });
-  } else if (pos) {
-    _lMap.setView([pos.lat, pos.lon], 15);
+  // Samme vakt som tavla og reiseplanen: stedene oppdateres mens du ser på
+  // kartet, og uten denne rammet det inn på nytt hver gang.
+  if (!_leiUserMoved) {
+    if (bounds.length > 1) {
+      _lMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 });
+    } else if (pos) {
+      _lMap.setView([pos.lat, pos.lon], 15);
+    }
   }
 }
 

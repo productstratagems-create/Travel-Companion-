@@ -57,13 +57,43 @@ export const FIELD_LABELS = {
   lat: 'breddegrad',
   lon: 'lengdegrad',
   noyaktighet: 'nøyaktighet',
+
+  // REISELOGGEN. Fire utgivelser ble sendt uten at én ekte tur hadde prøvd
+  // dem, og forbeholdene deres kan bare avgjøres underveis. Disse feltene er
+  // ikke ny innsamling for innsamlingens skyld — hvert av dem svarer på ett
+  // navngitt spørsmål vi ellers ikke kan svare på herfra.
+  svarte: 'svarte',
+  hvorfor: 'fordi',
+  stopp: 'stopp',
+  handling: 'gjorde',
+  minutter: 'minutter før avgang',
+  grunnlag: 'regnet ut fra',
 };
 
-/** The three things worth remembering, and nothing else. */
+/**
+ * Det som er verdt å huske, og ikke noe annet.
+ *
+ * TYPENAVNET VISES RÅTT. `settings.js` skriver `e.kind` uendret i
+ * `.mem-kind`, så navnet her er det leseren ser — derfor lesbare norske ord
+ * og ikke forkortelser.
+ *
+ * De tre siste er reiseloggen, og hver svarer på ett åpent spørsmål:
+ *
+ *   kilde  vinner posisjonen over klokka, og peker den på riktig stopp?
+ *   kart   åpner du kartet likevel, etter at v1.156 lukket det i hvile?
+ *   gaa    var «gå nå» bygget av målt gangtid, en gjetning, eller ditt valg?
+ *
+ * `svarte` og `grunnlag` bruker APPENS EGNE ORD — `SRC_LABEL`-nøklene og
+ * `leadMins().source` — så loggen ikke blir et tredje ordsett for begreper
+ * skjermen alt har navn på.
+ */
 export const KINDS = {
   reise: ['fra', 'til', 'linje'],
   gange: ['meter', 'sekunder'],
   sok: ['valgt'],
+  kilde: ['svarte', 'hvorfor', 'stopp'],
+  kart: ['handling'],
+  gaa: ['minutter', 'grunnlag'],
 };
 
 function _load() {
@@ -126,6 +156,31 @@ function _shape(kind, data, pos) {
  * @param {object} data   fields named by KINDS[kind]
  * @param {{lat:number, lon:number, acc:number}|null} pos
  */
+/**
+ * Skal dette skrives ned nå?
+ *
+ * ET EGET NAVN, fordi regelen bærer to ting på én gang og begge kan brytes
+ * stille: at noe bare logges når det har ENDRET SEG, og at det ikke logges
+ * oftere enn `minMs`. Den bodde først inne i en indre funksjon i
+ * `views/track.js`, der ingen test kunne kalle den — og tre mutanter
+ * overlevde nettopp derfor.
+ *
+ * `whereAmI` regnes ut hver tegning, altså 1 Hz. En tunnel kan få kilden til
+ * å flakke, og uten dempingen ville én tjue minutters tur skrevet over tusen
+ * hendelser mot et tak på 300. Turen hadde da slettet sitt eget bevis.
+ *
+ * @param {{key: string|null, at: number}} forrige
+ * @param {string} nokkel
+ * @param {number} naa
+ * @param {number} minMs
+ */
+export function skalLogges(forrige, nokkel, naa, minMs) {
+  const f = forrige || {};
+  if (nokkel === f.key) return false;
+  if (Number.isFinite(f.at) && naa - f.at < minMs) return false;
+  return true;
+}
+
 export function logEvent(kind, data, pos) {
   if (!loadConsent()) return false;
   if (!KINDS[kind]) return false;

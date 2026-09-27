@@ -25,12 +25,24 @@ const STOPP = [
   ['NSR:StopPlace:Ry', 'Ryen', 59.8600, 10.8200, 6],
   ['NSR:StopPlace:Ma', 'Manglerud', 59.8700, 10.8200, 9],
 ];
-const call = ([id, name, lat, lon, m]) => ({
+/* MOCKEN MÅ VÆRE ENIG MED FIKSTUREN.
+ *
+ * `_fetchTrack` skriver `leg.arrTime` fra de hentede kallene. Med kallene
+ * fast på +9 min ble reisen skjøvet tilbake til 9 rett etter at folden hadde
+ * åpnet seg på 3 — og prøven «beviste» automatikken på en verdi som forsvant
+ * et øyeblikk senere. Skjermbildet avslørte det: helten sa 9 i et tilfelle
+ * jeg hadde kalt «nær framme». */
+const call = (kind) => ([id, name, lat, lon, m]) => ({
   quay: { latitude: lat, longitude: lon,
     stopPlace: { id, name, latitude: lat, longitude: lon } },
-  aimedArrivalTime: iso(NOW + m * 60000), expectedArrivalTime: iso(NOW + m * 60000),
-  aimedDepartureTime: iso(NOW + m * 60000), expectedDepartureTime: iso(NOW + m * 60000),
+  aimedArrivalTime: iso(NOW + skaler(kind, m) * 60000),
+  expectedArrivalTime: iso(NOW + skaler(kind, m) * 60000),
+  aimedDepartureTime: iso(NOW + skaler(kind, m) * 60000),
+  expectedDepartureTime: iso(NOW + skaler(kind, m) * 60000),
 });
+
+/** «nær framme» komprimerer reisen så siste stopp ligger 3 min ute. */
+const skaler = (kind, m) => kind === 'naer framme' ? Math.round(m / 3) : m;
 
 const TYPES = { '.html':'text/html','.js':'text/javascript','.css':'text/css',
   '.png':'image/png','.svg':'image/svg+xml','.webmanifest':'application/manifest+json' };
@@ -75,13 +87,13 @@ async function run(kind, scheme) {
     localStorage.setItem('default::t.jny', JSON.stringify({
       dest: 'Manglerud', from: 'Mortensrud', boardedAt: now - 60000,
       lineCode: '3', lineBg: '#f5a000', frontText: 'Manglerud',
-      arrival: { time: new Date(now + 9*60000).toISOString(), clk: '08:09' },
+      arrival: { time: new Date(now + (kind === 'naer framme' ? 3 : 9)*60000).toISOString(), clk: '08:09' },
       _toLat: 59.8700, _toLon: 10.8200,
       legs: [{ lineCode: '3', lineRef: 'RUT:Line:3', lineBg: '#f5a000',
         mode: 'metro', frontText: 'Manglerud', journeyId: 'RUT:ServiceJourney:1',
         fromStation: 'Mortensrud', toStation: 'Manglerud',
         depTime: { time: new Date(now).toISOString(), clk: '08:00' },
-        arrTime: { time: new Date(now + 9*60000).toISOString(), clk: '08:09' },
+        arrTime: { time: new Date(now + (kind === 'naer framme' ? 3 : 9)*60000).toISOString(), clk: '08:09' },
         quay: { publicCode: '1' }, stops: lagretStopp }],
     }));
     // Posisjonen: ved Ryen, to stopp foran det klokka tror.
@@ -89,7 +101,7 @@ async function run(kind, scheme) {
     // `at` MÅ være med. Uten tidsstempel er alderen ukjent, og da skal
     // posisjonen IKKE vinne over ruteplanen — det er hele rettelsen i
     // v1.154.0. «uten alder» under er nettopp det tilfellet.
-    if (kind === 'ved ryen' || kind === 'lagret') {
+    if (kind === 'ved ryen' || kind === 'lagret' || kind === 'naer framme') {
       localStorage.setItem('default::t.homeLL',
         JSON.stringify({ lat: 59.8600, lon: 10.8200, at: now - 5000 }));
     } else if (kind === 'uten alder') {
@@ -106,7 +118,7 @@ async function run(kind, scheme) {
     if (kind === 'lagret') return void route.abort();
     route.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify({ data: { serviceJourney: { id: 'RUT:ServiceJourney:1',
-        estimatedCalls: STOPP.map(call) } } }) });
+        estimatedCalls: STOPP.map(call(kind)) } } }) });
   });
   await page.route('**/geocoder/**', r => r.fulfill({ status:200,
     contentType:'application/json', body: JSON.stringify({ features: [] }) }));
@@ -260,6 +272,35 @@ async function run(kind, scheme) {
   const brudd = Object.entries(TAK)
     .filter(([k, t]) => gjentak[k].n > t)
     .map(([k, t]) => k + ' ' + gjentak[k].n + ' > ' + t);
+  const aff = await page.evaluate(() => {
+    const m = (sel) => {
+      const e = document.querySelector(sel);
+      if (!e || !e.offsetHeight) return null;
+      const r = e.getBoundingClientRect();
+      const st = getComputedStyle(e);
+      return {
+        h: Math.round(r.height), b: Math.round(r.width),
+        // SER DEN TRYKKBAR UT? Kartknappen hadde 44 px trykkflate og INGEN
+        // visuell grense — det var nettopp feilen. Markør, rolle og en
+        // avrundet flate er det som skiller «tekst» fra «noe å ta på».
+        peker: st.cursor === 'pointer',
+        rolle: e.getAttribute('role') === 'button' || e.tagName === 'BUTTON',
+        ord: (e.innerText || '').trim().split('\n')[0].slice(0, 28),
+      };
+    };
+    const panel = document.querySelector('.hn-panel');
+    return {
+      stripe: m('#j-strip'),
+      ankomst: m('#hn-head'),
+      foldet: !!(panel && panel.classList.contains('folded')),
+    };
+  });
+  const dom = (a) => a ? (a.h + 'x' + a.b + ' px · ' + (a.h >= 44 ? '✓44' : '✗ under 44')
+    + (a.peker && a.rolle ? ' · ✓ ser trykkbar ut' : ' · ✗ ser ikke trykkbar ut')
+    + ' · «' + a.ord + '»') : '(mangler)';
+  console.log('  AFFORDANS · stripe:  ' + dom(aff.stripe));
+  console.log('            · ankomst: ' + dom(aff.ankomst) + ' · foldet: ' + aff.foldet);
+
   console.log('  GJENTAK · ' + Object.values(gjentak)
     .map(g => g.ord + ': ' + g.n).join(' · ')
     + (brudd.length ? '   ✗ OVER TAK: ' + brudd.join(', ') : '   ✓'));
@@ -300,6 +341,9 @@ async function run(kind, scheme) {
 
 // Den lagrede reisa, uten nett i det hele tatt: stopplista skal tegnes av
 // det som ligger lagret, og posisjonen skal fortsatt kunne svare.
+// NÆR FRAMME: tre minutter igjen, under NAER_FRAMME_MINS. Ankomstpanelet
+// skal da ha foldet seg ut av seg selv.
+await run('naer framme', 'dark');
 await run('lagret', 'dark');
 await run('lagret', 'light');
 await run('ved ryen', 'dark');

@@ -133,19 +133,66 @@ describe('callPlace leser alle formene', () => {
  * Det disse binder er at den sjuende ikke kommer.
  */
 describe('underveis leser stoppene gjennom ett navn', () => {
-  const read = (f) => require('node:fs').readFileSync(f, 'utf8')
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const read = (f) => fs.readFileSync(f, 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
-  it('views/track.js går ikke utenom', () => {
-    expect(read('src/views/track.js')).not.toMatch(/\.quay\s*&&\s*\w+\.quay\.stopPlace/);
+  /** Hver .js-fil under src/. */
+  const alleFiler = (dir = 'src') => fs.readdirSync(dir, { withFileTypes: true })
+    .flatMap(d => {
+      const f = path.join(dir, d.name);
+      return d.isDirectory() ? alleFiler(f) : (f.endsWith('.js') ? [f] : []);
+    });
+
+  /**
+   * PLANETAPPER ER IKKE REISEETAPPER.
+   *
+   * `views/plan.js` leser også `leg.stops`, men der er etappene PLANENS, og
+   * de lagrer steder direkte siden v1.153.0. De trenger ingen oversettelse.
+   * Unntaket står her med sin grunn framfor at testen later som det ikke
+   * finnes.
+   */
+  const UNNTAK = { 'src/views/plan.js': 'planetapper lagrer steder direkte (v1.153.0)' };
+
+  /**
+   * DETTE ER TESTEN SOM SVIKTET.
+   *
+   * v1.155.0 la stopplista i `callPlace` sin form så den overlever en
+   * oppfriskning, og skrev en kildetest for at «den sjuende ikke kommer».
+   * Men den listet TO filer for hånd — views/track.js og views/journeyStrip.js
+   * — og den sjuende lå i `api/alight.js`, utenfor lista.
+   *
+   * Følgen var ekte: for en reise hentet fra lagringen ble hvert navn «?»,
+   * `pastFrom` ble aldri sann, og «N stopp igjen» forsvant fra kortet.
+   *
+   * Så testen FINNER filene nå, framfor å huske dem. Den åttende fanges av
+   * seg selv.
+   */
+  it('hver fil som leser reisens stoppliste går gjennom callPlace', () => {
+    const syndere = alleFiler()
+      .filter(f => /\bleg\.stops\b/.test(read(f)))
+      .filter(f => !UNNTAK[f])
+      // \bcallPlace\b og ikke callPlace\( — `journey.js` sender den
+      // punktfritt som `.map(callPlace)`, og en regex som krevde parentes
+      // meldte den som synder. Instrumentet, ikke koden.
+      .filter(f => !/\bcallPlace\b/.test(read(f)));
+    expect(syndere).toEqual([]);
   });
 
-  it('views/journeyStrip.js går ikke utenom', () => {
-    expect(read('src/views/journeyStrip.js')).not.toMatch(/\.quay\s*&&\s*\w+\.quay\.stopPlace/);
+  it('og finner faktisk noen filer å sjekke', () => {
+    // Uten denne ville en regex som ikke traff noe bestått som «ingen syndere».
+    const lesere = alleFiler().filter(f => /\bleg\.stops\b/.test(read(f)));
+    expect(lesere.length).toBeGreaterThanOrEqual(3);
+    expect(lesere).toContain('src/api/alight.js');
   });
 
-  it('og begge bruker callPlace', () => {
-    expect(read('src/views/track.js')).toMatch(/callPlace\(/);
-    expect(read('src/views/journeyStrip.js')).toMatch(/callPlace\(/);
+  it('journeyStrip leser dem gjennom det samme navnet', () => {
+    expect(read('src/views/journeyStrip.js')).toMatch(/\bcallPlace\b/);
+  });
+
+  it('og ingen av dem går utenom med den rå formen', () => {
+    ['src/views/track.js', 'src/views/journeyStrip.js', 'src/api/alight.js']
+      .forEach(f => expect(read(f)).not.toMatch(/\.quay\s*&&\s*\w+\.quay\.stopPlace/));
   });
 });

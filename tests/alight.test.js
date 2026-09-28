@@ -158,8 +158,21 @@ describe('it reaches the screen, and adds no new voice', () => {
   // on this line» is a question about a real ride, and this sandbox cannot
   // answer it — so the release does not pretend to.
   it('leaves the clock thresholds exactly as they were', () => {
+    // The transfer card's 2 has one reader, so it stays a literal.
     expect(src()).toMatch(/if \(mLeft > 2\) return '';/);
-    expect(src()).toMatch(/if \(mLeft > 5\) return '';/);
+    // THE FIVE MOVED BEHIND A NAME, AND ITS VALUE IS ASSERTED INSTEAD.
+    //
+    // Three places asked «are we nearly there» with a loose `<= 5`: this
+    // card, the arrival map, and — from v1.159.0 — the arrival panel's fold.
+    // The comment above one of them CLAIMED it was «the same threshold as the
+    // alight card» while writing the number out again.
+    //
+    // The intent of this test is that the TIMING is untouched, not that the
+    // digit sits in a particular expression. Asserting the constant's value
+    // is the stronger guard: a rename cannot slip past it, and neither can a
+    // change from five to four.
+    expect(src()).toMatch(/const NAER_FRAMME_MINS = 5;/);
+    expect(src()).toMatch(/if \(mLeft > NAER_FRAMME_MINS\) return '';/);
   });
 
   // The first cut added a banner below the fold to a screen that already

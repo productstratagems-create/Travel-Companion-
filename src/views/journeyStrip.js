@@ -210,15 +210,34 @@ export function renderJourneyStrip(el, calls, now, pos) {
   const nextPct = (p.next && p.nextIdx != null && p.next !== p.to)
     ? pct(p.nextIdx) : null;
 
+  /* HELE STRIPEN ER KNAPPEN.
+   *
+   * Den var en egen mikroknapp, «⤢ KART», i 11 px versaler i en rad som
+   * ellers er ren tekst. Reiseloggen fra den første ekte turen ga null
+   * kartåpninger, og leseren svarte: «så ikke knappen nei».
+   *
+   * DIAGNOSEN ER IKKE «FOR LITEN». Trykkflaten var 44 px via ::after — den
+   * var stor nok. Ingenting SÅ UT som noe å trykke på. Feilen var visuell,
+   * ikke geometrisk, og en større usynlig flate ville ikke hjulpet.
+   *
+   * Så trykkflaten flyttes til noe som allerede er synlig og stort: stripen
+   * selv, 61 px høy og i full bredde. Den svarer alt på «hvor er jeg på
+   * linja»; nå åpner den terrenget bak det samme svaret. ⤢ blir igjen som
+   * hint, ikke som eget mål. */
+  el.setAttribute('role', 'button');
+  el.setAttribute('tabindex', '0');
+  el.setAttribute('aria-label', 'Vis kartet over reisen');
+  el.onclick = () => { window._toggleTrackMap && window._toggleTrackMap(); };
+  el.onkeydown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      window._toggleTrackMap && window._toggleTrackMap();
+    }
+  };
+
   el.innerHTML =
     '<div class="js-caps"><span class="js-cap">' + esc(caption) + '</span>'
-    // KARTKNAPPEN STÅR HER, der spørsmålet oppstår. Stripen svarer «hvor er
-    // jeg på linja»; vil du se terrenget, åpner denne det i full høyde.
-    // Tidligere sto kartet alltid åpent i 220 px over stripen og svarte på
-    // det samme, dårligere.
-    + '<button class="js-map-btn" id="j-strip-map" type="button"'
-    + ' onclick="window._toggleTrackMap&&window._toggleTrackMap()"'
-    + ' aria-label="Vis kartet over reisen">⤢ kart</button>'
+    + '<span class="js-map-hint" aria-hidden="true">⤢</span>'
     + '</div>'
     + '<div class="js-rail">'
     + '<span class="js-done" style="width:' + pct(p.frac).toFixed(2) + '%"></span>'

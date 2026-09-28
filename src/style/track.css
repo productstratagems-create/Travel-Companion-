@@ -410,24 +410,62 @@
 }
 
 
-/* Kartknappen i reisestripen.
+/* HELE STRIPEN ER KNAPPEN.
  *
- * Den erstatter et kart som alltid sto åpent i 220 px. Plassert i stripens
- * overskriftsrad, til høyre for «N stopp igjen · din gps», fordi det er der
- * spørsmålet «hvor er jeg» allerede besvares — og fordi en knapp som åpner
- * noe stort skal stå ved siden av det lille svaret, ikke et annet sted.
+ * Den forrige var en egen mikroknapp med 44 px trykkflate via ::after — stor
+ * nok, men usynlig. Reiseloggen ga null åpninger og leseren sa «så ikke
+ * knappen». Feilen var visuell.
  *
- * 44 px trykkflate via ::after, samme idiom som resten av appen. */
-.js-caps{display:flex;align-items:center;justify-content:center;gap:.6rem}
-.js-map-btn{
-  position:relative;
-  background:none;border:0;padding:0;
-  font:inherit;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
-  color:rgba(var(--accent-rgb),.75);
+ * Nå bærer stripen selv trykket: 61 px høy, full bredde, og allerede det
+ * elementet blikket går til for å se hvor man er. Flaten markeres svakt så
+ * den leses som noe man kan ta på, uten å konkurrere med nedtellingen under. */
+#j-strip{
   cursor:pointer;
+  border-radius:10px;
+  padding:.35rem .5rem;
+  margin:0 -.5rem;
+  transition:background .15s ease;
 }
-.js-map-btn::after{
-  content:'';position:absolute;left:50%;top:50%;
-  width:44px;height:44px;transform:translate(-50%,-50%);
+#j-strip:hover,#j-strip:focus-visible{ background:rgba(var(--accent-rgb),.06); }
+#j-strip:focus-visible{ outline:2px solid rgba(var(--accent-rgb),.55); outline-offset:2px; }
+
+.js-caps{display:flex;align-items:center;justify-content:center;gap:.5rem}
+
+/* Hintet, ikke målet. Det sier at stripen kan åpnes; den store flaten er
+ * det man faktisk treffer. */
+.js-map-hint{
+  font-size:11px;
+  color:rgba(var(--accent-rgb),.6);
 }
-.js-map-btn:hover{color:rgb(var(--accent-rgb))}
+
+
+/* ANKOMSTPANELET FOLDER SEG.
+ *
+ * 281 px mens du kjører, og alt i det gjelder etter at du er framme.
+ * Overskriften «fremme ved <stedet>» blir affordansen — ord som sier hva som
+ * er bak, i full bredde og over 44 px. Kartknappen brøt nettopp den regelen:
+ * 11 px versaler i en tekstrad, og reiseloggen viste null åpninger. */
+.hn-head{
+  cursor:pointer;
+  border-radius:10px;
+  padding:.5rem;
+  margin:-.5rem -.5rem 0;
+  min-height:44px;
+  box-sizing:border-box;
+  transition:background .15s ease;
+}
+.hn-head:hover,.hn-head:focus-visible{ background:rgba(var(--accent-rgb),.06); }
+.hn-head:focus-visible{ outline:2px solid rgba(var(--accent-rgb),.55); outline-offset:2px; }
+
+.hn-chevron{
+  margin-left:.5rem;
+  font-size:14px;
+  color:rgba(var(--accent-rgb),.6);
+  vertical-align:middle;
+}
+
+/* Foldet: bare overskriften står. Været hører til det du får når du åpner —
+ * «laster vær…» i hviletilstand er en tom blokk som melder seg selv. */
+.hn-panel.folded > *:not(.hn-head){ display:none; }
+.hn-panel.folded .hn-head-wx{ display:none; }
+.hn-panel.folded .hn-head{ margin-bottom:0; }

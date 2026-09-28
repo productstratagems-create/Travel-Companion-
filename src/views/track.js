@@ -87,6 +87,21 @@ let _tMapKey = null;
 let _tMapOpen = false;
 
 /**
+ * Når «nærmer deg framme» begynner.
+ *
+ * ETT TALL, fordi det styrer tre ting som må si det samme: avstigningskortet
+ * dukker opp, ankomstkartet bygges, og ankomstpanelet folder seg ut. De sto
+ * som tre løse `<= 5` — og kommentaren over den ene PÅSTO at den var «samme
+ * terskel som avstigningskortet» mens den skrev tallet på nytt. To steder som
+ * skriver ned det samme faktum, med en kommentar som skjulte det.
+ */
+const NAER_FRAMME_MINS = 5;
+
+/** Er ankomstpanelet foldet ut? Åpner seg selv når du nærmer deg. */
+let _nextOpen = false;
+let _nextAuto = false;
+
+/**
  * Hvor ofte et kildeskifte får lov til å skrive seg ned.
  *
  * `whereAmI` regnes ut hver tegning, altså 1 Hz. En tunnel kan få kilden til
@@ -1426,12 +1441,29 @@ function renderNextPanel() {
   const _cat = _placesCat || timeCategory();
 
   el.innerHTML =
-    '<div class="hn-panel">'
+    '<div class="hn-panel' + (_nextOpen ? '' : ' folded') + '">'
     // One heading that says where you are, with the conditions folded into it
     // rather than given a section of their own.
-    + '<div class="hn-head">'
+    /* OVERSKRIFTEN ER FOLDEN.
+     *
+     * Panelet er 281 px mens du kjører, og ALT i det gjelder etter at du er
+     * framme: været der, hvor du skal videre, mobilitet, steder i nærheten.
+     * Underveis-skjermen skal være reisen du er på.
+     *
+     * Overskriften sier allerede «fremme ved <stedet>» — ord som forteller
+     * hva som er bak folden. Det er regelen kartknappen brøt: den sa «⤢ kart»
+     * i 11 px versaler og ble ikke sett. Denne er full bredde, over 44 px,
+     * og har en synlig chevron.
+     */
+    + '<div class="hn-head' + (_nextOpen ? ' open' : '') + '" id="hn-head"'
+    + ' role="button" tabindex="0"'
+    + ' aria-expanded="' + (_nextOpen ? 'true' : 'false') + '"'
+    + ' onclick="window._toggleNext&&window._toggleNext()"'
+    + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window._toggleNext&&window._toggleNext()}">'
     + '<div class="hn-head-eyebrow">fremme ved</div>'
-    + '<div class="hn-head-stop">' + esc(displayStn(arrStation)) + '</div>'
+    + '<div class="hn-head-stop">' + esc(displayStn(arrStation))
+    + '<span class="hn-chevron" aria-hidden="true">' + (_nextOpen ? '⌃' : '⌄') + '</span>'
+    + '</div>'
     + '<div id="hn-weather-content" class="hn-head-wx">' + _weatherSectionHtml() + '</div>'
     + '</div>'
     // Disruptions at the far end of the trip. Deliberately near the top:
@@ -1526,11 +1558,34 @@ function computeState(now) {
 /**
  * Ankomstkartet, når det faktisk gjelder.
  *
- * Samme terskel som avstigningskortet (`mLeft <= 5`) — ett tall, ikke to som
- * må være enige om hva «nærmer seg» betyr. Er du ikke der ennå, står
+ * `NAER_FRAMME_MINS` — det samme tallet avstigningskortet og ankomstpanelet
+ * leser, så de tre ikke kan bli uenige om hva «nærmer seg» betyr. Er du ikke der ennå, står
  * «hva nå?»-panelet uten kart, og de 220 pikslene er skjermplass du bruker
  * til reisen du faktisk er på.
  */
+window._toggleNext = () => {
+  _nextOpen = !_nextOpen;
+  _nextAuto = _nextOpen;   // et manuelt valg overstyres ikke av automatikken
+  renderNextPanel();
+  _maybeInitArrMap();
+};
+
+/**
+ * Folden åpner seg selv når du nærmer deg — og bare én gang.
+ *
+ * `_nextAuto` husker at automatikken alt har gjort sitt, så en leser som
+ * lukker panelet igjen ikke får det opp i ansiktet ved neste tegning. Uten
+ * den ville 1 Hz-tegningen kjempet mot fingeren.
+ */
+function _maybeOpenNext(cs, mLeft) {
+  if (_nextAuto) return;
+  const naer = cs.phase !== 'riding' || (mLeft != null && mLeft <= NAER_FRAMME_MINS);
+  if (!naer) return;
+  _nextAuto = true;
+  _nextOpen = true;
+  renderNextPanel();
+}
+
 function _maybeInitArrMap() {
   const wrap = document.querySelector('#t-next .map-wrap');
   if (!wrap) return;
@@ -1539,7 +1594,8 @@ function _maybeInitArrMap() {
   const leg = legs[cs.i];
   const arrTs = leg && leg.arrTime ? new Date(leg.arrTime.time).getTime() : null;
   const mLeft = arrTs != null ? Math.floor((arrTs - Date.now()) / 60000) : null;
-  const naer = cs.phase !== 'riding' || (mLeft != null && mLeft <= 5);
+  const naer = cs.phase !== 'riding' || (mLeft != null && mLeft <= NAER_FRAMME_MINS);
+  _maybeOpenNext(cs, mLeft);
   wrap.style.display = naer ? '' : 'none';
   if (naer && _arrLL && !_arrMap) _initArrMap(_arrLL);
 }
@@ -1937,7 +1993,7 @@ export function renderTrack() {
     }
 
     // ── Final leg: open-ended arrival ─────────────────────────────────────
-    if (mLeft > 5) return '';
+    if (mLeft > NAER_FRAMME_MINS) return '';
 
     // Pre-arm walk destination silently so "Hva nå?" panel is instant — but
     // only when there is something to walk TO. See onwardPrefill.
@@ -1976,7 +2032,8 @@ export function renderTrack() {
 
     // «Snart fremme» sat directly above a strip reading «1 stopp igjen».
     // Same fact, two places, and only one of them useful. Timing is
-    // untouched — `mLeft > 5` above still decides whether this appears.
+    // untouched — `mLeft > NAER_FRAMME_MINS` above still decides whether
+    // this appears.
     const eb = alightEyebrow({
       stopsLeft: leg.stops ? stopsUntil(leg, now) : null,
       arriving: mLeft <= 0, transfer: false,
@@ -2391,8 +2448,12 @@ window._toggleTrackMap = () => {
     if (el) el.classList.remove('expanded');
     document.documentElement.classList.remove('map-open');
   }
-  const b = document.getElementById('j-strip-map');
-  if (b) b.textContent = _tMapOpen ? '✕ lukk kart' : '⤢ kart';
+  // Hintet i stripen snus, så den sier hva et nytt trykk gjør.
+  const hint = document.querySelector('#j-strip .js-map-hint');
+  if (hint) hint.textContent = _tMapOpen ? '✕' : '⤢';
+  const strip = document.getElementById('j-strip');
+  if (strip) strip.setAttribute('aria-label',
+    _tMapOpen ? 'Lukk kartet over reisen' : 'Vis kartet over reisen');
 };
 
 window._expandStops = (idx) => { expanded[idx] = !expanded[idx]; renderTrack(); };

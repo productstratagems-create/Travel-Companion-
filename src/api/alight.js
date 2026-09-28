@@ -1,4 +1,5 @@
 import { stopKey } from '../stopId.js';
+import { callPlace } from './place.js';
 
 /**
  * Når skal jeg av — sagt med det appen allerede vet.
@@ -60,12 +61,23 @@ export function stopsUntil(leg, now) {
   const fromN = stopKey(leg.fromStation || '');
   const toN = stopKey(leg.toStation || '');
   let pastFrom = !leg.fromStation, count = 0;
-  for (const s of leg.stops) {
-    const nm = (s.quay && s.quay.stopPlace && s.quay.stopPlace.name) || '?';
+  for (const raw of leg.stops) {
+    // GJENNOM ÉTT NAVN, som de seks andre leserne.
+    //
+    // DENNE VAR DEN SJUENDE. v1.155.0 la stopplista i `callPlace` sin form så
+    // den overlever en oppfriskning, og skrev en kildetest for at «den
+    // sjuende ikke kommer» — men testen dekket bare views/track.js og
+    // views/journeyStrip.js. Denne fila sto utenfor.
+    //
+    // Følgen var ekte: for en reise hentet fra lagringen ble hvert navn «?»,
+    // `pastFrom` ble aldri sann, og tellingen ga 0. «N stopp igjen» forsvant
+    // fra kortet etter hver oppfriskning. Det ble først synlig da v1.158.0
+    // flyttet tallet ut på sin egen rad.
+    const s = callPlace(raw) || {};
+    const nm = s.name || '?';
     if (!pastFrom) { if (stopKey(nm) === fromN) pastFrom = true; continue; }
     const isEnd = toN && stopKey(nm) === toN;
-    const arr = s.expectedArrivalTime || s.aimedArrivalTime
-      || s.expectedDepartureTime || s.aimedDepartureTime;
+    const arr = s.arr || s.dep;
     // Strictly ahead. A stop whose arrival has passed — including the one
     // the vehicle is standing at this second — is behind you.
     const ahead = !arr || new Date(arr).getTime() > t;

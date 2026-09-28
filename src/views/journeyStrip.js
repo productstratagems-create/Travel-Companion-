@@ -222,8 +222,19 @@ export function renderJourneyStrip(el, calls, now, pos) {
    *
    * Så trykkflaten flyttes til noe som allerede er synlig og stort: stripen
    * selv, 61 px høy og i full bredde. Den svarer alt på «hvor er jeg på
-   * linja»; nå åpner den terrenget bak det samme svaret. ⤢ blir igjen som
-   * hint, ikke som eget mål. */
+   * linja»; nå åpner den terrenget bak det samme svaret.
+   *
+   * ── OG SÅ GJORDE JEG DET VERRE (rapportert fra en ekte tur) ─────────────
+   *
+   * Første utgave lot bare tegnet ⤢ stå igjen, uten ordet. Leseren meldte:
+   * «Knappen til kartet er blitt borte.» Den var der — men et 11 px tegn
+   * uten ord er ikke en knapp, det er en flekk.
+   *
+   * Og det brøt regelen jeg skrev i SAMME utgivelse, for ankomstfolden: en
+   * affordans skal si MED ORD hva som er bak. «⤢» er ikke et ord.
+   *
+   * Ordet er tilbake. Stripen er fortsatt hele trykkflaten; merkelappen er
+   * det som forteller at den er det. */
   el.setAttribute('role', 'button');
   el.setAttribute('tabindex', '0');
   el.setAttribute('aria-label', 'Vis kartet over reisen');
@@ -237,7 +248,7 @@ export function renderJourneyStrip(el, calls, now, pos) {
 
   el.innerHTML =
     '<div class="js-caps"><span class="js-cap">' + esc(caption) + '</span>'
-    + '<span class="js-map-hint" aria-hidden="true">⤢</span>'
+    + '<span class="js-map-hint" aria-hidden="true">⤢ kart</span>'
     + '</div>'
     + '<div class="js-rail">'
     + '<span class="js-done" style="width:' + pct(p.frac).toFixed(2) + '%"></span>'

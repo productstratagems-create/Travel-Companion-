@@ -1430,7 +1430,9 @@ function _renderMap() {
   wrap.style.display = '';
 
   if (!_aMap) {
-    _aMap = createMap(el, { zoom: false });
+    // `zoom: false` sto her. Kommentaren rett under sier at kartet er DITT
+    // når du har dratt det — da skal knappene også si at du kan. Issue #397.
+    _aMap = createMap(el);
     _aLayer = L.layerGroup().addTo(_aMap);
     // Once the reader has DRAGGED the map it is theirs. Same rule, and the
     // same single event, as the board (_bUserMoved): an auto-fit that keeps

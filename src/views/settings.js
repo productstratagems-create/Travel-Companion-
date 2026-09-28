@@ -898,7 +898,10 @@ function _renderMemMap(withPos) {
   if (!el) return;
   if (!withPos.length) { if (wrap) wrap.style.display = 'none'; _destroyMemMap(); return; }
   if (wrap) wrap.style.display = 'block';
-  if (!_memMap) _memMap = createMap(el, { zoom: false });
+  // `zoom: false` sto her. Minnekartet er der for at du skal KUNNE se hva
+  // appen har lagret om deg — «open about it» er poenget — og da skal du
+  // kunne zoome inn på et punkt uten å gjette at knipe virker. Issue #397.
+  if (!_memMap) _memMap = createMap(el);
   // FRAME BEFORE PROJECTION. This screen is built while #v-prefs is still
   // display:none, so Leaflet measures a container of zero size and every
   // fitBounds after that lands the points off-screen — drawn, reported by

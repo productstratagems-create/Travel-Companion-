@@ -216,6 +216,28 @@
    the order, shrink the map «litt» rather than move the buttons over it.
    .expanded (72vh) is untouched — ⤢ still gives the big map, so nothing is
    gone, it is only smaller at rest. */
+/* RETNING OG AVSTAND, fordi kartet ikke får plass til å svare.
+   130 px ligger under grensen der stopsReadable beholder stopp-punkter, så
+   kartet er én strek og to etiketter — og høyden kan ikke økes uten å kaste
+   målingen under. Pila svarer i stedet, på én linje, øverst der spørsmålet
+   «hvilken vei skal jeg» stilles. */
+.sel-heading{
+  display:flex;align-items:center;gap:.55rem;
+  margin-bottom:.6rem;
+  font-size:12px;color:var(--text-muted-hi);
+}
+.sel-heading-arrow{
+  display:inline-block;
+  font-size:16px;line-height:1;
+  color:var(--accent);
+  transform-origin:50% 50%;
+}
+.sel-heading-dist{font-weight:600;color:var(--accent)}
+.sel-heading-walk{color:var(--text-soft)}
+/* Uten posisjon: ingen pil, og det sies med ord. En pil som peker nordover
+   fordi den ikke vet bedre er verre enn ingen pil. */
+.sel-heading-ukjent{font-size:11px;color:var(--text-soft);margin-bottom:.6rem}
+
 /* A BAND, and 130px is a measurement: v1.103.1 shrank it so «reis» clears
    the bottom menu without moving anything. It is not the full height minus a
    bit — it is what was left. */

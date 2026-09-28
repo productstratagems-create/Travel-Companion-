@@ -78,8 +78,25 @@ export function createMap(el, opts = {}) {
   //
   // `expandable` says which, and the caller passes the same answer it passes
   // to bindMapExpand — so the controls cannot disagree with the button.
+  //
+  // ── OG DEN REGELEN VAR UENIG MED KODEN (issue #397) ──────────────────────
+  //
+  // Setningen over sier at et bånd er «already framed for you». Men Leaflet
+  // lar deg dra og knipe uansett — bare KNAPPENE var skrudd av — og auto.js
+  // har `_aUserMoved`, en vakt som husker at du dro kartet og slutter å ramme
+  // det inn på nytt. Noen har altså bevisst bygget for at båndene panoreres.
+  //
+  // En evne appen støtter og verner om skal ikke være usynlig. Så båndene får
+  // knappene sine: `zoom` følger ikke lenger `expandable` alene.
+  //
+  // Alternativet var å skru av dra og knip så regelen holdt. Det ville kastet
+  // `_aUserMoved` og en evne leseren har i dag — og «ingenting kastes for å
+  // rydde».
   const { expandable = false, compass = true } = opts;
-  const zoom = opts.zoom === undefined ? expandable : opts.zoom;
+  // Zoom følger draggability, ikke expandable: kan du knipe, skal du se at du
+  // kan. Skalastreken følger fortsatt `expandable` — den er en lesehjelp for
+  // et kart du utforsker, ikke en affordans som mangler.
+  const zoom = opts.zoom === undefined ? true : opts.zoom;
   const scale = opts.scale === undefined ? expandable : opts.scale;
   const map = L.map(el, {
     zoomControl: false,          // added below so every map agrees on position

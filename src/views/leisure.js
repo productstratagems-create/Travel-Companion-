@@ -375,7 +375,9 @@ function _initLeisureMap(pos) {
   if (!el) return;
 
   _leiUserMoved = false;
-  _lMap = createMap(el, { zoom: false });
+  // `zoom: false` sto her, mens linja under lytter på at du drar og kniper og
+  // verner om det. Knappene sier nå det samme som koden gjør. Issue #397.
+  _lMap = createMap(el);
   _lMap.on('dragstart zoomstart', () => { _leiUserMoved = true; });
 
   if (pos) {

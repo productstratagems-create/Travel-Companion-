@@ -2455,7 +2455,7 @@ window._toggleTrackMap = () => {
   }
   // Hintet i stripen snus, så den sier hva et nytt trykk gjør.
   const hint = document.querySelector('#j-strip .js-map-hint');
-  if (hint) hint.textContent = _tMapOpen ? '✕' : '⤢';
+  if (hint) hint.textContent = _tMapOpen ? '✕ lukk' : '⤢ kart';
   const strip = document.getElementById('j-strip');
   if (strip) strip.setAttribute('aria-label',
     _tMapOpen ? 'Lukk kartet over reisen' : 'Vis kartet over reisen');

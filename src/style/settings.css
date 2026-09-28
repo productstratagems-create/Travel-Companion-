@@ -422,6 +422,9 @@
    the first by losing the second. 140px is enough to read you, the stop and
    the line between you, while the first departures stay above the fold.
    Measured at 414px: four direction rows still visible. */
+/* ET BÅND, og 140px er en måling: så mange som fire retningsrader skal stå
+   over folden ved siden av det. Den sto bare i base.css sin fellesblokk, og
+   et tall med en begrunnelse langt unna leses som et tall uten en. */
 #v-auto #auto-map {
   height: 140px;
   border-radius: 8px;
@@ -671,7 +674,8 @@
 .mem-toggle-text{font-size:12px;color:var(--text-muted-hi);line-height:1.45}
 .mem-why{font-size:11px;color:var(--text-soft);line-height:1.45;margin:.1rem 0 .6rem}
 .mem-map-wrap{margin:.2rem 0 .6rem;border-radius:7px;overflow:hidden}
-#mem-map{height:150px}
+/* Et bånd uten egen måling — slutter seg til familien. Samme tall som før. */
+#mem-map{height:var(--map-h-band)}
 .mem-list{max-height:260px;overflow-y:auto;margin-bottom:.6rem}
 .mem-row{display:flex;gap:.45rem;align-items:baseline;padding:.3rem 0;border-bottom:1px solid rgba(var(--border-rgb),.07);font-size:11px}
 .mem-row:last-child{border-bottom:none}

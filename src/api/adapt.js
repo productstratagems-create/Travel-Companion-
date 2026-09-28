@@ -1,3 +1,4 @@
+import { haver } from '../haversine.js';
 import { decodePolyline } from '../ui/polyline.js';
 import { normMode } from './stopCats.js';
 // Quays carry their own coordinates (the actual platform), distinct from
@@ -105,15 +106,18 @@ export function journeyPoints(legs) {
   return out;
 }
 
-/** Metres between two points. Its own little haversine so adapt.js stays a
- *  leaf for the geometry it already owns — geo.js imports state and the net. */
-function _closeM(aLat, aLon, bLat, bLon) {
-  const R = 6371000, r = Math.PI / 180;
-  const dLat = (bLat - aLat) * r, dLon = (bLon - aLon) * r;
-  const x = Math.sin(dLat / 2) ** 2
-    + Math.cos(aLat * r) * Math.cos(bLat * r) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
-}
+/**
+ * Meter mellom to punkter.
+ *
+ * DEN FJERDE KOPIEN. Kommentaren her sa «its own little haversine so adapt.js
+ * stays a leaf … geo.js imports state and the net» — samme begrunnelse som de
+ * tre andre hadde, hver for seg. Fire steder med samme gode grunn er fortsatt
+ * fire steder. `haversine.js` importerer ingenting, så grunnen holder uten
+ * kopien.
+ *
+ * Issuet sa tre. Testen fant den fjerde.
+ */
+const _closeM = haver;
 
 /**
  * Why the last batch of patterns was dropped.

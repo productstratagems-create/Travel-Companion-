@@ -1,3 +1,4 @@
+import { metresBetween } from './haversine.js';
 /**
  * What the app knows about where you are — and when it knows nothing.
  *
@@ -85,16 +86,10 @@ export function fixJump(prev, next) {
   return { jumped: m >= JUMP_MIN_M && speed > MAX_SPEED_MS, speed, metres: m };
 }
 
-// Own copy, because this module imports nothing — the same reason geo.js's
-// haver() cannot be reached from here.
-function _metres(a, b) {
-  const rad = (d) => (d * Math.PI) / 180;
-  const dLat = rad(b.lat - a.lat);
-  const dLon = rad(b.lon - a.lon);
-  const s = Math.sin(dLat / 2) ** 2
-    + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * 6_371_000 * Math.asin(Math.min(1, Math.sqrt(s)));
-}
+// Egen kopi sto her, fordi denne modulen ikke importerer noe tungt — og
+// geo.js importerer selv herfra, så veien dit ville vært en syklus. Formelen
+// bor nå i en bladmodul som ikke bryter den regelen.
+const _metres = metresBetween;
 
 /** Past this the fix behind the dot is old enough to say so. */
 export const POS_STALE_MS = 60_000;

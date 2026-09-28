@@ -51,17 +51,26 @@ export const TRAIL_MIN_MS = 4_000;
 /** Below this, in m/s, you are not going anywhere. Slower than a slow walk. */
 export const STILL_MS = 0.4;
 
-const R = 6_371_000;
-const rad = (d) => (d * Math.PI) / 180;
+/**
+ * Meter mellom to punkter.
+ *
+ * Egen kopi sto her, med kommentaren «own copy so this module imports
+ * nothing». Regelen står — modulen importerer fortsatt bare en bladmodul
+ * uten importer, og en test binder det.
+ */
+import { metresBetween } from './haversine.js';
 
-/** Metres between two points. Own copy so this module imports nothing. */
-export function metres(a, b) {
-  const dLat = rad(b.lat - a.lat);
-  const dLon = rad(b.lon - a.lon);
-  const s = Math.sin(dLat / 2) ** 2
-    + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
-}
+/**
+ * Meter mellom to punkter.
+ *
+ * Egen kopi sto her, med kommentaren «own copy so this module imports
+ * nothing». Regelen står — modulen importerer fortsatt bare en bladmodul
+ * uten importer, og en test binder det.
+ *
+ * Et lokalt navn og ikke bare `export … from`: den formen bringer ingenting
+ * inn i modulens eget skop, og `closingRate` og `approach` kaller den selv.
+ */
+export const metres = metresBetween;
 
 const ok = (f) => !!f && Number.isFinite(f.lat) && Number.isFinite(f.lon)
   && Number.isFinite(f.at);

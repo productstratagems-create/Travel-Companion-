@@ -35,6 +35,19 @@ import { SRC_LABEL } from './posSource.js';
 export const AT_STOP_M = 120;
 
 /**
+ * Hvor mye nærmere det nærmeste stoppet må være enn det nest nærmeste.
+ *
+ * Står du midt mellom to stopp, er «nærmeste» et myntkast — og et myntkast
+ * skal ikke få kilden «din gps», som er en sterkere påstand enn kunnskapen
+ * bak den. 25 % er valgt fordi det skiller «tydelig nærmest» fra «omtrent
+ * like nær» uten å kreve at du står oppå stoppet.
+ *
+ * Tallet er ikke målt på en ekte reise. Reiseloggen teller nå hvor ofte
+ * denne utgangen brukes, så neste tur sier om det er riktig.
+ */
+export const ENTYDIG_FAKTOR = 1.25;
+
+/**
  * @param {object} o
  * @param {Array} o.stops    gjenstående stopp, i rekkefølge (med lat/lon)
  * @param {number} o.clockIdx  hva ruteplanen mener er neste
@@ -94,8 +107,34 @@ export function whereAmI(o) {
       approaching: 'fra', distM: Math.round(nær.d) };
   }
 
-  // Posisjonen er god, men den sier ikke hvilken vei. Da er ruteplanen det
-  // beste svaret — og det SIES, framfor å late som posisjonen bestemte.
+  /* RETNINGEN ER UKJENT — MEN LISTA PEKER ALLEREDE FRAMOVER.
+   *
+   * `collectLegStopRows` filtrerer bort passerte stopp før lista kommer hit,
+   * så retningen er kjent fra reisen selv og trenger ikke utledes av sporet.
+   * Det `approach` legger til er vern mot ETT tilfelle: går toget foran ruta,
+   * ligger passerte stopp fortsatt i lista, og da kan «nærmeste» peke bakover.
+   * Derfor beholdes grenene over.
+   *
+   * Men når den ikke svarer, er det ingen grunn til å kaste posisjonen. Før
+   * dette falt vi til klokka, og da forsvant AVSTANDEN — `distM` er null på
+   * den stien. Appen hadde ±14 m og et ferdig utregnet tall, og viste
+   * ingenting. Rettesnorens punkt 2: vis det du allerede vet.
+   *
+   * Ordlyden er ærlig: «nærmeste stopp framover», ikke «du nærmer deg». Vi
+   * vet ikke at du nærmer deg. `approaching` blir null.
+   */
+  const andre = kjente
+    .filter((k) => k.i !== nær.i)
+    .map((k) => metres(pos, k.ll))
+    .filter((d) => Number.isFinite(d));
+  const nestNær = andre.length ? Math.min(...andre) : Infinity;
+  if (nestNær >= nær.d * ENTYDIG_FAKTOR) {
+    return { idx: nær.i, source: 'gps', why: 'nærmeste stopp framover',
+      approaching: null, distM: Math.round(nær.d) };
+  }
+
+  // To stopp omtrent like nær. Da er ruteplanen det beste svaret — og det
+  // SIES, framfor å late som posisjonen bestemte.
   return rute('vet ikke hvilken vei du kjører');
 }
 

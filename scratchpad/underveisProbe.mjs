@@ -101,7 +101,15 @@ async function run(kind, scheme) {
     // `at` MÅ være med. Uten tidsstempel er alderen ukjent, og da skal
     // posisjonen IKKE vinne over ruteplanen — det er hele rettelsen i
     // v1.154.0. «uten alder» under er nettopp det tilfellet.
-    if (kind === 'ved ryen' || kind === 'lagret' || kind === 'naer framme') {
+    // «uten spor»: god posisjon MELLOM to stopp. Appen våkner med én fiks,
+    // så `approach` kan ikke si retning — og da skal avstanden likevel vises.
+    if (kind === 'uten spor') {
+      localStorage.setItem('default::t.homeLL',
+        // MELLOM Ryen (59.8600) og Manglerud (59.8700), tydelig nærmest Ryen.
+        // Første forsøk sto på 59.8850 — FORBI endestasjonen — så nærmeste ble
+        // avstigningsraden, som har sin egen merkelapp og ingen avstand.
+        JSON.stringify({ lat: 59.8640, lon: 10.8200, at: now - 5000 }));
+    } else if (kind === 'ved ryen' || kind === 'lagret' || kind === 'naer framme') {
       localStorage.setItem('default::t.homeLL',
         JSON.stringify({ lat: 59.8600, lon: 10.8200, at: now - 5000 }));
     } else if (kind === 'uten alder') {
@@ -343,6 +351,8 @@ async function run(kind, scheme) {
 // det som ligger lagret, og posisjonen skal fortsatt kunne svare.
 // NÆR FRAMME: tre minutter igjen, under NAER_FRAMME_MINS. Ankomstpanelet
 // skal da ha foldet seg ut av seg selv.
+await run('uten spor', 'dark');
+await run('uten spor', 'light');
 await run('naer framme', 'dark');
 await run('lagret', 'dark');
 await run('lagret', 'light');

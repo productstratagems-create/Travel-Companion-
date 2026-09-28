@@ -114,11 +114,19 @@ describe('når ruteplanen må svare', () => {
       .toMatchObject({ idx: 2, source: 'rutetid' });
   });
 
-  // God posisjon, men sporet sier ikke hvilken vei. Da er ruteplanen det
-  // beste svaret — og det sies, framfor å late som posisjonen bestemte.
-  it('faller til rutetid når retningen er ukjent mellom to stopp', () => {
+  /* DENNE PÅSTANDEN ER ENDRET MED VILJE — se #405 og blokka nederst.
+   *
+   * Den bandt at en god posisjon UTEN retning falt til klokka. Det var riktig
+   * da den ble skrevet, men reiseloggen fra den første ekte turen viste hva
+   * det kostet: «N m» forsvant fra raden, selv om avstanden var regnet ut for
+   * å velge den. Og utfallet var uansett det samme, for lista er
+   * framover-filtrert.
+   *
+   * Fallet til klokka gjenstår der det HØRER HJEMME: når to stopp er omtrent
+   * like nær, og «nærmeste» er et myntkast. Det er denne testen nå. */
+  it('faller til rutetid når to stopp er omtrent like nær', () => {
     const r = whereAmI({ stops: STOPP, clockIdx: 1, quality: GOD,
-      pos: { lat: 59.8570, lon: 10.8200 }, trail: [] });
+      pos: { lat: 59.8550, lon: 10.8200 }, trail: [] });
     expect(r.source).toBe('rutetid');
     expect(r.why).toMatch(/vei/);
   });
@@ -163,5 +171,109 @@ describe('setningen skjermen viser', () => {
 describe('terskelen', () => {
   it('er den samme som appen ellers bruker for «du er der»', () => {
     expect(AT_STOP_M).toBe(AT_PLACE_M);
+  });
+});
+
+/**
+ * Og den fjerde utgangen: vis avstanden du alt har regnet ut. Issue #405.
+ *
+ * Fra den første ekte turen:
+ *
+ *   16:04  rutetid  vet ikke hvilken vei du kjører  Skullerud  ±14 m
+ *
+ * Posisjonen var utmerket, og ble likevel forkastet. UTFALLET VAR RIKTIG —
+ * `rute()` gir `clockIdx`, og lista er framover-filtrert, så stoppet stemte.
+ * Det som gikk tapt var attribusjonen og AVSTANDEN: `distM` er null på
+ * rutetid-stien, så «N m» forsvant fra raden.
+ *
+ * Rettesnorens punkt 2: vis det du allerede vet.
+ *
+ * Hvorfor retningen var ukjent: `approach` trenger minst to fikser med tid
+ * mellom seg. Telefonen opp av lomma, appen våkner, én god fiks — og
+ * retningen er ukjent i noen sekunder. Det vanlige tilfellet.
+ */
+describe('når retningen er ukjent, men posisjonen er god', () => {
+  // FØR-BILDET: tomt spor, god posisjon, mellom to stopp.
+  it('svarer med posisjon framfor å falle til klokka', () => {
+    const r = whereAmI({ stops: STOPP, clockIdx: 0, quality: GOD,
+      pos: { lat: 59.8570, lon: 10.8200 }, trail: [] });
+    expect(r.source).toBe('gps');
+  });
+
+  it('og viser avstanden den alt regnet ut', () => {
+    const r = whereAmI({ stops: STOPP, clockIdx: 0, quality: GOD,
+      pos: { lat: 59.8570, lon: 10.8200 }, trail: [] });
+    expect(r.distM).toBeGreaterThan(0);
+    expect(r.distM).toBeLessThan(1000);
+  });
+
+  // ÆRLIG ORDLYD. Vi vet ikke at du nærmer deg — bare hvilket stopp som er
+  // nærmest av dem som gjenstår.
+  it('sier ikke at du nærmer deg, for det vet den ikke', () => {
+    const r = whereAmI({ stops: STOPP, clockIdx: 0, quality: GOD,
+      pos: { lat: 59.8570, lon: 10.8200 }, trail: [] });
+    expect(r.why).toMatch(/nærmeste stopp framover/);
+    expect(r.why).not.toMatch(/du nærmer deg/);
+    expect(r.approaching).toBe(null);
+  });
+
+  it('peker på det nærmeste gjenstående stoppet', () => {
+    const r = whereAmI({ stops: STOPP, clockIdx: 0, quality: GOD,
+      pos: { lat: 59.8570, lon: 10.8200 }, trail: [] });
+    expect(STOPP[r.idx].name).toBe('Ryen');
+  });
+
+  /* ET MYNTKAST SKAL IKKE FÅ `gps`.
+   *
+   * Midt mellom to stopp er «nærmeste» tilfeldig, og et svar med kilde
+   * «din gps» ville vært mer selvsikkert enn kunnskapen bak det. Fiksturen
+   * min i v1.154.0 sto nettopp i et slikt punkt, og målte noe annet enn den
+   * påsto. */
+  it('faller til rutetid når to stopp er omtrent like nær', () => {
+    const midt = { lat: 59.8550, lon: 10.8200 };   // midt mellom Skullerud og Ryen
+    const r = whereAmI({ stops: STOPP, clockIdx: 1, quality: GOD,
+      pos: midt, trail: [] });
+    expect(r.source).toBe('rutetid');
+  });
+
+  it('og sier fortsatt fra når posisjonen ikke er brukbar', () => {
+    const r = whereAmI({ stops: STOPP, clockIdx: 1,
+      quality: { usable: false, label: 'posisjon avslått' },
+      pos: { lat: 59.8570, lon: 10.8200 }, trail: [] });
+    expect(r.source).toBe('rutetid');
+    expect(r.why).toBe('posisjon avslått');
+  });
+});
+
+/**
+ * Og at skjermen faktisk viser avstanden.
+ *
+ * Kildetest, fordi `renderStopRow` ikke tegnes av noen enhetstest her.
+ *
+ * DEN FANT EN EKTE, SKJULT FEIL: betingelsen sammenliknet med `'posisjon'`,
+ * et kildenavn som ble byttet ut i v1.154.0 da kildene fikk `gps`/`rutetid`
+ * — de samme SRC_LABEL bruker. Avstanden har derfor ALDRI blitt vist, i
+ * noen utgivelse. Prøven meldte «avstand: (ingen)», og jeg forklarte det
+ * bort som «undertrykt fordi du står ved stoppet». Plausibelt, og galt.
+ */
+describe('avstanden når skjermen', () => {
+  const src = () => require('node:fs')
+    .readFileSync('src/views/track.js', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+  it('sammenlikner mot et kildenavn som finnes', () => {
+    const m = src().match(/hvor\.source === '([a-zå-æø]+)'/);
+    expect(m).toBeTruthy();
+    expect(SRC_LABEL).toHaveProperty(m[1]);
+  });
+
+  it('og viser tallet når posisjonen svarte', () => {
+    expect(src()).toMatch(/stop-near/);
+    expect(src()).toMatch(/hvor\.distM != null/);
+  });
+
+  // «0 m» ved siden av «du er ved stoppet» er to setninger om det samme.
+  it('men ikke når du står ved stoppet', () => {
+    expect(src()).toMatch(/hvor\.approaching !== 'staar'/);
   });
 });

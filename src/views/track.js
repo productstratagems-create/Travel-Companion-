@@ -971,7 +971,12 @@ function renderStopRow(r, isNext, hvor) {
   // som er neste; da skal den stå på skjermen og ikke bare i regnestykket.
   // Ikke når du STÅR der: «0 m» ved siden av «du er ved stoppet» er to
   // setninger om det samme, og den ene er et tall uten innhold.
-  const nær = isNext && hvor && hvor.source === 'posisjon'
+  // 'gps', IKKE 'posisjon'. Kildene fikk navnene `gps`/`rutetid` i v1.154.0 —
+  // de samme SRC_LABEL bruker — men denne sammenlikningen ble stående på det
+  // gamle navnet. Avstanden har derfor ALDRI blitt vist, og prøven meldte
+  // «avstand: (ingen)» som jeg forklarte bort som «undertrykt fordi du står
+  // ved stoppet». Plausibelt, og galt.
+  const nær = isNext && hvor && hvor.source === 'gps'
       && hvor.approaching !== 'staar' && hvor.distM != null
     ? '<span class="stop-near">' + (hvor.distM < 1000
         ? hvor.distM + ' m'

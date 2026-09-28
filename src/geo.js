@@ -239,13 +239,15 @@ export const MOBILITY_CLUSTER_M = 30;
 /** The same rule for nearby stops, which used to carry it inline, unnamed. */
 export const STOP_CLUSTER_M = 80;
 
-export function haver(la1, lo1, la2, lo2) {
-  const R = 6371000, r = Math.PI / 180;
-  const dL = (la2 - la1) * r, dN = (lo2 - lo1) * r;
-  const a = Math.sin(dL / 2) * Math.sin(dL / 2)
-    + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(dN / 2) * Math.sin(dN / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+// Formelen bor i en bladmodul nå, så position.js, trail.js og adapt.js kan
+// nå den uten å bryte sin egen regel om å ikke importere noe tungt.
+// Re-eksportert under navnet ni kallesteder alt kjenner — samme grep som
+// stopKey og SRC_LABEL.
+// IMPORT I TILLEGG TIL RE-EKSPORT. `export … from` bringer ikke navnet inn i
+// modulens eget skop, og geo.js kaller haver() selv ni steder — uten denne
+// linja bygger det, men kaster «haver is not defined» ved kjøring.
+import { haver } from './haversine.js';
+export { haver, metresBetween, EARTH_R_M } from './haversine.js';
 
 /**
  * How long it takes you to reach your stop.

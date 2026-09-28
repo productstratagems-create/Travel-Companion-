@@ -40,8 +40,11 @@
 #lei-loc-input{width:100%;box-sizing:border-box;background:rgba(var(--accent-rgb),.05);border:1px solid rgba(var(--border-rgb),.15);border-radius:6px;padding:.5rem .65rem;color:var(--accent);font-family:inherit;font-size:.9rem;outline:none}
 #lei-loc-input:focus{border-color:rgba(var(--border-rgb),.4)}
 
-/* Map strip */
-.lei-map-wrap{height:180px;border-radius:8px;overflow:hidden;margin-bottom:.85rem;background:var(--surface-2)}
+/* ET BÅND ved siden av stedslista, ikke skjermens hovedbilde.
+   Sto på 180px, og kommentaren sa bare «Map strip» — ingen måling, ingen
+   grunn. Det var ett av de to tallene som faktisk drev (issue #397), så det
+   slutter seg til familien. En SYNLIG endring: 180 → 150 px. */
+.lei-map-wrap{height:var(--map-h-band);border-radius:8px;overflow:hidden;margin-bottom:.85rem;background:var(--surface-2)}
 #lei-map{height:100%}
 .lei-map-tip{background:var(--surface-2);border:1px solid rgba(var(--border-rgb),.3);color:var(--accent);font-size:11px;white-space:nowrap;padding:.2rem .45rem;border-radius:3px}
 

@@ -429,13 +429,29 @@
 #j-strip:hover,#j-strip:focus-visible{ background:rgba(var(--accent-rgb),.06); }
 #j-strip:focus-visible{ outline:2px solid rgba(var(--accent-rgb),.55); outline-offset:2px; }
 
-.js-caps{display:flex;align-items:center;justify-content:center;gap:.5rem}
+.js-caps{display:flex;align-items:center;justify-content:center;gap:.5rem;flex-wrap:wrap}
 
-/* Hintet, ikke målet. Det sier at stripen kan åpnes; den store flaten er
- * det man faktisk treffer. */
+/* MERKELAPPEN, ikke målet — men den må SE ut som en merkelapp.
+ *
+ * Første utgave var «⤢» alene i 11 px, i samme farge og vekt som
+ * bildeteksten ved siden av. Den ble rapportert fra en ekte tur: «Knappen
+ * til kartet er blitt borte.» Den var der. Den så bare ut som tekst, fordi
+ * den var stylet som tekst.
+ *
+ * Nå bærer den ordet igjen og tegnes med kodebasens eget språk for «dette
+ * kan trykkes» — samme pille som .hn-recent-chip og .hn-place-cat. Selve
+ * trykkflaten er fortsatt hele stripen; dette er det som forteller at den er
+ * det. */
 .js-map-hint{
-  font-size:11px;
-  color:rgba(var(--accent-rgb),.6);
+  font-size:10px;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  padding:.18rem .5rem;
+  border-radius:11px;
+  background:rgba(var(--accent-rgb),.10);
+  border:1px solid rgba(var(--border-rgb),.22);
+  color:var(--accent);
+  white-space:nowrap;
 }
 
 

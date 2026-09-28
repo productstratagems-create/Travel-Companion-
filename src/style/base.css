@@ -46,7 +46,16 @@ body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-in
 
    Underveis sat at 200 with no reason recorded anywhere. It joins the full
    family. */
+/* BÅNDFAMILIEN FÅR ET NAVN (issue #397).
+   Regelen over sier at et bånd er «whatever leaves room for that something
+   else», og at de to målte båndene MÅ være ulike. Den står.
+
+   Det som manglet var et navn på båndet uten egen måling. To kart hadde
+   høyder ingen hadde begrunnet — #mem-map på 150 og .lei-map-wrap på 180 —
+   og de er det som faktisk drev. De slutter seg til dette navnet; de to
+   målte beholder sine tall, med målingen skrevet ved sin egen regel. */
 :root{
+  --map-h-band: 150px;
   --map-h-full: 220px;
   --map-h-open: 72vh;
 }

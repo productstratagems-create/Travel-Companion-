@@ -131,9 +131,33 @@ describe('createMap and the controls rule', () => {
     expect(drawn).toContain('scale@bottomleft');
   });
 
-  it('gives a band neither', async () => {
+  /* DENNE PÅSTANDEN ER ENDRET MED VILJE — issue #397.
+   *
+   * Den bandt at et bånd fikk HVERKEN zoom eller skala, etter regelen i
+   * map.js: «a band … is a glance the app has already framed for you».
+   *
+   * Men regelen var uenig med koden. Leaflet lar deg dra og knipe et bånd
+   * uansett — bare knappene var av — og `auto.js` har `_aUserMoved`, en vakt
+   * som HUSKER at du dro kartet og slutter å ramme det inn på nytt. Noen har
+   * bevisst bygget for at båndene panoreres.
+   *
+   * En evne appen støtter og verner om skal ikke være usynlig. Alternativet
+   * var å skru av dra og knip så regelen holdt — det ville kastet `_aUserMoved`
+   * og en evne leseren har i dag.
+   *
+   * Skalastreken står fortsatt bare på et kart du kan åpne: den er en
+   * lesehjelp, ikke en affordans som mangler. */
+  it('gives a band the zoom it can already do, but no scale bar', async () => {
     const { createMap } = await import('../src/ui/map.js');
     createMap(document.createElement('div'), {});
+    expect(drawn).toContain('zoom@bottomright');
+    expect(drawn).not.toContain('scale@bottomleft');
+  });
+
+  // Og en som eksplisitt ber om å slippe knappene, får slippe dem.
+  it('still honours an explicit zoom: false', async () => {
+    const { createMap } = await import('../src/ui/map.js');
+    createMap(document.createElement('div'), { zoom: false });
     expect(drawn).toEqual([]);
   });
 });

@@ -4,6 +4,7 @@ import { stopKey } from '../stopId.js';
 import { clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL } from '../geo.js';
+import { _headingDeg } from '../ui/path.js';
 import { fetchJourneyMeta } from '../api/entur.js';
 import { quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
@@ -47,6 +48,72 @@ function leaveByMsg(rcls, mtl, depTs, now) {
  * 11:25», a clock face twice on one line. Past the horizon the deadline alone
  * is the fact; the departure is already the hero above it.
  */
+/**
+ * Hvilken vei, og hvor langt, til stoppet du skal gå på.
+ *
+ * Kartet her er 130 px, og det tallet er en MÅLING: v1.103.1 krympet det så
+ * «reis» klarerer bunnmenyen. Men 130 px ligger under grensen der
+ * `stopsReadable` (`ui/map.js`) beholder noen stopp-punkter i det hele tatt,
+ * så kartet er én strek og to etiketter. Det kan ikke løses ved å gjøre det
+ * høyere uten å kaste målingen.
+ *
+ * Så svaret kartet ikke klarer å gi, gis med ord og en pil i stedet: retning
+ * og avstand til påstigningsstoppet. Visjonen spør «hvor er stoppet, hvordan
+ * kommer jeg meg dit» — og en pil på én linje svarer bedre enn 130 px grå
+ * flate.
+ *
+ * SI HVA DU IKKE VET. Uten posisjon vises ingen pil. En pil som peker
+ * nordover fordi den ikke vet bedre er verre enn ingen pil.
+ */
+/**
+ * AVGJØRELSEN, skilt fra tegningen — og eksportert, så den kan måles.
+ *
+ * Første utgave lå inne i `_retningHtml` og ble forsøkt prøvd i nettleseren.
+ * Prøven meldte «vet ikke hvor du er» i ALLE tilfeller, også der posisjonen
+ * var sådd — fordi `state.statLL` fylles av tavla, og prøven aldri laster en
+ * tavle. Instrumentet målte ingenting, og et grønt «ingen pil» så ut som et
+ * svar.
+ *
+ * Regelen har derfor et navn og en ren form nå. Samme grep som `_timesHtml`
+ * og `catchable` i auto.js.
+ *
+ * @returns {{kind:'ukjent'|'ved'|'retning', deg?:number, dist?:number, mins?:number}}
+ */
+export function retningInfo(her, stopp, walk) {
+  if (!her || !stopp || !Number.isFinite(stopp.lat) || !Number.isFinite(stopp.lon)) {
+    return { kind: 'ukjent' };
+  }
+  const deg = _headingDeg(her.lat, her.lon, stopp.lat, stopp.lon);
+  // `deg` er null når punktene faller sammen — da STÅR du der, og en pil
+  // ville pekt i en tilfeldig retning.
+  if (deg == null || !walk || !Number.isFinite(walk.dist)) return { kind: 'ved' };
+  return { kind: 'retning', deg, dist: walk.dist, mins: walk.mins };
+}
+
+function _retningHtml(dir) {
+  // GANGTIDEN KOMMER FRA `walkInfo()`, ikke fra et nytt kall til walkMinsTo.
+  //
+  // Første utgave her regnet den selv — og gikk dermed utenom `state.walkOvr`,
+  // den manuelle overstyringen `walkInfo` håndterer. To steder som regner det
+  // samme tallet, og de ville vært uenige nøyaktig for leseren som hadde satt
+  // gangtiden sin selv. Skjermen bruker `walkInfo()` overalt ellers.
+  const r = retningInfo(userLL(), state.statLL && dir && state.statLL[dir.key], walkInfo());
+  if (r.kind === 'ukjent') {
+    return '<div class="sel-heading sel-heading-ukjent">'
+      + 'vet ikke hvor du er — ingen retning til stoppet</div>';
+  }
+  if (r.kind === 'ved') {
+    return '<div class="sel-heading sel-heading-ukjent">du står ved stoppet</div>';
+  }
+  const dist = r.dist < 1000 ? r.dist + ' m' : (r.dist / 1000).toFixed(1) + ' km';
+  return '<div class="sel-heading">'
+    + '<span class="sel-heading-arrow" style="transform:rotate(' + Math.round(r.deg) + 'deg)"'
+    + ' aria-hidden="true">↑</span>'
+    + '<span class="sel-heading-dist">' + dist + '</span>'
+    + '<span class="sel-heading-walk">' + r.mins + ' min å gå</span>'
+    + '</div>';
+}
+
 function _subLine(rcls, mtl, leaveByTs, depTs, now) {
   // clkDay, not clk: a departure tomorrow has a deadline tomorrow, and «gå
   // senest 11:19» beside a hero reading «i morgen» invited the reader to leave
@@ -569,7 +636,9 @@ export function renderSelected() {
   // Remember the original departure platform so we can detect changes later
   if (!c._origQuay && quay !== '?') c._origQuay = quay;
 
+  // (se _retningHtml nedenfor)
   document.getElementById('s-content').innerHTML = ''
+    + _retningHtml(dir)
     + '<div class="train-chip">'
     + chipBadges
     + '<span class="tc-dest">' + esc(dest) + '</span>'

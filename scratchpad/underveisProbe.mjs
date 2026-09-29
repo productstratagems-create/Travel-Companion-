@@ -70,6 +70,17 @@ async function run(kind, scheme) {
       static now(){ return now; }
     }
     globalThis.Date = Pinned;
+    /* INGEN TJENESTEARBEIDER I EN PRØVE.
+     *
+     * SW-en cacher på versjonsnummeret. Endrer man CSS uten å bumpe
+     * versjonen, serverer den forrige bygg — og prøven måler da noe annet
+     * enn det som står i arbeidsmappa. Det skjedde: `display:flex` sto i
+     * bunten mens siden rapporterte `display:block`.
+     *
+     * En prøve skal måle BYGGET, ikke et arkiv. */
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.register = () => Promise.reject(new Error('av i prøven'));
+    }
     localStorage.setItem('__activeProfile','default');
     localStorage.setItem('default::t.theme', scheme === 'light' ? 'light' : 'dark');
     // REISELOGGEN krever et ja. Uten samtykke skal ingenting lagres — og det
@@ -297,10 +308,25 @@ async function run(kind, scheme) {
       };
     };
     const panel = document.querySelector('.hn-panel');
+    /* SKINNA MÅ IKKE BLI FOR SMAL. Pillen tar plass fra samme rad, og et
+     * spor som krymper flytter toget og merkelappene uten at noe feiler. */
+    const rail = document.querySelector('#j-strip .js-rail');
+    const strip = document.getElementById('j-strip');
+    const pille = document.querySelector('#j-strip .js-map-hint');
     return {
       stripe: m('#j-strip'),
       ankomst: m('#hn-head'),
       foldet: !!(panel && panel.classList.contains('folded')),
+      skinne: rail ? Math.round(rail.getBoundingClientRect().width) : null,
+      stripeBredde: strip ? Math.round(strip.getBoundingClientRect().width) : null,
+      // Hører pillen til blokka, eller til caption-raden?
+      pilleUtenforRadene: !!(pille && pille.parentElement
+        && pille.parentElement.id === 'j-strip'),
+      pilleOrd: pille ? (pille.textContent || '').trim() : null,
+      stripDisplay: strip ? getComputedStyle(strip).display : null,
+      bodyFlex: (() => { const b = document.querySelector('#j-strip .js-body');
+        return b ? getComputedStyle(b).flexGrow + '/' + Math.round(b.getBoundingClientRect().width) : null; })(),
+      pilleBredde: pille ? Math.round(pille.getBoundingClientRect().width) : null,
     };
   });
   const dom = (a) => a ? (a.h + 'x' + a.b + ' px · ' + (a.h >= 44 ? '✓44' : '✗ under 44')
@@ -308,6 +334,12 @@ async function run(kind, scheme) {
     + ' · «' + a.ord + '»') : '(mangler)';
   console.log('  AFFORDANS · stripe:  ' + dom(aff.stripe));
   console.log('            · ankomst: ' + dom(aff.ankomst) + ' · foldet: ' + aff.foldet);
+  console.log('            · skinne ' + aff.skinne + ' av ' + aff.stripeBredde + ' px'
+    + ' (' + Math.round(aff.skinne / aff.stripeBredde * 100) + ' %)'
+    + ' · pille «' + aff.pilleOrd + '»'
+    + (aff.pilleUtenforRadene ? ' hører til blokka ✓' : ' ligger i en rad ✗'));
+  console.log('            · #j-strip display: ' + aff.stripDisplay
+    + ' · body flex/bredde: ' + aff.bodyFlex + ' · pille ' + aff.pilleBredde + ' px');
 
   console.log('  GJENTAK · ' + Object.values(gjentak)
     .map(g => g.ord + ': ' + g.n).join(' · ')

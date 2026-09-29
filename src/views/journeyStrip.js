@@ -176,7 +176,14 @@ export function renderJourneyStrip(el, calls, now, pos) {
   // one train cannot disagree.
   const p = _journeyProgress(calls, now, pos && pos.src !== 'rutetid' ? pos : null);
   if (!p) { el.style.display = 'none'; return null; }
-  el.style.display = 'block';
+  // '' OG IKKE 'block' — la stilarket bestemme HVORDAN, og la denne linja
+  // bare bestemme OM.
+  //
+  // Den sto på 'block', og en inline-stil slår stilarket. Da stripen ble en
+  // flex-boks for å få merket i kanten, var `display:flex` i bunten og
+  // `display:block` på elementet — så pillen la seg under innholdet i
+  // stedet for ved siden av. Bygget var riktig og skjermen var feil.
+  el.style.display = '';
 
   // Inset so the end glyphs are not half off the rail, matching the board.
   const INSET = 0.05;
@@ -246,9 +253,27 @@ export function renderJourneyStrip(el, calls, now, pos) {
     }
   };
 
+  /* PILLEN HØRER TIL HELE STRIPEN, IKKE TIL CAPTION-RADEN.
+   *
+   * Den sto inne i .js-caps, og den raden fikk `justify-content:center` for
+   * å få plass til den. Da ble tekst og knapp sentrert som ÉN gruppe:
+   *
+   *     14 STOPP IGJEN · ETTER RUTETID  [⤢ KART]
+   *
+   * Opplysning og handling på samme linje, begge skjøvet ut av balanse. Og
+   * en synlig knapp INNE I et større usynlig mål lærer leseren at knappen er
+   * målet — mens hele stripen er trykkflaten.
+   *
+   * Nå er de fire radene pakket i .js-body, og pillen er søsken av den. Det
+   * er måten en listerad sier «jeg åpner noe» på: merket står utenfor
+   * innholdet, i kanten, og hører til blokka.
+   *
+   * Trygt fordi hver rad alt er position:relative med absolutt plasserte
+   * barn (board.css:670-729) — en innpakning endrer ingen containing block,
+   * og skinnas prosenter er fortsatt relative til .js-rail. */
   el.innerHTML =
-    '<div class="js-caps"><span class="js-cap">' + esc(caption) + '</span>'
-    + '<span class="js-map-hint" aria-hidden="true">⤢ kart</span>'
+    '<div class="js-body">'
+    + '<div class="js-caps"><span class="js-cap">' + esc(caption) + '</span>'
     + '</div>'
     + '<div class="js-rail">'
     + '<span class="js-done" style="width:' + pct(p.frac).toFixed(2) + '%"></span>'
@@ -281,7 +306,9 @@ export function renderJourneyStrip(el, calls, now, pos) {
     + '<div class="js-ends">'
     + '<span class="js-end-from">' + esc(p.from || '') + '</span>'
     + '<span class="js-end-to">' + esc(p.to || '') + '</span>'
-    + '</div>';
+    + '</div>'
+    + '</div>'
+    + '<span class="js-map-hint" aria-hidden="true">⤢ kart</span>';
 
   el.setAttribute('aria-label', _journeySummary(p, src));
   return p;

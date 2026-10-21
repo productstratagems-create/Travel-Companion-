@@ -1,6 +1,6 @@
 import config from '../config.js';
 import { stopKey } from '../stopId.js';
-import { stopsUntil, alightEyebrow } from '../api/alight.js';
+import { stopsUntil, alightEyebrow, visteMinutter, minutterIgjen, erFramme } from '../api/alight.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { whereAmI, whereAmILabel } from '../api/whereAmI.js';
@@ -1598,7 +1598,7 @@ function _maybeInitArrMap() {
   const cs = computeState(Date.now());
   const leg = legs[cs.i];
   const arrTs = leg && leg.arrTime ? new Date(leg.arrTime.time).getTime() : null;
-  const mLeft = arrTs != null ? Math.floor((arrTs - Date.now()) / 60000) : null;
+  const mLeft = minutterIgjen(arrTs, Date.now());
   const naer = cs.phase !== 'riding' || (mLeft != null && mLeft <= NAER_FRAMME_MINS);
   _maybeOpenNext(cs, mLeft);
   wrap.style.display = naer ? '' : 'none';
@@ -1655,9 +1655,14 @@ export function renderTrack() {
     const leg = legs[i];
     const isLastLeg = (i === legs.length - 1);
     const arrTs = leg.arrTime ? new Date(leg.arrTime.time).getTime() : null;
-    const mLeft = arrTs !== null ? Math.floor((arrTs - now) / 60000) : null;
+    // TO SPØRSMÅL, TO TALL, BEGGE MED NAVN. `visteMinutter` er tallet du
+    // leser; `minutterIgjen` er tallet som utløser handling. Før dette var
+    // begge anonyme `Math.floor`/`Math.round` spredt over fem linjer, og
+    // skjermen viste «0 MIN TIL ANKOMST» over «om 1 min» om samme ankomst.
+    const mLeft = minutterIgjen(arrTs, now);
+    const vist = visteMinutter(arrTs, now);
     if (mLeft !== null) {
-      const ml = Math.max(0, mLeft);
+      const ml = Math.max(0, vist);
       nEl.innerHTML = (() => {
         if (ml < 60) return ml + '<span class="cnt-unit">min</span>';
         const h = Math.floor(ml / 60), rm = ml % 60;
@@ -1814,7 +1819,7 @@ export function renderTrack() {
       if (passed && !isEnd) return;
       const arrT = s.arr || depT;
       const arrTs = arrT ? new Date(arrT).getTime() : null;
-      const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
+      const ma = visteMinutter(arrTs, now);
       const relTxt = ma === null ? '—' : ma <= 0 ? 'nå' : 'om ' + fmtMins(ma);
       // STEDET BLIR MED. Sporingsspørringen henter alt
       // `quay{latitude longitude stopPlace{id name latitude longitude}}`, så
@@ -1842,7 +1847,7 @@ export function renderTrack() {
     }
     if (!nextPreStop) return '';
     const arrTs = nextPreStop.arrT ? new Date(nextPreStop.arrT).getTime() : null;
-    const ma = arrTs ? Math.round((arrTs - now) / 60000) : null;
+    const ma = visteMinutter(arrTs, now);
     const relTxt = ma !== null ? (ma <= 0 ? ' · nå' : ' · om ' + fmtMins(ma)) : '';
     const vm = (legs[legIdx] && legs[legIdx].mode) || null;
     const vehicleLabel = (_VEHICLE_NOUN[vm] || 'toget') + ' er nå ved';
@@ -1867,6 +1872,24 @@ export function renderTrack() {
       // decision-relevant number a rider has — was printed at twelve
       // pixels in a muted colour at the far right of the row below.
       const stopsLeft = stopsUntil(leg, now);
+      /* ETT STED AVGJØR HVA ØYEBLIKKET ER.
+       *
+       * Rapportert fra en ekte tur: avstigningskortet sa «GÅ AV NÅ» mens
+       * raden under sa «1 stopp igjen». Begge var riktige — det ene stoppet
+       * som ligger foran ER ditt — men lest sammen er de en motsetning, og
+       * «1 stopp igjen» leses som «ett til før mitt».
+       *
+       * `alightEyebrow` løste nøyaktig dette inne i kortet, der klokka med
+       * vilje slår tellingen. Kortet under publiserte fortsatt sin egen dom.
+       * Feilen overlevde ett lag ned. Nå leser begge den samme.
+       *
+       * `stopsUntil` røres ikke — tallet er riktig. Det er visningen som tier. */
+      const avDom = alightEyebrow({
+        stopsLeft,
+        arriving: erFramme(leg.arrTime ? new Date(leg.arrTime.time).getTime() : null, now),
+        transfer: !isLastLeg,
+      });
+      const visStopp = stopsLeft > 0 && avDom.kind !== 'na';
       headerHtml = '<div class="ct-detail">'
         + '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
         + '<span class="ct-dest">' + leg.frontText + '</span>'
@@ -1884,7 +1907,7 @@ export function renderTrack() {
         + '<div class="ct-detail ct-detail-2">'
         + '<span class="ct-from">fra <strong>' + esc(displayStn(leg.fromStation || '')) + '</strong>'
         + (leg.depTime ? ' · avg ' + leg.depTime.clk : '') + '</span>'
-        + (arrT && stopsLeft > 0
+        + (arrT && visStopp
           ? '<span class="ct-stops">' + stopsLeft + ' stopp igjen</span>' : '')
         + '</div>'
         /* KORTET DU SITTER PÅ GJENTAR IKKE DET HELTEN ALT SIER.
@@ -1963,7 +1986,7 @@ export function renderTrack() {
     const leg = legs[i];
     const arrTs = leg.arrTime ? new Date(leg.arrTime.time).getTime() : null;
     if (!arrTs) return '';
-    const mLeft = Math.floor((arrTs - now) / 60000);
+    const mLeft = minutterIgjen(arrTs, now);
     const isLastLeg = i === legs.length - 1;
 
     // ── Transfer: calm, factual, confidence-giving ────────────────────────
@@ -1981,7 +2004,7 @@ export function renderTrack() {
       // `mLeft > 2` above still decides whether this card exists at all.
       const eb = alightEyebrow({
         stopsLeft: leg.stops ? stopsUntil(leg, now) : null,
-        arriving: mLeft <= 0, transfer: true,
+        arriving: erFramme(arrTs, now), transfer: true,
       });
       return '<div class="alight-card alight-card-transfer">'
         + '<div class="alight-card-eyebrow">' + esc(eb.label) + '</div>'
@@ -2041,7 +2064,7 @@ export function renderTrack() {
     // this appears.
     const eb = alightEyebrow({
       stopsLeft: leg.stops ? stopsUntil(leg, now) : null,
-      arriving: mLeft <= 0, transfer: false,
+      arriving: erFramme(arrTs, now), transfer: false,
     });
     const arrQuay = state.jny.arrQuay;
     return '<div class="alight-card alight-card-dest">'

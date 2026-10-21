@@ -3,6 +3,7 @@ import { haver } from '../geo.js';
 import { projectOnSegment } from '../ui/corridor.js';
 import { SRC_LABEL } from './trainPosition.js';
 import { callPlace } from '../api/place.js';
+import { erFramme } from '../api/alight.js';
 
 /**
  * The journey progress strip on the "underveis" screen.
@@ -134,6 +135,16 @@ export function _journeyProgress(calls, now, live) {
     // at a stop, idx is that stop, and next is the one after it.
     nextIdx: behind >= last ? null : behind + 1,
     left: Math.max(0, last - behind),
+    /* ÉN DOM OM «FRAMME» — DEN SAMME AVSTIGNINGSKORTET FELLER.
+     *
+     * Rapportert fra en ekte tur: stripen sa «1 STOPP IGJEN» mens kortet rett
+     * under sa «GÅ AV NÅ». Begge var riktige hver for seg — det ene stoppet
+     * foran ER ditt — men lest sammen er de en motsetning.
+     *
+     * `left` teller stopp; klokka sier når du skal reise deg. Når de er
+     * uenige, slår klokka, nøyaktig som `alightEyebrow` sier at den skal.
+     * Det stedet som avgjør det er `erFramme`, og det finnes bare ett. */
+    framme: erFramme(pts[last].arr, now) || last - behind <= 0,
     live: liveUsed,
     total: last,
     from: pts[0].name,
@@ -200,9 +211,9 @@ export function renderJourneyStrip(el, calls, now, pos) {
   // good, so the reader is told which one this is. ("stopp" does not inflect,
   // so there is no plural branch to get wrong.)
   const src = (pos && pos.src) || 'rutetid';
-  const caption = (p.left > 0 ? p.left + ' stopp igjen' : 'framme')
+  const caption = (p.framme ? 'framme' : p.left + ' stopp igjen')
     + ' \u00b7 ' + SRC_LABEL[src];
-  const title = (p.at ? 'ved ' + p.at : p.next ? 'neste stopp ' + p.next : 'framme')
+  const title = (p.framme ? 'framme' : p.at ? 'ved ' + p.at : p.next ? 'neste stopp ' + p.next : 'framme')
     + ' \u00b7 ' + SRC_LABEL[src];
 
   // Null when there is nothing to say: arrived, or the next stop is the one
@@ -292,7 +303,7 @@ export function _journeySummary(p, src) {
   if (!p) return '';
   const how = src ? ' Posisjon: ' + SRC_LABEL[src] + '.' : '';
   const where = p.at ? 'Ved ' + p.at : p.next ? 'Neste stopp ' + p.next : 'Framme';
-  if (p.left <= 0) return where + '. Du er framme.' + how;
+  if (p.framme) return where + '. Du er framme.' + how;
   // Naming the destination twice in one breath — "Neste stopp Jernbanetorget.
   // 1 stopp igjen til Jernbanetorget." — is what the last stop produces if the
   // two halves are written independently.

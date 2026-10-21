@@ -149,9 +149,42 @@ describe('alightEyebrow', () => {
 describe('it reaches the screen, and adds no new voice', () => {
   const src = () => fs.readFileSync('src/views/track.js', 'utf8');
 
-  it('both alight cards use the one verdict', () => {
-    expect((src().match(/alightEyebrow\(/g) || []).length).toBe(2);
+  /* TALLET ER ENDRET MED VILJE — fra to lesere til tre.
+   *
+   * Påstanden het «both alight cards», og den bandt at ingen skjerm fant opp
+   * sin egen dom. Men en tredje skjerm GJORDE det: etappekortet skrev «1
+   * stopp igjen» mens kortet over sa «GÅ AV NÅ», rapportert fra en ekte tur.
+   * To ting som må være enige, skrevet ned to steder — kodebasens signatur.
+   *
+   * Flere lesere av den ene dommen er altså ikke et brudd på denne testen,
+   * det er den oppfylt. Det som ville være et brudd er en skjerm som dømmer
+   * selv, og det er nedre halvdel som binder. */
+  it('every screen reads the one verdict, and none invents its own', () => {
+    expect((src().match(/alightEyebrow\(/g) || []).length).toBe(3);
     expect(src()).not.toMatch(/'Gå av nå' : 'Snart fremme'/);
+    // Etappekortet spør kortet over seg i stedet for å telle videre selv.
+    expect(src()).toMatch(/avDom\.kind !== 'na'/);
+    expect(src()).not.toMatch(/arrT && stopsLeft > 0/);
+  });
+
+  /* ÉN DEFINISJON AV «FRAMME», IKKE TO SOM MÅ VÆRE ENIGE.
+   *
+   * Og særlig: `erFramme` regner på sekunder, ikke på det avrundede tallet
+   * skjermen viser. Gjorde den det, ville terskelen flyttet seg et halvt
+   * minutt — kortet ville kommet da helten gikk fra «2» til «1». */
+  it('judges «framme» in one place, from the timestamp', () => {
+    expect((src().match(/arriving: erFramme\(arrTs, now\)/g) || []).length).toBe(2);
+    expect(src()).not.toMatch(/arriving: mLeft <= 0/);
+    expect(src()).not.toMatch(/arriving: vist/);
+  });
+
+  /* Og ett navn per spørsmål: tallet du leser avrundes, tallet som utløser
+   * handling gjør det ikke. Fem anonyme regnestykker — tre `floor`, to
+   * `round` — viste «0 MIN TIL ANKOMST» over «om 1 min» om samme ankomst. */
+  it('leaves no anonymous minute arithmetic in the view', () => {
+    expect(src()).not.toMatch(/Math\.(floor|round)\(\(arrTs - (now|Date\.now\(\))\) \/ 60000\)/);
+    expect(src()).toMatch(/const vist = visteMinutter\(arrTs, now\);/);
+    expect(src()).toMatch(/const ml = Math\.max\(0, vist\);/);
   });
 
   // The card's TIMING is untouched. «Does five minutes' warning feel right
@@ -173,6 +206,11 @@ describe('it reaches the screen, and adds no new voice', () => {
     // change from five to four.
     expect(src()).toMatch(/const NAER_FRAMME_MINS = 5;/);
     expect(src()).toMatch(/if \(mLeft > NAER_FRAMME_MINS\) return '';/);
+    // Og `mLeft` ER terskel-tallet ved hver port: gulvet, ikke avrundingen.
+    // Uten denne linja kunne begge portene over fortsatt stå ordrett mens
+    // `mLeft` i det stille ble `visteMinutter`, og kortet kom et halvt
+    // minutt for tidlig.
+    expect((src().match(/const mLeft = minutterIgjen\(/g) || []).length).toBe(3);
   });
 
   // The first cut added a banner below the fold to a screen that already

@@ -7,7 +7,7 @@ import { whereAmI, whereAmILabel } from '../api/whereAmI.js';
 import { callPlace, placeLL } from '../api/place.js';
 import { logEvent, skalLogges } from '../api/eventLog.js';
 import { posState } from '../position.js';
-import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL } from '../geo.js';
+import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, walkMinsTo, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon, legShape, journeyPoints } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
@@ -1199,7 +1199,7 @@ const RIDE_MPM = { bike: 200, ebike: 250, scooter: 225 };
 const ROUTE_FACTOR = 1.3; // straight-line to actual route distance
 
 function _rankMobility(arrLL, destLL) {
-  const walkSpd = SPEED_MPN[loadWalkSpeed()] || 83.33;
+  const walkSpd = SPEED_MPN[loadWalkSpeed()] || SPEED_MPN.middels;
   const options = [];
 
   // Walking is an option like any other and belongs in the same ranking. It
@@ -2045,9 +2045,12 @@ export function renderTrack() {
         return placeLL(callPlace(last));
       })();
       if (!stopLL) return null;
-      const d = haver(stopLL.lat, stopLL.lon, state.jny._toLat, state.jny._toLon);
-      const spd = SPEED_MPN[loadWalkSpeed()] || 83.33;
-      return Math.max(1, Math.ceil(d * 1.3 / spd)) + loadWalkBuffer();
+      // Gangen fra avstigningsstoppet til stedet du faktisk skal.
+      // `walkMinsTo` tar fra-punktet, nettopp fordi den ble delt i to for å
+      // kunne svare om et ANNET stopp enn den aktive ruta sitt — og den
+      // spør `getWalkDist` underveis, som formelen her aldri gjorde.
+      const w = walkMinsTo({ lat: state.jny._toLat, lon: state.jny._toLon }, stopLL);
+      return w ? w.mins : null;
     })();
 
     const weatherSnippet = (() => {

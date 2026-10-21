@@ -14,7 +14,10 @@ const WALK_SPEED_KEY  = 't.walkSpeed';
 const WALK_BUF_KEY    = 't.walkBuf';
 const WALK_FROM_KEY   = 't.walkFrom';
 const HOME_LL_KEY     = 't.homeLL';
-export const SPEED_MPN = { rolig: 41.67, middels: 83.33, rask: 116.67 };
+// Ganghastigheten bor i sin egen bladmodul (se walkSpeed.js) og
+// re-eksporteres her under navnet kallestedene alt kjenner.
+export { SPEED_MPN, SPEED_DEFAULT } from './walkSpeed.js';
+import { SPEED_MPN } from './walkSpeed.js';
 
 
 // The stop-identity rule lives in its own leaf module (see stopId.js) and is
@@ -274,7 +277,9 @@ export { haver, metresBetween, EARTH_R_M } from './haversine.js';
 export function walkMinsTo(stopLL, fromLL) {
   const pos = fromLL || state.walkFromLL || state.homeLL;
   if (!pos || !stopLL || stopLL.lat == null || stopLL.lon == null) return null;
-  const spd = SPEED_MPN[loadWalkSpeed()] || 83.33;
+  // Fallbacken er NAVNET. `|| 83.33` er `SPEED_MPN.middels` skrevet ned en
+  // gang til, og den ville overlevd en endring av tabellen i stillhet.
+  const spd = SPEED_MPN[loadWalkSpeed()] || SPEED_MPN.middels;
   const buf = loadWalkBuffer();
   const crow = haver(pos.lat, pos.lon, stopLL.lat, stopLL.lon);
   const measured = getWalkDist(pos, stopLL, crow);

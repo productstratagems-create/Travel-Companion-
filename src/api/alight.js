@@ -27,6 +27,55 @@ import { callPlace } from './place.js';
  * lived: twenty-five lines inlined in a render function.
  */
 
+/**
+ * MINUTTENE SOM VISES — én avrunding, alle lesere.
+ *
+ * Rapportert fra en ekte tur: helten sa «0 MIN TIL ANKOMST» mens raden under
+ * sa «om 1 min» om SAMME ankomst. Fem kallesteder regnet det samme tallet,
+ * tre med `Math.floor` og to med `Math.round`, og med 50 sekunder igjen gir
+ * de 0 og 1.
+ *
+ * Alt som står som tekst leser denne.
+ */
+export function visteMinutter(ts, now) {
+  if (!Number.isFinite(ts)) return null;
+  const t = Number.isFinite(now) ? now : Date.now();
+  return Math.round((ts - t) / 60000);
+}
+
+/**
+ * MINUTTENE SOM ER EN TERSKEL — runder ned, med vilje.
+ *
+ * TO TALL ER RIKTIG HER, og det er verdt å si hvorfor: de svarer på ulike
+ * spørsmål. «Hvor lenge til» leses som et tall og skal avrundes. «Er vi nær
+ * nok til at du bør reise deg» er en handling, og en handling skal utløses
+ * tidlig framfor presist.
+ *
+ * Feilen var ikke at det fantes to. Det var at ingen av dem hadde et navn,
+ * og at begge ble SKREVET PÅ SKJERMEN som om de var det samme.
+ */
+export function minutterIgjen(ts, now) {
+  if (!Number.isFinite(ts)) return null;
+  const t = Number.isFinite(now) ? now : Date.now();
+  return Math.floor((ts - t) / 60000);
+}
+
+/**
+ * Er du framme nok til at kortet skal si «gå av nå»?
+ *
+ * TERSKELEN ER IKKE FLYTTET. I dag utløses kortet når `floor(...) <= 0` —
+ * altså under 60 sekunder igjen — og dette er nøyaktig det. Innledningen
+ * over sier at tidspunktet er «behaviour this sandbox cannot validate
+ * against a real ride», og det står urørt.
+ *
+ * Den regner på `minutterIgjen` og ikke på `visteMinutter`: gjorde den det
+ * siste, ville den slått inn ved 30 sekunder i stedet for 60.
+ */
+export function erFramme(ts, now) {
+  const m = minutterIgjen(ts, now);
+  return m !== null && m <= 0;
+}
+
 /** Within this many stops, the count is the more useful thing to say. */
 export const NAME_STOPS = 3;
 

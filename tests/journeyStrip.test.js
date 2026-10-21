@@ -143,9 +143,40 @@ describe('_journeySummary', () => {
       .toBe('Neste stopp Brynseng. 3 stopp igjen til Jernbanetorget.');
   });
 
+  /* FIKSTUREN BÆRER NÅ `framme` — FORDI DOMMEN BARE FINNES ETT STED.
+   *
+   * Den sto med `left: 0` alene, og `_journeySummary` hadde sin egen regel
+   * (`p.left <= 0`). To steder skrev ned det samme faktum. Rapportert fra en
+   * ekte tur: stripen sa «1 STOPP IGJEN» mens kortet under sa «GÅ AV NÅ» —
+   * klokka var løpt ut mens tellingen fortsatt hadde ett stopp foran seg. */
   it('says you are there rather than counting zero stops', () => {
-    expect(_journeySummary({ at: 'Jernbanetorget', next: null, left: 0, to: 'Jernbanetorget' }))
+    expect(_journeySummary({ at: 'Jernbanetorget', next: null, left: 0,
+      framme: true, to: 'Jernbanetorget' }))
       .toBe('Ved Jernbanetorget. Du er framme.');
+  });
+
+  /* OG PRODUSENT OG LESER BINDES SAMMEN, IKKE HVER FOR SEG.
+   *
+   * En håndskrevet fikstur kan drive fra det `_journeyProgress` faktisk
+   * lager — nøyaktig feilformen denne utgivelsen finnes for. Så denne kjører
+   * de to endene mot hverandre i stedet for å stole på en literal. */
+  it('binds the summary to what _journeyProgress actually produces', () => {
+    // 50 sekunder før siste ankomst: klokka er ikke løpt ut som telling, men
+    // `erFramme` har felt sin dom. Tellingen alene ville sagt «1 stopp igjen».
+    const p = _journeyProgress(calls, at(4) - 50_000, null);
+    expect(p.left).toBe(1);
+    expect(p.framme).toBe(true);
+    expect(_journeySummary(p)).toContain('Du er framme.');
+    expect(_journeySummary(p)).not.toContain('stopp igjen');
+  });
+
+  // Og den slår ikke inn for tidlig. (To minutter ute står toget AT Brynseng,
+  // og den stillingen har sin egen setning — «Siste stopp.» — så det er
+  // `framme` selv og fraværet av «framme»-setningen som bindes her.)
+  it('does not call it framme while the clock is still running', () => {
+    const p = _journeyProgress(calls, at(4) - 120_000, null);
+    expect(p.framme).toBe(false);
+    expect(_journeySummary(p)).not.toContain('Du er framme.');
   });
 
   // Written as two independent halves this reads "Neste stopp Jernbanetorget.

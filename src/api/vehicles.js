@@ -87,7 +87,60 @@ export function fetchVehiclePositions(lineRef) {
   return promise;
 }
 
+/* ── DEN SIST KJENTE POSISJONEN, LESBAR MED ÉN GANG ────────────────────────
+ *
+ * `fetchVehiclePositions` gir et løfte. En render trenger et SVAR nå. Så
+ * begge skjermene som tegner kjøretøy skrev sin egen lille mellomlagring
+ * rundt den — og de ble tvillinger:
+ *
+ *   views/board.js:1420  _refreshLivePositions(lineRef)
+ *   views/track.js:203   _refreshTrackLive(lineRef)
+ *
+ * Samme 10 sekunder, samme sletting ved linjeskifte, samme vakt mot et svar
+ * som kommer for sent. Ingen av dem hadde en test. En tredje kopi, for
+ * avgangsdetaljer, ville vært signaturfeilen begått med vilje.
+ *
+ * OG NÅR DET BLE ÉTT STED, FORSVANT TO AV DE TRE DELENE.
+ *
+ * Tvillingene holdt ÉN luke pluss en `_liveLine` de måtte tømme når linja
+ * skiftet, og en vakt mot at et svar for gammel linje landet i den. Lagres
+ * svaret per lineRef i stedet, kan linje A sitt svar aldri leses som linje
+ * B sitt — og da trengs verken slettingen eller vakten. De var ikke to
+ * regler; de var én nøkkel som manglet.
+ */
+const _snap = new Map();   // lineRef -> Map<journeyId, position>
+const _at   = new Map();   // lineRef -> da vi sist spurte
+
+/**
+ * Siste kjente posisjoner for linja, og en ny forespørsel når det er på tide.
+ *
+ * Svaret er alltid et Map — tomt når ingenting har kommet ennå — aldri null,
+ * slik at hver leser kan gjøre `livePosition(feed, id, now)` uten vakt.
+ *
+ * @param {string|null} lineRef
+ * @param {function(Map, string)=} onUpdate kalles når et NYTT svar kommer.
+ *   Tavla logger treffene der; det er det eneste instrumentet som noen gang
+ *   kan svare på om Entur i det hele tatt dækker en gitt linje, og det svarer
+ *   bare fra en ekte tur.
+ */
+export function livePosFeed(lineRef, onUpdate) {
+  if (!lineRef) return new Map();
+  const now = Date.now();
+  if (now - (_at.get(lineRef) || 0) >= TTL_MS) {
+    _at.set(lineRef, now);
+    fetchVehiclePositions(lineRef).then(m => {
+      _snap.set(lineRef, m);
+      if (onUpdate) onUpdate(m, lineRef);
+    });
+  }
+  // En kopi, ikke luka selv: en leser som skrev i den ville endret hva de
+  // andre skjermene ser, og det er nettopp den slags deling ingen oppdager.
+  return new Map(_snap.get(lineRef) || []);
+}
+
 /** Test seam, and used when the profile or route changes. */
 export function _resetVehicleCache() {
   _cache.clear();
+  _snap.clear();
+  _at.clear();
 }

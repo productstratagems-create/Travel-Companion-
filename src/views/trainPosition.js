@@ -73,6 +73,95 @@ export function _trainPosition(o) {
   return null;
 }
 
+/* ── OG DET SAMME SPØRSMÅLET, STILT FØR DU HAR GÅTT PÅ ────────────────────
+ *
+ * «Valgt avgang» var den eneste av visjonens tre faser som ikke viste
+ * kjøretøyet på kartet. Tavla gjør det, underveis gjør det — skjermen
+ * imellom, der du står på perrongen og lurer på om toget kommer, gjorde det
+ * ikke.
+ *
+ * Den bor her framfor i `selected.js` fordi «hvor er kjøretøyet» er ETT
+ * spørsmål. To skjermer som svarer på det hver for seg er formen denne
+ * kodebasen har funnet rundt tjuefem ganger.
+ *
+ * TO TING DEN AVGJØR, OG BEGGE VILLE VÆRT FEIL Å GJENTA I EN SKJERM:
+ *
+ * 1. `phase` er aldri `'riding'`. På denne skjermen sitter du IKKE på toget,
+ *    så GPS-trinnet — «telefonen din står for toget» — må ikke utløses.
+ *    Gjorde det det, ville toget blitt tegnet der DU er.
+ *
+ * 2. `calls` er HELE linjas løp, ikke din klippede etappe. `_interpolateOnPath`
+ *    plasserer kjøretøyet på første anker når løpet ikke har begynt
+ *    (`now <= pts[0].dep`). Med klippede calls er første anker DIN perrong,
+ *    og kartet ville sagt «toget står her» om et tog fire stopp unna.
+ *
+ *    Med hele løpet er første anker endestasjonen toget starter fra, og da
+ *    er påstanden sann. Stoppene bak din påstigning ligger kilometer fra den
+ *    tegnede linja, så `anchorDistances` gir null for dem og regnestykket
+ *    faller tilbake på ekte perrongkoordinater — utenfor rammen, der toget
+ *    faktisk er. Målt i tests/selVehicle.test.js, ikke antatt.
+ *
+ * @returns samme form som `_trainPosition`, eller null.
+ */
+export function departureVehicle(dep, o) {
+  const { routePts, now, livePos } = o || {};
+  const sj = _depServiceJourney(dep);
+  if (!sj) return null;
+  return _trainPosition({
+    calls: sj.estimatedCalls,
+    journeyId: sj.id,
+    routePts, now, livePos,
+    // Se punkt 1 over. Verdien er ikke «riding», og det er hele vitsen.
+    phase: 'platform',
+  });
+}
+
+/**
+ * Kjøretøyet du går PÅ — første etappe, ikke den du bytter til.
+ *
+ * En avgang med bytte har `_legs`; spørsmålet «kommer den» gjelder den du
+ * venter på nå. Bussen du tar om tjue minutter er et annet spørsmål, og en
+ * markør for den på samme kart ville vært nettopp opplysningen visjonen
+ * kaller tyveri av oppmerksomhet.
+ *
+ * OG DEN LESES FRA `dep.serviceJourney`, IKKE FRA `_legs[0]`.
+ *
+ * Første utkast av denne gjorde det motsatte, og det var feil. `adapt.js:218`
+ * syntetiserer `dep.serviceJourney` NETTOPP fra første etappe — id, linje og
+ * løp — og `_fetchSel` (selected.js:910) oppfrisker det objektet hvert
+ * intervall med hele linjas løp. `_legs[0].serviceJourney` blir aldri
+ * oppfrisket.
+ *
+ * To steder som bærer samme faktum, der bare det ene holdes à jour. Å lese
+ * det andre er å lese gammel rutetid og tro den er fersk.
+ */
+export function _depServiceJourney(dep) {
+  const sj = dep && dep.serviceJourney;
+  return sj && Array.isArray(sj.estimatedCalls) && sj.estimatedCalls.length >= 2 ? sj : null;
+}
+
+/**
+ * Hva slags kjøretøy dette er — og et svar framfor en antakelse.
+ *
+ * `selected.js:271` setter `mode` fra `dep._legs[0].mode`, som er null for en
+ * helt vanlig tavle-avgang uten etapper. `makeVehicleIcon` faller da tilbake
+ * på t-bane-silhuetten, så en BUSS ble tegnet som et tog.
+ *
+ * Linja vet det selv: begge spørringene henter `line{transportMode}`.
+ */
+export function depMode(dep) {
+  const fromLeg = dep && dep._legs && dep._legs[0] && dep._legs[0].mode;
+  if (fromLeg) return fromLeg;
+  const sj = dep && dep.serviceJourney;
+  return (sj && sj.line && sj.line.transportMode) || null;
+}
+
+/** Linjas lineRef, som sanntidsfeeden spørres per. */
+export function depLineRef(dep) {
+  const sj = _depServiceJourney(dep);
+  return (sj && sj.line && sj.line.id) || null;
+}
+
 /**
  * Heading from the line itself.
  *

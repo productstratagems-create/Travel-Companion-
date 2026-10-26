@@ -64,10 +64,22 @@ describe('every map asks the same questions', () => {
   // way to the call site and then passed `null` into drawLeg survived both
   // halves of this test — the descriptor was right, the destructure was right,
   // and the drawer still got nothing.
+  /* MIDTERSTE LEDD OMSKREVET — og grunnen står her framfor at påstanden ties.
+   *
+   * Den bandt stavemåten på en destrukturering, `{ stops, shape, color, mode }`.
+   * Da kjøretøy­markøren kom til, måtte etappe­beskrivelsen også bære
+   * punktene linja tegnes av (`pts`), så destruktureringen ble
+   * `{ stops, pts: legPts, color, mode }`. `mode` reiser like fullt hele veien.
+   *
+   * Hensikten — HELE KJEDEN, ikke bare endene — er den samme, og det er den
+   * som bindes nå: modusen finnes i beskrivelsen, den plukkes ut, og den når
+   * tegneren. Mutanten kommentaren over beskriver, der `null` sendes inn i
+   * `drawLeg` til slutt, faller fortsatt på siste linje. */
   it('carries the mode into the detail screen’s leg descriptor AND on to the drawer', () => {
     const s = src('src/views/selected.js');
     expect(s).toMatch(/mode: leg\.mode \|\| null/);
-    expect(s).toMatch(/\{ stops, shape, color, mode \}/);
+    // Beskrivelsen bærer den, uansett hvordan de andre feltene staves.
+    expect(s).toMatch(/\{ stops,[^}]*\bmode\b[^}]*\}/);
     expect(s).toMatch(/drawLeg\(_selLayer, \{\s*mode,/);
   });
 });

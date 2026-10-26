@@ -17,10 +17,11 @@ import { fetchNearbyPlaces, timeCategory, PLACE_CATS, placeEmoji, parseOpeningHo
 import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard, _interpolateVehiclePos } from './board.js';
-import { fetchVehiclePositions, livePosition } from '../api/vehicles.js';
+import { livePosFeed } from '../api/vehicles.js';
 import { makeVehicleIcon, makeRouteStopIcon, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _trainPosition, SRC_LABEL } from './trainPosition.js';
+import { VEHICLE_NOUN, VEHICLE_WORD, MODE_PIN } from '../api/posSource.js';
 import { renderJourneyStrip } from './journeyStrip.js';
 import { renderAlertsInto } from '../ui/alerts.js';
 import { liveness, legCancelled } from '../api/liveness.js';
@@ -191,26 +192,17 @@ function _trackMapStructKey(legs, fromIdx) {
   }).join('|');
 }
 
-// Live positions for the line being ridden. Same cadence rule as the board:
-// the render loop is 1 Hz, so fetching from inside it would mean a request a
-// second against a shared public API.
-let _tLivePos = new Map();
-let _tLiveLine = null;
-let _tLiveReqAt = 0;
+/* FIRE VARIABLER OG EN FUNKSJON FLYTTET TIL ÉTT STED.
+ *
+ * Dette var en nær ordrett tvilling av `board.js:1420` — samme ti sekunder,
+ * samme sletting ved linjeskifte, samme vakt mot et svar som kom for sent —
+ * og ingen av dem hadde en test. Den bor nå i `api/vehicles.js`, ved siden av
+ * hentingen som lager svaret, og `livePosFeed` leses i stedet.
+ *
+ * Slettingen og vakten fulgte ikke med: de fantes fordi tvillingene hadde én
+ * luke for alle linjer. Lagret per lineRef er spørsmålet borte.
+ */
 let _tVehIconKey = null;
-const _T_LIVE_POLL_MS = 10_000;
-
-function _refreshTrackLive(lineRef) {
-  if (!lineRef) return;
-  const now = Date.now();
-  if (lineRef === _tLiveLine && now - _tLiveReqAt < _T_LIVE_POLL_MS) return;
-  if (lineRef !== _tLiveLine) _tLivePos = new Map();
-  _tLiveLine = lineRef;
-  _tLiveReqAt = now;
-  fetchVehiclePositions(lineRef).then(m => {
-    if (_tLiveLine === lineRef) _tLivePos = m;
-  });
-}
 
 // Redraw the icon only when something about it actually changed — rotation to
 // the nearest degree, or the live/estimated distinction.
@@ -380,7 +372,6 @@ function _renderTrackMap(now, cs, legs) {
   }
 
   if (!_tMap) return;
-  _refreshTrackLive(leg.lineRef);
   const pos = _resolveTrainPos(now, cs, legs);
   _tPosSrc = pos ? pos.src : null;
   if (pos) {
@@ -401,8 +392,16 @@ function _renderTrackMap(now, cs, legs) {
       _tVehIconKey = _tVehKey(pos);
       _tVehicleMarker = L.marker([pos.lat, pos.lon], { icon }).addTo(_tLayer);
     }
+    // «TOGET» STO HARDKODET HER, PÅ EN SKJERM DER `leg.mode` KAN VÆRE BUSS.
+    //
+    // Glyfen var alt riktig — `makeVehicleIcon(leg.mode, …)` tegner en buss —
+    // og stripen i samme fil sa «bussen» fra `_VEHICLE_NOUN`. Bare etiketten
+    // på markøren kalte den et tog. Ordet kommer nå fra samme tabell som
+    // resten, og den er grunnen til at tabellen ble flyttet til en bladmodul.
+    const noun = _VEHICLE_NOUN[leg.mode] || 'vognen';
+    const Noun = noun.charAt(0).toUpperCase() + noun.slice(1);
     _tVehicleMarker.bindTooltip(
-      (pos.src === 'gps' ? 'Toget \u2014 der du er' : 'Toget') + ' \u00b7 ' + SRC_LABEL[pos.src],
+      (pos.src === 'gps' ? Noun + ' \u2014 der du er' : Noun) + ' \u00b7 ' + SRC_LABEL[pos.src],
       { className: 'map-label' });
   } else if (_tVehicleMarker) {
     _tVehicleMarker.remove();
@@ -929,18 +928,12 @@ function _updateArrMapWalkPin(arrLL) {
   }).catch(() => {});
 }
 
-/** The definite form, for «bussen er nå ved». One table, five modes. */
-const _VEHICLE_NOUN = {
-  bus: 'bussen', tram: 'trikken', metro: 'toget', rail: 'toget', water: 'båten',
-};
-/** The bare noun, for «byttebuss» and «neste buss». */
-const _VEHICLE_WORD = {
-  bus: 'buss', tram: 'trikk', metro: 'tog', rail: 'tog', water: 'båt',
-};
-
-const _MODE_PIN = {
-  bus: 'BUSS', tram: 'TRIKK', metro: 'T-BANE', rail: 'TOG', water: 'BÅT',
-};
+/* Ordene bor i bladmodulen `api/posSource.js` nå, fordi avgangsdetaljer ble
+ * den andre leseren. Re-navngitt her under navnene denne fila alt kjenner —
+ * samme grep `trainPosition.js` gjør med `SRC_LABEL`. */
+const _VEHICLE_NOUN = VEHICLE_NOUN;
+const _VEHICLE_WORD = VEHICLE_WORD;
+const _MODE_PIN = MODE_PIN;
 
 function _makeTransitStopIcon(code, bg, mode) {
   // Anything unrecognised used to be labelled T-BANE, so a ferry pin said
@@ -2227,7 +2220,7 @@ function _resolveTrainPos(now, cs, legs) {
   if (!leg) return null;
   return _trainPosition({
     calls: _legRouteStops(leg), routePts: _tRoutePts, snapDist: _tSnapDist,
-    now, phase: cs.phase, livePos: _tLivePos, journeyId: leg.journeyId,
+    now, phase: cs.phase, livePos: livePosFeed(leg.lineRef), journeyId: leg.journeyId,
     userLL: state.homeLL, posAt: state.posAt,
   });
 }

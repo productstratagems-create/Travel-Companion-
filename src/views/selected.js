@@ -21,6 +21,10 @@ import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
 import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints, fitPadding } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
+import { makeVehicleIcon } from '../ui/mapIcons.js';
+import { departureVehicle, depLineRef, depMode, SRC_LABEL } from './trainPosition.js';
+import { VEHICLE_NOUN } from '../api/posSource.js';
+import { livePosFeed } from '../api/vehicles.js';
 
 function cleanName(s) { return (s || '').replace(/,\s*\S.*$/, '').replace(/\s+T$/i, '').trim(); }
 
@@ -205,6 +209,9 @@ function _selWeatherHtml(arrT) {
 
 // ── Route map ────────────────────────────────────────────────
 let _selMap = null, _selLayer = null;
+/* To variabler, og ikke flere: selve feeden bor i `api/vehicles.js`, så
+ * denne fila slipper å holde en tredje kopi av luka board og track hadde. */
+let _selVehMarker = null, _selVehIconKey = null;
 
 /** A foot leg's two ends, for when the response carried no geometry for it. */
 function _legEnds(leg) {
@@ -244,7 +251,9 @@ function _depToRouteLegs(dep, fromName, toName) {
       // descriptor did not carry, which is why the map drew a bus and a metro
       // with the same stroke — corridorStyle could not be asked a question
       // with no answer in hand.
-      legs.push({ stops, shape: legShape(leg), mode: leg.mode || null,
+      const lshape = legShape(leg);
+      legs.push({ stops, shape: lshape, pts: lshape || stops.map(st => [st.lat, st.lon]),
+                  mode: leg.mode || null,
                   color: ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : null });
     }
     return legs.length ? legs : null;
@@ -267,7 +276,19 @@ function _depToRouteLegs(dep, fromName, toName) {
   const sj = dep.serviceJourney;
   const color = sj && sj.line && sj.line.presentation && sj.line.presentation.colour ? '#' + sj.line.presentation.colour : null;
   const only = dep._legs && dep._legs[0];
-  return [{ stops, shape: legShape(only), mode: (only && only.mode) || null, color }];
+  const shape = legShape(only);
+  return [{
+    stops, shape, color,
+    // LINJA SOM TEGNES ER LINJA TOGET GÅR PÅ, og den regnes her én gang.
+    // Regnet vi den på nytt ved markøren, ville det vært to uttrykk som måtte
+    // være enige — og v1.156.0 finnes fordi `_tRoutePts` ble satt som en
+    // BIVIRKNING av å tegne. Arrayet leses bare, aldri skrives i.
+    pts: shape || stops.map(st => [st.lat, st.lon]),
+    // `only.mode` er null for en helt vanlig tavle-avgang uten etapper, og
+    // `makeVehicleIcon` faller da tilbake på t-bane-silhuetten — en BUSS ble
+    // tegnet som et tog. Linja vet det selv.
+    mode: depMode(dep),
+  }];
 }
 
 let _selMapKey = '';
@@ -275,6 +296,14 @@ let _selMapKey = '';
 export function destroySelMap() {
   if (_selMap) { _selMap.remove(); _selMap = null; _selLayer = null; }
   _selMapKey = '';
+  /* MARKØREN NULLES HER, OG BARE HER.
+   *
+   * Den ligger på `_selLayer`, som følger kartet ned — men referansen ville
+   * blitt stående, og neste byggs første tikk ville kalt `setLatLng` på en
+   * markør uten kart. `destroySelMap` kalles ved HVER ombygging, så dette er
+   * ingen sjelden sti. Samme vakt `_destroyTrackMap` alt har. */
+  _selVehMarker = null;
+  _selVehIconKey = null;
 }
 
 function _selMapStructKey(dep, legs, dir) {
@@ -287,7 +316,62 @@ function _selMapStructKey(dep, legs, dir) {
   }).join('|') + destSuffix;
 }
 
-function _renderSelMap(dep, fromName, toName) {
+/* ── KJØRETØYET, PÅ DEN ENESTE FASEN SOM MANGLET DET ──────────────────────
+ *
+ * Tavla tegner det, underveis tegner det. Skjermen imellom — der du står på
+ * perrongen og lurer på om toget kommer — gjorde det ikke.
+ *
+ * Den tegner ikke noe den ikke vet: `departureVehicle` leverer `src`, og et
+ * regnet ut kjøretøy tegnes nedtonet og uten frontlys, med «etter rutetid»
+ * i etiketten. Et målt tegnes i full farge med «sanntid».
+ *
+ * RAMMEN FLYTTES IKKE. Er toget fire stopp bak ditt stopp, ligger markøren
+ * utenfor kartutsnittet og du ser den ikke ennå. Det er et valg: å strekke
+ * rammen bakover ville krympet din egen strekning til en stump i et 130 px
+ * bånd. Den blir synlig når toget kommer inn i rammen.
+ */
+function _selVehicle(dep, legs, now) {
+  if (!_selMap || !_selLayer) return;
+  const leg = legs && legs[0];
+  const pos = leg && departureVehicle(dep, {
+    routePts: leg.pts,
+    now,
+    livePos: livePosFeed(depLineRef(dep)),
+  });
+
+  if (!pos) {
+    // Løpet er over, eller ingen vet hvor den er. Da skal ikke siste kjente
+    // glyf bli stående på båndet som om den fortsatt gjaldt.
+    if (_selVehMarker) { _selVehMarker.remove(); _selVehMarker = null; _selVehIconKey = null; }
+    return;
+  }
+
+  const estimated = pos.src === 'rutetid';
+  const key = pos.src + ':' + (pos.heading == null ? '-' : Math.round(pos.heading));
+  const icon = () => makeVehicleIcon(leg.mode, (leg.color || tokens().accent), {
+    bearing: pos.heading, estimated,
+  });
+
+  if (_selVehMarker) {
+    _selVehMarker.setLatLng([pos.lat, pos.lon]);
+    // Ikonet settes bare når noe ved det faktisk er endret — retningen til
+    // nærmeste grad, eller skillet målt/regnet. Renderen går hvert sekund, og
+    // en glyf som bygges om 1 Hz er nettopp det «Ro» forbyr.
+    if (_selVehIconKey !== key) { _selVehIconKey = key; _selVehMarker.setIcon(icon()); }
+  } else {
+    _selVehIconKey = key;
+    _selVehMarker = L.marker([pos.lat, pos.lon], { icon: icon() }).addTo(_selLayer);
+  }
+
+  // Ikke permanent: båndet bærer alt to faste stoppnavn, og `selected.js`
+  // bruker tjue linjer på å forklare hvor tett det ble.
+  const noun = VEHICLE_NOUN[leg.mode] || 'vognen';
+  _selVehMarker.bindTooltip(
+    noun.charAt(0).toUpperCase() + noun.slice(1) + ' \u00b7 ' + SRC_LABEL[pos.src],
+    { className: 'map-label' });
+}
+
+function _renderSelMap(dep, fromName, toName, now) {
   const wrap = document.getElementById('sel-map-wrap');
   const mapEl = document.getElementById('sel-map');
   if (!wrap || !mapEl) return;
@@ -299,7 +383,9 @@ function _renderSelMap(dep, fromName, toName) {
   // Rebuild only when the route itself changes — renderSelected runs every
   // second and recreating the Leaflet map each tick flickers and resets pan/zoom
   const key = _selMapStructKey(dep, legs, dir);
-  if (key === _selMapKey && _selMap) return;
+  // Kartet bygges bare om når ruta endrer seg, men kjøretøyet flytter seg
+  // hvert sekund. To kallesteder, én funksjon.
+  if (key === _selMapKey && _selMap) { _selVehicle(dep, legs, now); return; }
   _selMapKey = key;
 
   wrap.style.display = 'block';
@@ -340,7 +426,7 @@ function _renderSelMap(dep, fromName, toName) {
   if (destIsVenue) frame.push([dir._toLat, dir._toLon]);
   if (frame.length) _selMap.fitBounds(frame, { padding: [pad, pad], maxZoom: 15, animate: false });
 
-  legs.forEach(({ stops, shape, color, mode }, li) => {
+  legs.forEach(({ stops, pts: legPts, color, mode }, li) => {
     const lc = color || tokens().accent;
     // Real alignment where the leg carried one; the stop chain otherwise. The
     // markers below still come from stops either way.
@@ -359,7 +445,7 @@ function _renderSelMap(dep, fromName, toName) {
     // which is the right answer and the reason that gate exists.
     drawLeg(_selLayer, {
       mode, colour: lc,
-      pts: shape || stops.map(s => [s.lat, s.lon]),
+      pts: legPts,
       stops,
     }, { project: ll => _selMap.latLngToContainerPoint(ll) });
 
@@ -467,6 +553,7 @@ function _renderSelMap(dep, fromName, toName) {
   setTimeout(() => _selMap && _selMap.invalidateSize(), 100);
 
   bindMapExpand(_selMap, mapEl, document.getElementById('sel-map-expand'));
+  _selVehicle(dep, legs, now);
 }
 
 export function renderSelected() {
@@ -778,7 +865,7 @@ export function renderSelected() {
   }
 
   document.getElementById('v-selected').appendChild(ctaDiv);
-  _renderSelMap(state.sel, dir.from, dir.to);
+  _renderSelMap(state.sel, dir.from, dir.to, now);
 }
 
 /**

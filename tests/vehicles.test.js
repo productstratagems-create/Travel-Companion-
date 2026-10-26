@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
   livePosition, parseVehicle, parseVehicles, fetchVehiclePositions,
-  _resetVehicleCache, MAX_AGE_MS,
-} from '../src/api/vehicles.js';
+  _resetVehicleCache, MAX_AGE_MS, livePosFeed } from '../src/api/vehicles.js';
 
 const NOW = 1_700_000_000_000;
 const at = (msAgo) => new Date(NOW - msAgo).toISOString();
@@ -146,6 +145,91 @@ describe('fetchVehiclePositions', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     expect((await fetchVehiclePositions(null)).size).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+/* ── DEN DELTE LUKA ──────────────────────────────────────────────────────
+ *
+ * `board.js` og `track.js` skrev hver sin kopi av dette — samme ti sekunder,
+ * samme sletting ved linjeskifte, samme vakt mot et for sent svar — og INGEN
+ * av dem hadde en test. Dette er den første.
+ *
+ * Og den binder det som ble borte da det ble ett sted: lagres svaret per
+ * lineRef, kan linje A sitt aldri leses som linje B sitt, og da trengs
+ * verken slettingen eller vakten.
+ */
+describe('livePosFeed', () => {
+  const svar = (jid) => ({
+    ok: true,
+    json: () => Promise.resolve({ data: { vehicles: [{ ...apiVehicle(), serviceJourney: { id: jid } }] } }),
+  });
+
+  beforeEach(() => { _resetVehicleCache(); vi.useFakeTimers(); vi.setSystemTime(NOW); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it('svarer med et tomt kart før noe har kommet — aldri null', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    const m = livePosFeed('RUT:Line:5');
+    expect(m).toBeInstanceOf(Map);
+    expect(m.size).toBe(0);
+  });
+
+  it('har svaret klart ved neste lesning', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(svar('SJ:A'))));
+    livePosFeed('RUT:Line:5');
+    await vi.runAllTimersAsync();
+    expect(livePosFeed('RUT:Line:5').has('SJ:A')).toBe(true);
+  });
+
+  /* KJERNEN. Tvillingene trengte en `_liveLine` å tømme fordi de hadde ÉN
+   * luke. Med lineRef som nøkkel er spørsmålet meningsløst. */
+  it('lar aldri én linjes tog bli lest som en annens', async () => {
+    vi.stubGlobal('fetch', vi.fn((url, o) =>
+      Promise.resolve(svar(o.body.includes('Line:5') ? 'SJ:FEM' : 'SJ:TRE'))));
+    livePosFeed('RUT:Line:5');
+    livePosFeed('RUT:Line:3');
+    await vi.runAllTimersAsync();
+    expect([...livePosFeed('RUT:Line:5').keys()]).toEqual(['SJ:FEM']);
+    expect([...livePosFeed('RUT:Line:3').keys()]).toEqual(['SJ:TRE']);
+  });
+
+  it('spør ikke oftere enn hvert tiende sekund, selv om renderen går hvert sekund', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(svar('SJ:A')));
+    vi.stubGlobal('fetch', fetchMock);
+    for (let i = 0; i < 10; i++) { vi.setSystemTime(NOW + i * 1000); livePosFeed('RUT:Line:5'); }
+    await vi.runAllTimersAsync();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(NOW + 11_000);
+    livePosFeed('RUT:Line:5');
+    await vi.runAllTimersAsync();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  // Tavlas loggelinje er det eneste instrumentet som noen gang kan svare på om
+  // Entur dekker en gitt linje, og det svarer bare fra en ekte tur. Den skal
+  // ikke fyres av hver render — bare når et nytt svar faktisk kom.
+  it('varsler bare når et nytt svar kom, ikke ved hver lesning', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(svar('SJ:A'))));
+    const sett = vi.fn();
+    for (let i = 0; i < 5; i++) { vi.setSystemTime(NOW + i * 1000); livePosFeed('RUT:Line:5', sett); }
+    await vi.runAllTimersAsync();
+    expect(sett).toHaveBeenCalledTimes(1);
+    expect(sett.mock.calls[0][1]).toBe('RUT:Line:5');
+  });
+
+  it('gir ut en kopi, så en leser ikke kan endre hva de andre ser', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(svar('SJ:A'))));
+    livePosFeed('RUT:Line:5');
+    await vi.runAllTimersAsync();
+    livePosFeed('RUT:Line:5').clear();
+    expect(livePosFeed('RUT:Line:5').has('SJ:A')).toBe(true);
+  });
+
+  it('spør ikke uten linje', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    expect(livePosFeed(null).size).toBe(0);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

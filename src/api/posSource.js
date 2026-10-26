@@ -17,3 +17,30 @@ export const SRC_LABEL = {
   live:    'sanntid',
   rutetid: 'etter rutetid',
 };
+
+/* ── OG HVA SLAGS KJØRETØY DET ER ──────────────────────────────────────────
+ *
+ * Samme begrunnelse, ett hakk ned. Tabellene bodde i `views/track.js`, med
+ * kommentaren «One table, five modes» — og det var sant så lenge ÉN skjerm
+ * leste dem. Avgangsdetaljer trenger nå det samme ordet til sin
+ * kart­etikett, og to skjermer som sier «bussen» hver for seg er formen
+ * denne kodebasen har funnet rundt tjuefem ganger.
+ *
+ * Alle tre flytter sammen. Å ta med seg én og la de to søsknene bli igjen er
+ * nettopp slik neste avdrift begynner.
+ */
+
+/** Bestemt form, for «bussen er nå ved». */
+export const VEHICLE_NOUN = {
+  bus: 'bussen', tram: 'trikken', metro: 'toget', rail: 'toget', water: 'båten',
+};
+
+/** Ubestemt form, for «byttebuss» og «neste buss». */
+export const VEHICLE_WORD = {
+  bus: 'buss', tram: 'trikk', metro: 'tog', rail: 'tog', water: 'båt',
+};
+
+/** Versalene på en stoppnål. En ukjent modus sier INGENTING framfor en løgn. */
+export const MODE_PIN = {
+  bus: 'BUSS', tram: 'TRIKK', metro: 'T-BANE', rail: 'TOG', water: 'BÅT',
+};

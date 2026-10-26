@@ -22,7 +22,7 @@ import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops, _resetNearbyCache } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, makeJourneyPointIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
-import { fetchVehiclePositions, livePosition, _resetVehicleCache } from '../api/vehicles.js';
+import { livePosFeed, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
 import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby, drawLeg, drawJourneyPoints } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
@@ -1409,29 +1409,22 @@ function renderLineRoute(visibleDeps, vehicles) {
   return paths;
 }
 
-// Live positions for the selected line, refreshed on their own cadence. The
-// render loop runs at 1 Hz; fetching from inside it would turn every second
-// into a request against a shared public API.
+/* TRE VARIABLER OG EN FUNKSJON FLYTTET TIL ÉTT STED.
+ *
+ * Dette og `track.js:203` var nær ordrette tvillinger — samme ti sekunder,
+ * samme sletting ved linjeskifte, samme vakt mot et svar som kom for sent —
+ * og ingen av dem hadde en test. Mekanismen bor nå i `api/vehicles.js`, ved
+ * siden av hentingen som lager svaret.
+ *
+ * Slettingen og vakten fulgte ikke med, fordi de ikke lenger har noe å gjøre:
+ * de fantes bare fordi tvillingene hadde ÉN luke for alle linjer. Lagret per
+ * lineRef kan linje A sitt svar aldri leses som linje B sitt.
+ *
+ * Luka under står igjen fordi TO andre lesere — stripa og `_atPlatform` —
+ * leser den uten å ha en lineRef for hånden. Å utlede den to steder til
+ * ville vært å bytte én tvilling mot to. Den er nå bare siste lesning, ikke
+ * en mekanisme. */
 let _livePos = new Map();
-let _liveLine = null;
-let _liveReqAt = 0;
-const _LIVE_POLL_MS = 10_000;
-
-function _refreshLivePositions(lineRef) {
-  if (!lineRef) return;
-  const now = Date.now();
-  if (lineRef === _liveLine && now - _liveReqAt < _LIVE_POLL_MS) return;
-  if (lineRef !== _liveLine) _livePos = new Map();   // never show one line's trains on another
-  _liveLine = lineRef;
-  _liveReqAt = now;
-  fetchVehiclePositions(lineRef).then(m => {
-    if (_liveLine !== lineRef) return;               // line changed while in flight
-    _livePos = m;
-    // Coverage varies by operator and cannot be checked from a dev machine,
-    // so let one real trip answer it.
-    logMsg('sanntidsposisjoner: ' + m.size + ' for ' + lineRef, m.size ? 'ok' : null);
-  });
-}
 
 // ── Corridor strip ──────────────────────────────────────────────────────────
 // A schematic of your stretch, under the map. Position on the board map is
@@ -2770,7 +2763,11 @@ export function renderBoard() {
     });
     return m && m.c.serviceJourney.line && m.c.serviceJourney.line.id;
   })();
-  _refreshLivePositions(lineRef);
+  // Loggelinja blir med. Dekningen varierer per operatør og kan ikke sjekkes
+  // fra en utviklermaskin, så den er det eneste instrumentet som noen gang kan
+  // svare — og det svarer bare fra en ekte tur.
+  _livePos = livePosFeed(lineRef, (m, ref) =>
+    logMsg('sanntidsposisjoner: ' + m.size + ' for ' + ref, m.size ? 'ok' : null));
   const vehicles = _approachingVehicles(visibleDeps, _lineOn, now, _livePos);
   const linePaths = renderLineRoute(visibleDeps, vehicles);
   renderVehicleMarkers(vehicles, linePaths);

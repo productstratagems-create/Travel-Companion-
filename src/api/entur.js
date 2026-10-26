@@ -6,7 +6,15 @@ import { addSituation, collectStopSituations } from './situations.js';
 import { logMsg, setDot } from '../ui/log.js';
 import { noteLookbackLost } from './diagnose.js';
 import { loadWalkSpeed, focusParam } from '../geo.js';
-const WALK_MPS = { rolig: 41.67 / 60, middels: 83.33 / 60, rask: 116.67 / 60 };
+import { SPEED_MPN } from '../walkSpeed.js';
+/* AVLEDET, IKKE SKREVET OM IGJEN.
+ *
+ * Dette sto som `{ rolig: 41.67 / 60, … }` — de samme tre tallene som
+ * `SPEED_MPN` alt er navnet på, tastet inn på nytt. Entur vil ha meter per
+ * sekund og appen tenker i meter per minutt; det er en enhetsomregning, og
+ * en omregning er noe man gjør med navnet, ikke med tallene bak det. */
+const WALK_MPS = Object.fromEntries(
+  Object.entries(SPEED_MPN).map(([k, mpm]) => [k, mpm / 60]));
 
 let boardController = null;
 let tripController = null;

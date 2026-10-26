@@ -11,7 +11,7 @@ import L from 'leaflet';
 import { createMap } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
 import { loadLeadPref, saveLeadPref, LEAD_AUTO } from '../api/ics.js';
-import { haver, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, landingPref, saveLandingPref, focusParam } from '../geo.js';
+import { haver, walkMinsTo, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, landingPref, saveLandingPref, focusParam } from '../geo.js';
 import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
 import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
@@ -784,10 +784,14 @@ export function showSettings() {
     _renderNearbyToggle(stations.length);
     if (stations.length) {
       nearbyList.innerHTML = stations.map(s => {
-        const spd = { rolig: 41.67, middels: 83.33, rask: 116.67 }[loadWalkSpeed()] || 83.33;
-        const mins = s.distM != null
-          ? Math.max(1, Math.ceil(s.distM * 1.3 / spd)) + loadWalkBuffer()
+        // Hastighetstabellen sto INLINET her — de tre tallene `SPEED_MPN`
+        // alt er navnet på, tastet inn i en skjerm. Og formelen under den
+        // var den fjerde kopien av gangtiden. `walkMinsTo` uten fra-punkt
+        // bruker posisjonen din, som er den samme lista her er sortert på.
+        const w = (s.lat != null && s.lon != null)
+          ? walkMinsTo({ lat: s.lat, lon: s.lon })
           : null;
+        const mins = w ? w.mins : null;
         return '<button class="nearby-btn" data-name="' + s.name + '">'
           + '<span class="nearby-name">' + s.name + '</span>'
           + (mins != null ? '<span class="nearby-dist">' + mins + ' min</span>' : '')

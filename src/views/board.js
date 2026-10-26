@@ -6,7 +6,7 @@ import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
+import { walkInfo, walkMinsTo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
@@ -2104,8 +2104,17 @@ export const APPROACH_WINDOW_MS = 15 * 60_000;
  */
 export const CORRIDOR_MAX_M = 300;
 
-/** Close enough to a platform to count as standing at it. */
-const AT_STOP_M = 30;
+/* SAMME NAVN, ANNET FAKTUM — og derfor omdøpt.
+ *
+ * Dette het `AT_STOP_M` og var 30, i en fil som på linje 679 re-eksporterer
+ * `AT_STOP_M` fra approach.js — der den er 120. To ulike fakta delte navn i
+ * samme scope, og den som leste koden hadde ingen måte å se hvilket av dem
+ * hun så på.
+ *
+ * De er heller ikke samme slags fakta. De 120 er «står DU ved stoppet».
+ * Disse 30 er «står KJØRETØYET inne til perrongen», målt mot den tegnede
+ * linjas første punkt. Navnet sier nå hvilket. */
+const VEHICLE_AT_PLATFORM_M = 30;
 
 /**
  * The trains worth drawing, decided once and used by both the corridor and
@@ -2149,7 +2158,7 @@ export function _widenLo(allStops, boardIdx, vehicles) {
   // ends there, which would draw one stop more than anyone needs. Dwelling
   // at a stop is the ordinary case on a metro, not an edge one.
   const next = chain[p.segIdx + 1];
-  const dwelling = next && haver(first.pos.lat, first.pos.lon, next[0], next[1]) <= AT_STOP_M;
+  const dwelling = next && haver(first.pos.lat, first.pos.lon, next[0], next[1]) <= VEHICLE_AT_PLATFORM_M;
   return Math.min(boardIdx, p.segIdx + (dwelling ? 1 : 0));
 }
 
@@ -2644,12 +2653,27 @@ export function renderBoard() {
   }
   if (!state.deps.length) {
     if (isWalkOnly) {
-      const spd  = SPEED_MPN[loadWalkSpeed()] || SPEED_MPN.middels;
-      const mins = Math.max(1, Math.ceil(walkOnlyDist * 1.3 / spd)) + loadWalkBuffer();
-      const distLbl = walkOnlyDist < 1000 ? Math.round(walkOnlyDist) + ' m' : (walkOnlyDist / 1000).toFixed(1) + ' km';
+      // ÉN GANGTID, OG DEN MÅLTE NÅR DEN FINNES.
+      //
+      // Her sto formelen skrevet ut — `ceil(d * 1.3 / spd) + buffer` — og
+      // den kunne aldri gjøre annet enn å gange luftlinja. `walkMinsTo`
+      // spør `getWalkDist` først, så når appen har tegnet ruta én gang er
+      // dette den MÅLTE lengden. Den gjetningen bestemte når du gikk
+      // hjemmefra.
+      const w = walkMinsTo({ lat: dir._toLat, lon: dir._toLon }, walkFrom);
+      // `isWalkOnly` har alt krevd begge punktene, så `w` skal ikke kunne
+      // mangle her. Men da mutasjonsprøven gjorde kallet uoppnåelig, skrev
+      // kortet «nullmin» på skjermen — og «null» er ikke en setning noen
+      // skal lese. Står svaret ikke der, sier kortet det med en strek.
+      const mins = w ? w.mins : null;
+      const minsTxt = mins != null ? String(mins) : '\u2014';
+      // Og avstanden er den samme som minuttene er regnet av. Før viste
+      // etiketten luftlinja mens tallet over den het noe annet.
+      const shown = w ? w.dist : walkOnlyDist;
+      const distLbl = shown < 1000 ? Math.round(shown) + ' m' : (shown / 1000).toFixed(1) + ' km';
       list.innerHTML =
         '<div class="walk-only-card">'
-        + '<div class="woc-mins">' + mins + '<span>min</span></div>'
+        + '<div class="woc-mins">' + minsTxt + '<span>min</span></div>'
         + '<div class="woc-info">'
         + '<span class="woc-label">til fots fra stasjonen</span>'
         + '<span class="woc-dist">' + distLbl + ' · ' + dir.to + '</span>'

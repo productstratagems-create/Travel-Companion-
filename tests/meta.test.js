@@ -10,10 +10,16 @@
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
+import { APP_URL } from '../src/origin.js';
+import { injectOrigin } from '../scripts/injectOrigin.mjs';
 
-const SITE = 'https://productstratagems-create.github.io/Travel-Companion-/';
-const index = fs.readFileSync('index.html', 'utf8');
-const install = fs.readFileSync('public/install.html', 'utf8');
+/* Adressen kommer fra det ene navnet nå, og kildefilene bærer merket
+ * `__ORIGIN__` framfor å ha den skrevet ut. `injectOrigin` er nøyaktig det
+ * bygget gjør, så påstandene under prøver den ekte erstatningen uten å kreve
+ * at hele suiten bygger først. */
+const SITE = APP_URL;
+const index = injectOrigin(fs.readFileSync('index.html', 'utf8'));
+const install = injectOrigin(fs.readFileSync('public/install.html', 'utf8'));
 const manifest = JSON.parse(fs.readFileSync('public/manifest.webmanifest', 'utf8'));
 
 /** A PNG says its own size in its header. Nothing else is trusted here. */
@@ -100,7 +106,7 @@ describe('being findable', () => {
 
   // A sitemap that lists a page that 404s is worse than no sitemap.
   it('lists only pages that ship', () => {
-    const sitemap = fs.readFileSync('public/sitemap.xml', 'utf8');
+    const sitemap = injectOrigin(fs.readFileSync('public/sitemap.xml', 'utf8'));
     const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]);
     expect(locs.length).toBeGreaterThan(0);
     locs.forEach(loc => {
@@ -112,7 +118,7 @@ describe('being findable', () => {
   });
 
   it('points robots.txt at that same sitemap', () => {
-    const robots = fs.readFileSync('public/robots.txt', 'utf8');
+    const robots = injectOrigin(fs.readFileSync('public/robots.txt', 'utf8'));
     expect(robots).toContain('Sitemap: ' + SITE + 'sitemap.xml');
     expect(robots).toMatch(/Allow: \//);
   });

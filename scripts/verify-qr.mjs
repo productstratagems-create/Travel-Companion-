@@ -12,6 +12,7 @@
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import { APP_URL } from '../src/origin.js';
 
 const require = createRequire(import.meta.url);
 // Playwright may be installed globally rather than in the project — this
@@ -23,13 +24,28 @@ const pw = await import(pwPath).catch(() => require('playwright'));
 // whichever half actually carries the browsers.
 const { chromium } = pw.chromium ? pw : (pw.default || {});
 
-const URL_IN = process.argv[2];
-if (!URL_IN) {
-  console.error('bruk: node scripts/verify-qr.mjs "<url>"');
+/* UTEN ARGUMENT SJEKKES KODEN SOM FAKTISK LIGGER I install.html.
+ *
+ * Før dette genererte skriptet en FERSK QR og dekodet den — altså prøvde
+ * det generatoren, ikke artefaktet. QR-en som er sendt ut til folk var
+ * ubundet: adressen i den er et gitter av firkanter, usynlig for ethvert
+ * søk, og den eneste av appens forekomster som en leser SCANNER.
+ *
+ * `install.html` har en vakt ved kjøretid som sier fra om koden peker et
+ * annet sted enn siden selv. Den er god, men den melder seg først når noen
+ * står med telefonen oppe. Dette melder seg før utgivelsen. */
+const URL_IN = process.argv[2] || APP_URL;
+const FRA_SIDEN = !process.argv[2];
+
+const svg = FRA_SIDEN
+  ? (fs.readFileSync('public/install.html', 'utf8')
+       .match(/<svg class="qr"[\s\S]*?<\/svg>/) || [null])[0]
+  : execSync(`node scripts/make-qr.mjs ${JSON.stringify(URL_IN)}`).toString().trim();
+
+if (!svg) {
+  console.error('fant ingen <svg class="qr"> i public/install.html');
   process.exit(1);
 }
-
-const svg = execSync(`node scripts/make-qr.mjs ${JSON.stringify(URL_IN)}`).toString().trim();
 const jsqr = fs.readFileSync(require.resolve('jsqr/dist/jsQR.js'), 'utf8');
 
 const browser = await chromium.launch(
@@ -59,6 +75,7 @@ const got = await page.evaluate(async () => {
 });
 await browser.close();
 
+console.log('kilde     :', FRA_SIDEN ? 'public/install.html' : 'nygenerert');
 console.log('kodet inn :', URL_IN);
 console.log('lest ut   :', got == null ? '(kunne ikke leses)' : got);
 if (got !== URL_IN) {

@@ -3,4 +3,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://productstratagems-create.github.io/Travel-Companion-/sitemap.xml
+Sitemap: __ORIGIN__/sitemap.xml

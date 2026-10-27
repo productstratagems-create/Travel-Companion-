@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import { routeShareUrl, routeFromShareUrl, canShare, SHARE_PARAMS } from '../src/ui/shareRoute.js';
+import { APP_URL } from '../src/origin.js';
 
-const BASE = 'https://productstratagems-create.github.io/Travel-Companion-/';
+// Adressen kommer fra det ene navnet, ikke fra en kopi her.
+const BASE = APP_URL;
 const DIR = {
   key: 'custom-out',
   from: 'Grønland', to: 'Oslo S',

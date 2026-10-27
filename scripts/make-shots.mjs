@@ -32,6 +32,10 @@ import http from 'node:http';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import pw from '/opt/node22/lib/node_modules/playwright/index.js';
+// Adressen på social-kortet er BRENT INN i en PNG — den eneste av de
+// tjuetre forekomstene som ingen tekstsøk ville funnet. Den leses nå fra
+// det ene navnet, som alt annet.
+import { ORIGIN_LABEL } from '../src/origin.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
@@ -238,7 +242,7 @@ const CARD_HTML = `<!doctype html><meta charset="utf-8"><style>
   <div class="eyebrow">reisefølge for oslo</div>
   <h1>Ikke bare når banen&nbsp;går —<br><em>når du må gå.</em></h1>
   <p>Sanntids avganger, hele traseen på kartet, og hva som venter deg framme.</p>
-  <div class="url">productstratagems-create.github.io/Travel-Companion-</div>
+  <div class="url">${ORIGIN_LABEL}</div>
 </div>
 <div class="phone"><img src="__IMG__" alt=""></div>`;
 

@@ -3,17 +3,17 @@
      installasjonsveiledningen og personvernerklæringen. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://productstratagems-create.github.io/Travel-Companion-/</loc>
+    <loc>__ORIGIN__/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://productstratagems-create.github.io/Travel-Companion-/install.html</loc>
+    <loc>__ORIGIN__/install.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://productstratagems-create.github.io/Travel-Companion-/privacy.html</loc>
+    <loc>__ORIGIN__/privacy.html</loc>
     <changefreq>yearly</changefreq>
     <priority>0.2</priority>
   </url>

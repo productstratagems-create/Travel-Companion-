@@ -18,6 +18,7 @@ import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard, _interpolateVehiclePos } from './board.js';
 import { livePosFeed } from '../api/vehicles.js';
+import { loadRecentDests, saveRecentDest, removeRecentDest } from '../api/recentDests.js';
 import { makeVehicleIcon, makeRouteStopIcon, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _trainPosition, SRC_LABEL } from './trainPosition.js';
@@ -40,7 +41,6 @@ let _walkDestLL = null;
 let _walkTimer  = null;
 let _walkAbort  = null;
 
-const RECENT_KEY = 't.recentDests';
 
 /**
  * WHEN AN ANSWER LAST ARRIVED, and how many asks have failed since.
@@ -425,20 +425,6 @@ function _renderTrackMap(now, cs, legs) {
     _tUserMarker.remove();
     _tUserMarker = null;
   }
-}
-
-function loadRecentDests() {
-  try {
-    const v = JSON.parse(storage.get(RECENT_KEY) || '[]');
-    return Array.isArray(v) ? v : [];
-  } catch { return []; }
-}
-
-function saveRecentDest(dest) {
-  const list = loadRecentDests().filter(d => d.label !== dest.label);
-  list.unshift(dest);
-  if (list.length > 5) list.pop();
-  storage.set(RECENT_KEY, JSON.stringify(list));
 }
 
 function _fetchArrBoardData() {
@@ -1425,10 +1411,26 @@ function renderNextPanel() {
   const last = state.jny && state.jny.legs && state.jny.legs[state.jny.legs.length - 1];
   const arrStation = last ? last.toStation : '';
 
+  /* TO MÅL I ÉN PILLE, og derfor har pillen vokst.
+   *
+   * Chipen var én `<button>` på ~22 px. Nabobutikken `plan.css:233` skriver
+   * ned regelen: «44 px trykkflate som ellers i appen (v1.138.0), vokst
+   * utover med ::after så kortets egen layout ikke flytter seg».
+   *
+   * To slike mål får ikke plass i 22 px. Så pillen er nå en ramme med to
+   * knapper i: én som velger stedet, én som fjerner det — og den er større
+   * så de to flatene ikke overlapper hverandre.
+   *
+   * `<span>` og ikke `<button>` som ramme: nøstede knapper er ugyldig HTML,
+   * og en nettleser river dem fra hverandre på måter ingen har bestemt. */
   const recents = loadRecentDests();
   const recentsHtml = recents.length
     ? '<div class="hn-recent-chips">'
-      + recents.map(d => '<button class="hn-recent-chip" data-label="' + esc(d.label) + '">' + esc(d.label) + '</button>').join('')
+      + recents.map(d => '<span class="hn-recent-chip">'
+          + '<button class="hn-recent-pick" data-label="' + esc(d.label) + '">' + esc(d.label) + '</button>'
+          + '<button class="hn-recent-del" data-label="' + esc(d.label) + '"'
+          + ' aria-label="Fjern ' + esc(d.label) + '">\u00d7</button>'
+        + '</span>').join('')
       + '</div>'
     : '';
 
@@ -1512,7 +1514,20 @@ function renderNextPanel() {
       }, 150);
     });
   }
-  document.querySelectorAll('.hn-recent-chip').forEach(btn => {
+  document.querySelectorAll('.hn-recent-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      // På ETIKETT og ikke på indeks: to chips kan dele prefiks, og da
+      // forsvinner feil sted uten at noen skjønner hvorfor.
+      removeRecentDest(btn.dataset.label);
+      // Bare raden tegnes om. Å bygge hele panelet på nytt ville lukket
+      // folden og kastet det som står i søkefeltet — og «ro» er regelen.
+      const chip = btn.closest('.hn-recent-chip');
+      const rad = chip && chip.parentElement;
+      if (chip) chip.remove();
+      if (rad && !rad.querySelector('.hn-recent-chip')) rad.remove();
+    });
+  });
+  document.querySelectorAll('.hn-recent-pick').forEach(btn => {
     btn.addEventListener('click', () => {
       const d = loadRecentDests().find(r => r.label === btn.dataset.label);
       if (!d) return;

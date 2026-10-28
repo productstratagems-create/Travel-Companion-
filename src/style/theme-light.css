@@ -475,12 +475,15 @@ html[data-theme="light"] .spec-track-btn { color: var(--accent); border-color: r
 html[data-theme="light"] .spec-track-btn:active { background: rgba(var(--accent-rgb),.06); }
 html[data-theme="light"] .hn-loading   { color: var(--text-muted); }
 html[data-theme="light"] .hn-recent-chips { }
+/* Rammen bærer bakgrunnen; knappene inni bærer bare farge. Første utgave ga
+ * bakgrunnen til alle tre, og da sto den tegnet tre ganger oppe i seg selv. */
 html[data-theme="light"] .hn-recent-chip {
   background: rgba(var(--accent-rgb),.06);
   border-color: rgba(var(--accent-rgb),.12);
-  color: var(--text-muted);
 }
-html[data-theme="light"] .hn-recent-chip:active { color: var(--accent); }
+html[data-theme="light"] .hn-recent-pick,
+html[data-theme="light"] .hn-recent-del { color: var(--text-muted); }
+html[data-theme="light"] .hn-recent-pick:active { color: var(--accent); }
 html[data-theme="light"] .hn-arr-row { border-bottom-color: rgba(var(--border-rgb),.05); }
 html[data-theme="light"] .hn-arr-mins { color: var(--accent); }
 html[data-theme="light"] .hn-arr-mins span { color: var(--text-muted); }

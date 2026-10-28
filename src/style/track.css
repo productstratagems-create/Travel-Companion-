@@ -193,14 +193,85 @@
 }
 .hn-input:focus{border-color:rgba(var(--border-rgb),.4)}
 .hn-loading{font-size:12px;color:var(--text-soft)}
-.hn-recent-chips{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.45rem}
-.hn-recent-chip{
-  font-family:inherit;font-size:10px;padding:.25rem .55rem;border-radius:12px;
-  background:rgba(var(--accent-rgb),.06);border:1px solid rgba(var(--border-rgb),.12);
-  color:var(--text-muted);cursor:pointer;white-space:nowrap;max-width:160px;
-  overflow:hidden;text-overflow:ellipsis;
+/* TO MÅL I ÉN PILLE, og derfor har pillen vokst.
+ *
+ * Chipen var én knapp på ~22 px: 10 px skrift og .25rem luft. Du kunne
+ * velge stedet, men ikke bli kvitt det.
+ *
+ * `plan.css` skriver ned regelen: «44 px trykkflate som ellers i appen
+ * (v1.138.0), vokst utover med ::after så kortets egen layout ikke flytter
+ * seg». To slike flater får ikke plass i 22 px — de ville ligget oppe i
+ * hverandre, og da velger du et sted når du mente å slette det.
+ *
+ * Så: 12 px skrift, mer luft, og en `min-width` som garanterer at de to
+ * flatene står fra hverandre også når etiketten er kort. `row-gap` holder
+ * dem fra naboraden når lista brekker. Begge tallene er målt i prøven, ikke
+ * valgt på følelsen. */
+.hn-recent-chips{
+  /* ÉN HØYDE, TRE LESERE.
+   *
+   * Første utgave satte `min-height` på pillen OG `line-height:44px` på
+   * teksten. Mutasjonsprøven krympet `min-height` til 30 og ingenting skjedde:
+   * høyden kom fra `line-height` hele tiden, og `min-height` var pynt. To
+   * steder som bærer samme faktum, der bare det ene gjør jobben — kodebasens
+   * signaturfeil, i helt ny CSS.
+   *
+   * Nå står tallet étt sted, og både pillen, teksten og slettefeltet leser
+   * det. Endres det, flytter alle tre seg sammen. */
+  --chip-h:44px;
+  display:flex;flex-wrap:wrap;column-gap:.3rem;row-gap:.5rem;margin-bottom:.45rem;
 }
-.hn-recent-chip:active{background:rgba(var(--accent-rgb),.14);color:var(--accent)}
+/* OG FØRSTE FORSØK VAR Å VOKSE FLATENE UTOVER MED ::after, SOM `.plan-leg-cal`.
+ *
+ * Prøven målte SYTTEN kollisjoner. En 44 px flate sentrert på et element
+ * inne i en 31 px pille stikker 6,5 px ut over og under den, så den traff
+ * både søskenet sitt og naboraden. Grepet virker for ÉN knapp med luft
+ * rundt; det virker ikke for to knapper i en lav pille ved siden av fire
+ * andre.
+ *
+ * Så pillen ER flaten: 44 px høy, og de to knappene fyller den. Da er
+ * trykkflaten og det du ser det samme rektangelet — som er enklere å stole
+ * på enn en usynlig som stikker ut. */
+.hn-recent-chip{
+  display:inline-flex;align-items:stretch;
+  /* Pluss kantlinja i hver ende: prøven måler den INDRE flaten, som er den
+   * som tar trykket, og den skal være --chip-h. */
+  min-height:calc(var(--chip-h) + 2px);border-radius:calc(var(--chip-h) / 2 + 1px);
+  background:rgba(var(--accent-rgb),.06);border:1px solid rgba(var(--border-rgb),.12);
+  /* SMALERE, SÅ TO FÅR PLASS PÅ EN LINJE.
+   *
+   * Målt: med 230 px brakk fem chips til FIRE linjer og 208 px — mot ~50 px
+   * før pillene vokste. Et panel som krever skrolling for å se søkefeltet er
+   * nettopp det «ro» forbyr.
+   *
+   * Første forsøk satte 184 px — regnet ut fra 414 px skjermbredde. Det
+   * hjalp ikke, og prøven sa hvorfor: raden er 353 px, ikke 382. Panelet har
+   * sin egen luft, og den sto ikke i regnestykket mitt.
+   *
+   * 172 px er målt mot de 353: to pluss mellomrommet blir 349. Prisen er at
+   * lange navn avkortes hardere — «Akershus festn…» — men etiketten er et
+   * gjenkjenningstegn, ikke en adresse: du vet hvilket sted det er. */
+  max-width:172px;
+  /* Så velg-flaten aldri kommer under 44 px, heller ikke for «Oslo». */
+  min-width:6.4rem;
+  overflow:hidden;
+}
+.hn-recent-pick,.hn-recent-del{
+  font-family:inherit;background:none;border:none;color:var(--text-muted);
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+  display:flex;align-items:center;
+}
+.hn-recent-pick{
+  font-size:12px;padding:0 .3rem 0 .85rem;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  flex:1 1 auto;text-align:left;min-width:0;display:block;line-height:var(--chip-h);
+}
+.hn-recent-del{
+  font-size:17px;line-height:1;flex:0 0 var(--chip-h);justify-content:center;
+  color:rgba(var(--text-muted-rgb),.55);
+}
+.hn-recent-pick:active{background:rgba(var(--accent-rgb),.14);color:var(--accent)}
+.hn-recent-del:active{color:var(--err)}
 .hn-arr-row{
   display:grid;grid-template-columns:2.8rem 1fr auto;gap:.5rem;align-items:center;
   padding:.35rem 0;border-bottom:1px solid rgba(var(--border-rgb),.05);

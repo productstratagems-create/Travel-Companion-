@@ -6,6 +6,7 @@ import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
 import { loadFreq, trackPlace } from '../api/usage.js';
 import { logEvent, recentEvents, describeEvent, clearEvents, MEMORY_DAYS } from '../api/eventLog.js';
+import { clearRecentDests } from '../api/recentDests.js';
 import { loadConsent, saveConsent } from '../api/consent.js';
 import L from 'leaflet';
 import { createMap } from '../ui/map.js';
@@ -940,8 +941,22 @@ export function initMemory() {
     if (!cb.checked) clearEvents();
     renderMemory();
   });
+  /* KNAPPEN SIER «SLETT ALT APPEN HUSKER», OG DET ER ABSOLUTT.
+   *
+   * Den kalte bare `clearEvents()`, som rører `t.events` alene — så fem
+   * destinasjoner ble stående igjen etter at noen hadde bedt appen glemme
+   * alt. Destinasjoner er det mest avslørende appen holder på: en rute sier
+   * hvor du pleier å reise fra, et gråmal sier hvor du skulle.
+   *
+   * BRYTEREN over gjør det ikke, og det er med vilje. «Hva appen husker» er
+   * den sju døgns loggen; å slå den av tømmer loggen. Denne knappen sier
+   * noe bredere, og da skal den gjøre noe bredere. */
   const clr = document.getElementById('mem-clear');
-  if (clr) clr.addEventListener('click', () => { clearEvents(); renderMemory(); });
+  if (clr) clr.addEventListener('click', () => {
+    clearEvents();
+    clearRecentDests();
+    renderMemory();
+  });
 }
 
 export function showPrefs() {

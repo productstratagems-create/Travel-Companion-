@@ -153,12 +153,24 @@ describe('the fixed navigation menu', () => {
     expect(order).toEqual([]);
   });
 
-  it('is hidden on the journey and walking screens, and nowhere else', () => {
-    expect(navHidden('track')).toBe(true);
+  /* UNDERVEIS ER TATT UT AV DENNE PÅSTANDEN, MED VILJE.
+   *
+   * Den bandt at menyen var skjult på underveis. Rapportert: «reisen må
+   * avsluttes via Avslutt for å kunne navigere» — og det var ikke en
+   * bivirkning, det var den eneste veien ut.
+   *
+   * Begrunnelsen var at menyen er «an invitation to leave a journey by
+   * accident». Den forvekslet å navigere bort med å miste reisen: `stopTracking`
+   * kalles bare fra `clearJny`, og chipen står på hver andre skjerm som ett
+   * trykk tilbake. `tests/navUnderveis.test.js` binder begge de to.
+   *
+   * `walk` beholder flagget — den skjermen er pensjonert. */
+  it('is hidden on the retired walking screen, and nowhere else', () => {
     expect(navHidden('walk')).toBe(true);
-    ['board', 'auto', 'saved', 'leisure', 'settings', 'prefs', 'selected'].forEach(v => {
-      expect(navHidden(v)).toBe(false);
-    });
+    ['board', 'auto', 'saved', 'leisure', 'settings', 'prefs', 'selected', 'track']
+      .forEach(v => {
+        expect(navHidden(v), v).toBe(false);
+      });
   });
 });
 

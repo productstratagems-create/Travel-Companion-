@@ -958,32 +958,60 @@ describe('_scrollRowIntoList', () => {
 // corridor came out solid and 4px whenever a metro line happened to have the
 // soonest departure: the same bus, two thicknesses, depending on what else
 // was selected.
+// v1.175.0 REWROTE THESE, AND THE REASON MATTERS.
+//
+// They bound `weight: 2` and `dashArray: '1 7'` — the literal numbers. Those
+// numbers were the REPORTED BUG: «Busslinjen har en veldig tynn og uleselig
+// strek.» A test that pins the defect is a test that defends it, and this one
+// would have had to be deleted to fix the screen.
+//
+// So they bind the CLAIM instead. The distinction between a bus and a train
+// is real and stays; what changed is that it is no longer said with thinness
+// and transparency, which read as «unimportant» rather than «uncertain».
 describe('_corridorStyle', () => {
-  it('draws a bus thin and dashed', () => {
-    const s = _corridorStyle('bus', '#e5006d');
-    expect(s.weight).toBe(2);
-    expect(s.dashArray).toBe('1 7');
-    expect(s.color).toBe('#e5006d');
+  it('draws a bus dashed, and a rail mode solid', () => {
+    expect(_corridorStyle('bus', '#e5006d').dashArray).toBeTruthy();
+    ['metro', 'tram', 'rail'].forEach(m => {
+      expect(_corridorStyle(m, '#f5a000').dashArray, m).toBeUndefined();
+    });
   });
 
-  it('draws rail modes solid and thicker', () => {
-    ['metro', 'tram', 'rail'].forEach(m => {
-      const s = _corridorStyle(m, '#f5a000');
-      expect(s.weight).toBe(4);
-      expect(s.dashArray).toBeUndefined();
-    });
+  /* THE PAYLOAD. The second line on the board is the other line you chose,
+   * and it is drawn at the same strength as the first. */
+  it('never draws a bus weaker than a rail line', () => {
+    const bus = _corridorStyle('bus', '#e5006d');
+    const rail = _corridorStyle('metro', '#f5a000');
+    expect(bus.weight).toBe(rail.weight);
+    expect(bus.opacity).toBe(rail.opacity);
+    expect(bus.lineCap).toBe(rail.lineCap);   // round in both — it was in one
+  });
+
+  it('passes the colour through untouched', () => {
+    expect(_corridorStyle('bus', '#e5006d').color).toBe('#e5006d');
   });
 
   // The bug in one line: the style must come from the mode it is given, never
   // from whichever line happened to be drawn first.
   it('depends on nothing but the mode it is handed', () => {
     expect(_corridorStyle('bus', '#000')).toEqual(_corridorStyle('bus', '#000'));
-    expect(_corridorStyle('bus', '#000').weight)
-      .not.toBe(_corridorStyle('metro', '#000').weight);
+    expect(_corridorStyle('bus', '#000').dashArray)
+      .not.toBe(_corridorStyle('metro', '#000').dashArray);
   });
 
   it('treats an unknown mode as rail rather than as a bus', () => {
-    expect(_corridorStyle(undefined, '#000').weight).toBe(4);
+    expect(_corridorStyle(undefined, '#000').dashArray).toBeUndefined();
+  });
+
+  /* A CHORD IS A GUESS, AND THAT IS THE AXIS THE OLD NUMBERS BELONGED ON.
+   * Not bus versus rail — alignment versus chord. */
+  it('spends less ink on a corridor it had to guess', () => {
+    const exact = _corridorStyle('bus', '#000');
+    const guess = _corridorStyle('bus', '#000', { exact: false });
+    expect(guess.opacity).toBeLessThan(exact.opacity);
+    // But still a real line. The guess is weaker, not invisible, and the
+    // width is what carries readability at phone size.
+    expect(guess.weight).toBe(exact.weight);
+    expect(guess.opacity).toBeGreaterThan(0.5);
   });
 });
 

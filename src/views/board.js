@@ -7,7 +7,7 @@ import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { walkInfo, walkMinsTo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
-import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache } from '../api/entur.js';
+import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
@@ -1039,6 +1039,40 @@ export function _legCorridorStops(leg, dirFallback) {
 }
 
 /**
+ * Which of a line's departures says WHEN, and which says WHERE.
+ *
+ * They were one pick, and that is why a selected line could be drawn as
+ * straight chords across a fjord while the line beside it followed its track.
+ *
+ * `perLine` kept the FIRST row per line — soonest first — and read the
+ * corridor off that same row. But the two are different facts:
+ *
+ *   when   the soonest departure. Only the first row can answer it.
+ *   where  the line's alignment. ANY row of that line answers it equally
+ *          well, because they all run the same track.
+ *
+ * And the rows do not all carry it. `tripGQL` asks for `pointsOnLink` per
+ * leg; `boardGQL` never asks for geometry at all, and `stopBoardExtras` adds
+ * rows straight from the stop board. So a line whose soonest departure came
+ * from the stop board lost its alignment to a row that never had one — while
+ * a trip row for the same line, three minutes later, was holding it.
+ *
+ * Soonest for the time, any for the shape. Pure, so «which row wins» is
+ * testable without a map.
+ *
+ * @param {object|undefined} prev  the entry built so far for this line
+ * @param {object} dep  the next departure of that line, in time order
+ */
+export function _corridorPick(prev, dep) {
+  const shape = legShape(dep && dep._legs && dep._legs[0]);
+  if (!prev) return { c: dep, shape };
+  // The departure never moves: a later row must not displace the row the
+  // board is counting down to. Only a MISSING shape is filled in.
+  if (!prev.shape && shape) prev.shape = shape;
+  return prev;
+}
+
+/**
  * Draws the corridors, and reports the line each vehicle should ride.
  *
  * @returns {Map<string, {path: Array, snapDist: number}>} keyed by line code.
@@ -1047,6 +1081,9 @@ export function _legCorridorStops(leg, dirFallback) {
  *   2's trains onto line 3's track, which is a worse error than the one being
  *   fixed here.
  */
+/** Last logged set of guessed lines, so the log is not rewritten every tick. */
+let _gjetningLogg = null;
+
 function renderLineRoute(visibleDeps, vehicles) {
   const paths = new Map();
   if (!_bMap) return paths;
@@ -1060,8 +1097,29 @@ function renderLineRoute(visibleDeps, vehicles) {
     const ln = c.serviceJourney && c.serviceJourney.line;
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
     if (!ln || !sjc || sjc.length < 2) return;
-    if (!_lineOn(ln.publicCode) || perLine.has(ln.publicCode)) return;
-    perLine.set(ln.publicCode, { c });
+    if (!_lineOn(ln.publicCode)) return;
+    perLine.set(ln.publicCode, _corridorPick(perLine.get(ln.publicCode), c));
+  });
+
+  /* AND IF NO ROW OF A LINE HAD ONE, ASK ENTUR FOR IT.
+   *
+   * Last resort, after `_corridorPick` has looked at every row the board
+   * already holds — «use what you have» before «fetch more». Asked once per
+   * service journey and cached for the session, misses included, because this
+   * function runs on every render tick and a per-tick request here is the
+   * storm v1.69.0 took out of this very code path.
+   *
+   * The redraw is what makes it visible: the answer lands after this render
+   * has finished, so without it the corridor would stay a chord until the
+   * next unrelated tick. Only a HIT redraws — a miss changes nothing on
+   * screen, and a redraw for nothing is a redraw that can loop. */
+  perLine.forEach((e) => {
+    if (e.shape) return;
+    const jid = e.c.serviceJourney && e.c.serviceJourney.id;
+    if (!jid) return;
+    const kjent = journeyShapeCached(jid);
+    if (kjent !== undefined) { if (kjent) e.shape = kjent; return; }
+    fetchJourneyShape(jid).then(pts => { if (pts && pts.length >= 2) renderBoard(); });
   });
   const match = perLine.values().next().value || null;
 
@@ -1146,7 +1204,10 @@ function renderLineRoute(visibleDeps, vehicles) {
   // the span a leg's own geometry covers — so the real alignment drops
   // straight in. No geometry (an old cached board, the no-destination path,
   // or an API that does not return it) falls back to the stop chain.
-  const shape = legShape(c._legs && c._legs[0]);
+  // The line's alignment, from whichever of its rows carries one — see
+  // _corridorPick. `match.shape` is `legShape(c._legs[0])` in the ordinary
+  // case and a sibling departure's in the case that used to lose it.
+  const shape = match.shape;
   // pointsOnLink covers the ridden leg only, so where the corridor has been
   // widened behind your stop there is no alignment to follow. Straight behind
   // you, true ahead of you — the honest split, rather than pretending either
@@ -1171,7 +1232,19 @@ function renderLineRoute(visibleDeps, vehicles) {
   const ln = c.serviceJourney.line;
   const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
   const isBus = _depMode(c) === 'bus';
-  const style = corridorStyle(_depMode(c), color);
+  /* THE LINES WE HAD TO GUESS, named out loud at the end of the render.
+   *
+   * «Si hva du ikke vet» — a chord corridor is a guess about the path, and a
+   * silent guess drawn beside an answer is the failure this release is about.
+   * The screenshot that reported it showed line 74 crossing the fjord at
+   * Hovedøya in a straight diagonal, ignoring every road, at the same moment
+   * line 3 followed its track. */
+  const gjetninger = [];
+
+  // `exact` is whether this corridor is the line's real alignment or a chain
+  // of straight chords between platform coordinates. Say it, rather than
+  // drawing a guess at the same strength as an answer.
+  const style = corridorStyle(_depMode(c), color, { exact: !!shape });
 
   // The array's identity has to survive a tick, or the path measurement
   // memoised in ui/path.js misses every second and we pay a full sweep of a
@@ -1199,7 +1272,15 @@ function renderLineRoute(visibleDeps, vehicles) {
   // already in `pts` via legShape, and it arrives with the board query we
   // make anyway. The guess is replaced by the answer, and the storm goes
   // with it.
-  if (_bRoutePts.length >= 2) L.polyline(_bRoutePts, style).addTo(_bRouteLayer);
+  // drawRoute AND NOT L.polyline, here and in the three below.
+  //
+  // `drawRoute` lays a wider stroke in `--map-ink` under the coloured one,
+  // and its own comment says why: «Without it a coloured line over a busy
+  // basemap loses its edges and reads as part of the map.» Every other map in
+  // the app — drawLeg, drawStopLine, auto-reise — went through it. The board
+  // called L.polyline directly in all four places, so the one map that is
+  // always on top of a dark basemap was the one map without edges.
+  if (_bRoutePts.length >= 2) drawRoute(_bRouteLayer, _bRoutePts, style);
 
   // Every other leg of the journey — changes and walks alike.
   //
@@ -1237,7 +1318,7 @@ function renderLineRoute(visibleDeps, vehicles) {
     const ll = leg.serviceJourney && leg.serviceJourney.line;
     const lc = ll && ll.presentation && ll.presentation.colour
       ? '#' + ll.presentation.colour : color;
-    L.polyline(lp, corridorStyle(leg.mode, lc)).addTo(_bRouteLayer);
+    drawRoute(_bRouteLayer, lp, corridorStyle(leg.mode, lc, { exact: !!legShapePts }));
     // First one wins, so a later leg on the same line never displaces the
     // primary corridor the board is actually about.
     if (ll && ll.publicCode && !paths.has(ll.publicCode)) {
@@ -1267,13 +1348,22 @@ function renderLineRoute(visibleDeps, vehicles) {
   const ridden = allStops.slice(Math.min(boardIdx, hi), hi + 1);
   const primaryEntry = paths.get(ln.publicCode);
   const drawn = new Map([[_corridorKey(ridden), primaryEntry]]);
-  [...perLine.values()].slice(1).forEach(({ c: oc }) => {
+  [...perLine.values()].slice(1).forEach(({ c: oc, shape: ocShape }) => {
     const ocLeg = (oc._legs && oc._legs[0]) || null;
-    const ocStops = _legCorridorStops(ocLeg, dir);
+    // `oc` AND NOT JUST `ocLeg`. A row that came from the stop board carries
+    // no legs at all (stopBoardExtras sets none), so this was
+    // `_legCorridorStops(null, dir)` — which returns `[]` at its first line,
+    // and the corridor fell out at `ocPts.length < 2` below. A line you had
+    // SELECTED was then missing from the map entirely, with nothing said.
+    //
+    // The stop chain was never absent: a departure and a leg both hold it at
+    // `.serviceJourney.estimatedCalls`, which is the one field this function
+    // reads. Only the leg was being handed over.
+    const ocStops = _legCorridorStops(ocLeg || oc, dir);
     // Their own alignment too, where it exists. These were drawn from stop
     // chords alone, so a secondary line's corridor cut every curve the
     // primary one follows — and its trains had nothing true to sit on.
-    const ocPts = legShape(ocLeg) || ocStops.map(st => [st.lat, st.lon]);
+    const ocPts = ocShape || ocStops.map(st => [st.lat, st.lon]);
     if (ocPts.length < 2) return;
     const ol = oc.serviceJourney.line;
     const key = _corridorKey(ocStops);
@@ -1291,12 +1381,20 @@ function renderLineRoute(visibleDeps, vehicles) {
     // bus corridor was drawn solid and 4px whenever a metro line happened to
     // have the soonest departure — the same bus, two thicknesses, depending
     // on what else was selected.
-    L.polyline(ocPts, corridorStyle(_depMode(oc), ocColor)).addTo(_bRouteLayer);
+    if (!ocShape) gjetninger.push(ol.publicCode);
+    drawRoute(_bRouteLayer, ocPts,
+      corridorStyle(_depMode(oc), ocColor, { exact: !!ocShape }));
     const entry = { path: _legPath(ocPts, key),
       snapDist: _depMode(oc) === 'bus' ? 25 : 50 };
     drawn.set(key, entry);
     if (ol && ol.publicCode && !paths.has(ol.publicCode)) paths.set(ol.publicCode, entry);
   });
+
+  if (!shape) gjetninger.unshift(ln.publicCode);
+  if (gjetninger.length && _gjetningLogg !== gjetninger.join()) {
+    _gjetningLogg = gjetninger.join();
+    logMsg('uten trasé, tegnet som rette strek: linje ' + gjetninger.join(', '), 'err');
+  }
 
   // THE JOURNEY'S TURNING POINTS, drawn last so nothing sits on top of them.
   //

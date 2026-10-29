@@ -6,7 +6,7 @@
  *
  * The same journey really was drawn three ways, and nobody chose it:
  *
- *   tavla            corridorStyle — a bus dotted and thin, rail solid
+ *   tavla            corridorStyle — a bus dashed, rail solid, same strength
  *   underveis        drawRoute at weight 4, SOLID WHATEVER THE MODE, plus a
  *                    fourth hand-rolled `1,8` for the legs still to come
  *   avgangsdetaljer  drawRoute at weight 4, solid, mode never consulted

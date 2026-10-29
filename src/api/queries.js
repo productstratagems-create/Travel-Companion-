@@ -437,3 +437,41 @@ export function inflightGQL(id, backMins, fwdMins) {
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + '}}}';
 }
+
+/**
+ * A line's own alignment, asked for by service journey.
+ *
+ * WHY THIS QUERY EXISTS. The board draws every selected line as a corridor.
+ * For the line the trip search answered with, the geometry arrives free —
+ * `tripGQL` asks for `pointsOnLink{points length}` on each leg. But a line
+ * can reach the board by a second road: `stopBoardExtras` adds rows straight
+ * from `boardGQL`, which asks for no geometry at all, and the trip search
+ * returns only twelve patterns, so a selected line may have no trip row.
+ *
+ * Reported with a screenshot: line 74 crossing the fjord at Hovedøya in a
+ * straight diagonal, ignoring every road, beside line 3 following its track.
+ *
+ * A LADDER, BECAUSE THE SCHEMA CANNOT BE READ FROM HERE. `api.entur.io` and
+ * `developer.entur.no` answer 403 through this sandbox's proxy. A third-party
+ * SDK typing puts `pointsOnLink` on `JourneyPattern` and on `Leg` — not on
+ * `ServiceJourney` — but that is a typing, not the schema. So both are asked,
+ * cheapest and most direct first, the rejection is remembered for the session,
+ * and the fallback (stop chords, drawn as a guess and named in the log) is
+ * what the board did before this existed.
+ *
+ * The rungs are deliberately separate requests. GraphQL fails a whole
+ * document on one unknown field, so asking for both at once would mean
+ * learning nothing when either is missing.
+ *
+ * @param {string} jid   service journey id
+ * @param {number} rung  0 = ServiceJourney.pointsOnLink, 1 = via journeyPattern
+ */
+export function shapeGQL(jid, rung) {
+  const inner = rung === 0
+    ? 'pointsOnLink{points}'
+    : 'journeyPattern{pointsOnLink{points}}';
+  return '{serviceJourney(id:"' + normJid(jid) + '"){' + inner + '}}';
+}
+
+/** How many rungs `shapeGQL` has. One name, so the loop cannot outgrow it. */
+export const SHAPE_RUNGS = 2;

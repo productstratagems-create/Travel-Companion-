@@ -135,11 +135,23 @@ describe('drawStopLine', () => {
 
 describe('corridorStyle', () => {
   // A bus on a road is a weaker claim about where the vehicle goes than a
-  // train on a track, and the app has said so since v1.30.0.
-  it('draws a bus dotted and thin', () => {
+  // train on a track, and the app has said so since v1.30.0. Since v1.175.0
+  // it says it with the DASH alone: `weight: 2, opacity: .55` was reported as
+  // «en veldig tynn og uleselig strek», and thinness reads as unimportant
+  // rather than uncertain.
+  it('draws a bus dashed, at a line\u2019s full strength', () => {
     const s = corridorStyle('bus', '#e60000');
     expect(s.dashArray).toBeTruthy();
-    expect(s.weight).toBeLessThan(4);
+    expect(s.weight).toBe(corridorStyle('metro', '#e60000').weight);
+    expect(s.opacity).toBe(corridorStyle('metro', '#e60000').opacity);
+  });
+
+  /* And not the walk's pattern. drawWalk warns against «a slightly different
+   * dash from a bus»; `1 7` against `0.1 10` was exactly that. */
+  it('is not a near-miss of the way a walk is drawn', () => {
+    const bus = corridorStyle('bus', '#e60000').dashArray.split(/[\s,]+/).map(Number);
+    const walk = '0.1 10'.split(' ').map(Number);
+    expect(bus[0]).toBeGreaterThan(walk[0] * 10);
   });
 
   it('draws rail-bound modes solid', () => {

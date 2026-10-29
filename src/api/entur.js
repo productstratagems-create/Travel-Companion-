@@ -1,7 +1,8 @@
 import config from '../config.js';
 import { enturFetch } from './http.js';
-import { arrBoardGQL, boardGQL, boardTruncated, nextBoardAsk, NEXT_DEPARTURE_HORIZON_MINS, inflightGQL, journeyGQL, normJid, trackGQL, tripGQL } from './queries.js';
+import { arrBoardGQL, boardGQL, boardTruncated, nextBoardAsk, NEXT_DEPARTURE_HORIZON_MINS, inflightGQL, journeyGQL, normJid, shapeGQL, SHAPE_RUNGS, trackGQL, tripGQL } from './queries.js';
 import { quayLatLon } from './adapt.js';
+import { decodePolyline } from '../ui/polyline.js';
 import { addSituation, collectStopSituations } from './situations.js';
 import { logMsg, setDot } from '../ui/log.js';
 import { noteLookbackLost } from './diagnose.js';
@@ -850,4 +851,93 @@ export function fetchInflight(stopId, backMins, fwdMins) {
       return (sp && sp.estimatedCalls) || [];
     })
     .catch(() => []);
+}
+
+/* ── A LINE'S ALIGNMENT, WHEN THE TRIP SEARCH DID NOT BRING IT ───────────────
+ *
+ * Asked at most once per service journey and then remembered, including the
+ * misses: a corridor is redrawn on every render tick, and a per-tick request
+ * is the storm v1.69.0 removed from exactly this code path.
+ *
+ * `null` is a real answer — «asked, and there is none» — and is cached as
+ * such. The map then draws stop chords, says so in the log, and spends less
+ * ink on them, which is what `corridorStyle({ exact: false })` is for.
+ */
+const _shapeCache = new Map();   // jid → Array<[lat, lon]> | null
+const _shapeInFlight = new Map();  // jid → Promise
+
+/**
+ * Which rung the schema answered on, remembered for the session.
+ *
+ * Not for ever: a reload probes again, so the day Entur adds the field this
+ * starts working without anyone touching the code. Same shape, and the same
+ * reason, as `_perLineRejected` in fetchBoard.
+ */
+let _shapeRung = 0;
+/** Set once every rung has been refused, so no line pays for the ladder twice. */
+let _shapeUnsupported = false;
+
+/** The cached answer for a journey, or undefined if it has never been asked. */
+export function journeyShapeCached(jid) {
+  return _shapeCache.get(normJid(jid));
+}
+
+/** For tests: forget everything learned, including the rung. */
+export function _resetShapeCache() {
+  _shapeCache.clear();
+  _shapeInFlight.clear();
+  _shapeRung = 0;
+  _shapeUnsupported = false;
+}
+
+/**
+ * @param {string} jid
+ * @returns {Promise<Array|null>} decoded points, or null when there are none
+ */
+export function fetchJourneyShape(jid) {
+  const id = normJid(jid);
+  if (!id) return Promise.resolve(null);
+  if (_shapeCache.has(id)) return Promise.resolve(_shapeCache.get(id));
+  if (_shapeInFlight.has(id)) return _shapeInFlight.get(id);
+  if (_shapeUnsupported) return Promise.resolve(null);
+
+  const ask = (rung) => enturFetch(config.api.journeyPlanner, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: shapeGQL(id, rung) }),
+  })
+    .then(r => (r && r.ok ? r.json() : null))
+    .then(j => {
+      // An unknown field fails the whole document, so an error here means
+      // «this rung does not exist», not «this journey has no shape».
+      if (!j || (!j.data && j.errors)) {
+        if (rung + 1 < SHAPE_RUNGS) {
+          logMsg('trasé: felt avvist, prøver neste vei (' + (rung + 2) + '/' + SHAPE_RUNGS + ')', 'err');
+          return ask(rung + 1);
+        }
+        _shapeUnsupported = true;
+        logMsg('trasé: Entur gir ingen linjegeometri her — tegner rette strek', 'err');
+        return null;
+      }
+      const sj = j.data && j.data.serviceJourney;
+      const pol = sj && ((sj.pointsOnLink && sj.pointsOnLink.points)
+        || (sj.journeyPattern && sj.journeyPattern.pointsOnLink
+            && sj.journeyPattern.pointsOnLink.points));
+      if (!pol) return null;
+      // Same precision as every other pointsOnLink in this app (adapt.js:37).
+      const pts = decodePolyline(pol, 5);
+      if (pts.length < 2) return null;
+      if (_shapeRung !== rung) {
+        _shapeRung = rung;
+        logMsg('trasé: ' + pts.length + ' punkter (vei ' + (rung + 1) + ')', 'ok');
+      }
+      return pts;
+    })
+    .catch(() => null);
+
+  const p = ask(_shapeRung)
+    .then(pts => { _shapeCache.set(id, pts); return pts; })
+    .finally(() => _shapeInFlight.delete(id));
+  _shapeInFlight.set(id, p);
+  return p;
 }

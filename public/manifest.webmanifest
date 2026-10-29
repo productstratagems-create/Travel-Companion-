@@ -1,6 +1,6 @@
 {
-  "name": "T-bane — reisefølge for Oslo",
-  "short_name": "T-bane",
+  "name": "__NAVN_LANGT__",
+  "short_name": "__NAVN__",
   "description": "Ikke bare når banen går, men når du må gå — og hva som venter deg framme.",
   "lang": "nb",
   "dir": "ltr",
@@ -55,7 +55,7 @@
       "sizes": "2400x1260",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "T-bane — reisefølge for Oslo"
+      "label": "__NAVN_LANGT__"
     }
   ]
 }

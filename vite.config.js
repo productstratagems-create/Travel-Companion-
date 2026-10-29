@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { readFileSync } from 'fs';
-import originPlugin from './scripts/injectOrigin.mjs';
+import faktaPlugin from './scripts/injectFakta.mjs';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf8'));
 
@@ -9,7 +9,7 @@ export default defineConfig({
   // Appens adresse bor i `src/origin.js`. De statiske filene bærer merket
   // `%ORIGIN%` og får den satt inn her — også de under `public/`, som Vite
   // ellers kopierer ordrett og utenom enhver transformasjon.
-  plugins: [originPlugin()],
+  plugins: [faktaPlugin()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },

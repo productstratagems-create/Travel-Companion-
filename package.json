@@ -1,6 +1,6 @@
 {
   "name": "travel-companion",
-  "version": "1.173.0",
+  "version": "1.174.0",
   "private": true,
   "license": "MIT",
   "scripts": {
@@ -11,7 +11,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "icons": "node scripts/make-icons.mjs"
   },
   "devDependencies": {
     "jsdom": "^30.0.1",

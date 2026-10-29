@@ -1,25 +1,103 @@
 import { fetchMedFrist } from './http.js';
-// Open-Meteo: free, no API key, no User-Agent requirement, browser-safe
+import { logMsg } from '../ui/log.js';
+
+/**
+ * Open-Meteo: free, no API key, no User-Agent requirement, browser-safe.
+ *
+ * OG DET VALGET ER IKKE EN SMAKSSAK — det er det eneste som virker herfra.
+ *
+ * MET Norway (api.met.no) er den norske kilden, og den er utforsket: deres
+ * egen HOWTO sier at en forespørsel uten en identifiserende `User-Agent` med
+ * kontaktinfo får **403 Forbidden**, og at nettleser-JavaScript IKKE KAN
+ * SETTE DEN — nettleseren sender `Origin` i stedet. Den vanlige løsningen er
+ * en liten server-proxy som setter headeren og cacher.
+ *
+ * Denne appen har ingen server, med vilje, og `public/privacy.html` lover det
+ * offentlig. Så MET direkte er ikke et teknisk valg, det er et produktvalg om
+ * en publisert forpliktelse.
+ *
+ * HVA SOM DA BLE VALGT BORT, så ingen trenger å utrede dette på nytt:
+ *
+ *   Nowcast      radarbasert nedbør, ~2 min oppløsning, 90 min fram. Det er
+ *                svaret på «blir jeg våt på de fjorten minuttene jeg går»,
+ *                og ingen annen kilde har det for Norden.
+ *   MET Alerts   offisielle farevarsler. Storm, is og flom er det som
+ *                faktisk stopper kollektivtrafikken.
+ *
+ * Begge krever en proxy. Begge er verdt å ta den dagen «ingen server» blir
+ * en avveining framfor et løfte.
+ *
+ * MEN MODELLEN FÅR VI LIKEVEL. Open-Meteo bruker MET Nordic som regionmodell
+ * for Norge og Skandinavia, så tallene under er MET sine — servert fra en
+ * vert nettleseren får snakke med.
+ */
 const OM = 'https://api.open-meteo.com/v1/forecast';
+
+/**
+ * MET Nordic, bedt om VED NAVN.
+ *
+ * Uten denne parameteren velger Open-Meteo «best match», og at best match
+ * for Oslo er MET Nordic er en ANTAKELSE om en annen tjenestes valg — den
+ * kan endres uten at noe her sier fra, og da ville appen stille byttet
+ * værkilde. Det er nøyaktig den feilformen dette repoet har rettet rundt
+ * tjuefem ganger: et faktum som står to steder og driver fra hverandre, der
+ * det ene stedet er noen andres kode.
+ *
+ * STIGEN FINNES FORDI NAVNET IKKE KAN SJEKKES HERFRA. Sandkassen når ikke
+ * api.open-meteo.com. Blir modellnavnet avvist, spørres det om igjen uten —
+ * altså nøyaktig dagens oppførsel — framfor å miste været.
+ */
+export const MODELL = 'metno_seamless';
 const CACHE_MS = 10 * 60 * 1000;
 const _cache = new Map();
+let _modellLogget = false;
+
+/** For prøvene. */
+export function _resetVær() { _cache.clear(); _modellLogget = false; }
 
 export function fetchWeather(lat, lon) {
   const key = lat.toFixed(2) + ',' + lon.toFixed(2);
   const hit = _cache.get(key);
   if (hit && Date.now() - hit.ts < CACHE_MS) return Promise.resolve(hit.data);
 
-  const url = OM
+  const url = (modell) => OM
     + '?latitude=' + lat.toFixed(4)
     + '&longitude=' + lon.toFixed(4)
     + '&current=temperature_2m,apparent_temperature,precipitation,wind_speed_10m,weather_code,is_day'
     + '&hourly=temperature_2m,apparent_temperature,precipitation,precipitation_probability,weather_code,wind_speed_10m'
     + '&daily=sunrise,sunset'
     + '&forecast_hours=12'
-    + '&wind_speed_unit=ms&timezone=auto';
+    + '&wind_speed_unit=ms&timezone=auto'
+    // SIST, ETTER `?`. Første utgave la den foran spørsmålstegnet og bygde
+    // `.../forecast&models=…?latitude=…` — en adresse som ikke er en
+    // adresse. Ingen test falt, fordi ingenting bandt URL-en; det gjør
+    // `tests/vaermodell.test.js` nå.
+    + (modell ? '&models=' + modell : '');
 
-  return fetchMedFrist(url)
-    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  /* Open-Meteo EKKOER IKKE modellnavnet i svaret.
+   *
+   * Så appen kan si hva den BA OM, og ingenting mer. «MET Nordic (bedt om)»
+   * og «MET Nordic (bekreftet)» er ikke samme setning, og å skrive den andre
+   * ville vært å gjenta vår egen konstant tilbake til oss selv og kalle det
+   * et bevis. Det eneste tjenesten faktisk forteller oss er om navnet ble
+   * AVVIST — og det er det stigen lytter etter. */
+  const spør = (modell) => fetchMedFrist(url(modell))
+    .then(r => {
+      if (!r.ok) {
+        if (modell) {
+          logMsg('vær: modellen «' + modell + '» avvist — bruker Open-Meteos valg', 'err');
+          return spør(null);
+        }
+        throw new Error(r.status);
+      }
+      if (modell && !_modellLogget) {
+        _modellLogget = true;
+        logMsg('vær: ber om ' + modell + ' (MET Nordic)', 'ok');
+      }
+      return r.json();
+    });
+
+  return spør(MODELL)
     .then(j => {
       const c = j.current;
       if (!c) throw new Error('empty');

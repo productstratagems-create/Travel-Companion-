@@ -54,6 +54,31 @@ describe('fetchMedFrist', () => {
     }
   });
 
+  /* OG PORTEN FORAN DEM. v1.170.0 ga de tre klientene frist og glemte
+   * `enturFetch` — oppslaget som må lykkes FØR været og stedene spørres.
+   * Henger den, står begge seksjonene på «henter …» for alltid, bare ett
+   * hakk lenger opp enn feilen jeg trodde jeg hadde rettet. */
+  it('gjelder også Entur-oppslaget som kommer før dem', async () => {
+    const { enturFetch } = await import('../src/api/http.js');
+    const spion = vi.fn(async () => ({ ok: true }));
+    vi.stubGlobal('fetch', spion);
+    await enturFetch('https://api.entur.io/x');
+    const opts = spion.mock.calls[0][1];
+    expect(opts.signal).toBeInstanceOf(AbortSignal);
+    expect(opts.headers['ET-Client-Name']).toBeTruthy();
+  });
+
+  // Men en kaller med sin EGEN avbryter beholder den — søkefeltene avbryter
+  // forrige tastetrykk, og det skal de fortsette med.
+  it('lar en egen avbryter vinne', async () => {
+    const { enturFetch } = await import('../src/api/http.js');
+    const spion = vi.fn(async () => ({ ok: true }));
+    vi.stubGlobal('fetch', spion);
+    const egen = new AbortController();
+    await enturFetch('https://api.entur.io/x', { signal: egen.signal });
+    expect(spion.mock.calls[0][1].signal).toBe(egen.signal);
+  });
+
   it('lar vær og steder faktisk bruke den', () => {
     for (const f of ['src/api/weather.js', 'src/api/places.js']) {
       const t = fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');

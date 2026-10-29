@@ -24,6 +24,7 @@ import { fetchNearbyStops, _resetNearbyCache } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, makeJourneyPointIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { livePosFeed, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
+import { belegg, beleggTekst, fraEntur } from '../api/belegg.js';
 import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby, drawLeg, drawJourneyPoints } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _headingDeg, anchorDistances, pointAtDistance, projectOnPath } from '../ui/path.js';
@@ -2405,23 +2406,63 @@ function renderVehicleMarkers(vehicles, paths) {
   });
 }
 
-const OCC_LABELS = ['', 'svært lite folk', 'lite folk', 'noen seter', 'travelt', 'fullt'];
 const _PIP = '<svg class="pp" viewBox="0 0 7 10" aria-hidden="true"><circle cx="3.5" cy="2.5" r="1.75"/><path d="M0.5 10v-1C0.5 7 1.8 6 3.5 6S6.5 7 6.5 9V10z"/></svg>';
-function occPip(level) {
-  return '<span class="occ-pip' + (level ? ' pc' + level : ' pnd') + '" aria-label="'
-    + (level ? OCC_LABELS[level] : 'ingen data') + '">' + _PIP + '</span>';
+
+/**
+ * Merket, og hvem som sa det.
+ *
+ * Tok et bart tall, og tegnet derfor et anslag og en måling likt: samme
+ * klasse `pc5`, samme `aria-label` «fullt». En leser kunne ikke vite om
+ * tallet kom fra Entur eller fra en poengsum av klokkeslett og stoppnavn, og
+ * en skjermleser kunne det heller ikke.
+ *
+ * Tar nå dommen fra `belegg.js`, og avleder BÅDE klassen og etiketten av
+ * `kind`. `.pest` er det prikkete omrisset et anslag får i CSS-en.
+ */
+function occPip(b) {
+  const v = b || { kind: 'vet-ikke', nivå: null };
+  const t = beleggTekst(v);
+  const kl = 'occ-pip' + (v.nivå ? ' pc' + v.nivå : ' pnd')
+    + (v.kind === 'anslag' ? ' pest' : '');
+  return '<span class="' + kl + '" aria-label="' + esc(t.fullt) + '">' + _PIP + '</span>';
 }
-function legOccLevel(l) {
-  const o = l.fromEstimatedCall && l.fromEstimatedCall.occupancyStatus;
-  if (o === 'empty')                                     return 1;
-  if (o === 'manySeatsAvailable')                        return 2;
-  if (o === 'fewSeatsAvailable')                         return 3;
-  if (o === 'standingRoomOnly')                          return 4;
-  if (o === 'full' || o === 'crushedStandingRoomOnly')   return 5;
-  const fe = l.fromEstimatedCall;
-  if (fe && fe.expectedDepartureTime && fe.aimedDepartureTime &&
-      new Date(fe.expectedDepartureTime) - new Date(fe.aimedDepartureTime) > 90000) return 4;
-  return null;
+
+/**
+ * En etappes belegning.
+ *
+ * Hadde sin EGEN kopi av Enturs tabell og sin egen fallback — «forsinket mer
+ * enn 90 sekunder ⇒ travelt» — mens radene gjettet med fire signaler. Samme
+ * skjerm, to regler, og ingen av dem merket som gjetning.
+ *
+ * Tabellen er nå `fraEntur`. Forsinkelsen blir værende som signal, fordi den
+ * sier noe ekte: et kjøretøy som henger etter har som regel stått lenge på
+ * holdeplassene bak deg. Men den er et ANSLAG, og sier det nå.
+ */
+/**
+ * Enturs belegningssvar, fra den av to kilder som har det.
+ *
+ *   reiseplanleggeren   `occupancyStatus` på avgangen (queries.js:158, 319)
+ *   sanntidsstrømmen    samme felt på kjøretøyet, v2 (queries.js vehiclesGQL)
+ *
+ * Reiseplanleggeren først, fordi den gjelder DIN påstigning; kjøretøyets
+ * tall er vognas tilstand akkurat nå, som er det nest beste svaret og
+ * uansett bedre enn en poengsum av klokkeslett og stoppnavn.
+ *
+ * Begge er målinger. Det er bare NÅR de gjelder som skiller dem, og det er
+ * for fin en forskjell til å vises på et merke som er sju piksler bredt.
+ */
+function _occStatus(c, pos) {
+  if (c && c.occupancyStatus) return c.occupancyStatus;
+  const jid = c && c.serviceJourney && c.serviceJourney.id;
+  const v = jid && pos && pos.get ? pos.get(jid) : null;
+  return (v && v.occupancyStatus) || null;
+}
+
+function _legOcc(l) {
+  const fe = (l && l.fromEstimatedCall) || null;
+  const forsinket = fe && fe.expectedDepartureTime && fe.aimedDepartureTime
+    && new Date(fe.expectedDepartureTime) - new Date(fe.aimedDepartureTime) > 90000;
+  return belegg({ status: fe && fe.occupancyStatus, anslag: forsinket ? 4 : null });
 }
 
 function renderWalkSummary() {
@@ -2980,17 +3021,22 @@ export function renderBoard() {
       && (rcls !== 'r-now' || !urgentShown);
     if (rcls === 'r-now') urgentShown = true;
 
-    // Occupancy: API primary, multi-signal heuristic fallback
-    const occ = c.occupancyStatus;
+    /* BELEGNING: Enturs svar først, ellers appens eget ANSLAG — merket.
+     *
+     * Den fire-signals poenggivingen under er ikke kastet. Den sier noe
+     * ekte om hvordan Oslo pleier å være, og den er bedre enn ingenting
+     * når man velger mellom denne avgangen og neste. Det som var galt var
+     * at resultatet ble tegnet umulig å skille fra et målt tall: samme
+     * klasse, samme `aria-label` «fullt», enten det kom fra Entur eller
+     * fra klokka.
+     *
+     * Enturs egen tabell er flyttet til `belegg.js` — den sto her OG i
+     * `legOccLevel`, med hver sin ulike fallback bak seg. */
+    const occ = _occStatus(c, _livePos);
     const _prev = _linePrev.get(lc);
     _linePrev.set(lc, c);
-    let occLevel = null;
-    if      (occ === 'empty')                                          occLevel = 1;
-    else if (occ === 'manySeatsAvailable')                             occLevel = 2;
-    else if (occ === 'fewSeatsAvailable')                              occLevel = 3;
-    else if (occ === 'standingRoomOnly')                               occLevel = 4;
-    else if (occ === 'full' || occ === 'crushedStandingRoomOnly')      occLevel = 5;
-    else {
+    let anslag = null;
+    if (fraEntur(occ) == null) {
       let score = 0;
 
       // Signal: stop sequence + prior-stop delay accumulation
@@ -3043,14 +3089,17 @@ export function renderBoard() {
         }
       }
 
-      if      (score >= 4)  occLevel = 5;
-      else if (score >= 1)  occLevel = 4;
-      else if (score <= -3) occLevel = 1;
-      else if (score <= -1) occLevel = 2;
+      if      (score >= 4)  anslag = 5;
+      else if (score >= 1)  anslag = 4;
+      else if (score <= -3) anslag = 1;
+      else if (score <= -1) anslag = 2;
     }
 
-    // Skip local heuristic occupancy for trains — patterns don't apply
-    if (isRail) occLevel = null;
+    // Skip local heuristic occupancy for trains — patterns don't apply.
+    // Enturs eget svar står: det er en måling, ikke et mønster, og gjelder
+    // like fullt for tog. Det var bare GJETNINGEN som ikke gjorde det.
+    if (isRail) anslag = null;
+    const belegning = belegg({ status: occ, anslag });
 
     // Journey duration for trains (dep→arr)
     const railDuration = (isRail && arrT)
@@ -3067,10 +3116,10 @@ export function renderBoard() {
           const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
           const lcode = (ll && ll.publicCode) || '?';
           return '<span class="line-badge" style="background:' + bg + '">' + lcode + '</span>'
-            + occPip(legOccLevel(l));
+            + occPip(_legOcc(l));
         }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
       : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>'
-        + occPip(occLevel);
+        + occPip(belegning);
 
     const xferCount = c._transfers && c._transfers.length;
 
@@ -3512,3 +3561,8 @@ function _fetchBoard() {
 window.tapDepId = (id) => { const dep = _depMap.get(id); if (dep) window.tap(dep); };
 window._startBoard = startBoard;
 window._fetchBoard = _fetchBoard;
+
+/* For prøvene: merket og etappedommen. Begge er det KALLESTEDET som gjorde
+ * at et anslag og en måling ble tegnet likt, og det er kallestedet som må
+ * bindes — ikke bare `belegg.js`. */
+export { occPip as _occPip, _legOcc, _occStatus };

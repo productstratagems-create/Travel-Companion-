@@ -395,11 +395,28 @@ export function journeyGQL(jid) {
  * position cannot be tied to the train the user is waiting for, and an
  * untied position is worse than none.
  */
-export function vehiclesGQL(lineRef) {
+/**
+ * @param {string} lineRef
+ * @param {boolean} [rikt]  be også om occupancyStatus og delay
+ *
+ * `rikt` ER ET PROBE-FLAGG, ikke en innstilling.
+ *
+ * `occupancyStatus` er svaret på det `board.js` ellers GJETTER seg til med en
+ * poengsum av klokkeslett, stoppnavn og ukedag. `delay` er den samme
+ * opplysningen reiseplanleggeren alt gir, men fra kjøretøyet selv.
+ *
+ * Begge er oppgitt å ligge på v2 av denne tjenesten. Oppgitt — ikke sjekket:
+ * sandkassen når ikke api.entur.io, og et ukjent felt feller HELE dokumentet
+ * med `{errors, data:null}` på HTTP 200. Derfor spørres det med stige, og et
+ * avslag huskes for økta, slik `_perLineRejected` og `_shapeUnsupported` alt
+ * gjør det.
+ */
+export function vehiclesGQL(lineRef, rikt) {
   return '{vehicles(lineRef:"' + lineRef + '"){'
     + 'vehicleId lastUpdated bearing speed '
     + 'location{latitude longitude} '
     + 'line{lineRef} '
+    + (rikt ? 'occupancyStatus delay ' : '')
     + 'serviceJourney{id}'
     + '}}';
 }

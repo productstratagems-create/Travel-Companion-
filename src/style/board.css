@@ -118,6 +118,16 @@
 .occ-pip.pc3{color:var(--warn)}
 .occ-pip.pc4{color:var(--urgent)}
 .occ-pip.pc5{color:#f87171}
+/* ANSLAG: samme farge, hult merke.
+ *
+ * Merket er 7×10 px. På den flata er en prikket kant usynlig og lavere
+ * dekkevne kolliderer med `.pnd`, som alt betyr «ingen data» — to ulike
+ * tilstander ville sett like ut. Fylt mot hult er den ene forskjellen som
+ * fortsatt leses på sju piksler, og den er målt i scratchpad/pipProbe.mjs,
+ * ikke antatt. Fargen blir stående, for nivået er det samme; det er KILDEN
+ * som er en annen. */
+.occ-pip.pest .pp{fill:none;stroke:currentColor;stroke-width:0.9;
+  stroke-linejoin:round;paint-order:stroke}
 
 .dep-spor{
   text-align:center;

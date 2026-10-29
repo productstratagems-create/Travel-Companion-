@@ -1,6 +1,6 @@
 import { haver } from '../geo.js';
 import { ET_CLIENT_NAME } from './http.js';
-import { discoverSystems, MOBILITY_BASE as BASE } from './mobility.js';
+import { discoverSystems, hentNær, NÆR_M, MOBILITY_BASE as BASE } from './mobility.js';
 import { logMsg } from '../ui/log.js';
 
 /**
@@ -43,6 +43,21 @@ export function fetchScooters(lat, lon) {
   const now = Date.now();
   if (_cache && now - _cache.ts < 30000) return Promise.resolve(_rank(_cache.data, lat, lon));
 
+  /* GEOSPØRRINGEN FØRST, HELE FEEDER SOM FALLBACK.
+   *
+   * `hentNær` gir `null` når den ikke kan brukes, og da går alt videre som
+   * før — det er den forventede stien til noen har prøvd GraphQL-grensesnittet
+   * mot det ekte API-et. */
+  return hentNær(lat, lon).then(nær => {
+    if (nær) {
+      _cache = { ts: Date.now(), data: nær };
+      return _rank(nær, lat, lon);
+    }
+    return _viaFeeder(lat, lon);
+  });
+}
+
+function _viaFeeder(lat, lon) {
   return discoverSystems().then(found => {
     // A docked scheme is a city-bike system and belongs to bysykkel.js; this
     // file draws the free-floating vehicles.
@@ -108,7 +123,11 @@ export function vehicleCharge(v) {
 export function _rank(vehicles, lat, lon) {
   return vehicles
     .filter(v => !v.is_reserved && !v.is_disabled && v.lat && v.lon
-      && Math.round(haver(lat, lon, v.lat, v.lon)) <= 1000)
+      // NÆR_M og ikke 1000. Geospørringen ber om nøyaktig denne radiusen, og
+      // sto tallet to steder ville de drevet fra hverandre: enten hull i
+      // kartet (hentet mindre enn vi viser) eller hele poenget borte (hentet
+      // mer enn vi trenger). Ett navn, resten avledet.
+      && Math.round(haver(lat, lon, v.lat, v.lon)) <= NÆR_M)
     .map(v => {
       const { pct, rangeM } = vehicleCharge(v);
       return {

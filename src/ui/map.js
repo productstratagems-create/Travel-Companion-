@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import { corridorStyle } from './korridor.js';
 import { addCompass } from './mapCompass.js';
 import { onThemeChange, tokens } from './themeTokens.js';
 import { makeRouteStopIcon, makeJourneyPointIcon } from './mapIcons.js';
@@ -227,24 +228,10 @@ export function drawWalk(layer, latlngs) {
   });
 }
 
-/**
- * How a transit corridor is drawn, per mode.
- *
- * Moved here from board.js, where it was exported but lived among three
- * hundred lines of corridor clipping. It is a pure lookup about how a LINE
- * looks, which belongs beside the function that draws lines — and auto-reise
- * now needs the same answer. Two tables for one idea is the failure shape
- * this codebase has found around a dozen times; board.js re-exports it under
- * its old name so nothing there has to change.
- *
- * A bus is dotted and thin, rail-bound modes are solid: a bus on a road is a
- * weaker claim about where the vehicle actually goes than a train on a track.
- */
-export function corridorStyle(mode, color) {
-  return mode === 'bus'
-    ? { color, weight: 2, opacity: 0.55, dashArray: '1 7', interactive: false }
-    : { color, weight: 4, opacity: 0.7, lineCap: 'round', interactive: false };
-}
+/* corridorStyle bor i `korridor.js` — en bladmodul uten importer, slik at
+ * prøven i Node kan lese den ene definisjonen framfor å kopiere tallene. */
+export { corridorStyle } from './korridor.js';
+
 
 /**
  * Is there room to draw a marker at every stop?
@@ -302,7 +289,7 @@ export function stopsReadable(points, minGap) {
  * Reported: «maps across the app look and feel different». The same journey
  * really was drawn three ways, and the difference was not a choice anyone made:
  *
- *   tavla        corridorStyle — a bus dotted and thin, rail solid and thick
+ *   tavla        corridorStyle — a bus dashed, rail solid, both full strength
  *   underveis    drawRoute at weight 4, solid, WHATEVER THE MODE — plus a
  *                fourth hand-rolled style, `1,8` at opacity .35, for the legs
  *                after the one you are riding

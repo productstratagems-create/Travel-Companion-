@@ -4,9 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<!-- Hjemskjerm-etiketten SIES, ikke arves. Uten denne gjetter iOS fra
+     manifestets short_name — og et navn som arves er et navn ingen har
+     bestemt. Det brekker stille den dagen short_name endres av en annen
+     grunn. -->
+<meta name="apple-mobile-web-app-title" content="__NAVN__">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f172a">
-<title>T-bane — sanntid for Oslo og Viken</title>
+<title>__NAVN_TITTEL__</title>
 <meta name="description" content="Sanntids avganger for T-bane, buss, trikk og tog i Oslo og Viken — når du må gå hjemmefra, hele traseen på kartet, og hva som venter deg framme.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
@@ -17,9 +22,9 @@
      is what a shared board looked like before v1.47.0. The card itself is
      built by scripts/make-shots.mjs and checked in. -->
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="T-bane">
+<meta property="og:site_name" content="__NAVN__">
 <meta property="og:url" content="__ORIGIN__/">
-<meta property="og:title" content="T-bane — sanntid for Oslo og Viken">
+<meta property="og:title" content="__NAVN_TITTEL__">
 <meta property="og:description" content="Ikke bare når banen går, men når du må gå — og hva som venter deg framme.">
 <meta property="og:image" content="__ORIGIN__/shots/og.png">
 <meta property="og:image:width" content="2400">
@@ -27,7 +32,7 @@
 <meta property="og:image:alt" content="Avgangstavle med neste avgang om tre minutter, linjen tegnet på kartet.">
 <meta property="og:locale" content="nb_NO">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="T-bane — sanntid for Oslo og Viken">
+<meta name="twitter:title" content="__NAVN_TITTEL__">
 <meta name="twitter:description" content="Ikke bare når banen går, men når du må gå — og hva som venter deg framme.">
 <meta name="twitter:image" content="__ORIGIN__/shots/og.png">
 <script>

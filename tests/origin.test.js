@@ -32,7 +32,7 @@ const HOST = 'productstratagems-create.github.io';
 /* TO SLAGS FILER, OG DE BEHANDLES ULIKT MED VILJE.
  *
  * Det som BYGGES — `index.html` og alt under `public/` — bærer merket
- * `__ORIGIN__` og får adressen satt inn av `scripts/injectOrigin.mjs`. Der
+ * `__ORIGIN__` og får adressen satt inn av `scripts/injectFakta.mjs`. Der
  * er en literal forbudt: den ville vært en andre sannhet i en fil som alt
  * får svaret servert.
  *
@@ -50,7 +50,7 @@ const BUNDET = ['README.md', 'docs/omtale.md'];
 
 const TILLATT = new Set([
   EIER,
-  'scripts/injectOrigin.mjs',  // merkene og verdiene deres
+  'scripts/injectFakta.mjs',  // merkene og verdiene deres
   'tests/origin.test.js',      // denne fila, som binder det hele
 ]);
 

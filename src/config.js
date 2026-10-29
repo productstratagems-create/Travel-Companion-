@@ -17,6 +17,14 @@ export default {
      * `vehicles.js` sier i loggen hvilket trinn som svarte. */
     vehicles: 'https://api.entur.io/realtime/v2/vehicles/graphql',
     vehiclesFallback: 'https://api.entur.io/realtime/v1/vehicles/graphql',
+    /* Og de samme posisjonene som en strøm.
+     *
+     * En nettleser kan ikke sette HTTP-hoder på en WebSocket, så
+     * `ET-Client-Name` må ligge i `connection_init`-nyttelasten og i
+     * spørringsparameteren — begge gjetninger. Derfor er polling ikke en
+     * sikkerhetsmargin her, men den forventede stien til noen har prøvd
+     * dette på en ekte tur. Se `src/api/strom.js`. */
+    vehiclesStream: 'wss://api.entur.io/realtime/v2/vehicles/subscriptions',
     // Geoapify key. Set via VITE_GEOAPIFY_KEY; CI injects it at build time.
     //
     // IT IS NOT A SECRET, and cannot be made one: Vite inlines the value, so

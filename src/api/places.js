@@ -1,4 +1,5 @@
 import { haver } from '../geo.js';
+import { fetchMedFrist } from './http.js';
 import config from '../config.js';
 
 const CACHE_MS = 10 * 60 * 1000;
@@ -249,7 +250,7 @@ function _fetchGeoapify(lat, lon, catStr, limit, radius) {
     + '&limit=' + Math.min(limit * 4, 50)
     + '&apiKey=' + config.api.geoapifyKey;
 
-  return fetch(url)
+  return fetchMedFrist(url)
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(json => (json.features || [])
       .filter(f => f.properties && f.properties.name)
@@ -344,7 +345,7 @@ function _fetchOverpass(lat, lon, catStr, radius) {
   if (!clauses.length) return Promise.resolve([]);
   const ql = '[out:json][timeout:20];(' + clauses.join('') + ');out center tags 60;';
 
-  return fetch(_OVERPASS_URL, {
+  return fetchMedFrist(_OVERPASS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: 'data=' + encodeURIComponent(ql),

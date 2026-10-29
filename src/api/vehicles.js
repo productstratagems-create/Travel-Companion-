@@ -2,6 +2,7 @@ import config from '../config.js';
 import { enturFetch } from './http.js';
 import { vehiclesGQL } from './queries.js';
 import { logMsg } from '../ui/log.js';
+import { åpneStrøm, strømLeverer, _resetStrøm } from './strom.js';
 
 /**
  * Live vehicle positions, keyed by service journey.
@@ -180,6 +181,23 @@ const _at   = new Map();   // lineRef -> da vi sist spurte
 export function livePosFeed(lineRef, onUpdate) {
   if (!lineRef) return new Map();
   const now = Date.now();
+
+  /* STRØMMEN FØRST, POLLING SOM FALLBACK.
+   *
+   * `åpneStrøm` gjør ingenting når den alt er åpen for denne linja, og
+   * ingenting i det hele tatt etter at den har falt ned én gang — så dette
+   * er trygt å kalle hver tikk.
+   *
+   * Og polleren står over BARE når strømmen faktisk leverer. «kobler»
+   * teller ikke: da vet vi ennå ingenting, og å slutte å polle på et håp er
+   * hvordan skjermen blir tom uten at noe sier fra. */
+  åpneStrøm(lineRef, (liste) => {
+    const m = parseVehicles({ data: { vehicles: liste } });
+    _snap.set(lineRef, m);
+    if (onUpdate) onUpdate(m, lineRef);
+  });
+  if (strømLeverer(lineRef)) return new Map(_snap.get(lineRef) || []);
+
   if (now - (_at.get(lineRef) || 0) >= TTL_MS) {
     _at.set(lineRef, now);
     fetchVehiclePositions(lineRef).then(m => {
@@ -194,6 +212,7 @@ export function livePosFeed(lineRef, onUpdate) {
 
 /** Test seam, and used when the profile or route changes. */
 export function _resetVehicleCache() {
+  _resetStrøm();
   _cache.clear();
   _snap.clear();
   _at.clear();

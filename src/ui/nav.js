@@ -166,12 +166,36 @@ export function navActive(view) {
 /**
  * Screens you FOLLOW rather than navigate from.
  *
- * "Underveis" and the walking route both carry their own avslutt/tilbake, and
- * a menu across the bottom of them is an invitation to leave a journey by
- * accident — over the map, at the moment you are least able to spare it.
+ * DENNE REGELEN GJALDT OGSÅ UNDERVEIS, OG DET VAR FEIL. Begrunnelsen sto her:
+ *
+ *   «"Underveis" and the walking route both carry their own avslutt/tilbake,
+ *    and a menu across the bottom of them is an invitation to leave a journey
+ *    by accident — over the map, at the moment you are least able to spare
+ *    it.»
+ *
+ * Rapportert: «reisen må avsluttes via Avslutt for å kunne navigere». Og det
+ * var ikke en bivirkning — det var den eneste veien ut.
+ *
+ * Frykten forvekslet to ting: å NAVIGERE BORT og å MISTE REISEN. Koden selv
+ * sier at de ikke er det samme:
+ *
+ *   - `stopTracking()` kalles fra ÉTT sted, inne i `clearJny()`
+ *     (`journey.js:267`). Å bytte skjerm rører ingenting; reisen poller
+ *     videre, og chipen viser den.
+ *   - `#onboard-chip` står på hver eneste andre skjerm mens `state.jny`
+ *     finnes, og ett trykk tar deg tilbake hit.
+ *   - Å avslutte krever to trykk, både i headeren og på chipens ×.
+ *
+ * Prisen for et bomtrykk er altså ett trykk tilbake, ikke en tapt reise. Og
+ * prisen for å skjule menyen var at en reise låste deg til én skjerm — som
+ * er dyrere enn feilen den beskyttet mot.
+ *
+ * `walk` beholder flagget. Den skjermen er pensjonert (ingen `#v-walk` i
+ * index.html, bare en omdirigering i `_restore`), og en skjerm som kommer
+ * tilbake skal komme tilbake med sin egen begrunnelse framfor å arve denne.
  */
 export function navHidden(view) {
-  return view === 'track' || view === 'walk';
+  return view === 'walk';
 }
 
 /** Move to one of the four. Navigation only — no mode flag is written. */

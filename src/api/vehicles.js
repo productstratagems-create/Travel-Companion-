@@ -1,6 +1,7 @@
 import config from '../config.js';
 import { enturFetch } from './http.js';
 import { vehiclesGQL } from './queries.js';
+import { logMsg } from '../ui/log.js';
 
 /**
  * Live vehicle positions, keyed by service journey.
@@ -50,7 +51,14 @@ export function parseVehicle(v) {
   if (latitude == null || longitude == null) return null;
   const ts = v.lastUpdated ? new Date(v.lastUpdated).getTime() : NaN;
   if (!ts || isNaN(ts)) return null;
-  return { id, lat: latitude, lon: longitude, bearing: v.bearing == null ? null : v.bearing, lastUpdated: ts };
+  // `occupancyStatus` og `delay` finnes bare på v2, og bare når stigen kom
+  // helt opp. De bæres videre rå — `belegg.js` er det ene stedet Enturs navn
+  // oversettes til et nivå, og en andre oversettelse her ville vært den
+  // feilformen dette repoet har rettet rundt tjuefem ganger.
+  return { id, lat: latitude, lon: longitude,
+    bearing: v.bearing == null ? null : v.bearing, lastUpdated: ts,
+    occupancyStatus: v.occupancyStatus == null ? null : v.occupancyStatus,
+    delay: v.delay == null ? null : v.delay };
 }
 
 export function parseVehicles(json) {
@@ -69,20 +77,66 @@ export function parseVehicles(json) {
  * @returns {Promise<Map<string, object>>} never rejects — an empty map means
  *   "no live data", which callers already handle.
  */
+/* ── STIGEN, OG HVA DEN HUSKER ──────────────────────────────────────────
+ *
+ *   0   v2, med occupancyStatus og delay
+ *   1   v2, uten dem          ← feltene finnes ikke på denne tjenesten
+ *   2   v1                    ← v2 svarer ikke her i det hele tatt
+ *
+ * Avslag huskes for ØKTA, ikke for alltid: en ny innlasting prøver øverste
+ * trinn igjen, så den dagen Entur legger til feltet begynner det å virke
+ * uten at noen rører koden. Samme form, og samme begrunnelse, som
+ * `_perLineRejected` (entur.js:544) og `_shapeUnsupported` (entur.js:872).
+ *
+ * Uten hukommelsen ville tavla betalt tre forespørsler hvert tiende sekund
+ * resten av dagen.
+ */
+export const RUNGS = [
+  { url: () => config.api.vehicles, rikt: true, navn: 'v2 med belegning' },
+  { url: () => config.api.vehicles, rikt: false, navn: 'v2' },
+  { url: () => config.api.vehiclesFallback, rikt: false, navn: 'v1' },
+];
+
+let _rung = 0;
+
+/** For prøvene, og for en leser som lurer på hvor tallene kom fra. */
+export function vehicleRung() { return _rung; }
+
 export function fetchVehiclePositions(lineRef) {
   if (!lineRef) return Promise.resolve(new Map());
   const hit = _cache.get(lineRef);
   if (hit && Date.now() - hit.ts < TTL_MS) return hit.promise;
 
-  const promise = enturFetch(config.api.vehicles, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: vehiclesGQL(lineRef) }),
-  })
-    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(parseVehicles)
-    .catch(() => new Map());
+  const spør = (rung) => {
+    const r = RUNGS[rung];
+    if (!r || !r.url()) return Promise.resolve(new Map());
+    return enturFetch(r.url(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: vehiclesGQL(lineRef, r.rikt) }),
+    })
+      .then(res => { if (!res.ok) throw new Error(res.status); return res.json(); })
+      .then(j => {
+        // Et ukjent felt gir HTTP 200 med `{errors, data:null}`. Det er ikke
+        // «ingen kjøretøy», det er «spørsmålet gikk ikke inn» — og de to må
+        // ikke forveksles, ellers faller stigen aldri ned et trinn.
+        if (j && !j.data && j.errors) throw new Error('gql');
+        if (_rung !== rung) {
+          _rung = rung;
+          logMsg('sanntid: ' + r.navn, rung === 0 ? 'ok' : 'err');
+        }
+        return parseVehicles(j);
+      })
+      .catch(() => {
+        if (rung + 1 < RUNGS.length) {
+          _rung = rung + 1;
+          return spør(rung + 1);
+        }
+        return new Map();
+      });
+  };
 
+  const promise = spør(_rung);
   _cache.set(lineRef, { ts: Date.now(), promise });
   return promise;
 }

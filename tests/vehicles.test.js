@@ -25,7 +25,22 @@ describe('parseVehicle', () => {
       lat: 59.9139, lon: 10.7522,
       bearing: 214,
       lastUpdated: NOW - 5_000,
+      // v2-feltene. `null` og ikke utelatt: «spurt, og det kom ikke noe» er
+      // en annen setning enn «aldri spurt», og det er `belegg.js` som gjør
+      // det om til «vet ikke».
+      occupancyStatus: null,
+      delay: null,
     });
+  });
+
+  /* OG DE BÆRES RÅ VIDERE. Enturs navn oversettes til et nivå nøyaktig ett
+   * sted — `fraEntur` i `belegg.js`. En andre oversettelse her ville vært to
+   * tabeller for ett faktum, som er feilformen dette repoet har rettet rundt
+   * tjuefem ganger. */
+  it('bærer v2-feltene videre uten å tolke dem', () => {
+    const p = parseVehicle(apiVehicle({ occupancyStatus: 'standingRoomOnly', delay: 142 }));
+    expect(p.occupancyStatus).toBe('standingRoomOnly');
+    expect(p.delay).toBe(142);
   });
 
   it('drops a position with no service journey — it cannot be tied to a departure', () => {

@@ -3,9 +3,20 @@ export default {
     journeyPlanner: 'https://api.entur.io/journey-planner/v3/graphql',
     geocoder: 'https://api.entur.io/geocoder/v1/autocomplete',
     geocoderReverse: 'https://api.entur.io/geocoder/v1/reverse',
-    // Live vehicle positions (SIRI-VM). Separate service from the journey
-    // planner, same ET-Client-Name requirement.
-    vehicles: 'https://api.entur.io/realtime/v1/vehicles/graphql',
+    /* Live vehicle positions (SIRI-VM). Separate service from the journey
+     * planner, same ET-Client-Name requirement.
+     *
+     * V2, MED V1 SOM FALLBACK. Appen sto på v1 mens tjenesten er på v2, og
+     * v2 er der `occupancyStatus` og `delay` ligger — nettopp feltene som
+     * `board.js` ellers regner seg fram til av klokkeslett og stoppnavn.
+     * At v1 fortsatt svarer er ikke noe appen kan vite; en v1 kan skrus av
+     * uten varsel, og da skal kartet miste sanntid, ikke alt.
+     *
+     * Hvilken av dem som faktisk svarer kan ikke prøves fra denne
+     * sandkassen — den når ikke api.entur.io — så det er en stige, og
+     * `vehicles.js` sier i loggen hvilket trinn som svarte. */
+    vehicles: 'https://api.entur.io/realtime/v2/vehicles/graphql',
+    vehiclesFallback: 'https://api.entur.io/realtime/v1/vehicles/graphql',
     // Geoapify key. Set via VITE_GEOAPIFY_KEY; CI injects it at build time.
     //
     // IT IS NOT A SECRET, and cannot be made one: Vite inlines the value, so

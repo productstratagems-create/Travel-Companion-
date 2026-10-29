@@ -25,6 +25,11 @@ export default {
      * sikkerhetsmargin her, men den forventede stien til noen har prøvd
      * dette på en ekte tur. Se `src/api/strom.js`. */
     vehiclesStream: 'wss://api.entur.io/realtime/v2/vehicles/subscriptions',
+    /* Nasjonalt stoppestedsregister: kaier med sin egen publicCode, og en
+     * tilgjengelighetsvurdering. Appen kjente ellers et stopp som et navn og
+     * en koordinat, og utledet plattformen med et regulært uttrykk på
+     * navnet. Se `src/api/stoppested.js`. */
+    stopPlaces: 'https://api.entur.io/stop-places/v1/graphql',
     // Geoapify key. Set via VITE_GEOAPIFY_KEY; CI injects it at build time.
     //
     // IT IS NOT A SECRET, and cannot be made one: Vite inlines the value, so

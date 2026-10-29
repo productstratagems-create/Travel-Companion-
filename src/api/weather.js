@@ -1,3 +1,4 @@
+import { fetchMedFrist } from './http.js';
 // Open-Meteo: free, no API key, no User-Agent requirement, browser-safe
 const OM = 'https://api.open-meteo.com/v1/forecast';
 const CACHE_MS = 10 * 60 * 1000;
@@ -17,7 +18,7 @@ export function fetchWeather(lat, lon) {
     + '&forecast_hours=12'
     + '&wind_speed_unit=ms&timezone=auto';
 
-  return fetch(url)
+  return fetchMedFrist(url)
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(j => {
       const c = j.current;

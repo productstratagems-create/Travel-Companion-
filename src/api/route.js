@@ -1,4 +1,5 @@
 import { decodePolyline } from '../ui/polyline.js';
+import { REQUEST_TIMEOUT_MS } from './http.js';
 
 /**
  * What "safe" means to the router.
@@ -41,7 +42,9 @@ export async function fetchWalkRoute(fromLL, toLL) {
         costing: 'pedestrian',
         costing_options: { pedestrian: WALK_COSTING },
       }),
-      signal: AbortSignal.timeout(10000),
+      // Tallet bor i `http.js` nå; dette var det eneste stedet i appen som
+      // hadde et, og de to andre manglet det helt.
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!r.ok) return null;
     const data = await r.json();

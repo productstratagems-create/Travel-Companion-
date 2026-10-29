@@ -18,6 +18,7 @@ import { logMsg } from '../ui/log.js';
 import { show } from '../ui/nav.js';
 import { startBoard, _interpolateVehiclePos } from './board.js';
 import { livePosFeed } from '../api/vehicles.js';
+import { seksjon, nesteForsøk } from '../api/seksjon.js';
 import { loadRecentDests, saveRecentDest, removeRecentDest } from '../api/recentDests.js';
 import { makeVehicleIcon, makeRouteStopIcon, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
@@ -125,6 +126,7 @@ function _destroyArrMap() {
   _arrBoard = null; _arrBoardStopId = null;
   _arrWeather = null;
   _nearbyPlaces = null;
+  _forsøk = { 'v\u00e6r': 0, steder: 0 };
   _placesCat = null;
   _placesLL = null;
   if (_arrMap) { _arrMap.remove(); _arrMap = null; _arrWalkMarker = null; _arrRouteLine = null; _arrLL = null; _bikeLayer = null; _placesLayer = null; _userMarker = null; }
@@ -680,7 +682,14 @@ export function arrRows(board, arrivalTs, extraMins, arrQuay) {
 export function _setArrBoard(rows) { _arrBoard = rows; }
 
 export function _renderArrBoardHtml() {
-  if (!_arrBoard) return '<div class="hn-loading">laster avganger…</div>';
+  /* Samme dom her. Den tomme `catch`-en på stopp-oppslaget lot også DENNE
+   * stå og laste i evig tid, og det er samme feil som de to andre. */
+  const sA = seksjon('avganger', {
+    spurt: _arrBoard !== null,
+    feil: !!(_arrBoard && _arrBoard._err),
+    data: Array.isArray(_arrBoard) ? _arrBoard : null,
+  });
+  if (sA.label) return '<div class="hn-' + sA.kind + '">' + esc(sA.label) + '</div>';
   if (!_arrBoard.length) return '<div class="hn-loading">ingen avganger</div>';
   // WHEN YOU GET THERE, not now. _arrivalDate is kept live by every fetchTrack
   // poll and already feeds the weather and the places on this same screen.
@@ -886,7 +895,20 @@ function _drawMobilityMarkers(ranked) {
 }
 
 function _addBikeMarkers(arrLL) {
-  if (!_bikeLayer) { _bikeLayer = L.layerGroup().addTo(_arrMap); } else { _bikeLayer.clearLayers(); }
+  /* VAKTEN SOM SØSKENET HAR HATT HELE TIDEN.
+   *
+   * `_addPlacesMarkers` begynner med `if (!_arrMap) return;` — denne gjorde
+   * ikke det, og `L.layerGroup().addTo(null)` kaster. Ankomstkartet bygges
+   * først når du er NÆR framme (v1.156.0, `_maybeInitArrMap`), så går du på
+   * toget med mer enn fem minutter igjen — det vanlige tilfellet — er det
+   * null. Kastet drepte kjeden det sto i, og vær og steder ble aldri spurt.
+   *
+   * MEN HENTINGEN SKAL SKJE UANSETT. Mobilitetslista under panelet leses
+   * uten kart; det er bare LAGET som må vente på et kart å ligge på. Å
+   * hoppe over hele funksjonen ville rettet feilen ved å kaste en evne. */
+  if (_arrMap) {
+    if (!_bikeLayer) { _bikeLayer = L.layerGroup().addTo(_arrMap); } else { _bikeLayer.clearLayers(); }
+  }
 
   fetchBysykkel(arrLL.lat, arrLL.lon).then(stations => {
     _cachedBikes = stations;
@@ -1041,8 +1063,14 @@ function _arrivalDate() {
 }
 
 function _placesSectionHtml() {
-  if (!_nearbyPlaces) return '<div class="hn-loading">laster steder…</div>';
-  if (!_nearbyPlaces.length) return '<div class="hn-loading">ingen steder funnet i nærheten</div>';
+  /* «FEILET» OG «TOMT» ER IKKE SAMME SETNING, og før delte de ikke bare
+   * ord — de delte klasse med «laster», så alle tre så like ut. */
+  const sP = seksjon('steder', {
+    spurt: _nearbyPlaces !== null,
+    feil: !!(_nearbyPlaces && _nearbyPlaces._err),
+    data: Array.isArray(_nearbyPlaces) ? _nearbyPlaces : null,
+  });
+  if (sP.label) return '<div class="hn-' + sP.kind + '">' + esc(sP.label) + '</div>';
   const at = _arrivalDate();
   return _nearbyPlaces.map(p => {
     // Re-evaluate against arrival, not the cached departure-time result.
@@ -1096,8 +1124,12 @@ function _updatePlacesSection() {
 }
 
 function _weatherSectionHtml() {
-  if (!_arrWeather) return '<div class="hn-loading">laster vær…</div>';
-  if (_arrWeather._err) return '<div class="hn-loading">vær utilgjengelig</div>';
+  const sV = seksjon('vær', {
+    spurt: _arrWeather !== null,
+    feil: !!(_arrWeather && _arrWeather._err),
+    data: _arrWeather && !_arrWeather._err ? _arrWeather : null,
+  });
+  if (sV.label) return '<div class="hn-' + sV.kind + '">' + esc(sV.label) + '</div>';
   const w = _arrWeather;
   const arrIso = state.jny && state.jny.arrival && state.jny.arrival.time;
   const fc = arrIso ? forecastAt(w.forecast, arrIso) : null;
@@ -2309,37 +2341,114 @@ export function startTracking() {
       _arrBoardStopId = id;
       _addArrBoardSection(_alightName);
       _fetchArrBoardData();
-    }).catch(() => {});
+    }).catch(() => {
+      // Sto tom. Da ble «henter avganger …» stående for alltid når
+      // ankomststoppet ikke lot seg slå opp — samme stillhet som de to andre.
+      _arrBoard = { _err: true };
+      _updateArrBoardSection();
+    });
   _arrBoardInterval = setInterval(_fetchArrBoardData, 30000);
 
-  _resolveArrivalLL().then(ll => {
-    if (!ll) {
-      _arrWeather = { _err: true };
-      _updateWeatherSection();
-      return;
-    }
-    // ALDRI TO KART SAMTIDIG. Ankomstkartet hører til ankomsten; bygget her
-    // sto det fra avgang, 220 px av en skjerm du bruker til noe annet.
-    // Koordinatene huskes, og kartet bygges når avstigningen nærmer seg.
-    _arrLL = ll;
-    _maybeInitArrMap();
-    _addBikeMarkers(ll);
-    fetchWeather(ll.lat, ll.lon)
-      .then(w => { _arrWeather = w; _updateWeatherSection(); })
-      .catch(() => { _arrWeather = { _err: true }; _updateWeatherSection(); });
-    {
-      _placesLL = ll;
-      if (!_placesCat) _placesCat = timeCategory();
-      // Update pill highlights in place — avoids destroying the already-initialized map
-      const activeCatIdx = PLACE_CATS.indexOf(_placesCat);
-      document.querySelectorAll('.hn-place-cat').forEach((b, i) => b.classList.toggle('active', i === activeCatIdx));
-      const lbl = document.getElementById('hn-places-label');
-      if (lbl) lbl.textContent = _placesCat.emoji + ' ' + _placesCat.label;
-      fetchNearbyPlaces(ll.lat, ll.lon, _placesCat.amenities)
-        .then(p => { _nearbyPlaces = p; _updatePlacesSection(); })
-        .catch(() => {});
-    }
-  });
+  /* DENNE KJEDEN HADDE INGEN `.catch`, OG DET KOSTET BEGGE SEKSJONENE.
+   *
+   * Et kast inne i den ble en svelget avvisning, og alt under kastet kjørte
+   * aldri. Rapportert som «laster vær…» og «laster steder…» som sto for
+   * alltid — mens nettverket aldri rakk å bli spurt. */
+  _resolveArrivalLL()
+    .then(ll => _arrivalSections(ll))
+    .catch(err => logMsg('ankomstseksjoner \u2717 ' + (err && err.message ? err.message : err), 'err'));
+}
+
+/**
+ * Starter de to seksjonene på ankomstpanelet: været og stedene.
+ *
+ * TRUKKET UT SOM EN NAVNGITT FUNKSJON fordi feilen bodde i rekkefølgen
+ * inne i en anonym `.then`, og en anonym blokk kan ikke prøves. Nettverket
+ * ble aldri spurt, så reproduksjonen trenger heller ikke nett — bare dette
+ * kallet, med og uten kart.
+ *
+ * @param {{lat:number,lon:number}|null} ll
+ * @param {{kart?:object|null}} [o] søm for prøven; `kart` overstyrer
+ *   modulens eget `_arrMap` så begge tilfellene kan kjøres uten en skjerm.
+ * @returns {Promise<{vær:string, steder:string}>} hva hver seksjon endte på.
+ */
+/* FORSØKENE, TELT PER SEKSJON.
+ *
+ * Nullstilles når ankomsten bygges på nytt (`_destroyArrMap`), så en ny
+ * reise starter med blanke ark framfor å arve forrige turs oppgitthet. */
+let _forsøk = { 'v\u00e6r': 0, steder: 0 };
+
+/**
+ * Prøv igjen, med en slutt.
+ *
+ * Et tidsavbrudd gjør at en hengende forespørsel SIER fra. Det gjør den ikke
+ * besvart. Så et kort nettverksfall — en tunnel, et bytte av basestasjon —
+ * skal leges av seg selv, uten at du trenger å ta opp telefonen.
+ *
+ * Stigen tar slutt etter tre: Overpass er en delt dugnadstjeneste, og en app
+ * som maser blir utestengt. Da hjelper det ingen at den var ivrig.
+ */
+function _prøvIgjen(emne, ll) {
+  const ms = nesteForsøk(_forsøk[emne] || 0);
+  if (ms == null) return;
+  _forsøk[emne] = (_forsøk[emne] || 0) + 1;
+  setTimeout(() => {
+    // Reisen kan ha endt, eller ankomsten flyttet seg, mens vi ventet.
+    if (!_arrLL || _arrLL.lat !== ll.lat || _arrLL.lon !== ll.lon) return;
+    _arrivalSections(ll);
+  }, ms);
+}
+
+export function _arrivalSections(ll, o) {
+  if (o && 'kart' in o) _arrMap = o.kart;
+
+  if (!ll) {
+    // Den ene grenen som alt var ærlig — men bare for været. Stedene ble
+    // hoppet over og sto igjen på «laster …»: samme stillhet, annet sted.
+    _arrWeather = { _err: true };
+    _nearbyPlaces = { _err: true };
+    _updateWeatherSection();
+    _updatePlacesSection();
+    return Promise.resolve({ 'v\u00e6r': 'feilet', steder: 'feilet' });
+  }
+
+  // ALDRI TO KART SAMTIDIG. Ankomstkartet hører til ankomsten; bygget her
+  // sto det fra avgang, 220 px av en skjerm du bruker til noe annet.
+  // Koordinatene huskes, og kartet bygges når avstigningen nærmer seg.
+  _arrLL = ll;
+  if (!(o && 'kart' in o)) _maybeInitArrMap();
+  _addBikeMarkers(ll);
+
+  const vær = fetchWeather(ll.lat, ll.lon)
+    .then(w => { _arrWeather = w; _updateWeatherSection(); return 'ok'; })
+    .catch(() => {
+      _arrWeather = { _err: true }; _updateWeatherSection();
+      _prøvIgjen('v\u00e6r', ll);
+      return 'feilet';
+    });
+
+  _placesLL = ll;
+  if (!_placesCat) _placesCat = timeCategory();
+  // Update pill highlights in place — avoids destroying the already-initialized map
+  const activeCatIdx = PLACE_CATS.indexOf(_placesCat);
+  document.querySelectorAll('.hn-place-cat').forEach((b, i) => b.classList.toggle('active', i === activeCatIdx));
+  const lbl = document.getElementById('hn-places-label');
+  if (lbl) lbl.textContent = _placesCat.emoji + ' ' + _placesCat.label;
+
+  /* `.catch(() => {})` STO HER, HELT TOM.
+   *
+   * `places.js` tar seg bryet med å skille en feil fra et tomt svar — den
+   * kaster «all place sources failed» — og kallestedet kastet skillet. Selv
+   * en ren avvisning ble til «laster steder…» for alltid. */
+  const steder = fetchNearbyPlaces(ll.lat, ll.lon, _placesCat.amenities)
+    .then(p => { _nearbyPlaces = p; _updatePlacesSection(); return 'ok'; })
+    .catch(() => {
+      _nearbyPlaces = { _err: true }; _updatePlacesSection();
+      _prøvIgjen('steder', ll);
+      return 'feilet';
+    });
+
+  return Promise.all([vær, steder]).then(([v, s]) => ({ 'v\u00e6r': v, steder: s }));
 }
 
 export function stopTracking() {

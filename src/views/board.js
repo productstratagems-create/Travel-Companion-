@@ -25,6 +25,7 @@ import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, makeJourneyPointIcon,
 import { livePosFeed, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
 import { belegg, beleggTekst, fraEntur } from '../api/belegg.js';
+import { hentStoppested, stoppestedKjent } from '../api/stoppested.js';
 import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby, drawLeg, drawJourneyPoints } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _headingDeg, anchorDistances, pointAtDistance, projectOnPath } from '../ui/path.js';
@@ -205,8 +206,21 @@ export function stopBoardExtras(adapted, calls, now) {
  * tracks. When the stop has nothing to say about this journey, nothing
  * changes.
  */
-export function _rowQuay(c, byJourney) {
+export function _rowQuay(c, byJourney, kaier) {
+  /* REGISTERET FØR REGEXEN.
+   *
+   * `name.replace(/^.*?\s/, '')` er «hvilken plattform» besvart med et
+   * regulært uttrykk på et navn: «Jernbanetorget 2» blir «2», som er riktig,
+   * og «Oslo S spor 5» blir «S spor 5», som ikke er det. Registeret kjenner
+   * kaiens egen `publicCode`, og kaien har en id i svaret vi alt får.
+   *
+   * Rekkefølgen er styrken på påstanden: avgangens eget felt, så registeret,
+   * så strengen. Den siste blir stående — «ingenting kastes for å rydde», og
+   * den er det eneste svaret når registeret ikke svarer. */
+  const fraRegister = (c && c.quay && c.quay.id && kaier && kaier.get)
+    ? kaier.get(c.quay.id) : null;
   const planned = (c && c.quay && c.quay.publicCode)
+    || fraRegister
     || (c && c.quay && c.quay.name ? c.quay.name.replace(/^.*?\s/, '') : '?');
   const sjId = c && c.serviceJourney && c.serviceJourney.id;
   if (!sjId || !byJourney) return { quay: planned, changed: false };
@@ -2465,6 +2479,33 @@ function _legOcc(l) {
   return belegg({ status: fe && fe.occupancyStatus, anslag: forsinket ? 4 : null });
 }
 
+/* ── STOPPESTEDSREGISTERET, HENTET ÉN GANG ──────────────────────────────
+ *
+ * Spurt dovent fra tegninga og mellomlagret for økta. Registeret endrer seg
+ * i uker, ikke i sekunder, så et oppslag per stopp er rikelig — og et
+ * oppslag per RENDER ville vært stormen v1.69.0 tok ut av denne koden.
+ *
+ * Svaret brukes to steder, og begge var gjetninger før: plattformen i raden
+ * (`_rowQuay`) og adkomsten i gangelinja.
+ */
+function _sted() {
+  const dir = config.dirs[state.dIdx];
+  const id = dir && dir.stopId;
+  if (!id) return null;
+  const kjent = stoppestedKjent(id);
+  if (kjent === undefined) {
+    // Bare når noe faktisk kom: en tegning for ingenting kan gå i løkke.
+    hentStoppested(id).then(ut => { if (ut) renderBoard(); });
+    return null;
+  }
+  return kjent;
+}
+
+function _stedKaier() {
+  const st = _sted();
+  return st ? st.kaier : null;
+}
+
 function renderWalkSummary() {
   const el = document.getElementById('walk-summary');
   if (!el) return;
@@ -2491,7 +2532,20 @@ function renderWalkSummary() {
       gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
     });
     const note = ps && ps.kind !== 'ok' ? ps.label : null;
+    /* OG ER DET TRINNFRITT NÅR DU KOMMER FRAM?
+     *
+     * Dette er linja som svarer på visjonens «hvordan kommer jeg dit», og
+     * den har til nå sagt hvor lenge du går uten å si hva du går til. En som
+     * triller barnevogn eller rullestol trenger å vite det FØR de fjorten
+     * minuttene, ikke etter.
+     *
+     * «vet-ikke» skriver ingenting. Å si «ikke trinnfri» om et stopp ingen
+     * har vurdert ville vært en påstand uten dekning — og den ville sendt
+     * noen en helt annen vei. */
+    const st = _sted();
+    const adkomst = st && st.tilgang.kind !== 'vet-ikke' ? st.tilgang.ord : null;
     el.textContent = (fromLabel ? fromLabel + ' · ' : '') + wk.mins + ' min gange'
+      + (adkomst ? ' · ' + adkomst : '')
       + (note ? ' · ' + note : '');
     el.className = note ? 'stale' : '';
     el.style.display = 'block';
@@ -2881,7 +2935,7 @@ export function renderBoard() {
     // platforms as missing that the rows are already displaying.
     _diag.ourQuays = {};
     rowDeps.forEach(({ c }) => {
-      const q = _rowQuay(c, _stopQuays).quay || '?';
+      const q = _rowQuay(c, _stopQuays, _stedKaier()).quay || '?';
       _diag.ourQuays[q] = (_diag.ourQuays[q] || 0) + 1;
     });
     showRecord(_diag);
@@ -2990,7 +3044,7 @@ export function renderBoard() {
     const rowDest = _rowDest(c);
     const dest = rowDest.text;
     const walkMins = rowDest.walkMins;
-    const rq = _rowQuay(c, _stopQuays);
+    const rq = _rowQuay(c, _stopQuays, _stedKaier());
     const quay = rq.quay;
     const delayMins = c.realtime ? Math.round((depTs - new Date(c.aimedDepartureTime).getTime()) / 60000) : 0;
     const delayed = delayMins > 1;

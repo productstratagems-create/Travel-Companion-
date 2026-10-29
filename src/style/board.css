@@ -431,7 +431,8 @@
 /* Offline banner. Same visual language as a service alert — this is a fact
    about the trip, not an error dialog — but it sits above them, because when
    there is no signal nothing else on the screen can be trusted either. */
-#offline-banner{
+#offline-banner,
+#update-banner{
   padding:.5rem .75rem;margin:.4rem 0;
   font-size:11px;line-height:1.4;
   color:var(--text-muted);
@@ -439,6 +440,19 @@
   border:1px solid rgba(var(--text-muted-rgb),.15);
   border-radius:4px;letter-spacing:.02em;
 }
+/* Én forskjell fra søskenet: dette er noe å TRYKKE PÅ, ikke bare noe å lese.
+ * «Ingen nett» er en tilstand; «ny versjon klar» er et tilbud. Full bredde
+ * og aksentfarge sier at det er en knapp, og 44 px sier at den er ment å
+ * treffes — samme regel som alt annet som kan trykkes (v1.138.0). */
+#update-banner{
+  display:block;width:100%;min-height:44px;text-align:left;
+  font-family:inherit;cursor:pointer;
+  color:var(--accent);
+  background:rgba(var(--accent-rgb),.07);
+  border-color:rgba(var(--accent-rgb),.25);
+  -webkit-tap-highlight-color:transparent;
+}
+#update-banner:active{background:rgba(var(--accent-rgb),.14)}
 
 /* Corridor strip — your stretch as a schematic, under the map.
    Stops are ticks, trains sit on the rail. Approaching trains carry the same

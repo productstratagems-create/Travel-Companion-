@@ -90,7 +90,10 @@ describe('hvordan skjermen bruker dem nå', () => {
   // Én vei videre for alle tre inngangene: blokka, nedtrekket og «ofte brukt».
   it('bruker samme vei videre som stoppet i nedtrekket', () => {
     const s = src();
-    const handler = s.slice(s.indexOf("body.querySelectorAll('.auto-dest')"));
+    /* Forankret på KLASSEN, ikke på containeren. Første utgave lette etter
+     * `body.querySelectorAll(...)` og falt da kortene fikk sin egen
+     * container i v1.183.0 — på hvor koden bor, ikke på hva den gjør. */
+    const handler = s.slice(s.indexOf(".querySelectorAll('.auto-dest')"));
     expect(handler.slice(0, 500)).toMatch(/autoRoute\(_stop, \{ name: x\.name, id: x\.id \}\)/);
     expect(handler.slice(0, 500)).toMatch(/_useRouteDir/);
   });

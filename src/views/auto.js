@@ -1980,6 +1980,28 @@ export function shouldShowSort(on, ends) {
 }
 
 let _sortWired = false;
+/**
+ * Hele listeseksjonen av eller på: overskrift, bryter og kort.
+ *
+ * `_showSort` eide bare bryteren, og ble kalt fra seks steder i
+ * `_renderBody` — én per tilstand der det ikke finnes noen liste. Nå er det
+ * TRE ting som må forsvinne sammen, og seks kallesteder ganger tre ting er
+ * nøyaktig hvor mange ganger noen glemmer ett av dem.
+ *
+ * En overskrift uten liste under er en overskrift som lyver, og kort som
+ * blir stående når stoppvelgeren åpnes er forrige skjerm som henger igjen.
+ *
+ * Bryteren har fortsatt sin egen regel — den skjules også når det bare
+ * finnes én gruppe å ordne — så den er `_showSort` sitt ansvar alene.
+ */
+export function _visListeDel(on) {
+  const hode = _el('auto-where-head');
+  if (hode) hode.style.display = on ? '' : 'none';
+  const kort = _el('auto-dest-body');
+  if (kort && !on) kort.innerHTML = '';
+  _showSort(on);
+}
+
 function _showSort(on) {
   const el = _el('auto-sort');
   if (!el) return;
@@ -2112,21 +2134,21 @@ function _maybeJump() {
 function _renderBody() {
   const body = _el('auto-body');
   if (!body) return;
-  if (_open) { _showSort(false); _renderStops(body); return; }
+  if (_open) { _visListeDel(false); _renderStops(body); return; }
   // "We do not know where you are" and "nothing leaves from here" are
   // different facts, and saying the second when the first is true is a lie
   // the reader cannot see through — there ARE departures, we just have no
   // position. Measured on the GPS-denied run, which said exactly that.
   if (!_stop) {
     const t = noPosText(state.gpsError);
-    _showSort(false);
+    _visListeDel(false);
     body.innerHTML = '<div class="dest-prev-empty">' + esc(t.body) + '</div>';
     _setManual(t.cta);
     return;
   }
   _setManual(MANUAL_CTA);
   if (!_dirs.length) {
-    _showSort(false);
+    _visListeDel(false);
     body.innerHTML = '<div class="dest-prev-empty">'
       // Date.now() rather than the `now` fifty lines below: that one is a
       // `const` declared later in this function, so reading it here is a
@@ -2171,13 +2193,13 @@ function _renderBody() {
   // beside it promises something the stop board is not saying.
   const live = _liveRows(now);
   if (!live.length) {
-    _showSort(false);
+    _visListeDel(false);
     body.innerHTML = '<div class="dest-prev-empty">'
       + esc(boardState({ asked: _asked, dirs: _dirs, live, nextMs: _nextMs,
         now, horizonMins: NEXT_DEPARTURE_HORIZON_MINS }).label) + '</div>';
     return;
   }
-  _showSort(true);
+  _visListeDel(true);
   // Once for the list, not once per row: byLine walks every message.
   const perLine = byLine(_alerts);
   // The same named derivation renderAuto hands to the banner as `delivered`.
@@ -2243,12 +2265,21 @@ function _renderBody() {
    */
   const destHtml = (x, n) => kortHtml(x, n);
 
+  /* KORTENE I SIN EGEN CONTAINER, radene i sin.
+   *
+   * De sto i samme `innerHTML`, og da kunne ingen statisk bryter stå mellom
+   * dem — som er hele grunnen til at den havnet over begge. «Hvor skal du?»
+   * er flyttet til index.html, rett over bryteren, så overskriften og
+   * kontrollen hører sammen uten at noen av dem tegnes på nytt hvert sekund. */
+  const destBody = _el('auto-dest-body');
+  if (destBody) {
+    destBody.innerHTML = dests.length
+      ? '<div class="set-label">dit du skal</div>' + dests.map(destHtml).join('')
+      : '';
+  }
+
   let shown;
-  body.innerHTML = (dests.length
-    ? '<div class="set-label">dit du skal</div>' + dests.map(destHtml).join('')
-    : '')
-    + '<div class="set-label">hvor skal du?</div>'
-    + ordered.map(({ d, i }) => {
+  body.innerHTML = ordered.map(({ d, i }) => {
       const hint = usual && d.frontText.toLowerCase() === usual;
       const q = quayLabel(d.call);
       // The destination is the part that gives way, so the whole of it has to
@@ -2330,7 +2361,13 @@ function _renderBody() {
   // THE SAME DOOR the indented stop went through, and the «ofte brukt» row
   // still does: autoRoute, then the one route-setter every caller uses. Three
   // ways in, one way on.
-  body.querySelectorAll('.auto-dest').forEach(b => {
+  /* Der kortene nå står. Bindes de fortsatt på `body`, finnes de ikke der —
+   * og knappene ville sluttet å virke uten at noe falt.
+   *
+   * Ingen `|| body` som fallback: finnes ikke containeren, ble kortene aldri
+   * tegnet, og å lete etter dem et annet sted finner ingenting uansett. En
+   * fallback som aldri kan hjelpe er bare støy som ser ut som forsiktighet. */
+  if (destBody) destBody.querySelectorAll('.auto-dest').forEach(b => {
     b.addEventListener('click', () => {
       const x = dests[Number(b.dataset.d)];
       const dir = x && autoRoute(_stop, { name: x.name, id: x.id });

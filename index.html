@@ -428,15 +428,29 @@
   <div id="auto-map-wrap" class="set-section" style="display:none">
     <div id="auto-map"></div>
   </div>
-  <!-- Outside #auto-body on purpose, like the two sections below it: the
+  <!-- «Dit du skal» — kortene. Egen container, fordi sorteringsbryteren står
+       MELLOM dem og lista under, og en statisk bryter kan bare stå mellom to
+       elementer som faktisk er to. -->
+  <div id="auto-dest-body"></div>
+  <!-- Overskriften for lista, og bryteren som styrer den, i samme blokk.
+       Rapportert: «Sorteringsknappene bør visuelt sett ligge sammen med lista
+       den påvirker.» Bryteren lå over kortene, som den ikke styrer — og den
+       plasseringen PÅSTO at den gjaldt dem.
+
+       Outside #auto-body on purpose, like the two sections below it: the
        screen redraws every second (v1.71.0) and replaces that innerHTML
        wholesale, so a switch drawn inside would lose focus and swallow taps
-       mid-press. Wired once at startup, highlighted from the stored value. -->
-  <div id="auto-sort" style="display:none">
-    <span class="set-label" id="auto-sort-label">sorter</span>
-    <div class="pref-group" role="group" aria-labelledby="auto-sort-label">
-      <button class="pref-btn" type="button" data-val="asc" aria-pressed="true"><span class="sort-word"></span></button>
-      <button class="pref-btn" type="button" data-val="desc" aria-pressed="false"><span class="sort-word"></span></button>
+       mid-press. Wired once at startup, highlighted from the stored value.
+       Det er grunnen til at rettelsen er en container til, og ikke en
+       flytting inn i lista. -->
+  <div id="auto-where-head" style="display:none">
+    <div class="set-label">hvor skal du?</div>
+    <div id="auto-sort" style="display:none">
+      <span class="set-label" id="auto-sort-label">sorter</span>
+      <div class="pref-group" role="group" aria-labelledby="auto-sort-label">
+        <button class="pref-btn" type="button" data-val="asc" aria-pressed="true"><span class="sort-word"></span></button>
+        <button class="pref-btn" type="button" data-val="desc" aria-pressed="false"><span class="sort-word"></span></button>
+      </div>
     </div>
   </div>
   <div id="auto-body"></div>

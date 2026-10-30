@@ -65,36 +65,59 @@ export function trackPlace(role, name, meta) {
  *
  * `usage.js` hadde ingen vei ut av lista — bare `loadFreq`, `saveFreq` og
  * `trackPlace`. Et sted du har reist til én gang ble stående til ti andre
- * hadde dyttet det ut, og kortene under «dit du ofte skal» viste det hver
- * dag.
+ * hadde dyttet det ut, og kortene under «dit du ofte skal» viste det hver dag.
  *
  * HER, OG IKKE I KALLESTEDET. Fila sier det selv i toppen: «letting the
  * second read `t.freqDep` on its own would give one key TWO READERS IN TWO
  * FILES». En `filter`+`saveFreq` ute i en visning ville vært en tredje.
  *
- * PÅ NAVN, ikke på id eller indeks. `stopId` er `null` for alt som ble
- * skrevet inn framfor valgt fra en liste, så navnet er identiteten — samme
- * oppslag `trackPlace` bruker. Og på HELE navnet: «Oslo» er et prefiks av
- * både «Oslo S» og «Oslo lufthavn», og en delstrengstest ville tatt begge.
- * `recentDests.js` lærte den leksa og skrev den ned.
+ * ── SAMME IDENTITET SOM SATTE KORTET DER ────────────────────────────────
+ *
+ * Rapportert mot v1.186.0: «Når jeg forsøker å slette et av kortene (buss) så
+ * dukker det opp igjen med en gang.» Det gjorde det, og `stopId.js:23-30`
+ * hadde alt skrevet ned hvorfor:
+ *
+ *     B  lowercase + strip «, …» + strip « T»     stopKey
+ *     D  lowercase + trim only                     usage.js
+ *
+ *     «Ryen T» og «Ryen» er ETT stopp under B og TO under D.
+ *
+ * Kortet kommer på skjermen fordi `usesOf` under slår opp med B. Første
+ * utgave av denne funksjonen brukte D — tre funksjoner over kommentaren som
+ * advarer mot nettopp det. Da slettet den null oppføringer, skrev ingenting,
+ * og neste sekundtegning bygget kortet på nytt.
+ *
+ * ID FØRST, SÅ NAVNET, i samme rekkefølge som `usesOf`: en oppføring som ble
+ * FUNNET på id må kunne glemmes på id, uansett hva den heter.
+ *
+ * OG ALLE TREFF, IKKE DET FØRSTE. `trackPlace` matcher fortsatt med D — å
+ * endre den ville slått sammen eksisterende oppføringer og flyttet tall ingen
+ * har bedt om å få flyttet — så historikken KAN inneholde både «Ryen» og
+ * «Ryen T». Kortet representerer begge, og én sletting rydder begge.
+ * Asymmetrien er bevisst, og dette er stedet den står skrevet.
  *
  * «Glem» betyr glem at jeg har reist hit, ikke skjul for alltid: `trackPlace`
- * er urørt, så et nytt valg av samme sted begynner på én igjen. Det er
- * avtalen, og den står i `tests/glemSted.test.js`.
+ * er urørt, så et nytt valg av samme sted begynner på én igjen.
  *
  * @param {'dep'|'arr'} role
  * @param {string} name
+ * @param {string} [id]  stopId, når kortet har en
  */
-export function glemSted(role, name) {
-  const norm = String(name == null ? '' : name).trim().toLowerCase();
-  if (!norm) return;
+export function glemSted(role, name, id) {
+  const nøkkel = stopKey(name);
+  const sid = id || null;
+  if (!nøkkel && !sid) return;
   const list = loadFreq(role);
-  const igjen = list.filter(p =>
-    !(p && String(p.name).trim().toLowerCase() === norm));
+  const igjen = list.filter(p => {
+    if (!p) return false;
+    if (sid && p.stopId && p.stopId === sid) return false;
+    return !(nøkkel && stopKey(p.name) === nøkkel);
+  });
   // Ingen skriving når ingenting ble borte: en `saveFreq` per bomtrykk er en
   // synkron localStorage-skriving appen ikke trenger.
   if (igjen.length !== list.length) saveFreq(role, igjen);
 }
+
 
 /**
  * Glem alt om hvor leseren har reist.

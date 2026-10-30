@@ -135,3 +135,72 @@ describe('glemAlleSteder', () => {
     expect(src.slice(i, i + 400)).toMatch(/glemAlleSteder\(\)/);
   });
 });
+
+/* ── OG DEN SOM BLE RAPPORTERT ──────────────────────────────────────────
+ *
+ * «Når jeg forsøker å slette et av kortene (buss) så dukker det opp igjen med
+ * en gang.»
+ *
+ * Det gjorde det. `src/stopId.js:23-30` navngir fire navneregler som fantes i
+ * appen, og hvorfor de ble til én:
+ *
+ *     B  lowercase + strip «, …» + strip « T»     stopKey
+ *     D  lowercase + trim only                     usage.js
+ *
+ *     «Ryen T» og «Ryen» er ETT stopp under B og TO under D.
+ *
+ * Kortet kommer på skjermen fordi `usesOf` slår opp med **B**. `glemSted` ble
+ * skrevet med **D** — tre funksjoner under kommentaren som advarer mot
+ * nettopp det. Da sletter den null oppføringer, skriver ingenting, og neste
+ * sekundtegning bygger kortet på nytt.
+ *
+ * OG TESTENE SÅ DET IKKE fordi hver eneste fikstur over bruker SAMME
+ * SKRIVEMÅTE begge steder. Det virkelige tilfellet fantes ikke i dem — samme
+ * form som «en fikstur med ett element kan ikke se en regel om to», fra
+ * forrige utgivelse.
+ */
+describe('slettingen bruker samme navneregel som visningen', () => {
+  /* FØR-BILDET. Mot v1.186.0 blir oppføringen stående. */
+  it('glemmer «Ryen» når kortet heter «Ryen T»', () => {
+    saveFreq('arr', [sted('Ryen', 4)]);
+    glemSted('arr', 'Ryen T');
+    expect(loadFreq('arr')).toHaveLength(0);
+  });
+
+  it('og «Skullerud» når kortet heter «Skullerud, Oslo»', () => {
+    saveFreq('arr', [sted('Skullerud', 4)]);
+    glemSted('arr', 'Skullerud, Oslo');
+    expect(loadFreq('arr')).toHaveLength(0);
+  });
+
+  it('og den andre veien', () => {
+    saveFreq('arr', [sted('Ryen T, Oslo', 4)]);
+    glemSted('arr', 'Ryen');
+    expect(loadFreq('arr')).toHaveLength(0);
+  });
+
+  /* `usesOf` foretrekker id-en FØR navnet (`usage.js:153`). En oppføring som
+   * ble funnet på id var utilgjengelig for sletting uansett hva den het. */
+  it('og glemmer en oppføring som bare kan finnes på id', () => {
+    saveFreq('arr', [sted('Et helt annet navn', 4, 'NSR:StopPlace:58')]);
+    glemSted('arr', 'Ryen T', 'NSR:StopPlace:58');
+    expect(loadFreq('arr')).toHaveLength(0);
+  });
+
+  /* ALLE TREFF, IKKE DET FØRSTE. `trackPlace` matcher fortsatt med D, så
+   * historikken KAN ha både «Ryen» og «Ryen T» som to oppføringer — mens
+   * kortet representerer begge. Én sletting skal rydde begge. */
+  it('og rydder begge skrivemåtene av det samme stoppet', () => {
+    saveFreq('arr', [sted('Ryen', 4), sted('Ryen T', 2), sted('Jernbanetorget', 9)]);
+    glemSted('arr', 'Ryen T');
+    expect(loadFreq('arr').map(p => p.name)).toEqual(['Jernbanetorget']);
+  });
+
+  /* OG OPPMYKNINGEN HAR IKKE GÅTT FOR LANGT. `stopKey` kutter komma-leddet,
+   * ikke ord — så to stopp som bare deler et prefiks er fortsatt to. */
+  it('men tar fortsatt ikke naboen', () => {
+    saveFreq('arr', [sted('Oslo S', 5), sted('Oslo lufthavn', 2)]);
+    glemSted('arr', 'Oslo S');
+    expect(loadFreq('arr').map(p => p.name)).toEqual(['Oslo lufthavn']);
+  });
+});

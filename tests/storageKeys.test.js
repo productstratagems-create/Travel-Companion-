@@ -60,3 +60,50 @@ describe('ALL_KEYS', () => {
     expect(listed.length).toBe(new Set(listed).size);
   });
 });
+
+/* ── EN APP SOM IKKE STARTER ────────────────────────────────────────────
+ *
+ * `migrate()` kjører på MODULNIVÅ og kalte `localStorage` direkte. `storage`
+ * lenger nede i samme fil pakker hvert eneste oppslag i try/catch — den som
+ * skrev den visste at `localStorage` kan KASTE, ikke bare gi null — men
+ * migreringen sto ubeskyttet.
+ *
+ * I Safaris private modus, med informasjonskapsler avslått, eller i en
+ * iframe uten tilgang, kastet den da under import. Et kast under import er
+ * ikke en manglende innstilling: det er en helt hvit skjerm, uten en linje i
+ * loggen, fordi loggen heller ikke rakk å bli til.
+ *
+ * Funnet ved at en prøve av NOE HELT ANNET feilet med «Access is denied for
+ * this document». Samme form som `logMsg` i v1.177.0 — et kall i en
+ * oppstartssti som tar med seg alt rundt seg når omgivelsen ikke er den vi
+ * antok. To ganger på fire utgivelser er ikke tilfeldig; det er en kant
+ * denne kodebasen har flere av.
+ */
+describe('oppstart uten lagring', () => {
+  it('starter selv når localStorage nekter', async () => {
+    const ekte = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get() { throw new DOMException('Access is denied for this document.', 'SecurityError'); },
+    });
+    try {
+      // Fersk import, så modulnivå-koden kjører på nytt i denne tilstanden.
+      await expect(import('../src/storage.js?nolagring')).resolves.toBeTruthy();
+    } finally {
+      if (ekte) Object.defineProperty(globalThis, 'localStorage', ekte);
+      else delete globalThis.localStorage;
+    }
+  });
+
+  /* MÅLEINSTRUMENTET: med lagring tilgjengelig skal migreringen fortsatt
+   * GJØRE noe. En try/catch som svelger alt ville bestått testen over uten
+   * at profilen noen gang ble opprettet. */
+  it('og migrerer fortsatt når den får lov', async () => {
+    localStorage.clear();
+    localStorage.setItem('t.palette', 'gull');
+    await import('../src/storage.js?medlagring');
+    expect(localStorage.getItem('__activeProfile')).toBe('default');
+    expect(localStorage.getItem('default::t.palette')).toBe('gull');
+    expect(localStorage.getItem('t.palette')).toBeNull();
+  });
+});

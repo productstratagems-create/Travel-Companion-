@@ -37,8 +37,40 @@ const ALL_KEYS = [
 const PROFILES_KEY = '__profiles';
 const ACTIVE_KEY   = '__activeProfile';
 
-// One-time migration: copy any pre-profile t.* keys into the 'default' namespace.
+/**
+ * One-time migration: copy any pre-profile t.* keys into the 'default'
+ * namespace.
+ *
+ * I TRY/CATCH, OG IKKE FOR SIKKERHETS SKYLD.
+ *
+ * `storage` under (linje 88) pakker hvert eneste oppslag i try/catch — den
+ * som skrev den visste at `localStorage` kan KASTE, ikke bare returnere
+ * null. Men dette kallet står på MODULNIVÅ og var ubeskyttet, så i Safaris
+ * private modus, med informasjonskapsler avslått, eller i en iframe uten
+ * tilgang, kastet det under import.
+ *
+ * Et kast under import er ikke en manglende innstilling. Det er en app som
+ * ikke starter — en helt hvit skjerm, uten en linje i loggen, fordi loggen
+ * heller ikke rakk å bli til.
+ *
+ * Funnet ved at en prøve av noe helt annet feilet med «Access is denied for
+ * this document». Det er samme form som `logMsg` i v1.177.0: et kall i en
+ * oppstartssti som tar med seg alt rundt seg når omgivelsen ikke er den vi
+ * antok.
+ *
+ * Feiler den, har leseren en nettleser som ikke husker noe uansett, og appen
+ * kjører videre uten hukommelse. Det er langt bedre enn ingen app.
+ */
 (function migrate() {
+  try {
+    _migrate();
+  } catch (_) {
+    /* Ingen lagring å flytte, og ingenting å si om det: `storage` under er
+     * alt bygget for at hvert oppslag kan slå feil. */
+  }
+})();
+
+function _migrate() {
   if (localStorage.getItem(ACTIVE_KEY)) return;
   localStorage.setItem(PROFILES_KEY, JSON.stringify(['default']));
   localStorage.setItem(ACTIVE_KEY, 'default');
@@ -49,7 +81,7 @@ const ACTIVE_KEY   = '__activeProfile';
       localStorage.removeItem(k);
     }
   });
-})();
+}
 
 export function listProfiles() {
   try { return JSON.parse(localStorage.getItem(PROFILES_KEY)) || ['default']; }

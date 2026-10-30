@@ -48,7 +48,13 @@ beforeEach(async () => {
   // each test needs its own module instance rather than the previous test's
   // still-running watch.
   vi.resetModules();
-  ({ locateUser } = await import('../src/geo.js'));
+  const geo = await import('../src/geo.js');
+  locateUser = geo.locateUser;
+  /* FILTERET ER MODULTILSTAND, og uten dette lekker det mellom prøvene: en
+   * test som nettopp gikk fire hundre meter nordover etterlater et estimat
+   * med fart, og den neste starter med en prikk som allerede er på vei. Det
+   * ville gjort prøvene avhengige av rekkefølgen sin. */
+  geo._nullstillFilter();
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -279,32 +285,40 @@ describe('punktet oppslaget gjøres fra', () => {
     };
   };
 
+  /* SKREVET OM I v1.184.0, OG GRUNNEN BÆRER MER ENN TESTEN.
+   *
+   * Den bandt EMA-ens ETTERSLEP: «med EMA_α = 0,3 og to meter per måling er
+   * etterslepet 2·(1−0,3)/0,3 ≈ 4,7 m». Det var en presis måling av en ekte
+   * svakhet — en prikk som ligger fem meter bak deg på en jevn gange — og
+   * `kalman.js` fjerner nettopp den: et konstant-hastighetsfilter har en
+   * hastighetstilstand å ligge framme med, og henger ikke etter.
+   *
+   * Så testen feilet mot RIKTIG kode, fordi den målte defekten framfor
+   * påstanden. Påstanden er at oppslaget gjøres fra det UTJEVNEDE punktet og
+   * ikke fra den rå målingen, og den skilles nå der utjevning faktisk gjør en
+   * forskjell: på støy. Siste fiks spretter, estimatet gjør det ikke. */
   it('er den utjevnede posisjonen, ikke den rå målingen', async () => {
     locateUser(() => {}, () => {});
     cb(fix(59.8300, 10.8050, 8, 1_000));
     await settle();
-    // Sammenlikningen må tas I DET oppslaget skjer. Første forsøk målte mot
-    // `state.homeLL` etter hele turen — som hadde gått videre — og fanget
-    // ingenting: instrumentet, ikke koden.
-    let raa = null; let ema = null; let n = geocode.mock.calls.length;
+    let raa = null; let est = null; let n = geocode.mock.calls.length;
     for (let i = 1; i <= 200; i++) {
-      const lat = 59.8300 + i * 2 * M;
+      // Jevn gange nordover, med en deterministisk sprett på ±12 m.
+      const sprett = (i % 2 ? 12 : -12) * M;
+      const lat = 59.8300 + i * 2 * M + sprett;
       cb(fix(lat, 10.8050, 8, 1_000 + i * 1000));
       if (geocode.mock.calls.length > n) {
         n = geocode.mock.calls.length;
-        raa = lat; ema = state.homeLL.lat;
+        raa = lat; est = state.homeLL.lat;
         break;
       }
     }
     await settle();
-    expect(ema).not.toBeNull();
-    // EMA ligger etter den rå målingen — ellers skiller ikke testen dem.
-    // Hvor langt etter er regnbart: med EMA_α = 0,3 og to meter per måling
-    // er etterslepet 2·(1−0,3)/0,3 ≈ 4,7 m, og målt til nettopp det. Jeg
-    // hadde skrevet «titalls meter» i planen; på en jevn gange er det fem.
-    // Større blir det først ved et hopp eller en fartsendring.
-    expect(Math.abs(raa - ema)).toBeGreaterThan(3 * M);
-    expect(at().lat).toBeCloseTo(ema, 9);
+    expect(est).not.toBeNull();
+    // Estimatet har dempet spretten: det ligger nærmere den jevne banen enn
+    // den rå målingen gjør. Uten utjevning ville de to vært samme tall.
+    expect(Math.abs(raa - est)).toBeGreaterThan(3 * M);
+    expect(at().lat).toBeCloseTo(est, 9);
     expect(at().lat).not.toBeCloseTo(raa, 9);
   });
 

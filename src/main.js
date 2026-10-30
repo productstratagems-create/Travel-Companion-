@@ -23,7 +23,7 @@ import { renderExplore } from './views/explore.js';
 import { renderAuto, resetAuto, armAutoJump, hasStop } from './views/auto.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
 import { landingChoice, exampleDir, isExample, upgradeToNearest, exampleFallback, AUTO_FALLBACK_MS } from './firstRun.js';
-import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode, autoModePref, saveAutoMode, posState } from './geo.js';
+import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode, autoModePref, saveAutoMode, posState, posNå } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { startBoard, refreshBoard } from './views/board.js';
@@ -212,10 +212,7 @@ if (landing === 'journey') {
   setTimeout(() => {
     if (!exampleFallback({
       hasStop: hasStop(),
-      posKind: posState({
-        asked: state.posAsked, homeLL: state.homeLL, posAt: state.posAt,
-        gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
-      }).kind,
+      posKind: posState(posNå()).kind,
       storedRoute: !!stored, savedDest, hasJourney: !!restored,
     })) return;
     // Only if they are still standing here. Tapping through to anything else

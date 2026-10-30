@@ -7,7 +7,7 @@ import { whereAmI, whereAmILabel } from '../api/whereAmI.js';
 import { callPlace, placeLL } from '../api/place.js';
 import { logEvent, skalLogges } from '../api/eventLog.js';
 import { posState } from '../position.js';
-import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, walkMinsTo, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL } from '../geo.js';
+import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, walkMinsTo, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL, posNå } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon, legShape, journeyPoints } from '../api/adapt.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
@@ -1759,11 +1759,7 @@ export function renderTrack() {
       clockIdx,
       trail: state.posTrail,
       pos: userLL(),
-      quality: posState({
-        asked: state.posAsked, homeLL: state.homeLL, posAt: state.posAt,
-        gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
-        now: Date.now(),
-      }),
+      quality: posState(posNå()),
     });
   }
 

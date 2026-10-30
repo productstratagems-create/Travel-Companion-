@@ -100,9 +100,16 @@ export const POS_STALE_MS = 60_000;
  */
 export const POS_DEAD_MS = 5 * 60_000;
 
-/** In the order of how much a reader can do about them. */
-export const POS_KINDS = ['ok', 'leter', 'ikke-spurt', 'unoyaktig', 'gammel',
-  'borte', 'ingen-stopp', 'tidsavbrudd', 'utilgjengelig', 'ikke-stottet', 'avslatt'];
+/**
+ * In the order of how much a reader can do about them.
+ *
+ * `'ukjent-alder'` MANGLET I DENNE LISTA mens `posState` returnerte den
+ * (linje 168). Lista er det ene stedet som sier hvilke tilstander som finnes,
+ * og en tilstand utenfor den er en tilstand ingen test kan telle.
+ */
+export const POS_KINDS = ['ok', 'leter', 'ikke-spurt', 'unoyaktig',
+  'framskrevet', 'gammel', 'borte', 'ingen-stopp', 'ukjent-alder',
+  'tidsavbrudd', 'utilgjengelig', 'ikke-stottet', 'avslatt'];
 
 /**
  * How much to trust the dot right now.
@@ -184,6 +191,27 @@ export function posState(o) {
   if (ageMs != null && ageMs > POS_DEAD_MS) {
     return mk('borte', 'ingen posisjon på ' + ageMins + ' min', false);
   }
+
+  /* ET ANSLAG ER IKKE EN GAMMEL MÅLING, og det er ikke en fersk heller.
+   *
+   * «Posisjon 2 min gammel» sier at prikken står der den sto. Men `kalman.js`
+   * fører estimatet videre langs farten når fiksene slutter, så prikken står
+   * IKKE der den sto — den har flyttet seg på en måte ingen har målt. De to
+   * setningene kan ikke være den samme.
+   *
+   * FØR 'gammel' og ETTER 'borte': en framskriving er bedre enn en frossen
+   * prikk, men ingenting kan bære fem minutter. Og etter 'unøyaktig', som
+   * forklarer hvorfor fiksene mangler i det hele tatt.
+   *
+   * `usable: true`, fordi `whereAmI` sin port er nettopp dette flagget: et
+   * anslag med ±80 m er langt bedre enn å falle til rutetid, og mye bedre enn
+   * en måling som er to minutter gammel og later som den er fersk. */
+  if (ageMs != null && ageMs > POS_STALE_MS
+      && c.framskrevet && Number.isFinite(c.framskrevet.sigmaM)) {
+    return mk('framskrevet',
+      'anslått posisjon (±' + Math.round(c.framskrevet.sigmaM) + ' m)', true);
+  }
+
   if (ageMs != null && ageMs > POS_STALE_MS) {
     return mk('gammel', 'posisjon ' + ageMins + ' min gammel', true);
   }

@@ -1,6 +1,7 @@
 import { findStop } from './stopId.js';
 import { CENTRE } from './api/centre.js';
 import { state } from './state.js';
+import { nyttFilter, oppdater, prediker, anslag, FRAMSKRIV_MAKS_MS } from './kalman.js';
 import { ACC_GATE, POS_STALE_MS, gpsErrorKind, fixJump } from './position.js';
 import { pushFix } from './trail.js';
 import config from './config.js';
@@ -580,7 +581,19 @@ export function findNearestStation(lat, lon, onFound, onFail) {
 
 // ── GPS: watchPosition with high-accuracy + EMA smoothing ────────────────────
 
-const EMA_α   = 0.3;  // weight for incoming reading (0 = frozen, 1 = raw)
+/* EMA_α ER BORTE, OG ERSTATTET AV ET FILTER.
+ *
+ *     const EMA_α = 0.3;
+ *     lat = α * ny.lat + (1 - α) * forrige.lat;
+ *
+ * Den dempet, og bare det. Den ga en fiks på ±5 m nøyaktig samme vekt som en
+ * på ±35, den hadde ingen hastighetstilstand å ligge foran med, og sluttet
+ * fiksene å komme, frøs prikken.
+ *
+ * `kalman.js` har alle tre: `accuracy` blir målestøy, `speed` og `heading`
+ * blir en starthastighet, og `prediker()` fører estimatet videre når
+ * ingenting kommer inn — med en usikkerhet som vokser, slik at skjermen kan
+ * si «anslått (±80 m)» framfor å tie. */
 // ACC_GATE and POS_STALE_MS moved to position.js in v1.108.0 — the rule that
 // judges the position needs them, and a leaf module is the one place both it
 // and this file can read them from. Re-exported so no call site moved.
@@ -605,12 +618,50 @@ const STATION_REFRESH_M = 200;
 const SAVE_EVERY_MS = 10_000;
 let _savedAt = 0;
 
-function _ema(prev, next) {
-  if (!prev) return { lat: next.lat, lon: next.lon };
+/** Filteret for denne økta. Nullstilles sammen med sporet ved et bekreftet sprang. */
+let _filter = null;
+
+/** For prøvene, og ved et bekreftet sprang: start på nytt der du faktisk er. */
+export function _nullstillFilter() { _filter = null; }
+
+/**
+ * Hvor appen tror du er NÅ, framskrevet til dette øyeblikket.
+ *
+ * `state.homeLL` er siste aksepterte estimat. Dette er det samme estimatet
+ * ført videre langs farten — forskjellen er alt i en tunnel, og null når en
+ * fiks nettopp kom inn.
+ *
+ * `null` når det ikke finnes noe filter, eller når framskrivingen har vart
+ * så lenge at tallet ikke sier noe en leser kan handle på.
+ */
+/**
+ * Spørsmålet `posState` stiller, bygget ETT sted.
+ *
+ * De seks feltene sto skrevet ned FEM ganger — `auto.js:1276`,
+ * `track.js:1762`, `board.js:2530` og `:2561`, `main.js:215` — ordrett like.
+ * Et sjette felt betydde fem redigeringer, og en glemt betydde én skjerm som
+ * dømte posisjonen etter en annen regel enn de fire andre. Det er feilformen
+ * dette repoet har rettet rundt tjuefem ganger, og den sto midt i det ene
+ * spørsmålet som avgjør om skjermen tror den vet hvor du er.
+ *
+ * Funnet ved at framskrivingen skulle legges til, og regningen var fem.
+ */
+export function posNå(nå) {
+  const t = Number.isFinite(nå) ? nå : Date.now();
   return {
-    lat: EMA_α * next.lat + (1 - EMA_α) * prev.lat,
-    lon: EMA_α * next.lon + (1 - EMA_α) * prev.lon,
+    asked: state.posAsked, homeLL: state.homeLL, posAt: state.posAt,
+    gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
+    framskrevet: framskrevetPos(t),
+    now: t,
   };
+}
+
+export function framskrevetPos(nå) {
+  if (!_filter) return null;
+  const t = Number.isFinite(nå) ? nå : Date.now();
+  if (t - _filter.at > FRAMSKRIV_MAKS_MS) return null;
+  const a = anslag(prediker(_filter, t));
+  return a && { lat: a.lat, lon: a.lon, sigmaM: Math.round(a.sigmaM), at: t };
 }
 
 export function locateUser(onFound, onFail) {
@@ -657,10 +708,13 @@ const JUMP_CONFIRM = 3;
 const JUMP_AGREE_M = 200;
 
 function _handleFix(pos) {
-  const { latitude, longitude, accuracy } = pos.coords;
+  // `speed` og `heading` ble kastet her. De er målt av samme brikke som
+  // posisjonen, og den siste gode fiksen før en tunnel er nøyaktig der de er
+  // verdt mest — se kalman.js.
+  const { latitude, longitude, accuracy, speed, heading } = pos.coords;
   state.gpsError = null;
   const at = pos.timestamp || Date.now();
-  const here = { lat: latitude, lon: longitude, at, acc: accuracy };
+  const here = { lat: latitude, lon: longitude, at, acc: accuracy, speed, heading };
 
   // IS THIS A POSITION AT ALL? Nothing could ask before, because the previous
   // fix was never kept. «DU ER VED Jernbanetorget · 10221 m å gå» is what one
@@ -680,6 +734,9 @@ function _handleFix(pos) {
     state.posTrail = [];
     state.homeLL = null;
     _stationAnchor = null;
+    // Filteret også: et estimat bygget der du VAR er verdiløst der du er, og
+    // ville dratt en hastighetsvektor tvers over landet gjennom spranget.
+    _filter = null;
   }
   _pending = [];
   state.posJumpAt = null;
@@ -688,6 +745,14 @@ function _handleFix(pos) {
   // dot; a trail that inherited the gate would be blind in exactly the streets
   // and tunnels it exists for.
   state.posTrail = pushFix(state.posTrail, here);
+
+  /* OG FILTERET TAR IMOT DEN SAMME FIKSEN, uansett nøyaktighet — av nøyaktig
+   * samme grunn som serien over. En fiks på ±120 m flytter estimatet nesten
+   * ikke når filteret er sikkert, og mye når det ikke er det; det er
+   * forskjellen på å VEKTE og å KASTE. Porten under eier fortsatt dommen om
+   * hva skjermen kaller posisjonen. */
+  if (_filter) oppdater(_filter, here);
+  else _filter = nyttFilter(here);
 
   // EVERY fix's accuracy, accepted or not. It is the only number that can say
   // why the dot has stopped moving, and it used to reach a log line and
@@ -703,7 +768,9 @@ function _handleFix(pos) {
   }
 
   if (!gated) {
-    state.homeLL = _ema(state.homeLL, { lat: latitude, lon: longitude });
+    // Filterets estimat, ikke den rå fiksen: det er her utjevningen bor nå.
+    const a = anslag(_filter);
+    state.homeLL = a ? { lat: a.lat, lon: a.lon } : { lat: latitude, lon: longitude };
     // Kept so staleness can be told. ACC_GATE silently discards anything worse
     // than ±40m once a fix exists — routine indoors, in a tunnel or in an
     // urban canyon — and without a timestamp the dot simply froze and nothing

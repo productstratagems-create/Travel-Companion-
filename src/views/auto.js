@@ -34,7 +34,7 @@ import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf, loadFreq } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
-import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, userLL, minsToLeave, reachCls, posState } from '../geo.js';
+import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, userLL, minsToLeave, reachCls, posState, posNå } from '../geo.js';
 import L from 'leaflet';
 import { createMap, drawWalk, userDot, drawStopLine } from '../ui/map.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
@@ -1273,10 +1273,7 @@ export const PICK_MARGIN_M = 40;
  * states a reader could act on — old, and the one that used to be invisible.
  */
 function _posState() {
-  return posState({
-    asked: state.posAsked, homeLL: state.homeLL, posAt: state.posAt,
-    gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
-  });
+  return posState(posNå());
 }
 
 

@@ -687,8 +687,9 @@
 .mem-clear:active{background:rgba(248,113,113,.08)}
 
 /* «mot sentrum» / «fra sentrum» (v1.133.0). A quieter register than
-   «hvor skal du?» above it — these divide the answer, they are not a
-   second question. */
+   «andre reisealternativer» above it — these divide the answer, they are not
+   a heading of their own. (Hette «hvor skal du?» til v1.185.0; en kommentar
+   som viser til en streng som ikke finnes er verre enn ingen.) */
 .auto-side{
   font-size:10px;letter-spacing:.18em;text-transform:uppercase;
   color:var(--text-soft);margin:.7rem 0 .35rem;

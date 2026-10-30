@@ -236,7 +236,8 @@ export function moreRowHtml(nOther, nHidden, open, what) {
   const label = open ? moreHeading(what) : moreLabel(nOther, nHidden, what);
   if (!moreLabel(nOther, nHidden, what)) return '';
   // Its own class when open, so it can look like a section label rather than
-  // a folded box — the same idiom «hvor skal du?» and «ofte brukt» use, which
+  // a folded box — the same idiom «andre reisealternativer» and «ofte brukt»
+  // use, which
   // is what a heading over a section looks like everywhere else in this app.
   return '<button type="button" class="alerts-more' + (open ? ' alerts-more-open' : '') + '"'
     + ' aria-expanded="' + (open ? 'true' : 'false') + '">'

@@ -68,8 +68,10 @@ describe('bryteren ligger sammen med lista den styrer', () => {
 
   it('og under overskriften for den lista', () => {
     const hode = html.slice(plass('auto-where-head'), plass('auto-body'));
-    expect(hode).toContain('hvor skal du');
-    expect(hode.indexOf('hvor skal du')).toBeLessThan(hode.indexOf('id="auto-sort"'));
+    // Teksten endret seg i v1.185.0; PÅSTANDEN er rekkefølgen, og den er
+    // den samme: overskriften over bryteren, ikke under.
+    expect(hode).toContain('reisealternativer');
+    expect(hode.indexOf('reisealternativer')).toBeLessThan(hode.indexOf('id="auto-sort"'));
   });
 
   /* OG DEN ER FORTSATT UTENFOR ALT SOM BYTTES UT. Kommentaren i index.html
@@ -86,14 +88,14 @@ describe('bryteren ligger sammen med lista den styrer', () => {
 describe('de to listene skrives til hver sin container', () => {
   it('kortene til sin egen', () => {
     expect(src).toMatch(/auto-dest-body/);
-    expect(src).toMatch(/dit du skal/);
+    expect(src).toMatch(/dit du ofte skal/);
   });
 
   /* Og overskriften for radene skrives IKKE lenger inn i kroppen — den står
    * statisk over bryteren. Sto den begge steder, ville skjermen hatt to
-   * «hvor skal du?» og ingen test ville falt. */
+   * «andre reisealternativer» og ingen test ville falt. */
   it('og radenes overskrift er ikke lenger i kroppen', () => {
-    expect(src).not.toMatch(/set-label">hvor skal du/);
+    expect(src).not.toMatch(/set-label">(andre )?reisealternativer/);
   });
 
   /* Trykkene på kortene må følge med dit kortene flyttet. Det er fjerde
@@ -135,7 +137,7 @@ describe('seksjonen slås av, ikke bare navngis', () => {
   beforeEach(() => {
     document.body.innerHTML =
       '<div id="auto-dest-body"><button class="auto-dest">x</button></div>'
-      + '<div id="auto-where-head"><div class="set-label">hvor skal du?</div>'
+      + '<div id="auto-where-head"><div class="set-label" id="auto-where-label">andre reisealternativer</div>'
       + '<div id="auto-sort"><button class="pref-btn" data-val="asc">'
       + '<span class="sort-word"></span></button></div></div>'
       + '<div id="auto-body"></div>';

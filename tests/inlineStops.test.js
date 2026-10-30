@@ -100,8 +100,16 @@ describe('hvordan skjermen bruker dem nå', () => {
 
   // Uten historikk finnes ingen destinasjon, og da tegnes ingen overskrift
   // heller — skjermen er nøyaktig dagens.
+  /* SKREVET OM I v1.185.0. Den bandt HTML-en ordrett, «dit du skal»
+   * inkludert, og falt da overskriften ble «dit du ofte skal» — altså på
+   * bokstavene, ikke på påstanden. Tredje gang i denne økta en test pinner
+   * en streng og står i veien for at setningen blir bedre.
+   *
+   * Påstanden er at blokka er BETINGET av at det finnes destinasjoner: uten
+   * dem tegnes verken overskrift eller kort. */
   it('tegner ingen blokk uten destinasjoner', () => {
-    expect(src()).toMatch(/dests\.length\s*\n?\s*\? '<div class="set-label">dit du skal<\/div>'/);
+    expect(src()).toMatch(/dests\.length\s*\n?\s*\? '<div class="set-label">[^<]+<\/div>'/);
+    expect(src()).toMatch(/dests\.length[\s\S]{0,120}:\s*'';/);
   });
 });
 

@@ -61,6 +61,59 @@ export function trackPlace(role, name, meta) {
 }
 
 /**
+ * Glem at leseren har reist hit.
+ *
+ * `usage.js` hadde ingen vei ut av lista — bare `loadFreq`, `saveFreq` og
+ * `trackPlace`. Et sted du har reist til én gang ble stående til ti andre
+ * hadde dyttet det ut, og kortene under «dit du ofte skal» viste det hver
+ * dag.
+ *
+ * HER, OG IKKE I KALLESTEDET. Fila sier det selv i toppen: «letting the
+ * second read `t.freqDep` on its own would give one key TWO READERS IN TWO
+ * FILES». En `filter`+`saveFreq` ute i en visning ville vært en tredje.
+ *
+ * PÅ NAVN, ikke på id eller indeks. `stopId` er `null` for alt som ble
+ * skrevet inn framfor valgt fra en liste, så navnet er identiteten — samme
+ * oppslag `trackPlace` bruker. Og på HELE navnet: «Oslo» er et prefiks av
+ * både «Oslo S» og «Oslo lufthavn», og en delstrengstest ville tatt begge.
+ * `recentDests.js` lærte den leksa og skrev den ned.
+ *
+ * «Glem» betyr glem at jeg har reist hit, ikke skjul for alltid: `trackPlace`
+ * er urørt, så et nytt valg av samme sted begynner på én igjen. Det er
+ * avtalen, og den står i `tests/glemSted.test.js`.
+ *
+ * @param {'dep'|'arr'} role
+ * @param {string} name
+ */
+export function glemSted(role, name) {
+  const norm = String(name == null ? '' : name).trim().toLowerCase();
+  if (!norm) return;
+  const list = loadFreq(role);
+  const igjen = list.filter(p =>
+    !(p && String(p.name).trim().toLowerCase() === norm));
+  // Ingen skriving når ingenting ble borte: en `saveFreq` per bomtrykk er en
+  // synkron localStorage-skriving appen ikke trenger.
+  if (igjen.length !== list.length) saveFreq(role, igjen);
+}
+
+/**
+ * Glem alt om hvor leseren har reist.
+ *
+ * «Slett alt appen husker» (`settings.js:954`) tømte hendelsesloggen og de
+ * nylige destinasjonene, men lot `t.freqArr` og `t.freqDep` stå — altså
+ * nøyaktig den opplysningen som er mest personlig av dem alle: hvor du
+ * reiser fra og til, og hvor ofte.
+ *
+ * Funnet mens `glemSted` ble skrevet, da «alt» viste seg å være mindre enn
+ * «én». Her, og ikke med to `storage.remove` ute i en visning, av samme
+ * grunn som alt annet i denne fila: nøkkelen har én eier.
+ */
+export function glemAlleSteder() {
+  saveFreq('dep', []);
+  saveFreq('arr', []);
+}
+
+/**
  * How many times each departure stop has been used, ready to look up.
  *
  * Keyed both ways: by stopKey, which always exists, and by stopId where there

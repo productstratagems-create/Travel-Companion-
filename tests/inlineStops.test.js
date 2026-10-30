@@ -90,12 +90,18 @@ describe('hvordan skjermen bruker dem nå', () => {
   // Én vei videre for alle tre inngangene: blokka, nedtrekket og «ofte brukt».
   it('bruker samme vei videre som stoppet i nedtrekket', () => {
     const s = src();
-    /* Forankret på KLASSEN, ikke på containeren. Første utgave lette etter
-     * `body.querySelectorAll(...)` og falt da kortene fikk sin egen
-     * container i v1.183.0 — på hvor koden bor, ikke på hva den gjør. */
-    const handler = s.slice(s.indexOf(".querySelectorAll('.auto-dest')"));
-    expect(handler.slice(0, 500)).toMatch(/autoRoute\(_stop, \{ name: x\.name, id: x\.id \}\)/);
-    expect(handler.slice(0, 500)).toMatch(/_useRouteDir/);
+    /* FORANKRET PÅ SELVE KALLET, ikke på et tegnvindu etter en container
+     * eller en klasse.
+     *
+     * Den lette først etter `body.querySelectorAll(...)` og falt da kortene
+     * fikk sin egen container i v1.183.0. Så etter klassen, med et vindu på
+     * 500 tegn — og falt igjen i v1.186.0, da langtrykk-koden la seg inn
+     * mellom ankeret og kallet. Et vindu som må gjettes måler feil så snart
+     * noe flyttes; påstanden er at kortet bygger ruta på DEN ENE måten, og
+     * den kan bindes uten å vite hvor i fila den står. */
+    const i = s.indexOf('autoRoute(_stop, { name: x.name, id: x.id })');
+    expect(i, 'kortet bygger ikke ruta på den felles måten').toBeGreaterThan(-1);
+    expect(s.slice(i, i + 200)).toMatch(/_useRouteDir/);
   });
 
   // Uten historikk finnes ingen destinasjon, og da tegnes ingen overskrift

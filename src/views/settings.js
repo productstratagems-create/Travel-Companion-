@@ -4,7 +4,7 @@ import { enturFetch } from '../api/http.js';
 import { recordSmartTrip } from '../api/smart.js';
 import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
-import { loadFreq, trackPlace } from '../api/usage.js';
+import { loadFreq, trackPlace, glemAlleSteder } from '../api/usage.js';
 import { logEvent, recentEvents, describeEvent, clearEvents, MEMORY_DAYS } from '../api/eventLog.js';
 import { clearRecentDests } from '../api/recentDests.js';
 import { loadConsent, saveConsent } from '../api/consent.js';
@@ -955,6 +955,16 @@ export function initMemory() {
   if (clr) clr.addEventListener('click', () => {
     clearEvents();
     clearRecentDests();
+    /* OG REISEHISTORIKKEN. Den sto igjen.
+     *
+     * Knappen sier «slett alt appen husker», og `t.freqArr`/`t.freqDep` er
+     * nettopp det: hvor du har reist fra og til, og hvor ofte. Den overlevde
+     * en knapp som lover det motsatte — funnet da `glemSted` ble skrevet for
+     * å kunne fjerne ÉN oppføring, og «alt» viste seg å være mindre enn én.
+     *
+     * Gjennom `glemAlleSteder`, så nøkkelen fortsatt har én eier: fila den
+     * bor i sier selv at to lesere i to filer er feilformen. */
+    glemAlleSteder();
     renderMemory();
   });
 }

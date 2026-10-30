@@ -6,7 +6,7 @@ import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
-import { walkInfo, walkMinsTo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
+import { walkInfo, walkMinsTo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
@@ -2527,10 +2527,7 @@ function renderWalkSummary() {
     // position. The string used to be written out here and again in
     // auto.js:780. A manually set walk origin has no GPS behind it, so there
     // is nothing to qualify.
-    const ps = state.walkFromLL ? null : posState({
-      asked: state.posAsked, homeLL: state.homeLL, posAt: state.posAt,
-      gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
-    });
+    const ps = state.walkFromLL ? null : posState(posNå());
     const note = ps && ps.kind !== 'ok' ? ps.label : null;
     /* OG ER DET TRINNFRITT NÅR DU KOMMER FRAM?
      *
@@ -2558,10 +2555,7 @@ function renderWalkSummary() {
     // own since custom routes existed.
     // Every state that has something to say, not only a refusal. «Finner ikke
     // posisjonen» and «leter …» were both rendered as nothing at all here.
-    const ps = posState({
-      asked: state.posAsked, homeLL: state.homeLL, posAt: state.posAt,
-      gpsError: state.gpsError, rejAt: state.posRejAt, acc: state.posAcc,
-    });
+    const ps = posState(posNå());
     if (ps.kind === 'ok' || ps.kind === 'ingen-stopp') { el.style.display = 'none'; return; }
     el.textContent = ps.label;
     el.style.display = 'block';

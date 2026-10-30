@@ -84,7 +84,7 @@ async function skjerm(tema) {
       .set-label{display:block;margin:0 0 .4rem}
       #v-auto > * + *{margin-top:.5rem}
     </style>
-    <div id="v-auto"><span class="set-label">dit du skal</span>
+    <div id="v-auto"><span class="set-label">dit du ofte skal</span>
     </div>`;
   await p.route('http://probe.local/', r => r.fulfill({ contentType: 'text/html', body: html }));
   await p.goto('http://probe.local/');
@@ -94,6 +94,9 @@ async function skjerm(tema) {
   await p.evaluate(([kort]) => {
     document.getElementById('v-auto').insertAdjacentHTML('beforeend',
       kort.map((k, i) => window.AUTO.kortHtml(k.x, i)).join(''));
+    // Det midterste kortet holdt inne: slik ×-en faktisk ser ut.
+    const rader = document.querySelectorAll('.auto-dest-rad');
+    if (rader[1]) rader[1].classList.add('vis-slett');
   }, [KORT]);
   await p.waitForTimeout(200);
   const mål = await p.evaluate(() => [...document.querySelectorAll('.auto-dest')].map(el => {
@@ -107,6 +110,15 @@ async function skjerm(tema) {
         h: Math.round(r(mer).height), tekst: mer.textContent.trim() },
       howH: r(how) && Math.round(r(how).height),
       badge: !!el.querySelector('.line-badge'),
+      del: (() => {
+        const rad = el.closest('.auto-dest-rad');
+        const d = rad && rad.querySelector('.auto-dest-del');
+        const r = d && d.getBoundingClientRect();
+        return r && r.width > 0
+          ? { b: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.left) }
+          : null;
+      })(),
+      kortH: Math.round(el.getBoundingClientRect().right),
       // Der teksten FORAN tellingen slutter. Et Range over tekstnoden, fordi
       // en span-boks ikke vet hvor setningen den står i tok slutt.
       gap: (() => {
@@ -135,12 +147,22 @@ console.log('kortbredde: ' + mørk[0].bredde + ' px (telefon 414, 16 px luft)\n'
 mørk.forEach((m, i) => {
   console.log(KORT[i].navn);
   console.log('  høyde ' + String(m.h).padStart(3) + ' px   merke: ' + (m.badge ? 'ja' : 'NEI')
-    + (m.mer ? '   tellingen: «' + m.mer.tekst + '»' : '   (ingen telling)'));
+    + (m.mer ? '   tellingen: «' + m.mer.tekst + '»' : '   (ingen telling)')
+    + (m.del ? '   ×: ' + m.del.b + '×' + m.del.h + ' px' : ''));
 });
 
 const feil = [];
 mørk.forEach((m, i) => {
   if (!m.badge) feil.push(KORT[i].navn + ': ingen linjemerke');
+  /* ×-EN: fingerstor, og den skal ikke ligge oppå kortets eget trykkfelt.
+   * `track.css:233` er et målt bevis på hva som skjer når to trykkflater
+   * overlapper — sytten kollisjoner, funnet med nøyaktig en slik måling. */
+  if (m.del) {
+    if (m.del.b < 44 || m.del.h < 44) {
+      feil.push(KORT[i].navn + ': ×-en er ' + m.del.b + '×' + m.del.h + ' px — under 44');
+    }
+    if (m.del.x < m.kortH - 1) feil.push(KORT[i].navn + ': ×-en overlapper kortet');
+  }
   if (!m.mer) return;
   /* SAMME AVSNITT, IKKE EGEN LINJE OG IKKE HØYRESTILT.
    *

@@ -707,8 +707,44 @@
    er en id-selektor, og en bar klasse taper for den uansett hvor sent den
    kommer i fila. Den tapte stille sist — knappen hang 26 px utenfor
    høyrekanten, målt, ikke sett. */
+/* RAMMA, ikke kortet, er flex-raden. `.auto-dest` ER en `<button>`, og en
+   knapp inni en knapp er ugyldig HTML — `track.js:1450` skrev ned det samme
+   for chipsene. Her er rammen en `<span>` rundt kortet og slettekappen. */
+#v-auto .auto-dest-rad{
+  display:flex; align-items:stretch; gap:0;
+  border-radius:8px; overflow:hidden;
+}
+#v-auto .auto-dest-rad .auto-dest{ flex:1 1 auto; min-width:0; border-radius:8px; }
+
+/* SLETTEKAPPEN. Skjult til et langtrykk åpner den — eller til den får fokus,
+   som er tastaturets vei inn. En gest har ingen vei inn for tastatur eller
+   skjermleser; en knapp som alltid står der, har det.
+
+   `flex-basis: 0` når den er skjult, så kortet beholder hele bredden og
+   teksten ikke hopper når ×-en kommer fram. */
+#v-auto .auto-dest-del{
+  flex:0 0 0; width:0; padding:0; overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  background:none; border:none; font-family:inherit; font-size:20px;
+  color:var(--text-muted); cursor:pointer;
+  -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+  opacity:0; transition:flex-basis .12s ease, opacity .12s ease;
+}
+/* 44 px er gulvet kortet selv har, og `track.css:233` er et målt bevis på
+   hva som skjer når en trykkflate er mindre enn den ser ut. */
+#v-auto .auto-dest-rad.vis-slett .auto-dest-del,
+#v-auto .auto-dest-del:focus-visible{
+  flex:0 0 44px; width:44px; opacity:1;
+}
+#v-auto .auto-dest-del:active{ color:var(--err); }
+
 #v-auto .auto-dest{
   min-height:44px;
+  /* iOS svarer på et langtrykk med systemets kontekstmeny om dette ikke står
+     her — og da er gesten død på den ene plattformen appen er bygget for.
+     `-webkit-touch-callout` fantes ingen steder i repoet før v1.186.0. */
+  -webkit-touch-callout:none; user-select:none; -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent; touch-action:manipulation;
   display:flex; flex-direction:column; align-items:stretch; gap:.15rem;
   text-align:left;
   background:rgba(var(--accent-rgb),.06);

@@ -32,7 +32,7 @@ import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
 import { byLine } from '../api/situations.js';
 import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
-import { depUses, usesOf, loadFreq } from '../api/usage.js';
+import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, userLL, minsToLeave, reachCls, posState, posNå } from '../geo.js';
 import L from 'leaflet';
@@ -2373,13 +2373,8 @@ function _renderBody() {
    * Ingen `|| body` som fallback: finnes ikke containeren, ble kortene aldri
    * tegnet, og å lete etter dem et annet sted finner ingenting uansett. En
    * fallback som aldri kan hjelpe er bare støy som ser ut som forsiktighet. */
-  if (destBody) destBody.querySelectorAll('.auto-dest').forEach(b => {
-    b.addEventListener('click', () => {
-      const x = dests[Number(b.dataset.d)];
-      const dir = x && autoRoute(_stop, { name: x.name, id: x.id });
-      if (dir) window._useRouteDir && window._useRouteDir(dir, null);
-    });
-  });
+  _gjenopprettSlett(destBody);
+  _bindKort(destBody, dests);
 }
 
 // Which line's stops the register has already been asked about. The screen
@@ -2516,6 +2511,153 @@ export function listeOverskrift(harKort) {
   return (harKort ? 'andre ' : '') + 'reisealternativer';
 }
 
+/* ── HVILKET KORT ER ÅPNET FOR SLETTING ─────────────────────────────────
+ *
+ * I MODULEN, IKKE I MARKUPEN, og det er ikke en smakssak.
+ *
+ * Skjermen tegner på nytt hvert sekund, og `destBody.innerHTML` byttes i sin
+ * helhet. Lå tilstanden i HTML-en, ville ×-en forsvunnet innen ett sekund —
+ * før fingeren rakk fram til den — og feilen ville sett ut som at
+ * langtrykket ikke virket i det hele tatt.
+ *
+ * Navnet, ikke indeksen: lista sorteres på bruk, og en indeks peker på et
+ * annet sted så snart rekkefølgen endrer seg. Samme grunn som
+ * `removeRecentDest` tar en etikett.
+ *
+ * Ett kort av gangen. To åpne ×-er er to spørsmål stilt samtidig.
+ */
+let _slettbarNavn = null;
+
+/** For prøvene og for renderen. */
+export function _slettbar() { return _slettbarNavn; }
+export function _settSlettbar(navn) { _slettbarNavn = navn || null; }
+
+/**
+ * Hvor lenge et trykk må holdes.
+ *
+ * 500 ms er iOS' egen terskel for et langtrykk, så gesten kjennes som
+ * systemets. VALGT, IKKE MÅLT — sandkassen har ingen finger, og dette er
+ * tallet som må flyttes om holdet kjennes tregt eller for lett å utløse.
+ */
+export const HOLD_MS = 500;
+
+/**
+ * Hvor mye fingeren får flytte seg før holdet er en skrolling.
+ *
+ * Lista er høyere enn skjermen. Uten dette ville hver dragning som startet
+ * på et kort åpnet en ×, og det er den slags som gjør at en skjerm føles
+ * urolig uten at man klarer å si hvorfor.
+ */
+export const HOLD_SLARK_PX = 10;
+
+/**
+ * Legg klassen tilbake på det åpnede kortet etter en tegning.
+ *
+ * TRUKKET UT AV RENDEREN FOR Å KUNNE PRØVES, og det er ikke rydding.
+ *
+ * Tre utgaver av testen for dette tok feil, fordi de alle bandt KILDETEKST:
+ * først et tegnvindu etter `destBody.innerHTML` (bommet da
+ * overskriftsblokka la seg imellom), så nærheten mellom `_slettbarNavn` og
+ * `vis-slett` (OVERLEVDE at hele gjenopprettingen ble slått av, fordi
+ * langtrykk-handleren noen linjer under nevner begge), så oppslaget på
+ * `data-rad` (overlevde en mutert vakt).
+ *
+ * En vakt kan ikke bindes av et søk i en fil. Den må kjøres.
+ */
+export function _gjenopprettSlett(destBody) {
+  if (!destBody || !_slettbarNavn) return;
+  const sel = (typeof CSS !== 'undefined' && CSS.escape)
+    ? CSS.escape(_slettbarNavn) : _slettbarNavn;
+  const rad = destBody.querySelector('.auto-dest-rad[data-rad="' + sel + '"]');
+  if (rad) rad.classList.add('vis-slett');
+  // Kortet er borte fra lista — da er det ingenting å glemme lenger.
+  else _slettbarNavn = null;
+}
+
+/**
+ * Trykk, hold og slett på kortene.
+ *
+ * Egen funksjon av samme grunn som `_gjenopprettSlett`: en gest er
+ * oppførsel, og oppførsel kan bare bindes ved å kjøres. Mutanten som fjernet
+ * avbruddet ved bevegelse overlevde en test som bare krevde at ordet
+ * `pointermove` fantes i fila.
+ */
+export function _bindKort(destBody, dests) {
+  if (!destBody) return;
+
+  const lukkAlle = () => {
+    _slettbarNavn = null;
+    destBody.querySelectorAll('.auto-dest-rad.vis-slett')
+      .forEach(r => r.classList.remove('vis-slett'));
+  };
+
+  destBody.querySelectorAll('.auto-dest').forEach(b => {
+    /* LANGTRYKK: hold et halvt sekund for å avsløre ×-en.
+     *
+     * `pointer`-hendelser og ikke `touch`: de dekker finger, mus og penn med
+     * ett sett, og dette er det ene stedet i appen som trenger dem. */
+    let holdTimer = null;
+    let start = null;
+    let holdt = false;
+    const avbryt = () => {
+      if (holdTimer) clearTimeout(holdTimer);
+      holdTimer = null; start = null;
+    };
+
+    b.addEventListener('pointerdown', (e) => {
+      holdt = false;
+      start = { x: e.clientX, y: e.clientY };
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        holdt = true;
+        const rad = b.closest('.auto-dest-rad');
+        const navn = rad && rad.dataset.rad;
+        if (!navn) return;
+        lukkAlle();                       // ett kort av gangen
+        _slettbarNavn = navn;
+        rad.classList.add('vis-slett');
+      }, HOLD_MS);
+    });
+
+    /* EN SKROLLING ER IKKE ET HOLD. Lista er høyere enn skjermen, og uten
+     * dette ville hver dragning som startet på et kort åpnet en ×. */
+    b.addEventListener('pointermove', (e) => {
+      if (!start) return;
+      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > HOLD_SLARK_PX) avbryt();
+    });
+    b.addEventListener('pointerup', avbryt);
+    b.addEventListener('pointercancel', () => { avbryt(); holdt = false; });
+
+    b.addEventListener('click', () => {
+      /* HOLDET SVELGER KLIKKET. Uten dette navigerer et langtrykk deg til
+       * tavla i stedet for å avsløre ×-en — altså gjør gesten det motsatte
+       * av det den lover. */
+      if (holdt) { holdt = false; return; }
+      // Et trykk et annet sted lukker en åpen ×.
+      if (_slettbarNavn) { lukkAlle(); return; }
+      const x = dests && dests[Number(b.dataset.d)];
+      const dir = x && autoRoute(_stop, { name: x.name, id: x.id });
+      if (dir) window._useRouteDir && window._useRouteDir(dir, null);
+    });
+  });
+
+  /* OG SELVE SLETTINGEN. Bare raden fjernes fra DOM-en, ikke hele seksjonen:
+   * `track.js:1551` gjorde det samme valget for chipsene, med samme
+   * begrunnelse — «ro er regelen». Neste sekundtegning bygger lista uten
+   * stedet uansett, fordi `glemSted` har skrevet den. */
+  destBody.querySelectorAll('.auto-dest-del').forEach(d => {
+    d.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const navn = d.dataset.glem;
+      if (!navn) return;
+      glemSted('arr', navn);
+      _slettbarNavn = null;
+      const rad = d.closest('.auto-dest-rad');
+      if (rad) rad.remove();
+    });
+  });
+}
+
 export function kortHtml(x, n) {
   const o = x.options[0];
   const q = quayLabel(o.call);
@@ -2534,7 +2676,18 @@ export function kortHtml(x, n) {
     ? flere + (flere === 1 ? ' annen vei' : ' andre veier')
     : null;
 
-  return '<button class="nearby-btn auto-dest" type="button" data-d="' + n + '"'
+  /* EN RAMME RUNDT TO KNAPPER, ikke en knapp inni en knapp.
+   *
+   * `.auto-dest` ER en `<button>`, og en knapp inni en knapp er ugyldig
+   * HTML. `track.js:1450` skrev ned nøyaktig dette for chipsene og løste det
+   * med en `<span>`-ramme; her gjelder det samme.
+   *
+   * ×-EN ER DER HELE TIDEN, ikke noe som settes inn ved et langtrykk. En
+   * gest har ingen vei inn for tastatur eller skjermleser; en knapp som
+   * alltid står der, og som blir synlig når den får fokus, har det.
+   * Langtrykket er en snarvei til den, ikke den eneste veien. */
+  return '<span class="auto-dest-rad" data-rad="' + esc(x.name) + '">'
+    + '<button class="nearby-btn auto-dest" type="button" data-d="' + n + '"'
     + ' aria-label="' + esc('reis til ' + x.name + ', framme ' + clk(o.at) + ', ' + sagt
       + (annet ? ' · ' + annet : '')) + '">'
     + '<span class="auto-dest-top">'
@@ -2548,7 +2701,10 @@ export function kortHtml(x, n) {
     + '<span class="auto-dest-how">' + badgeHtml(ln) + ' ' + esc(how)
     + (annet ? '<span class="auto-dest-more">' + esc(' · +' + annet) + '</span>' : '')
     + '</span>'
-    + '</button>';
+    + '</button>'
+    + '<button class="auto-dest-del" type="button" data-glem="' + esc(x.name) + '"'
+    + ' aria-label="' + esc('Glem ' + x.name) + '">\u00d7</button>'
+    + '</span>';
 }
 
 export function destinations(live, freq, walkMins, now, fromName) {

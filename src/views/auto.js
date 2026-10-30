@@ -392,6 +392,42 @@ export function sortDirs(rows, desc, local) {
 }
 
 /**
+ * Den veien leseren har valgt å prioritere — når den ikke alt er svaret.
+ *
+ * Kortene under «dit du skal» rangerer på ANKOMST, med vilje: «framme 07:40»
+ * er svaret på det eneste spørsmålet kortet stiller, og blokka finnes fordi
+ * fire rader med hver sin klokke tvang leseren til å sortere tall selv.
+ *
+ * Men rapporten var ekte: bryteren sto på «T-bane først», og kortet viste
+ * buss uten å si at det var buss, og uten å si når T-banen var framme. Valget
+ * ble lest ETT sted i hele kodebasen — linjelista. Kortene fikk listen i
+ * leserens rekkefølge og kastet den.
+ *
+ * Så overskriften flytter seg ikke. Dette navngir den andre veien i stedet,
+ * og `null` betyr «det er ingenting å legge til»: står den foretrukne veien
+ * alt øverst, ville «T-bane: framme 07:40» vært samme klokkeslett sagt to
+ * ganger — den feilen dette repoet bruker mest tid på.
+ *
+ * ÉN RANGERING, TO TIEBREAK, OG DET ER IKKE DRIFT. `dirRank` er delt med
+ * `dirCmp`, så tabellen forblir én. Men radlista bryter likt på `nextMs` —
+ * når den går — fordi den rangerer RADER, og kortet bryter på `at` fordi det
+ * rangerer ANKOMSTER. To T-baner der den som går sist er framme først er
+ * nettopp forskjellen, og det er to ulike spørsmål, ikke to svar på ett.
+ *
+ * @param {Array} options  kortets alternativer, som `destinations` gir dem
+ * @param {boolean} desc   leserens retning på typerangeringen
+ * @param {string|null} local  lokal codespace, som ellers i denne fila
+ * @returns {object|null}
+ */
+export function foretrukket(options, desc, local) {
+  if (!options || options.length < 2) return null;
+  const way = desc ? -1 : 1;
+  const best = options.slice().sort((a, b) =>
+    ((dirRank(a.d, local) - dirRank(b.d, local)) * way) || (a.at - b.at))[0];
+  return best === options[0] ? null : best;
+}
+
+/**
  * What the screen actually draws: the surviving rows, in order, each still
  * carrying the index it has in `_dirs`.
  *
@@ -2154,6 +2190,11 @@ function _renderBody() {
   // past their own contents — and a row naming a direction with no time
   // beside it promises something the stop board is not saying.
   const live = _liveRows(now);
+  /* DEN SAMME TO TING: leserens retning og den lokale codespacen. `_liveRows`
+   * leser begge for radene; kortene måtte lese dem også, ellers fortsetter
+   * bryteren å gjelde én liste og ikke den andre — som var hele rapporten. */
+  const sortDesc = loadAutoSort().desc;
+  const local = localCodespace(_dirs);
   if (!live.length) {
     _showSort(false);
     body.innerHTML = '<div class="dest-prev-empty">'
@@ -2225,25 +2266,7 @@ function _renderBody() {
    * road, and four of them under a heading would be the list this block
    * exists to replace.
    */
-  const destHtml = (x, n) => {
-    const o = x.options[0];
-    const q = quayLabel(o.call);
-    const how = 'linje ' + ((o.d.lines[0] && o.d.lines[0].code) || '?')
-      + ' mot ' + o.d.frontText + (q ? ' · ' + q : '')
-      + ' · går ' + clk(o.ms);
-    const flere = x.options.length - 1;
-    return '<button class="nearby-btn auto-dest" type="button" data-d="' + n + '"'
-      + ' aria-label="' + esc('reis til ' + x.name + ', framme ' + clk(o.at) + ', ' + how) + '">'
-      + '<span class="auto-dest-top">'
-      + '<span class="auto-dest-name">' + esc(x.name) + '</span>'
-      + '<span class="auto-dest-at">' + esc('framme ' + clk(o.at)) + '</span>'
-      + '</span>'
-      + '<span class="auto-dest-how">' + esc(how)
-      + (flere ? '<span class="auto-dest-more">'
-        + esc(' · +' + flere + (flere === 1 ? ' annen vei' : ' andre veier')) + '</span>' : '')
-      + '</span>'
-      + '</button>';
-  };
+  const destHtml = (x, n) => kortHtml(x, n, sortDesc, local);
 
   let shown;
   body.innerHTML = (dests.length
@@ -2438,6 +2461,62 @@ export const DEST_BLOCK = 2;
  * module state: this is a rule, and a rule that reaches for `_stop` cannot be
  * tested without the whole screen around it.
  */
+/**
+ * Ett kort: hvor du skal, når du er framme, og hvordan.
+ *
+ * Lå som en closure inne i renderen og kunne derfor bare prøves ved å bygge
+ * hele skjermen. Den bærer to rettelser nå, og begge er påstander om HTML —
+ * de må kunne feile for seg.
+ *
+ * 1 · MERKET. Kortet skrev «linje 71» og ingenting om hva 71 er. Radene
+ *     under har hatt fargemerket hele tiden, og appen VET modusen —
+ *     `dirRank` grupperer på den. Kortet var det eneste stedet kunnskapen
+ *     ikke nådde skjermen.
+ *
+ * 2 · DEN ANDRE VEIEN. «+3 andre veier» er et tall, ikke et svar. T-banen
+ *     leseren valgte å prioritere lå i `options`, bare ikke på plass 0.
+ *
+ * Overskriften flytter seg IKKE. «framme 07:40» betyr fortsatt raskest, og
+ * blokka finnes fordi fire rader med hver sin klokke tvang leseren til å
+ * sortere tall selv. Lar bryteren overstyre den, er vi tilbake der vi
+ * startet — så den navngir den foretrukne veien ved siden av, ikke i stedet.
+ */
+export function kortHtml(x, n, desc, local) {
+  const o = x.options[0];
+  const q = quayLabel(o.call);
+  const ln = (o.d.lines && o.d.lines[0]) || {};
+  const how = 'mot ' + o.d.frontText + (q ? ' · ' + q : '') + ' · går ' + clk(o.ms);
+  // Ordene for en skjermleser. Et merke er en farge, og en forskjell som bare
+  // er en farge er en forskjell halve lesergruppa ikke har.
+  const sagt = 'linje ' + (ln.code || '?') + ' ' + how;
+
+  /* DEN FORETRUKNE VEIEN, NAVNGITT. `RANKS` er samme tabell bryteren henter
+   * etikettene sine fra, så «T-bane først» og «T-bane: framme» ikke kan
+   * drive fra hverandre. Et `label: null` er en modus appen ikke har et ord
+   * for — «nothing on screen should claim to know what it is» — og da står
+   * tellingen, som fortsatt sier noe sant. */
+  const f = foretrukket(x.options, desc, local);
+  const navn = f ? RANKS[dirRank(f.d, local)].label : null;
+  const flere = x.options.length - 1;
+  const annet = navn
+    ? { html: esc(navn + ': framme ' + clk(f.at)), sagt: navn + ' er framme ' + clk(f.at) }
+    : (flere
+      ? { html: esc('+' + flere + (flere === 1 ? ' annen vei' : ' andre veier')),
+        sagt: flere + (flere === 1 ? ' annen vei' : ' andre veier') }
+      : null);
+
+  return '<button class="nearby-btn auto-dest" type="button" data-d="' + n + '"'
+    + ' aria-label="' + esc('reis til ' + x.name + ', framme ' + clk(o.at) + ', ' + sagt
+      + (annet ? ' · ' + annet.sagt : '')) + '">'
+    + '<span class="auto-dest-top">'
+    + '<span class="auto-dest-name">' + esc(x.name) + '</span>'
+    + '<span class="auto-dest-at">' + esc('framme ' + clk(o.at)) + '</span>'
+    + '</span>'
+    + '<span class="auto-dest-how">' + badgeHtml(ln) + ' ' + esc(how) + '</span>'
+    + (annet ? '<span class="auto-dest-more">' + annet.html + '</span>' : '')
+    + '</button>';
+}
+
 export function destinations(live, freq, walkMins, now, fromName) {
   const hist = (freq || []).filter(p => p && p.name);
   if (!hist.length) return [];

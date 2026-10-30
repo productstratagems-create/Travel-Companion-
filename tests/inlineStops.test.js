@@ -195,9 +195,26 @@ describe('hva tallet betyr', () => {
     expect(src()).toMatch(/'framme ' \+ clk\(o\.at\)/);
   });
 
-  // Den som ikke ser skjermen skal høre hele svaret, ikke bare et stedsnavn.
+  /* Den som ikke ser skjermen skal høre hele svaret, ikke bare et stedsnavn.
+   *
+   * SKREVET OM I v1.181.0, OG GRUNNEN ER VERDT Å HA MED. Den bandt uttrykket
+   * ordrett — `'reis til ' + x.name + ', framme ' + clk(o.at) + ', ' + how` —
+   * og falt da merkelappen fikk MER med seg: linjenummeret, og når den
+   * foretrukne veien er framme. En test som pinner strengen står i veien for
+   * at setningen blir fyldigere, og det er motsatt av det den skal verne om.
+   *
+   * Nå bindes påstanden: hvert av de fire feltene skal være med. Legger noen
+   * til et femte, er testen oppfylt — ikke brutt. */
   it('tar hele svaret med i den opplesbare merkelappen', () => {
     const s = src();
-    expect(s).toMatch(/'reis til ' \+ x\.name \+ ', framme ' \+ clk\(o\.at\) \+ ', ' \+ how/);
+    // Inne i kortets egen funksjon, ikke i fila. Første forsøk søkte globalt
+    // og traff en HELT ANNEN `aria-label` lenger oppe — den fanget strengen
+    // «label» og rapporterte at merkelappen manglet destinasjonen. Et søk
+    // som kan treffe feil sted er et søk som kan lyve begge veier.
+    const kort = s.slice(s.indexOf('export function kortHtml'));
+    const lab = (kort.match(/aria-label="' \+ esc\(([\s\S]*?)\) \+ '">/) || [])[1] || '';
+    expect(lab, 'fant ingen aria-label i kortHtml').toBeTruthy();
+    ['reis til', 'x.name', 'framme', 'clk(o.at)'].forEach(del =>
+      expect(lab, del).toContain(del));
   });
 });

@@ -93,7 +93,7 @@ async function skjerm(tema) {
   // rene data og går inn som JSON.
   await p.evaluate(([kort]) => {
     document.getElementById('v-auto').insertAdjacentHTML('beforeend',
-      kort.map((k, i) => window.AUTO.kortHtml(k.x, i, false, null)).join(''));
+      kort.map((k, i) => window.AUTO.kortHtml(k.x, i)).join(''));
   }, [KORT]);
   await p.waitForTimeout(200);
   const mål = await p.evaluate(() => [...document.querySelectorAll('.auto-dest')].map(el => {
@@ -104,8 +104,21 @@ async function skjerm(tema) {
       h: Math.round(el.getBoundingClientRect().height),
       how: r(how) && { y: Math.round(r(how).top), x: Math.round(r(how).left) },
       mer: r(mer) && { y: Math.round(r(mer).top), x: Math.round(r(mer).left),
-        tekst: mer.textContent.trim() },
+        h: Math.round(r(mer).height), tekst: mer.textContent.trim() },
+      howH: r(how) && Math.round(r(how).height),
       badge: !!el.querySelector('.line-badge'),
+      // Der teksten FORAN tellingen slutter. Et Range over tekstnoden, fordi
+      // en span-boks ikke vet hvor setningen den står i tok slutt.
+      gap: (() => {
+        if (!mer) return null;
+        const f = mer.previousSibling;
+        if (!f || f.nodeType !== 3) return null;
+        const rg = document.createRange();
+        rg.selectNodeContents(f);
+        const rects = [...rg.getClientRects()];
+        const siste = rects[rects.length - 1];
+        return siste ? Math.round(r(mer).left - siste.right) : null;
+      })(),
       bredde: Math.round(el.getBoundingClientRect().width),
     };
   }));
@@ -122,22 +135,41 @@ console.log('kortbredde: ' + mørk[0].bredde + ' px (telefon 414, 16 px luft)\n'
 mørk.forEach((m, i) => {
   console.log(KORT[i].navn);
   console.log('  høyde ' + String(m.h).padStart(3) + ' px   merke: ' + (m.badge ? 'ja' : 'NEI')
-    + (m.mer ? '   tredje linje: «' + m.mer.tekst + '»' : '   (ingen tredje linje)'));
+    + (m.mer ? '   tellingen: «' + m.mer.tekst + '»' : '   (ingen telling)'));
 });
 
 const feil = [];
 mørk.forEach((m, i) => {
   if (!m.badge) feil.push(KORT[i].navn + ': ingen linjemerke');
   if (!m.mer) return;
-  // EGEN LINJE: under, ikke ved siden av. Det er hele advarselen i
-  // settings.css:731 om leserekkefølgen på 414 px.
-  if (m.mer.y <= m.how.y) feil.push(KORT[i].navn + ': tredje linje ligger ikke under den andre');
-  if (m.mer.x !== m.how.x) feil.push(KORT[i].navn + ': tredje linje er ikke venstrestilt med teksten over');
+  /* SAMME AVSNITT, IKKE EGEN LINJE OG IKKE HØYRESTILT.
+   *
+   * To ting måles her, og begge har gått galt før. Et høyrestilt flex-barn
+   * brøt leserekkefølgen på 414 px (settings.css:731). Et eget blokk-barn
+   * leste som et nytt utsagn, og det var rapporten mot v1.181.0. Tellingen
+   * skal flyte med teksten: den begynner på en av de linjene `how` alt
+   * dekker, ikke under dem. */
+  const bunn = m.how.y + m.howH;
+  if (m.mer.y >= bunn) feil.push(KORT[i].navn + ': tellingen står under avsnittet, ikke i det');
+  if (!m.mer.tekst.startsWith('·')) feil.push(KORT[i].navn + ': tellingen henger ikke på setningen');
+  /* OG DEN FØLGER SETNINGEN, den er ikke dyttet til kanten.
+   *
+   * `float:right` overlevde de to påstandene over: teksten begynte fortsatt
+   * med «·» og lå fortsatt innenfor avsnittets boks — den hoppet bare til
+   * høyre kant av linja, som er nøyaktig leserekkefølgen settings.css:731
+   * advarer mot. Målingen var for svak, ikke tegningen for god.
+   *
+   * `gap` er avstanden fra der teksten foran slutter til der tellingen
+   * begynner, målt med et Range over tekstnoden. Flyter den med, er den
+   * null. */
+  if (m.gap != null && m.gap > 6) {
+    feil.push(KORT[i].navn + ': tellingen står ' + m.gap + ' px fra teksten foran — dyttet til kanten');
+  }
 });
 // Og kortet skal fortsatt få plass til to over skjermkanten på en telefon.
 const sum = mørk[0].h + mørk[1].h;
 if (sum > 260) feil.push('to kort er ' + sum + ' px — for høyt til å stå over folden');
 
 if (feil.length) { console.error('\nPRØVEN FALT:'); feil.forEach(f => console.error('  · ' + f)); process.exitCode = 1; }
-else console.log('\n✓ merke på hvert kort, tredje linje under og venstrestilt, to kort ' + sum + ' px.');
+else console.log('\n✓ merke på hvert kort, tellingen inne i avsnittet, to kort ' + sum + ' px.');
 console.log('\nbilder: scratchpad/kort-dark.png · scratchpad/kort-light.png');

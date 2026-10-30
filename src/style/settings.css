@@ -734,17 +734,11 @@
 #v-auto .auto-dest-how{
   font-size:.8125rem; color:var(--text-soft); line-height:1.4;
 }
-/* Den tredje linja: enten den foretrukne veien ved navn, eller tellingen.
-   Tellingen, ikke lista: fire alternativer under overskriften ville vært
+/* Tellingen, ikke lista: fire alternativer under overskriften ville vært
    nettopp lista denne blokka finnes for å erstatte.
 
-   EGEN LINJE, OG FORTSATT IKKE HØYRESTILT. Kommentaren over gjelder ennå:
-   et høyrestilt flex-barn brøt leserekkefølgen på 414 px. Dette er et eget
-   blokk-barn av kolonnen, så det legger seg under — ikke ved siden av — og
-   teksten brytes der den må.
-
-   Samme størrelse som linja over, og dempet: det er et tilleggssvar, ikke
-   svaret. Overskriften eier «framme». */
-#v-auto .auto-dest-more{
-  font-size:.8125rem; line-height:1.4; color:var(--text-muted);
-}
+   OG INNE I SAMME AVSNITT. v1.181.0 gjorde den til et eget blokk-barn for å
+   få plass til et navngitt alternativ — og da leste kortet som to avganger
+   i stedet for ett svar. Rapportert, og rullet tilbake: den er en fotnote på
+   setningen over, ikke et nytt utsagn. */
+#v-auto .auto-dest-more{ color:var(--text-muted); }

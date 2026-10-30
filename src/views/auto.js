@@ -2271,9 +2271,18 @@ function _renderBody() {
   const destBody = _el('auto-dest-body');
   if (destBody) {
     destBody.innerHTML = dests.length
-      ? '<div class="set-label">dit du skal</div>' + dests.map(destHtml).join('')
+      ? '<div class="set-label">dit du ofte skal</div>' + dests.map(destHtml).join('')
       : '';
   }
+
+  /* OVERSKRIFTEN UNDER, FRA DET ENE STEDET SOM VET OM DET BLE KORT.
+   *
+   * Ikke fra `_visListeDel`: den kalles før `dests` er regnet ut, og å flytte
+   * det kallet for å få tak i et tall ville vært å endre rekkefølgen på en
+   * render for en etikett. Er seksjonen skjult, spiller teksten ingen rolle,
+   * så ingen av `_visListeDel(false)`-stiene trenger å nullstille noe. */
+  const whereLabel = _el('auto-where-label');
+  if (whereLabel) whereLabel.textContent = listeOverskrift(dests.length > 0);
 
   let shown;
   body.innerHTML = ordered.map(({ d, i }) => {
@@ -2490,6 +2499,23 @@ export const DEST_BLOCK = 2;
  * sortere tall selv. Lar bryteren overstyre den, er vi tilbake der vi
  * startet — så den navngir den foretrukne veien ved siden av, ikke i stedet.
  */
+/**
+ * Overskriften over reisealternativene — og ordet som krever et første.
+ *
+ * «Andre reisealternativer» er riktig når det står kort over. Men
+ * `destinations()` gir tom liste uten historikk (`if (!hist.length) return
+ * []`), og da tegnes kortseksjonen ikke i det hele tatt. «Andre» ville stått
+ * øverst på skjermen uten noe å være andre enn — hos hver førstegangsbruker,
+ * og på hvert stopp der ingen av leserens vanlige destinasjoner går fra.
+ *
+ * To ordlyder, ett navn, så de ikke kan drive fra hverandre. Substantivet er
+ * det samme i begge: det er den samme lista, og bare forholdet til det over
+ * som endrer seg.
+ */
+export function listeOverskrift(harKort) {
+  return (harKort ? 'andre ' : '') + 'reisealternativer';
+}
+
 export function kortHtml(x, n) {
   const o = x.options[0];
   const q = quayLabel(o.call);

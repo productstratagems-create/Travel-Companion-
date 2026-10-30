@@ -73,15 +73,24 @@ const html = `<!doctype html><html data-theme="dark"><meta charset="utf-8">
 await p.route('http://probe.local/', r => r.fulfill({ contentType: 'text/html', body: html }));
 await p.goto('http://probe.local/');
 await p.addScriptTag({ content: bunt });
-await p.evaluate(([kort, rader]) => {
-  document.getElementById('auto-dest-body').innerHTML =
-    '<div class="set-label">dit du skal</div>'
-    + kort.map((x, i) => window.AUTO.kortHtml(x, i)).join('');
+/* TO TILSTANDER, fordi overskriften under sier to ulike ting: «andre
+ * reisealternativer» når det står kort over, og bare «reisealternativer» når
+ * det ikke gjør det. Ordet «andre» krever et første, og en førstegangsbruker
+ * har ingen historikk — da tegnes kortene ikke i det hele tatt. */
+const MED_KORT = process.argv[2] !== 'tom';
+
+await p.evaluate(([kort, rader, medKort]) => {
+  document.getElementById('auto-dest-body').innerHTML = medKort
+    ? '<div class="set-label">dit du ofte skal</div>'
+      + kort.map((x, i) => window.AUTO.kortHtml(x, i)).join('')
+    : '';
+  document.getElementById('auto-where-label').textContent =
+    window.AUTO.listeOverskrift(medKort);
   document.getElementById('auto-body').innerHTML = rader;
   document.querySelectorAll('.pref-btn')[0].classList.add('active');
   document.querySelectorAll('.sort-word')[0].textContent = 'T-bane først';
   document.querySelectorAll('.sort-word')[1].textContent = 'Andre busser først';
-}, [KORT, RADER]);
+}, [KORT, RADER, MED_KORT]);
 await p.waitForTimeout(250);
 
 const m = await p.evaluate(() => {
@@ -89,29 +98,45 @@ const m = await p.evaluate(() => {
   const kort = r('#auto-dest-body'), hode = r('#auto-where-head'), liste = r('#auto-body');
   const sort = r('#auto-sort');
   return {
+    overskrift: document.getElementById('auto-where-label').textContent,
     rekke: [['kort', Math.round(kort.top)], ['hode', Math.round(hode.top)],
       ['liste', Math.round(liste.top)]],
     tilKort: Math.round(sort.top - kort.bottom),
     tilListe: Math.round(liste.top - sort.bottom),
   };
 });
-await p.screenshot({ path: 'scratchpad/seksjoner.png', fullPage: true });
+await p.screenshot({ path: 'scratchpad/seksjoner' + (MED_KORT ? '' : '-tom') + '.png', fullPage: true });
 await b.close();
 
+console.log('overskrift: «' + m.overskrift + '»');
 console.log('rekkefølge ovenfra:  ' + m.rekke.map(([n, y]) => n + '@' + y).join('  →  '));
 console.log('bryteren står ' + m.tilKort + ' px under kortene og ' + m.tilListe + ' px over lista\n');
 
 const feil = [];
+/* ORDET «ANDRE» KREVER ET FØRSTE, og det er en påstand om PIKSLER her: står
+ * det «andre» i en skjerm der ingenting står over, er det synlig galt. */
+if (MED_KORT && !m.overskrift.startsWith('andre')) feil.push('mangler «andre» med kort over');
+if (!MED_KORT && m.overskrift.includes('andre')) feil.push('sier «andre» uten noe over');
 const y = Object.fromEntries(m.rekke);
-if (!(y.kort < y.hode && y.hode < y.liste)) feil.push('seksjonene står ikke i rekkefølgen kort → bryter → liste');
+/* REKKEFØLGEN MÅLES BARE NÅR DET FINNES KORT.
+ *
+ * Uten dem er `#auto-dest-body` tom, og en tom container har null høyde — så
+ * `kort.top === hode.top`, og sammenligningen `<` er usann uten at noe er
+ * galt. Første utgave meldte feil på nettopp det: instrumentet, ikke
+ * skjermen. Det som gjelder i den tilstanden er at overskriften er den
+ * RIKTIGE, og den måles like over. */
+if (MED_KORT && !(y.kort < y.hode && y.hode < y.liste)) {
+  feil.push('seksjonene står ikke i rekkefølgen kort → bryter → liste');
+}
+if (!MED_KORT && !(y.hode < y.liste)) feil.push('overskriften står ikke over lista');
 /* NÆRHET ER PÅSTANDEN. «Ligge sammen med lista den påvirker» er ikke
  * oppfylt av rekkefølge alene: står bryteren like langt fra begge, hører den
  * fortsatt ingen steder. Den skal være nærmere lista enn kortene. */
-if (m.tilListe >= m.tilKort) {
+if (MED_KORT && m.tilListe >= m.tilKort) {
   feil.push('bryteren står ' + m.tilListe + ' px fra lista og ' + m.tilKort
     + ' px fra kortene — ikke nærmere den den styrer');
 }
 
 if (feil.length) { console.error('PRØVEN FALT:'); feil.forEach(f => console.error('  · ' + f)); process.exitCode = 1; }
 else console.log('✓ kort → bryter → liste, og bryteren er nærmest lista.');
-console.log('\nbilde: scratchpad/seksjoner.png');
+console.log('\nbilde: scratchpad/seksjoner' + (MED_KORT ? '' : '-tom') + '.png');

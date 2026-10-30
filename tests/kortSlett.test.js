@@ -92,6 +92,17 @@ describe('kortet er en ramme med to knapper', () => {
   it('og bærer navnet som data, ikke som tekst å lese tilbake', () => {
     expect(kortHtml(KORT, 0)).toMatch(/data-glem="Ekeberg camping"/);
   });
+
+  /* OG ID-EN. `usesOf` foretrekker stopp-id framfor navnet når den avgjør om
+   * kortet skal vises (`usage.js:153`); slettingen må kunne bruke den samme,
+   * ellers er en oppføring som ble FUNNET på id utilgjengelig for sletting
+   * uansett hva den heter. Rapportert mot v1.186.0. */
+  it('og stopp-id-en, som er den visningen foretrekker', () => {
+    const medId = { ...KORT, id: 'NSR:StopPlace:58' };
+    expect(kortHtml(medId, 0)).toMatch(/data-glem-id="NSR:StopPlace:58"/);
+    // Og et sted uten id bærer ikke et tomt attributt.
+    expect(kortHtml(KORT, 0)).not.toMatch(/data-glem-id/);
+  });
 });
 
 describe('tilstanden overlever at skjermen tegnes på nytt', () => {
@@ -251,7 +262,10 @@ describe('gesten', () => {
    * forsvinner uten at resten av skjermen tegnes om — «ro er regelen». */
   it('og ×-en glemmer stedet', () => {
     localStorage.clear();
-    saveFreq('arr', [{ name: 'Ekeberg camping', count: 3, lastUsed: Date.now() },
+    /* SKRIVEMÅTEN ER ULIK MED VILJE. Historikken har «Ekeberg camping,
+     * Oslo», kortet heter «Ekeberg camping» — det rapporterte tilfellet.
+     * Med samme skrivemåte begge steder ser testen ingenting. */
+    saveFreq('arr', [{ name: 'Ekeberg camping, Oslo', count: 3, lastUsed: Date.now() },
       { name: 'Jernbanetorget', count: 9, lastUsed: Date.now() }]);
     const b = sett();
     _bindKort(b, []);
@@ -260,6 +274,29 @@ describe('gesten', () => {
     expect(loadFreq('arr').map(p => p.name)).toEqual(['Jernbanetorget']);
     expect(b.querySelector('.auto-dest-rad')).toBeNull();
     expect(_slettbar()).toBeNull();
+  });
+
+  /* OG ID-EN NÅR HELE VEIEN FRAM.
+   *
+   * Mutanten som droppet id-en i handleren OVERLEVDE, fordi fiksturen over
+   * ikke har noen id — og uten id er navnet den eneste veien, så begge
+   * utgaver virker. En fikstur uten id kan ikke se en regel om id, på samme
+   * måte som en fikstur med ett kort ikke kunne se en regel om to.
+   *
+   * Her heter oppføringen noe helt annet enn kortet, så id-en er det ENESTE
+   * som kan finne den. */
+  it('og id-en når hele veien fram til glemSted', () => {
+    localStorage.clear();
+    saveFreq('arr', [{ name: 'Et helt annet navn', count: 3, lastUsed: Date.now(),
+      stopId: 'NSR:StopPlace:58' }]);
+    document.body.innerHTML = '<div id="b">'
+      + kortHtml({ name: 'Ryen T', id: 'NSR:StopPlace:58', options: KORT.options }, 0)
+      + '</div>';
+    const b = document.getElementById('b');
+    _bindKort(b, []);
+    b.querySelector('.auto-dest-del').dispatchEvent(
+      new window.MouseEvent('click', { bubbles: true }));
+    expect(loadFreq('arr')).toHaveLength(0);
   });
 });
 

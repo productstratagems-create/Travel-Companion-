@@ -2650,7 +2650,7 @@ export function _bindKort(destBody, dests) {
       e.stopPropagation();
       const navn = d.dataset.glem;
       if (!navn) return;
-      glemSted('arr', navn);
+      glemSted('arr', navn, d.dataset.glemId || null);
       _slettbarNavn = null;
       const rad = d.closest('.auto-dest-rad');
       if (rad) rad.remove();
@@ -2702,7 +2702,12 @@ export function kortHtml(x, n) {
     + (annet ? '<span class="auto-dest-more">' + esc(' · +' + annet) + '</span>' : '')
     + '</span>'
     + '</button>'
+    /* ID-EN FØLGER MED. `usesOf` foretrekker stopp-id framfor navnet når den
+     * avgjør om kortet skal vises; da må slettingen kunne bruke den samme —
+     * ellers er en oppføring som ble FUNNET på id utilgjengelig for sletting
+     * uansett hva den heter. */
     + '<button class="auto-dest-del" type="button" data-glem="' + esc(x.name) + '"'
+    + (x.id ? ' data-glem-id="' + esc(x.id) + '"' : '')
     + ' aria-label="' + esc('Glem ' + x.name) + '">\u00d7</button>'
     + '</span>';
 }

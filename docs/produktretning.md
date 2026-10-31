@@ -106,17 +106,96 @@ skal svare likt på samme spørsmål. De gjorde det ikke. Se v1.189.0.
 
 ## Hva som står igjen
 
-Fire ting, ikke sju:
+Fire ting, ikke sju — men de hører ikke til samme spørsmål, og rekkefølgen
+under er satt av PULL, ikke av hvor interessante de er å bygge.
 
-1. **Rad → kart.** Trykk på en avgang navigerer bort. Den kunne i stedet
+1. **Tillitsgraden som signatur.** Vokabularene finnes; det som mangler er å
+   behandle dem som produktet framfor som rydding. *Den eneste av de fire
+   som går gjennom PULL.*
+2. **Rad → kart.** Trykk på en avgang navigerer bort. Den kunne i stedet
    framheve linja, holdeplassen og ruta på tavlekartet — koblingen finnes
-   alt på linjenivå (`_lineOn`), ikke på avgangsnivå.
-2. **Ett navngitt fasebegrep.** I dag er fasen `show('v-…')`. Tabellen over
-   og skjermbyttene er to steder som skriver ned samme faktum.
-3. **Tillitsgraden som signatur.** Vokabularene finnes; det som mangler er å
-   behandle dem som produktet framfor som rydding.
+   alt på linjenivå (`_lineOn`), ikke på avgangsnivå. *Faller på siste L:
+   Google Maps gjør dette, og gjør det godt.*
+3. **Ett navngitt fasebegrep.** I dag er fasen `show('v-…')`. Tabellen over
+   og skjermbyttene er to steder som skriver ned samme faktum. *Vedlikehold,
+   ikke etterspørsel — begrunnes av «én navngitt definisjon», ikke av PULL.*
 4. **En rest:** `track.js:928` bruker `#60a5fa` — fargen «deg» ble flyttet
    vekk fra nettopp fordi den kolliderte med destinasjonsnålene.
+   *Korrekthet. Trenger ingen ramme.*
+
+---
+
+## PULL — er det noen som drar?
+
+Rob Snyders rammeverk fra *Physics of Startups*, for å finne blokkert
+etterspørsel framfor å pitche til folk som bare er høflige:
+
+| | |
+|---|---|
+| **P**rioritert prosjekt | kunden jobber alt mot et mål med høy prioritet |
+| **U**unngåelig situasjon | det finnes en frist, et press, en tvungen endring |
+| **L**ooked at alternatives | hun har alt prøvd det som finnes |
+| **L**imitations are severe | det hun prøvde er utilstrekkelig |
+
+### Oversettelsen må være eksplisitt
+
+PULL er laget for å finne **kunder i kjøpssituasjon**. Denne appen har én
+bruker og ingen kjøpere, så uten en oversettelse diskriminerer rammeverket
+ikke mellom noe som helst.
+
+Oversettelsen: **kunden er den reisende på perrongen, og «kjøpet» er å åpne
+denne appen framfor Ruter eller Google Maps.**
+
+### P og U er oppfylt for hele appen — L-ene er det som skiller
+
+Å rekke jobben er et høyt prioritert, daglig gjentatt prosjekt. En avgang som
+går 08:48 er en absolutt frist. Det gjelder alt appen gjør, og skiller derfor
+ingenting.
+
+| | P | U | L · vurdert | L · alvorlig |
+|---|---|---|---|---|
+| tillitsgraden | ja | ja | ja, daglig | **ja** |
+| rad → kart | ja | middels | ja, daglig | **nei** |
+| fasebegrepet | — | — | — | — |
+| `#60a5fa` | — | — | — | — |
+
+**Rad → kart faller på siste L.** Google Maps gjør nettopp dette, og gjør det
+godt: trykk en rute, se den på kartet. Alternativet er altså ikke
+utilstrekkelig — det er tilstrekkelig. PULL sier da: ikke invester her.
+
+**Tillitsgraden går hele veien.** Ruter og Google viser et tall uten opphav. I
+en tunnel teller Google videre med full selvtillit på rutetid og sier det
+ikke. Du handler på tallet — går ut døra, lar være å løpe — og oppdager først
+etterpå at det var gjettet. Alvorlig begrensning, uunngåelig situasjon, og
+**ingen av alternativene kan adressere den**: å si «jeg vet ikke»
+undergraver et produkt som selger sikkerhet.
+
+**De to siste er ikke etterspørselsspørsmål.** Å måle dem mot PULL er å bruke
+feil instrument. De begrunnes av arbeidsmåten i AGENTS.md, ikke av et marked.
+
+### Hvordan de to rammeverkene henger sammen
+
+De svarer på ulike spørsmål, og det ene skal **portvokte** det andre:
+
+```
+PULL               er det noen som drar i dette?        → om vi bygger
+Proven·Better·New  hva slags arbeid er dette?           → hvor mye det koster
+```
+
+Et Better-tiltak uten pull er polering. Et New-tiltak med pull er en
+posisjon. Rekkefølgen i lista over er satt av den første kolonnen.
+
+### Og innvendingen mot dokumentet selv
+
+Rammeverkets poeng er å slutte å pitche til folk som bare er høflige.
+Påstanden over om at Ruter og Google er «alvorlig begrenset» er **ikke
+testet** — den er hentet fra hukommelsen, og sandkassen kan ikke sjekke den.
+
+PULL foreskriver derfor én konkret handling før mer bygging: **finn fem
+mennesker som har mistet et tog fordi en app løy selvsikkert**, og hør om de
+kjenner seg igjen. Gjør de ikke det, er «tillitsgrad» forfatterens interesse
+og ikke leserens etterspørsel — og da er dette dokumentet nettopp den kalde
+pitchen det advarer mot.
 
 ---
 

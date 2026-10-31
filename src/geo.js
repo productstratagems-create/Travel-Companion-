@@ -435,6 +435,33 @@ export function reachCls(mtl) {
 }
 
 /**
+ * Ordene for den ene dommen som ikke hadde noen.
+ *
+ * `reachCls` har hatt `missed` hele tiden, og tavla bruker den — men det
+ * eneste raden gjorde med den var `opacity:.4` og en rød kant
+ * (`board.css:64`). Og `showReach` krever `!missed` (`board.js:3107`), så
+ * den ene linja som kunne sagt noe var AKTIVT undertrykt. Raden som trenger
+ * en setning mest, var den eneste som var taus.
+ *
+ * AUTO-REISE LÆRTE DETTE FØRST. `auto.js:1846` bærer rapporten ordrett:
+ * «Noen avgangstider er gjennomstrekede, antar fordi de er utenfor
+ * gangrekkevidde?» — og ordet «antar» ER rapporten.
+ *
+ * Så ble det samme spørsmålet stilt en gang til, om en annen skjerm: en
+ * produktvurdering som studerte skjermbildene konkluderte med at appen ikke
+ * forstår om en avgang kan nås — mens den har visst det i sytti utgivelser.
+ * Det er målingen. 40 % opasitet leses ikke som «denne rekker du ikke», og
+ * for den som ikke ser skjermen har det aldri betydd noe som helst.
+ *
+ * BARE `missed` FÅR ORD. Raden du kan rekke har alt «gå senest 10:12» fra
+ * `showReach`, og den er mer handlingsrettet enn en etikett. To setninger om
+ * samme forhold på samme rad er støy, ikke informasjon.
+ */
+export function rekkeTekst(rcls) {
+  return rcls === 'missed' ? 'rekker ikke' : '';
+}
+
+/**
  * Close enough to be the same place.
  *
  * Reported with a screenshot of the arrival panel: the map framed eight

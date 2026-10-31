@@ -25,6 +25,7 @@ import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, makeJourneyPointIcon,
 import { livePosFeed, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
 import { belegg, beleggTekst, fraEntur } from '../api/belegg.js';
+import { SRC_LABEL } from '../api/posSource.js';
 import { hentStoppested, stoppestedKjent } from '../api/stoppested.js';
 import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby, drawLeg, drawJourneyPoints } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
@@ -2021,6 +2022,34 @@ export function _stripLabel(lead) {
   return Math.floor(m / 1440) + 'd';
 }
 
+/**
+ * Er posisjonene på stripa målt, eller regnet ut av rutetabellen?
+ *
+ * `.ls-live` gir et tog med målt posisjon en glød. Et uten er tegnet LIKT,
+ * minus gløden — og så lenge noe ved siden av ikke gløder, er det nok. Men
+ * på en linje uten sanntidsdekning, eller når strømmen er død, gløder
+ * INGEN, og da finnes det ingen nabo å skille seg fra mens stripa fortsatt
+ * ser ut som en observasjon.
+ *
+ * Det er samme form som belegningen i v1.176.0: en forskjell du bare kan se
+ * ved å sammenligne med naboen, er ingen forskjell når alle naboene er like.
+ *
+ * TO TILSTANDER OG IKKE TRE, med vilje. Ett målt tog gir kontrasten gløden
+ * trenger, og en ekstra linje tekst over en skjerm som alt er tett er støy.
+ * Ordet sies bare når det ikke finnes noe å sammenligne med.
+ *
+ * ORDET ER APPENS EGET. `posSource.js` eier det, og underveis-skjermen sier
+ * nøyaktig det samme når posisjonen faller til ruteplanen.
+ */
+export const STRIPE_KINDS = ['tom', 'malt', 'rutetid'];
+
+export function stripeKilde(trains) {
+  const list = Array.isArray(trains) ? trains : [];
+  if (!list.length) return { kind: 'tom', ord: '' };
+  if (list.some(t => t && t.live)) return { kind: 'malt', ord: '' };
+  return { kind: 'rutetid', ord: SRC_LABEL.rutetid };
+}
+
 export function _stripSummary(data) {
   if (!data || !data.trains || !data.trains.length) return 'Ingen avganger på linja nå';
   // 'tog' is invariant in Norwegian — no plural branch to get wrong.
@@ -2028,8 +2057,14 @@ export function _stripSummary(data) {
   // fmtMins, as the row already does. Raw minutes read fine at 9 and badly at
   // 1209 — and since the search window became a full day (v1.86.3) the second
   // is a normal case, not an edge one.
+  /* OG HVOR POSISJONENE KOMMER FRA. Stripa er `role="img"`, så denne
+   * setningen ER stripa for den som ikke ser den — og gløden finnes ikke
+   * der i det hele tatt. Uten dette ville en skjermleser fått den mest
+   * selvsikre utgaven av alle. */
+  const kilde = stripeKilde(data.trains);
   return data.trains.length + ' tog på vei til ' + (data.from || 'stoppet ditt')
-    + ', neste om ' + fmtMins(soonest);
+    + ', neste om ' + fmtMins(soonest)
+    + (kilde.ord ? ' · ' + kilde.ord : '');
 }
 
 export const _stripPct = (p) => 100 * (p <= 0
@@ -2123,6 +2158,9 @@ function renderLineStrip(visibleDeps) {
   // rail either.
   const { groups, openId } = _stripGroups(data.trains, width, _stripTouched ? _expandedCluster : undefined);
 
+  // Én dom, to lesere: overskriften og aria-etiketten.
+  const kilde = stripeKilde(data.trains);
+
   const trains = groups.map(cl => {
     const n = cl.items.length;
     const lead = cl.items[0];
@@ -2169,7 +2207,8 @@ function renderLineStrip(visibleDeps) {
   }).join('');
 
   el.innerHTML =
-    '<div class="ls-caps"><span class="ls-cap ls-cap-wide">neste avganger</span></div>'
+    '<div class="ls-caps"><span class="ls-cap ls-cap-wide">'
+    + 'neste avganger' + (kilde.ord ? ' · ' + esc(kilde.ord) : '') + '</span></div>'
     + '<div class="ls-rail">'
     + '<span class="ls-zone ls-zone-appr" style="width:' + _stripPct(0).toFixed(2) + '%"></span>'
     + trains

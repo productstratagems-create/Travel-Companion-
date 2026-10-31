@@ -475,8 +475,17 @@ describe('_buildStrip', () => {
 describe('_stripSummary', () => {
   const D = (mins) => ({ trains: mins.map(m => ({ mins: m })), from: 'Økern' });
 
+  /* SKREVET OM I v1.188.0. Den bandt HELE strengen med `toBe`, og falt da
+   * setningen fikk en kildeopplysning bakpå — på bokstavene, ikke på
+   * påstanden. Og fiksturen her er nettopp «ingenting er målt»: `D` lager
+   * tog uten `live`, så stripa SKAL si «etter rutetid» for disse.
+   *
+   * Påstanden er at setningen teller avgangene og navngir den første. */
   it('counts the departures and names the soonest', () => {
-    expect(_stripSummary(D([6, 12, 21]))).toBe('3 tog på vei til Økern, neste om 6 min');
+    const t = _stripSummary(D([6, 12, 21]));
+    expect(t).toContain('3 tog');
+    expect(t).toContain('Økern');
+    expect(t).toContain('neste om 6 min');
   });
 
   it('does not assume the list arrived sorted', () => {
@@ -489,7 +498,9 @@ describe('_stripSummary', () => {
   });
 
   it('falls back when the stop is unknown', () => {
-    expect(_stripSummary({ trains: [{ mins: 4 }] })).toBe('1 tog på vei til stoppet ditt, neste om 4 min');
+    const t = _stripSummary({ trains: [{ mins: 4 }] });
+    expect(t).toContain('1 tog på vei til stoppet ditt');
+    expect(t).toContain('neste om 4 min');
   });
 });
 

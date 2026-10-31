@@ -36,6 +36,14 @@ skjerm hører hjemme i én av dem:
 5. **Ro.** Ingenting skal hoppe, blafre eller kreve skrolling for å se det
    avgjørende. Knappene som fører videre skal være synlige uten å skrolle.
 
+### Og hvorfor appen finnes i det hele tatt
+
+`docs/produktretning.md` er laget over denne visjonen: hva appen prøver å
+være, hva som allerede er bygget, og hva som står igjen. Les den før du
+foreslår en ny retning — seks av sju forslag i den forrige eksterne
+vurderingen var allerede bygget, og en plan som ber om noe som finnes sender
+oss til å bygge det to ganger.
+
 ## Arbeidsmåten
 
 - **Reproduser før du retter.** Bygg det rapporterte tilfellet som fikstur og

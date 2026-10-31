@@ -6,7 +6,7 @@ import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
-import { walkInfo, walkMinsTo, mToLeave, reachCls, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
+import { walkInfo, walkMinsTo, mToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
@@ -3279,6 +3279,18 @@ export function renderBoard() {
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
       + (tooEarlyForPlan ? '<span class="dep-cancelled">før forrige etappe</span>' : '')
       + '</div>'
+      /* OG RADEN DU IKKE REKKER SIER DET.
+       *
+       * `showReach` krever `!missed`, så den ene linja som kunne sagt noe
+       * var aktivt undertrykt — og raden satt igjen med `opacity:.4` og en
+       * rød kant. Det er ikke en setning, og for den som ikke ser skjermen
+       * er det ingenting i det hele tatt.
+       *
+       * Samme sted som nedtellingen, fordi det er samme spørsmål besvart:
+       * «når må jeg gå» har svaret «det er for sent». */
+      + (rekkeTekst(rcls)
+        ? '<div class="dep-reach missed">' + esc(rekkeTekst(rcls)) + '</div>'
+        : '')
       + (showReach
         ? (() => {
             // «19t 53m igjen» was this line. Past the horizon the row names the

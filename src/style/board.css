@@ -61,7 +61,15 @@
   position:relative;
 }
 .dep-row:active{background:rgba(var(--accent-rgb),.04)}
-.dep-row.missed{opacity:.4;border-left-color:rgba(220,38,38,.3)}
+/* «rekker ikke» — ordene raden manglet.
+   OPASITETEN KAN IKKE OVERSTYRES NEDENFRA. Første forsøk var
+   `.dep-reach.missed{opacity:2.2}` for å «løfte teksten ut av» radens
+   nedtoning. Det er umulig: `opacity` på forelderen lager en stablekontekst,
+   og et barn kan ikke bli mer ugjennomsiktig enn den. Raden selv må derfor
+   gi litt etter — .55 i stedet for .4 — og ordene får sin egen farge innenfor
+   det. Målt i scratchpad/radProbe.mjs, ikke antatt. */
+.dep-row.missed{opacity:.55;border-left-color:rgba(220,38,38,.35)}
+.dep-reach.missed{color:#f87171;font-weight:600;letter-spacing:.02em}
 .dep-row.plan-early{opacity:.5;border-left-color:rgba(116,133,160,.4)}
 .dep-row.cancelled{opacity:.2;pointer-events:none}
 .dep-row.r-ok  {border-left-color:rgba(74,222,128,.4)}

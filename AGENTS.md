@@ -44,6 +44,13 @@ foreslår en ny retning — seks av sju forslag i den forrige eksterne
 vurderingen var allerede bygget, og en plan som ber om noe som finnes sender
 oss til å bygge det to ganger.
 
+Den bærer to rammeverk, og de svarer på hvert sitt spørsmål:
+
+    PULL                er det noen som drar i dette?   → om vi bygger
+    Proven·Better·New   hva slags arbeid er dette?      → hva det koster
+
+Det første portvokter det andre. Et Better-tiltak uten pull er polering.
+
 ## Arbeidsmåten
 
 - **Reproduser før du retter.** Bygg det rapporterte tilfellet som fikstur og

@@ -551,8 +551,14 @@ describe('auto-reise and the traffic banner', () => {
     const t = src();
     expect(t).toMatch(/dirAlertHtml\(dirMsgs, _openMsgs, rm\.keys\.get\(i\), i\)/);
     expect(t).toMatch(/auto-dir-alert/);
-    // and the label is the row's own, not the message repeated into it
-    expect(t).toMatch(/const full = 'mot ' \+ d\.frontText \+ \(q \? ', ' \+ q : ''\);/);
+    /* and the label is the row's own, not the message repeated into it.
+       BUNDET PÅ PÅSTANDEN, IKKE PÅ LINJA. Dette var en ordrett kopi av
+       setningen, og falt da v1.191.0 la vanestyrken til `full` — på
+       formateringen, ikke på noe som var galt. Det som må holde er at
+       meldingen ikke kommer inn her. */
+    const full = t.slice(t.indexOf("const full = 'mot '"));
+    expect(full.slice(0, 40)).toMatch(/^const full = 'mot ' \+ d\.frontText/);
+    expect(full.slice(0, full.indexOf(';'))).not.toMatch(/msg|dirMsgs/);
   });
 
   // The banner is told what the rows already carry, from the same derivation

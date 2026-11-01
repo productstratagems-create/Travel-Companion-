@@ -24,7 +24,7 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { fetchNextDeparture, fetchBoard } from '../api/entur.js';
 import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
-import { predictDest, autoJumpDest } from '../api/smart.js';
+import { predictDest, autoJumpDest, destRanking, vanestyrke, VANE_MARK } from '../api/smart.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { approach } from '../trail.js';
 import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
@@ -2177,6 +2177,18 @@ function _renderBody() {
   // row behaves the same.
   const guess = predictDest();
   const usual = guess && guess.toName ? String(guess.toName).toLowerCase() : null;
+  /* OG HVOR MYE GJETNINGEN ER VERDT.
+   *
+   * Merket var bare en rammefarge (`settings.css:609`): førti reiser og én
+   * reise så nøyaktig like sikre ut, og `aria-label` sa ingenting om at
+   * raden var merket i det hele tatt. Regningen fantes hele tiden inne i
+   * `destRanking` — dette er bare å la den nå skjermen.
+   *
+   * Uten argument, som `predictDest()` over: kalles de med hvert sitt
+   * tidspunkt er det to steder som skriver ned «nå», og de ville drevet fra
+   * hverandre over et bøtteskille. (`now` er dessuten deklarert NEDENFOR —
+   * se den dødsonen kommentaren åtti linjer opp beskriver.) */
+  const vane = vanestyrke(destRanking(), guess && guess.source);
   // Read once, so every row on the screen agrees about what time it is.
   const now = Date.now();
   // How far you have to walk to be standing here — the number this screen has
@@ -2286,7 +2298,12 @@ function _renderBody() {
 
   let shown;
   body.innerHTML = ordered.map(({ d, i }) => {
-      const hint = usual && d.frontText.toLowerCase() === usual;
+      /* Merket bare når det finnes noe å si om STYRKEN. `gjetning` er
+       * `t.freqArr`-fallbacken, som ikke vet noe om tid på døgnet —
+       * `autoJumpDest` nekter alt å handle på den, og en rad merket «du
+       * pleier» på den strengen ville påstått noe ingen har målt. */
+      const hint = !!usual && d.frontText.toLowerCase() === usual
+        && (vane.kind === 'sterk' || vane.kind === 'svak');
       const q = quayLabel(d.call);
       // The destination is the part that gives way, so the whole of it has to
       // survive somewhere: aria-label for a screen reader, title for a long
@@ -2299,7 +2316,14 @@ function _renderBody() {
       // be appended here because there was nowhere visible to put it; it has
       // its own button now, with its own label, and reading it three times in
       // a row is not an improvement.
-      const full = 'mot ' + d.frontText + (q ? ', ' + q : '');
+      // SKJERMLESEREN FÅR DET SAMME SOM ØYET. En forskjell som bare er en
+      // farge er en forskjell halve lesergruppa ikke har — og her var det
+      // ikke engang et ord å lese opp.
+      const full = 'mot ' + d.frontText + (q ? ', ' + q : '')
+        // «1 turer» sto på skjermen i første kjøring av prøven. Ett tall som
+        // bærer sitt eget ord, ikke to skrivemåter som må være enige.
+        + (hint ? ', ' + vane.label + ' (' + vane.antall
+          + (vane.antall === 1 ? ' tur)' : ' turer)') : '');
       // The heading is emitted by the first row of each group, so the
       // order the list is already sorted in is the order the groups appear
       // in — no second sort that could disagree with the first.
@@ -2314,11 +2338,23 @@ function _renderBody() {
             + esc(k ? CENTRE_LABEL[k] : 'andre retninger') + '</div>';
         }
       }
-      return head + '<button class="nearby-btn auto-dir' + (hint ? ' auto-usual' : '') + '"'
+      return head + '<button class="nearby-btn auto-dir'
+        + (hint ? ' auto-usual auto-usual-' + vane.kind : '') + '"'
         + ' type="button" data-i="' + i + '"'
         + ' title="' + esc(full) + '" aria-label="' + esc(full) + '">'
         + '<span class="auto-badges">' + d.lines.map(badgeHtml).join('')
         + msg.mark
+        /* INNE I .auto-badges, ikke som et nytt barn av raden. Regelen på
+         * `settings.css:402` advarer to ganger om at et tredje barn skyver
+         * destinasjonen på drift under space-between, og `.nearby-dist`
+         * ligger alt på `flex: 0 0 100%` — en etikett til ville blitt en
+         * tredje linje, altså en rad som vokser. `.auto-dir-alert` gjør
+         * nøyaktig det samme av nøyaktig samme grunn.
+         *
+         * Tallet står på skjermen og ikke bare i `aria-label`: det er
+         * feilform nr. 2 i AGENTS.md, og den er begått i denne raden før. */
+        + (hint ? '<span class="auto-vane" aria-hidden="true">'
+          + esc(VANE_MARK[vane.kind]) + ' (' + vane.antall + ')</span>' : '')
         + '</span>'
         + '<span class="nearby-name">mot ' + esc(d.frontText) + '</span>'
         // Its own element, not part of the name: a long destination and the

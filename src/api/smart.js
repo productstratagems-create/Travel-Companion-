@@ -72,6 +72,18 @@ export function destRanking(at) {
   const bucket = Math.floor(now.getHours() / 2);
   const isWeekend = now.getDay() === 0 || now.getDay() === 6;
   const best = new Map();
+  /* TREFFTALLET, SOM BLE REGNET UT OG KASTET.
+   *
+   * `count` ligger på hver post og gikk inn i `score`, der det ble blandet
+   * med bøtteavstand og ukedag til ett tall ingen kan lese baklengs. Da kan
+   * ingen si om en gjetning har førti turer eller én bak seg — og skjermen
+   * merket raden likt uansett (`auto.js`, `class="auto-usual"`). Summert her,
+   * ved siden av scoren, ikke i stedet for den.
+   *
+   * SUMMERT OVER BØTTENE SOM SLAPP GJENNOM FILTERET, ikke over hele
+   * historikken: spørsmålet `vanestyrke` stiller er «pleier du å reise hit
+   * NÅ», og en tur til samme sted klokka 23 er ikke dekning for klokka 08. */
+  const turer = new Map();
   _load().forEach(e => {
     const diff = Math.abs(e.bucket - bucket);
     if (diff > 2) return;
@@ -82,13 +94,20 @@ export function destRanking(at) {
     // itself, which is how a dead heat turns into a landslide.
     const k = String(e.toName || '').toLowerCase();
     if (!k) return;
+    turer.set(k, (turer.get(k) || 0) + (e.count || 0));
     const prev = best.get(k);
     if (!prev || score > prev.score) {
       best.set(k, { fromName: e.fromName || null, toName: e.toName, toStopId: e.toStopId,
-        fromStopId: e.fromStopId || null, score });
+        fromStopId: e.fromStopId || null, score,
+        // Vinnerpostens egne to fakta, båret ut i stedet for å forsvinne
+        // inn i scoren: traff vi RETT tidsbøtte, og rett slags ukedag.
+        diff, ukedag: e.isWeekend === isWeekend });
     }
   });
-  return [...best.values()].sort((a, b) => b.score - a.score);
+  // Trefftallet legges på til slutt: det er destinasjonens, ikke vinnerpostens.
+  return [...best.values()]
+    .map(v => ({ ...v, count: turer.get(String(v.toName || '').toLowerCase()) || 0 }))
+    .sort((a, b) => b.score - a.score);
 }
 
 /**
@@ -128,4 +147,113 @@ export function predictDest(at) {
     if (arr.length) return { toName: arr[0].name, toStopId: arr[0].stopId || null, fromStopId: null, score: 0, source: 'freq' };
   } catch { /* ignore */ }
   return null;
+}
+
+/* ── HVOR MYE GJETNINGEN ER VERDT ───────────────────────────────────────
+ *
+ * `destRanking` har alltid regnet ut hvor sterk en vane er. Skjermen gjorde
+ * hele den regningen om til ÉN ting: `class="auto-usual"` på raden, som i
+ * `settings.css:609` er en rammefarge. Ikke et tall, ikke et ord, og ikke i
+ * `aria-label` — en forskjell halve lesergruppa ikke har.
+ *
+ * Følgen var at «du pleier å reise hit» så nøyaktig like sikkert ut enten
+ * det lå førti reiser eller én bak, og enten tidsbøtta var den rette eller
+ * to timer unna. AGENTS.md regel 2, ordrett: «Er verdien regnet ut, skal
+ * den stå på skjermen.»
+ *
+ * SAMME FORM SOM `seksjon`, `belegg`, `liveness`, `posState` og
+ * `alightEyebrow` — mønsteret `alight.js:138` skriver ned: én ren dom,
+ * skjermen avleder ordene sine av `kind`. Derfor bor den her og ikke som en
+ * `if` inne i visningen: da kan den prøves uten en DOM.
+ */
+
+/** Domsvokabularet. Nummer tretten i denne kodebasen. */
+export const VANE_KINDS = ['sterk', 'svak', 'gjetning', 'ingen'];
+
+/**
+ * Minste antall turer før en vane er en vane.
+ *
+ * IKKE MÅLT MOT EKTE BRUK — sandkassen har ingen. Fire er valgt fordi tre er
+ * tallet der et sammentreff slutter å være sannsynlig og en vane begynner å
+ * være forklaringen, og fordi feilen den beskytter mot er den dyre: å si «du
+ * pleier å reise hit nå» etter én tur er nettopp den selvsikre løgnen
+ * `docs/produktretning.md` sier appen ikke skal fortelle. Å si «svak» om en
+ * ekte vane koster leseren ingenting.
+ *
+ * Samme forbehold som `kalman.js:AKSELERASJON_MS2` og `auto.js:PICK_MARGIN_M`
+ * bærer, av samme grunn: dette er tallet som mest sannsynlig må flyttes når
+ * noen har gått med det.
+ */
+export const VANE_MIN_TURER = 4;
+
+/** Ordene. Ett sted, så to skjermer ikke finner opp hvert sitt. */
+const VANE_ORD = {
+  sterk:    'du pleier å reise hit nå',
+  svak:     'du har reist hit rundt denne tiden',
+  gjetning: 'mest besøkt — uten tid på døgnet',
+  ingen:    '',
+};
+
+/**
+ * De korte ordene, for merket inne i radens badge-stripe.
+ *
+ * To former for ett faktum er kodebasens signaturfeil, så de bor ved siden
+ * av de lange og avledes av samme `kind`. Setningen er for `aria-label` og
+ * langtrykk; merket er for en rad som ikke har plass til den.
+ */
+export const VANE_MARK = {
+  sterk:    'vanlig nå',
+  svak:     'av og til',
+  gjetning: '',
+  ingen:    '',
+};
+
+/**
+ * Hvor mye `predictDest`/`destRanking` sin gjetning er verdt.
+ *
+ * @param {Array} ranked `destRanking()`-lista, i dens egen rekkefølge
+ * @param {string|null} [source] `predictDest().source` — `'freq'` betyr at
+ *   gjetningen kom fra `t.freqArr`, som ikke har noen tidsdimensjon i det
+ *   hele tatt
+ * @returns {{kind:string, label:string, antall:number}}
+ */
+export function vanestyrke(ranked, source) {
+  const ord = k => ({ kind: k, label: VANE_ORD[k], antall: 0 });
+
+  /* FALLBACKEN ER IKKE EN SVAK VANE — DEN ER EN ANNEN SETNING.
+   *
+   * `predictDest` faller til `t.freqArr` når historikken er tom. Den lista
+   * er «mest besøkte sted», uten klokke og uten ukedag, og `autoJumpDest`
+   * nekter alt å handle på den («acting on it would mean jumping on the
+   * strength of a single past trip»). Å kalle den «svak vane» ville vært å
+   * påstå noe om tidspunktet som ingen har målt. */
+  if (source === 'freq') return ord('gjetning');
+
+  const top = (ranked || [])[0];
+  if (!top || !(top.score > 0)) return ord('ingen');
+
+  const rival = (ranked || [])[1];
+  /* ÉN TERSKEL FOR «SIKKER NOK», IKKE TO.
+   *
+   * `autoJumpDest` har alt et navngitt uttrykk for det: dobbelt så god som
+   * nummer to. Et andre tall her ville vært to steder som skriver ned samme
+   * faktum — kodebasens signaturfeil, funnet rundt tjuefem ganger, og den
+   * ville drevet fra hverandre i den verste retningen: skjermen sa «sterk»
+   * om noe appen ikke ville flyttet deg på. */
+  const sikker = !rival || top.score >= JUMP_RATIO * rival.score;
+  const nok = (top.count || 0) >= VANE_MIN_TURER;
+  // Rett tidsbøtte OG rett slags ukedag. En tur på en lørdag er ikke dekning
+  // for tirsdag, og `destRanking` vekter det alt — her leses det, framfor å
+  // gjettes tilbake ut av scoren.
+  const treff = top.diff === 0 && top.ukedag === true;
+
+  /* OG «STERK» BETYR DET SAMME SOM AT APPEN VILLE FLYTTET DEG.
+   *
+   * Funnet av nettleserprøven, ikke av resonnementet: med en sterk vane
+   * kjører `_maybeJump` først og lista tegnes aldri. Det er ikke en kollisjon
+   * — det er den ene terskelen som gjør nettopp det den skal. Merket er
+   * derfor til for radene leseren kommer TILBAKE til: pinnet stopp, hopp
+   * allerede brukt, eller en destinasjon ingen linje herfra går til. */
+  const kind = sikker && nok && treff ? 'sterk' : 'svak';
+  return { kind, label: VANE_ORD[kind], antall: top.count || 0 };
 }

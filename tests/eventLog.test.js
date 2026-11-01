@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import fs from 'node:fs';
 import {
-  logEvent, recentEvents, clearEvents, describeEvent, prune,
+  logEvent, recentEvents, clearEvents, describeEvent, prune, sistReist,
   FIELD_LABELS, KINDS, MEMORY_DAYS, EVENT_MAX,
 } from '../src/api/eventLog.js';
 import { loadConsent, saveConsent } from '../src/api/consent.js';
@@ -229,5 +229,57 @@ describe('describeEvent', () => {
   it('says nothing about nothing', () => {
     expect(describeEvent(null)).toBe(null);
     expect(describeEvent({})).toBe(null);
+  });
+});
+
+/* ── OG NÅ SVARES DET SPØRSMÅLET ────────────────────────────────────────
+ *
+ * Fila åpner med å si hvorfor modulen finnes: aggregatet kan ikke skille
+ * forrige uke fra i fjor. Til nå ble tidsstemplene lest av nøyaktig én
+ * skjerm — lista under «hva appen husker», som er der for å kunne SES.
+ * `sistReist` er det første som bruker dem til en dom.
+ */
+describe('sistReist — når du sist faktisk reiste dit', () => {
+  const NÅ = Date.UTC(2026, 8, 8, 7, 41, 0);
+  const sett = (rows) => localStorage.setItem('default::t.events', JSON.stringify(rows));
+  const reise = (til, at) => ({ kind: 'reise', at, fra: 'Ryen', til });
+
+  it('finner den seneste av flere', () => {
+    sett([reise('Oslo S', NÅ - 5 * DAY), reise('Oslo S', NÅ - 2 * DAY)]);
+    expect(sistReist('Oslo S', NÅ)).toBe(NÅ - 2 * DAY);
+  });
+
+  it('og null når du ikke har reist dit', () => {
+    sett([reise('Lysaker', NÅ - DAY)]);
+    expect(sistReist('Oslo S', NÅ)).toBeNull();
+    expect(sistReist('', NÅ)).toBeNull();
+    expect(sistReist(null, NÅ)).toBeNull();
+  });
+
+  /* `stopKey`, ikke `toLowerCase`. Det er appens ene oppskrift på et
+   * stoppnavn, og den som gjør «Ryen» og «Ryen T» til samme sted. `glemSted`
+   * ble skrevet med den andre og slettet ingenting (v1.187.0) — samme felle,
+   * og `stopId.js` dokumenterer den. */
+  it('og «Ryen T» er samme sted som «Ryen»', () => {
+    sett([reise('Ryen T', NÅ - DAY)]);
+    expect(sistReist('Ryen', NÅ)).toBe(NÅ - DAY);
+  });
+
+  /* ENIG MED DET SOM FAKTISK LIGGER DER. En tur eldre enn vinduet er
+   * slettet ved neste skriving; den skal ikke kunne gjøre en vane fersk
+   * fra en rad ingen lenger kan se. */
+  it('og en tur eldre enn vinduet teller ikke', () => {
+    sett([reise('Oslo S', NÅ - (MEMORY_DAYS + 1) * DAY)]);
+    expect(sistReist('Oslo S', NÅ)).toBeNull();
+  });
+
+  it('ser bort fra andre slags hendelser', () => {
+    sett([{ kind: 'sok', at: NÅ - DAY, valgt: 'Oslo S' }]);
+    expect(sistReist('Oslo S', NÅ)).toBeNull();
+  });
+
+  it('tåler søppel i loggen', () => {
+    sett([null, {}, { kind: 'reise' }, reise('Oslo S', NÅ - DAY)]);
+    expect(sistReist('Oslo S', NÅ)).toBe(NÅ - DAY);
   });
 });

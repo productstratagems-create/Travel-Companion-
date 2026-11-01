@@ -29,7 +29,9 @@ vi.mock('../src/ui/log.js', () => ({ logMsg: vi.fn(), setDot: vi.fn() }));
 
 import {
   vanestyrke, destRanking, VANE_KINDS, VANE_MARK, VANE_MIN_TURER, JUMP_RATIO,
+  ferskhet, glemVaner, loadSmartHist, autoJumpDest,
 } from '../src/api/smart.js';
+import { MEMORY_DAYS } from '../src/api/eventLog.js';
 import { storage } from '../src/storage.js';
 
 const NOW = Date.UTC(2026, 8, 8, 7, 41, 0);           // en tirsdag morgen
@@ -181,11 +183,13 @@ describe('de to som ikke er vaner', () => {
 });
 
 describe('vokabularet', () => {
-  it('har ord for hver kind, og merket for de to som vises', () => {
-    expect(VANE_KINDS).toEqual(['sterk', 'svak', 'gjetning', 'ingen']);
-    expect(VANE_MARK.sterk).toBeTruthy();
-    expect(VANE_MARK.svak).toBeTruthy();
-    expect(VANE_MARK.sterk).not.toBe(VANE_MARK.svak);
+  it('har ord for hver kind, og merket for de tre som vises', () => {
+    expect(VANE_KINDS).toEqual(['sterk', 'gammel', 'svak', 'gjetning', 'ingen']);
+    ['sterk', 'gammel', 'svak'].forEach(k => expect(VANE_MARK[k], k).toBeTruthy());
+    // Tre merker som er til å skille. Var to av dem like, ville raden sagt
+    // det samme om to ulike dommer.
+    const m = ['sterk', 'gammel', 'svak'].map(k => VANE_MARK[k]);
+    expect(new Set(m).size).toBe(3);
   });
 
   it('og ingen setning er «undefined»', () => {
@@ -226,9 +230,13 @@ describe('og raden sier det', () => {
       const m = new RegExp('\\.auto-usual-' + k + '\\s*\\{([^}]*)\\}').exec(css);
       return ((m && /border-color:([^;]+)/.exec(m[1])) || [])[1];
     };
-    expect(kant('sterk'), 'ingen border-color for sterk').toBeTruthy();
-    expect(kant('svak'), 'ingen border-color for svak').toBeTruthy();
-    expect(kant('sterk').trim()).not.toBe(kant('svak').trim());
+    ['sterk', 'svak', 'gammel'].forEach(k =>
+      expect(kant(k), 'ingen border-color for ' + k).toBeTruthy());
+    /* TRE ULIKE. «før» er ikke en svakere «vanlig nå» — det er en annen dom,
+     * om en vane du har sluttet med, og en rad som ser ut som en av de to
+     * andre sier noe den ikke mener. */
+    const kanter = ['sterk', 'svak', 'gammel'].map(k => kant(k).trim());
+    expect(new Set(kanter).size, kanter.join(' | ')).toBe(3);
     expect(css).toMatch(/\.auto-vane\s*\{/);
   });
 
@@ -250,7 +258,168 @@ describe('og raden sier det', () => {
 
   /* Og merket skal IKKE settes på freq-gjetningen. Faller denne, har appen
    * sagt «du pleier» på grunnlag av en liste uten klokke. */
-  it('og bare sterk eller svak merker en rad', () => {
-    expect(src).toMatch(/vane\.kind === 'sterk' \|\| vane\.kind === 'svak'/);
+  it('og freq-gjetningen merker ingen rad', () => {
+    const i = src.indexOf('const hint =');
+    const hint = src.slice(i, src.indexOf(';', i));
+    ['sterk', 'gammel', 'svak'].forEach(k => expect(hint, k).toContain("'" + k + "'"));
+    expect(hint).not.toContain("'gjetning'");
+  });
+
+  /* Og ferskheten når renderen. En ren `ferskhet()` hjelper ingen om
+   * skjermen aldri spør — femte gang kallestedet er feilformen. */
+  it('og renderen spør ferskhet, med loggens eget samtykke', () => {
+    expect(src).toMatch(/ferskhet\(guess && sistReist\(guess\.toName\), Date\.now\(\), loadConsent\(\)\)/);
+  });
+});
+
+/* ── FERSKHET: DE SJU DØGNENE SATT I ARBEID ─────────────────────────────
+ *
+ * `t.smartHist` teller opp og kaster klokka — `eventLog.js` sier det selv i
+ * toppkommentaren: «Four trips last week and four trips since May are not
+ * distinguishable afterwards.» Reiseloggen har tidspunktene, og de ble til nå
+ * lest av nøyaktig én skjerm, lista under «hva appen husker».
+ *
+ * Så sju døgns oppbevaring betalte for en liste og ingen dom. Dette er ikke
+ * et lengre vindu — det er det samme vinduet som gjør en jobb.
+ */
+describe('en vane du har sluttet med', () => {
+  const DAG = 86400000;
+  const sterkHist = () => { hist([{ to: 'Lysaker', n: 40 }]); return destRanking(NOW); };
+
+  it('sier «før», ikke «vanlig nå»', () => {
+    const v = vanestyrke(sterkHist(), 'smart', 'gammel');
+    expect(v.kind).toBe('gammel');
+    expect(v.label).toMatch(/pleide/);
+    expect(v.antall).toBe(40);
+  });
+
+  it('og en fersk vane er fortsatt sterk', () => {
+    expect(vanestyrke(sterkHist(), 'smart', 'fersk').kind).toBe('sterk');
+  });
+
+  /* FRAVÆR AV BEVIS VI ALDRI BA OM. Er loggen av, har vi ikke spurt — og å
+   * demotere på det ville vært å lese stillhet som et nei. AGENTS.md regel 4
+   * skiller «ikke spurt» fra «spurte og fikk ingenting», og her er det
+   * forskjellen på å si «før» og å si «vanlig nå». */
+  it('men uten logg demoteres ingenting', () => {
+    expect(vanestyrke(sterkHist(), 'smart', 'ukjent').kind).toBe('sterk');
+    // Utelatt tredje argument er nøyaktig v1.191.0-oppførselen.
+    expect(vanestyrke(sterkHist(), 'smart').kind).toBe('sterk');
+  });
+
+  it('og en svak vane blir ikke «før» — den lover ingen ferskhet', () => {
+    hist([{ to: 'Lysaker', n: 1 }]);
+    expect(vanestyrke(destRanking(NOW), 'smart', 'gammel').kind).toBe('svak');
+  });
+
+  describe('ferskhet() selv', () => {
+    it('av logg er «ukjent», ikke «gammel»', () => {
+      expect(ferskhet(NOW, NOW, false)).toBe('ukjent');
+      expect(ferskhet(null, NOW, false)).toBe('ukjent');
+    });
+
+    it('på logg og ingen tur er «gammel»', () => {
+      expect(ferskhet(null, NOW, true)).toBe('gammel');
+    });
+
+    it('en tur i går er fersk, en for lenge siden er det ikke', () => {
+      expect(ferskhet(NOW - DAG, NOW, true)).toBe('fersk');
+      expect(ferskhet(NOW - 30 * DAG, NOW, true)).toBe('gammel');
+    });
+
+    /* BUNDET PÅ NAVNET. Vinduet er loggens eget `MEMORY_DAYS` — det står i
+     * samtykketeksten og på personvernsida. Sto `7` skrevet ut her, ville
+     * dommen om ferskhet og det appen faktisk oppbevarer kunnet drive fra
+     * hverandre, og den første ville påstått noe om turer den andre har
+     * slettet. */
+    it('og vinduet er loggens, ikke en kopi av tallet', () => {
+      expect(ferskhet(NOW - (MEMORY_DAYS * DAG - 1000), NOW, true)).toBe('fersk');
+      expect(ferskhet(NOW - (MEMORY_DAYS * DAG + 1000), NOW, true)).toBe('gammel');
+      const src = require('node:fs').readFileSync('src/api/smart.js', 'utf8');
+      expect(src).toMatch(/MEMORY_DAYS \* 86400000/);
+      expect(src).toMatch(/import \{ MEMORY_DAYS \} from '\.\/eventLog\.js'/);
+    });
+  });
+});
+
+/* ── OG «SLETT ALT» SLETTER FAKTISK ALT ─────────────────────────────────
+ *
+ * Tredje gang denne knappen lover mer enn den gjør: først `recentDests`, så
+ * `t.freqArr`/`t.freqDep` (v1.187.0), nå `t.smartHist` — den mest avslørende
+ * av de tre, med koordinater og uten noe vindu.
+ */
+describe('slett alt appen husker', () => {
+  it('glemVaner tømmer historikken', () => {
+    hist([{ to: 'Lysaker', n: 40 }]);
+    expect(loadSmartHist()).toHaveLength(1);
+    glemVaner();
+    expect(loadSmartHist()).toHaveLength(0);
+    expect(destRanking(NOW)).toHaveLength(0);
+  });
+
+  it('og knappen kaller den', () => {
+    const src = require('node:fs').readFileSync('src/views/settings.js', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const i = src.indexOf("getElementById('mem-clear')");
+    expect(i).toBeGreaterThan(0);
+    const blokk = src.slice(i, i + 400);
+    ['clearEvents()', 'clearRecentDests()', 'glemAlleSteder()', 'glemVaner()']
+      .forEach(f => expect(blokk, f).toContain(f));
+  });
+
+  /* Og nøkkelen har én eier. Sto `storage.remove('t.smartHist')` i
+   * settings.js, ville to filer skrevet ned samme nøkkel — feilformen
+   * `usage.js` ble ryddet for i v1.187.0. */
+  it('og nøkkelen står bare ett sted', () => {
+    /* KOMMENTARENE STRIPPES FØRST. Første utgave leste hele fila og falt på
+     * sin egen forklaring — kommentaren over knappen NEVNER `t.smartHist`
+     * for å si hvorfor den sto igjen. Instrumentet målte ordet, ikke
+     * tilgangen. */
+    const set = require('node:fs').readFileSync('src/views/settings.js', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    expect(set).not.toMatch(/t\.smartHist/);
+  });
+});
+
+/* ── OG HOPPET DØMMER LIKT ──────────────────────────────────────────────
+ *
+ * `vanestyrke` sier selv at «sterk» betyr det samme som at appen ville
+ * flyttet deg — terskelen er `JUMP_RATIO`, delt med `autoJumpDest`. Da må
+ * ferskheten gjelde begge: en skjerm som sier «før (40)» om en destinasjon
+ * appen nettopp flyttet deg til er to dommer om ett faktum, uenige.
+ */
+describe('autoJumpDest og vanestyrke er enige', () => {
+  const sterk = () => { hist([{ to: 'Lysaker', n: 40 }]); };
+
+  it('en gammel vane flytter deg ikke', () => {
+    sterk();
+    expect(autoJumpDest(NOW, 'gammel')).toBeNull();
+  });
+
+  it('men en fersk gjør det', () => {
+    sterk();
+    expect(autoJumpDest(NOW, 'fersk').toName).toBe('Lysaker');
+  });
+
+  it('og uten logg er regelen som før', () => {
+    sterk();
+    expect(autoJumpDest(NOW, 'ukjent').toName).toBe('Lysaker');
+    expect(autoJumpDest(NOW).toName).toBe('Lysaker');
+  });
+
+  /* PÅSTANDEN SOM BINDER DEM. For hver ferskhet: «sterk» og «appen flytter
+   * deg» skal være samme svar. Faller denne, har de to begynt å drive. */
+  it('og de to svarer likt for hver ferskhet', () => {
+    sterk();
+    ['fersk', 'gammel', 'ukjent'].forEach(f => {
+      const sterkDom = vanestyrke(destRanking(NOW), 'smart', f).kind === 'sterk';
+      expect(!!autoJumpDest(NOW, f), f).toBe(sterkDom);
+    });
+  });
+
+  it('og kallestedet gir den samme ferskheten til begge', () => {
+    const src = require('node:fs').readFileSync('src/views/auto.js', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    expect(src).toMatch(/autoJumpDest\(undefined,\s*ferskhet\(/);
   });
 });

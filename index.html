@@ -391,8 +391,29 @@
     <div id="mem-body" hidden>
       <div class="mem-map-wrap"><div id="mem-map"></div></div>
       <div id="mem-list" class="mem-list"></div>
-      <button type="button" class="mem-clear" id="mem-clear">slett alt appen husker</button>
     </div>
+
+    <!-- VANENE, UTENFOR SAMTYKKET — fordi de skrives uten det.
+         Personvernsida sa at appen husker reisene dine de siste sju døgnene
+         og at det er av til du slår det på. Det var sant om loggen over og
+         usant om `t.smartHist` og `t.freqArr`/`t.freqDep`, som alltid har
+         vært på, uten vindu, med koordinater. Fra v1.193.0 har de et vindu
+         — og de står her, der de kan leses, for en oppbevaring som ikke kan
+         ses er en påstand og ikke en garanti.
+
+         Over bryteren og ikke under: den som ALDRI sier ja er nettopp den
+         som ellers aldri fikk se dette. -->
+    <div class="mem-vane-why">Uavhengig av bryteren over husker appen hvor du
+      pleier å reise, så den kan gjette riktig. Alt ligger på telefonen, og
+      det glemmes av seg selv etter <span id="mem-vane-dager">90</span> dager
+      uten bruk.</div>
+    <div id="mem-vane" class="mem-list"></div>
+
+    <!-- OG KNAPPEN STÅR UTENFOR DEN OGSÅ. Den lå inne i `mem-body`, som er
+         `hidden` uten samtykke: du kunne ikke trykke «slett alt appen
+         husker» med mindre du først hadde sagt ja til å bli husket mer.
+         Fjerde gang denne knappen ikke holder det den lover. -->
+    <button type="button" class="mem-clear" id="mem-clear">slett alt appen husker</button>
   </div>
   <div class="set-section">
     <div class="set-label">om appen</div>

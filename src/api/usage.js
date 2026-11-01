@@ -13,6 +13,7 @@
  */
 import { storage } from '../storage.js';
 import { stopKey } from '../stopId.js';
+import { eldes } from '../vane.js';
 
 const FREQ_DEP_KEY = 't.freqDep';
 const FREQ_ARR_KEY = 't.freqArr';
@@ -21,11 +22,26 @@ const FREQ_MAX     = 10;
 const _key = (role) => (role === 'dep' ? FREQ_DEP_KEY : FREQ_ARR_KEY);
 
 /** @returns {Array<{name,count,lastUsed,lat,lon,stopId}>} most used first */
+/**
+ * De ofte brukte stedene — uten dem du sluttet å bruke.
+ *
+ * SAMME VINDU SOM VANENE, fra `vane.js` og ikke skrevet ned her. Disse
+ * radene bærer navn, stoppId OG koordinater, og de ble skrevet uten
+ * samtykke og uten grense. Ett tall to steder ville endt med at appen glemte
+ * en destinasjon og husket at du pleide å reise dit.
+ *
+ * Skrevet tilbake og ikke bare filtrert, av grunnen `eventLog.js:112` gir:
+ * det som ligger i lageret, ikke det som vises, er det en som får telefonen
+ * kan lese.
+ */
 export function loadFreq(role) {
   try {
     const v = storage.get(_key(role));
     const list = v ? JSON.parse(v) : [];
-    return Array.isArray(list) ? list : [];
+    if (!Array.isArray(list)) return [];
+    const igjen = eldes(list);
+    if (igjen.length !== list.length) saveFreq(role, igjen);
+    return igjen;
   } catch { return []; }
 }
 

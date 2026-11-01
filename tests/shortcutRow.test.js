@@ -28,9 +28,15 @@ const seed = ({ favs = [], hist = [] }) => {
 const fav = (from, to, over = {}) => ({
   type: 'route', id: from + '>' + to, from, to, createdAt: 1000, uses: 3, ...over,
 });
+/* `lastUsed` MÅ VÆRE ET EKTE TIDSPUNKT. Fiksturen hadde `1000` — altså
+ * januar 1970 — og det gikk bra helt til vanene fikk et vindu
+ * (`vane.js`, VANE_MAKS_DAGER). Da forsvant hver eneste rad før den ble
+ * tegnet, og fem påstander falt på fiksturens alder og ikke på koden.
+ * Instrumentet igjen, for fjortende gang i denne serien. */
+const NÅ = Date.now();
 const trip = (from, to, over = {}) => ({
   key: to.toLowerCase() + '|9|wd', fromName: from, toName: to,
-  count: 2, lastUsed: 1000, ...over,
+  count: 2, lastUsed: NÅ - 1000, ...over,
 });
 
 let el;

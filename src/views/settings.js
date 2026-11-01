@@ -19,7 +19,7 @@ import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { loadReturn, saveReturn, clearReturn, reverseOf, suggestHHMM, returnWindow, skipToday } from '../api/returnTrip.js';
-import { loadSmartHist } from '../api/smart.js';
+import { loadSmartHist, glemVaner } from '../api/smart.js';
 
 /**
  * How many suggestions to ask for before filtering to stops.
@@ -883,8 +883,13 @@ export function renderMemory() {
           + '<span class="mem-kind">' + esc(e.kind) + '</span>'
           + '<span class="mem-text">' + esc(e.text) + '</span>'
           + '</div>').join('')
+      /* OG HVA DEN ER TIL FOR. Setningen fortalte hva som skjer med loggen
+       * og ingenting om hvorfor den finnes — og fram til v1.192.0 var det
+       * ærlig: ingen annen del av appen leste den. Nå avgjør den om en vane
+       * er fersk, og da skal den si det. */
       : '<div class="mem-empty">Ingenting husket ennå. Loggen fylles etter hvert '
-        + 'som du reiser, og tømmes automatisk etter ' + MEMORY_DAYS + ' døgn.</div>';
+        + 'som du reiser, og tømmes automatisk etter ' + MEMORY_DAYS + ' døgn. '
+        + 'Den brukes til å se om vanene dine fortsatt er ferske.</div>';
   }
   // NEXT FRAME, deliberately. `prefs-btn` calls _showPrefs() BEFORE
   // show('v-prefs') (ui/nav.js:534), so at this moment the container is
@@ -965,6 +970,12 @@ export function initMemory() {
      * Gjennom `glemAlleSteder`, så nøkkelen fortsatt har én eier: fila den
      * bor i sier selv at to lesere i to filer er feilformen. */
     glemAlleSteder();
+    /* OG VANEHISTORIKKEN. Den sto også igjen — tredje gang denne knappen
+     * lover mer enn den gjør. `t.smartHist` er det mest avslørende av de
+     * tre: destinasjon, avreisested, ukedag, klokkeslett OG koordinater,
+     * uten noe vindu i det hele tatt. Loggen ved siden av tømmes etter sju
+     * døgn; denne ble aldri tømt av noe annet enn å slette hele profilen. */
+    glemVaner();
     renderMemory();
   });
 }

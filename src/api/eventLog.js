@@ -1,5 +1,6 @@
 import { storage } from '../storage.js';
 import { loadConsent } from './consent.js';
+import { stopKey } from '../stopId.js';
 
 /**
  * Hva appen husker om deg, i sju døgn, på din egen telefon.
@@ -194,6 +195,38 @@ export function logEvent(kind, data, pos) {
 export function recentEvents(now) {
   const t = Number.isFinite(now) ? now : Date.now();
   return prune(_load(), t).slice().reverse();
+}
+
+/**
+ * Når du sist faktisk reiste dit — eller null.
+ *
+ * DETTE ER DET ENESTE LOGGEN KAN SOM AGGREGATET IKKE KAN, og modulens egen
+ * toppkommentar har sagt det siden den ble skrevet: «Four trips last week and
+ * four trips since May are not distinguishable afterwards.» `t.smartHist`
+ * teller opp og kaster klokka; her står hver tur med sitt tidspunkt.
+ *
+ * Fram til nå ble den kunnskapen lest av nøyaktig én skjerm — lista under
+ * «hva appen husker», som er der for å kunne SES, ikke for å brukes. Sju
+ * døgns oppbevaring betalte altså for en liste og ingen dom.
+ *
+ * `stopKey` og ikke `toLowerCase`: det er appens ene oppskrift på et
+ * stoppnavn, og den som gjør «Ryen» og «Ryen T» til samme sted. `glemSted`
+ * ble skrevet med den andre og slettet ingenting (v1.187.0).
+ *
+ * @param {string} til destinasjonens navn
+ * @param {number} [now]
+ * @returns {number|null} tidspunktet for siste reise dit, innenfor vinduet
+ */
+export function sistReist(til, now) {
+  const nøkkel = stopKey(til);
+  if (!nøkkel) return null;
+  const t = Number.isFinite(now) ? now : Date.now();
+  let sist = null;
+  for (const e of prune(_load(), t)) {
+    if (!e || e.kind !== 'reise' || stopKey(e.til) !== nøkkel) continue;
+    if (sist == null || e.at > sist) sist = e.at;
+  }
+  return sist;
 }
 
 export function clearEvents() {

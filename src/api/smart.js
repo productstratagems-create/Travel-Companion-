@@ -1,4 +1,5 @@
 import { storage } from '../storage.js';
+import { MEMORY_DAYS } from './eventLog.js';
 
 const HIST_KEY = 't.smartHist';
 const HIST_MAX = 300;
@@ -50,6 +51,21 @@ export function tripCount(fromName, toName) {
 
 export function smartHistLen() {
   return _load().length;
+}
+
+/**
+ * Glem alle vaner.
+ *
+ * KNAPPEN SIER «SLETT ALT APPEN HUSKER», og `t.smartHist` sto igjen — med
+ * destinasjonsnavn, avreisesteder OG koordinater (`toLat`/`toLon`), uten
+ * noe vindu. Tredje gang den feilen er funnet i den knappen: først
+ * `recentDests`, så `t.freqArr`/`t.freqDep` (v1.187.0), nå denne.
+ *
+ * Her, og ikke i `settings.js`, så nøkkelen har én eier — samme grunn som
+ * `glemAlleSteder` i `usage.js` finnes.
+ */
+export function glemVaner() {
+  try { storage.remove(HIST_KEY); } catch { /* ignore */ }
 }
 
 /** The raw history, for callers that do their own scoring over it. */
@@ -126,12 +142,24 @@ export const JUMP_RATIO = 2;
  * Real history only: the freqArr fallback has score 0 and no sense of time,
  * so acting on it would mean jumping on the strength of a single past trip.
  */
-export function autoJumpDest(at) {
+export function autoJumpDest(at, fersk) {
   const ranked = destRanking(at);
   const top = ranked[0];
   if (!top || !(top.score > 0)) return null;
   const rival = ranked[1];
   if (rival && top.score < JUMP_RATIO * rival.score) return null;
+  /* OG EN VANE DU HAR SLUTTET MED FLYTTER DEG IKKE.
+   *
+   * `vanestyrke` demoterer «sterk» til «før» når loggen viser at du ikke har
+   * reist dit denne uka. Gjorde ikke denne det samme, ville skjermen sagt
+   * «før (40)» om en destinasjon appen nettopp hadde flyttet deg til — to
+   * steder som dømmer samme faktum, og uenige. Det er feilformen denne
+   * kodebasen har rettet rundt tjuefem ganger.
+   *
+   * `ukjent` flytter deg fortsatt: uten logg er dette nøyaktig regelen fra
+   * før, og en funksjon som krevde et bevis ingen samler inn ville slått av
+   * hoppet for alle som ikke har slått på loggen. */
+  if (fersk === 'gammel') return null;
   return { toName: top.toName, toStopId: top.toStopId || null, score: top.score };
 }
 
@@ -168,7 +196,39 @@ export function predictDest(at) {
  */
 
 /** Domsvokabularet. Nummer tretten i denne kodebasen. */
-export const VANE_KINDS = ['sterk', 'svak', 'gjetning', 'ingen'];
+export const VANE_KINDS = ['sterk', 'gammel', 'svak', 'gjetning', 'ingen'];
+
+/* ── FERSKHET ───────────────────────────────────────────────────────────
+ *
+ * `t.smartHist` teller opp og kaster klokka: fire turer forrige uke og fire
+ * turer siden mai er samme rad. En vane på førti turer du sluttet med i vår
+ * er ikke en vane — og v1.191.0 kalte den «vanlig nå».
+ *
+ * Reiseloggen har tidspunktene. Den har alltid hatt dem; de ble bare lest av
+ * én skjerm ingen ser på. Dette er de sju døgnene satt i arbeid, ikke et
+ * lengre vindu: `MEMORY_DAYS` er importert og ikke kopiert, så loggen og
+ * dommen om ferskhet ikke kan bli uenige.
+ *
+ * TRE SVAR, IKKE TO. «Loggen er av» og «loggen er på og tom» er ikke samme
+ * setning (AGENTS.md regel 4). Uten logg VET vi ikke om vanen er fersk, og
+ * fravær av bevis vi aldri samlet inn skal ikke telle mot leseren.
+ */
+export const FERSK_KINDS = ['fersk', 'gammel', 'ukjent'];
+
+/**
+ * @param {number|null} sist `sistReist()` — når du sist faktisk reiste dit
+ * @param {number} [nå]
+ * @param {boolean} [loggPå] om reiseloggen er slått på i det hele tatt
+ * @returns {'fersk'|'gammel'|'ukjent'}
+ */
+export function ferskhet(sist, nå, loggPå) {
+  if (!loggPå) return 'ukjent';
+  const t = Number.isFinite(nå) ? nå : Date.now();
+  if (!Number.isFinite(sist)) return 'gammel';
+  // Innenfor loggens eget vindu. Utenfor det kan ingen tur VÆRE, så et
+  // større tall her ville bare vært en annen måte å skrive «fersk» på.
+  return (t - sist) <= MEMORY_DAYS * 86400000 ? 'fersk' : 'gammel';
+}
 
 /**
  * Minste antall turer før en vane er en vane.
@@ -189,6 +249,7 @@ export const VANE_MIN_TURER = 4;
 /** Ordene. Ett sted, så to skjermer ikke finner opp hvert sitt. */
 const VANE_ORD = {
   sterk:    'du pleier å reise hit nå',
+  gammel:   'du pleide å reise hit, men ikke denne uka',
   svak:     'du har reist hit rundt denne tiden',
   gjetning: 'mest besøkt — uten tid på døgnet',
   ingen:    '',
@@ -203,6 +264,7 @@ const VANE_ORD = {
  */
 export const VANE_MARK = {
   sterk:    'vanlig nå',
+  gammel:   'før',
   svak:     'av og til',
   gjetning: '',
   ingen:    '',
@@ -215,10 +277,13 @@ export const VANE_MARK = {
  * @param {string|null} [source] `predictDest().source` — `'freq'` betyr at
  *   gjetningen kom fra `t.freqArr`, som ikke har noen tidsdimensjon i det
  *   hele tatt
- * @returns {{kind:string, label:string, antall:number}}
+ * @param {'fersk'|'gammel'|'ukjent'} [fersk] fra `ferskhet()`. Utelatt betyr
+ *   `ukjent`, altså nøyaktig oppførselen fra v1.191.0.
+ * @returns {{kind:string, label:string, antall:number, fersk:string}}
  */
-export function vanestyrke(ranked, source) {
-  const ord = k => ({ kind: k, label: VANE_ORD[k], antall: 0 });
+export function vanestyrke(ranked, source, fersk) {
+  const f = FERSK_KINDS.includes(fersk) ? fersk : 'ukjent';
+  const ord = k => ({ kind: k, label: VANE_ORD[k], antall: 0, fersk: f });
 
   /* FALLBACKEN ER IKKE EN SVAK VANE — DEN ER EN ANNEN SETNING.
    *
@@ -254,6 +319,17 @@ export function vanestyrke(ranked, source) {
    * — det er den ene terskelen som gjør nettopp det den skal. Merket er
    * derfor til for radene leseren kommer TILBAKE til: pinnet stopp, hopp
    * allerede brukt, eller en destinasjon ingen linje herfra går til. */
-  const kind = sikker && nok && treff ? 'sterk' : 'svak';
-  return { kind, label: VANE_ORD[kind], antall: top.count || 0 };
+  /* OG «STERK» KREVER FERSK.
+   *
+   * En vane er ikke noe du HADDE. Førti turer i rett bøtte på rett ukedag, og
+   * ingen av dem denne uka, er en jobb du har sluttet i — og det er nettopp
+   * da appen skal slutte å si «vanlig nå». Den sier «før» i stedet, som er
+   * en annen setning og ikke en svakere utgave av den samme.
+   *
+   * `ukjent` demoterer IKKE. Er loggen av, har vi ikke spurt, og å straffe
+   * leseren for et svar vi aldri ba om ville vært å lese stillhet som et
+   * nei. Da gjelder v1.191.0-regelen uendret. */
+  const sterkNok = sikker && nok && treff;
+  const kind = !sterkNok ? 'svak' : (f === 'gammel' ? 'gammel' : 'sterk');
+  return { kind, label: VANE_ORD[kind], antall: top.count || 0, fersk: f };
 }

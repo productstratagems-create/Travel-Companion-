@@ -379,8 +379,15 @@
       <span class="mem-toggle-text">La appen huske reisene, søkene og
         posisjonene mine de siste sju dagene</span>
     </label>
+    <!-- OG HVA DEN BRUKES TIL. Loggen oppbevarte i sju døgn og ble lest av
+         én skjerm — denne. Fra v1.192.0 avgjør den om en vane er fersk: uten
+         den kan appen ikke skille førti turer forrige uke fra førti turer i
+         fjor, og sier «vanlig nå» om en jobb du har sluttet i. Et samtykke
+         uten en grunn er en avkrysningsboks; dette er grunnen. -->
     <div class="mem-why">Alt blir liggende på telefonen. Ingenting sendes noe
-      sted. Du kan slå det av og slette når som helst.</div>
+      sted. Du kan slå det av og slette når som helst. Med den på ser appen
+      om en vane fortsatt er fersk — uten den vet den bare at du har reist
+      dit, ikke når.</div>
     <div id="mem-body" hidden>
       <div class="mem-map-wrap"><div id="mem-map"></div></div>
       <div id="mem-list" class="mem-list"></div>

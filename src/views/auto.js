@@ -24,7 +24,10 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { fetchNextDeparture, fetchBoard } from '../api/entur.js';
 import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
-import { predictDest, autoJumpDest, destRanking, vanestyrke, VANE_MARK } from '../api/smart.js';
+import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, VANE_MARK }
+  from '../api/smart.js';
+import { sistReist } from '../api/eventLog.js';
+import { loadConsent } from '../api/consent.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { approach } from '../trail.js';
 import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
@@ -2114,10 +2117,27 @@ function _maybeAdvance() {
   return true;
 }
 
+/**
+ * Navnet `autoJumpDest` ville valgt, før ferskheten kan slå det ut.
+ *
+ * Hønen og egget: `ferskhet` trenger destinasjonen, og destinasjonen kommer
+ * fra den funksjonen ferskheten skal begrense. `destRanking()[0]` er
+ * nøyaktig det `autoJumpDest` rangerer øverst — samme ene kilde, ikke en
+ * andre regel som måtte holdes enig.
+ */
+function _sistTil() {
+  const top = destRanking()[0];
+  return top ? sistReist(top.toName) : null;
+}
+
 function _maybeJump() {
   if (_open || _stopPinned || !_stop) return false;
   if (!atStop(_stop)) return false;
-  const guess = autoJumpDest();
+  /* SAMME DOM SOM RADEN UNDER. Sier skjermen «før (40)» om en vane, skal
+   * ikke appen flytte deg dit — regelen bor i `autoJumpDest`, så de to kan
+   * ikke bli uenige. */
+  const guess = autoJumpDest(undefined,
+    ferskhet(_sistTil(), Date.now(), loadConsent()));
   if (!guess) return false;
   const hit = findJumpTarget(_dirs, guess, _stop.name);
   if (!hit) return false;
@@ -2188,7 +2208,14 @@ function _renderBody() {
    * tidspunkt er det to steder som skriver ned «nå», og de ville drevet fra
    * hverandre over et bøtteskille. (`now` er dessuten deklarert NEDENFOR —
    * se den dødsonen kommentaren åtti linjer opp beskriver.) */
-  const vane = vanestyrke(destRanking(), guess && guess.source);
+  /* OG OM VANEN ER FERSK. Reiseloggens sju døgn har til nå betalt for én
+   * liste under «hva appen husker» og ingen dom. Her gjør de arbeid: en vane
+   * på førti turer med ingen av dem denne uka sier «før», ikke «vanlig nå».
+   *
+   * `loadConsent()` og ikke en gjetning på tom logg: «av» og «på og tom» er
+   * to setninger, og bare den andre er et bevis. */
+  const vane = vanestyrke(destRanking(), guess && guess.source,
+    ferskhet(guess && sistReist(guess.toName), Date.now(), loadConsent()));
   // Read once, so every row on the screen agrees about what time it is.
   const now = Date.now();
   // How far you have to walk to be standing here — the number this screen has
@@ -2303,7 +2330,7 @@ function _renderBody() {
        * `autoJumpDest` nekter alt å handle på den, og en rad merket «du
        * pleier» på den strengen ville påstått noe ingen har målt. */
       const hint = !!usual && d.frontText.toLowerCase() === usual
-        && (vane.kind === 'sterk' || vane.kind === 'svak');
+        && (vane.kind === 'sterk' || vane.kind === 'gammel' || vane.kind === 'svak');
       const q = quayLabel(d.call);
       // The destination is the part that gives way, so the whole of it has to
       // survive somewhere: aria-label for a screen reader, title for a long

@@ -85,14 +85,17 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(PORT, r));
 const browser = await pw.chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 
-async function run(label, hist, scheme) {
+/* REISELOGGEN, som nå avgjør om en vane er fersk. `null` betyr at loggen er
+   AV — og det er en tredje tilstand, ikke en tom liste: uten samtykke har
+   appen ikke spurt, og skal ikke demotere på et svar den aldri ba om. */
+async function run(label, hist, scheme, logg) {
   const ctx = await browser.newContext({
     viewport: { width: 414, height: 860 }, deviceScaleFactor: 2, colorScheme: scheme,
     hasTouch: true, isMobile: true, timezoneId: 'Europe/Oslo', locale: 'nb-NO',
     geolocation: { latitude: HERE.lat, longitude: HERE.lon }, permissions: ['geolocation'],
   });
   const page = await ctx.newPage();
-  await page.addInitScript(({ now, here, hist, scheme }) => {
+  await page.addInitScript(({ now, here, hist, scheme, logg }) => {
     const Real = Date;
     class Pinned extends Real {
       constructor(...a) { super(...(a.length ? a : [now])); }
@@ -104,10 +107,14 @@ async function run(label, hist, scheme) {
     localStorage.setItem('default::t.autoMode', '1');
     localStorage.setItem('default::t.homeLL', JSON.stringify(here));
     localStorage.setItem('default::t.smartHist', JSON.stringify(hist));
+    if (logg) {
+      localStorage.setItem('default::t.memoryConsent', '1');
+      localStorage.setItem('default::t.events', JSON.stringify(logg));
+    }
     localStorage.setItem('default::t.freqArr', JSON.stringify(
       hist.map(h => ({ name: h.toName, stopId: h.toStopId, lat: h.toLat, lon: h.toLon,
         count: h.count, lastUsed: h.lastUsed }))));
-  }, { now: NOW, here: HERE, hist, scheme });
+  }, { now: NOW, here: HERE, hist, scheme, logg: logg || null });
 
   await page.route('**/geocoder/**', r => r.fulfill({ status: 200, contentType: 'application/json',
     body: JSON.stringify({ features: NEARBY }) }));
@@ -183,10 +190,17 @@ async function run(label, hist, scheme) {
 const STERK = [histRow('Lysaker', 40), histRow('Ski', 2, { key: 'ski|3|wd' })];
 const SVAK = [histRow('Lysaker', 1)];
 const JEVN = [histRow('Lysaker', 12), histRow('Ski', 11, { key: 'ski|3|wd' })];
+const DAG = 86400000;
+const REIST_I_GAAR = [{ kind: 'reise', at: NOW - DAG, fra: 'Mortensrud', til: 'Lysaker' }];
+/* Loggen er PÅ og inneholder turer — men ingen dit. Det er beviset «gammel»
+   hviler på, og det eneste som skiller den fra «vi har ikke spurt». */
+const REIST_ANDRE_STEDER = [{ kind: 'reise', at: NOW - DAG, fra: 'Mortensrud', til: 'Ski' }];
 
 for (const scheme of ['dark', 'light']) {
-  await run('sterk', STERK, scheme);
-  await run('svak', SVAK, scheme);
-  await run('jevn', JEVN, scheme);
+  await run('sterk', STERK, scheme, REIST_I_GAAR);
+  await run('gammel', STERK, scheme, REIST_ANDRE_STEDER);
+  await run('uten-logg', STERK, scheme, null);
+  await run('svak', SVAK, scheme, null);
+  await run('jevn', JEVN, scheme, null);
 }
 await browser.close(); server.close();

@@ -112,6 +112,9 @@ under er satt av PULL, ikke av hvor interessante de er å bygge.
 1. **Tillitsgraden som signatur.** Vokabularene finnes; det som mangler er å
    behandle dem som produktet framfor som rydding. *Den eneste av de fire
    som går gjennom PULL.*
+   Første steg tatt i v1.191.0: `vanestyrke` er det trettende vokabularet, og
+   det første som sier hvor mye appens EGEN gjetning er verdt — «vanlig nå
+   (40)» mot «av og til (1)», der det før bare var en rammefarge.
 2. **Rad → kart.** Trykk på en avgang navigerer bort. Den kunne i stedet
    framheve linja, holdeplassen og ruta på tavlekartet — koblingen finnes
    alt på linjenivå (`_lineOn`), ikke på avgangsnivå. *Faller på siste L:

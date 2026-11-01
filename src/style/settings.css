@@ -605,8 +605,26 @@
   text-align: right;
 }
 /* The prediction is a hint, not a decision: a marked edge, never a
-   pre-selection that has to be undone. */
-#v-auto .auto-usual { border-color: rgba(var(--accent-rgb), .55); }
+   pre-selection that has to be undone.
+
+   TO STYRKER, FORDI DET ER TO PÅSTANDER. Én ramme for begge gjorde førti
+   reiser og én reise til samme bilde — og rammefargen var det ENESTE som
+   nådde skjermen av en regning `destRanking` gjorde hver render. Den sterke
+   beholder kanten den alltid har hatt; den svake er tydelig svakere, slik at
+   forskjellen kan ses uten å telles. */
+#v-auto .auto-usual-sterk { border-color: rgba(var(--accent-rgb), .55); }
+#v-auto .auto-usual-svak  { border-color: rgba(var(--accent-rgb), .22); }
+/* Ordene, inne i badge-stripa. Ingen egen linje: raden skal ikke vokse av at
+   appen sier noe den alt visste. */
+#v-auto .auto-vane {
+  align-self: center;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(var(--accent-rgb), .85);
+}
+#v-auto .auto-usual-svak .auto-vane { color: var(--text-muted); }
 #v-auto .auto-back-dir { padding-left: 0; }
 .bmi-state {
   margin-left: auto; font-size: 10px; letter-spacing: .16em;

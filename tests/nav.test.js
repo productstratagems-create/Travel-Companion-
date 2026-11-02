@@ -236,3 +236,76 @@ describe('after gangtid was folded away', () => {
 });
 
 
+
+/* ── MENYEN DEKKET KNAPPEN SOM LUKKER DEN ───────────────────────────────
+ *
+ * Rapportert med skjermbilde: menyen sto på en fast `top:4.2rem`. Som
+ * installert app ligger headeren lavere (statuslinja, notchen), og menyen
+ * la seg oppå ⋮-knappen. Og den kunne bare lukkes med den knappen — trykk
+ * utenfor og Escape gjorde ingenting. Ingen synlig vei ut.
+ */
+const { closeBoardMenu } = await import('../src/ui/nav.js');
+
+describe('menyen under knappen som åpnet den', () => {
+  const rekt = (top, bottom, left, right) => () =>
+    ({ top, bottom, left, right, width: right - left, height: bottom - top, x: left, y: top });
+
+  beforeEach(() => {
+    document.body.innerHTML += '<button id="header-profile-chip"></button><p id="utenfor">x</p>';
+    const btn = document.getElementById('board-more-btn');
+    btn.getBoundingClientRect = rekt(60, 105, 360, 400);
+    Object.defineProperty(window, 'innerWidth', { value: 414, configurable: true });
+    closeBoardMenu();
+  });
+
+  it('legger seg under knappen, ikke over', () => {
+    const menu = document.getElementById('board-more-menu');
+    toggleBoardMenu(document.getElementById('board-more-btn'));
+    expect(parseFloat(menu.style.top)).toBeGreaterThanOrEqual(105);
+  });
+
+  it('og flukter med knappens høyre kant', () => {
+    const menu = document.getElementById('board-more-menu');
+    toggleBoardMenu(document.getElementById('board-more-btn'));
+    expect(parseFloat(menu.style.right)).toBe(414 - 400);
+  });
+
+  it('og uten knapp gjelder CSS-ens plass som før', () => {
+    const menu = document.getElementById('board-more-menu');
+    menu.style.top = '';
+    toggleBoardMenu();
+    expect(menu.style.top).toBe('');
+  });
+
+  it('lukkes ved trykk utenfor', () => {
+    const menu = document.getElementById('board-more-menu');
+    toggleBoardMenu(document.getElementById('board-more-btn'));
+    document.getElementById('utenfor').click();
+    expect(menu.style.display).toBe('none');
+  });
+
+  it('men ikke ved trykk inni', () => {
+    const menu = document.getElementById('board-more-menu');
+    menu.innerHTML = '<span id="inni">i</span>';
+    toggleBoardMenu(document.getElementById('board-more-btn'));
+    document.getElementById('inni').click();
+    expect(menu.style.display).toBe('flex');
+  });
+
+  it('og Escape lukker, med fokus tilbake på knappen', () => {
+    const menu = document.getElementById('board-more-menu');
+    const btn = document.getElementById('board-more-btn');
+    toggleBoardMenu(btn);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(menu.style.display).toBe('none');
+    expect(document.activeElement).toBe(btn);
+  });
+
+  /* Chipen lyttet med `addEventListener('click', toggleBoardMenu)` — da får
+   * funksjonen KLIKKET som argument, ikke knappen. */
+  it('og chipen gir seg selv, ikke klikket', () => {
+    const src = fs.readFileSync('src/main.js', 'utf8');
+    expect(src).not.toMatch(/addEventListener\('click', toggleBoardMenu\)/);
+    expect(src).toMatch(/toggleBoardMenu\(_profileChip\)/);
+  });
+});

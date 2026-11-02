@@ -125,7 +125,9 @@ if (_profileChip) {
     _profileChip.style.display = 'inline-block';
   }
   // Samme veksling som ⋯ — chipen må også kunne lukke menyen den åpnet.
-  _profileChip.addEventListener('click', toggleBoardMenu);
+  // Med seg selv som knapp, ikke klikket: `addEventListener('click',
+  // toggleBoardMenu)` ga funksjonen hendelsen som argument.
+  _profileChip.addEventListener('click', () => toggleBoardMenu(_profileChip));
 }
 
 // One ladder, in firstRun.js, so this cannot drift from the pure function

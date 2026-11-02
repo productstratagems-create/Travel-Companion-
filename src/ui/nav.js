@@ -19,10 +19,53 @@ export function closeBoardMenu() {
   _moreBtns().forEach(b => b.setAttribute('aria-expanded', 'false'));
 }
 
-export function toggleBoardMenu() {
+/** Knappen som sist åpnet menyen — fokus går tilbake dit ved Escape. */
+let _åpnetAv = null;
+let _lyttere = false;
+
+/* LUKK UTENFOR OG MED ESCAPE.
+ *
+ * Rapportert: menyen dekket ⋮-knappen, og den knappen var eneste vei ut.
+ * Registrert første gang menyen åpnes, så de virker uansett hvem som kaller.
+ * Trykket utenfor svelges ikke: det du trykket på virker som vanlig. */
+function _meldPåLyttere() {
+  if (_lyttere || typeof document === 'undefined') return;
+  _lyttere = true;
+  document.addEventListener('click', e => {
+    const menu = document.getElementById('board-more-menu');
+    if (!menu || menu.style.display !== 'flex') return;
+    const t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest('#board-more-menu') || t.closest('[data-more]') || t.closest('#header-profile-chip')) return;
+    closeBoardMenu();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const menu = document.getElementById('board-more-menu');
+    if (!menu || menu.style.display !== 'flex') return;
+    closeBoardMenu();
+    if (_åpnetAv && _åpnetAv.focus) _åpnetAv.focus();
+  });
+}
+
+/**
+ * @param {Element} [knapp] knappen som åpnet menyen. Menyen ankres under den.
+ */
+export function toggleBoardMenu(knapp) {
   const menu = document.getElementById('board-more-menu');
   if (!menu) return;
   const open = menu.style.display === 'none' || !menu.style.display;
+  /* UNDER KNAPPEN SOM ÅPNET DEN. Menyen sto på en fast `top:4.2rem`; som
+   * installert app ligger headeren lavere (statuslinja, notchen), og menyen
+   * la seg oppå ⋮-knappen. Én regel framfor et tall per skjerm og visning.
+   * Uten knapp gjelder CSS-ens plass som før. */
+  const el = knapp && knapp.getBoundingClientRect ? knapp : null;
+  if (open && el) {
+    const r = el.getBoundingClientRect();
+    menu.style.top = Math.round(r.bottom + 6) + 'px';
+    menu.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+  }
+  if (open) { _åpnetAv = el; _meldPåLyttere(); }
   menu.style.display = open ? 'flex' : 'none';
   _moreBtns().forEach(b => b.setAttribute('aria-expanded', open ? 'true' : 'false'));
   // Chipen styrer samme meny, så den bærer samme tilstand.
@@ -503,7 +546,7 @@ export function attachEventListeners() {
   // re-render there.
   document.addEventListener('click', e => {
     const b = e.target.closest && e.target.closest('[data-more]');
-    if (b) { e.preventDefault(); toggleBoardMenu(); }
+    if (b) { e.preventDefault(); toggleBoardMenu(b); }
   });
 
   const shareBtn = document.getElementById('share-btn');

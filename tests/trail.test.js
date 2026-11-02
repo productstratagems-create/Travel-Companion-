@@ -201,3 +201,49 @@ describe('fixJump', () => {
     expect(langt.jumped).toBe(true);
   });
 });
+
+/* ── KJØRT FORBI ────────────────────────────────────────────────────────
+ *
+ * Rapportert: «du nærmer deg den» når du kjører forbi stoppet. `approach`
+ * regnet retning fra sporets to ENDER. Til fots er det et halvt minutt og
+ * noen titalls meter; i 10 m/s er det 600 m. Kjørte du forbi stoppet midt
+ * i sporet, hadde avstanden fra første til siste punkt likevel krympet —
+ * og skjermen sa «du nærmer deg den · ca 10 s» om et stopp bak deg.
+ */
+describe('approach — et stopp du har kjørt forbi', () => {
+  const LAT = 59.9;
+  const lon = m => 10.7 + m / 55_800;
+  const STOPP = { lat: LAT, lon: lon(0) };
+  // 10 m/s østover: fra 400 m før stoppet til 150 m etter, over 55 s.
+  const SPOR = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+    .map(t => ({ lat: LAT, lon: lon(-400 + 10 * t), at: 1_000_000 + t * 1000, acc: 10 }));
+
+  it('fiksturen: avstanden fra ende til ende har krympet', () => {
+    // Måleinstrumentet først — det er nettopp dette som lurte den gamle regelen.
+    const først = 400, sist = 150;
+    expect(sist).toBeLessThan(først);
+    expect(SPOR).toHaveLength(12);
+  });
+
+  it('er «fra», ikke «mot»', () => {
+    expect(approach(SPOR, STOPP).kind).toBe('fra');
+  });
+
+  it('og gir ingen ankomsttid', () => {
+    expect(approach(SPOR, STOPP).etaS).toBeNull();
+  });
+
+  /* Rett før stoppet er det fortsatt «mot». */
+  it('men før stoppet er det fortsatt «mot»', () => {
+    const før = SPOR.slice(0, 8);            // fra 400 m før til 50 m før
+    expect(approach(før, STOPP).kind).toBe('mot');
+  });
+
+  /* Støy rundt bunnen skal ikke snu dommen: til fots, stående ved stoppet,
+   * går avstanden opp og ned med noen meter. */
+  it('og noen meters støy ved bunnen er ikke en passering', () => {
+    const gå = [0, 5, 10, 15, 20, 25].map((t, i) =>
+      ({ lat: LAT, lon: lon(-30 + 1.2 * t + (i === 4 ? 6 : 0)), at: 1_000_000 + t * 1000, acc: 8 }));
+    expect(approach(gå, STOPP).kind).toBe('mot');
+  });
+});

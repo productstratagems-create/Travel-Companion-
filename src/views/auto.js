@@ -28,7 +28,7 @@ import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, VANE_MARK
   from '../api/smart.js';
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
-import { ombord, reiseMeta } from '../api/ombord.js';
+import { ombord, reiseMeta, iFart } from '../api/ombord.js';
 import { _interpolateVehiclePos, _interpolateOnPath } from '../api/forventetPos.js';
 import { journeyShapeCached } from '../api/entur.js';
 import { joinJourney } from '../journey.js';
@@ -1134,9 +1134,15 @@ export function stopHeadHtml(stop, count, open, extra) {
   // v1.101.0 did not create that; it made it visible by printing the two
   // numbers side by side. The fix is not to keep them in step but to have one
   // answer: walkMinsTo already returns the distance it used.
-  if (extra && extra.walkDist != null) bits.push(extra.walkDist + ' m å gå');
+  //
+  // I FART er gangtid et svar på et spørsmål ingen stilte. Under «ser ut som
+  // du er på 31» sto «127 m å gå · 4 min gange · du går mot den · ca 10 s»:
+  // fire minutter og ti sekunder om samme stopp. Avstanden er fortsatt sann
+  // og står; gangen gjør det ikke.
+  const fart = !!(extra && extra.iFart);
+  if (extra && extra.walkDist != null) bits.push(extra.walkDist + (fart ? ' m' : ' m å gå'));
   else if (stop && stop.distM != null) bits.push(stop.distM + ' m');
-  if (extra && extra.walkMins != null) bits.push(extra.walkMins + ' min gange');
+  if (!fart && extra && extra.walkMins != null) bits.push(extra.walkMins + ' min gange');
   // WHY THIS STOP AND NOT ANOTHER.
   //
   // From v1.141.0 the ranking can prefer a stop you are walking TOWARDS over
@@ -1154,10 +1160,13 @@ export function stopHeadHtml(stop, count, open, extra) {
   // lines, splitting «ca / 60 s». A middot joins peers, and this is not a
   // peer of the metres: they describe the walk, this says why THIS stop is
   // the one being named.
+  // Samme `approach()`, men verbet følger farten: du GÅR ikke mot et stopp
+  // fra en buss, du nærmer deg det.
+  const verb = fart ? 'du nærmer deg den' : 'du går mot den';
   const wayNote = (extra && extra.way === 'mot')
     ? '<span class="auto-way-note">' + esc(extra.wayEtaS != null && extra.wayEtaS < 600
-      ? 'du går mot den · ca ' + _etaOrd(extra.wayEtaS)
-      : 'du går mot den') + '</span>'
+      ? verb + ' · ca ' + _etaOrd(extra.wayEtaS)
+      : verb) + '</span>'
     : '';
   // Only when it is stale — posAgeMins returns null while the fix is fresh, so
   // the threshold is not repeated here.
@@ -1427,13 +1436,17 @@ function _renderWhere() {
   const open = stopsOpen(others.length);
 
   const w = walkMinsTo(_stop);
+  // Samme terskel som tilbudet over, fra samme filter.
+  const fart = iFart(fartNå(Date.now()));
   const _way = (_stop && _stop.lat != null)
     ? approach(state.posTrail, { lat: _stop.lat, lon: _stop.lon })
     : { kind: 'vet-ikke', etaS: null };
   // posAgeMins already returns null while the fix is fresh (POS_STALE_MS), so
   // the threshold is not repeated here. One definition of "stale".
-  el.innerHTML = '<div class="set-label">du er ved</div>'
+  // «Du er ved» er usant fra en buss i 40 km/t. «Nærmeste stopp» er sant.
+  el.innerHTML = '<div class="set-label">' + (fart ? 'nærmeste stopp' : 'du er ved') + '</div>'
     + stopHeadHtml(_stop, others.length, open, {
+      iFart: fart,
       walkDist: w ? w.dist : null,
       walkMins: w ? w.mins : null,
       pos: _posState(),

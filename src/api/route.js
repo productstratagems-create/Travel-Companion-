@@ -2,27 +2,30 @@ import { decodePolyline } from '../ui/polyline.js';
 import { REQUEST_TIMEOUT_MS } from './http.js';
 
 /**
- * What "safe" means to the router.
+ * Hva Valhalla blir bedt om: KORTESTE gangvei.
  *
- * A preference, not a promise — and that distinction is why nothing in the
- * interface calls the result safe. These are weights inside Valhalla's
- * pedestrian costing: they make a footway cheaper to use than a kerb beside
- * traffic, and stairs and alleys expensive enough that a slightly longer way
- * round wins. They know nothing about lighting, gritting or how a place feels
- * after dark.
+ * Rapportert med skjermbilde: «Rutevalget for gange velger ikke korteste
+ * gangvei» — en omvei gjennom boliggatene i stedet for gangveien.
  *
- * The route may come out a few tens of metres longer than the shortest line.
- * That is the point.
+ * Her sto en «trygghetspreferanse» med fire faktorer, og alle fire var
+ * SNUDD. I Valhallas pedestrian-kostnad er faktorene multiplikatorer på
+ * kostnaden: over 1 gjør en vei dyrere, under 1 billigere.
  *
- * One named table so the weights can be tuned in one place rather than hunted
- * for inside a request body.
+ *     walkway_factor   1.5   «prefer walkways»   → gangveier UNNGÅTT   (std. 1.0)
+ *     sidewalk_factor  1.4   «prefer a pavement» → fortau UNNGÅTT     (std. 1.0)
+ *     alley_factor     0.3   «stay out of alleys» → smug FORETRUKKET  (std. 2.0)
+ *     driveway_factor  0.3                       → innkjørsler FORETRUKKET (std. 5.0)
+ *
+ * Testen som skulle passe på dem krevde nettopp disse retningene, og sto
+ * grønn. Ruta valgte gater og innkjørsler framfor gangstien, og den målte
+ * lengden — som styrer «N min gange» og hva som strykes — ble for lang.
+ *
+ * `shortest` er Valhallas eget valg for ren avstand, og det er det du ba om.
+ * Faktorene er fjernet, ikke snudd: snudd ville de gitt en preferanse som
+ * kan gi lengre ruter. Kan ikke prøves herfra — sandkassen når ikke Valhalla.
  */
 export const WALK_COSTING = {
-  walkway_factor: 1.5,    // prefer dedicated walkways
-  sidewalk_factor: 1.4,   // prefer a pavement over the carriageway
-  alley_factor: 0.3,      // and stay out of alleys
-  driveway_factor: 0.3,
-  step_penalty: 40,       // seconds per flight — a lift-free detour is often better
+  shortest: true,
   use_ferry: 0,
 };
 

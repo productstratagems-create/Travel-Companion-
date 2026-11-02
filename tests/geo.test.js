@@ -178,8 +178,10 @@ describe('walkInfo()', () => {
     const crow = haver(HOME.lat, HOME.lon, STOP.lat, STOP.lon);
     saveWalkDist(HOME, STOP, ROUTE, crow);
     // The reader has moved; the same stored entry is now absurd for this pair.
-    localStorage.setItem('default::t.walkDist',
-      JSON.stringify({ [Object.keys(JSON.parse(localStorage.getItem('default::t.walkDist')))[0]]: 50 }));
+    // `t.walkDist2` fra v1.207.0: nøkkelen byttet da de gamle avstandene,
+    // målt langs omveier, skulle glemmes. Fiksturen skrev den gamle.
+    localStorage.setItem('default::t.walkDist2',
+      JSON.stringify({ [Object.keys(JSON.parse(localStorage.getItem('default::t.walkDist2')))[0]]: 50 }));
     const w = walkInfo();
     expect(w.src).toBe('beregnet');
   });

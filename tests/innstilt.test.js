@@ -288,3 +288,55 @@ describe('tavlas rad', () => {
     expect(src()).toMatch(/const isCancelled = erInnstilt\(c\);/);
   });
 });
+
+/* ── «ANK. 10:00» PÅ EN RAD MED BYTTE INNSTILT ──────────────────────────
+ *
+ * v1.196.0 la «bytte innstilt» på raden og lot ankomsten stå: «ank. 10:00»
+ * for en reise som ikke kommer fram da. Klokka var reiseplanens, og planen
+ * henger ikke lenger sammen. Sagt i v1.196.0-oppsummeringen som «ikke tatt».
+ */
+import { ankomstHtml } from '../src/views/board.js';
+
+describe('ankomsten på en rad med brutt reise', () => {
+  const T = Date.UTC(2026, 10, 2, 9, 0, 0);
+  const ARR = new Date(Date.UTC(2026, 10, 2, 9, 0, 0)).toISOString();
+  const tekst = h => h.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+  it('strykes, og sier hvorfor til skjermleseren', () => {
+    const h = ankomstHtml(ARR, T, { brudd: true });
+    expect(h).toMatch(/<s>/);
+    expect(h).toMatch(/aria-label="ankommer ikke som planlagt"/);
+  });
+
+  /* INGEN EKSTRA ORD PÅ SKJERMEN. «ankommer ikke» etter tiden gjorde
+   * tidskolonnen bredere: den fløt inn i spor-kolonnen og skrev over
+   * avgangstiden. Raden var like høy, så høyde-målingen sa at alt var bra;
+   * skjermbildet viste det. Den synlige teksten er like lang som før. */
+  it('og den synlige teksten er ikke lenger enn uten brudd', () => {
+    expect(tekst(ankomstHtml(ARR, T, { brudd: true })).length)
+      .toBe(tekst(ankomstHtml(ARR, T, {})).length);
+  });
+
+  /* Tiden står igjen, strøket. Den sier hva planen var — og at den ikke
+   * gjelder. Fjernet ville raden tidd om at det fantes en plan. */
+  it('men tiden står, strøket', () => {
+    expect(ankomstHtml(ARR, T, { brudd: true })).toMatch(/<s>ank\. [^<]*<\/s>/);
+  });
+
+  it('og uten brudd er den som før', () => {
+    const h = ankomstHtml(ARR, T, {});
+    expect(h).not.toMatch(/<s>|ankommer ikke/);
+    expect(tekst(h)).toMatch(/^ank\. /);
+  });
+
+  it('og «ank. ukjent» fra stopptavla står som før', () => {
+    expect(tekst(ankomstHtml(null, T, { fraStopptavle: true }))).toBe('ank. ukjent');
+    expect(ankomstHtml(null, T, {})).toBe('');
+  });
+
+  it('og tavla bruker den, med bruddet', () => {
+    const src = require('node:fs').readFileSync('src/views/board.js', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    expect(src).toMatch(/ankomstHtml\(arrT, now, \{ brudd: !erInnstilt\(c\) && !!c\._brudd, fraStopptavle: !!c\._fromStopBoard \}\)/);
+  });
+});

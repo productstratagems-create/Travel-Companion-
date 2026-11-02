@@ -103,6 +103,9 @@
 .dep-times{margin-left:auto;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:.05rem}
 .dep-dep{font-size:13px;color:var(--accent);white-space:nowrap;font-variant-numeric:tabular-nums}
 .dep-arr{font-size:11px;color:var(--text-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+/* Brutt reise: planens ankomst strøket, med ordet i samme farge som «bytte innstilt». */
+.dep-arr-brutt{color:var(--err)}
+.dep-arr-brutt s{color:var(--text-muted)}
 .dep-rail-dur{color:var(--text-soft);font-style:italic}
 .dep-spor-rail .sl{color:var(--accent);opacity:.7}
 .dep-spor-rail .sn{font-size:1.9rem;color:var(--accent);text-shadow:0 0 10px rgba(var(--accent-rgb),.9)}

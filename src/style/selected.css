@@ -337,6 +337,9 @@ body.app-nav-visible.jny-chip-visible #s-ctas > .cta-row{
 .rl-bytte.rl-ok{border-left-color:rgba(var(--accent-rgb),.55)}
 .rl-bytte.rl-stramt{border-left-color:var(--warn);background:rgba(var(--warn-rgb),.06)}
 .rl-bytte.rl-miss{border-left-color:var(--err);background:rgba(220,38,38,.06)}
+/* Omveien med ord: en egen, rolig linje under byttet — ikke et varsel.
+   Den forklarer en gangvei som ser feil ut, den advarer ikke. */
+.rl-omvei{display:block;margin-top:.2rem;font-size:12px;color:var(--text-soft)}
 .rl-dom{font-weight:700}
 .rl-stramt .rl-dom{color:var(--warn)}
 .rl-miss .rl-dom{color:var(--err)}

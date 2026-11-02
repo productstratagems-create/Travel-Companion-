@@ -51,8 +51,8 @@ export function bytteDom(margin) {
 }
 const _DOM_KLASSE = { 'god tid': 'rl-ok', 'stramt': 'rl-stramt', 'rekker du ikke': 'rl-miss' };
 
-/** Lengden langs en gangeetappes form, i meter — eller null uten form. */
-function _meter(foot) {
+/** Lengden langs en gangeetappes form, i meter (urundet) — eller null uten form. */
+function _formMeter(foot) {
   let m = 0, har = false;
   foot.forEach(l => {
     const p = legShape(l);
@@ -60,8 +60,71 @@ function _meter(foot) {
     har = true;
     for (let i = 1; i < p.length; i++) m += haver(p[i - 1][0], p[i - 1][1], p[i][0], p[i][1]);
   });
-  return har ? Math.round(m / 10) * 10 : null;
+  return har ? m : null;
 }
+/** Samme lengde, rundet til 10 m slik byttelinja skriver den. */
+function _meter(foot) {
+  const m = _formMeter(foot);
+  return m != null ? Math.round(m / 10) * 10 : null;
+}
+
+/* ── OMVEIEN, SAGT MED ORD ──────────────────────────────────────────────
+ *
+ * Rapportert med skjermbilde: buss 74 av på Jernbanetorget A, trikk 12 på
+ * fra B. Kartet tegnet gangen som en sløyfe via Karl Johans gate, og linja
+ * sa bare «ca 60 m» — mellom to plattformer som står nesten vegg i vegg.
+ *
+ * Undersøkt mot de ekte kildene (docs/produktretning.md, 2026-11-02): Entur
+ * har ingen gangforbindelser (0 PathLink i hele landet), og NVDB viser at en
+ * kjørebane (KV11926) går mellom A og B, med nærmeste gangfelt ca 22 m unna.
+ * Omveien er altså VIRKELIG. En rett strek ville ledet folk over kjørebanen.
+ *
+ * Så appen sier det den vet: at plattformene ligger tett, at gangveien går
+ * rundt, og gjennom hvilken gate — fra Journey Planners `steps`.
+ * Byttedommen (`transferMargin`) rører dette ikke; den regner alt med
+ * gangtiden.
+ */
+/** Gangveien er en omvei når den er minst så mange ganger luftlinja … */
+export const OMVEI_FAKTOR = 3;
+/** … og plattformene ligger nærmere enn dette. Lenger fra hverandre er
+ *  ikke «tett», og da er en lang gangvei ikke overraskende. */
+export const OMVEI_MAKS_LUFT_M = 100;
+
+/* Navn i stegene som ikke er en gate du kan kjenne igjen. OpenStreetMap
+ * kaller plattformene selv «Jernbanetorget A» og «Plattform B»; Journey
+ * Planner merker oppdiktede navn («fortau», «gangvei») med `bogusName` og
+ * plasser med `area`. */
+const _ER_PLATTFORM = /^(plattform|platform|spor|perrong)\b/i;
+
+/**
+ * Er gangen mellom to kjøretøy en omvei rundt noe — og i så fall via hva?
+ *
+ * @param {{latitude:number, longitude:number}} av  kvaien du går av på
+ * @param {{latitude:number, longitude:number}} på  kvaien du går på fra
+ * @param {Array} gange gangeetappene mellom dem (rå Journey Planner-etapper)
+ * @returns {null | {luft:number, gang:number, via:string[]}} null når det
+ *   ikke er en omvei — eller når vi ikke vet (uten form eller koordinater).
+ */
+export function omvei(av, på, gange) {
+  const ok = p => p && Number.isFinite(p.latitude) && Number.isFinite(p.longitude);
+  if (!ok(av) || !ok(på)) return null;
+  const gang = _formMeter(gange || []);
+  if (gang == null) return null;
+  const luft = haver(av.latitude, av.longitude, på.latitude, på.longitude);
+  if (luft >= OMVEI_MAKS_LUFT_M || gang < OMVEI_FAKTOR * luft) return null;
+  const stopp = [av.name, på.name].filter(Boolean).map(stopKey);
+  const via = [];
+  (gange || []).forEach(l => (l.steps || []).forEach(s => {
+    const n = s && typeof s.streetName === 'string' ? s.streetName.trim() : '';
+    if (!n || s.bogusName || s.area || _ER_PLATTFORM.test(n)) return;
+    if (stopp.some(k => stopKey(n).startsWith(k))) return;
+    if (!via.includes(n)) via.push(n);
+  }));
+  return { luft, gang, via: via.slice(0, 2) };
+}
+
+/** «ca 6 m» under 20 m, ellers til nærmeste 10 m. */
+const _caM = m => (m < 20 ? Math.max(1, Math.round(m)) : Math.round(m / 10) * 10);
 
 /** Antall stopp du kjører, fra kallene mellom påstigning og avstigning. */
 function _stopp(l) {
@@ -155,6 +218,7 @@ export function reiselop(alle, o) {
     const nyttSted = legEnds(neste.l).fra;
     const annetSted = nyttSted && stopKey(nyttSted) !== stopKey(e.til);
     const t = opt.tilgang ? opt.tilgang(_tilId(l)) : null;
+    const rundt = omvei(l.toPlace, neste.l.fromPlace, gange);
     deler.push('<div class="rl-bytte ' + (dom ? _DOM_KLASSE[dom] : '') + '" data-rl="b' + k + '">'
       + 'Bytte på ' + esc(visStopp(e.til))
       + (vent != null ? ' · ' + vent + ' min' : '')
@@ -164,6 +228,13 @@ export function reiselop(alle, o) {
       + (nyPl ? esc(nyPl) : '')
       + (dom ? ' — <span class="rl-dom">' + esc(dom) + '</span>' : '')
       + (t === 'trinnfri' ? ' · trinnfri' : t === 'ikke-trinnfri' ? ' · ikke trinnfri' : '')
+      + (rundt
+        ? '<span class="rl-omvei">Plattformene ligger ca ' + _caM(rundt.luft) + ' m fra hverandre, men '
+          + (rundt.via.length
+            ? 'gangveien går om ' + rundt.via.map(esc).join(' og ')
+            : 'gangveien er ca ' + _caM(rundt.gang) + ' m')
+          + '.</span>'
+        : '')
       + '</div>');
   });
 

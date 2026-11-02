@@ -100,12 +100,15 @@ async function run(scheme, påBussen) {
       knapper: k ? k.querySelectorAll('.ombord-valg').length : 0,
       høyde: k ? Math.round(k.getBoundingClientRect().height) : 0,
       duErVed: hvor ? hvor.textContent.replace(/\s+/g, ' ').trim().slice(0, 50) : null,
+      notis: (document.querySelector('#auto-body .i-fart-notis') || {}).textContent || null,
+      strøket: document.querySelectorAll('#auto-body .auto-dir .missed').length,
     };
   });
   console.log('\n══ ' + (påBussen ? 'på bussen' : 'til fots') + ' · ' + scheme);
   console.log('   kort: ' + (m.kort || '(ingen)'));
   console.log('   over «du er ved»: ' + m.over + ' · knapper: ' + m.knapper + ' · høyde ' + m.høyde + ' px');
   console.log('   du er ved: ' + m.duErVed);
+  console.log('   notis: ' + (m.notis || '(ingen)') + ' · strøkne tider: ' + m.strøket);
   const f = path.join(ROOT, 'scratchpad', 'ombord-' + (påBussen ? 'buss' : 'gaa') + '-' + scheme + '.png');
   await page.screenshot({ path: f });
   console.log('   → ' + f);

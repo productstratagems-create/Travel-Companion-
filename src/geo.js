@@ -251,6 +251,7 @@ export const STOP_CLUSTER_M = 80;
 // modulens eget skop, og geo.js kaller haver() selv ni steder — uten denne
 // linja bygger det, men kaster «haver is not defined» ved kjøring.
 import { haver } from './haversine.js';
+import { gangGjelder } from './api/ombord.js';
 export { haver, metresBetween, EARTH_R_M } from './haversine.js';
 
 /**
@@ -332,8 +333,23 @@ function routeHasOrigin() {
 
 export function isWalkActive(dir) {
   if (dir.key === 'in') return false;
+  // I fart gjelder ikke gangtid fra GPS-en din — med mindre «gå fra» er en
+  // fast plass. Samme regel som auto-reise (`gangTil`), fra samme funksjon.
+  if (!gangGjelder(fartNå(), state.walkFromLL !== null)) return false;
   if (state.walkFromLL !== null) return true;
   return nearStopMatch(dir.stopId, dir.from) !== null;
+}
+
+/**
+ * Gangtid til et stopp, når den gjelder — ellers null.
+ *
+ * `null` er «ingen gangtid» for alle leserne, og det betyr dagens oppførsel
+ * uten posisjon: ingen strek, ingen «rekker ikke». Det er riktig i fart.
+ * Bruk denne der gangtid avgjør REKKEVIDDE; `walkMinsTo` der du trenger
+ * avstanden uansett.
+ */
+export function gangTil(stop) {
+  return gangGjelder(fartNå(), state.walkFromLL !== null) ? walkMinsTo(stop) : null;
 }
 
 /**

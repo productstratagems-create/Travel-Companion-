@@ -28,7 +28,7 @@ import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke
   from '../api/smart.js';
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
-import { ombord, reiseMeta, iFart } from '../api/ombord.js';
+import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS } from '../api/ombord.js';
 import { _interpolateVehiclePos, _interpolateOnPath } from '../api/forventetPos.js';
 import { journeyShapeCached } from '../api/entur.js';
 import { joinJourney } from '../journey.js';
@@ -43,7 +43,7 @@ import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
-import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, userLL, minsToLeave, reachCls, posState, posNå, fartNå } from '../geo.js';
+import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå } from '../geo.js';
 import L from 'leaflet';
 import { createMap, drawWalk, userDot, drawStopLine } from '../ui/map.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
@@ -2271,7 +2271,7 @@ function _maybeAdvance() {
   // what you need, so the orientation screen stays. At the stop it has been
   // read, and this is a plain shortcut.
   if (!atStop(_stop)) return false;
-  const walk = walkMinsTo(_stop);
+  const walk = gangTil(_stop);
   const hit = nextRail(_dirs, _stop.name, Date.now(), walk && walk.mins);
   if (!hit) return false;
   _open = hit;
@@ -2385,7 +2385,7 @@ function _renderBody() {
   // How far you have to walk to be standing here — the number this screen has
   // always computed and never shown. Null when we cannot know, and then the
   // rows are exactly as they were.
-  const walk = walkMinsTo(_stop);
+  const walk = gangTil(_stop);
   const walkMins = walk ? walk.mins : null;
   // A direction whose departures have all gone while you watched is not a
   // choice any more. The screen counts down now (v1.71.0), so rows can age
@@ -2488,7 +2488,11 @@ function _renderBody() {
   if (whereLabel) whereLabel.textContent = listeOverskrift(dests.length > 0);
 
   let shown;
-  body.innerHTML = ordered.map(({ d, i }) => {
+  // SI DET: i fart strykes ingen rad på gangtid, og ustrøkne rader uten
+  // forklaring leses som at alt kan nås.
+  const fartNotis = gangGjelder(fartNå(now), state.walkFromLL !== null) ? ''
+    : '<div class="i-fart-notis">' + esc(I_FART_NOTIS) + '</div>';
+  body.innerHTML = fartNotis + ordered.map(({ d, i }) => {
       /* Merket bare når det finnes noe å si om STYRKEN. `gjetning` er
        * `t.freqArr`-fallbacken, som ikke vet noe om tid på døgnet —
        * `autoJumpDest` nekter alt å handle på den, og en rad merket «du
@@ -3054,7 +3058,7 @@ function _renderStops(body) {
   // could not catch that one got arrival times for a journey already struck
   // out on the screen they came from. Two places showing one fact, and only
   // one of them fixed would be the fault this release is about.
-  const walk = walkMinsTo(_stop);
+  const walk = gangTil(_stop);
   const ride = catchable(_open, walk ? walk.mins : null, Date.now())[0];
   const stops = stopsAhead((ride && ride.call) || _open.call, _stop.name);
   // `.picked` is the mark a tap on the map leaves. It is a CLASS on the row

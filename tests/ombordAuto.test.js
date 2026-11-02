@@ -190,3 +190,58 @@ describe('«du er ved» i fart', () => {
     expect(src).toMatch(/fart \? 'nærmeste stopp' : 'du er ved'/);
   });
 });
+
+/* ── RADENE I FART ──────────────────────────────────────────────────────
+ *
+ * v1.199.0 rettet overskriften, men radene regnet fortsatt med gangtid: på
+ * bussen strøk de avganger som «rekker ikke» ut fra at du GÅR til stoppet.
+ * Spurt: «Ta tavlas rader i fart også.»
+ */
+import { gangGjelder, I_FART_NOTIS } from '../src/api/ombord.js';
+
+describe('gangtid i fart', () => {
+  it('gjelder ikke i fart', () => {
+    expect(gangGjelder(10, false)).toBe(false);
+  });
+  it('men gjelder til fots', () => {
+    expect(gangGjelder(1.4, false)).toBe(true);
+    expect(gangGjelder(null, false)).toBe(true);
+  });
+  /* En fast «gå fra»-plass er ikke din GPS. Den gjelder uansett hvor du er. */
+  it('og en fast «gå fra»-plass gjelder alltid', () => {
+    expect(gangGjelder(10, true)).toBe(true);
+  });
+  it('og bruker tilbudets egen terskel', () => {
+    expect(gangGjelder(OMBORD_MIN_FART_MS, false)).toBe(false);
+    expect(gangGjelder(OMBORD_MIN_FART_MS - 0.1, false)).toBe(true);
+  });
+
+  const strip = f => require('node:fs').readFileSync(f, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+  it('tavla slår av gangtid i fart', () => {
+    const g = strip('src/geo.js');
+    const i = g.indexOf('export function isWalkActive');
+    expect(g.slice(i, g.indexOf('\n}\n', i))).toMatch(/gangGjelder\(fartNå\(\), state\.walkFromLL !== null\)/);
+  });
+
+  /* Auto-reise: alle stedene gangtid avgjør rekkevidde går gjennom gangTil.
+   * Bare overskriften beholder walkMinsTo — den trenger avstanden, og
+   * v1.199.0 håndterer ordene der. */
+  it('og auto-reise regner rekkevidde gjennom gangTil', () => {
+    const s = strip('src/views/auto.js');
+    expect((s.match(/walkMinsTo\(_stop\)/g) || []).length).toBe(1);
+    expect((s.match(/gangTil\(_stop\)/g) || []).length).toBeGreaterThanOrEqual(3);
+  });
+
+  /* SI DET. Ustrøkne rader uten forklaring leses som at alt kan nås. */
+  it('og sier det, på begge skjermene', () => {
+    expect(I_FART_NOTIS).toMatch(/i fart/);
+    // På kallestedet, ikke bare i importlinja. Første utgave så etter ordet
+    // og fant det i `import { … I_FART_NOTIS }` — mutanten som fjernet
+    // notisen fra skjermen overlevde.
+    expect(strip('src/views/auto.js')).toMatch(/body\.innerHTML = fartNotis \+ ordered\.map/);
+    expect(strip('src/views/auto.js')).toMatch(/esc\(I_FART_NOTIS\)/);
+    expect(strip('src/views/board.js')).toMatch(/let html = gangGjelder\(fartNå\(\), state\.walkFromLL !== null\) \? ''\s*: '<div class="i-fart-notis">' \+ esc\(I_FART_NOTIS\)/);
+  });
+});

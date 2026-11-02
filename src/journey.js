@@ -5,6 +5,7 @@ import { findArr } from './geo.js';
 import { storage } from './storage.js';
 import { callPlace } from './api/place.js';
 import { legEnds } from './api/adapt.js';
+import { registrerReise } from './api/smart.js';
 import { logMsg } from './ui/log.js';
 import { updateOnboardChip } from './ui/chip.js';
 import { show } from './ui/nav.js';
@@ -75,7 +76,16 @@ export function joinJourney(meta, toIdx) {
   state.sel = null;
   stopBoard();
   saveJny();
+  // Du følger en reise: den teller. Her, og ikke i activateTracking, som
+  // også kjører når en lagret reise gjenopprettes.
+  registrerReise({ fra: first.name, til: dest.name, tilLat: dest.lat, tilLon: dest.lon,
+    linje: meta.lineCode }, _posForLogg());
   activateTracking();
+}
+
+/** Hvor du var da reisen startet, for reiseloggen. */
+function _posForLogg() {
+  return state.homeLL ? { lat: state.homeLL.lat, lon: state.homeLL.lon, acc: state.posAcc } : null;
 }
 
 /**
@@ -206,6 +216,10 @@ export function doBoard() {
   // Confirm the lock is on the first (boarding) leg
   state.lockedJourneyId = (firstLeg && firstLeg.journeyId) || state.lockedJourneyId;
   saveJny();
+  // Du trykket «på»: reisen teller. Målet er reisens, ikke første etappes.
+  registrerReise({ fra: dir.from, til: dir.to, tilStopId: dir.toStopId || null,
+    fraStopId: dir.stopId || null, tilLat: _toLat, tilLon: _toLon,
+    linje: firstLeg && firstLeg.lineCode }, _posForLogg());
   activateTracking();
 }
 

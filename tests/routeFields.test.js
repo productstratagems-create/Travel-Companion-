@@ -145,11 +145,19 @@ describe('setActiveRoute — når bruk telles', () => {
     _fromLat: 59.877, _fromLon: 10.818, _toLat: 59.915, _toLon: 10.772,
   };
 
-  it('teller begge ender når ruta er valgt', () => {
+  /* ET VALG ER ET STED, IKKE EN REISE (v1.202.0).
+   *
+   * Dette var `expect(smartCalls).toHaveLength(1)`: hvert valg av rute ble
+   * talt som en tur. Rapportert som «tellingen gir ikke mening — oppleves
+   * som for høye tall»: å åpne tavla tre ganger før du går ga tre, og
+   * kortene under «Dit du ofte skal» telte seg selv opp når du trykket på
+   * dem. Reiser telles nå der de starter (`registrerReise` i journey.js).
+   * Stedene du velger telles fortsatt — det er et annet faktum. */
+  it('teller stedene du velger, men ikke en reise', () => {
     setActiveRoute(rute, { chosen: true });
     expect(freq('t.freqDep').map(p => p.name)).toEqual(['Bøler']);
     expect(freq('t.freqArr').map(p => p.name)).toEqual(['Tøyen']);
-    expect(smartCalls).toHaveLength(1);
+    expect(smartCalls).toHaveLength(0);
   });
 
   // The guard that protects startup: trackPlace increments, so counting every
@@ -175,6 +183,5 @@ describe('setActiveRoute — når bruk telles', () => {
     expect(freq('t.freqArr')[0]).toMatchObject({
       stopId: 'NSR:StopPlace:12', lat: 59.915, lon: 10.772,
     });
-    expect(smartCalls[0]).toEqual(['Bøler', 'Tøyen', 'NSR:StopPlace:12', 59.915, 10.772, 'NSR:StopPlace:3']);
   });
 });

@@ -1,5 +1,6 @@
 import config from '../config.js';
 import { erInnstilt } from '../innstilt.js';
+import { gangGjelder, I_FART_NOTIS } from '../api/ombord.js';
 import { stopKey } from '../stopId.js';
 import { liveness } from '../api/liveness.js';
 import { normMode } from '../api/stopCats.js';
@@ -7,7 +8,7 @@ import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
-import { walkInfo, walkMinsTo, mToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
+import { fartNå, walkInfo, walkMinsTo, mToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
@@ -2999,7 +3000,10 @@ export function renderBoard() {
   // the 20-second poll, so the board says when they were fetched rather than
   // letting them look as live as the three at the top.
   const nearCount = visibleDeps.length;
-  let html = '';
+  // SI DET: i fart regnes ikke gangtid (`isWalkActive`), og ustrøkne rader
+  // uten forklaring leses som at alt kan nås. Samme tekst som auto-reise.
+  let html = gangGjelder(fartNå(), state.walkFromLL !== null) ? ''
+    : '<div class="i-fart-notis">' + esc(I_FART_NOTIS) + '</div>';
   let urgentShown = false;
   rowDeps.forEach(({ c, origIdx }, rowIdx) => {
     if (_pages.length && rowIdx === nearCount) {

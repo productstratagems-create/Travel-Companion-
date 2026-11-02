@@ -1203,14 +1203,11 @@ export function setActiveRoute(dir, opts) {
 function _recordChoice(dir) {
   trackPlace('dep', dir.from, { lat: dir._fromLat, lon: dir._fromLon, stopId: dir.stopId || null });
   trackPlace('arr', dir.to,   { lat: dir._toLat,   lon: dir._toLon,   stopId: dir.toStopId || null });
-  recordSmartTrip(dir.from, dir.to, dir.toStopId || null, dir._toLat, dir._toLon, dir.stopId || null);
-  // The same choice, kept as an EVENT rather than folded into a counter.
-  // recordSmartTrip above aggregates as it writes — destination, two-hour
-  // bucket, weekday — so «four trips last week» and «four trips since May»
-  // are the same row afterwards. logEvent does nothing at all without
-  // consent; the guard is inside it, not here.
-  logEvent('reise', { fra: dir.from, til: dir.to, linje: dir.line || null },
-    state.homeLL ? { lat: state.homeLL.lat, lon: state.homeLL.lon, acc: state.posAcc } : null);
+  /* ET VALG ER IKKE EN REISE (v1.202.0). Her sto `recordSmartTrip` og
+   * `logEvent('reise')`, så hvert trykk som åpnet tavla ble talt som en tur
+   * — «tatt 28 ganger» om noe du hadde SETT 28 ganger. Begge bor nå i
+   * `registrerReise`, kalt der en reise faktisk starter. Stedene du velger
+   * telles fortsatt over: det er et annet faktum, med et annet navn. */
 }
 
 /**

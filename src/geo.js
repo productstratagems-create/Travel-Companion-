@@ -1,4 +1,4 @@
-import { findStop } from './stopId.js';
+import { findStop, stopKey } from './stopId.js';
 import { CENTRE } from './api/centre.js';
 import { state } from './state.js';
 import { nyttFilter, oppdater, prediker, anslag, FRAMSKRIV_MAKS_MS } from './kalman.js';
@@ -494,11 +494,21 @@ export function atPlace(a, b) {
 
 export function findArr(calls, name) {
   if (!calls || !name) return null;
-  const norm = s => s.toLowerCase().replace(/\s+t$/i, '').trim();
-  const n = norm(name);
+  /* `stopKey`, IKKE EN EGEN OPPSKRIFT.
+   *
+   * Her sto `lowercase + fjern « T»`, med kommaet beholdt: oppskrift C i
+   * `stopId.js` sin egen liste over de fire v1.107.0 ryddet bort. Den
+   * overlevde her — i funksjonen `track.js` slår opp hver etappes ankomst
+   * med, mens skjermen rundt den matcher med `normStn = stopKey`. To
+   * oppskrifter på ett spørsmål, i samme kodebane.
+   *
+   * `stopKey` er en ren utvidelse av C (den kutter også ved komma), så
+   * byttet kan ikke gjøre et treff til et bom — bare «Ryen T, Oslo» mot
+   * «Ryen» fra et bom til et treff. */
+  const n = stopKey(name);
   for (let i = 0; i < calls.length; i++) {
     const nm = (calls[i].quay && calls[i].quay.stopPlace && calls[i].quay.stopPlace.name) || '';
-    if (norm(nm) === n) return calls[i];
+    if (stopKey(nm) === n) return calls[i];
   }
   return null;
 }

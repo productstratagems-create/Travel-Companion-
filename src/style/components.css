@@ -84,9 +84,12 @@
   letter-spacing: .05em;
 }
 
-/* Add bottom clearance to the main wrap when chip is visible */
-body.jny-chip-visible .wrap { padding-bottom: 60px; }
-body.jny-chip-visible .wrap { padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
+/* Add bottom clearance to the main wrap when chip is visible.
+   Høyden har ett navn: den sto som 60px tre steder (her, sammen med menyen,
+   og knapperaden i avgangsdetaljene). */
+:root{ --jny-chip-h: 60px; }
+body.jny-chip-visible .wrap { padding-bottom: var(--jny-chip-h); }
+body.jny-chip-visible .wrap { padding-bottom: calc(var(--jny-chip-h) + env(safe-area-inset-bottom, 0px)); }
 
 /* ── The fixed menu between the four main screens ──────────────────────────
    Reported: no way back to auto-reise. Pinned to the bottom because that is
@@ -149,7 +152,7 @@ body.app-nav-visible{
 /* Both at once — the journey chip sits above the bar, so the page clears the
    pair. The inset is already in the body padding above. */
 body.app-nav-visible.jny-chip-visible .wrap{
-  padding-bottom: 60px;
+  padding-bottom: var(--jny-chip-h);
 }
 body.app-nav-visible .onboard-chip-bar{
   bottom: calc(var(--app-nav-h) + env(safe-area-inset-bottom, 0px));

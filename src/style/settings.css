@@ -652,6 +652,9 @@
 #v-auto .auto-usual-gammel { border-color: rgba(var(--border-rgb), .45); }
 /* Ordene, inne i badge-stripa. Ingen egen linje: raden skal ikke vokse av at
    appen sier noe den alt visste. */
+/* Til venstre på linja med tidene, som er tom der på hver rad. Flyter, så
+   tidene står høyrestilt som før og raden ikke vokser. */
+#v-auto .auto-dir .nearby-dist .auto-vane { float: left; line-height: inherit; padding-top: .15em; }
 #v-auto .auto-vane {
   align-self: center;
   font-size: 10px;

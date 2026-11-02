@@ -242,18 +242,19 @@ describe('og raden sier det', () => {
 
   /* Tallet på skjermen, ikke bare i et attributt. Det er feilform nr. 2, og
    * den er begått i nettopp denne raden før. */
-  it('merket står i radens egen stripe, med tallet', () => {
+  /* Bundet på PÅSTANDEN, ikke på uttrykket. Dette krevde
+   * `VANE_MARK[vane.kind]` og `vane.antall` ordrett, og falt da v1.200.0
+   * byttet «AV OG TIL (28)» mot «tatt 28 ganger». Påstanden — at tallet står
+   * på skjermen, med ord — er bundet i `vaneMerke`-testene over. */
+  it('merket står på raden, gjennom vaneMerke', () => {
     expect(src).toMatch(/class="auto-vane"/);
-    expect(src).toMatch(/VANE_MARK\[vane\.kind\]/);
-    expect(src).toMatch(/vane\.antall/);
+    expect(src).toMatch(/esc\(vaneMerke\(vane\)\)/);
   });
 
-  it('og aria-label bærer setningen og turene', () => {
+  it('og aria-label bærer setningen, med turene og hvorfor', () => {
     const i = src.indexOf("const full = 'mot '");
     expect(i).toBeGreaterThan(0);
-    const full = src.slice(i, i + 220);
-    expect(full).toMatch(/vane\.label/);
-    expect(full).toMatch(/vane\.antall/);
+    expect(src.slice(i, i + 220)).toMatch(/vaneSetning\(vane\)/);
   });
 
   /* Og merket skal IKKE settes på freq-gjetningen. Faller denne, har appen
@@ -421,5 +422,96 @@ describe('autoJumpDest og vanestyrke er enige', () => {
     const src = require('node:fs').readFileSync('src/views/auto.js', 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     expect(src).toMatch(/autoJumpDest\(undefined,\s*ferskhet\(/);
+  });
+});
+
+/* ── «AV OG TIL (28)» ER UFORSTÅELIG ────────────────────────────────────
+ *
+ * Rapportert med skjermbilde fra Mortensrud, 17:13: «74 AV OG TIL (28) mot
+ * Jernbanetorget». Tallet sto uten enhet, og «av og til» om noe du har gjort
+ * 28 ganger leser som en selvmotsigelse. Dommen visste HVORFOR 28 turer var
+ * svak — de fleste var trolig om morgenen — og kastet begrunnelsen.
+ *
+ * Og merket sto på første linje, der det skjøv «plattform E» ned på en egen
+ * linje: raden ble høyere enn naboene.
+ */
+import { vaneMerke, vaneSetning } from '../src/api/smart.js';
+
+describe('dommen sier hvorfor en vane er svak', () => {
+  it('feil tid på døgnet', () => {
+    hist([{ to: 'Jernbanetorget', n: 28, bucket: bucket(NOW) - 1 }]);
+    const v = vanestyrke(destRanking(NOW), 'smart');
+    expect(v.kind).toBe('svak');
+    expect(v.hvorfor).toBe('annen-tid');
+  });
+  it('feil slags dag', () => {
+    hist([{ to: 'Jernbanetorget', n: 28, we: true }]);
+    expect(vanestyrke(destRanking(NOW), 'smart').hvorfor).toBe('annen-dag');
+  });
+  it('et annet mål like ofte', () => {
+    hist([{ to: 'Jernbanetorget', n: 28 }, { to: 'Hellerud', n: 27 }]);
+    expect(vanestyrke(destRanking(NOW), 'smart').hvorfor).toBe('konkurrent');
+  });
+  it('for få turer', () => {
+    hist([{ to: 'Jernbanetorget', n: 2 }]);
+    expect(vanestyrke(destRanking(NOW), 'smart').hvorfor).toBe('få-turer');
+  });
+  it('og en sterk vane har ingen grunn å oppgi', () => {
+    hist([{ to: 'Jernbanetorget', n: 28 }]);
+    expect(vanestyrke(destRanking(NOW), 'smart').hvorfor).toBeNull();
+  });
+});
+
+describe('ordene på raden', () => {
+  /* Et tall uten enhet er ikke vist, bare skrevet. */
+  it('har aldri et tall alene i parentes', () => {
+    ['sterk', 'svak', 'gammel'].forEach(kind =>
+      expect(vaneMerke({ kind, antall: 28 }), kind).not.toMatch(/\(\d+\)/));
+  });
+  it('og en svak vane sier hvor mange ganger, med enhet', () => {
+    expect(vaneMerke({ kind: 'svak', antall: 28 })).toBe('tatt 28 ganger');
+    expect(vaneMerke({ kind: 'svak', antall: 1 })).toBe('tatt 1 gang');
+  });
+  it('og sier aldri «av og til»', () => {
+    ['sterk', 'svak', 'gammel'].forEach(kind =>
+      expect(vaneMerke({ kind, antall: 28 })).not.toMatch(/av og til/));
+  });
+  it('og ingenting for gjetning og ingen', () => {
+    expect(vaneMerke({ kind: 'gjetning', antall: 0 })).toBe('');
+    expect(vaneMerke({ kind: 'ingen', antall: 0 })).toBe('');
+  });
+});
+
+describe('setningen for skjermleser og langtrykk', () => {
+  it('sier begrunnelsen med ord', () => {
+    expect(vaneSetning({ kind: 'svak', antall: 28, hvorfor: 'annen-tid' }))
+      .toBe('du har tatt denne 28 ganger, men sjelden på denne tiden');
+    expect(vaneSetning({ kind: 'svak', antall: 28, hvorfor: 'annen-dag' }))
+      .toBe('du har tatt denne 28 ganger, men mest på andre dager');
+    expect(vaneSetning({ kind: 'svak', antall: 28, hvorfor: 'konkurrent' }))
+      .toBe('du har tatt denne 28 ganger, men like ofte et annet sted');
+    expect(vaneSetning({ kind: 'svak', antall: 2, hvorfor: 'få-turer' }))
+      .toBe('du har tatt denne 2 ganger');
+  });
+  it('og for en sterk og en gammel vane', () => {
+    expect(vaneSetning({ kind: 'sterk', antall: 28 })).toBe('du pleier å ta denne nå, 28 ganger');
+    expect(vaneSetning({ kind: 'gammel', antall: 28 })).toMatch(/pleide/);
+  });
+});
+
+describe('raden', () => {
+  const src = () => require('node:fs').readFileSync('src/views/auto.js', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+  /* PÅ LINJA MED TIDENE, IKKE PÅ LINJA MED NAVNET. Den venstre delen av
+   * tidslinja er tom på hver rad; navnelinja har ingen plass å gi. */
+  it('setter merket på linja med tidene', () => {
+    const s = src();
+    expect(s).toMatch(/'<span class="nearby-dist">' \+ vaneHtml \+ _timesHtml\(/);
+    const badges = s.slice(s.indexOf("'<span class=\"auto-badges\">'"), s.indexOf("'<span class=\"nearby-name\">"));
+    expect(badges).not.toMatch(/auto-vane/);
+  });
+  it('og aria-label bruker setningen', () => {
+    expect(src()).toMatch(/vaneSetning\(vane\)/);
   });
 });

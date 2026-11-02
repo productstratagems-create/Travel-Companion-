@@ -355,6 +355,42 @@ export const VANE_MARK = {
   ingen:    '',
 };
 
+/* ── ORDENE PÅ SKJERMEN ─────────────────────────────────────────────────
+ *
+ * «AV OG TIL (28)» var uforståelig: et tall uten enhet, og «av og til» om
+ * noe du har gjort 28 ganger. Raden får ord som kan leses uten forklaring;
+ * begrunnelsen står i setningen for skjermleser og langtrykk.
+ */
+const _ganger = n => n + (n === 1 ? ' gang' : ' ganger');
+
+/** Merket på raden. Aldri et tall uten enhet. */
+export function vaneMerke(v) {
+  if (!v) return '';
+  if (v.kind === 'sterk') return 'din vanlige';
+  if (v.kind === 'gammel') return 'tidligere vane';
+  if (v.kind === 'svak') return 'tatt ' + _ganger(v.antall || 0);
+  return '';
+}
+
+const _HVORFOR = {
+  'annen-tid': 'men sjelden på denne tiden',
+  'annen-dag': 'men mest på andre dager',
+  'konkurrent': 'men like ofte et annet sted',
+};
+
+/** Hele setningen, med begrunnelsen. For `aria-label` og langtrykk. */
+export function vaneSetning(v) {
+  if (!v) return '';
+  const n = v.antall || 0;
+  if (v.kind === 'sterk') return 'du pleier å ta denne nå, ' + _ganger(n);
+  if (v.kind === 'gammel') return 'du pleide å ta denne, men ikke denne uka';
+  if (v.kind === 'svak') {
+    const grunn = _HVORFOR[v.hvorfor];
+    return 'du har tatt denne ' + _ganger(n) + (grunn ? ', ' + grunn : '');
+  }
+  return '';
+}
+
 /**
  * Hvor mye `predictDest`/`destRanking` sin gjetning er verdt.
  *
@@ -368,7 +404,7 @@ export const VANE_MARK = {
  */
 export function vanestyrke(ranked, source, fersk) {
   const f = FERSK_KINDS.includes(fersk) ? fersk : 'ukjent';
-  const ord = k => ({ kind: k, label: VANE_ORD[k], antall: 0, fersk: f });
+  const ord = k => ({ kind: k, label: VANE_ORD[k], antall: 0, fersk: f, hvorfor: null });
 
   /* FALLBACKEN ER IKKE EN SVAK VANE — DEN ER EN ANNEN SETNING.
    *
@@ -416,5 +452,14 @@ export function vanestyrke(ranked, source, fersk) {
    * nei. Da gjelder v1.191.0-regelen uendret. */
   const sterkNok = sikker && nok && treff;
   const kind = !sterkNok ? 'svak' : (f === 'gammel' ? 'gammel' : 'sterk');
-  return { kind, label: VANE_ORD[kind], antall: top.count || 0, fersk: f };
+  /* OG HVORFOR, når den er svak. Rapportert som «AV OG TIL (28)»: dommen
+   * visste at 28 turer var svak fordi de fleste var på en annen tid, og
+   * kastet begrunnelsen. Første grunn som slår til, i den rekkefølgen en
+   * leser vil kjenne seg igjen i. */
+  const hvorfor = kind !== 'svak' ? null
+    : !nok ? 'få-turer'
+    : top.diff !== 0 ? 'annen-tid'
+    : top.ukedag !== true ? 'annen-dag'
+    : 'konkurrent';
+  return { kind, label: VANE_ORD[kind], antall: top.count || 0, fersk: f, hvorfor };
 }

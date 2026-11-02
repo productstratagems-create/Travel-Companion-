@@ -24,7 +24,7 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { fetchNextDeparture, fetchBoard } from '../api/entur.js';
 import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
-import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, VANE_MARK }
+import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke, vaneSetning }
   from '../api/smart.js';
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
@@ -2513,8 +2513,20 @@ function _renderBody() {
       const full = 'mot ' + d.frontText + (q ? ', ' + q : '')
         // «1 turer» sto på skjermen i første kjøring av prøven. Ett tall som
         // bærer sitt eget ord, ikke to skrivemåter som må være enige.
-        + (hint ? ', ' + vane.label + ' (' + vane.antall
-          + (vane.antall === 1 ? ' tur)' : ' turer)') : '');
+        // Og begrunnelsen: «… 28 ganger, men sjelden på denne tiden». Raden
+        // har bare plass til «tatt 28 ganger»; dette er stedet for hvorfor.
+        + (hint ? ', ' + vaneSetning(vane) : '');
+      /* MERKET STÅR PÅ LINJA MED TIDENE, til venstre.
+       *
+       * Det sto i `.auto-badges`, på navnelinja. Rapportert fra Mortensrud:
+       * «74 AV OG TIL (28) mot Jernbanetorget» skjøv «plattform E» ned på en
+       * egen linje, og raden ble høyere enn naboene. Venstre del av
+       * tidslinja er tom på hver rad, så der koster merket ingen plass. Inni
+       * `.nearby-dist`, ikke som et nytt barn av raden — settings.css:402
+       * advarer om hva et tredje barn gjør. */
+      const vaneHtml = hint
+        ? '<span class="auto-vane" aria-hidden="true">' + esc(vaneMerke(vane)) + '</span>'
+        : '';
       // The heading is emitted by the first row of each group, so the
       // order the list is already sorted in is the order the groups appear
       // in — no second sort that could disagree with the first.
@@ -2535,17 +2547,6 @@ function _renderBody() {
         + ' title="' + esc(full) + '" aria-label="' + esc(full) + '">'
         + '<span class="auto-badges">' + d.lines.map(badgeHtml).join('')
         + msg.mark
-        /* INNE I .auto-badges, ikke som et nytt barn av raden. Regelen på
-         * `settings.css:402` advarer to ganger om at et tredje barn skyver
-         * destinasjonen på drift under space-between, og `.nearby-dist`
-         * ligger alt på `flex: 0 0 100%` — en etikett til ville blitt en
-         * tredje linje, altså en rad som vokser. `.auto-dir-alert` gjør
-         * nøyaktig det samme av nøyaktig samme grunn.
-         *
-         * Tallet står på skjermen og ikke bare i `aria-label`: det er
-         * feilform nr. 2 i AGENTS.md, og den er begått i denne raden før. */
-        + (hint ? '<span class="auto-vane" aria-hidden="true">'
-          + esc(VANE_MARK[vane.kind]) + ' (' + vane.antall + ')</span>' : '')
         + '</span>'
         + '<span class="nearby-name">mot ' + esc(d.frontText) + '</span>'
         // Its own element, not part of the name: a long destination and the
@@ -2559,7 +2560,7 @@ function _renderBody() {
         // Text inside the existing span, not new children. settings.css:267
         // warns in plain words that a third child pushes the label adrift
         // under space-between — and that warning is there because it happened.
-        + '<span class="nearby-dist">' + _timesHtml(d, now, walkMins) + '</span>'
+        + '<span class="nearby-dist">' + vaneHtml + _timesHtml(d, now, walkMins) + '</span>'
         + '</button>'
         + msg.block;
     }).join('')

@@ -746,6 +746,10 @@ let _truncated = false;
 /** This stop's own traffic messages — auto-reise threw them away entirely. */
 let _alerts = [];
 let _dirs = [];        // groupDirections output for _stop
+/* Det første kortet under «Dit du ofte skal», for kartet. Satt av
+ * `_renderBody`, lest av `_renderMap` — som tegnes FØR lista i hvert tikk,
+ * så kartet viser forrige tikks kort: høyst ett sekund bak. */
+let _kortRute = null;
 /* DE RÅ KALLENE fra siste tavlesvar, også de som har gått.
  *
  * `groupDirections` kaster avganger som har forlatt stoppet — riktig for
@@ -1562,6 +1566,24 @@ export function openKey(dir, stops) {
 }
 
 /** The line's colour and mode, from the one place that carries them. */
+/**
+ * Stoppene fra der du står til kortets mål — og ikke lenger.
+ *
+ * Kortet under «Dit du ofte skal» sier «Jernbanetorget · 3 mot Kolsås».
+ * Linja går til Kolsås; reisen din slutter på Jernbanetorget, og det er
+ * reisen kartet skal vise. Målet finnes på id når den er kjent, ellers på
+ * `stopKey` — samme matching som kortet bruker. `null` når målet ikke er
+ * blant stoppene framover.
+ */
+export function kortRuteStopp(call, fraNavn, mål) {
+  if (!call || !mål) return null;
+  const s = stopsAhead(call, fraNavn);
+  if (!Array.isArray(s) || !s.length) return null;
+  const i = s.findIndex(st => (mål.id && st.id && st.id === mål.id)
+    || (mål.name && stopKey(st.name) === stopKey(mål.name)));
+  return i < 0 ? null : s.slice(0, i + 1);
+}
+
 export function openLine(dir) {
   const ln = dir && dir.call && dir.call.serviceJourney && dir.call.serviceJourney.line;
   const raw = (dir && dir.lines && dir.lines[0] && dir.lines[0].colour)
@@ -1632,11 +1654,21 @@ function _renderMap() {
   // The list has moved on to the stops ahead; the alternatives it was offering
   // a moment ago belong to a question the reader has already answered.
   const line = _open && _stop ? stopsAhead(_open.call, _stop.name) : null;
-  const others = (!_open && _stop) ? nearbyAlternatives(_stops(), _stop) : [];
+  /* «DIT DU OFTE SKAL» ER KARTETS TEMA når det finnes et kort og ingen
+   * retning er åpen. En åpen retning er det du nettopp trykket på, og den
+   * vinner. Rapportert: kortet sa «Jernbanetorget», kartet viste sju stopp
+   * i nabolaget og ingen rute. */
+  const kortLinje = (!_open && _stop && _kortRute)
+    ? kortRuteStopp(_kortRute.call, _stop.name, { name: _kortRute.navn, id: _kortRute.id })
+    : null;
+  // LITE ANNET: med en kortrute tegnes ikke de andre stoppene. De ligger
+  // fortsatt bak «7 ▾» under «du er ved».
+  const others = (!_open && _stop && !kortLinje) ? nearbyAlternatives(_stops(), _stop) : [];
   // The zoom is part of the content, because readability is. Culled beads must
   // come back when the reader pinches in — without this the map answers for
   // the zoom it was drawn at for the rest of the screen's life.
   const key = mapKey(_stop, userPos, others, walkPts, openKey(_open, line))
+    + '|k' + (kortLinje ? (_kortRute.id || _kortRute.navn) + ':' + kortLinje.length : '-')
     + '|z' + (_aMap.getZoom ? Math.round(_aMap.getZoom() * 2) / 2 : 0);
   // Redraw when the content changed; re-fit when the content OR the frame
   // changed. Returning early on content alone is what let the bad first fit
@@ -1667,6 +1699,7 @@ function _renderMap() {
   const pts = [];
   if (_stop && _stop.lat != null) pts.push([_stop.lat, _stop.lon]);
   (line || []).forEach(st => { if (st.lat != null) pts.push([st.lat, st.lon]); });
+  (kortLinje || []).forEach(st => { if (st.lat != null) pts.push([st.lat, st.lon]); });
   others.forEach(s => { if (s.lat != null) pts.push([s.lat, s.lon]); });
   (walkPts || []).forEach(p => pts.push(p));
   if (userPos) pts.push([userPos.lat, userPos.lon]);
@@ -1741,6 +1774,30 @@ function _renderMap() {
       .on('click', () => pinStop(s.id))
       .addTo(_aLayer);
   });
+
+  // Kortets rute, i linjas egen farge, som en åpen retning — og målet med
+  // navn, så kartet sier det samme som kortet under det.
+  if (kortLinje && kortLinje.length) {
+    const { color, mode } = openLine(_kortRute.d);
+    /* FRA STOPPET DU STÅR VED. `stopsAhead` gir stoppene ETTER det, så linja
+     * manglet stykket fram til første stopp — og med bare ett stopp igjen
+     * var det ingen linje i det hele tatt, bare to prikker. Sett i
+     * nettleserprøven. */
+    const fra = _stop && _stop.lat != null ? [{ name: _stop.name, lat: _stop.lat, lon: _stop.lon }] : [];
+    drawStopLine(_aLayer, fra.concat(kortLinje), {
+      color, mode: normMode(mode),
+      project: (ll) => _aMap.latLngToContainerPoint(ll),
+    });
+    const mål = kortLinje[kortLinje.length - 1];
+    if (mål && mål.lat != null) {
+      L.marker([mål.lat, mål.lon], {
+        icon: makeStopIcon(normMode(mode), 0, { primary: true }),
+        keyboard: false, zIndexOffset: 500,
+      })
+        .bindTooltip(mål.name, { className: 'map-label', direction: 'top', offset: [0, -8], permanent: true })
+        .addTo(_aLayer);
+    }
+  }
 
   if (walkPts && walkPts.length) drawWalk(_aLayer, walkPts);
   if (userPos) userDot(_aLayer, userPos);
@@ -2319,6 +2376,9 @@ function _maybeJump() {
 }
 
 function _renderBody() {
+  // Nullstilt hvert tikk; settes igjen bare når lista faktisk har et kort.
+  // Ellers ville et kort fra et stopp du har gått fra blitt stående på kartet.
+  _kortRute = null;
   const body = _el('auto-body');
   if (!body) return;
   if (_open) { _visListeDel(false); _renderStops(body); return; }
@@ -2445,6 +2505,10 @@ function _renderBody() {
   // same clock time in two places is the fault this codebase spends most of
   // its time on.
   const dests = destinations(live, freq, walkMins, now, _stop && _stop.name);
+  // Samme kort og samme alternativ som kortets overskrift: kartet og kortet
+  // skal vise samme reise.
+  const k0 = dests[0], o0 = k0 && k0.options && k0.options[0];
+  _kortRute = o0 ? { navn: k0.name, id: k0.id || null, d: o0.d, call: o0.call } : null;
   // PARTITIONED, not a heading emitted whenever the value changes. The list
   // is already sorted by the reader's own choice (T-bane først / Lokalbuss
   // først), and a heading-on-change would interleave «mot sentrum» through

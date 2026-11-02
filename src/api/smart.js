@@ -1,11 +1,32 @@
 import { storage } from '../storage.js';
 import { MEMORY_DAYS } from './eventLog.js';
+import { eldes } from '../vane.js';
 
 const HIST_KEY = 't.smartHist';
 const HIST_MAX = 300;
 
+/**
+ * Historikken, uten det som er for gammelt til å være din vane.
+ *
+ * SKREVET TILBAKE, IKKE BARE FILTRERT. `eventLog.js:112` sier hvorfor med
+ * nesten de samme ordene: «A filter would leave the old data sitting in
+ * storage while the screen claimed seven days — and what is stored, not what
+ * is displayed, is what someone with the phone can read.» Det gjelder her
+ * dobbelt, for disse radene bærer koordinater.
+ *
+ * Og det må skje ved LESING og ikke bare ved skriving: slutter du å bruke
+ * appen, skrives det aldri mer, og et vindu håndhevet på skriving ville
+ * bevart nøyaktig den historikken lengst som ingen lenger rører.
+ */
 function _load() {
-  try { const v = storage.get(HIST_KEY); return v ? JSON.parse(v) : []; } catch { return []; }
+  try {
+    const v = storage.get(HIST_KEY);
+    const list = v ? JSON.parse(v) : [];
+    if (!Array.isArray(list)) return [];
+    const igjen = eldes(list);
+    if (igjen.length !== list.length) storage.set(HIST_KEY, JSON.stringify(igjen));
+    return igjen;
+  } catch { return []; }
 }
 
 // Record a route with time context. Called when user applies a route.
@@ -51,6 +72,70 @@ export function tripCount(fromName, toName) {
 
 export function smartHistLen() {
   return _load().length;
+}
+
+/**
+ * Hver vane, som en linje et menneske kan lese og dømme.
+ *
+ * DEN SAMME INVARIANTEN SOM `eventLog.js` BÆRER, og den er sitert her fordi
+ * den nå gjelder to lagre: «EVERY FIELD STORED IS A FIELD SHOWN … A field
+ * absent from here cannot be shown, and a field that cannot be stored must
+ * not be shown.» `tests/vaneSyn.test.js` leser feltene ut av det LAGREDE
+ * og krever at hvert av dem står i teksten.
+ *
+ * Det er forskjellen på «vi er åpne om det» som setning og som garanti — og
+ * med koordinater i radene er en setning ikke nok.
+ */
+export const VANE_FELT = {
+  fromName: 'fra',
+  toName: 'til',
+  bucket: 'rundt klokka',
+  isWeekend: 'ukedag',
+  count: 'ganger',
+  lastUsed: 'sist',
+  toStopId: 'stoppested',
+  fromStopId: 'stoppested fra',
+  toLat: 'breddegrad',
+  toLon: 'lengdegrad',
+  key: 'nøkkel',
+};
+
+const _p2 = n => String(n).padStart(2, '0');
+
+/**
+ * @returns {Array<{tekst:string, sist:string, antall:number}>} nyest først
+ */
+export function vaneOversikt(nå) {
+  const t = Number.isFinite(nå) ? nå : Date.now();
+  return _load()
+    .slice()
+    .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))
+    .map(e => {
+      if (!e || !e.toName) return null;
+      const d = new Date(Number.isFinite(e.lastUsed) ? e.lastUsed : t);
+      const deler = [];
+      if (e.fromName) deler.push(e.fromName + ' → ' + e.toName);
+      else deler.push('til ' + e.toName);
+      // Bøtta er to timer bred, og teksten skal ikke påstå et klokkeslett
+      // den ikke har: «rundt 08–10», ikke «08:00».
+      if (Number.isFinite(e.bucket)) {
+        deler.push('rundt ' + _p2(e.bucket * 2) + '–' + _p2((e.bucket * 2 + 2) % 24));
+      }
+      deler.push(e.isWeekend ? 'helg' : 'ukedag');
+      // KOORDINATENE STÅR DER NÅR DE ER LAGRET. De er det mest avslørende i
+      // raden, og en oversikt som utelot dem ville vært den sorten åpenhet
+      // som skjuler akkurat det som betyr noe.
+      if (Number.isFinite(e.toLat) && Number.isFinite(e.toLon)) {
+        deler.push('posisjon ' + e.toLat.toFixed(4) + ', ' + e.toLon.toFixed(4));
+      }
+      if (e.toStopId || e.fromStopId) deler.push('stoppested lagret');
+      return {
+        tekst: deler.join(' · '),
+        antall: e.count || 0,
+        sist: _p2(d.getDate()) + '.' + _p2(d.getMonth() + 1),
+      };
+    })
+    .filter(Boolean);
 }
 
 /**

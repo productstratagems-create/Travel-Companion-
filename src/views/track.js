@@ -10,6 +10,7 @@ import { posState } from '../position.js';
 import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, walkMinsTo, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL, posNå } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon, legShape, journeyPoints } from '../api/adapt.js';
+import { ankomstTekst, bytteTekst } from '../bytte.js';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters } from '../api/scooters.js';
 import { fetchWeather, forecastAt, weatherAdvice, darknessNote } from '../api/weather.js';
@@ -521,8 +522,23 @@ export const PLATFORM_CHANGE_MINS = 3;
  * so instead, because you might choose to run and a line that vanishes without
  * trace is worse than one you can see you just missed.
  */
-export function transferMargin(depTs, arrivalTs, sameQuay, extraMins) {
-  const cost = (sameQuay ? 0 : PLATFORM_CHANGE_MINS) + (extraMins || 0);
+export function transferMargin(depTs, arrivalTs, sameQuay, extraMins, gåMin) {
+  /* GANGEN, NÅR DEN ER MÅLT.
+   *
+   * Gulvet over er «a floor, not a measurement», fordi det innenfor én
+   * stasjon ikke finnes noe å måle mellom. Mellom TO stoppesteder finnes
+   * det: OTP oppgir gangen som sin egen etappe, med leserens gangfart. Den
+   * ble ikke regnet med, og et bytte fra Jernbanetorget til Oslo S med åtte
+   * minutter å gå og seks minutter mellom tidene fikk «1 min byttetid».
+   *
+   * Den STØRSTE av de to, aldri den minste: en målt gange på ett minutt er
+   * ikke grunn til å love et bytte raskere enn gulvet. Uten måling er dette
+   * nøyaktig regelen fra før. */
+  const kjent = Number.isFinite(gåMin) && gåMin > 0;
+  const bytte = kjent
+    ? Math.max(PLATFORM_CHANGE_MINS, gåMin)
+    : (sameQuay ? 0 : PLATFORM_CHANGE_MINS);
+  const cost = bytte + (extraMins || 0);
   return Math.floor((depTs - arrivalTs) / 60000) - cost;
 }
 
@@ -562,7 +578,9 @@ export function transferState(curLeg, nextLeg, extraMins) {
   const depTs = new Date(nextLeg.depTime.time).getTime();
   if (!Number.isFinite(arrTs) || !Number.isFinite(depTs)) return null;
 
-  const margin = transferMargin(depTs, arrTs, false, extraMins);
+  // `gåEtter` er gangen etter denne etappen, satt av `legsFromTrip` fra
+  // OTPs egne gangeetapper. Null når ingen gange står imellom.
+  const margin = transferMargin(depTs, arrTs, false, extraMins, curLeg.gåEtter);
   // THE SAME BUCKETS THE LIST USES. The banner's own `<= 3` was a second,
   // unnamed copy of the platform floor's idea, applied to a different number —
   // so it could call a transfer comfortable while the row for the very same
@@ -1716,8 +1734,8 @@ export function renderTrack() {
     if (leg.arrTime) {
       cEl.textContent = leg.arrTime.clk;
       laEl.textContent = isLastLeg
-        ? 'ankommer ' + displayStn(state.jny.dest)
-        : 'bytt på ' + displayStn(leg.toStation);
+        ? ankomstTekst(leg, state.jny.dest, displayStn)
+        : bytteTekst(leg, legs[i + 1], displayStn);
     } else { cEl.textContent = ''; laEl.textContent = ''; }
   } else { // platform
     const nextLeg = legs[cs.next];

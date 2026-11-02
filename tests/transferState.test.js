@@ -160,3 +160,59 @@ describe('connAlertHtml — the wiring', () => {
     expect(connAlertHtml(legsFor(6), 0, 10)).toContain('Hellerud');
   });
 });
+
+/* ── GANGEN MELLOM TO STOPPESTEDER ──────────────────────────────────────
+ *
+ * Marginen var «ankomst til avgang − plattformgulv − din ekstra tid».
+ * Gulvet er tre minutter, og `PLATFORM_CHANGE_MINS` sier selv hva det er:
+ * «A floor, not a measurement … there are no platform coordinates to
+ * measure between.» Det stemmer innenfor én stasjon.
+ *
+ * Det stemmer ikke mellom to. Jernbanetorget → Oslo S er et bytte med
+ * gange, og OTP oppgir gangen som sin egen etappe — en MÅLING, med leserens
+ * egen gangfart. Den sto i svaret og ble ikke regnet med. Funnet i nettleser-
+ * prøven for v1.194.0: banneret sa «5 min byttetid» der fem av ti minutter
+ * gikk med til å gå.
+ */
+describe('transferState — et bytte med gange imellom', () => {
+  /* FØR-BILDET, i sin farligste form: ankomst 08:08, åtte minutter å gå,
+   * avgang 08:14. Seks minutter mellom tidene, så dagens regel sa 6 − 3 − 2
+   * = 1 min — «stramt, men det går». Det går ikke. */
+  it('sier at du ikke rekker det når gangen er lengre enn tiden', () => {
+    const [a, b] = pair(T('08:08'), T('08:14'));
+    a.gåEtter = 8;
+    const s = transferState(a, b, 2);
+    expect(s.margin).toBe(6 - 8 - 2);
+    expect(s.kind).toBe('miss');
+  });
+
+  it('og trekker gangen fra der den er lengre enn gulvet', () => {
+    const [a, b] = pair(T('08:08'), T('08:18'));
+    a.gåEtter = 5;
+    expect(transferState(a, b, 2).margin).toBe(10 - 5 - 2);
+  });
+
+  /* ALDRI MINDRE FORSIKTIG ENN FØR. En gange på ett minutt mellom to
+   * plattformer er ikke grunn til å love et bytte på mindre enn gulvet. */
+  it('men gulvet står når gangen er kortere', () => {
+    const [a, b] = pair(T('08:08'), T('08:18'));
+    a.gåEtter = 1;
+    expect(transferState(a, b, 2).margin).toBe(10 - PLATFORM_CHANGE_MINS - 2);
+  });
+
+  it('og uten kjent gange er regelen nøyaktig som før', () => {
+    const [a, b] = pair(T('08:08'), T('08:18'));
+    expect(transferState(a, b, 2).margin).toBe(10 - PLATFORM_CHANGE_MINS - 2);
+    a.gåEtter = null;
+    expect(transferState(a, b, 2).margin).toBe(10 - PLATFORM_CHANGE_MINS - 2);
+  });
+
+  /* ÉN REGEL. `transferMargin` er der byttetid regnes ut; tok banneret
+   * gangen med mens den regelen ikke gjorde det, ville to skjermer igjen
+   * gitt to svar om samme bytte — feilen v1.1xx skrev denne funksjonen
+   * for å fjerne. */
+  it('og gangen går gjennom transferMargin, ikke rundt den', () => {
+    expect(transferMargin(T('08:18'), T('08:08'), false, 2, 5)).toBe(10 - 5 - 2);
+    expect(transferMargin(T('08:18'), T('08:08'), false, 2)).toBe(10 - PLATFORM_CHANGE_MINS - 2);
+  });
+});

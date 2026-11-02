@@ -202,6 +202,37 @@ pitchen det advarer mot.
 
 ---
 
+## Løftet, og hva det kostet å holde det
+
+v1.193.0 avgjorde en uenighet som hadde stått lenge: personvernsida sa at
+appen husker reisene dine «de siste sju døgnene» og at det er av til du slår
+det på. Det var sant om reiseloggen og usant om vanene — `t.smartHist` og
+`t.freqArr`/`t.freqDep` skrives uten samtykke, hadde intet vindu, og bærer
+koordinater.
+
+To utveier fantes, og valget er prinsipielt: **lageret ble endret, og
+teksten beskriver det som ble igjen.** Å skrive om teksten alene ville fått
+sida til å argumentere mot seg selv, for den sier i samme avsnitt hvorfor
+vinduet er sju døgn — «en ukes posisjonshistorikk på telefonen kan leses av
+den som får telefonen ulåst i hendene» — og den begrunnelsen skiller ikke
+mellom hendelser og aggregater.
+
+Tre nivåer, med tre ulike regler:
+
+```
+det du har sagt        rute, favoritter            til du sletter
+det appen har merket   vaner, ofte brukte steder   90 dager uten bruk
+enkeltturer m/ posisjon  reiseloggen               7 døgn, med samtykke
+```
+
+Og den delen som gjør det til mer enn en setning: nivå 2 **vises på
+skjermen, utenfor samtykkebryteren**, med koordinatene i klartekst. Den som
+aldri sier ja er nettopp den som ellers aldri fikk se hva som ble lagret om
+henne. Det er samme invariant `eventLog.js` alltid har båret for loggen —
+«every field stored is a field shown» — nå håndhevet for to lagre.
+
+---
+
 ## Forbeholdet
 
 Vurderingen sier det om seg selv, og det gjelder dette dokumentet også:

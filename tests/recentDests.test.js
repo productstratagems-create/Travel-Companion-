@@ -135,7 +135,13 @@ describe('personvernsiden sier at de finnes', () => {
    * Det som betyr noe er hvilken SEKSJON den står i. */
   it('plasserer dem i lager-seksjonen, ikke under samtykke', () => {
     const iLagerSeksjon = side.indexOf('ingen konto, og ingen server');
-    const iSamtykke = side.indexOf('Hva appen kan huske');
+    /* ANKERET ER OVERSKRIFTEN, OG DEN BLE DØPT OM i v1.193.0: «Hva appen
+     * kan huske — om du sier ja» ble til «Hva appen husker», med tre nivåer
+     * under seg, fordi bare det nederste av dem faktisk var opt-in.
+     * Påstanden her er uendret — disse stedene hører til lager-seksjonen —
+     * men den sto bundet til et navn som ikke lenger finnes, og falt da på
+     * tittelen framfor på plasseringen. */
+    const iSamtykke = side.indexOf('<h2>Hva appen husker</h2>');
     const iSteder = side.search(/stedene du/i);
     expect(iLagerSeksjon).toBeGreaterThan(-1);
     expect(iSamtykke).toBeGreaterThan(iLagerSeksjon);

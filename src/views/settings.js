@@ -19,7 +19,8 @@ import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { loadReturn, saveReturn, clearReturn, reverseOf, suggestHHMM, returnWindow, skipToday } from '../api/returnTrip.js';
-import { loadSmartHist, glemVaner } from '../api/smart.js';
+import { loadSmartHist, glemVaner, vaneOversikt } from '../api/smart.js';
+import { VANE_MAKS_DAGER } from '../vane.js';
 
 /**
  * How many suggestions to ask for before filtering to stops.
@@ -865,7 +866,34 @@ function _destroyMemMap() {
   _memLayer = null;
 }
 
+/**
+ * Vanene, som alltid skrives — med eller uten samtykke.
+ *
+ * FØR DEN TIDLIGE RETUREN UNDER, og det er hele poenget: `renderMemory`
+ * returnerte uten å tegne noe når bryteren var av, og da fikk den som aldri
+ * sier ja aldri se det appen lagrer om henne uansett.
+ */
+function _renderVaner() {
+  const el = document.getElementById('mem-vane');
+  if (!el) return;
+  const d = document.getElementById('mem-vane-dager');
+  // Tallet fra kilden, ikke skrevet inn i markupen: to steder som sier hvor
+  // lenge appen husker ville før eller siden sagt hvert sitt.
+  if (d) d.textContent = String(VANE_MAKS_DAGER);
+  const rader = vaneOversikt(Date.now());
+  el.innerHTML = rader.length
+    ? rader.map(r => '<div class="mem-row">'
+        + '<span class="mem-when">' + esc(r.sist) + '</span>'
+        + '<span class="mem-kind">' + esc(String(r.antall)) + '×</span>'
+        + '<span class="mem-text">' + esc(r.tekst) + '</span>'
+        + '</div>').join('')
+    : '<div class="mem-empty">Ingen vaner ennå. De bygges opp av reisene du '
+      + 'velger.</div>';
+}
+
 export function renderMemory() {
+  // Vanene først, uten betingelse. Alt under denne linja handler om loggen.
+  _renderVaner();
   const box = document.getElementById('mem-body');
   const cb = document.getElementById('mem-consent');
   if (!box || !cb) return;

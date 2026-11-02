@@ -25,6 +25,10 @@
   h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 .35rem; }
   .sub { color: var(--ink-soft); margin: 0 0 2rem; font-size: .95rem; }
   h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; }
+  /* Tre nivåer under én overskrift. Uten en egen regel arver h3 nettleserens
+     standard, som er STØRRE enn h2 her — og de tre punktene hadde sett ut som
+     tre nye kapitler framfor som inndelingen av ett. */
+  h3 { font-size: .95rem; margin: 1.4rem 0 .4rem; color: var(--ink); }
   p { margin: 0 0 .9rem; }
   ul { margin: 0 0 .9rem; padding-left: 1.2rem; }
   li { margin-bottom: .35rem; }
@@ -85,15 +89,53 @@
     noe annet som peker på deg — den har det ikke.
   </p>
 
-  <h2>Hva appen kan huske — om du sier ja</h2>
+  <h2>Hva appen husker</h2>
+  <p>
+    Appen har tre slags minne, og de har tre ulike regler. Det er verdt de
+    tre avsnittene, for den forrige utgaven av denne sida beskrev bare det
+    siste av dem — og lot deg tro at det var alt.
+  </p>
+
+  <h3>1. Det du har sagt</h3>
+  <p>
+    Ruta di, favorittene, innstillingene. De ligger der til du sletter dem,
+    og det er hele poenget med dem. En favoritt som forsvant av seg selv
+    ville vært en feil.
+  </p>
+
+  <h3>2. Det appen har merket seg</h3>
+  <p>
+    Hvor du pleier å reise, og omtrent når. Dette skrives
+    <strong>uten at du blir spurt</strong> — det er det appen gjetter ut
+    fra, og uten det ville «dit du ofte skal» vært tom. Vi sier det her
+    framfor å la deg oppdage det.
+  </p>
+  <ul>
+    <li><strong>Hva det er:</strong> avreisested og destinasjon, et
+      to-timers tidsrom, om det var ukedag eller helg, hvor mange ganger, og
+      når sist. For et sted du har skrevet inn selv lagres også
+      koordinatene, så ruta kan settes opp igjen.</li>
+    <li><strong>90 dager uten bruk, så glemmes det.</strong> En rute du ikke
+      har tatt på tre måneder er ikke lenger vanen din, og da sletter appen
+      den — ikke bare skjuler den.</li>
+    <li><strong>Du ser alt som ligger der.</strong> Under
+      <em>Innstillinger → hva appen husker</em>, uavhengig av bryteren.
+      Koordinatene står i klartekst der de finnes.</li>
+    <li><strong>Sletteknappen tømmer det,</strong> og den virker enten du
+      har slått på punkt 3 eller ikke.</li>
+  </ul>
+
+  <h3>3. Enkeltturene dine — om du sier ja</h3>
   <p>
     Under <em>Innstillinger → hva appen husker</em> kan du slå på at appen
     tar vare på reisene, søkene og <strong>posisjonene</strong> dine de siste
-    sju døgnene, slik at den kan lære når og hvor du pleier å reise.
+    sju døgnene.
   </p>
   <ul>
     <li><strong>Det er av til du slår det på.</strong> Appen virker som før
-      uten det — den gjetter bare dårligere.</li>
+      uten det — den gjetter bare dårligere. Med det på ser den om en vane
+      fortsatt er fersk; uten det vet den at du har reist et sted, men ikke
+      når.</li>
     <li><strong>Alt blir liggende på telefonen</strong>, i nettleserens eget
       lager, akkurat som rutene og favorittene dine. Det sendes ingen steder,
       og vi har ingen server å sende det til.</li>
@@ -105,10 +147,12 @@
     <li><strong>Sletteknapp,</strong> og loggen tømmes også om du slår
       funksjonen av igjen, eller sletter profilen.</li>
   </ul>
+
   <p>
     Og én ting vi heller vil si enn la deg oppdage: en ukes posisjonshistorikk
     på telefonen kan leses av den som får telefonen ulåst i hendene. Det er
-    derfor vinduet er sju døgn og ikke lenger, og derfor sletteknappen er der.
+    derfor vinduet er sju døgn og ikke lenger, derfor punkt 2 har fått en
+    grense i det hele tatt, og derfor sletteknappen er der.
   </p>
 
   <h2>Ingen sporing</h2>

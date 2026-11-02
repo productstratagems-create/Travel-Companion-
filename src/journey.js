@@ -4,6 +4,7 @@ import { state, intervals } from './state.js';
 import { findArr } from './geo.js';
 import { storage } from './storage.js';
 import { callPlace } from './api/place.js';
+import { legEnds } from './api/adapt.js';
 import { logMsg } from './ui/log.js';
 import { updateOnboardChip } from './ui/chip.js';
 import { show } from './ui/nav.js';
@@ -77,14 +78,16 @@ export function joinJourney(meta, toIdx) {
   activateTracking();
 }
 
-export function doBoard() {
-  const c = state.sel;
-  if (!c) return;
-  const dir = config.dirs[state.dIdx];
+/**
+ * The journey's legs, from a selected row.
+ *
+ * Lifted out of `doBoard` so it can be tested: `doBoard` also starts
+ * tracking and draws a screen, and a rule buried in it could not be
+ * called from a test without all of that.
+ */
+export function legsFromTrip(c, dir) {
   const sj = c.serviceJourney;
   const lbg = sj && sj.line && sj.line.presentation && sj.line.presentation.colour;
-
-  // Build legs[] from trip-planner legs, or fall back to single-leg board data
   const legs = [];
   if (c._legs && c._legs.length) {
     c._legs.forEach((leg, i) => {
@@ -93,7 +96,6 @@ export function doBoard() {
       const legLbg = legLine && legLine.presentation && legLine.presentation.colour;
       const depT = leg.fromEstimatedCall && (leg.fromEstimatedCall.expectedDepartureTime || leg.fromEstimatedCall.aimedDepartureTime);
       const arrT = leg.toEstimatedCall && (leg.toEstimatedCall.expectedArrivalTime || leg.toEstimatedCall.aimedArrivalTime);
-      const tr = c._transfers && c._transfers[i];
       legs.push({
         lineCode:    (legLine && legLine.publicCode) || '?',
         lineRef:     (legLine && legLine.id) || null,
@@ -101,8 +103,25 @@ export function doBoard() {
         mode:        leg.mode || 'metro',
         frontText:   (leg.fromEstimatedCall && leg.fromEstimatedCall.destinationDisplay && leg.fromEstimatedCall.destinationDisplay.frontText) || leg.toPlace.name,
         journeyId:   legSj && legSj.id,
-        fromStation: i === 0 ? dir.from : (c._transfers[i-1] && c._transfers[i-1].at) || dir.from,
-        toStation:   tr ? tr.at : dir.to,
+        /* FRA ETAPPEN, IKKE FRA RUTA.
+         *
+         * Dette var `i === 0 ? dir.from : _transfers[i-1].at` og
+         * `tr ? tr.at : dir.to` — der du skrev, der du gikk av forrige, og
+         * reisemålet ditt. Like bare når ingen gange står imellom. Ellers et
+         * navn kjøretøyet aldri kaller ved, og `track.js` slår opp nettopp
+         * dette for ankomst, innstilling og «gå av nå».
+         *
+         * `dir` er reisens endepunkter og bor i `state.jny.from/dest`. Det er
+         * et annet faktum, og skal ikke låne seg ut hit. */
+        fromStation: legEnds(leg).fra || dir.from,
+        toStation:   legEnds(leg).til || dir.to,
+        // Gangen ETTER denne etappen: til neste etappes stopp, eller til
+        // målet. Regnet ut av adapteren fra OTPs egne gangeetapper — null
+        // når ingen gange står der. Uten den kunne skjermen si «bytt på
+        // Jernbanetorget» og tie om at toget går fra Oslo S.
+        gåEtter: (i < c._legs.length - 1)
+          ? ((c._transfers && c._transfers[i] && c._transfers[i].gåMin) ?? null)
+          : (c._alightWalkMins ?? null),
         depTime:     depT ? { time: depT, clk: clk(depT) } : null,
         arrTime:     arrT ? { time: arrT, clk: clk(arrT) } : null,
         quay:        (leg.fromEstimatedCall && leg.fromEstimatedCall.quay && leg.fromEstimatedCall.quay.publicCode) || null,
@@ -139,6 +158,15 @@ export function doBoard() {
                     && c._legs[0].pointsOnLink.points) || null,
     });
   }
+
+  return legs;
+}
+
+export function doBoard() {
+  const c = state.sel;
+  if (!c) return;
+  const dir = config.dirs[state.dIdx];
+  const legs = legsFromTrip(c, dir);
 
   const firstLeg = legs[0];
   const lastLeg = legs[legs.length - 1];
@@ -218,6 +246,14 @@ export function saveJny() {
         journeyId:   leg.journeyId,
         fromStation: leg.fromStation,
         toStation:   leg.toStation,
+        gåEtter:     leg.gåEtter ?? null,
+        /* TRASEEN. Kommentaren der den settes (`legsFromTrip`) lover at den
+         * bæres gjennom en oppfriskning — «without carrying this the
+         * underveis map would drop back to straight lines after every
+         * reload». Den sto ikke her. `track.js:174` leser `leg.shape`, og
+         * fikk null etter hver reload: nøyaktig det kommentaren sa den
+         * forhindret. Funnet i v1.194.0 mens denne lista likevel ble endret. */
+        shape:       leg.shape || null,
         depTime:     leg.depTime,
         arrTime:     leg.arrTime,
         quay:        leg.quay,

@@ -71,6 +71,58 @@ export function legShape(leg) {
  * @returns {Array<{kind: 'board'|'change'|'alight', lat: number, lon: number,
  *                  name: string}>}
  */
+/**
+ * Hvor en etappe starter og slutter — det eneste stedet appen leser det.
+ *
+ * OTP oppgir det på etappen selv. `doBoard` satte det fra RUTA i stedet —
+ * `dir.from`, `dir.to` og forrige byttes avstigning — og de er like bare når
+ * ingen gangeetappe står imellom. Når én gjør det, er navnet et kjøretøyet
+ * aldri kaller ved, og `track.js` slår opp nettopp disse navnene for å finne
+ * ankomsten, innstillingen og «gå av nå». Se tests/flereEtapper.test.js.
+ *
+ * @returns {{fra:string|null, til:string|null}}
+ */
+export function legEnds(leg) {
+  return {
+    fra: (leg && leg.fromPlace && leg.fromPlace.name) || null,
+    til: (leg && leg.toPlace && leg.toPlace.name) || null,
+  };
+}
+
+/** Minutter mellom to ISO-tider, avrundet; null når en mangler. */
+function _min(a, b) {
+  if (!a || !b) return null;
+  return Math.max(0, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000));
+}
+
+/**
+ * Gangen mellom hver kjøretøyetappe, i minutter — null der det ikke går noen.
+ *
+ * Fra `_allLegs`, der gangeetappene står; `legs` har dem filtrert bort. Samme
+ * regel som `_alightWalkMins`: OTP har alt brukt leserens gangfart.
+ */
+function _gangMellom(alle) {
+  const ut = [];
+  let gang = null;
+  let sett = false;
+  for (const l of alle) {
+    if (!l) continue;
+    if (l.mode === 'foot') {
+      // Gange FØR første kjøretøy telles her også — men `gang` nullstilles
+      // ved første kjøretøyetappe, før noe legges i `ut`, så den blir aldri
+      // et bytte. En egen vakt for det ble prøvd og var død kode: mutanten
+      // som fjernet den kunne ikke endre ett eneste svar.
+      const m = _min(l.expectedStartTime || l.aimedStartTime, l.expectedEndTime || l.aimedEndTime);
+      gang = (gang || 0) + (m || 0);
+      continue;
+    }
+    if (sett) ut.push(gang);
+    sett = true;
+    gang = null;
+  }
+  return ut;
+}
+
 const NEAR_M = 60;
 
 export function journeyPoints(legs) {
@@ -192,8 +244,18 @@ export function adaptTripPattern(tp) {
     if (!last.toPlace || !last.toPlace.name) return drop('siste bein uten navn');
     const lastAny = tp.legs[tp.legs.length - 1];
     if (lastAny.mode !== 'foot' && (!lastAny.toPlace || !lastAny.toPlace.name)) return drop('siste bein uten navn');
+    const gangMellom = _gangMellom(all);
     const transfers = legs.slice(0, -1).map((leg, i) => ({
-      at:        (leg.toPlace && leg.toPlace.name) || null,
+      /* TO STEDER, IKKE ETT. `at` var der du går AV, mens `platform` og
+       * `frontText` under er fra etappen du går PÅ. Ved et bytte med gange
+       * imellom er det to stoppesteder — og raden sa «bytt på
+       * Jernbanetorget · spor 13», der spor 13 står på Oslo S. */
+      av:        legEnds(leg).til,
+      på:        legEnds(legs[i + 1]).fra,
+      gåMin:     gangMellom[i] == null ? null : gangMellom[i],
+      // Alias for `av`. Lesere fra før denne utgaven bruker navnet, og det
+      // betyr fortsatt det samme: der du går av.
+      at:        legEnds(leg).til,
       platform:  (legs[i+1].fromEstimatedCall && legs[i+1].fromEstimatedCall.quay && legs[i+1].fromEstimatedCall.quay.publicCode) || null,
       frontText: (legs[i+1].fromEstimatedCall && legs[i+1].fromEstimatedCall.destinationDisplay && legs[i+1].fromEstimatedCall.destinationDisplay.frontText) || null,
       depTime:   (legs[i+1].fromEstimatedCall && (legs[i+1].fromEstimatedCall.expectedDepartureTime || legs[i+1].fromEstimatedCall.aimedDepartureTime))

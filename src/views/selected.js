@@ -4,7 +4,7 @@ import { normJid } from '../api/queries.js';
 import { stopKey } from '../stopId.js';
 import { clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL, fartNå } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL, fartNå, loadWalkBuffer } from '../geo.js';
 import { gangGjelder } from '../api/ombord.js';
 import { _headingDeg } from '../ui/path.js';
 import { fetchJourneyMeta } from '../api/entur.js';
@@ -16,6 +16,9 @@ import { shareLegCalendar, canOfferCalendar } from '../api/calShare.js';
 import { updatePlanCtx } from './plan.js';
 import { logMsg } from '../ui/log.js';
 import { esc } from '../ui/fmt.js';
+import { reiselop } from '../ui/reiselop.js';
+import { visStopp } from '../stopId.js';
+import { stoppestedKjent, hentStoppested } from '../api/stoppested.js';
 import { show } from '../ui/nav.js';
 import { startBoard, boardRows } from './board.js';
 import { renderAlertsInto } from '../ui/alerts.js';
@@ -640,69 +643,31 @@ export function renderSelected() {
   // Build journey detail — full itinerary for transfers, 2-cell grid for single-line
   let journeyDetail;
   if (isTransfer) {
-    let itinHtml = '<div class="itinerary">';
-    const allLegs = c._allLegs || c._legs;
-    allLegs.forEach((leg, i) => {
-      const isFoot = leg.mode === 'foot';
-      const ll = leg.serviceJourney && leg.serviceJourney.line;
-      const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
-      const badge = isFoot
-        ? '<span class="foot-badge">gå</span>'
-        : '<span class="line-badge" style="background:' + bg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
-      const depT = (leg.fromEstimatedCall && leg.fromEstimatedCall.expectedDepartureTime)
-        || leg.expectedStartTime || leg.aimedStartTime || null;
-      const arrT2 = (leg.toEstimatedCall && (leg.toEstimatedCall.expectedArrivalTime || leg.toEstimatedCall.aimedArrivalTime))
-        || leg.expectedEndTime || leg.aimedEndTime || null;
-      const isLastLeg = (i === allLegs.length - 1);
-      const fromName = i === 0
-        ? cleanName(dir.from).toLowerCase()
-        : cleanName((leg.fromPlace && leg.fromPlace.name) || '?').toLowerCase() || '?';
-      const toName = cleanName(
-        (leg.toPlace && leg.toPlace.name) || (isLastLeg ? dir.to : '?')
-      ).toLowerCase() || '?';
-      const platform  = !isFoot && i > 0 && leg.fromEstimatedCall && leg.fromEstimatedCall.quay
-        ? leg.fromEstimatedCall.quay.publicCode : null;
-      const frontText = !isFoot && i > 0 && leg.fromEstimatedCall && leg.fromEstimatedCall.destinationDisplay
-        ? leg.fromEstimatedCall.destinationDisplay.frontText : null;
-
-      itinHtml += '<div class="itin-leg">'
-        + badge
-        + '<div class="itin-stops">'
-        + '<div class="itin-row dep"><span>' + esc(fromName) + '</span><span class="itin-time dep">' + (depT ? clk(depT) : '—') + '</span></div>'
-        + (platform ? '<div class="itin-meta">spor ' + esc(platform) + (frontText ? ' · retning ' + esc(frontText.toLowerCase()) : '') + '</div>' : '')
-        + '<div class="itin-row' + (isLastLeg ? ' final' : '') + '"><span>' + esc(toName) + '</span><span class="itin-time' + (isLastLeg ? ' final' : '') + '">' + (arrT2 ? clk(arrT2) : '—') + '</span></div>'
-        + '</div></div>';
-
-      if (!isLastLeg) {
-        const nextLeg = allLegs[i + 1];
-        if (isFoot) {
-          // foot row is itself the connector — no divider
-        } else if (nextLeg.mode === 'foot') {
-          const wDep = nextLeg.expectedStartTime || nextLeg.aimedStartTime;
-          const wArr = nextLeg.expectedEndTime   || nextLeg.aimedEndTime;
-          const wMin = wDep && wArr ? Math.round((new Date(wArr).getTime() - new Date(wDep).getTime()) / 60000) : null;
-          itinHtml += '<div class="itin-xfer">gå' + (wMin !== null ? ' · ' + wMin + ' min' : '') + '</div>';
-        } else {
-          const nextDepT = (nextLeg.fromEstimatedCall && (nextLeg.fromEstimatedCall.expectedDepartureTime || nextLeg.fromEstimatedCall.aimedDepartureTime))
-            || nextLeg.expectedStartTime || nextLeg.aimedStartTime;
-          const waitMins = arrT2 && nextDepT
-            ? Math.round((new Date(nextDepT).getTime() - new Date(arrT2).getTime()) / 60000) : null;
-          itinHtml += '<div class="itin-xfer">bytt' + (waitMins !== null ? ' · ' + waitMins + ' min' : '') + '</div>';
-        }
-      }
-    });
-    itinHtml += (tmin ? '<div class="itin-total">' + tmin + ' min reise</div>' : '') + '</div>';
-    journeyDetail = itinHtml;
+    /* REISELØPET (v1.208.0). Her sto en tabell med stoppnavn i små
+     * bokstaver, Journey Planners «destination» som siste stopp, gangen
+     * mellom etappene to ganger med to ulike minutter, plattform bare fra
+     * etappe to, og ingen dom om byttet. Se `ui/reiselop.js`. */
+    journeyDetail = reiselop(c._allLegs || c._legs, {
+      fra: dir.from, til: dir.to, ekstraMin: loadWalkBuffer(),
+      // Trinnfri fra stoppestedsregisteret, når den er kjent. Spørsmålet
+      // sendes første gang; svaret står ved neste oppfriskning.
+      tilgang: id => {
+        if (!id) return null;
+        const k = stoppestedKjent(id);
+        if (k === undefined) { hentStoppested(id); return null; }
+        return k && k.tilgang && k.tilgang.kind !== 'vet-ikke' ? k.tilgang.kind : null;
+      },
+    }) + (tmin ? '<div class="itin-total">' + tmin + ' min reise</div>' : '');
   } else {
     journeyDetail = '<div class="journey-detail">'
       + '<div class="jd-cell"' + (arrT ? '' : ' style="grid-column:1/-1"') + '>'
-      + '<div class="jd-label">avgår ' + esc(cleanName(dir.from).toLowerCase()) + '</div>'
+      + '<div class="jd-label">avgår ' + esc(visStopp(cleanName(dir.from))) + '</div>'
       + '<div class="jd-val departure">' + clkDay(c.expectedDepartureTime) + '</div>'
       + (delayed ? '<div class="jd-sub">rute ' + clk(c.aimedDepartureTime) + '</div>' : '')
       + '</div>'
       + (arrT
         ? '<div class="jd-cell">'
-          + '<div class="jd-label">ankommer ' + esc(cleanName(dir.to).toLowerCase()) + '</div>'
+          + '<div class="jd-label">ankommer ' + esc(visStopp(cleanName(dir.to))) + '</div>'
           + '<div class="jd-val arrival">' + clkDay(arrT) + '</div>'
           + '<div class="jd-sub">'
           + (tmin ? tmin + ' min reise' : '')
@@ -737,7 +702,7 @@ export function renderSelected() {
     + (quay !== '?' ? '<span class="tc-meta">spor <span>' + quay + '</span>' + (delayed ? ' · <span style="color:#fcd34d">forsinket</span>' : '') + '</span>' : (delayed ? '<span class="tc-meta"><span style="color:#fcd34d">forsinket</span></span>' : ''))
     + '</div>'
     + '<div id="s-live-status"></div>'
-    + '<div class="sel-route-ctx">' + esc(dir.from.toLowerCase()) + ' → ' + esc(dir.to.toLowerCase()) + '</div>'
+    + '<div class="sel-route-ctx">' + esc(visStopp(dir.from)) + ' → ' + esc(visStopp(dir.to)) + '</div>'
     + '<div class="sel-weather" id="sel-weather-content">' + _selWeatherHtml(arrT) + '</div>'
     + (departed
       ? '<div class="departed-banner">avgikk ' + clk(depTs) + ' · reisen er i gang</div>'

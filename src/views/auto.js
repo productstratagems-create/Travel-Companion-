@@ -28,6 +28,7 @@ import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke
   from '../api/smart.js';
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
+import { plattformTekst } from '../bytte.js';
 import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS } from '../api/ombord.js';
 import { _interpolateVehiclePos, _interpolateOnPath } from '../api/forventetPos.js';
 import { journeyShapeCached } from '../api/entur.js';
@@ -1956,12 +1957,9 @@ export function quayLabel(call) {
   if (!code || code === '?') return null;
   const mode = call.serviceJourney && call.serviceJourney.line
     && call.serviceJourney.line.transportMode;
-  // A boat leaves from a kai, not a platform and not a track. Three words for
-  // three things, and the wrong one reads as a mistake to anyone standing
-  // there looking for the sign.
-  const word = mode === 'water' ? 'kai'
-    : (mode === 'metro' || mode === 'rail') ? 'spor' : 'plattform';
-  return word + ' ' + code;
+  // Ordvalget — spor, plattform, kai — bor i `bytte.js`, delt med
+  // avgangsdetaljene (v1.208.0).
+  return plattformTekst(code, mode);
 }
 
 export function _minsUntil(ms, now) {

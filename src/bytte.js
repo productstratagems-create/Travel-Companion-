@@ -69,3 +69,49 @@ export function bytteTekst(leg, neste, vis = id) {
   if (!på || stopKey(av) === stopKey(på)) return 'bytt på ' + vis(av);
   return 'av på ' + vis(av) + ' · gå til ' + vis(på) + _gang(leg.gåEtter);
 }
+
+/* ── DELT AV TO SKJERMER (v1.208.0) ─────────────────────────────────────
+ *
+ * Avgangsdetaljene skal si det samme om spor og bytter som auto-reise og
+ * underveis. Reglene bodde i visningene (`auto.js`, `track.js`); her er de én
+ * gang, og visningene leser dem. To kopier ville vært kodebasens signaturfeil.
+ */
+
+/**
+ * «spor 1», «plattform E», «kai A» — ordet etter transportmiddelet.
+ *
+ * Ruter kaller en bussbåsplass plattform, og en båt går fra en kai. Tre ord
+ * for tre ting; feil ord leses som en feil av den som står og leter etter
+ * skiltet. Ingenting framfor «spor ?»: en rad uten plattform er ærlig, en
+ * med spørsmålstegn er støy.
+ */
+export function plattformTekst(kode, modus) {
+  if (!kode || kode === '?') return null;
+  const ord = modus === 'water' ? 'kai'
+    : (modus === 'metro' || modus === 'rail') ? 'spor' : 'plattform';
+  return ord + ' ' + kode;
+}
+
+/**
+ * How long it takes to change platform here, before any margin of yours.
+ *
+ * A floor, not a measurement — a walk inside a station goes by stairs and
+ * tunnels. Same platform costs nothing: you are already standing on it.
+ */
+export const PLATFORM_CHANGE_MINS = 3;
+
+/**
+ * Minutes of slack between arriving and catching an onward departure.
+ *
+ * `extraMins` is the reader's own «ekstra tid». `gåMin` is a MEASURED walk
+ * between two stop places (OTP's own foot leg): it replaces the floor when
+ * it is longer, never when shorter (v1.194.0). Negative means you cannot make
+ * it.
+ */
+export function transferMargin(depTs, arrivalTs, sameQuay, extraMins, gåMin) {
+  const kjent = Number.isFinite(gåMin) && gåMin > 0;
+  const bytte = kjent
+    ? Math.max(PLATFORM_CHANGE_MINS, gåMin)
+    : (sameQuay ? 0 : PLATFORM_CHANGE_MINS);
+  return Math.floor((depTs - arrivalTs) / 60000) - bytte - (extraMins || 0);
+}

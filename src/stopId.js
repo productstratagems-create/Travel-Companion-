@@ -107,3 +107,15 @@ export function findStop(list, want) {
   if (!n) return null;
   return arr.find(s => s && stopKey(s.name) === n) || null;
 }
+
+/**
+ * Et stoppnavn til å SKRIVE UT: store bokstaver beholdt, kommuneleddet etter
+ * komma kuttet («Skullerud, Oslo» → «Skullerud»).
+ *
+ * `stopKey` er en MATCHER og senker bokstavene; skrevet ut ble det
+ * «jernbanetorget» på avgangsdetaljene. Å sammenligne og å lese er to jobber.
+ * Bodde som `displayStn` i track.js; delt fra v1.208.0.
+ */
+export function visStopp(s) {
+  return String(s || '').replace(/,.*$/, '').trim();
+}

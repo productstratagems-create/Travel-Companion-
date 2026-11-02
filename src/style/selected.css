@@ -277,3 +277,32 @@
   font-size:1.1rem;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
+
+/* ── REISELØPET (v1.208.0) ──────────────────────────────────────────────
+   En tidslinje: hver kjøretøyetappe en stolpe i linjefargen (--rl-farge),
+   påstigning øverst og avstigning nederst; gange og bytte som egne, rolige
+   rader mellom. Proven — Ruter, Google og Citymapper viser reisen slik. */
+.reiselop{display:flex;flex-direction:column;gap:.35rem;margin:.2rem 0 .4rem}
+.rl-etappe{position:relative;padding:.1rem 0 .1rem 1.45rem}
+.rl-etappe::before{content:'';position:absolute;left:.3rem;top:.55rem;bottom:.55rem;
+  width:4px;border-radius:2px;background:var(--rl-farge,var(--accent))}
+.rl-stopp{display:flex;gap:.6rem;align-items:baseline;font-size:13px;line-height:1.35}
+.rl-stopp::before{content:'';position:absolute;left:.12rem;width:10px;height:10px;margin-top:.22rem;
+  border-radius:50%;background:var(--bg);border:2px solid var(--rl-farge,var(--accent))}
+.rl-tid{font-variant-numeric:tabular-nums;color:var(--text-muted);min-width:2.9rem;flex-shrink:0}
+.rl-på .rl-tid{color:var(--accent)}
+.rl-navn{min-width:0;overflow-wrap:anywhere;color:var(--text)}
+.rl-navn b{font-weight:700}
+.rl-linje{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;margin:.35rem 0 .35rem 3.55rem;
+  font-size:12px;color:var(--text-soft)}
+.rl-mot{color:var(--text)}
+.rl-antall{color:var(--text-muted)}
+.rl-gange,.rl-bytte{margin-left:1.05rem;padding:.4rem .6rem;border-left:2px dotted rgba(var(--border-rgb),.45);
+  font-size:12px;line-height:1.4;color:var(--text-soft)}
+.rl-bytte{border-radius:0 6px 6px 0;background:rgba(var(--accent-rgb),.05);border-left-style:solid}
+.rl-bytte.rl-ok{border-left-color:rgba(var(--accent-rgb),.55)}
+.rl-bytte.rl-stramt{border-left-color:var(--warn);background:rgba(var(--warn-rgb),.06)}
+.rl-bytte.rl-miss{border-left-color:var(--err);background:rgba(220,38,38,.06)}
+.rl-dom{font-weight:700}
+.rl-stramt .rl-dom{color:var(--warn)}
+.rl-miss .rl-dom{color:var(--err)}

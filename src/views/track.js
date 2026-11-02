@@ -10,7 +10,9 @@ import { posState } from '../position.js';
 import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, walkMinsTo, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL, posNå } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon, legShape, journeyPoints } from '../api/adapt.js';
-import { ankomstTekst, bytteTekst } from '../bytte.js';
+import { visStopp } from '../stopId.js';
+import { ankomstTekst, bytteTekst, transferMargin, PLATFORM_CHANGE_MINS } from '../bytte.js';
+export { transferMargin, PLATFORM_CHANGE_MINS };
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters } from '../api/scooters.js';
 import { fetchWeather, forecastAt, weatherAdvice, darknessNote } from '../api/weather.js';
@@ -504,7 +506,8 @@ function _updateDestAlertsSection() {
  *
  * Same platform costs nothing: you are already standing on it.
  */
-export const PLATFORM_CHANGE_MINS = 3;
+// PLATFORM_CHANGE_MINS bor i `bytte.js` fra v1.208.0; eksportert videre under.
+
 
 /**
  * Minutes of slack between arriving and catching an onward departure.
@@ -522,25 +525,8 @@ export const PLATFORM_CHANGE_MINS = 3;
  * so instead, because you might choose to run and a line that vanishes without
  * trace is worse than one you can see you just missed.
  */
-export function transferMargin(depTs, arrivalTs, sameQuay, extraMins, gåMin) {
-  /* GANGEN, NÅR DEN ER MÅLT.
-   *
-   * Gulvet over er «a floor, not a measurement», fordi det innenfor én
-   * stasjon ikke finnes noe å måle mellom. Mellom TO stoppesteder finnes
-   * det: OTP oppgir gangen som sin egen etappe, med leserens gangfart. Den
-   * ble ikke regnet med, og et bytte fra Jernbanetorget til Oslo S med åtte
-   * minutter å gå og seks minutter mellom tidene fikk «1 min byttetid».
-   *
-   * Den STØRSTE av de to, aldri den minste: en målt gange på ett minutt er
-   * ikke grunn til å love et bytte raskere enn gulvet. Uten måling er dette
-   * nøyaktig regelen fra før. */
-  const kjent = Number.isFinite(gåMin) && gåMin > 0;
-  const bytte = kjent
-    ? Math.max(PLATFORM_CHANGE_MINS, gåMin)
-    : (sameQuay ? 0 : PLATFORM_CHANGE_MINS);
-  const cost = bytte + (extraMins || 0);
-  return Math.floor((depTs - arrivalTs) / 60000) - cost;
-}
+/* `transferMargin` bor i `bytte.js` fra v1.208.0, delt med avgangsdetaljene.
+ * Eksportert videre her så underveis og testene leser den som før. */
 
 /**
  * ONE VERDICT ABOUT THE CHANGE YOU ARE ABOUT TO MAKE.
@@ -995,7 +981,7 @@ const normStn = stopKey;   // was a private copy of the same rule
  * the connection banner read «går fra hellerud». A name for comparing and a
  * name for reading are two jobs; this one keeps the capitals.
  */
-function displayStn(s) { return String(s).replace(/,.*$/, '').trim(); }
+const displayStn = visStopp;   // én definisjon, i stopId.js (v1.208.0)
 
 function renderStopRow(r, isNext, hvor) {
   // «bytt» til en som skal bli sittende er et råd om å reise seg — sett i

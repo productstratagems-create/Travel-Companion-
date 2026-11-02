@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { erInnstilt } from '../innstilt.js';
 import { normJid } from '../api/queries.js';
 import { stopKey } from '../stopId.js';
 import { clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
@@ -591,7 +592,7 @@ export function renderSelected() {
   const depTs = new Date(c.expectedDepartureTime).getTime();
   const departed = depTs < now;
   const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
-  const arr = findArr(sjc, dir.to);
+  const arr = findArr(sjc, dir.to, { etter: dir.from });
   const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
   const tmin = arrT ? Math.round((new Date(arrT).getTime() - depTs) / 60000) : null;
   const delayed = c.realtime && depTs - new Date(c.aimedDepartureTime).getTime() > 60000;
@@ -876,7 +877,9 @@ export function renderSelected() {
  * to land on anything a tap on the list could not.
  */
 function _navigable(c) {
-  return !!c && !c.cancellation && !(c.serviceJourney && c.serviceJourney.cancellation);
+  // `erInnstilt`, der denne unionen ble skrevet ned første gang. Nå er det
+  // den alle skjermer leser, ikke bare denne.
+  return !!c && !erInnstilt(c);
 }
 
 /**

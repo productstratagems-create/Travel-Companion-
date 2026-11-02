@@ -8,7 +8,8 @@ const fetchMock = vi.fn();
 vi.mock('../src/api/http.js', () => ({ enturFetch: (...a) => fetchMock(...a) }));
 
 const { fetchTrip, fetchBoard, _resetPerLineProbe, _coachRefused, _resetCoachProbe,
-  _windowRefused, _resetWindowProbe, _affectsRefused, _resetAffectsProbe }
+  _windowRefused, _resetWindowProbe, _affectsRefused, _resetAffectsProbe,
+  _resetInnstilteProbe, _resetBytteProbe, _resetIderProbe }
   = await import('../src/api/entur.js');
 
 const DIR = { from: 'Grorud', to: 'Jernbanetorget', stopId: 'NSR:StopPlace:1', toStopId: 'NSR:StopPlace:2' };
@@ -31,6 +32,14 @@ const settle = () => new Promise(r => setTimeout(r, 0));
 beforeEach(() => {
   fetchMock.mockReset();
   _resetCoachProbe(); _resetWindowProbe(); _resetAffectsProbe();
+  /* INNSTILTE AVGANGER ER ET NYTT TRINN ØVERST (v1.196.0), og det droppes
+   * først. Denne fila beskriver stigen UNDER det, så den starter med trinnet
+   * allerede avvist — ellers ville hvert «første avslag» her kostet det nye
+   * flagget i stedet for det testen handler om. Det nye trinnet har sine
+   * egne tester i innstiltProbe.test.js. */
+  _resetInnstilteProbe(true);
+  // Og de to trinnene under det (v1.197.0), av samme grunn.
+  _resetBytteProbe(true); _resetIderProbe(true);
 });
 
 /**

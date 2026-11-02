@@ -541,6 +541,11 @@
   text-decoration-thickness: 1px;
 }
 #v-auto .auto-dir .r-soon { color: var(--warn); }
+/* Innstilt: samme farge og samme ord som tavlas `.dep-cancelled`, så de to
+   skjermene sier det likt. Ikke `.missed` sin dempede strek — den betyr
+   «rekker ikke», og det er et annet faktum. */
+#v-auto .auto-dir .auto-t-innstilt { color: var(--err); opacity: 1; }
+#v-auto .auto-dir .auto-t-innstilt s { text-decoration-thickness: 1.5px; }
 #v-auto .auto-dir .r-now  { color: #60a5fa; }
 /* THE ONE YOU AIM FOR, marked as such — always, not only when it is tight.
    r-soon and r-now already coloured a departure you have to hurry for, but a

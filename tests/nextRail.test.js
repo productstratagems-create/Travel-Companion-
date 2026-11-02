@@ -16,7 +16,11 @@ const MIN = 60000;
 const iso = (m) => new Date(NOW + m * MIN).toISOString();
 
 /** A grouped direction, as groupDirections builds them. */
-const dir = (front, line, mode, mins, ahead, codespace) => ({
+/* MED `calls`. Fiksturen hadde `times` og ingen `calls` — en form
+ * `groupDirections` ikke har laget siden `calls` ble den ene oversikten
+ * `times` utledes fra. Da `nextRail` i v1.196.0 gikk over til `catchable`,
+ * som leser `calls`, falt testen på fiksturens alder, ikke på regelen. */
+const dir = (front, line, mode, mins, ahead, codespace) => withCalls({
   frontText: front,
   lines: [{ code: line, colour: 'f5a000' }],
   nextMs: NOW + mins[0] * MIN,
@@ -36,6 +40,10 @@ const dir = (front, line, mode, mins, ahead, codespace) => ({
     },
   },
 });
+
+function withCalls(d) {
+  return { ...d, calls: d.times.map(ms => ({ ms, call: d.call, innstilt: false })) };
+}
 
 // The reported screen at Mortensrud: two metros the same way out, five buses.
 const STORTINGET = dir('Stortinget', '3', 'metro', [2, 17, 32], ['Skullerud', 'Bøler', 'Stortinget']);

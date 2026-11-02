@@ -1,4 +1,5 @@
 import config from '../config.js';
+import { erInnstilt } from '../innstilt.js';
 import { stopKey } from '../stopId.js';
 import { liveness } from '../api/liveness.js';
 import { normMode } from '../api/stopCats.js';
@@ -3082,12 +3083,14 @@ export function renderBoard() {
     const delayMins = c.realtime ? Math.round((depTs - new Date(c.aimedDepartureTime).getTime()) / 60000) : 0;
     const delayed = delayMins > 1;
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
-    const arr = findArr(sjc, dir.to);
+    const arr = findArr(sjc, dir.to, { etter: dir.from });
     const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
     const mtl = walkActive ? mToLeave(depTs) : null;
     const rcls = walkActive ? reachCls(mtl) : null;
     const isRail = _depMode(c) === 'rail';
-    const isCancelled = c.cancellation;
+    // `erInnstilt`: kallet ELLER hele turen. `c.cancellation` alene overså
+    // en tur som var innstilt i sin helhet.
+    const isCancelled = erInnstilt(c);
     // .missed already carries "you cannot make this one" (opacity .4, red
     // edge) but was reachable only through reachCls, which needs walk data.
     const missed = departed || rcls === 'missed';
@@ -3217,10 +3220,13 @@ export function renderBoard() {
     const destPhrase = walkMins
       ? ' av på ' + dest + ' og ' + walkMins + ' min gange'
       : ' mot ' + dest;
-    const a11yLabel = departed
+    const bruddA11y = !erInnstilt(c) && c._brudd
+      ? ', videreforbindelse innstilt' + (c._brudd.sted ? ' ved ' + c._brudd.sted : '') : '';
+    const a11yLabel0 = departed
       ? lc + destPhrase + ', gikk ' + agoMins + ' min siden'
         + (quay !== '?' ? ', spor ' + quay : '')
       : lc + destPhrase + ', avgang om ' + minsLabel + (quay !== '?' ? ', spor ' + quay : '');
+    const a11yLabel = a11yLabel0 + bruddA11y;
 
     const isClock = mins >= 60;
     html += '<div class="' + rowCls + '"'
@@ -3272,11 +3278,24 @@ export function renderBoard() {
       // a rule; a third with no rule would be a dead hook.
       + (rq.changed ? '<span class="dep-tag">spor endret</span>' : '')
       + (walkMins ? '<span class="dep-tag">+ ' + walkMins + ' min gange</span>' : '')
-      + (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : '')
+      /* «BYTTE INNSTILT» I STEDET FOR «1 BYTTE», IKKE VED SIDEN AV.
+       *
+       * Første utgave la «videreforbindelse innstilt · Hauketo skole» inn
+       * som en egen tagg. I nettleserprøven på 414 px presset den
+       * destinasjonen — «Ljan stasjon» — helt ut av raden, og brøt «1 bytte»
+       * over to linjer. Advarselen tok plassen til det avgjørende. Nå tar
+       * den plassen til byttetellingen, som den uansett gjør overflødig;
+       * stedet står i `title` og skjermleseren, og avgangsdetaljene
+       * navngir det. */
+      + (!erInnstilt(c) && c._brudd
+        ? '<span class="dep-cancelled" title="videreforbindelse innstilt'
+          + (c._brudd.sted ? ' ved ' + esc(c._brudd.sted) : '') + '">bytte innstilt</span>'
+        : (xferCount ? '<span class="dep-tag">' + xferCount + (xferCount === 1 ? ' bytte' : ' bytter') + '</span>' : ''))
       + (delayed ? '<span class="dep-tag">+' + delayMins + ' min</span>' : '')
       + (_atPlatform(c) ? '<span class="dep-tag dep-tag-at">står på perrongen</span>' : '')
       + (c.realtime === false ? '<span class="dep-tag dep-tag-soft">kun rutetid</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
+
       + (tooEarlyForPlan ? '<span class="dep-cancelled">før forrige etappe</span>' : '')
       + '</div>'
       /* OG RADEN DU IKKE REKKER SIER DET.

@@ -115,6 +115,13 @@ export function legsFromTrip(c, dir) {
          * et annet faktum, og skal ikke låne seg ut hit. */
         fromStation: legEnds(leg).fra || dir.from,
         toStation:   legEnds(leg).til || dir.to,
+        // Id-ene, når spørringen fikk dem. `findArr` slår opp på id først.
+        fromStopId:  legEnds(leg).fraId,
+        toStopId:    legEnds(leg).tilId,
+        // Byttet ETTER denne etappen. Underveis sier «bli sittende» og aldri
+        // «gå av nå» der linja bare skifter nummer.
+        blisittende: !!(c._transfers && c._transfers[i] && c._transfers[i].blisittende),
+        garantert:   !!(c._transfers && c._transfers[i] && c._transfers[i].garantert),
         // Gangen ETTER denne etappen: til neste etappes stopp, eller til
         // målet. Regnet ut av adapteren fra OTPs egne gangeetapper — null
         // når ingen gange står der. Uten den kunne skjermen si «bytt på
@@ -138,7 +145,7 @@ export function legsFromTrip(c, dir) {
   } else {
     // Board route (single-leg, no trip planner)
     const sjc = sj && sj.estimatedCalls;
-    const arr = findArr(sjc, dir.to);
+    const arr = findArr(sjc, dir.to, { etter: dir.from });
     const arrT = arr && (arr.expectedArrivalTime || arr.aimedArrivalTime);
     const depT = c.expectedDepartureTime || c.aimedDepartureTime;
     legs.push({
@@ -177,7 +184,7 @@ export function doBoard() {
   let _toLon = c._toLon || null;
   if (!_toLat || !_toLon) {
     const sjc2 = c.serviceJourney && c.serviceJourney.estimatedCalls;
-    const arrCall = findArr(sjc2, dir.to);
+    const arrCall = findArr(sjc2, dir.to, { etter: dir.from });
     _toLat = (arrCall && arrCall.quay && arrCall.quay.stopPlace && arrCall.quay.stopPlace.latitude) || null;
     _toLon = (arrCall && arrCall.quay && arrCall.quay.stopPlace && arrCall.quay.stopPlace.longitude) || null;
   }
@@ -247,6 +254,10 @@ export function saveJny() {
         fromStation: leg.fromStation,
         toStation:   leg.toStation,
         gåEtter:     leg.gåEtter ?? null,
+        fromStopId:  leg.fromStopId || null,
+        toStopId:    leg.toStopId || null,
+        blisittende: !!leg.blisittende,
+        garantert:   !!leg.garantert,
         /* TRASEEN. Kommentaren der den settes (`legsFromTrip`) lover at den
          * bæres gjennom en oppfriskning — «without carrying this the
          * underveis map would drop back to straight lines after every

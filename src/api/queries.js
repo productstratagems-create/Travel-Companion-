@@ -88,7 +88,11 @@ export function sitsGQL(basic, withAffects) {
  */
 export const TRIP_SEARCH_WINDOW = 1440;
 
-export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTime, coach, window, affects) {
+export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTime, coach, window, affects, innstilte, bytte, ider) {
+  /* STOPPESTEDETS ID PÅ ETAPPENS ENDER, når `ider` får lov. Uten den
+   * matches etappens ender mot kallene på NAVN, og to svar kan skrive
+   * samme sted ulikt. Kan ikke prøves herfra; eget trinn i `fetchTrip`. */
+  const plass = ider ? 'name latitude longitude quay{id stopPlace{id}}' : 'name latitude longitude';
   const sits = sitsGQL(minimal, affects);
   const fromIsCoord = fromId && typeof fromId === 'object';
   // Only the stop places the reader actually named.
@@ -119,6 +123,12 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
     // the rural journeys we did not have yesterday either, where losing the
     // lookback costs a train standing at the platform right now.
     + (window ? 'searchWindow:' + TRIP_SEARCH_WINDOW + ' ' : '')
+    /* INNSTILTE REISER, SOM PROBE. Uten flagget utelater Journey Planner
+     * trolig reiser med en innstilt etappe — de forsvinner, og stillhet
+     * leses som at alt er i orden. Navnet og standardverdien kan ikke
+     * prøves herfra; `fetchTrip` dropper det først av alt om Entur avviser
+     * det, og da er tapet nøyaktig dagens oppførsel. */
+    + (innstilte ? 'includeRealtimeCancellations:true ' : '')
     // Plan from slightly in the past, or OTP plans from this instant and a
     // departure drops out of the board the moment its time passes.
     // `minimal` is the retry path in fetchTrip: if either of the optional
@@ -140,8 +150,12 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
     + (coach ? ',{transportMode:coach}' : '')
     + ']}'
     + ') { tripPatterns { duration legs {'
-    + ' fromPlace{name latitude longitude}'
-    + ' toPlace{name latitude longitude}'
+    + ' fromPlace{' + plass + '}'
+    + ' toPlace{' + plass + '}'
+    /* «BLI SITTENDE» OG GARANTERTE BYTTER. Uten dette sa appen «bytt» der
+     * linja bare skifter nummer, og «rekker ikke» om et tog som er lovet å
+     * vente. Kan ikke prøves herfra; eget trinn i `fetchTrip`. */
+    + (bytte ? ' interchangeTo{staySeated guaranteed}' : '')
     + ' mode'
     + ' aimedStartTime expectedStartTime aimedEndTime expectedEndTime'
     // The leg's real alignment, as a Google encoded polyline — the difference
@@ -156,7 +170,10 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
     + ' estimatedCalls{quay{latitude longitude stopPlace{id name latitude longitude}}'
     + ' aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime cancellation occupancyStatus quay{publicCode} destinationDisplay{frontText}}'
-    + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime quay{publicCode}}'
+    // `cancellation` på avstigningen: samme felt, samme type som
+    // `fromEstimatedCall` over, som har spurt om det i levert kode siden
+    // v1.106.0. Ingen probe — skjemaet har alt svart.
+    + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime cancellation quay{publicCode}}'
     + '} } } }';
 }
 
@@ -300,7 +317,7 @@ export const NEXT_DEPARTURE_HORIZON_MINS = 48 * 60;
  */
 export const BOARD_WINDOW_MINS = 90;
 
-export function boardGQL(id, n, now, basic, fwdMins, modes, perLine) {
+export function boardGQL(id, n, now, basic, fwdMins, modes, perLine, innstilte) {
   const sits = sitsGQL(basic);
   const wl = (Array.isArray(modes) ? modes.filter(m => BOARD_MODES_COACH.includes(m)) : []);
   // Asking for `bus` means asking for the express coaches too. Transmodel
@@ -315,6 +332,9 @@ export function boardGQL(id, n, now, basic, fwdMins, modes, perLine) {
     + 'estimatedCalls(startTime:"' + lookbackISO(now) + '",timeRange:' + ((back + fwd) * 60)
     + ',numberOfDepartures:' + (n || 10)
     + (perLine ? ',numberOfDeparturesPerLineAndDestinationDisplay:' + perLine : '')
+    // Samme probe som i tripGQL: innstilte avganger skal STÅ på tavla, ikke
+    // forsvinne fra den. Kan ikke prøves herfra; se `_medInnstilte`.
+    + (innstilte ? ',includeCancelledTrips:true' : '')
     + ',whiteListedModes:[' + modeList + ']){'
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation occupancyStatus '
     + sits + ' '

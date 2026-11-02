@@ -574,6 +574,9 @@ export function transferMargin(depTs, arrivalTs, sameQuay, extraMins, gåMin) {
  */
 export function transferState(curLeg, nextLeg, extraMins) {
   if (!curLeg || !nextLeg || !curLeg.arrTime || !nextLeg.depTime) return null;
+  // Du blir sittende: det er ikke et bytte du kan miste, og en margin om
+  // det ville vært et svar på et spørsmål ingen stilte.
+  if (curLeg.blisittende) return null;
   const arrTs = new Date(curLeg.arrTime.time).getTime();
   const depTs = new Date(nextLeg.depTime.time).getTime();
   if (!Number.isFinite(arrTs) || !Number.isFinite(depTs)) return null;
@@ -586,9 +589,14 @@ export function transferState(curLeg, nextLeg, extraMins) {
   // so it could call a transfer comfortable while the row for the very same
   // departure was struck through.
   const rcls = reachCls(margin);
-  const kind = rcls === 'missed' ? 'miss'
+  const kind0 = rcls === 'missed' ? 'miss'
     : (rcls === 'r-now' || rcls === 'r-soon') ? 'tight'
     : null;
+  /* GARANTERT: toget er lovet å vente. «Rekker ikke» om det er en løgn med
+   * omvendt fortegn — den sender deg til et annet tog du ikke trengte. Bare
+   * når marginen ellers ville vært et problem; et komfortabelt bytte
+   * trenger ingen garanti. */
+  const kind = curLeg.garantert && kind0 ? 'garantert' : kind0;
   return { margin, rcls, kind };
 }
 
@@ -615,6 +623,14 @@ export function connAlertHtml(legs, i, extraMins) {
   const extra = extraMins == null ? loadWalkBuffer() : extraMins;
   const tx = transferState(legs[i], nextLeg, extra);
   if (!tx || !tx.kind) return '';
+  // Egen klasse, ikke `-risk`: et garantert bytte er ikke en risiko, og å
+  // farge det som en ville vært å advare om noe som er lovet å gå bra.
+  if (tx.kind === 'garantert') {
+    return '<div class="conn-alert conn-alert-garantert">'
+      + esc(nextLeg.lineCode) + ' venter på deg · garantert overgang'
+      + (nextLeg.quay ? ' · Spor ' + esc(nextLeg.quay) : '')
+      + '</div>';
+  }
   if (tx.kind === 'miss') {
     return '<div class="conn-alert conn-alert-miss">'
       + 'Neste ' + esc(nextLeg.lineCode) + ' går fra ' + esc(displayStn(nextLeg.fromStation))
@@ -982,7 +998,10 @@ const normStn = stopKey;   // was a private copy of the same rule
 function displayStn(s) { return String(s).replace(/,.*$/, '').trim(); }
 
 function renderStopRow(r, isNext, hvor) {
-  const tag = r.isTransfer ? '<span class="stop-tag bytt-tag">bytt</span>'
+  // «bytt» til en som skal bli sittende er et råd om å reise seg — sett i
+  // nettleserprøven, der stopplista sa BYTT under «Bli sittende».
+  const tag = r.sitt ? '<span class="stop-tag">linjeskifte</span>'
+    : r.isTransfer ? '<span class="stop-tag bytt-tag">bytt</span>'
     : r.isDest ? '<span class="stop-tag">stå av</span>'
     : isNext ? '<span class="stop-tag">neste</span>' : '';
   const cls = r.isTransfer ? ' transfer' : r.isDest ? ' dest' : isNext ? ' next' : '';
@@ -1727,7 +1746,9 @@ export function renderTrack() {
         return h + 't<span class="cnt-unit">' + (rm > 0 ? rm + 'm' : '') + '</span>';
       })();
       nEl.className = 'track-num' + (mLeft <= 2 ? ' urgent' : '');
-      lEl.textContent = isLastLeg ? 'til ankomst' : (mLeft <= 0 ? 'gå av nå' : 'til bytte');
+      lEl.textContent = isLastLeg ? 'til ankomst'
+        : leg.blisittende ? 'til linjeskifte'
+        : (mLeft <= 0 ? 'gå av nå' : 'til bytte');
     } else {
       nEl.textContent = '—'; nEl.className = 'track-num'; lEl.textContent = 'venter på data';
     }
@@ -1755,7 +1776,13 @@ export function renderTrack() {
     }
     if (nextLeg && nextLeg.depTime) {
       cEl.textContent = nextLeg.depTime.clk;
-      laEl.textContent = 'avgang fra ' + displayStn(nextLeg.fromStation) + (nextLeg.quay ? ' · spor ' + nextLeg.quay : '');
+      // Mellom to etapper der du BLIR SITTENDE er det ingen plattform å gå
+      // til: «avgang fra Oslo S · spor 13» til en som sitter på toget er et
+      // råd om å reise seg. Samme setning som før linjeskiftet.
+      const forrige = legs[cs.next - 1];
+      laEl.textContent = forrige && forrige.blisittende
+        ? bytteTekst(forrige, nextLeg, displayStn)
+        : 'avgang fra ' + displayStn(nextLeg.fromStation) + (nextLeg.quay ? ' · spor ' + nextLeg.quay : '');
     } else { cEl.textContent = ''; laEl.textContent = ''; }
   }
 
@@ -1879,7 +1906,10 @@ export function renderTrack() {
       // `quay{latitude longitude stopPlace{id name latitude longitude}}`, så
       // koordinatene har ligget her hele tiden — de ble bare aldri lest.
       rows.push({ nm, arrT, ma, relTxt, place: s,
-        isTransfer: !isLastLeg && isEnd, isDest: isLastLeg && isEnd });
+        isTransfer: !isLastLeg && isEnd, isDest: isLastLeg && isEnd,
+        // Enden av en etappe du blir sittende gjennom er et linjeskifte, ikke
+        // et bytte. Raden er fortsatt etappens ende; bare ordet er et annet.
+        sitt: !isLastLeg && isEnd && !!leg.blisittende });
       if (isEnd) pastTo = true;
     });
     return rows;
@@ -1942,6 +1972,7 @@ export function renderTrack() {
         stopsLeft,
         arriving: erFramme(leg.arrTime ? new Date(leg.arrTime.time).getTime() : null, now),
         transfer: !isLastLeg,
+        blisittende: !isLastLeg && !!leg.blisittende,
       });
       const visStopp = stopsLeft > 0 && avDom.kind !== 'na';
       headerHtml = '<div class="ct-detail">'
@@ -2059,6 +2090,7 @@ export function renderTrack() {
       const eb = alightEyebrow({
         stopsLeft: leg.stops ? stopsUntil(leg, now) : null,
         arriving: erFramme(arrTs, now), transfer: true,
+        blisittende: !!leg.blisittende,
       });
       return '<div class="alight-card alight-card-transfer">'
         + '<div class="alight-card-eyebrow">' + esc(eb.label) + '</div>'
@@ -2122,6 +2154,8 @@ export function renderTrack() {
     const eb = alightEyebrow({
       stopsLeft: leg.stops ? stopsUntil(leg, now) : null,
       arriving: erFramme(arrTs, now), transfer: false,
+      // Siste etappe: det finnes ikke noe å bli sittende til.
+      blisittende: false,
     });
     const arrQuay = state.jny.arrQuay;
     return '<div class="alight-card alight-card-dest">'
@@ -2141,7 +2175,10 @@ export function renderTrack() {
 
   // ── Build cards ───────────────────────────────────────────────────────────
 
-  function cardLabel(mode, isFirst) {
+  function cardLabel(mode, isFirst, sittende) {
+    // Etter et linjeskifte er det samme kjøretøy. «Byttetog» om det var
+    // sett i nettleserprøven, under en linje som sa «bli sittende».
+    if (sittende) return 'fortsetter som';
     const w = _VEHICLE_WORD[mode] || 'tog';
     return (isFirst ? 'bytte' : 'neste ') + w;
   }
@@ -2167,7 +2204,7 @@ export function renderTrack() {
     cards += buildAlightCard();
     cards += buildLegCard(i, 'underveis', true);
     for (let j = i + 1; j < legs.length; j++) {
-      cards += buildLegCard(j, cardLabel(legs[j].mode, j === i + 1), false);
+      cards += buildLegCard(j, cardLabel(legs[j].mode, j === i + 1, !!(legs[j - 1] && legs[j - 1].blisittende)), false);
     }
     if (state.jny._toLat && state.jny._toLon) {
       // «utforsk X» lived here, above the divider, and opened the same browsing
@@ -2181,7 +2218,7 @@ export function renderTrack() {
   } else { // platform
     const nextIdx = cs.next;
     for (let j = nextIdx; j < legs.length; j++) {
-      cards += buildLegCard(j, cardLabel(legs[j].mode, j === nextIdx), false);
+      cards += buildLegCard(j, cardLabel(legs[j].mode, j === nextIdx, !!(legs[j - 1] && legs[j - 1].blisittende)), false);
     }
   }
 
@@ -2496,7 +2533,7 @@ function _fetchTrack() {
       leg.cancelled = cx.cancelled;
       leg.cancelledAt = cx.at;
       // Update arrival time for this leg
-      const d = findArr(calls, leg.toStation);
+      const d = findArr(calls, leg.toStation, { etter: leg.fromStation, id: leg.toStopId, etterId: leg.fromStopId });
       if (d) {
         const t = d.expectedArrivalTime || d.aimedArrivalTime;
         if (t) {
@@ -2551,7 +2588,7 @@ function _fetchTrack() {
               }
             }
             if (nxt.toStation) {
-              const arrStop = findArr(calls, nxt.toStation);
+              const arrStop = findArr(calls, nxt.toStation, { etter: nxt.fromStation, id: nxt.toStopId, etterId: nxt.fromStopId });
               const at = arrStop && (arrStop.expectedArrivalTime || arrStop.aimedArrivalTime);
               if (at) {
                 nxt.arrTime = { time: at, clk: clk(at) };

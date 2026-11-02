@@ -355,3 +355,46 @@ describe('kallestedene', () => {
     expect(src).not.toMatch(/'ankommer ' \+ displayStn\(state\.jny\.dest\)/);
   });
 });
+
+/* ── RIKTIG FOREKOMST ───────────────────────────────────────────────────
+ *
+ * `findArr` tok det første kallet med riktig navn. En linje som passerer
+ * samme stopp to ganger — en sløyfe, eller en linje som snur — ga da
+ * ankomsten FØR du gikk på: en tid i fortiden, og «gå av nå» ved et stopp
+ * du allerede har passert.
+ */
+describe('findArr: en linje som passerer samme stopp to ganger', () => {
+  const sløyfe = [kall('Majorstuen', 5), kall('Nationaltheatret', 8),
+    kall('Ryen', 15), kall('Tøyen', 18), kall('Majorstuen', 24)];
+
+  it('finner ankomsten ETTER påstigningen', () => {
+    expect(findArr(sløyfe, 'Majorstuen', { etter: 'Ryen' })).toBe(sløyfe[4]);
+  });
+
+  it('og uten «etter» er det som før', () => {
+    expect(findArr(sløyfe, 'Majorstuen')).toBe(sløyfe[0]);
+  });
+
+  it('og finnes ikke påstigningen, letes det i hele lista', () => {
+    expect(findArr(sløyfe, 'Majorstuen', { etter: 'Ullevål' })).toBe(sløyfe[0]);
+  });
+
+  /* Og avstigningsoppslagene sender den med. Seks steder slår opp en
+   * ankomst; ett som glemte det ville vært feilen tilbake der. */
+  it('og alle ankomstoppslagene sender påstigningen med', () => {
+    const fs = require('node:fs');
+    const strip = f => fs.readFileSync(f, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const ankomst = [
+      // Underveis sender id-ene med også (v1.197.0); påstanden her er
+      // bare at påstigningen er med.
+      ['src/views/track.js', /findArr\(calls, leg\.toStation, \{ etter: leg\.fromStation[,}]/],
+      ['src/views/track.js', /findArr\(calls, nxt\.toStation, \{ etter: nxt\.fromStation[,}]/],
+      ['src/views/selected.js', /findArr\(sjc, dir\.to, \{ etter: dir\.from \}\)/],
+      ['src/views/board.js', /findArr\(sjc, dir\.to, \{ etter: dir\.from \}\)/],
+      ['src/journey.js', /findArr\(sjc, dir\.to, \{ etter: dir\.from \}\)/],
+      ['src/journey.js', /findArr\(sjc2, dir\.to, \{ etter: dir\.from \}\)/],
+    ];
+    ankomst.forEach(([f, re]) => expect(strip(f), f + ' ' + re).toMatch(re));
+  });
+});

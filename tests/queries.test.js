@@ -217,7 +217,10 @@ describe('arrBoardGQL — the destination stop', () => {
 describe('tripGQL — arrival platform', () => {
   it('requests the quay you get off at, not just the one you board from', () => {
     const q = tripGQL('A', 'B', null, 12, 1.3);
-    expect(q).toContain('toEstimatedCall{expectedArrivalTime aimedArrivalTime quay{publicCode}}');
+    // BUNDET PÅ PÅSTANDEN, IKKE PÅ STRENGEN. Dette var hele fragmentet
+    // ordrett, og falt da v1.195.0 la `cancellation` inn i det — på
+    // ordlyden, ikke på at plattformen mangler.
+    expect(q).toMatch(/toEstimatedCall\{[^}]*quay\{publicCode\}/);
   });
 });
 

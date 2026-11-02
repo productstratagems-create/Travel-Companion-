@@ -364,6 +364,9 @@
    this app says urgency with colour rather than with weight. */
 .conn-alert-risk{background:rgba(var(--warn-rgb),.06);border:1px solid rgba(var(--warn-rgb),.22);color:var(--warn)}
 .conn-alert-miss{background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.22);color:#ef4444}
+/* Garantert overgang: lovet å gå bra, så verken advarselsgult eller rødt —
+   aksentfargen appen bruker for det som er i orden. */
+.conn-alert-garantert{background:rgba(var(--accent-rgb),.07);border:1px solid rgba(var(--accent-rgb),.25);color:var(--accent)}
 
 /* Delay tag on queued leg cards */
 .ct-delay-tag{margin-left:auto;font-size:10px;font-weight:700;color:#ef4444;background:rgba(239,68,68,.1);border-radius:3px;padding:1px 5px}

@@ -27,6 +27,7 @@ import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
 import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, VANE_MARK }
   from '../api/smart.js';
 import { sistReist } from '../api/eventLog.js';
+import { erInnstilt } from '../innstilt.js';
 import { loadConsent } from '../api/consent.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { approach } from '../trail.js';
@@ -173,7 +174,7 @@ export function groupDirections(calls, now) {
         // still in scope — the caller keeps the grouped rows and drops the
         // array. `call` and `times` are derived from this below, so there is
         // one record of which departures the row has.
-        calls: [{ ms, call: c }],
+        calls: [{ ms, call: c, innstilt: erInnstilt(c) }],
       });
       return;
     }
@@ -181,37 +182,43 @@ export function groupDirections(calls, now) {
     // reaching an existing row belongs to the line already on it. `lines`
     // stays an array rather than a single field so badgeHtml and the row
     // template keep one shape to render — it is simply always length 1.
-    prev.calls.push({ ms, call: c });
-    if (ms < prev.nextMs) prev.nextMs = ms;
+    prev.calls.push({ ms, call: c, innstilt: erInnstilt(c) });
   });
   return [...byText.values()]
-    .sort((a, b) => a.nextMs - b.nextMs)
     // No clamp. Every call here left the filter above with nextMs >= t0, so
     // the rounding cannot go negative — and a Math.max(0, …) that can never
     // fire, sitting where one used to hide departed vehicles behind "nå", is
     // worse than none: it tells the next reader that negatives get here.
     .map(d => {
       const calls = d.calls.slice().sort((a, b) => a.ms - b.ms);
+      /* NESTE ER DEN SOM GÅR.
+       *
+       * `nextMs` var den tidligste avgangen, innstilt eller ei. Den bestemmer
+       * radens «2 min», rekkefølgen på skjermen og hvilket kall `call`
+       * peker på — tre ting som alle ville pekt på et tog som ikke kommer.
+       *
+       * Er ALT innstilt, blir raden stående likevel, med `alleInnstilt`. En
+       * retning der ingenting går er en opplysning; et hull der raden sto er
+       * stillhet, og stillhet leses som at alt er i orden. */
+      const går = calls.filter(x => !x.innstilt);
+      const første = går[0] || calls[0];
       return {
         ...d,
         calls,
-        // The soonest call still owns the row — tapping opens a journey, and
-        // it has to be the journey the first time refers to. DERIVED now,
-        // rather than tracked alongside: one record, the rest follows.
-        call: calls[0].call,
-        mins: Math.round((d.nextMs - t0) / MIN),
-        // The next three, soonest first, as ABSOLUTE times. Fewer when fewer
-        // run — a row with one time means one departure, and padding it would
-        // say something the stop board never said.
-        //
-        // Absolute rather than minutes, because the screen redraws long after
-        // this ran and minutes computed here would be a snapshot. Two
-        // representations that must agree is exactly the bug v1.68.0 fixed
-        // (_bRoutePts against _bRoutePtsKey); one value, converted where it
-        // is shown.
+        call: første.call,
+        nextMs: første.ms,
+        alleInnstilt: går.length === 0,
+        mins: Math.round((første.ms - t0) / MIN),
         times: calls.slice(0, 3).map(x => x.ms),
+        // Hvilke av tidene over som er innstilt, slått opp på VERDI. Et
+        // parallelt array av sannhetsverdier ville vært to lister som måtte
+        // holdes i takt — og en sortering av den ene uten den andre ville
+        // strøket feil avgang.
+        innstiltMs: new Set(calls.filter(x => x.innstilt).map(x => x.ms)),
       };
-    });
+    })
+    // Sortert ETTER at neste er valgt, så rekkefølgen følger avgangene som går.
+    .sort((a, b) => a.nextMs - b.nextMs);
 }
 
 /**
@@ -1824,7 +1831,11 @@ export function canCatch(ms, walkMins, now) {
 export function catchable(d, walkMins, now) {
   const t = Number.isFinite(now) ? now : Date.now();
   return ((d && d.calls) || [])
-    .filter(x => x && x.ms >= t && canCatch(x.ms, walkMins, t))
+    // Innstilt slås opp på kallet også, ikke bare på `x.innstilt`: en rad
+    // bygget et annet sted enn `groupDirections` har ikke det feltet, og
+    // regelen skal holde likevel.
+    .filter(x => x && !x.innstilt && !erInnstilt(x.call)
+      && x.ms >= t && canCatch(x.ms, walkMins, t))
     .sort((a, b) => a.ms - b.ms);
 }
 
@@ -1840,7 +1851,11 @@ export function _timesHtml(d, now, walkMins) {
   // grades how comfortable a reachable departure is — far, ok, soon, now —
   // but WHETHER it is reachable at all is `catchable`'s answer, so the row
   // and the arrival under it cannot disagree about which departure it means.
+  const strøket = d.innstiltMs instanceof Set ? d.innstiltMs : new Set();
   const rcls = (x) => {
+    // Før gangtiden: «innstilt» og «rekker ikke» er to faktum, og det første
+    // gjelder uansett hvor langt du har å gå.
+    if (x.ms != null && strøket.has(x.ms)) return 'innstilt';
     if (walkMins == null || x.ms == null) return '';
     return canCatch(x.ms, walkMins, now) ? reachCls(minsToLeave(x.ms, walkMins, now)) : 'missed';
   };
@@ -1865,18 +1880,34 @@ export function _timesHtml(d, now, walkMins) {
   //
   // So the loud one is the first you can still make. Then the strike explains
   // itself without a legend: not those, THIS one.
-  const first = keep.findIndex(x => rcls(x) !== 'missed');
+  const first = keep.findIndex(x => rcls(x) !== 'missed' && rcls(x) !== 'innstilt');
   const aim = first === -1 ? -1 : first;
 
   const html = keep.map((x, i) => {
     const r = rcls(x);
     // No walk time means no verdict, and then the old rule is the right one:
     // the first departure is the one you act on.
-    const loud = aim === -1 ? i === 0 : i === aim;
+    const loud = aim === -1 ? i === 0 && r !== 'innstilt' : i === aim;
+    // Innstilt får ORDET, ikke bare streken. Gjennomstreket uten ord leses
+    // som «rekker ikke» — som er streken sin vanlige betydning på denne
+    // skjermen — og det er et annet faktum.
+    //
+    // Med sin EGEN enhet inni streken: «~~2 min~~ innstilt · 7 min». Uten
+    // den leste en rad der alt var innstilt «~~19~~ innstilt min» — sett i
+    // nettleserprøven, usynlig i hver test.
+    if (r === 'innstilt') {
+      const enhet = x.m === 0 ? '' : ' min';
+      return '<span class="auto-t-dim auto-t-innstilt" aria-label="' + label(x)
+        + enhet + ', innstilt"><s>' + label(x) + enhet + '</s> innstilt</span>';
+    }
     return '<span class="' + (loud ? 'auto-t-next' : 'auto-t-dim')
       + (r ? ' ' + r : '') + '">' + label(x) + '</span>';
   }).join('<span class="auto-t-sep"> · </span>');
 
+  // Den felles enheten hører til tallene som GÅR. Er den siste innstilt,
+  // har den sin egen inni streken, og en til ville hengt etter «innstilt».
+  const sist = keep[keep.length - 1];
+  if (rcls(sist) === 'innstilt') return html;
   return html + (keep[0].m === 0 && keep.length === 1 ? '' : ' min');
 }
 
@@ -1946,12 +1977,15 @@ export function nextRail(dirs, fromName, now, walkMins) {
   const metros = live.filter(d => dirRank(d) === railish);
   if (!metros.length) return null;
   if (!sameWayOut(metros, fromName, t)) return null;
-  const need = walkMins == null ? 0 : walkMins;
-  const catchable = metros
-    .map(d => ({ d, at: (d.times || []).find(ms => (ms - t) / MIN >= need) }))
+  /* `catchable`, IKKE EN EGEN KOPI. Her sto `times.find(ms => … >= need)`
+   * — regelen for «kan nås» skrevet en gang til, uten å spørre om
+   * avgangen gikk. Den åpnet en retning av seg selv for et tog som var
+   * innstilt. Én regel, så skjermen og valget ikke kan være uenige. */
+  const kan = metros
+    .map(d => ({ d, at: (catchable(d, walkMins, t)[0] || {}).ms }))
     .filter(x => x.at != null)
     .sort((a, b) => a.at - b.at);
-  return catchable.length ? catchable[0].d : null;
+  return kan.length ? kan[0].d : null;
 }
 
 
@@ -2869,7 +2903,11 @@ export function findJumpTarget(dirs, guess, fromName, now) {
   if (!guess || !guess.toName || !Array.isArray(dirs)) return null;
   const want = stopKey(guess.toName);
   const wantId = guess.toStopId || null;
-  const byTime = dirs.slice().sort((a, b) => a.nextMs - b.nextMs);
+  // Bare retninger med en avgang som GÅR. En der alt er innstilt har et
+  // `nextMs` — det tidligste innstilte — og ville ellers sendt deg mot målet
+  // via et tog som ikke kommer.
+  const byTime = dirs.filter(d => catchable(d, null, now).length)
+    .sort((a, b) => a.nextMs - b.nextMs);
   for (const d of byTime) {
     const stops = stopsAhead(d.call, fromName, now);
     const hit = stops.find(s => (wantId && s.id && s.id === wantId)

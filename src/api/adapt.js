@@ -83,9 +83,14 @@ export function legShape(leg) {
  * @returns {{fra:string|null, til:string|null}}
  */
 export function legEnds(leg) {
+  // Stoppestedets id når spørringen fikk lov å be om den (`ider`-trinnet i
+  // `fetchTrip`), ellers null — og da matches det på navn som før.
+  const id = p => (p && p.quay && p.quay.stopPlace && p.quay.stopPlace.id) || null;
   return {
     fra: (leg && leg.fromPlace && leg.fromPlace.name) || null,
     til: (leg && leg.toPlace && leg.toPlace.name) || null,
+    fraId: id(leg && leg.fromPlace),
+    tilId: id(leg && leg.toPlace),
   };
 }
 
@@ -252,6 +257,11 @@ export function adaptTripPattern(tp) {
        * Jernbanetorget · spor 13», der spor 13 står på Oslo S. */
       av:        legEnds(leg).til,
       på:        legEnds(legs[i + 1]).fra,
+      /* BLI SITTENDE, OG GARANTERT. Fra `interchangeTo` på etappen du går
+       * AV — byttet hører til den. `false` både når OTP sier nei og når
+       * feltet ikke ble spurt om; skjermen skal da oppføre seg som før. */
+      blisittende: !!(leg.interchangeTo && leg.interchangeTo.staySeated),
+      garantert:   !!(leg.interchangeTo && leg.interchangeTo.guaranteed),
       gåMin:     gangMellom[i] == null ? null : gangMellom[i],
       // Alias for `av`. Lesere fra før denne utgaven bruker navnet, og det
       // betyr fortsatt det samme: der du går av.
@@ -275,6 +285,29 @@ export function adaptTripPattern(tp) {
       // `fromEstimatedCall` and reads the answer: the call you BOARD at is the
       // one whose cancellation makes this row useless to you.
       cancellation:          !!(first.fromEstimatedCall && first.fromEstimatedCall.cancellation),
+      /* OG OM REISEN HENGER SAMMEN.
+       *
+       * `cancellation` over er påstigningen din, og tavla stryker raden på
+       * den. Men `fromEstimatedCall{cancellation}` hentes for HVER etappe,
+       * og bare den første ble lest: en innstilt videreforbindelse sto i
+       * svaret og nådde aldri skjermen.
+       *
+       * Et eget felt og ikke en utvidelse av `cancellation`, fordi det er et
+       * annet faktum: avgangen du går på GÅR. Å stryke den ville vært like
+       * usant som å tie om bruddet. `{etappe, sted}` — hvilken etappe, og
+       * hvor den ryker — så skjermen kan si det med navn. */
+      _brudd:                (() => {
+        for (let i = 0; i < legs.length; i++) {
+          const l = legs[i];
+          if (i > 0 && l.fromEstimatedCall && l.fromEstimatedCall.cancellation) {
+            return { etappe: i, sted: legEnds(l).fra };
+          }
+          if (l.toEstimatedCall && l.toEstimatedCall.cancellation) {
+            return { etappe: i, sted: legEnds(l).til };
+          }
+        }
+        return null;
+      })(),
       destinationDisplay:    { frontText: lastAny.toPlace.name || last.toPlace.name },
       quay:                  { publicCode: (first.fromEstimatedCall && first.fromEstimatedCall.quay && first.fromEstimatedCall.quay.publicCode) || '?' },
       serviceJourney: {

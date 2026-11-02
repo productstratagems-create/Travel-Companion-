@@ -305,7 +305,8 @@ alle andre tilgjengelighetsfelt er også `UNKNOWN`.
 OpenStreetMap via Overpass kom ikke gjennom: `overpass-api.de` åpnet
 tunnelen og lukket den etter TLS-håndtrykket (proxyen:
 `ws_closed_mid_exchange`, 517 B sendt, 39 B mottatt), og speilene `lz4.` og
-`z.` svarte 403. **OSM-geometrien er altså ikke sett.** NVDB svarte, og er en
+`z.` svarte 403. OSM-geometrien ble derfor sett senere samme dag, gjennom en
+annen kanal (se *Bekreftet med OpenStreetMap* under). NVDB svarte, og er en
 uavhengig, offentlig kilde:
 
 ```
@@ -328,6 +329,69 @@ annet sted beviser fortsatt ingenting for kommunal gate.
 
 **Konklusjon: omveien er virkeligheten, ikke en kartfeil.** Det trygge og
 lovlige er gangfeltet ca 22 m unna, slik ruteplanleggeren sier.
+
+### Bekreftet med OpenStreetMap (2026-11-02)
+
+`overpass-api.de` svarte fortsatt ikke (`curl: (35) Connection reset by
+peer`), og speilene `overpass.kumi.systems`, `overpass.private.coffee` og
+`maps.mail.ru` ble avvist av proxyen. Etter at nettverkstilgangen ble åpnet
+svarte OSMs eget API. Det gir de samme rådataene som Overpass, bare uten
+filter, så filtreringen er gjort lokalt:
+
+```
+GET api.openstreetmap.org/api/0.6/map.json?bbox=10.74906,59.91105,10.75050,59.91178
+    HTTP 200, 1 193 777 B   (ca ±40 m rundt midtpunktet mellom A og B)
+    User-Agent travelcompanion-probe/1.0, ingen andre headere
+
+Kvaiene i OSM
+  way  164358718  public_transport=platform  area=yes  name="Jernbanetorget A"  ref=A  bus=yes
+  node 4966196395 highway=bus_stop  public_transport=platform  ref:nsrq=7203   0,0 m fra A
+  way  93471919   public_transport=platform  railway=platform  area=yes  ref=B  tram=yes
+  rel  2192151    public_transport=stop_area  "Jernbanetorget"  (A, B og C som platform)
+
+Det linja A–B (5,73 m) krysser, i rekkefølge fra A
+  0,03 m  way 265866629  barrier=kerb  kerb=raised          (kanten på plattform A)
+  1,93 m  way 5898089    highway=unclassified  name=Jernbanetorget  bus=yes
+                         motor_vehicle=no  oneway=yes  lanes=1  width=3
+                         sidewalk:left=no  sidewalk:right=separate
+  3,52 m  way 265866631  barrier=kerb  kerb=raised          (kanten på plattform B)
+  3,85 m  way 265866635  barrier=guard_rail  73,5 m lang, langs hele plattform B,
+                         deler ingen noder med noen annen vei (ingen åpning)
+
+Ingen highway=crossing, footway=crossing eller annen gangvei mellom A og B.
+
+Korteste lovlige gangvei mellom plattformkantene (Dijkstra lokalt, footway,
+pedestrian, crossing og plattformer; samme svar med kjøreveg tillatt): 30,7 m
+  261259717  highway=footway  footway=sidewalk          (fra plattform A)
+  666375433  highway=pedestrian  name="Karl Johans gate"
+  264635428  footway=crossing  crossing=zebra  over way 5898089 ved
+     node 428858197  highway=crossing  crossing=traffic_signals
+                     traffic_signals:sound=yes  :vibration=yes  tactile_paving=yes
+                     ca 28 m fra A og B
+  264635432  footway=crossing  name="Karl Johans gate"
+  261259711  highway=footway                             (til plattform B)
+```
+
+Rekkefølgen er nøyaktig den samme som Journey Planners `steps`: «Jernbanetorget
+A» (område) → «fortau» → «Karl Johans gate» → «gangvei» → «Plattform B». De
+30,7 m mellom plattformkantene, pluss strekningen fra kvaipunktet til kanten
+på hver side, gir de 63 m. Signalkrysset i OSM, node 428858197, ligger ca 3 m
+fra punktet 59.91119, 10.74949 der Journey Planners rute går. Det er altså
+samme gangfelt som NVDB 1014289376. At NVDB sier ca 22 m og OSM ca 28 m,
+kommer av at de måler fra ulike referansepunkt (vegreferanse på senterlinja
+mot krysningsnoden). Det er ikke to forskjellige gangfelt.
+
+**OSM bekrefter omveien, og den er strengere enn NVDB.** Mellom A og B ligger
+et bussfelt med hevet kantstein på begge sider, og et 73,5 m langt rekkverk
+langs plattform B. Det finnes ingen gangforbindelse på tvers. Den lovlige veien
+går om signalkrysset ved Karl Johans gate.
+
+Dette kan ikke verifiseres herfra: at rekkverket står der i dag. OSM-data er
+lagt inn av frivillige. Rekkverket (way 265866635, v2) ble sist endret
+2017-07-12, og kantsteinen på B-siden (265866631, v1) 2014-03-12. Bussfeltet
+(5898089, v22) ble endret 2026-08-20, så noen har vært i området nylig, men det
+sier ingenting om rekkverket. Bare et skjermbilde eller noen på stedet kan
+bekrefte det.
 
 ### Bygget: omveien med ord
 

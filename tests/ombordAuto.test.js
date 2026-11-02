@@ -245,3 +245,45 @@ describe('gangtid i fart', () => {
     expect(strip('src/views/board.js')).toMatch(/let html = gangGjelder\(fartNå\(\), state\.walkFromLL !== null\) \? ''\s*: '<div class="i-fart-notis">' \+ esc\(I_FART_NOTIS\)/);
   });
 });
+
+/* ── GANGLINJA PÅ KARTET I FART ─────────────────────────────────────────
+ *
+ * v1.202.0 sluttet å stryke rader på gangtid i fart, men kartet tegnet
+ * fortsatt den prikkede ganglinja fra deg til stoppet — et råd om å gå fra
+ * en buss. Samme regel som radene: `gangGjelder`.
+ *
+ * Gange som er en del av REISEN — fra avstigning til mål, eller en reise
+ * som bare er gange — er ikke berørt. Den er ikke et spørsmål om hvor du
+ * står.
+ */
+describe('ganglinja fra deg til stoppet', () => {
+  const strip = f => require('node:fs').readFileSync(f, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+  it('auto-reise ber ikke om den i fart', () => {
+    expect(strip('src/views/auto.js'))
+      .toMatch(/ensureApproach\(gangGjelder\(fartNå\(\), state\.walkFromLL !== null\) \? userPos : null, _stop\)/);
+  });
+
+  it('og avgangsdetaljene tegner den ikke i fart', () => {
+    const s = strip('src/views/selected.js');
+    const i = s.indexOf('drawWalk(_selLayer, [[userPos.lat, userPos.lon], [board.lat, board.lon]])');
+    expect(i).toBeGreaterThan(0);
+    // Og at `if`-en BRUKER svaret. Første utgave så bare at uttrykket stod
+    // like før streken — mutanten som lot `if`-en ignorere det overlevde.
+    expect(s.slice(i - 300, i)).toMatch(/const gå = gangGjelder\(fartNå\(\), state\.walkFromLL !== null\);\s*if \(gå && board/);
+  });
+
+  it('og tavla er dekket av isWalkActive, som alt sjekker farten', () => {
+    expect(strip('src/views/board.js')).toMatch(/_ensureApproach\(isWalkActive\(dir\) \?/);
+  });
+
+  /* Og en tom forespørsel tømmer linja — ellers ville den forrige stått
+   * igjen på kartet fra før du gikk på. */
+  it('og «ingen» tømmer en linje som alt var hentet', async () => {
+    const { ensureApproach, approachPoints, approachKey } = await import('../src/api/approach.js');
+    ensureApproach(null, { lat: 59.9, lon: 10.7 });
+    expect(approachPoints()).toBeNull();
+    expect(approachKey()).toBeNull();
+  });
+});

@@ -254,6 +254,105 @@ ikke leserens etterspørsel. Utsatt til noen sier at de trenger det.
 
 ---
 
+## Undersøkt: gangen mellom to plattformer (2026-11-02)
+
+Rapportert med skjermbilde: på byttet buss 74 → trikk 12 på Jernbanetorget
+tegner appen Journey Planners gangetappe som en omvei via Karl Johans gate,
+mellom to plattformer som ligger nesten vegg i vegg. Spørsmålet var om Entur
+har bedre data for gang mellom plattformer. **Svaret er nei.** Alt under er
+rå svar fra tjenestene, hentet med ET-Client-Name; ingenting er fra
+hukommelsen.
+
+### Hva som er målt
+
+```
+74 av   plattform A   NSR:Quay:7203   59.911425, 10.749736   (StopPlace 4000, buss)
+12 på   plattform B   NSR:Quay:7210   59.911401, 10.749827   (StopPlace 4004, trikk)
+
+Journey Planner v3, ekte reise Ekeberghallen → Aker brygge, linje 74 og 12:
+  gang A → B   distance 63.05 m   duration 71 s   pointsOnLink 11 punkter, 64 m
+  luftlinje kvai → kvai   5.7 m   →   11× lengre
+  steps: «Jernbanetorget A» (område) 16 m → «fortau» 12 m
+         → venstre «Karl Johans gate» 6 m → venstre «gangvei» 12 m → «Plattform B» 16 m
+```
+
+| kilde | hva den har | gangforbindelser? |
+|---|---|---|
+| NeTEx-eksporten av stoppestedsregisteret, hele landet (`Current_latest.zip`, 58 007 StopPlace) | alt registeret har | **0** PathLink, NavigationPath, AccessSpace, PathJunction, SiteConnection |
+| Samme, Oslo (`03_Oslo_latest.zip`) | | **0** av hver |
+| Stop Place Register read API (`stop-places/v1/read`) | skjemaet har `SitePathLinks`, `NavigationPaths`, `AccessSpaces` | tomme for Jernbanetorget (58366, 4000, 4004) og Oslo S (59872). Ingen egen path-link-ressurs |
+| Transit-data v1beta (GraphQL og MCP, 18 verktøy) | kvaier: kode, koordinat, beskrivelse, `wheelchairAccessible`, keyValues | ingen typer for det. Nærmest: `QuayAtDistance`, som er luftlinje |
+| Journey Planner v3 | gangetappens form og **`steps`** (`PathGuidance`: distance, relativeDirection, heading, streetName, area, bogusName, …) | rutet i OpenStreetMap, ikke i registeret |
+| Håndbok N801 v2.0, §4.7.5 | viser videre: «Datakrav for ganglenker … er beskrevet i NeTEx profil Norge» | profilen (Confluence) var ikke tilgjengelig herfra |
+
+Det registeret faktisk sier om dette byttet: buss-stoppestedet (4000) og
+trikkestoppestedet (4004) peker på hverandre med `adjacentSites` og
+`weighting: INTERCHANGE_ALLOWED`, altså at byttet er lov, ikke hvor langt
+det er. Trinnfri adkomst er `stepFreeAccess: "UNKNOWN"` på alle kvaiene, og
+alle andre tilgjengelighetsfelt er også `UNKNOWN`.
+
+### Hva det betyr
+
+- **En probe mot Entur for gangforbindelser har ingenting å hente.** Feltene
+  finnes i modellen og er tomme i hele landet.
+- **Omveien kan være riktig.** N801 §4.7.4.1 plasserer en buss- eller
+  trikkekvai der ledelinja krysser fortauskanten, så A og B er to
+  kantpunkter 5,7 m fra hverandre. Det er omtrent bredden på et kjørefelt
+  eller et spor. I OSM er A et område og B en egen strek uten direkte
+  forbindelse. Om det er et hull i kartet eller et spor man ikke skal krysse,
+  kan bare OSM-geometrien (Overpass) eller noen på stedet avgjøre. **En rett
+  strek i appen før det er avgjort kan lede folk over sporet.**
+- **`steps` er ubrukt.** Appen spør ikke etter dem. De kunne forklart omveien
+  med ord («via Karl Johans gate») framfor at byttelinja bare sier «ca 60 m».
+  Feltet er ikke prøvd i appen.
+
+### Neste steg
+
+Slå opp OSM via Overpass rundt A og B (spor, gangfelt, `barrier`, plattform-
+geometri), og NVDB objekttype 174 «Gangfelt» som uavhengig kilde. NVDB har
+registreringsplikt bare på europa-, riks- og fylkesveg, så et tomt svar
+beviser ingenting for kommunal gate. Byttedommen (`transferMargin`) skal stå
+urørt uansett utfall.
+
+---
+
+## Vurdert: innendørsnavigasjon med landemerker
+
+Et eksternt forslag (2026-11-02): led brukeren gjennom store knutepunkter som
+en kjede av gjenkjennelige landemerker (trapp, heis, hall, skilt), med
+bekreftelse ved viktige punkter («Jeg er her») framfor kontinuerlig
+posisjon. Mellom punktene skal skrittelling (PDR) anslå framdriften, og
+appen skal si fra når den ikke lenger vet hvor brukeren er.
+
+**Det som passer:** kjernen er appens egen holdning. «Sist bekreftede
+punkt», «anslått» og «Det ser ut som du har tatt en annen vei» er en
+tillitsgrad, ikke en ny idé — et fjortende vokabular, *bekreftet · anslått ·
+ukjent*.
+
+**Det som bærer alt, og som ikke finnes:** en graf over stasjonen. Entur har
+modellen (PathLink, NavigationPath, AccessSpace) men 0 slike objekter i hele
+landet, se over. Uten den er dette et kartleggingsprosjekt med evig
+vedlikehold, ikke et appprosjekt. Lages grafen for hånd, bør den skrives i
+NeTEx- eller GTFS Pathways-format, ikke et eget.
+
+**Det en nettapp kan:** manuell bekreftelse, ja. Skrittelling finnes ikke
+som API i nettleseren og må regnes fra rå akselerometerdata, med eget
+samtykke på iPhone. NFC fra nettleseren finnes ikke på iPhone. Forslagets
+«start med A og D» er i praksis A alene.
+
+**Kartbiblioteker vurdert:** ingen gir bedre data. MapLibre-tillegg for
+etasjer finnes (`maplibre-gl-indoorequal`, AGPL; `maplibre-gl-indoor`, MIT),
+men appen bruker Leaflet, og problemet er dataene, ikke visningen. Valhalla,
+som appen alt bruker, skal ifølge OSM-wikien forstå `highway=corridor`;
+hvor godt Oslo S er kartlagt innendørs i OSM er ikke sjekket.
+
+**PULL:** P og U, ja — et bytte er en frist. L er ikke testet. Det eneste
+signalet så langt gjaldt et bytte på 10 m utendørs, og det er et
+datakvalitetsspørsmål, ikke et innendørsspørsmål. Utsatt til noen har
+mistet et bytte fordi de ikke fant veien *inne* på stasjonen.
+
+---
+
 ## Forbeholdet
 
 Vurderingen sier det om seg selv, og det gjelder dette dokumentet også:

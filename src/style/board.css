@@ -181,6 +181,9 @@
      the zoom buttons and the attribution drew straight through the menu —
      it looked transparent and was merely underneath. The app's own scale
      tops out at 500 (base.css), so 1100 clears both. */
+  /* `top` og `right` er en FALLBACK. `toggleBoardMenu(knapp)` setter dem
+     under knappen som åpnet menyen; som installert app ligger headeren lavere
+     enn 4.2rem, og menyen la seg oppå ⋮-knappen. */
   position:fixed;top:4.2rem;right:1rem;z-index:1100;
   min-width:13rem;max-width:calc(100vw - 2rem);
   box-shadow:0 8px 28px rgba(0,0,0,.35);

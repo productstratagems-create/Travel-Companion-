@@ -95,6 +95,11 @@ export const KINDS = {
   kilde: ['svarte', 'hvorfor', 'stopp'],
   kart: ['handling'],
   gaa: ['minutter', 'grunnlag'],
+  // Tilbudet «ser ut som du er på …» (api/ombord.js): hva dommen sa, hvilke
+  // linjer, og om det ble vist, tatt eller avvist. Tersklene der er valgt av
+  // resonnement; dette er målingen som kan flytte dem. Bare felt som alt står
+  // i FIELD_LABELS, så «alt som lagres vises» holder.
+  ombord: ['svarte', 'linje', 'handling'],
 };
 
 function _load() {

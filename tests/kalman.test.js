@@ -370,3 +370,50 @@ describe('spørsmålet posState stilles, bygges ett sted', () => {
     expect(geo.slice(i, i + 600)).toMatch(/framskrevet: framskrevetPos\(/);
   });
 });
+
+/* ── ET OPPSLAG SKAL IKKE ENDRE SVARET ──────────────────────────────────
+ *
+ * `framskrevetPos` kalte `prediker(_filter, t)` på det DELTE filteret, og
+ * `prediker` endrer det. Hvert kall la på minst `MIN_DT_S` prosesstøy, også
+ * når ingen tid hadde gått. Målt i v1.198.0: 300 kall på samme tidspunkt ga
+ * ±252 m der ett kall ga ±13 m. En skjerm som spurte ofte, gjorde seg selv
+ * usikker.
+ */
+import { framskriv } from '../src/kalman.js';
+
+describe('framskriv — se framover uten å flytte filteret', () => {
+  const lag = () => {
+    const f = nyttFilter({ lat: 59.9, lon: 10.7, at: 1_000_000, acc: 10 });
+    for (let i = 1; i <= 5; i++) oppdater(f, { lat: 59.9 + i * 1e-4, lon: 10.7, at: 1_000_000 + i * 1000, acc: 10 });
+    return f;
+  };
+
+  it('gir samme svar hvor mange ganger den spørres', () => {
+    const f = lag(), t = 1_006_000;
+    const første = framskriv(f, t);
+    let siste; for (let i = 0; i < 300; i++) siste = framskriv(f, t);
+    expect(siste.sigmaM).toBeCloseTo(første.sigmaM, 6);
+  });
+
+  it('og rører ikke filteret', () => {
+    const f = lag();
+    const før = JSON.stringify(f);
+    framskriv(f, 1_060_000);
+    expect(JSON.stringify(f)).toBe(før);
+  });
+
+  it('og svarer det samme som én prediker på en kopi', () => {
+    const f = lag(), t = 1_020_000;
+    expect(framskriv(f, t)).toEqual(anslag(prediker(lag(), t)));
+  });
+
+  it('og begge leserne i geo.js bruker den', () => {
+    const geo = fs.readFileSync('src/geo.js', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    expect(geo).not.toMatch(/prediker\(_filter/);
+    const i = geo.indexOf('export function framskrevetPos');
+    expect(geo.slice(i, i + 300)).toMatch(/framskriv\(_filter, t\)/);
+    const j = geo.indexOf('export function fartNå');
+    expect(geo.slice(j, j + 300)).toMatch(/framskriv\(_filter, t\)/);
+  });
+});

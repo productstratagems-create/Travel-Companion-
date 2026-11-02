@@ -229,3 +229,21 @@ export function anslag(f) {
     at: f.at,
   };
 }
+
+/**
+ * Hvor filteret tror du er ved `nå` — UTEN å flytte filteret dit.
+ *
+ * `prediker` endrer filteret, og legger på minst `MIN_DT_S` prosesstøy per
+ * kall, også når ingen tid har gått. Det er riktig mellom to fikser. Det er
+ * feil for et OPPSLAG: `framskrevetPos` kalte `prediker(_filter, t)` på det
+ * delte filteret, og en skjerm som spurte 300 ganger på samme tidspunkt
+ * fikk ±252 m der ett kall ga ±13 m. Målt i v1.198.0.
+ *
+ * Her regnes det på en kopi. Bare `oppdater`, med en ekte fiks, flytter
+ * filteret.
+ */
+export function framskriv(f, nå) {
+  if (!f) return null;
+  const kopi = { ...f, anker: { ...f.anker }, ø: { ...f.ø }, n: { ...f.n } };
+  return anslag(prediker(kopi, nå));
+}

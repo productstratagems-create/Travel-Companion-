@@ -255,6 +255,40 @@
    This block replaces the old .s-next-dep nudge, which was a second answer to
    «what is the next departure», read off a different list. */
 .cta-row{display:flex;gap:.5rem;align-items:stretch}
+/* KNAPPENE SOM FØRER VIDERE ER ALLTID SYNLIGE. Rapportert med skjermbilde:
+   med kartet utvidet (72vh) lå «← 23:18 · andre avganger · 23:33 →» halvveis
+   under bunnmenyen — målt 87 px under, og 478 px før du skrollet i det hele
+   tatt. Raden står der den alltid har stått, men når den ellers ville
+   havnet under menyen, legger den seg rett over den (`sticky`).
+   `display:contents` på #s-ctas er det som gjør det mulig: en sticky boks
+   holder seg innenfor forelderen sin, og #s-ctas er bare så høy som
+   knappene selv. Uten egen boks er forelderen hele skjermen.
+   z-index over kartets egne lag (Leaflet 400–1000) — ellers ville kartet
+   tegnes oppå raden mens det glir forbi.
+   Båndet går kant til kant (−1rem, som det utvidede kartet): smalere, og
+   kartet og zoomknappene stakk ut på hver side i skjermbildet. Bakgrunnen er
+   sidens egen gradient, festet til skjermen (som stripa over statuslinja i
+   base.css): usynlig der raden står av seg selv, helt dekkende når kartet
+   glir under den. En flat farge viste seg som et mørkere bånd, og menyens
+   .97 lot zoomknappene skimte gjennom i lys modus. */
+#s-ctas{display:contents}
+#s-ctas > .cta-row{
+  position:sticky;z-index:1001;
+  bottom:var(--cta-bunn,env(safe-area-inset-bottom,0px));
+  margin:0 -1rem;padding:.5rem 1rem;
+  background:var(--bg-gradient);background-attachment:fixed;
+}
+body.app-nav-visible #s-ctas > .cta-row{
+  --cta-bunn:calc(var(--app-nav-h) + env(safe-area-inset-bottom,0px));
+}
+/* Reisebrikken ligger over menyen når en reise er i gang; raden legger seg
+   over begge. Samme høyde (`--jny-chip-h`) som `.wrap` holder fri. */
+body.jny-chip-visible #s-ctas > .cta-row{
+  --cta-bunn:calc(var(--jny-chip-h) + env(safe-area-inset-bottom,0px));
+}
+body.app-nav-visible.jny-chip-visible #s-ctas > .cta-row{
+  --cta-bunn:calc(var(--app-nav-h) + var(--jny-chip-h) + env(safe-area-inset-bottom,0px));
+}
 /* Equal horizontal padding on all three, and that is load-bearing rather
    than tidiness: flex-basis:0 is floored at the element's own padding box, so
    «reis» with 17.6px sides and the steps with 6.4px measured 128 / 107 / 107

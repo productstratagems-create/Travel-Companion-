@@ -17,6 +17,19 @@ html,body{
   -webkit-font-smoothing:antialiased;
 }
 body{padding:max(1rem,env(safe-area-inset-top)) 1rem max(1.5rem,env(safe-area-inset-bottom))}
+/* STATUSLINJAS FELT ER IKKE VÅRT. Rapportert med skjermbilde: reiseløpets
+   tekst sto oppå klokka og batteriet. Appen er `viewport-fit=cover` med
+   `black-translucent`, så telefonen tegner statuslinja OPPÅ siden — og
+   polstringen over holder feltet fritt bare før du skroller. Skroll, og alt
+   glir inn under. Denne stripa ligger fast over feltet med sidens egen
+   bakgrunn (`fixed`, så gradienten treffer piksel for piksel), over kartets
+   kontroller (1000) og under menyene (1100). Null høyde uten hakk. */
+body::before{
+  content:'';position:fixed;top:0;left:0;right:0;
+  height:env(safe-area-inset-top,0px);
+  z-index:1050;pointer-events:none;
+  background:var(--bg-gradient);background-attachment:fixed;
+}
 .wrap{max-width:34rem;margin:0 auto}
 
 /* ── TYPE SCALE ── */

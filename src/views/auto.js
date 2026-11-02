@@ -28,6 +28,11 @@ import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, VANE_MARK
   from '../api/smart.js';
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
+import { ombord, reiseMeta } from '../api/ombord.js';
+import { _interpolateVehiclePos, _interpolateOnPath } from '../api/forventetPos.js';
+import { journeyShapeCached } from '../api/entur.js';
+import { joinJourney } from '../journey.js';
+import { logEvent } from '../api/eventLog.js';
 import { loadConsent } from '../api/consent.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { approach } from '../trail.js';
@@ -38,7 +43,7 @@ import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
-import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, userLL, minsToLeave, reachCls, posState, posNå } from '../geo.js';
+import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, userLL, minsToLeave, reachCls, posState, posNå, fartNå } from '../geo.js';
 import L from 'leaflet';
 import { createMap, drawWalk, userDot, drawStopLine } from '../ui/map.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
@@ -741,6 +746,20 @@ let _truncated = false;
 /** This stop's own traffic messages — auto-reise threw them away entirely. */
 let _alerts = [];
 let _dirs = [];        // groupDirections output for _stop
+/* DE RÅ KALLENE fra siste tavlesvar, også de som har gått.
+ *
+ * `groupDirections` kaster avganger som har forlatt stoppet — riktig for
+ * lista, feil for spørsmålet «sitter du på en av dem»: bussen du er på har
+ * nettopp forlatt stoppet du passerte. Og de NULLSTILLES IKKE når «du er
+ * ved» bytter stopp. Om bord bytter den ved hvert stopp; en kandidatliste
+ * som fulgte `_dirs` ville tømt seg hver gang og latt tilbudet blinke av og
+ * på. Hvert kall bærer hele turens stopp, så forventet posisjon kan regnes
+ * fra dem til neste tavlesvar erstatter dem. */
+let _rå = [];
+/** Turer du har sagt nei til denne økten. Et × skal ikke komme tilbake. */
+const _avvistOmbord = new Set();
+/** Hva som sist ble logget, så loggen får én linje per tilbud og ikke én per sekund. */
+let _ombordLogget = null;
 let _open = null;      // the direction whose stops are showing
 
 function _el(id) { return document.getElementById(id); }
@@ -1287,6 +1306,103 @@ function _posState() {
 }
 
 
+/**
+ * Sitter du på en av avgangene fra tavla? Dommen er `api/ombord.js`; her
+ * samles kandidatene og forventet posisjon ved hvert fikstidspunkt.
+ *
+ * Linjeformen når den alt er hentet (`journeyShapeCached`), ellers mellom
+ * stoppene. Ingen ny forespørsel: et tilbud er ikke verdt en.
+ */
+export function ombordKandidater(kall, spor, avvist) {
+  const sett = new Map();
+  (kall || []).forEach(c => {
+    const sj = c && c.serviceJourney;
+    if (!sj || !sj.id || sett.has(sj.id)) return;
+    if (erInnstilt(c) || (avvist && avvist.has(sj.id))) return;
+    const stopp = sj.estimatedCalls;
+    if (!Array.isArray(stopp) || stopp.length < 2) return;
+    const form = journeyShapeCached(sj.id);
+    const pos = at => (Array.isArray(form) && form.length >= 2
+      ? _interpolateOnPath(stopp, at, form) : _interpolateVehiclePos(stopp, at));
+    sett.set(sj.id, {
+      nøkkel: sj.id,
+      linje: (sj.line && sj.line.publicCode) || '?',
+      farge: (sj.line && sj.line.presentation && sj.line.presentation.colour) || null,
+      front: (c.destinationDisplay && c.destinationDisplay.frontText) || '',
+      call: c,
+      forventet: (spor || []).map(f => {
+        const p = pos(f.at);
+        return { at: f.at, lat: p ? p.lat : null, lon: p ? p.lon : null };
+      }),
+    });
+  });
+  return [...sett.values()];
+}
+
+/**
+ * Tilbudet, som HTML. Tomt for `vet-ikke` — da er skjermen nøyaktig som før.
+ *
+ * Et TILBUD: én knapp, «følg reisen», og en ×. Ved tvil én knapp per
+ * kandidat, og ingen er valgt for deg.
+ */
+export function ombordKortHtml(dom, nå) {
+  if (!dom || (dom.kind !== 'ombord' && dom.kind !== 'ombord-tvil')) return '';
+  const linje = k => {
+    const meta = reiseMeta(k.call, nå);
+    const neste = meta && meta.calls[1] ? meta.calls[1].name : null;
+    return '<button class="ombord-valg" type="button" data-jid="' + esc(k.nøkkel) + '"'
+      + ' aria-label="Følg reisen med ' + esc(k.linje) + ' mot ' + esc(k.front)
+      + (neste ? ', neste stopp ' + esc(neste) : '') + '">'
+      + badgeHtml({ code: k.linje, colour: k.farge })
+      + '<span class="ombord-front">mot ' + esc(k.front) + '</span>'
+      + (neste ? '<span class="ombord-neste">neste: ' + esc(neste) + '</span>' : '')
+      + '</button>';
+  };
+  const tittel = dom.kind === 'ombord' ? 'ser ut som du er på' : 'du er på en av disse';
+  return '<div class="ombord-kort" role="group" aria-label="' + tittel + '">'
+    + '<div class="ombord-topp"><span class="set-label">' + tittel + '</span>'
+    + '<button class="ombord-x" type="button" aria-label="Nei, ikke på noen av disse">×</button></div>'
+    + dom.kandidater.map(linje).join('')
+    + '<div class="ombord-hint">trykk for å følge reisen</div>'
+    + '</div>';
+}
+
+function _renderOmbord() {
+  const el = _el('auto-ombord');
+  if (!el) return;
+  const nå = Date.now();
+  const spor = state.posTrail || [];
+  const dom = ombord({ spor, fartMS: fartNå(nå), kandidater: ombordKandidater(_rå, spor, _avvistOmbord) });
+  const html = ombordKortHtml(dom, nå);
+  el.style.display = html ? '' : 'none';
+  el.innerHTML = html;
+  if (!html) return;
+  // Én linje i loggen per tilbud, ikke én per sekund.
+  const nøkkel = dom.kandidater.map(k => k.nøkkel).join('|');
+  if (nøkkel !== _ombordLogget) {
+    _ombordLogget = nøkkel;
+    logEvent('ombord', { svarte: dom.kind, linje: dom.kandidater.map(k => k.linje).join(','), handling: 'vist' }, null);
+  }
+  el.querySelectorAll('.ombord-valg').forEach(b => b.addEventListener('click', () => {
+    const k = dom.kandidater.find(x => x.nøkkel === b.dataset.jid);
+    const meta = k && reiseMeta(k.call, Date.now());
+    if (!meta || meta.calls.length < 2) return;
+    logEvent('ombord', { svarte: dom.kind, linje: k.linje, handling: 'tatt' }, null);
+    // Mot vanemålet ditt når denne turen går dit, ellers til endestasjonen.
+    // Samme navneoppskrift som resten av appen.
+    const mål = predictDest();
+    const idx = mål && mål.toName
+      ? meta.calls.findIndex((c, i) => i > 0 && stopKey(c.name) === stopKey(mål.toName)) : -1;
+    joinJourney(meta, idx > 0 ? idx : meta.calls.length - 1);
+  }));
+  const x = el.querySelector('.ombord-x');
+  if (x) x.addEventListener('click', () => {
+    dom.kandidater.forEach(k => _avvistOmbord.add(k.nøkkel));
+    logEvent('ombord', { svarte: dom.kind, linje: dom.kandidater.map(k => k.linje).join(','), handling: 'avvist' }, null);
+    _renderOmbord();
+  });
+}
+
 function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
@@ -1692,6 +1808,7 @@ function _load() {
   fetchBoard({ key: 'custom-out', from: _stop.name, stopId: _stop.id, to: '', line: null, filter: null },
     (stop) => {
       _dirs = groupDirections(stop.estimatedCalls || []);
+      _rå = stop.estimatedCalls || [];
       // Keep WHERE each message hung. This screen has done it right since
       // v1.137.0 — by writing the loop out here. It was the fourth copy of
       // one loop, and two of the four had lost the origin entirely; the
@@ -3018,6 +3135,8 @@ export function renderAuto() {
     otherWord: { one: 'melding om en annen linje', many: 'meldinger om andre linjer' },
   });
   renderRouteShortcuts('auto-fav-routes', 2);
+  // Før «du er ved»: sitter du på noe, er det det første spørsmålet.
+  _renderOmbord();
   _renderWhere();
   // After _renderWhere, which is what settles _stop for this tick — the map
   // draws the stop the heading names, never the one it named last second.

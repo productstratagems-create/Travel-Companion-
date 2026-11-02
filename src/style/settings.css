@@ -618,6 +618,33 @@
    beholder kanten den alltid har hatt; den svake er tydelig svakere, slik at
    forskjellen kan ses uten å telles. */
 #v-auto .auto-usual-sterk { border-color: rgba(var(--accent-rgb), .55); }
+
+/* «Ser ut som du er på» — et tilbud, så det skal se ut som et valg og ikke
+   som en melding. Samme knappeform som radene under, aksentkant fordi det er
+   det første spørsmålet når svaret er ja. */
+#v-auto .ombord-kort {
+  border: 1px solid rgba(var(--accent-rgb), .45);
+  border-radius: 8px; padding: .55rem .65rem .5rem;
+  background: rgba(var(--accent-rgb), .06);
+  /* Luft før «du er ved». Uten den sto overskriften klistret til kortets
+     kant — sett i nettleserprøven. */
+  margin-bottom: .75rem;
+}
+#v-auto .ombord-topp { display: flex; align-items: center; justify-content: space-between; }
+#v-auto .ombord-x {
+  min-width: 44px; min-height: 44px; margin: -10px -10px -10px 0;
+  background: none; border: 0; color: var(--text-muted); font-size: 20px; cursor: pointer;
+}
+#v-auto .ombord-valg {
+  display: flex; align-items: center; gap: .55rem; width: 100%;
+  min-height: 44px; margin-top: .25rem; padding: .35rem .5rem;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid rgba(var(--border-rgb), .2); border-radius: 6px;
+  font: inherit; text-align: left; cursor: pointer;
+}
+#v-auto .ombord-front { font-weight: 700; }
+#v-auto .ombord-neste { margin-left: auto; font-size: .75rem; color: var(--text-muted); white-space: nowrap; }
+#v-auto .ombord-hint { margin-top: .35rem; font-size: 10px; letter-spacing: .08em; color: var(--text-muted); }
 #v-auto .auto-usual-svak  { border-color: rgba(var(--accent-rgb), .22); }
 /* «før» er ikke en svakere «vanlig nå» — det er en annen setning, om en vane
    du har sluttet med. Derfor ikke aksentfargen i enda en styrke, men den

@@ -1,7 +1,7 @@
 import { findStop, stopKey } from './stopId.js';
 import { CENTRE } from './api/centre.js';
 import { state } from './state.js';
-import { nyttFilter, oppdater, prediker, anslag, FRAMSKRIV_MAKS_MS } from './kalman.js';
+import { nyttFilter, oppdater, framskriv, anslag, FRAMSKRIV_MAKS_MS } from './kalman.js';
 import { ACC_GATE, POS_STALE_MS, gpsErrorKind, fixJump } from './position.js';
 import { pushFix } from './trail.js';
 import config from './config.js';
@@ -719,8 +719,25 @@ export function framskrevetPos(nå) {
   if (!_filter) return null;
   const t = Number.isFinite(nå) ? nå : Date.now();
   if (t - _filter.at > FRAMSKRIV_MAKS_MS) return null;
-  const a = anslag(prediker(_filter, t));
+  // `framskriv`, ikke `prediker`: et oppslag skal ikke flytte filteret.
+  const a = framskriv(_filter, t);
   return a && { lat: a.lat, lon: a.lon, sigmaM: Math.round(a.sigmaM), at: t };
+}
+
+/**
+ * Hvor fort du beveger deg, i m/s — eller null.
+ *
+ * Fra SAMME filter som `framskrevetPos`, så posisjonen og farten skjermen
+ * dømmer på ikke kan være uenige. `null` utenfor framskrivingsvinduet: et
+ * gammelt estimat sier ikke noe om nå. Auto-reise bruker den til å avgjøre
+ * om «du er ved» i det hele tatt er riktig spørsmål (`api/ombord.js`).
+ */
+export function fartNå(nå) {
+  if (!_filter) return null;
+  const t = Number.isFinite(nå) ? nå : Date.now();
+  if (t - _filter.at > FRAMSKRIV_MAKS_MS) return null;
+  const a = framskriv(_filter, t);
+  return a && Number.isFinite(a.fartMS) ? a.fartMS : null;
 }
 
 export function locateUser(onFound, onFail) {

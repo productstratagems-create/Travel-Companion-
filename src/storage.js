@@ -29,7 +29,10 @@ const ALL_KEYS = [
   // was noticed by hand. Every one is personal, and t.homeLL is the one that
   // matters: the privacy page promises the app does not track you, so a
   // remembered position has to die with the profile that made it.
-  't.destPeek', 't.freqArr', 't.freqDep', 't.homeLL', 't.palette', 't.walkDist',
+  't.destPeek', 't.freqArr', 't.freqDep', 't.homeLL', 't.palette', 't.walkDist2',
+  // Legacy: avstander målt langs omveier før v1.207.0. Ingen skriver den
+  // lenger; listet så en verdi som ble liggende slettes med profilen.
+  't.walkDist',
   // What the app remembers about the last seven days, and whether it was
   // allowed to. The log can hold coordinates, so it is the single most
   // personal key here — and it belongs in this list for exactly the reason

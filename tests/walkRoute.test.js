@@ -46,14 +46,28 @@ describe('fetchWalkRoute — what "safe" is asked for', () => {
     expect(body.costing_options.pedestrian).toEqual(WALK_COSTING);
   });
 
-  it('prefers walkways and pavements, and penalises stairs and alleys', async () => {
+  /* KORTESTE VEI (v1.207.0). Rapportert: «Rutevalget for gange velger ikke
+   * korteste gangvei», med et skjermbilde av en omvei gjennom boliggatene.
+   *
+   * Denne testen krevde før `walkway_factor > 1` og `alley_factor < 1`, under
+   * overskriften «prefers walkways … penalises alleys». I Valhalla er
+   * faktorene kostnadsmultiplikatorer: over 1 gjør en vei DYRERE. Testen
+   * låste altså det motsatte av det den sa — gangveier unngått, smug og
+   * innkjørsler foretrukket — og sto grønn. Måleinstrumentet bar feilen. */
+  it('ber om korteste vei', async () => {
     const { WALK_COSTING } = await import('../src/api/route.js');
-    expect(WALK_COSTING.walkway_factor).toBeGreaterThan(1);
-    expect(WALK_COSTING.sidewalk_factor).toBeGreaterThan(1);
-    expect(WALK_COSTING.alley_factor).toBeLessThan(1);
-    expect(WALK_COSTING.driveway_factor).toBeLessThan(1);
-    expect(WALK_COSTING.step_penalty).toBeGreaterThan(0);
+    expect(WALK_COSTING.shortest).toBe(true);
     expect(WALK_COSTING.use_ferry).toBe(0);
+  });
+
+  it('og gjør ikke gangveier dyrere eller smug billigere', async () => {
+    const { WALK_COSTING } = await import('../src/api/route.js');
+    for (const f of ['walkway_factor', 'sidewalk_factor']) {
+      expect(WALK_COSTING[f] == null || WALK_COSTING[f] <= 1, f).toBe(true);
+    }
+    for (const f of ['alley_factor', 'driveway_factor']) {
+      expect(WALK_COSTING[f] == null || WALK_COSTING[f] >= 1, f).toBe(true);
+    }
   });
 });
 

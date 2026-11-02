@@ -80,3 +80,31 @@ describe('the round trip', () => {
     expect(getWalkDist(A, B, CROW)).toBeNull();
   });
 });
+
+/* ── AVSTANDER MÅLT LANGS OMVEIENE GLEMMES ──────────────────────────────
+ *
+ * Til og med v1.206.0 ba appen Valhalla om å UNNGÅ gangveier (faktorene var
+ * snudd). Avstandene som ble lagret er målt langs de omveiene, og de styrer
+ * «14 min gange» og hvilke avganger som strykes. Ny nøkkel: de gamle leses
+ * ikke igjen. */
+describe('nøkkelen etter v1.207.0', () => {
+  it('leser ikke avstander lagret under den gamle nøkkelen', async () => {
+    const { getWalkDist, saveWalkDist } = await import('../src/api/walkDist.js');
+    localStorage.clear();
+    localStorage.setItem('__activeProfile', 'default');
+    const a = { lat: 59.85, lon: 10.80 }, b = { lat: 59.852, lon: 10.81 };
+    saveWalkDist(a, b, [[a.lat, a.lon], [59.851, 10.805], [b.lat, b.lon]], 600);
+    const ny = localStorage.getItem('default::t.walkDist2');
+    expect(ny).toBeTruthy();
+    // Flytt det som ble lagret til den gamle nøkkelen: det skal ikke leses.
+    localStorage.setItem('default::t.walkDist', ny);
+    localStorage.removeItem('default::t.walkDist2');
+    expect(getWalkDist(a, b, 600)).toBeNull();
+  });
+
+  it('og den gamle nøkkelen slettes fortsatt med profilen', () => {
+    const src = require('node:fs').readFileSync('src/storage.js', 'utf8');
+    expect(src).toMatch(/'t\.walkDist'/);
+    expect(src).toMatch(/'t\.walkDist2'/);
+  });
+});

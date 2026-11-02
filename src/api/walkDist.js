@@ -22,7 +22,11 @@
 import { storage } from '../storage.js';
 import { measurePath } from '../ui/path.js';
 
-const KEY = 't.walkDist';
+/* `2` fra v1.207.0. Avstandene under den gamle nøkkelen er målt langs
+ * ruter der Valhalla var bedt om å UNNGÅ gangveier (se `WALK_COSTING`), og
+ * de styrte «N min gange» og hva som ble strøket. De leses ikke igjen; den
+ * gamle nøkkelen slettes fortsatt med profilen (`ALL_KEYS`). */
+const KEY = 't.walkDist2';
 const MAX_ENTRIES = 24;
 
 /**

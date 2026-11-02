@@ -4,7 +4,8 @@ import { normJid } from '../api/queries.js';
 import { stopKey } from '../stopId.js';
 import { clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL, fartNå } from '../geo.js';
+import { gangGjelder } from '../api/ombord.js';
 import { _headingDeg } from '../ui/path.js';
 import { fetchJourneyMeta } from '../api/entur.js';
 import { quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
@@ -539,7 +540,10 @@ function _renderSelMap(dep, fromName, toName, now) {
     // to a platform is not in the trip response — we ask from a stop id on
     // purpose (v1.4.1) — so a drawn path here would be invented.
     const board = legs[0] && legs[0].stops && legs[0].stops[0];
-    if (board && board.lat != null && board.lon != null) {
+    // Ikke i fart: en strek fra deg til påstigningen er et råd om å gå.
+    // Samme regel som tavla og auto-reise (`gangGjelder`).
+    const gå = gangGjelder(fartNå(), state.walkFromLL !== null);
+    if (gå && board && board.lat != null && board.lon != null) {
       drawWalk(_selLayer, [[userPos.lat, userPos.lon], [board.lat, board.lon]]);
       pts.push([userPos.lat, userPos.lon], [board.lat, board.lon]);
     }

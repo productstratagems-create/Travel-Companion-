@@ -1619,7 +1619,13 @@ function _renderMap() {
   // The walk, from the one cache that owns it. The board reads the same
   // points from the same module, so the two screens cannot draw different
   // routes between the same two places.
-  if (userPos && _stop) ensureApproach(userPos, _stop);
+  //
+  // IKKE I FART. Ganglinja fra deg til stoppet er et råd om å gå, og fra en
+  // buss er det feil råd. Samme regel som radene (`gangGjelder`, v1.202.0);
+  // `null` tømmer en linje som alt var hentet før du gikk på.
+  if (userPos && _stop) {
+    ensureApproach(gangGjelder(fartNå(), state.walkFromLL !== null) ? userPos : null, _stop);
+  }
   const walkPts = approachPoints();
 
   // WHEN A DIRECTION IS OPEN THE MAP IS ABOUT THE LINE, NOT THE NEIGHBOURHOOD.

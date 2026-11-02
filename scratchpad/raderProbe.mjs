@@ -104,13 +104,17 @@ async function run(scheme, påBussen) {
       duErVed: hvor ? hvor.textContent.replace(/\s+/g, ' ').trim().slice(0, 50) : null,
       notis: (document.querySelector('#auto-body .i-fart-notis') || {}).textContent || null,
       strøket: document.querySelectorAll('#auto-body .auto-dir .missed').length,
+      // Ganglinja er en stiplet polyline på kartet. Telles som stier med
+      // dasharray, utenom stoppenes egne prikker.
+      ganglinje: Array.from(document.querySelectorAll('#auto-map path'))
+        .filter(p => p.getAttribute('stroke-dasharray')).length,
     };
   });
   console.log('\n══ ' + (påBussen ? 'på bussen' : 'til fots') + ' · ' + scheme);
   console.log('   kort: ' + (m.kort || '(ingen)'));
   console.log('   over «du er ved»: ' + m.over + ' · knapper: ' + m.knapper + ' · høyde ' + m.høyde + ' px');
   console.log('   du er ved: ' + m.duErVed);
-  console.log('   notis: ' + (m.notis || '(ingen)') + ' · strøkne tider: ' + m.strøket);
+  console.log('   notis: ' + (m.notis || '(ingen)') + ' · strøkne tider: ' + m.strøket + ' · stiplede linjer: ' + m.ganglinje);
   const f = path.join(ROOT, 'scratchpad', 'rader-' + (påBussen ? 'fart' : 'gaa') + '-' + scheme + '.png');
   await page.screenshot({ path: f });
   console.log('   → ' + f);

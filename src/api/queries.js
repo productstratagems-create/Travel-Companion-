@@ -163,6 +163,13 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
     // Optional by design: every consumer falls back to stop-to-stop points,
     // and fetchTrip retries without the optional fields if the API objects.
     + (minimal ? '' : ' pointsOnLink{points length}')
+    /* GANGVEIENS STEG, for å si HVOR en omvei går («om Karl Johans gate»).
+     * Ingen probe: feltet (`Leg.steps`, typen `PathGuidance`) ble spurt om
+     * mot det ekte API-et 2026-11-02 og svarte med data — fem steg for byttet
+     * Jernbanetorget A → B. Det droppes likevel i den minimale nødspørringen,
+     * som alt annet tavla klarer seg uten. Tapet er dagens oppførsel: linja
+     * sier avstanden, ikke gata. */
+    + (minimal ? '' : ' steps{streetName bogusName area distance relativeDirection}')
     // The one set of situations that is certainly about this journey.
     + (minimal ? '' : ' ' + sits)
     + ' serviceJourney{id line{id publicCode presentation{colour}}'

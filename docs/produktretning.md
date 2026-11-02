@@ -295,24 +295,59 @@ alle andre tilgjengelighetsfelt er også `UNKNOWN`.
 
 - **En probe mot Entur for gangforbindelser har ingenting å hente.** Feltene
   finnes i modellen og er tomme i hele landet.
-- **Omveien kan være riktig.** N801 §4.7.4.1 plasserer en buss- eller
-  trikkekvai der ledelinja krysser fortauskanten, så A og B er to
-  kantpunkter 5,7 m fra hverandre. Det er omtrent bredden på et kjørefelt
-  eller et spor. I OSM er A et område og B en egen strek uten direkte
-  forbindelse. Om det er et hull i kartet eller et spor man ikke skal krysse,
-  kan bare OSM-geometrien (Overpass) eller noen på stedet avgjøre. **En rett
-  strek i appen før det er avgjort kan lede folk over sporet.**
-- **`steps` er ubrukt.** Appen spør ikke etter dem. De kunne forklart omveien
-  med ord («via Karl Johans gate») framfor at byttelinja bare sier «ca 60 m».
-  Feltet er ikke prøvd i appen.
+- **Omveien er virkelig** — se NVDB under. N801 §4.7.4.1 plasserer en buss-
+  eller trikkekvai der ledelinja krysser fortauskanten, så A og B er to
+  kantpunkter 5,7 m fra hverandre, og mellom dem går en kjørebane. **En rett
+  strek i appen ville ledet folk over den.**
 
-### Neste steg
+### Avgjort med NVDB (2026-11-02)
 
-Slå opp OSM via Overpass rundt A og B (spor, gangfelt, `barrier`, plattform-
-geometri), og NVDB objekttype 174 «Gangfelt» som uavhengig kilde. NVDB har
-registreringsplikt bare på europa-, riks- og fylkesveg, så et tomt svar
-beviser ingenting for kommunal gate. Byttedommen (`transferMargin`) skal stå
-urørt uansett utfall.
+OpenStreetMap via Overpass kom ikke gjennom: `overpass-api.de` åpnet
+tunnelen og lukket den etter TLS-håndtrykket (proxyen:
+`ws_closed_mid_exchange`, 517 B sendt, 39 B mottatt), og speilene `lz4.` og
+`z.` svarte 403. **OSM-geometrien er altså ikke sett.** NVDB svarte, og er en
+uavhengig, offentlig kilde:
+
+```
+vegnett  /vegnett/api/v4/veglenkesekvenser/segmentert   HTTP 200, 15 segmenter
+  604012:0.629–0.832  Enkel bilveg  KV11926 S1D1 m340–449  felt ['2']
+    2,1 m fra A, 3,6 m fra B — senterlinja KRYSSER linja A–B (den eneste)
+
+174 Gangfelt  /vegobjekter/api/v4/vegobjekter/174         HTTP 200
+  1014289376  KV11926 m341  21,9 m fra A, 21,7 m fra B
+              lysregulert, skiltet, trafikkøy, nedsenket kantstein, eier kommune
+  1014292621  KV17110 m201  27,8 m fra A, 24,5 m fra B
+              lysregulert, trafikkøy, nedsenket kantstein, eier kommune
+  ingen gangfelt mellom A og B
+```
+
+Journey Planners gangrute går gjennom punktet 59.91119, 10.74949 — ved
+gangfeltet på KV11926 m341. Registreringsplikten i NVDB gjelder europa-,
+riks- og fylkesveg; her har kommunen registrert sine, men et tomt svar et
+annet sted beviser fortsatt ingenting for kommunal gate.
+
+**Konklusjon: omveien er virkeligheten, ikke en kartfeil.** Det trygge og
+lovlige er gangfeltet ca 22 m unna, slik ruteplanleggeren sier.
+
+### Bygget: omveien med ord
+
+Byttelinja i reiseløpet (`src/ui/reiselop.js`, `omvei()`) sier nå det appen
+vet, når gangveien er minst `OMVEI_FAKTOR` (3) ganger luftlinja og
+plattformene ligger nærmere enn `OMVEI_MAKS_LUFT_M` (100 m):
+
+> Bytte på Jernbanetorget · 3 min · gå 1 min (ca 60 m) til plattform B
+> Plattformene ligger ca 6 m fra hverandre, men gangveien går om Karl Johans gate.
+
+- Gatenavnet kommer fra `steps` (Journey Planner, `PathGuidance`), som
+  `tripGQL` nå spør om — uten probe, fordi feltet svarte mot det ekte API-et;
+  det droppes i den minimale nødspørringen. Oppdiktede navn (`bogusName`:
+  «fortau», «gangvei»), plasser (`area`), plattformer og stoppets eget navn
+  tas ikke med.
+- Uten steg: «… men gangveien er ca 60 m». Uten form eller koordinater:
+  ingenting — vi vet ikke.
+- **Ingen rett strek på kartet.** Byttedommen (`transferMargin`) er uendret.
+- Fikstur fra det ekte svaret i `tests/omvei.test.js`; nettleserprøven
+  `scratchpad/omveiProbe.mjs`.
 
 ---
 
@@ -347,8 +382,8 @@ som appen alt bruker, skal ifølge OSM-wikien forstå `highway=corridor`;
 hvor godt Oslo S er kartlagt innendørs i OSM er ikke sjekket.
 
 **PULL:** P og U, ja — et bytte er en frist. L er ikke testet. Det eneste
-signalet så langt gjaldt et bytte på 10 m utendørs, og det er et
-datakvalitetsspørsmål, ikke et innendørsspørsmål. Utsatt til noen har
+signalet så langt gjaldt et bytte på 10 m utendørs — og det viste seg å være
+en kjørebane med gangfelt 22 m unna, ikke et innendørsspørsmål. Utsatt til noen har
 mistet et bytte fordi de ikke fant veien *inne* på stasjonen.
 
 ---

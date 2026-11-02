@@ -275,6 +275,29 @@ export function adaptTripPattern(tp) {
       // `fromEstimatedCall` and reads the answer: the call you BOARD at is the
       // one whose cancellation makes this row useless to you.
       cancellation:          !!(first.fromEstimatedCall && first.fromEstimatedCall.cancellation),
+      /* OG OM REISEN HENGER SAMMEN.
+       *
+       * `cancellation` over er påstigningen din, og tavla stryker raden på
+       * den. Men `fromEstimatedCall{cancellation}` hentes for HVER etappe,
+       * og bare den første ble lest: en innstilt videreforbindelse sto i
+       * svaret og nådde aldri skjermen.
+       *
+       * Et eget felt og ikke en utvidelse av `cancellation`, fordi det er et
+       * annet faktum: avgangen du går på GÅR. Å stryke den ville vært like
+       * usant som å tie om bruddet. `{etappe, sted}` — hvilken etappe, og
+       * hvor den ryker — så skjermen kan si det med navn. */
+      _brudd:                (() => {
+        for (let i = 0; i < legs.length; i++) {
+          const l = legs[i];
+          if (i > 0 && l.fromEstimatedCall && l.fromEstimatedCall.cancellation) {
+            return { etappe: i, sted: legEnds(l).fra };
+          }
+          if (l.toEstimatedCall && l.toEstimatedCall.cancellation) {
+            return { etappe: i, sted: legEnds(l).til };
+          }
+        }
+        return null;
+      })(),
       destinationDisplay:    { frontText: lastAny.toPlace.name || last.toPlace.name },
       quay:                  { publicCode: (first.fromEstimatedCall && first.fromEstimatedCall.quay && first.fromEstimatedCall.quay.publicCode) || '?' },
       serviceJourney: {

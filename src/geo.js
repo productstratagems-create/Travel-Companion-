@@ -492,7 +492,7 @@ export function atPlace(a, b) {
   return haver(aLat, aLon, bLat, bLon) <= AT_PLACE_M;
 }
 
-export function findArr(calls, name) {
+export function findArr(calls, name, opt) {
   if (!calls || !name) return null;
   /* `stopKey`, IKKE EN EGEN OPPSKRIFT.
    *
@@ -506,7 +506,19 @@ export function findArr(calls, name) {
    * byttet kan ikke gjøre et treff til et bom — bare «Ryen T, Oslo» mot
    * «Ryen» fra et bom til et treff. */
   const n = stopKey(name);
-  for (let i = 0; i < calls.length; i++) {
+  const navnPå = c => (c && c.quay && c.quay.stopPlace && c.quay.stopPlace.name) || '';
+  /* ETTER PÅSTIGNINGEN. Det første kallet med riktig navn er feil svar når
+   * linja passerer stoppet to ganger: en sløyfe, eller en linje som snur.
+   * Da var ankomsten den FØR du gikk på — en tid i fortiden, og «gå av nå»
+   * ved et stopp du alt har passert. `etter` er påstigningsstedet; finnes
+   * det ikke blant kallene, letes det i hele lista som før. */
+  let fra = 0;
+  if (opt && opt.etter) {
+    const e = stopKey(opt.etter);
+    const j = calls.findIndex(c => stopKey(navnPå(c)) === e);
+    if (j !== -1) fra = j + 1;
+  }
+  for (let i = fra; i < calls.length; i++) {
     const nm = (calls[i].quay && calls[i].quay.stopPlace && calls[i].quay.stopPlace.name) || '';
     if (stopKey(nm) === n) return calls[i];
   }

@@ -1,3 +1,4 @@
+import { stopKey } from '../stopId.js';
 /**
  * What underveis knows about its own data — and when it knows nothing.
  *
@@ -139,8 +140,11 @@ export function legCancelled(calls, fromName, toName) {
     const sp = c && c.quay && c.quay.stopPlace;
     return (sp && sp.name) || (c && c.name) || '';
   };
-  const same = (a, b) => !!a && !!b
-    && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+  // `stopKey`, ikke `trim().toLowerCase()`. Den var oppskrift D i
+  // `stopId.js` sin liste over de fire v1.107.0 ryddet bort — og under D er
+  // «Ryen T» og «Ryen» to steder, så en innstilling på stoppet du venter på
+  // ble ikke funnet.
+  const same = (a, b) => !!a && !!b && stopKey(a) === stopKey(b);
 
   for (const c of list) {
     if (!c || !c.cancellation) continue;

@@ -138,7 +138,7 @@ export function legsFromTrip(c, dir) {
   } else {
     // Board route (single-leg, no trip planner)
     const sjc = sj && sj.estimatedCalls;
-    const arr = findArr(sjc, dir.to);
+    const arr = findArr(sjc, dir.to, { etter: dir.from });
     const arrT = arr && (arr.expectedArrivalTime || arr.aimedArrivalTime);
     const depT = c.expectedDepartureTime || c.aimedDepartureTime;
     legs.push({
@@ -177,7 +177,7 @@ export function doBoard() {
   let _toLon = c._toLon || null;
   if (!_toLat || !_toLon) {
     const sjc2 = c.serviceJourney && c.serviceJourney.estimatedCalls;
-    const arrCall = findArr(sjc2, dir.to);
+    const arrCall = findArr(sjc2, dir.to, { etter: dir.from });
     _toLat = (arrCall && arrCall.quay && arrCall.quay.stopPlace && arrCall.quay.stopPlace.latitude) || null;
     _toLon = (arrCall && arrCall.quay && arrCall.quay.stopPlace && arrCall.quay.stopPlace.longitude) || null;
   }

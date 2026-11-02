@@ -156,7 +156,10 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
     + ' estimatedCalls{quay{latitude longitude stopPlace{id name latitude longitude}}'
     + ' aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + ' fromEstimatedCall{expectedDepartureTime aimedDepartureTime realtime cancellation occupancyStatus quay{publicCode} destinationDisplay{frontText}}'
-    + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime quay{publicCode}}'
+    // `cancellation` på avstigningen: samme felt, samme type som
+    // `fromEstimatedCall` over, som har spurt om det i levert kode siden
+    // v1.106.0. Ingen probe — skjemaet har alt svart.
+    + ' toEstimatedCall{expectedArrivalTime aimedArrivalTime cancellation quay{publicCode}}'
     + '} } } }';
 }
 

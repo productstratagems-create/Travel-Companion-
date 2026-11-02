@@ -2496,7 +2496,7 @@ function _fetchTrack() {
       leg.cancelled = cx.cancelled;
       leg.cancelledAt = cx.at;
       // Update arrival time for this leg
-      const d = findArr(calls, leg.toStation);
+      const d = findArr(calls, leg.toStation, { etter: leg.fromStation });
       if (d) {
         const t = d.expectedArrivalTime || d.aimedArrivalTime;
         if (t) {
@@ -2551,7 +2551,7 @@ function _fetchTrack() {
               }
             }
             if (nxt.toStation) {
-              const arrStop = findArr(calls, nxt.toStation);
+              const arrStop = findArr(calls, nxt.toStation, { etter: nxt.fromStation });
               const at = arrStop && (arrStop.expectedArrivalTime || arrStop.aimedArrivalTime);
               if (at) {
                 nxt.arrTime = { time: at, clk: clk(at) };

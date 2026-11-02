@@ -3082,7 +3082,7 @@ export function renderBoard() {
     const delayMins = c.realtime ? Math.round((depTs - new Date(c.aimedDepartureTime).getTime()) / 60000) : 0;
     const delayed = delayMins > 1;
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
-    const arr = findArr(sjc, dir.to);
+    const arr = findArr(sjc, dir.to, { etter: dir.from });
     const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
     const mtl = walkActive ? mToLeave(depTs) : null;
     const rcls = walkActive ? reachCls(mtl) : null;
@@ -3217,10 +3217,13 @@ export function renderBoard() {
     const destPhrase = walkMins
       ? ' av på ' + dest + ' og ' + walkMins + ' min gange'
       : ' mot ' + dest;
-    const a11yLabel = departed
+    const bruddA11y = !c.cancellation && c._brudd
+      ? ', videreforbindelse innstilt' + (c._brudd.sted ? ' ved ' + c._brudd.sted : '') : '';
+    const a11yLabel0 = departed
       ? lc + destPhrase + ', gikk ' + agoMins + ' min siden'
         + (quay !== '?' ? ', spor ' + quay : '')
       : lc + destPhrase + ', avgang om ' + minsLabel + (quay !== '?' ? ', spor ' + quay : '');
+    const a11yLabel = a11yLabel0 + bruddA11y;
 
     const isClock = mins >= 60;
     html += '<div class="' + rowCls + '"'
@@ -3277,6 +3280,12 @@ export function renderBoard() {
       + (_atPlatform(c) ? '<span class="dep-tag dep-tag-at">står på perrongen</span>' : '')
       + (c.realtime === false ? '<span class="dep-tag dep-tag-soft">kun rutetid</span>' : '')
       + (c.cancellation ? '<span class="dep-cancelled">innstilt</span>' : '')
+      // Avgangen du går på GÅR, men reisen henger ikke sammen. Med sted, så
+      // det er en setning og ikke et varseltegn: hvor ryker det?
+      + (!c.cancellation && c._brudd
+        ? '<span class="dep-cancelled">videreforbindelse innstilt'
+          + (c._brudd.sted ? ' · ' + esc(c._brudd.sted) : '') + '</span>'
+        : '')
       + (tooEarlyForPlan ? '<span class="dep-cancelled">før forrige etappe</span>' : '')
       + '</div>'
       /* OG RADEN DU IKKE REKKER SIER DET.

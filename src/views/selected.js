@@ -16,7 +16,7 @@ import { shareLegCalendar, canOfferCalendar } from '../api/calShare.js';
 import { updatePlanCtx } from './plan.js';
 import { logMsg } from '../ui/log.js';
 import { esc } from '../ui/fmt.js';
-import { reiselop } from '../ui/reiselop.js';
+import { reiselop, kartPunkter, kartUtsnitt } from '../ui/reiselop.js';
 import { visStopp } from '../stopId.js';
 import { stoppestedKjent, hentStoppested } from '../api/stoppested.js';
 import { show } from '../ui/nav.js';
@@ -24,7 +24,7 @@ import { startBoard, boardRows } from './board.js';
 import { renderAlertsInto } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
-import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints, fitPadding } from '../ui/map.js';
+import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg, fitPadding } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
 import { makeVehicleIcon } from '../ui/mapIcons.js';
 import { departureVehicle, depLineRef, depMode, SRC_LABEL } from './trainPosition.js';
@@ -214,6 +214,37 @@ function _selWeatherHtml(arrT) {
 
 // ── Route map ────────────────────────────────────────────────
 let _selMap = null, _selLayer = null;
+/* Utsnittene radene i reiseløpet zoomer til (`kartUtsnitt`), satt når kartet
+ * tegnes. Fra de samme rå etappene som tabellen, så «e1» er samme etappe
+ * begge steder. */
+let _selGeo = null;
+/** Omtrent høyden på en permanent etikett over eller under et punkt. */
+const ETIKETT_PX = 30;
+
+/* RAD → KART (v1.209.0). Et trykk på en etappe eller et bytte i reiseløpet
+ * zoomer kartet dit — proven, det Google og Ruter gjør. ÉN delegert lytter:
+ * tabellen bygges på nytt ved hver oppfriskning, og en lytter per rad ville
+ * blitt borte med den. */
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', e => {
+    const rad = e.target && e.target.closest && e.target.closest('[data-rl]');
+    if (!rad || !_selMap || !_selGeo) return;
+    const k = rad.getAttribute('data-rl');
+    const geo = (k[0] === 'e' ? _selGeo.e : _selGeo.b)[Number(k.slice(1))];
+    if (!geo || !geo.length) return;
+    // Polstringen etter regelen, ikke et tall — mapVoice.test.js fanget
+    // `[40, 40]` her i første utgave.
+    const el = document.getElementById('sel-map');
+    // + ETIKETTENE. Et zoomet bytte har en etikett over og en under; uten
+    // plass til dem ble begge klippet av kartets kant — sett i prøven.
+    const pad = fitPadding(el ? el.clientHeight : 200) + ETIKETT_PX;
+    _selMap.fitBounds(geo, { padding: [pad, pad], maxZoom: 18, animate: true });
+    const alt = document.getElementById('sel-map-alt');
+    if (alt) alt.hidden = false;
+    const wrap = document.getElementById('sel-map-wrap');
+    if (wrap && wrap.scrollIntoView) wrap.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+}
 /* To variabler, og ikke flere: selve feeden bor i `api/vehicles.js`, så
  * denne fila slipper å holde en tredje kopi av luka board og track hadde. */
 let _selVehMarker = null, _selVehIconKey = null;
@@ -408,6 +439,23 @@ function _renderSelMap(dep, fromName, toName, now) {
   const pad = fitPadding(mapEl.clientHeight);
 
   _selLayer = L.layerGroup().addTo(_selMap);
+  _selGeo = kartUtsnitt(dep._allLegs || dep._legs);
+  // «Hele reisen»: tilbake fra et zoomet bytte. Skjult til en rad er trykket.
+  let alt = document.getElementById('sel-map-alt');
+  if (!alt) {
+    alt = document.createElement('button');
+    alt.id = 'sel-map-alt'; alt.type = 'button'; alt.className = 'sel-map-alt';
+    alt.textContent = 'hele reisen';
+    alt.addEventListener('click', () => {
+      if (_selMap && _selGeo && _selGeo.alt.length) {
+        const pad = fitPadding(mapEl.clientHeight);
+        _selMap.fitBounds(_selGeo.alt, { padding: [pad, pad], maxZoom: 15, animate: true });
+      }
+      alt.hidden = true;
+    });
+    wrap.appendChild(alt);
+  }
+  alt.hidden = true;
 
   const destIsVenue = dir._toLat && dir._toLon && !dir.toStopId;
   const pts = [];
@@ -459,35 +507,44 @@ function _renderSelMap(dep, fromName, toName, now) {
     // the frame. This screen is about ONE departure from X to Y, so the names
     // are the fact — «PÅ» and «AV» would say what the heading above already
     // says and lose the only thing the map adds.
-    stops.forEach((s, i) => {
-      pts.push([s.lat, s.lon]);
-      const isFirst = li === 0 && i === 0;
-      // When destination is a venue, the last transit stop is the alighting stop —
-      // render it as an intermediate stop, not the terminus, so the venue pin is distinct.
-      const isLast  = !destIsVenue && li === legs.length - 1 && i === stops.length - 1;
-      const isAlight = destIsVenue && li === legs.length - 1 && i === stops.length - 1;
-      if (!isFirst && !isLast && !isAlight) return;
-      const html = '<div style="background:' + (isLast ? tokens().accent : lc) + ';border:2px solid #fff;border-radius:50%;'
-        + 'width:14px;height:14px;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>';
-      L.marker([s.lat, s.lon], { icon: L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] }) })
-        .bindTooltip(s.name, { permanent: true, direction: isFirst ? 'bottom' : 'top', offset: [0, isFirst ? 8 : -10], className: 'sel-stop-label' })
-        .addTo(_selLayer);
-    });
+    stops.forEach(s => { pts.push([s.lat, s.lon]); });
   });
 
-  // AND THE CHANGE, which this screen marked with nothing at all.
-  //
-  // The board says «BYTT» and underveis says «BYTT»; here a two-leg departure
-  // simply changed colour mid-line and left the reader to infer where. The
-  // same rule and the same marker, fed the leg ends this screen holds.
-  drawJourneyPoints(_selLayer, journeyPoints(legs.map((lg, i) => ({
-    mode: lg.mode,
-    fromPlace: { name: lg.stops[0].name, latitude: lg.stops[0].lat, longitude: lg.stops[0].lon },
-    toPlace: { name: lg.stops[lg.stops.length - 1].name,
-      latitude: lg.stops[lg.stops.length - 1].lat, longitude: lg.stops[lg.stops.length - 1].lon },
-  }))).filter(p => p.kind === 'change'),
-  { colour: (legs[0] && legs[0].color) || tokens().accent,
-    project: ll => _selMap.latLngToContainerPoint(ll), minPoints: 1 });
+  /* PÅ, BYTT, AV — MED LINJE OG PLATTFORM (v1.209.0).
+   *
+   * Her sto navn bare på første og siste stopp, og byttet var en prikk
+   * uten ord. Nå sier hvert punkt hva du gjør der og hvor: «[18] bytt ·
+   * plattform E», på kvaiens egne koordinater. Fra de samme rå etappene som
+   * tabellen (`kartPunkter`), så kartet og tabellen sier det samme. */
+  kartPunkter(dep._allLegs || dep._legs).forEach(pk => {
+    const badge = pk.linje
+      ? '<span class="line-badge" style="background:' + esc(pk.farge) + '">' + esc(pk.linje) + '</span> '
+      : '';
+    const html = '<div class="sel-pkt sel-pkt-' + pk.kind + '"></div>';
+    L.marker([pk.lat, pk.lon], {
+      icon: L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] }),
+      zIndexOffset: 600,
+    })
+      .bindTooltip(badge + '<b>' + esc(pk.kind) + '</b> · ' + esc(pk.tekst), {
+        permanent: true, direction: pk.kind === 'av' ? 'bottom' : 'top',
+        offset: [0, pk.kind === 'av' ? 8 : -10], className: 'sel-stop-label sel-pkt-label',
+      })
+      .addTo(_selLayer);
+  });
+
+  /* ALL GANGE, IKKE BARE TIL ET STED (v1.209.0). Gangen ble tegnet bare
+   * når målet var et sted og ikke et stopp (`destIsVenue`), så gangen
+   * mellom to etapper — selve byttet — manglet på kartet. Fra reisens egne
+   * gangeetapper, ikke en ny spørring. */
+  const feet = (dep._allLegs || []).filter(l => l.mode === 'foot');
+  let drewFeet = false;
+  feet.forEach(leg => {
+    const wp = legShape(leg) || _legEnds(leg);
+    if (wp.length < 2) return;
+    drawWalk(_selLayer, wp);
+    pts.push(...wp);
+    drewFeet = true;
+  });
 
   // Walking extension to venue destination
   if (destIsVenue) {
@@ -512,15 +569,8 @@ function _renderSelMap(dep, fromName, toName, now) {
     // polyline decoder, and refitted the map inside the `.then` — racing the
     // synchronous `fitBounds` twenty lines below. Drawing what we already
     // have removes the query, the copy and the race together.
-    const feet = (dep._allLegs || []).filter(l => l.mode === 'foot');
-    let drew = false;
-    feet.forEach(leg => {
-      const wp = legShape(leg) || _legEnds(leg);
-      if (wp.length < 2) return;
-      drawWalk(_selLayer, wp);
-      pts.push(...wp);
-      drew = true;
-    });
+    // Gangeetappene er alt tegnet over, sammen med bytte-gangen.
+    const drew = drewFeet;
     // No foot leg in this response — an old cached board, or the minimal
     // retry that drops pointsOnLink from every leg. Say the walk exists
     // rather than leaving the pin unconnected.

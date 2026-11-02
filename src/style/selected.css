@@ -306,3 +306,17 @@
 .rl-dom{font-weight:700}
 .rl-stramt .rl-dom{color:var(--warn)}
 .rl-miss .rl-dom{color:var(--err)}
+
+/* ── KARTET I AVGANGSDETALJENE (v1.209.0) ─────────────────────────────── */
+.sel-pkt{width:14px;height:14px;border-radius:50%;border:2px solid #fff;
+  background:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.sel-pkt-av{background:var(--bg);border-color:var(--accent)}
+.sel-pkt-label .line-badge{font-size:10px;padding:0 .3rem;margin-right:.15rem;vertical-align:1px}
+.sel-pkt-label b{text-transform:uppercase;letter-spacing:.06em;font-size:10px}
+/* Trykkbare rader: et trykk zoomer kartet dit. */
+.reiselop [data-rl]{cursor:pointer}
+#sel-map-wrap{position:relative}
+.sel-map-alt{position:absolute;left:.6rem;top:.6rem;z-index:1000;
+  padding:.35rem .6rem;border-radius:6px;border:1px solid rgba(var(--border-rgb),.3);
+  background:var(--bg);color:var(--accent);font:inherit;font-size:11px;letter-spacing:.06em;cursor:pointer}
+.sel-map-alt[hidden]{display:none}

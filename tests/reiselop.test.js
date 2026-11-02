@@ -178,3 +178,76 @@ describe('resten av avgangsdetaljene', () => {
     expect(s).not.toMatch(/cleanName\(dir\.(from|to)\)\.toLowerCase\(\)/);
   });
 });
+
+/* ── KARTET (v1.209.0) ──────────────────────────────────────────────────
+ *
+ * Kartet hadde navn bare på første og siste stopp. Byttepunktet var en prikk
+ * uten ord, uten linje og uten plattform. Gangen mellom etappene ble bare
+ * tegnet når målet var et sted og ikke et stopp. Og tabellen og kartet var
+ * ikke koblet: et trykk på byttet gjorde ingenting.
+ */
+import { kartPunkter, kartUtsnitt } from '../src/ui/reiselop.js';
+
+describe('punktene på kartet', () => {
+  const p = () => kartPunkter(ALLE);
+  it('sier på, bytt og av — med linje og plattform', () => {
+    expect(p().map(x => x.kind)).toEqual(['på', 'av', 'bytt', 'av']);
+    expect(p()[0]).toMatchObject({ linje: '74', tekst: 'plattform B' });
+    expect(p()[2]).toMatchObject({ linje: '18', tekst: 'plattform E' });
+    expect(p()[3].tekst).toBe('Torshov');
+  });
+  /* Begge ender av byttet: der bussen setter deg av, og der trikken går. */
+  it('og der du går av midt i reisen, med linja og plattformen', () => {
+    expect(p()[1]).toMatchObject({ kind: 'av', linje: '74', tekst: 'plattform A' });
+  });
+  it('og står på kvaiens koordinater, ikke stoppets', () => {
+    expect(p()[2]).toMatchObject({ lat: 59.9123, lon: 10.7518 });
+  });
+});
+
+describe('utsnittene', () => {
+  const u = () => kartUtsnitt(ALLE);
+  it('ett per etappe og ett per bytte, i tabellens rekkefølge', () => {
+    expect(u().e).toHaveLength(2);
+    expect(u().b).toHaveLength(1);
+  });
+  /* Byttet er avstigningen, gangen og påstigningen — det du skal finne fram i. */
+  it('og byttet rammer inn gangen mellom de to', () => {
+    const b = u().b[0];
+    expect(b).toContainEqual([59.9116, 10.750]);
+    expect(b).toContainEqual([59.9119, 10.7509]);
+    expect(b).toContainEqual([59.9123, 10.7518]);
+  });
+  it('og hele reisen er alt', () => {
+    expect(u().alt.length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('radene peker på kartet', () => {
+  it('etapper og bytter bærer en nøkkel kartet forstår', () => {
+    const h = lag();
+    expect(h).toMatch(/data-rl="e0"/);
+    expect(h).toMatch(/data-rl="e1"/);
+    expect(h).toMatch(/data-rl="b0"/);
+  });
+});
+
+describe('kartet på avgangsdetaljene', () => {
+  const src = () => require('node:fs').readFileSync('src/views/selected.js', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  /* All gange, ikke bare når målet er et sted. */
+  it('tegner gangen mellom etappene uansett mål', () => {
+    const s = src();
+    const i = s.indexOf('if (destIsVenue) {', s.indexOf('function _renderSelMap'));
+    const venue = s.slice(i, s.indexOf('\n  }\n', i));
+    expect(venue).not.toMatch(/feet\.forEach/);
+    // Og listen er ALL gange, ikke filtrert på sted. Første utgave så bare
+    // hvor løkka stod; en mutant som filtrerte på `destIsVenue` overlevde.
+    expect(s).toMatch(/const feet = \(dep\._allLegs \|\| \[\]\)\.filter\(l => l\.mode === 'foot'\);/);
+    expect(s).toMatch(/kartPunkter\(/);
+  });
+  it('og et trykk på en rad zoomer kartet dit', () => {
+    expect(src()).toMatch(/closest\('\[data-rl\]'\)/);
+    expect(src()).toMatch(/_selMap\.fitBounds\(geo/);
+  });
+});

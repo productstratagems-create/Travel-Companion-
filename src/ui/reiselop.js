@@ -122,7 +122,7 @@ export function reiselop(alle, o) {
     const front = l.fromEstimatedCall && l.fromEstimatedCall.destinationDisplay
       && l.fromEstimatedCall.destinationDisplay.frontText;
     const n = _stopp(l);
-    deler.push('<div class="rl-etappe" style="--rl-farge:' + esc(farge) + '">'
+    deler.push('<div class="rl-etappe" data-rl="e' + k + '" style="--rl-farge:' + esc(farge) + '">'
       + '<div class="rl-stopp rl-på"><span class="rl-tid">' + tid(fra(l)) + '</span>'
       + '<span class="rl-navn"><b>' + esc(visStopp(e.fra)) + '</b>' + (påPl ? ' · ' + esc(påPl) : '') + '</span></div>'
       + '<div class="rl-linje"><span class="line-badge" style="background:' + esc(farge) + '">'
@@ -139,7 +139,7 @@ export function reiselop(alle, o) {
      * her — ikke en skillelinje OG en gangrad, som sa to ulike minutter. */
     if (l.interchangeTo && l.interchangeTo.staySeated) {
       const nl = neste.l.serviceJourney && neste.l.serviceJourney.line;
-      deler.push('<div class="rl-bytte rl-ok">Bli sittende på ' + esc(visStopp(e.til))
+      deler.push('<div class="rl-bytte rl-ok" data-rl="b' + k + '">Bli sittende på ' + esc(visStopp(e.til))
         + ' — fortsetter som ' + esc((nl && nl.publicCode) || '?') + '</div>');
       return;
     }
@@ -155,7 +155,7 @@ export function reiselop(alle, o) {
     const nyttSted = legEnds(neste.l).fra;
     const annetSted = nyttSted && stopKey(nyttSted) !== stopKey(e.til);
     const t = opt.tilgang ? opt.tilgang(_tilId(l)) : null;
-    deler.push('<div class="rl-bytte ' + (dom ? _DOM_KLASSE[dom] : '') + '">'
+    deler.push('<div class="rl-bytte ' + (dom ? _DOM_KLASSE[dom] : '') + '" data-rl="b' + k + '">'
       + 'Bytte på ' + esc(visStopp(e.til))
       + (vent != null ? ' · ' + vent + ' min' : '')
       + (gåMin ? ' · gå ' + gåMin + ' min' + (m ? ' (ca ' + m + ' m)' : '') : '')
@@ -176,4 +176,75 @@ export function reiselop(alle, o) {
       + ' til ' + esc(visStopp(opt.til || legEnds(etterGang[etterGang.length - 1]).til)) + '</div>');
   }
   return '<div class="reiselop">' + deler.join('') + '</div>';
+}
+
+/* ── KARTET (v1.209.0) ──────────────────────────────────────────────────
+ *
+ * Kartet hadde navn bare på første og siste stopp; byttepunktet var en prikk
+ * uten ord. Og tabellen og kartet var ikke koblet. Begge regnes fra de SAMME
+ * rå etappene som tabellen over, så «etappe 2» er samme etappe begge steder.
+ */
+const _ll = p => (p && Number.isFinite(p.latitude) && Number.isFinite(p.longitude)
+  ? [p.latitude, p.longitude] : null);
+
+/**
+ * På, bytt og av — med linje og plattform, på KVAIENS koordinater (en
+ * etappes `fromPlace` er kvaien, ikke stoppestedets midtpunkt).
+ * @returns {Array<{kind:'på'|'bytt'|'av', lat, lon, linje?, farge?, tekst}>}
+ */
+export function kartPunkter(alle) {
+  const kjør = (alle || []).filter(l => l && l.mode !== 'foot');
+  const ut = [];
+  kjør.forEach((l, k) => {
+    const p = _ll(l.fromPlace);
+    const line = (l.serviceJourney && l.serviceJourney.line) || {};
+    const farge = '#' + String((line.presentation && line.presentation.colour) || '7c2d12').replace(/^#/, '');
+    if (p) {
+      ut.push({ kind: k === 0 ? 'på' : 'bytt', lat: p[0], lon: p[1],
+        linje: line.publicCode || '?', farge,
+        tekst: plattformTekst(l.fromEstimatedCall && l.fromEstimatedCall.quay
+          && l.fromEstimatedCall.quay.publicCode, l.mode) || visStopp(legEnds(l).fra) });
+    }
+    /* OG DER DU GÅR AV — også midt i reisen. Uten det viste et zoomet bytte
+     * bare den ene enden: «bytt» der du går på, og ingenting der bussen
+     * setter deg av og gangen starter. Sett i nettleserprøven. */
+    const q = _ll(l.toPlace);
+    if (!q) return;
+    const siste = k === kjør.length - 1;
+    ut.push({ kind: 'av', lat: q[0], lon: q[1],
+      linje: siste ? undefined : (line.publicCode || '?'), farge: siste ? undefined : farge,
+      tekst: siste ? visStopp(legEnds(l).til)
+        : (plattformTekst(l.toEstimatedCall && l.toEstimatedCall.quay
+          && l.toEstimatedCall.quay.publicCode, l.mode) || visStopp(legEnds(l).til)) });
+  });
+  return ut;
+}
+
+/**
+ * Utsnittene en rad i tabellen zoomer til: ett per etappe (`e`), ett per
+ * bytte (`b`, avstigning + gange + påstigning), og hele reisen (`alt`).
+ * @returns {{e:Array<Array>, b:Array<Array>, alt:Array}}
+ */
+export function kartUtsnitt(alle) {
+  const legs = (alle || []).filter(Boolean);
+  const form = l => {
+    const p = legShape(l);
+    if (p && p.length >= 2) return p;
+    return [_ll(l.fromPlace), _ll(l.toPlace)].filter(Boolean);
+  };
+  const kjør = legs.map((l, i) => ({ l, i })).filter(x => x.l.mode !== 'foot');
+  const e = kjør.map(x => form(x.l));
+  const b = [];
+  kjør.forEach((x, k) => {
+    const n = kjør[k + 1];
+    if (!n) return;
+    const pts = [];
+    const av = _ll(x.l.toPlace); if (av) pts.push(av);
+    legs.slice(x.i + 1, n.i).forEach(g => form(g).forEach(p => pts.push(p)));
+    const på = _ll(n.l.fromPlace); if (på) pts.push(på);
+    b.push(pts);
+  });
+  const alt = [];
+  legs.forEach(l => form(l).forEach(p => alt.push(p)));
+  return { e, b, alt };
 }

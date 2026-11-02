@@ -218,6 +218,45 @@ export function _resetCoachProbe() { _coachRejected = false; }
  * and the cheapest to lose: without it the app is exactly where it was
  * yesterday.
  */
+/**
+ * Har Entur avvist flaggene for innstilte avganger i denne økten?
+ *
+ * ÉN DOM FOR ALLE SPØRRINGENE. Ingen spørring i appen ba om innstilte
+ * avganger (`includeCancelledTrips`, `includeRealtimeCancellations`), og
+ * Journey Planner utelater dem trolig da: et innstilt tog forsvinner bare.
+ * Navnene og standardverdiene kan ikke prøves herfra.
+ *
+ * Fire spørringer bruker `boardGQL`, og tre av dem har ingen stige —
+ * blant dem `fetchStopBoardSummary`, som auto-reise henter avganger med. Et
+ * avvist flagg der ville gitt en tom skjerm. Så: hver spør med flagget til
+ * én av dem får nei, og da spør ingen med det resten av økten. Ny økt,
+ * ny probe — den dagen Entur støtter det, virker det uten kodeendring.
+ *
+ * Droppes FØRST av alt i trip-stigen: tapet er nøyaktig dagens oppførsel.
+ */
+let _innstilteRejected = false;
+export function _innstilteRefused() { return _innstilteRejected; }
+/** `avvist = true` lar tester av stigen UNDER dette trinnet beskrive den som før. */
+export function _resetInnstilteProbe(avvist = false) { _innstilteRejected = !!avvist; }
+
+/**
+ * Spør med flagget, og uten om det avvises — for spørringer uten egen stige.
+ * `spør(flagg)` gir et løfte om tolket JSON (eller null).
+ */
+function _medInnstilte(spør) {
+  if (_innstilteRejected) return spør(false);
+  return spør(true).then(j => {
+    if (j && !j.data && j.errors) {
+      _innstilteRejected = true;
+      const why = j.errors[0] && j.errors[0].message
+        ? ' — ' + String(j.errors[0].message).slice(0, 160) : '';
+      logMsg('innstilte avganger: avvist, spør uten' + why, 'err');
+      return spør(false);
+    }
+    return j;
+  });
+}
+
 let _windowRejected = false;
 export function _windowRefused() { return _windowRejected; }
 export function _resetWindowProbe() { _windowRejected = false; }
@@ -243,20 +282,20 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
       const label = p => (p && typeof p === 'object') ? p.lat + ',' + p.lon : p;
       logMsg('trip → ' + label(fromId) + (viaId ? ' via ' + viaId : '') + ' → ' + label(toId));
-      const ask = (withLookback, withCoach, withWindow, withAffects) => enturFetch(config.api.journeyPlanner, {
+      const ask = (withLookback, withCoach, withWindow, withAffects, withInnstilte) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: withLookback
             ? tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? undefined : atMs,
-              false, false, withCoach, withWindow, withAffects)
+              false, false, withCoach, withWindow, withAffects, withInnstilte)
             // The retry deliberately drops dateTime: it is the argument that
             // could never be verified against the live API, so it is the one
             // the fallback exists to shed. The cost is real — this poll loses
             // the two-minute lookback, and with it a train standing at the
             // platform a minute late — so the diagnostic records that it
             // happened rather than trading a silent loss for a silent outage.
-            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow, withAffects),
+            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow, withAffects, withInnstilte),
         }),
         signal,
       })
@@ -292,29 +331,35 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
           // Affects goes first of all. Shedding it costs only how well the
           // messages are sorted; shedding any of the others costs departures.
           // The cheapest loss leads, as the comment above says.
+          // Innstilte reiser FØRST av alt: tapet er nøyaktig dagens oppførsel.
+          if (withInnstilte && !j.data && j.errors) {
+            _innstilteRejected = true;
+            logMsg('innstilte reiser: avvist, spør uten' + why, 'err');
+            return ask(withLookback, withCoach, withWindow, withAffects, false);
+          }
           if (withAffects && !j.data && j.errors) {
             _affectsRejected = true;
             logMsg('situasjoner: affects avvist, sorteres på herkomst' + why, 'err');
-            return ask(withLookback, withCoach, withWindow, false);
+            return ask(withLookback, withCoach, withWindow, false, withInnstilte);
           }
           if (withWindow && !j.data && j.errors) {
             _windowRejected = true;
             logMsg('søkevindu: searchWindow avvist' + why, 'err');
-            return ask(withLookback, withCoach, false, withAffects);
+            return ask(withLookback, withCoach, false, withAffects, withInnstilte);
           }
           if (withCoach && !j.data && j.errors) {
             _coachRejected = true;
             logMsg('ekspressbuss: coach avvist' + why, 'err');
-            return ask(withLookback, false, withWindow, withAffects);
+            return ask(withLookback, false, withWindow, withAffects, withInnstilte);
           }
           if (withLookback && !j.data && j.errors) {
             logMsg('trip: dateTime avvist, tilbakeblikket tapt denne pollen' + why, 'err');
             noteLookbackLost();
-            return ask(false, withCoach, withWindow, withAffects);
+            return ask(false, withCoach, withWindow, withAffects, withInnstilte);
           }
           return j;
         });
-      return ask(true, !_coachRejected, !_windowRejected, !_affectsRejected);
+      return ask(true, !_coachRejected, !_windowRejected, !_affectsRejected, !_innstilteRejected);
     })
     .then(j => {
       if (!j || signal.aborted) return;
@@ -410,16 +455,18 @@ export function fetchBoardPage(dir, atMs, n, onSuccess, onError) {
     .then(id => {
       if (signal.aborted) return null;
       // The window has to move with the horizon, not just the row count.
-      return enturFetch(config.api.journeyPlanner, {
+      // Med innstilte avganger, som `fetchBoard`: en side som la til rader
+      // tavla selv ikke hadde, ville vært to svar om samme stopp.
+      return _medInnstilte(innstilte => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: boardGQL(id, n || 12, atMs, false, 180) }),
+        body: JSON.stringify({ query: boardGQL(id, n || 12, atMs, false, 180, null, undefined, innstilte) }),
         signal,
       }).then(r => {
         if (!r || signal.aborted) return null;
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
-      });
+      }));
     })
     .then(j => {
       if (!j || signal.aborted) return;
@@ -454,6 +501,9 @@ export function fetchBoardPage(dir, atMs, n, onSuccess, onError) {
  * @returns {Promise<{earliest:number|null, n:number, quays:Object}|null>}
  */
 export function fetchStopBoardSummary(stopId, modes) {
+  /* UTEN innstilte avganger, med vilje. Dette er et SAMMENDRAG — `best` er
+   * tidligste avgang — og spørsmålet er «når går noe herfra». Et innstilt
+   * tog er ikke et svar på det, og med flagget ville det blitt `best`. */
   return enturFetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -568,6 +618,9 @@ export function _resetPerLineProbe() { _perLineRejected = false; }
  * @returns {Promise<number|null>} the departure time in ms, or null
  */
 export function fetchNextDeparture(dir, horizonMins) {
+  /* UTEN innstilte avganger, med vilje. Den ber om ÉN avgang og tar
+   * `calls[0]`; med flagget kunne «neste avgang 08:12» vært et tog som ikke
+   * går. Samme grunn som `fetchStopBoardSummary`. */
   return resolveStop(dir)
     .then(id => enturFetch(config.api.journeyPlanner, {
       method: 'POST',
@@ -615,11 +668,11 @@ export function fetchBoard(dir, onSuccess, onError, want, perLine) {
       //   1. per-line cap + full text
       //   2. no cap + full text
       //   3. no cap + basic text   (what this did before)
-      const ask = (wantPerLine, basic) => enturFetch(config.api.journeyPlanner, {
+      const ask = (wantPerLine, basic, innstilte = !_innstilteRejected) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: boardGQL(id, count, null, basic, null, null, wantPerLine || undefined),
+          query: boardGQL(id, count, null, basic, null, null, wantPerLine || undefined, innstilte),
         }),
         signal,
       })
@@ -632,6 +685,13 @@ export function fetchBoard(dir, onSuccess, onError, want, perLine) {
         .then(j => {
           if (!j || signal.aborted) return j;
           if (!j.data && j.errors) {
+            // Det nyeste og minst beviste faller først — samme regel som
+            // stigen alltid har fulgt. Tapet er dagens tavle.
+            if (innstilte) {
+              _innstilteRejected = true;
+              logMsg('board: innstilte avganger avvist, prøver uten', 'err');
+              return ask(wantPerLine, basic, false);
+            }
             if (wantPerLine) {
               // Remembered for the session, not for ever: a new load probes
               // again, so the day Entur supports it this starts working
@@ -640,11 +700,11 @@ export function fetchBoard(dir, onSuccess, onError, want, perLine) {
               // for the rest of the day.
               _perLineRejected = true;
               logMsg('board: per-linje-tak avvist, prøver uten', 'err');
-              return ask(0, basic);
+              return ask(0, basic, innstilte);
             }
             if (!basic) {
               logMsg('board: meldingstekst avvist, prøver uten', 'err');
-              return ask(0, true);
+              return ask(0, true, innstilte);
             }
           }
           return j;
@@ -669,7 +729,7 @@ export function fetchBoard(dir, onSuccess, onError, want, perLine) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             query: boardGQL(id, more, null, false, null, null,
-              _perLineRejected ? undefined : (perLine || undefined)),
+              _perLineRejected ? undefined : (perLine || undefined), !_innstilteRejected),
           }),
           signal,
         })

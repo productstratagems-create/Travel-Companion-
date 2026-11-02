@@ -92,7 +92,12 @@ describe('findJumpTarget — only where this stop actually goes', () => {
       })),
     ] },
   });
-  const dir = (front, names, nextMs, mins) => ({ frontText: front, nextMs, call: call(front, names, mins) });
+  // Med `calls`, formen `groupDirections` faktisk lager. Uten den fant
+  // `catchable` ingenting å nå, og testen falt på fiksturen (v1.196.0).
+  const dir = (front, names, nextMs, mins) => {
+    const c = call(front, names, mins);
+    return { frontText: front, nextMs, call: c, calls: [{ ms: nextMs, call: c, innstilt: false }] };
+  };
 
   const JBT = { name: 'Jernbanetorget', id: 'NSR:StopPlace:6' };
   const HEL = { name: 'Hellerud', id: 'NSR:StopPlace:7' };

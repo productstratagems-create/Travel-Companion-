@@ -1977,12 +1977,15 @@ export function nextRail(dirs, fromName, now, walkMins) {
   const metros = live.filter(d => dirRank(d) === railish);
   if (!metros.length) return null;
   if (!sameWayOut(metros, fromName, t)) return null;
-  const need = walkMins == null ? 0 : walkMins;
-  const catchable = metros
-    .map(d => ({ d, at: (d.times || []).find(ms => (ms - t) / MIN >= need) }))
+  /* `catchable`, IKKE EN EGEN KOPI. Her sto `times.find(ms => … >= need)`
+   * — regelen for «kan nås» skrevet en gang til, uten å spørre om
+   * avgangen gikk. Den åpnet en retning av seg selv for et tog som var
+   * innstilt. Én regel, så skjermen og valget ikke kan være uenige. */
+  const kan = metros
+    .map(d => ({ d, at: (catchable(d, walkMins, t)[0] || {}).ms }))
     .filter(x => x.at != null)
     .sort((a, b) => a.at - b.at);
-  return catchable.length ? catchable[0].d : null;
+  return kan.length ? kan[0].d : null;
 }
 
 
@@ -2900,7 +2903,11 @@ export function findJumpTarget(dirs, guess, fromName, now) {
   if (!guess || !guess.toName || !Array.isArray(dirs)) return null;
   const want = stopKey(guess.toName);
   const wantId = guess.toStopId || null;
-  const byTime = dirs.slice().sort((a, b) => a.nextMs - b.nextMs);
+  // Bare retninger med en avgang som GÅR. En der alt er innstilt har et
+  // `nextMs` — det tidligste innstilte — og ville ellers sendt deg mot målet
+  // via et tog som ikke kommer.
+  const byTime = dirs.filter(d => catchable(d, null, now).length)
+    .sort((a, b) => a.nextMs - b.nextMs);
   for (const d of byTime) {
     const stops = stopsAhead(d.call, fromName, now);
     const hit = stops.find(s => (wantId && s.id && s.id === wantId)

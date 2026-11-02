@@ -208,3 +208,83 @@ describe('legCancelled', () => {
     expect(fn.slice(0, fn.indexOf('\n}'))).toMatch(/stopKey\(/);
   });
 });
+
+/* ── DE TO STEDENE AUTO-REISE VELGER SELV ───────────────────────────────
+ *
+ * `nextRail` åpner en retning av seg selv når du står på stoppet, og
+ * `findJumpTarget` flytter deg mot vanemålet ditt. Begge sorterte på
+ * tidspunkt uten å spørre om avgangen gikk. `nextRail` hadde i tillegg sin
+ * EGEN kopi av regelen for «kan nås» (`times.find(...)`), ved siden av
+ * `catchable` — to regler for ett spørsmål.
+ */
+import { nextRail, findJumpTarget } from '../src/views/auto.js';
+
+describe('auto-reise velger aldri en innstilt retning selv', () => {
+  const metro = (front, m, innstilt) => kall(m, {
+    cancellation: innstilt,
+    destinationDisplay: { frontText: front },
+    serviceJourney: { id: 'sj' + front + m,
+      line: { id: 'RUT:Line:' + front, publicCode: '3', transportMode: 'metro' },
+      estimatedCalls: [
+        { quay: { stopPlace: { id: 'NSR:StopPlace:Ryen', name: 'Ryen' } },
+          aimedDepartureTime: new Date(NÅ + m * MIN).toISOString() },
+        { quay: { stopPlace: { id: 'NSR:StopPlace:' + front, name: front } },
+          aimedArrivalTime: new Date(NÅ + (m + 10) * MIN).toISOString() },
+      ] },
+  });
+
+  /* ÉN RETNING, ALT INNSTILT. Første utgave hadde en gående retning mot
+   * Vestli ved siden av, og besto — men fordi `sameWayOut` avviste to
+   * retninger som går hver sin vei, ikke fordi den innstilte ble sett.
+   * Grønn av feil grunn. Med én retning er innstilling det eneste som kan
+   * avgjøre. */
+  it('nextRail åpner ikke en retning der alt er innstilt', () => {
+    const dirs = groupDirections([metro('Kolsås', 2, true), metro('Kolsås', 4, true)], NÅ);
+    expect(dirs).toHaveLength(1);                     // instrumentet
+    expect(nextRail(dirs, 'Ryen', NÅ, null)).toBeNull();
+  });
+
+  it('og velger ikke den innstilte avgangen i en blandet retning', () => {
+    const dirs = groupDirections([metro('Kolsås', 2, true), metro('Kolsås', 12, false)], NÅ);
+    const src = require('node:fs').readFileSync('src/views/auto.js', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const fn = src.slice(src.indexOf('export function nextRail'));
+    // Én regel for «kan nås»: catchable, ikke en egen times.find.
+    expect(fn.slice(0, fn.indexOf('\n}'))).toMatch(/catchable\(/);
+    expect(fn.slice(0, fn.indexOf('\n}'))).not.toMatch(/times \|\| \[\]\)\.find/);
+    expect(nextRail(dirs, 'Ryen', NÅ, null)).toBeTruthy();
+  });
+
+  it('findJumpTarget går ikke via en retning der alt er innstilt', () => {
+    const dirs = groupDirections([metro('Kolsås', 2, true), metro('Kolsås', 30, true)], NÅ);
+    expect(findJumpTarget(dirs, { toName: 'Kolsås' }, 'Ryen', NÅ)).toBeNull();
+  });
+});
+
+/* ── TAVLA SIER BRUDDET, UTEN Å SKYVE BORT DET AVGJØRENDE ───────────────
+ *
+ * Første utgave la «videreforbindelse innstilt · Hauketo skole» inn som en
+ * EGEN tagg. På 414 px presset den destinasjonen ut av raden — sett i
+ * nettleserprøven, usynlig i hver test. Nå tar den plassen til «1 bytte».
+ */
+describe('tavlas rad', () => {
+  const src = () => require('node:fs').readFileSync('src/views/board.js', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+  it('sier «bytte innstilt» i stedet for byttetellingen, ikke ved siden av', () => {
+    const s = src();
+    const i = s.indexOf('bytte innstilt</span>');
+    expect(i).toBeGreaterThan(0);
+    // Samme uttrykk: et ternært valg mellom bruddet og tellingen.
+    const rundt = s.slice(i, i + 200);
+    expect(rundt).toMatch(/: \(xferCount \?/);
+  });
+
+  it('og skjermleseren får stedet', () => {
+    expect(src()).toMatch(/videreforbindelse innstilt' \+ \(c\._brudd\.sted \? ' ved '/);
+  });
+
+  it('og tavla bruker erInnstilt, ikke c.cancellation alene', () => {
+    expect(src()).toMatch(/const isCancelled = erInnstilt\(c\);/);
+  });
+});

@@ -134,7 +134,46 @@ export function closingRate(trail, target) {
  * away from would be a number with no meaning, and this app has shipped one of
  * those before.
  */
+/**
+ * Så mye avstanden må ha vokst fra bunnen før det er en passering, i meter.
+ *
+ * Over to fikser på ±10 m kan avstanden gå opp og ned med 20 m av støy alene.
+ * 25 m er over det, og under det en buss tilbakelegger på tre sekunder. Ikke
+ * målt på en ekte tur; samme forbehold som tallene i `api/ombord.js`.
+ */
+export const PASSERT_M = 25;
+
+/**
+ * Har sporet passert målet — bunnet ut og begynt å øke igjen?
+ *
+ * Endepunktene alene kan ikke se det. I 10 m/s spenner sporet 600 m, og et
+ * stopp passert midt i det gir lavere avstand ved slutten enn ved starten —
+ * «du nærmer deg den» om et stopp bak deg. Rapportert slik.
+ *
+ * Fiksenes egen usikkerhet legges til marginen, så to grove fikser ikke
+ * leses som en passering.
+ */
+function _passert(trail, target) {
+  let minI = -1, minD = Infinity;
+  const d = trail.map(f => metres(f, target));
+  d.forEach((x, i) => { if (x < minD) { minD = x; minI = i; } });
+  const sist = d.length - 1;
+  // Ligger bunnen på siste punkt, er differansen 0 og aldri over marginen —
+  // en egen vakt for det ble prøvd og var død kode (en ekvivalent mutant).
+  if (minI < 0) return false;
+  const acc = f => (f && Number.isFinite(f.acc) ? f.acc : 0);
+  const margin = Math.max(PASSERT_M, acc(trail[minI]) + acc(trail[sist]));
+  return d[sist] - minD > margin;
+}
+
 export function approach(trail, target) {
+  // Passert går foran endepunktsraten: den ser bare de to endene, og en
+  // passering midt i sporet er nettopp det de to endene skjuler.
+  if (Array.isArray(trail) && trail.length >= 2 && target
+    && Number.isFinite(target.lat) && Number.isFinite(target.lon)
+    && _passert(trail, target)) {
+    return { kind: 'fra', rate: closingRate(trail, target), etaS: null };
+  }
   const rate = closingRate(trail, target);
   if (rate == null) return { kind: 'vet-ikke', rate: null, etaS: null };
   if (Math.abs(rate) < STILL_MS) return { kind: 'staar', rate, etaS: null };

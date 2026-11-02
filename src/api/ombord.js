@@ -67,6 +67,24 @@ export function iFart(fartMS) {
   return Number.isFinite(fartMS) && fartMS >= OMBORD_MIN_FART_MS;
 }
 
+/**
+ * Gjelder gangtid til stoppet — eller sitter du på noe?
+ *
+ * I fart er «rekker du den til fots» et svar på et spørsmål ingen stilte.
+ * v1.199.0 rettet overskriften; radene strøk fortsatt avganger som «rekker
+ * ikke» ut fra at du GÅR til stoppet, også på bussen.
+ *
+ * En fast «gå fra»-plass (innstillinger) er ikke din GPS: den gjelder uansett
+ * hvor du er. Samme terskel som tilbudet og overskriften — `iFart`.
+ */
+export function gangGjelder(fartMS, harFastSted) {
+  return !!harFastSted || !iFart(fartMS);
+}
+
+/** Sagt over radene når gangtid ikke regnes. Ustrøkne rader uten forklaring
+ *  leses som at alt kan nås. Én tekst for tavla og auto-reise. */
+export const I_FART_NOTIS = 'i fart — viser ikke hva du rekker til fots';
+
 const _ok = f => f && Number.isFinite(f.lat) && Number.isFinite(f.lon) && Number.isFinite(f.at);
 
 /** Er fiksen presis nok til å være bevis? Ukjent `acc` regnes som ja. */

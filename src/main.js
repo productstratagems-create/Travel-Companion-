@@ -31,6 +31,7 @@ import config from './config.js';
 import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, saveDep, saveDest, setActiveRoute, loadActiveRoute } from './views/settings.js';
 import { getActiveProfile, storage } from './storage.js';
 import { state } from './state.js';
+import { nullstillVaneTelling } from './api/smart.js';
 
 const prefilledRoute = (function applyPrefillFromQuery() {
   const params = new URLSearchParams(window.location.search);
@@ -101,6 +102,11 @@ window._maybeReturnSwitch = maybeSwitchToReturn;
 
 const _vEl = document.getElementById('board-version');
 if (_vEl) _vEl.textContent = 'v' + __APP_VERSION__;
+
+// Først av alt, før noe leser vanene: tellingen byttet betydning i v1.202.0
+// (trykk → reiser), og de gamle tallene nullstilles én gang per profil. Et
+// profilbytte laster siden på nytt, så hver profil får sin egen.
+nullstillVaneTelling();
 
 initTheme();
 registerServiceWorker();

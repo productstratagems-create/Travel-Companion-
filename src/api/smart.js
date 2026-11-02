@@ -1,5 +1,5 @@
 import { storage } from '../storage.js';
-import { MEMORY_DAYS } from './eventLog.js';
+import { MEMORY_DAYS, logEvent } from './eventLog.js';
 import { eldes } from '../vane.js';
 
 const HIST_KEY = 't.smartHist';
@@ -68,6 +68,61 @@ export function tripCount(fromName, toName) {
     if (from && String(e.fromName || '').toLowerCase() !== from) return n;
     return n + (e.count || 0);
   }, 0);
+}
+
+/**
+ * En reise er startet — tell den. DEN ENE DØREN.
+ *
+ * Spurt: «Tellingen gir ikke mening. Hva er det som telles egentlig?» Svaret
+ * var trykk: `recordSmartTrip` satt i `_recordChoice` og kjørte hver gang du
+ * åpnet tavla for et mål. Å se er ikke å reise, og kortene under «Dit du
+ * ofte skal» telte seg selv opp når du trykket på dem.
+ *
+ * Nå kalles dette fra `doBoard` (du trykker «på») og `joinJourney` (du
+ * følger en reise). IKKE fra `activateTracking`: den kjører også når en
+ * lagret reise gjenopprettes, og en oppfriskning er ikke en ny reise.
+ *
+ * Reiseloggens `reise`-hendelse skrives HER, ikke ved valget. `sistReist`
+ * leser den som «du reiste dit»; skrevet ved et trykk ville loggen og
+ * tellingen sagt hvert sitt om samme faktum.
+ *
+ * @param {{fra,til,tilStopId,fraStopId,tilLat,tilLon,linje}} r
+ * @param {{lat,lon,acc}|null} [pos] hvor du var, for loggen
+ */
+export function registrerReise(r, pos) {
+  if (!r || !r.fra || !r.til) return;
+  recordSmartTrip(r.fra, r.til, r.tilStopId || null,
+    Number.isFinite(r.tilLat) ? r.tilLat : null, Number.isFinite(r.tilLon) ? r.tilLon : null,
+    r.fraStopId || null);
+  // logEvent gjør ingenting uten samtykke; vakten bor inni den.
+  logEvent('reise', { fra: r.fra, til: r.til, linje: r.linje || null }, pos || null);
+}
+
+/**
+ * Hvilken telling lagret historikk er skrevet med. '2' = reiser (v1.202.0).
+ * Alt før talte trykk.
+ */
+export const VANE_TELLING = '2';
+
+/**
+ * Nullstill vanene ÉN gang, når tellingen bytter betydning.
+ *
+ * De gamle tallene var trykk, og kan ikke regnes om: appen lagret ikke når
+ * hvert trykk skjedde. Valgt av deg: nullstill. Gamle `reise`-hendelser i
+ * reiseloggen var trykk også, og ville gjort `ferskhet()` feil i opptil sju
+ * døgn — de går med. Andre hendelser står.
+ *
+ * Per profil, fordi `storage` er det: hver profil har sine egne vaner.
+ */
+export function nullstillVaneTelling() {
+  try {
+    if (storage.get('t.vaneTelling') === VANE_TELLING) return;
+    storage.remove(HIST_KEY);
+    const v = storage.get('t.events');
+    const ev = v ? JSON.parse(v) : null;
+    if (Array.isArray(ev)) storage.set('t.events', JSON.stringify(ev.filter(e => !e || e.kind !== 'reise')));
+    storage.set('t.vaneTelling', VANE_TELLING);
+  } catch { /* lager utilgjengelig: prøv igjen neste oppstart */ }
 }
 
 export function smartHistLen() {
@@ -185,6 +240,11 @@ export function destRanking(at) {
    * historikken: spørsmålet `vanestyrke` stiller er «pleier du å reise hit
    * NÅ», og en tur til samme sted klokka 23 er ikke dekning for klokka 08. */
   const turer = new Map();
+  // ALLE turer i tidsvinduet, uansett slags dag. Ikke styrken — den er
+  // `turer` over — men det raden sier: «tatt 28 ganger, men mest på andre
+  // dager» er sant; «tatt 0 ganger» om et sted du har reist til 28 lørdager
+  // er det ikke.
+  const alle = new Map();
   _load().forEach(e => {
     const diff = Math.abs(e.bucket - bucket);
     if (diff > 2) return;
@@ -195,7 +255,10 @@ export function destRanking(at) {
     // itself, which is how a dead heat turns into a landslide.
     const k = String(e.toName || '').toLowerCase();
     if (!k) return;
-    turer.set(k, (turer.get(k) || 0) + (e.count || 0));
+    // Bare samme slags dag. v1.192.0 summerte hverdag og helg om hverandre,
+    // og 28 lørdagsturer ble dekning for en tirsdag.
+    if (e.isWeekend === isWeekend) turer.set(k, (turer.get(k) || 0) + (e.count || 0));
+    alle.set(k, (alle.get(k) || 0) + (e.count || 0));
     const prev = best.get(k);
     if (!prev || score > prev.score) {
       best.set(k, { fromName: e.fromName || null, toName: e.toName, toStopId: e.toStopId,
@@ -207,7 +270,10 @@ export function destRanking(at) {
   });
   // Trefftallet legges på til slutt: det er destinasjonens, ikke vinnerpostens.
   return [...best.values()]
-    .map(v => ({ ...v, count: turer.get(String(v.toName || '').toLowerCase()) || 0 }))
+    .map(v => {
+      const k = String(v.toName || '').toLowerCase();
+      return { ...v, count: turer.get(k) || 0, alle: alle.get(k) || 0 };
+    })
     .sort((a, b) => b.score - a.score);
 }
 
@@ -456,10 +522,13 @@ export function vanestyrke(ranked, source, fersk) {
    * visste at 28 turer var svak fordi de fleste var på en annen tid, og
    * kastet begrunnelsen. Første grunn som slår til, i den rekkefølgen en
    * leser vil kjenne seg igjen i. */
+  // Det raden viser: alle turer i vinduet. Styrken over brukte bare turer på
+  // samme slags dag; de to er forskjellige faktum, med hvert sitt navn.
+  const antall = Number.isFinite(top.alle) ? top.alle : (top.count || 0);
   const hvorfor = kind !== 'svak' ? null
-    : !nok ? 'få-turer'
+    : antall < VANE_MIN_TURER ? 'få-turer'
     : top.diff !== 0 ? 'annen-tid'
-    : top.ukedag !== true ? 'annen-dag'
+    : top.ukedag !== true || !nok ? 'annen-dag'
     : 'konkurrent';
-  return { kind, label: VANE_ORD[kind], antall: top.count || 0, fersk: f, hvorfor };
+  return { kind, label: VANE_ORD[kind], antall, fersk: f, hvorfor };
 }

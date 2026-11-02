@@ -276,3 +276,7 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
 }
 .venue-detail .vd-type{color:var(--text-soft);text-transform:lowercase}
 .venue-detail .vd-chip{color:var(--text-muted);font-size:11px;line-height:1}
+
+/* «i fart — viser ikke hva du rekker til fots». Stille, over radene på
+   tavla og auto-reise: ingen rad er strøket på gangtid, og det skal sies. */
+.i-fart-notis{font-size:10px;letter-spacing:.08em;color:var(--text-muted);margin:0 0 .45rem;padding:0 .1rem}

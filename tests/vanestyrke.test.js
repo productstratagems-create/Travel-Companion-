@@ -338,7 +338,9 @@ describe('en vane du har sluttet med', () => {
       expect(ferskhet(NOW - (MEMORY_DAYS * DAG + 1000), NOW, true)).toBe('gammel');
       const src = require('node:fs').readFileSync('src/api/smart.js', 'utf8');
       expect(src).toMatch(/MEMORY_DAYS \* 86400000/);
-      expect(src).toMatch(/import \{ MEMORY_DAYS \} from '\.\/eventLog\.js'/);
+      // Bundet på påstanden: MEMORY_DAYS hentes fra eventLog.js. Linja
+      // låste importen ordrett, og falt da `logEvent` ble hentet ved siden av.
+      expect(src).toMatch(/import \{[^}]*\bMEMORY_DAYS\b[^}]*\} from '\.\/eventLog\.js'/);
     });
   });
 });

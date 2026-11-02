@@ -9,6 +9,9 @@ const ALL_KEYS = [
   // exactly when there is no history. A key that picks the first screen has
   // to travel with the profile and be deleted with it.
   't.autoMode', 't.smartHist',
+  // Hvilken telling vanene er skrevet med (v1.202.0). Følger profilen, så en
+  // ny profil nullstilles ikke på nytt for noe den aldri hadde.
+  't.vaneTelling',
   // Legacy. v1.72.0–v1.85.0 kept an interchange register here; v1.88.0
   // replaced the whole idea with the reader's own most-used stops. Nothing
   // writes it any more — it stays listed so a value left behind is still

@@ -36,6 +36,42 @@ import { _callTime, _callPoints, _interpolateVehiclePos, _interpolateOnPath } fr
 // track.js, trainPosition.js og testene leser dem som før.
 export { _interpolateVehiclePos, _interpolateOnPath };
 
+/**
+ * Ankomsten på en tavlerad.
+ *
+ * The arrival carries its own day: a night coach leaves today and lands
+ * tomorrow, and "ank. 09:29" beside a 22:40 departure is a riddle.
+ *
+ * OG EN BRUTT REISE KOMMER IKKE FRAM DA. v1.196.0 la «bytte innstilt» på
+ * raden og lot «ank. 10:00» stå — reiseplanens klokke, for en plan som ikke
+ * lenger henger sammen. Tiden står igjen, STRØKET, med ordet: den sier hva
+ * planen var, og at den ikke gjelder. Fjernet ville raden tidd om at det
+ * fantes en plan.
+ *
+ * Recovered from the stop board, which the journey search did not offer: we
+ * know when it leaves, not when it arrives, and the honest place to say so is
+ * exactly where that number would be.
+ *
+ * @param {string|null} arrT
+ * @param {number} now
+ * @param {{brudd?:boolean, fraStopptavle?:boolean}} [o]
+ */
+export function ankomstHtml(arrT, now, o) {
+  const opt = o || {};
+  if (arrT && opt.brudd) {
+    /* STREKEN, IKKE ET ORD TIL. Første utgave skrev «ankommer ikke» etter
+     * tiden. Raden var like høy som før, så høyde-målingen sa at alt var i
+     * orden; skjermbildet viste tidskolonnen flyte inn i spor-kolonnen og
+     * skrive over «17:40» og «SPOR B». «Bytte innstilt» står rett under og
+     * sier hvorfor. Ordet står for skjermleseren og ved langtrykk. */
+    return '<span class="dep-arr dep-arr-brutt" title="ankommer ikke som planlagt"'
+      + ' aria-label="ankommer ikke som planlagt"><s>ank. ' + clkDay(arrT, now) + '</s></span>';
+  }
+  if (arrT) return '<span class="dep-arr">ank. ' + clkDay(arrT, now) + '</span>';
+  if (opt.fraStopptavle) return '<span class="dep-arr dep-tag-soft">ank. ukjent</span>';
+  return '';
+}
+
 import { decodePolyline } from '../ui/polyline.js';
 import { ensureApproach, approachPoints, approachKey, resetApproach } from '../api/approach.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
@@ -3173,13 +3209,7 @@ export function renderBoard() {
       + lineBadges
       + '<div class="dep-times">'
       + '<span class="dep-dep">' + clkDay(depTs, now) + '</span>'
-      // The arrival carries its own day too: a night coach leaves today and
-      // lands tomorrow, and "ank. 09:29" beside a 22:40 departure is a riddle.
-      + (arrT ? '<span class="dep-arr">ank. ' + clkDay(arrT, now) + '</span>'
-        // Recovered from the stop board, which the journey search did not
-        // offer. We know when it leaves; we do not know when it arrives, and
-        // the honest place to say so is exactly where that number would be.
-        : (c._fromStopBoard ? '<span class="dep-arr dep-tag-soft">ank. ukjent</span>' : ''))
+      + ankomstHtml(arrT, now, { brudd: !erInnstilt(c) && !!c._brudd, fraStopptavle: !!c._fromStopBoard })
       + (railDuration ? '<span class="dep-arr dep-rail-dur">' + railDuration + '</span>' : '')
       + '</div>'
       + '</div>'

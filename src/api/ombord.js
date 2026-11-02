@@ -55,6 +55,18 @@ export const OMBORD_MIN_SPENN_MS = 20_000;
  */
 export const OMBORD_MAKS_AVVIK_M = 150;
 
+/**
+ * Er du i fart — raskere enn noen som går?
+ *
+ * ÉN TERSKEL FOR TO SKJERMDELER. Tilbudet «ser ut som du er på» og
+ * overskriften «du er ved» under det spør samme spørsmål. Med hvert sitt
+ * tall kunne de svart hvert sitt — «du går mot den» rett under «ser ut som
+ * du er på 31», som var nøyaktig det v1.198.0 viste.
+ */
+export function iFart(fartMS) {
+  return Number.isFinite(fartMS) && fartMS >= OMBORD_MIN_FART_MS;
+}
+
 const _ok = f => f && Number.isFinite(f.lat) && Number.isFinite(f.lon) && Number.isFinite(f.at);
 
 /** Er fiksen presis nok til å være bevis? Ukjent `acc` regnes som ja. */
@@ -86,7 +98,7 @@ export function ombord(o) {
   // «Ingen fart» og «går» er to setninger (AGENTS.md regel 4). Den første
   // betyr at filteret ikke har noe å si; den andre at det har svart.
   if (!Number.isFinite(c.fartMS)) return vetIkke('ingen-fart');
-  if (c.fartMS < OMBORD_MIN_FART_MS) return vetIkke('går');
+  if (!iFart(c.fartMS)) return vetIkke('går');
 
   const fikser = (Array.isArray(c.spor) ? c.spor : []).filter(_brukbar);
   if (fikser.length < OMBORD_MIN_FIKSER

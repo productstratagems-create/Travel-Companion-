@@ -142,3 +142,51 @@ describe('skjermen', () => {
     expect(src()).toMatch(/_avvistOmbord\.add\(k\.nøkkel\)/);
   });
 });
+
+/* ── «DU ER VED» UNDER KORTET ───────────────────────────────────────────
+ *
+ * v1.198.0 la tilbudet over «du er ved» og lot overskriften stå. Sett i
+ * nettleserprøven: under «ser ut som du er på 31» sto «Økern · 127 m å gå ·
+ * 4 min gange · du går mot den · ca 10 s». Fire minutter og ti sekunder om
+ * samme stopp, og et verb som var feil for den som satt på bussen.
+ */
+import { stopHeadHtml } from '../src/views/auto.js';
+import { iFart, OMBORD_MIN_FART_MS } from '../src/api/ombord.js';
+
+describe('«du er ved» i fart', () => {
+  const STOPP = { name: 'Økern', id: 'NSR:StopPlace:Okern', distM: 127 };
+  const extra = (o) => ({ walkDist: 127, walkMins: 4, way: 'mot', wayEtaS: 10, ...o });
+  const tekst = h => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+
+  it('sier ikke gangtid eller «du går» når du er i fart', () => {
+    const t = tekst(stopHeadHtml(STOPP, 0, false, extra({ iFart: true })));
+    expect(t).not.toMatch(/å gå|min gange|du går/);
+    expect(t).toMatch(/127 m/);
+    expect(t).toMatch(/du nærmer deg den · ca 10 s/);
+  });
+
+  it('men til fots er alt som før', () => {
+    const t = tekst(stopHeadHtml(STOPP, 0, false, extra({ iFart: false })));
+    expect(t).toMatch(/127 m å gå/);
+    expect(t).toMatch(/4 min gange/);
+    expect(t).toMatch(/du går mot den/);
+  });
+
+  /* ÉN TERSKEL. Tilbudet over og overskriften under spør samme spørsmål:
+   * går du? Med to tall kunne de svart hvert sitt. */
+  it('og «i fart» er tilbudets egen terskel', () => {
+    expect(iFart(OMBORD_MIN_FART_MS)).toBe(true);
+    expect(iFart(OMBORD_MIN_FART_MS - 0.1)).toBe(false);
+    expect(iFart(null)).toBe(false);
+    const src = require('node:fs').readFileSync('src/api/ombord.js', 'utf8');
+    expect(src).toMatch(/if \(!iFart\(c\.fartMS\)\) return vetIkke\('går'\)/);
+  });
+
+  it('og skjermen sender den med, og bytter overskrift', () => {
+    const src = require('node:fs').readFileSync('src/views/auto.js', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    expect(src).toMatch(/const fart = iFart\(fartNå\(/);
+    expect(src).toMatch(/iFart: fart,/);
+    expect(src).toMatch(/fart \? 'nærmeste stopp' : 'du er ved'/);
+  });
+});

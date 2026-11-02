@@ -83,9 +83,14 @@ export function legShape(leg) {
  * @returns {{fra:string|null, til:string|null}}
  */
 export function legEnds(leg) {
+  // Stoppestedets id når spørringen fikk lov å be om den (`ider`-trinnet i
+  // `fetchTrip`), ellers null — og da matches det på navn som før.
+  const id = p => (p && p.quay && p.quay.stopPlace && p.quay.stopPlace.id) || null;
   return {
     fra: (leg && leg.fromPlace && leg.fromPlace.name) || null,
     til: (leg && leg.toPlace && leg.toPlace.name) || null,
+    fraId: id(leg && leg.fromPlace),
+    tilId: id(leg && leg.toPlace),
   };
 }
 
@@ -252,6 +257,11 @@ export function adaptTripPattern(tp) {
        * Jernbanetorget · spor 13», der spor 13 står på Oslo S. */
       av:        legEnds(leg).til,
       på:        legEnds(legs[i + 1]).fra,
+      /* BLI SITTENDE, OG GARANTERT. Fra `interchangeTo` på etappen du går
+       * AV — byttet hører til den. `false` både når OTP sier nei og når
+       * feltet ikke ble spurt om; skjermen skal da oppføre seg som før. */
+      blisittende: !!(leg.interchangeTo && leg.interchangeTo.staySeated),
+      garantert:   !!(leg.interchangeTo && leg.interchangeTo.guaranteed),
       gåMin:     gangMellom[i] == null ? null : gangMellom[i],
       // Alias for `av`. Lesere fra før denne utgaven bruker navnet, og det
       // betyr fortsatt det samme: der du går av.

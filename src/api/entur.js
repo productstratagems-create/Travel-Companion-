@@ -257,6 +257,17 @@ function _medInnstilte(spør) {
   });
 }
 
+/* To trinn til, rett under de innstilte: «bli sittende»-bytter og
+ * stoppestedenes id. Hver sitt, fordi et nei ikke sier hvilket felt som ble
+ * avvist — et trinn med begge ville mistet begge for ett. Tapet ved hvert er
+ * nøyaktig dagens oppførsel. */
+let _bytteRejected = false;
+export function _bytteRefused() { return _bytteRejected; }
+export function _resetBytteProbe(avvist = false) { _bytteRejected = !!avvist; }
+let _iderRejected = false;
+export function _iderRefused() { return _iderRejected; }
+export function _resetIderProbe(avvist = false) { _iderRejected = !!avvist; }
+
 let _windowRejected = false;
 export function _windowRefused() { return _windowRejected; }
 export function _resetWindowProbe() { _windowRejected = false; }
@@ -282,20 +293,22 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
       const label = p => (p && typeof p === 'object') ? p.lat + ',' + p.lon : p;
       logMsg('trip → ' + label(fromId) + (viaId ? ' via ' + viaId : '') + ' → ' + label(toId));
-      const ask = (withLookback, withCoach, withWindow, withAffects, withInnstilte) => enturFetch(config.api.journeyPlanner, {
+      // Rekkefølgen på argumentene er rekkefølgen trinnene ble lagt til i,
+      // ikke rekkefølgen de droppes i. Den står i `if`-ene under.
+      const ask = (withLookback, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: withLookback
             ? tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? undefined : atMs,
-              false, false, withCoach, withWindow, withAffects, withInnstilte)
+              false, false, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder)
             // The retry deliberately drops dateTime: it is the argument that
             // could never be verified against the live API, so it is the one
             // the fallback exists to shed. The cost is real — this poll loses
             // the two-minute lookback, and with it a train standing at the
             // platform a minute late — so the diagnostic records that it
             // happened rather than trading a silent loss for a silent outage.
-            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow, withAffects, withInnstilte),
+            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder),
         }),
         signal,
       })
@@ -335,31 +348,42 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
           if (withInnstilte && !j.data && j.errors) {
             _innstilteRejected = true;
             logMsg('innstilte reiser: avvist, spør uten' + why, 'err');
-            return ask(withLookback, withCoach, withWindow, withAffects, false);
+            return ask(withLookback, withCoach, withWindow, withAffects, false, withBytte, withIder);
+          }
+          if (withBytte && !j.data && j.errors) {
+            _bytteRejected = true;
+            logMsg('bli sittende: interchangeTo avvist, spør uten' + why, 'err');
+            return ask(withLookback, withCoach, withWindow, withAffects, withInnstilte, false, withIder);
+          }
+          if (withIder && !j.data && j.errors) {
+            _iderRejected = true;
+            logMsg('stoppested-id: Place.quay avvist, matcher på navn' + why, 'err');
+            return ask(withLookback, withCoach, withWindow, withAffects, withInnstilte, withBytte, false);
           }
           if (withAffects && !j.data && j.errors) {
             _affectsRejected = true;
             logMsg('situasjoner: affects avvist, sorteres på herkomst' + why, 'err');
-            return ask(withLookback, withCoach, withWindow, false, withInnstilte);
+            return ask(withLookback, withCoach, withWindow, false, withInnstilte, withBytte, withIder);
           }
           if (withWindow && !j.data && j.errors) {
             _windowRejected = true;
             logMsg('søkevindu: searchWindow avvist' + why, 'err');
-            return ask(withLookback, withCoach, false, withAffects, withInnstilte);
+            return ask(withLookback, withCoach, false, withAffects, withInnstilte, withBytte, withIder);
           }
           if (withCoach && !j.data && j.errors) {
             _coachRejected = true;
             logMsg('ekspressbuss: coach avvist' + why, 'err');
-            return ask(withLookback, false, withWindow, withAffects, withInnstilte);
+            return ask(withLookback, false, withWindow, withAffects, withInnstilte, withBytte, withIder);
           }
           if (withLookback && !j.data && j.errors) {
             logMsg('trip: dateTime avvist, tilbakeblikket tapt denne pollen' + why, 'err');
             noteLookbackLost();
-            return ask(false, withCoach, withWindow, withAffects, withInnstilte);
+            return ask(false, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder);
           }
           return j;
         });
-      return ask(true, !_coachRejected, !_windowRejected, !_affectsRejected, !_innstilteRejected);
+      return ask(true, !_coachRejected, !_windowRejected, !_affectsRejected, !_innstilteRejected,
+        !_bytteRejected, !_iderRejected);
     })
     .then(j => {
       if (!j || signal.aborted) return;

@@ -115,6 +115,13 @@ export function legsFromTrip(c, dir) {
          * et annet faktum, og skal ikke låne seg ut hit. */
         fromStation: legEnds(leg).fra || dir.from,
         toStation:   legEnds(leg).til || dir.to,
+        // Id-ene, når spørringen fikk dem. `findArr` slår opp på id først.
+        fromStopId:  legEnds(leg).fraId,
+        toStopId:    legEnds(leg).tilId,
+        // Byttet ETTER denne etappen. Underveis sier «bli sittende» og aldri
+        // «gå av nå» der linja bare skifter nummer.
+        blisittende: !!(c._transfers && c._transfers[i] && c._transfers[i].blisittende),
+        garantert:   !!(c._transfers && c._transfers[i] && c._transfers[i].garantert),
         // Gangen ETTER denne etappen: til neste etappes stopp, eller til
         // målet. Regnet ut av adapteren fra OTPs egne gangeetapper — null
         // når ingen gange står der. Uten den kunne skjermen si «bytt på
@@ -247,6 +254,10 @@ export function saveJny() {
         fromStation: leg.fromStation,
         toStation:   leg.toStation,
         gåEtter:     leg.gåEtter ?? null,
+        fromStopId:  leg.fromStopId || null,
+        toStopId:    leg.toStopId || null,
+        blisittende: !!leg.blisittende,
+        garantert:   !!leg.garantert,
         /* TRASEEN. Kommentaren der den settes (`legsFromTrip`) lover at den
          * bæres gjennom en oppfriskning — «without carrying this the
          * underveis map would drop back to straight lines after every

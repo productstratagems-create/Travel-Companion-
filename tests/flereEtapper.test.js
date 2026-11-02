@@ -386,8 +386,10 @@ describe('findArr: en linje som passerer samme stopp to ganger', () => {
     const strip = f => fs.readFileSync(f, 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     const ankomst = [
-      ['src/views/track.js', /findArr\(calls, leg\.toStation, \{ etter: leg\.fromStation \}\)/],
-      ['src/views/track.js', /findArr\(calls, nxt\.toStation, \{ etter: nxt\.fromStation \}\)/],
+      // Underveis sender id-ene med også (v1.197.0); påstanden her er
+      // bare at påstigningen er med.
+      ['src/views/track.js', /findArr\(calls, leg\.toStation, \{ etter: leg\.fromStation[,}]/],
+      ['src/views/track.js', /findArr\(calls, nxt\.toStation, \{ etter: nxt\.fromStation[,}]/],
       ['src/views/selected.js', /findArr\(sjc, dir\.to, \{ etter: dir\.from \}\)/],
       ['src/views/board.js', /findArr\(sjc, dir\.to, \{ etter: dir\.from \}\)/],
       ['src/journey.js', /findArr\(sjc, dir\.to, \{ etter: dir\.from \}\)/],

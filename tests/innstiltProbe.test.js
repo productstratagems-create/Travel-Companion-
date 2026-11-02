@@ -23,7 +23,8 @@ vi.mock('../src/api/http.js', () => ({ enturFetch: (...a) => fetchMock(...a) }))
 
 const { fetchTrip, fetchBoard, fetchBoardPage, fetchStopBoardSummary, fetchNextDeparture,
   _innstilteRefused, _resetInnstilteProbe, _resetAffectsProbe, _resetCoachProbe,
-  _resetWindowProbe, _resetPerLineProbe } = await import('../src/api/entur.js');
+  _resetWindowProbe, _resetPerLineProbe, _resetBytteProbe, _resetIderProbe,
+  _bytteRefused, _iderRefused } = await import('../src/api/entur.js');
 
 const DIR = { from: 'Grorud', to: 'Jernbanetorget', stopId: 'NSR:StopPlace:1', toStopId: 'NSR:StopPlace:2' };
 const svar = (data) => ({ ok: true, status: 200, json: () => Promise.resolve({ data }) });
@@ -37,6 +38,7 @@ const vent = async (n = 6) => { for (let i = 0; i < n; i++) await new Promise(r 
 beforeEach(() => {
   fetchMock.mockReset();
   _resetInnstilteProbe(); _resetAffectsProbe(); _resetCoachProbe(); _resetWindowProbe();
+  _resetBytteProbe(); _resetIderProbe();
   if (_resetPerLineProbe) _resetPerLineProbe();
 });
 
@@ -148,5 +150,55 @@ describe('sammendragene', () => {
     fetchMock.mockReturnValue(Promise.resolve(boardOk()));
     await fetchStopBoardSummary('NSR:StopPlace:1');
     expect(q(0)).not.toContain('includeCancelledTrips');
+  });
+});
+
+/* ── «BLI SITTENDE» OG STOPPESTED-ID: TO TRINN TIL ──────────────────────
+ *
+ * Rett under de innstilte, hver for seg. Et nei sier ikke hvilket felt som
+ * ble avvist, så et felles trinn ville mistet begge for ett.
+ */
+describe('stigen under de innstilte', () => {
+  it('spør om begge fra start', async () => {
+    fetchMock.mockReturnValue(Promise.resolve(tripOk()));
+    fetchTrip(DIR, vi.fn(), vi.fn());
+    await vent();
+    expect(q(0)).toContain('interchangeTo{staySeated guaranteed}');
+    expect(q(0)).toMatch(/fromPlace\{[^}]*quay\{id stopPlace\{id\}\}/);
+  });
+
+  it('dropper dem i rekkefølge, ett om gangen, og beholder resten', async () => {
+    fetchMock
+      .mockReturnValueOnce(Promise.resolve(nei('a')))
+      .mockReturnValueOnce(Promise.resolve(nei('b')))
+      .mockReturnValueOnce(Promise.resolve(nei('c')))
+      .mockReturnValue(Promise.resolve(tripOk()));
+    const ok = vi.fn();
+    fetchTrip(DIR, ok, vi.fn());
+    await vent(12);
+    // 1: innstilte borte, resten med
+    expect(q(1)).not.toContain('includeRealtimeCancellations');
+    expect(q(1)).toContain('interchangeTo');
+    expect(q(1)).toMatch(/fromPlace\{[^}]*quay/);
+    // 2: bli sittende borte, id-ene med
+    expect(q(2)).not.toContain('interchangeTo');
+    expect(q(2)).toMatch(/fromPlace\{[^}]*quay/);
+    // 3: id-ene borte — og alt som bærer avganger er fortsatt med
+    expect(q(3)).not.toMatch(/fromPlace\{[^}]*quay/);
+    ['affects{', 'searchWindow:', 'transportMode:coach', 'dateTime:']
+      .forEach(f => expect(q(3), f).toContain(f));
+    expect(ok).toHaveBeenCalled();
+    expect(_bytteRefused()).toBe(true);
+    expect(_iderRefused()).toBe(true);
+  });
+
+  it('og husker avslagene for økten', async () => {
+    _resetInnstilteProbe(true); _resetBytteProbe(true); _resetIderProbe(true);
+    fetchMock.mockReturnValue(Promise.resolve(tripOk()));
+    fetchTrip(DIR, vi.fn(), vi.fn());
+    await vent();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(q(0)).not.toContain('interchangeTo');
+    expect(q(0)).not.toMatch(/fromPlace\{[^}]*quay/);
   });
 });

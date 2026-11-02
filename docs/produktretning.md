@@ -233,6 +233,27 @@ henne. Det er samme invariant `eventLog.js` alltid har båret for loggen —
 
 ---
 
+## Vurdert og utsatt: bestillingstransport (Flex)
+
+Gjennomgangen av Journey Planner-integrasjonen (v1.194.0) fant at
+bestillingstransport ikke er blant modusene appen spør om. Det er ikke en
+feil som kan rettes, men en ny funksjon som passer dårlig med appens modell.
+
+**Hva det ville kreve:** Flex-turer har et *tidsvindu*, ikke en avgangstid,
+de må bestilles innen en frist, og de har verken kjøretøyposisjon eller
+stoppliste. Nedtelling, «gå av nå», stopplista og hele kildekaskaden i
+`trainPosition.js` forutsetter det motsatte. Fulle Flex-reiser ville trengt
+egen visning gjennom alle tre fasene. Det minste meningsfulle steget, å vise
+dem som forslag med tidsvindu og bestillingsinfo uten sporing, er en ny
+funksjon som heller ikke kan prøves herfra.
+
+**PULL-spørsmålet:** Er det noen som drar i dette? Bestillingstransport
+finnes i deler av Viken, ikke i det tette Oslo appen er bygget for. Har ikke
+den som bruker appen selv behov for det, er dette forfatterens interesse og
+ikke leserens etterspørsel. Utsatt til noen sier at de trenger det.
+
+---
+
 ## Forbeholdet
 
 Vurderingen sier det om seg selv, og det gjelder dette dokumentet også:

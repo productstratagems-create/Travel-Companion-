@@ -60,6 +60,12 @@ export function bytteTekst(leg, neste, vis = id) {
   const av = leg && leg.toStation;
   const på = neste && neste.fromStation;
   if (!av) return '';
+  /* BLI SITTENDE. Linja skifter nummer, du skifter ikke sete. «Bytt på
+   * Oslo S» til en som skal bli sittende til Ski er et råd om å gå av. */
+  if (leg.blisittende && neste) {
+    return 'bli sittende — fortsetter som ' + (neste.lineCode || '?')
+      + (neste.frontText ? ' mot ' + neste.frontText : '');
+  }
   if (!på || stopKey(av) === stopKey(på)) return 'bytt på ' + vis(av);
   return 'av på ' + vis(av) + ' · gå til ' + vis(på) + _gang(leg.gåEtter);
 }

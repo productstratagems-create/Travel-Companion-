@@ -88,7 +88,11 @@ export function sitsGQL(basic, withAffects) {
  */
 export const TRIP_SEARCH_WINDOW = 1440;
 
-export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTime, coach, window, affects, innstilte) {
+export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTime, coach, window, affects, innstilte, bytte, ider) {
+  /* STOPPESTEDETS ID PÅ ETAPPENS ENDER, når `ider` får lov. Uten den
+   * matches etappens ender mot kallene på NAVN, og to svar kan skrive
+   * samme sted ulikt. Kan ikke prøves herfra; eget trinn i `fetchTrip`. */
+  const plass = ider ? 'name latitude longitude quay{id stopPlace{id}}' : 'name latitude longitude';
   const sits = sitsGQL(minimal, affects);
   const fromIsCoord = fromId && typeof fromId === 'object';
   // Only the stop places the reader actually named.
@@ -146,8 +150,12 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
     + (coach ? ',{transportMode:coach}' : '')
     + ']}'
     + ') { tripPatterns { duration legs {'
-    + ' fromPlace{name latitude longitude}'
-    + ' toPlace{name latitude longitude}'
+    + ' fromPlace{' + plass + '}'
+    + ' toPlace{' + plass + '}'
+    /* «BLI SITTENDE» OG GARANTERTE BYTTER. Uten dette sa appen «bytt» der
+     * linja bare skifter nummer, og «rekker ikke» om et tog som er lovet å
+     * vente. Kan ikke prøves herfra; eget trinn i `fetchTrip`. */
+    + (bytte ? ' interchangeTo{staySeated guaranteed}' : '')
     + ' mode'
     + ' aimedStartTime expectedStartTime aimedEndTime expectedEndTime'
     // The leg's real alignment, as a Google encoded polyline — the difference

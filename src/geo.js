@@ -512,11 +512,21 @@ export function findArr(calls, name, opt) {
    * Da var ankomsten den FØR du gikk på — en tid i fortiden, og «gå av nå»
    * ved et stopp du alt har passert. `etter` er påstigningsstedet; finnes
    * det ikke blant kallene, letes det i hele lista som før. */
+  const idPå = c => (c && c.quay && c.quay.stopPlace && c.quay.stopPlace.id) || null;
   let fra = 0;
-  if (opt && opt.etter) {
+  // Påstigningen: på id når den finnes blant kallene, ellers på navn.
+  const jId = opt && opt.etterId ? calls.findIndex(c => idPå(c) === opt.etterId) : -1;
+  if (jId !== -1) fra = jId + 1;
+  else if (opt && opt.etter) {
     const e = stopKey(opt.etter);
     const j = calls.findIndex(c => stopKey(navnPå(c)) === e);
     if (j !== -1) fra = j + 1;
+  }
+  /* ID FØR NAVN. Ett stoppested kan skrives ulikt i to svar («Oslo S» og
+   * «Oslo sentralstasjon»), og to kan hete det samme. Id-en kan ikke
+   * forveksles. Finnes den ikke blant kallene, letes det på navn som før. */
+  if (opt && opt.id) {
+    for (let i = fra; i < calls.length; i++) if (idPå(calls[i]) === opt.id) return calls[i];
   }
   for (let i = fra; i < calls.length; i++) {
     const nm = (calls[i].quay && calls[i].quay.stopPlace && calls[i].quay.stopPlace.name) || '';

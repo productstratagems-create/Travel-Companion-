@@ -154,6 +154,10 @@ export function stopsUntil(leg, now) {
  */
 export function alightEyebrow(o) {
   const c = o || {};
+  // BLI SITTENDE går foran alt, også klokka. Der linja bare skifter nummer
+  // er det ingen avstigning å varsle om — «Gå av nå» ville vært et råd om å
+  // forlate et tog du skal bli sittende på.
+  if (c.blisittende) return { kind: 'sitt', label: 'Bli sittende' };
   const n = Number.isFinite(c.stopsLeft) ? c.stopsLeft : null;
   const off = c.transfer ? 'Bytt' : 'Av';
 

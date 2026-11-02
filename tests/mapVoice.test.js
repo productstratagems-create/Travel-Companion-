@@ -120,9 +120,13 @@ describe('avgangsdetaljer draws the shared bead', () => {
   // inside the frame — because this screen is about ONE departure from X to Y
   // and «PÅ»/«AV» would repeat the heading while losing the only thing the map
   // adds. But the CHANGE was marked with nothing at all.
+  /* Bundet på påstanden, ikke på implementasjonen. Dette krevde
+   * `drawJourneyPoints(_selLayer` og `kind === 'change'`; fra v1.209.0
+   * merkes på, bytt og av med linje og plattform gjennom `kartPunkter`
+   * (prøvd i reiselop.test.js). Påstanden står: byttet er merket, og navnene
+   * står fast. */
   it('marks the change, and keeps the endpoint names', () => {
-    expect(s()).toMatch(/drawJourneyPoints\(_selLayer/);
-    expect(s()).toMatch(/kind === 'change'/);
+    expect(s()).toMatch(/kartPunkter\(dep\._allLegs \|\| dep\._legs\)/);
     expect(s()).toMatch(/permanent: true/);
   });
 

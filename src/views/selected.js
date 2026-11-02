@@ -4,7 +4,7 @@ import { normJid } from '../api/queries.js';
 import { stopKey } from '../stopId.js';
 import { clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL, fartNå } from '../geo.js';
+import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL, fartNå, loadWalkBuffer } from '../geo.js';
 import { gangGjelder } from '../api/ombord.js';
 import { _headingDeg } from '../ui/path.js';
 import { fetchJourneyMeta } from '../api/entur.js';
@@ -16,12 +16,15 @@ import { shareLegCalendar, canOfferCalendar } from '../api/calShare.js';
 import { updatePlanCtx } from './plan.js';
 import { logMsg } from '../ui/log.js';
 import { esc } from '../ui/fmt.js';
+import { reiselop, kartPunkter, kartUtsnitt } from '../ui/reiselop.js';
+import { visStopp } from '../stopId.js';
+import { stoppestedKjent, hentStoppested } from '../api/stoppested.js';
 import { show } from '../ui/nav.js';
 import { startBoard, boardRows } from './board.js';
 import { renderAlertsInto } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
-import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints, fitPadding } from '../ui/map.js';
+import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg, fitPadding } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
 import { makeVehicleIcon } from '../ui/mapIcons.js';
 import { departureVehicle, depLineRef, depMode, SRC_LABEL } from './trainPosition.js';
@@ -211,6 +214,37 @@ function _selWeatherHtml(arrT) {
 
 // ── Route map ────────────────────────────────────────────────
 let _selMap = null, _selLayer = null;
+/* Utsnittene radene i reiseløpet zoomer til (`kartUtsnitt`), satt når kartet
+ * tegnes. Fra de samme rå etappene som tabellen, så «e1» er samme etappe
+ * begge steder. */
+let _selGeo = null;
+/** Omtrent høyden på en permanent etikett over eller under et punkt. */
+const ETIKETT_PX = 30;
+
+/* RAD → KART (v1.209.0). Et trykk på en etappe eller et bytte i reiseløpet
+ * zoomer kartet dit — proven, det Google og Ruter gjør. ÉN delegert lytter:
+ * tabellen bygges på nytt ved hver oppfriskning, og en lytter per rad ville
+ * blitt borte med den. */
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', e => {
+    const rad = e.target && e.target.closest && e.target.closest('[data-rl]');
+    if (!rad || !_selMap || !_selGeo) return;
+    const k = rad.getAttribute('data-rl');
+    const geo = (k[0] === 'e' ? _selGeo.e : _selGeo.b)[Number(k.slice(1))];
+    if (!geo || !geo.length) return;
+    // Polstringen etter regelen, ikke et tall — mapVoice.test.js fanget
+    // `[40, 40]` her i første utgave.
+    const el = document.getElementById('sel-map');
+    // + ETIKETTENE. Et zoomet bytte har en etikett over og en under; uten
+    // plass til dem ble begge klippet av kartets kant — sett i prøven.
+    const pad = fitPadding(el ? el.clientHeight : 200) + ETIKETT_PX;
+    _selMap.fitBounds(geo, { padding: [pad, pad], maxZoom: 18, animate: true });
+    const alt = document.getElementById('sel-map-alt');
+    if (alt) alt.hidden = false;
+    const wrap = document.getElementById('sel-map-wrap');
+    if (wrap && wrap.scrollIntoView) wrap.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+}
 /* To variabler, og ikke flere: selve feeden bor i `api/vehicles.js`, så
  * denne fila slipper å holde en tredje kopi av luka board og track hadde. */
 let _selVehMarker = null, _selVehIconKey = null;
@@ -405,6 +439,23 @@ function _renderSelMap(dep, fromName, toName, now) {
   const pad = fitPadding(mapEl.clientHeight);
 
   _selLayer = L.layerGroup().addTo(_selMap);
+  _selGeo = kartUtsnitt(dep._allLegs || dep._legs);
+  // «Hele reisen»: tilbake fra et zoomet bytte. Skjult til en rad er trykket.
+  let alt = document.getElementById('sel-map-alt');
+  if (!alt) {
+    alt = document.createElement('button');
+    alt.id = 'sel-map-alt'; alt.type = 'button'; alt.className = 'sel-map-alt';
+    alt.textContent = 'hele reisen';
+    alt.addEventListener('click', () => {
+      if (_selMap && _selGeo && _selGeo.alt.length) {
+        const pad = fitPadding(mapEl.clientHeight);
+        _selMap.fitBounds(_selGeo.alt, { padding: [pad, pad], maxZoom: 15, animate: true });
+      }
+      alt.hidden = true;
+    });
+    wrap.appendChild(alt);
+  }
+  alt.hidden = true;
 
   const destIsVenue = dir._toLat && dir._toLon && !dir.toStopId;
   const pts = [];
@@ -456,35 +507,44 @@ function _renderSelMap(dep, fromName, toName, now) {
     // the frame. This screen is about ONE departure from X to Y, so the names
     // are the fact — «PÅ» and «AV» would say what the heading above already
     // says and lose the only thing the map adds.
-    stops.forEach((s, i) => {
-      pts.push([s.lat, s.lon]);
-      const isFirst = li === 0 && i === 0;
-      // When destination is a venue, the last transit stop is the alighting stop —
-      // render it as an intermediate stop, not the terminus, so the venue pin is distinct.
-      const isLast  = !destIsVenue && li === legs.length - 1 && i === stops.length - 1;
-      const isAlight = destIsVenue && li === legs.length - 1 && i === stops.length - 1;
-      if (!isFirst && !isLast && !isAlight) return;
-      const html = '<div style="background:' + (isLast ? tokens().accent : lc) + ';border:2px solid #fff;border-radius:50%;'
-        + 'width:14px;height:14px;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>';
-      L.marker([s.lat, s.lon], { icon: L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] }) })
-        .bindTooltip(s.name, { permanent: true, direction: isFirst ? 'bottom' : 'top', offset: [0, isFirst ? 8 : -10], className: 'sel-stop-label' })
-        .addTo(_selLayer);
-    });
+    stops.forEach(s => { pts.push([s.lat, s.lon]); });
   });
 
-  // AND THE CHANGE, which this screen marked with nothing at all.
-  //
-  // The board says «BYTT» and underveis says «BYTT»; here a two-leg departure
-  // simply changed colour mid-line and left the reader to infer where. The
-  // same rule and the same marker, fed the leg ends this screen holds.
-  drawJourneyPoints(_selLayer, journeyPoints(legs.map((lg, i) => ({
-    mode: lg.mode,
-    fromPlace: { name: lg.stops[0].name, latitude: lg.stops[0].lat, longitude: lg.stops[0].lon },
-    toPlace: { name: lg.stops[lg.stops.length - 1].name,
-      latitude: lg.stops[lg.stops.length - 1].lat, longitude: lg.stops[lg.stops.length - 1].lon },
-  }))).filter(p => p.kind === 'change'),
-  { colour: (legs[0] && legs[0].color) || tokens().accent,
-    project: ll => _selMap.latLngToContainerPoint(ll), minPoints: 1 });
+  /* PÅ, BYTT, AV — MED LINJE OG PLATTFORM (v1.209.0).
+   *
+   * Her sto navn bare på første og siste stopp, og byttet var en prikk
+   * uten ord. Nå sier hvert punkt hva du gjør der og hvor: «[18] bytt ·
+   * plattform E», på kvaiens egne koordinater. Fra de samme rå etappene som
+   * tabellen (`kartPunkter`), så kartet og tabellen sier det samme. */
+  kartPunkter(dep._allLegs || dep._legs).forEach(pk => {
+    const badge = pk.linje
+      ? '<span class="line-badge" style="background:' + esc(pk.farge) + '">' + esc(pk.linje) + '</span> '
+      : '';
+    const html = '<div class="sel-pkt sel-pkt-' + pk.kind + '"></div>';
+    L.marker([pk.lat, pk.lon], {
+      icon: L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] }),
+      zIndexOffset: 600,
+    })
+      .bindTooltip(badge + '<b>' + esc(pk.kind) + '</b> · ' + esc(pk.tekst), {
+        permanent: true, direction: pk.kind === 'av' ? 'bottom' : 'top',
+        offset: [0, pk.kind === 'av' ? 8 : -10], className: 'sel-stop-label sel-pkt-label',
+      })
+      .addTo(_selLayer);
+  });
+
+  /* ALL GANGE, IKKE BARE TIL ET STED (v1.209.0). Gangen ble tegnet bare
+   * når målet var et sted og ikke et stopp (`destIsVenue`), så gangen
+   * mellom to etapper — selve byttet — manglet på kartet. Fra reisens egne
+   * gangeetapper, ikke en ny spørring. */
+  const feet = (dep._allLegs || []).filter(l => l.mode === 'foot');
+  let drewFeet = false;
+  feet.forEach(leg => {
+    const wp = legShape(leg) || _legEnds(leg);
+    if (wp.length < 2) return;
+    drawWalk(_selLayer, wp);
+    pts.push(...wp);
+    drewFeet = true;
+  });
 
   // Walking extension to venue destination
   if (destIsVenue) {
@@ -509,15 +569,8 @@ function _renderSelMap(dep, fromName, toName, now) {
     // polyline decoder, and refitted the map inside the `.then` — racing the
     // synchronous `fitBounds` twenty lines below. Drawing what we already
     // have removes the query, the copy and the race together.
-    const feet = (dep._allLegs || []).filter(l => l.mode === 'foot');
-    let drew = false;
-    feet.forEach(leg => {
-      const wp = legShape(leg) || _legEnds(leg);
-      if (wp.length < 2) return;
-      drawWalk(_selLayer, wp);
-      pts.push(...wp);
-      drew = true;
-    });
+    // Gangeetappene er alt tegnet over, sammen med bytte-gangen.
+    const drew = drewFeet;
     // No foot leg in this response — an old cached board, or the minimal
     // retry that drops pointsOnLink from every leg. Say the walk exists
     // rather than leaving the pin unconnected.
@@ -640,69 +693,31 @@ export function renderSelected() {
   // Build journey detail — full itinerary for transfers, 2-cell grid for single-line
   let journeyDetail;
   if (isTransfer) {
-    let itinHtml = '<div class="itinerary">';
-    const allLegs = c._allLegs || c._legs;
-    allLegs.forEach((leg, i) => {
-      const isFoot = leg.mode === 'foot';
-      const ll = leg.serviceJourney && leg.serviceJourney.line;
-      const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
-      const badge = isFoot
-        ? '<span class="foot-badge">gå</span>'
-        : '<span class="line-badge" style="background:' + bg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
-      const depT = (leg.fromEstimatedCall && leg.fromEstimatedCall.expectedDepartureTime)
-        || leg.expectedStartTime || leg.aimedStartTime || null;
-      const arrT2 = (leg.toEstimatedCall && (leg.toEstimatedCall.expectedArrivalTime || leg.toEstimatedCall.aimedArrivalTime))
-        || leg.expectedEndTime || leg.aimedEndTime || null;
-      const isLastLeg = (i === allLegs.length - 1);
-      const fromName = i === 0
-        ? cleanName(dir.from).toLowerCase()
-        : cleanName((leg.fromPlace && leg.fromPlace.name) || '?').toLowerCase() || '?';
-      const toName = cleanName(
-        (leg.toPlace && leg.toPlace.name) || (isLastLeg ? dir.to : '?')
-      ).toLowerCase() || '?';
-      const platform  = !isFoot && i > 0 && leg.fromEstimatedCall && leg.fromEstimatedCall.quay
-        ? leg.fromEstimatedCall.quay.publicCode : null;
-      const frontText = !isFoot && i > 0 && leg.fromEstimatedCall && leg.fromEstimatedCall.destinationDisplay
-        ? leg.fromEstimatedCall.destinationDisplay.frontText : null;
-
-      itinHtml += '<div class="itin-leg">'
-        + badge
-        + '<div class="itin-stops">'
-        + '<div class="itin-row dep"><span>' + esc(fromName) + '</span><span class="itin-time dep">' + (depT ? clk(depT) : '—') + '</span></div>'
-        + (platform ? '<div class="itin-meta">spor ' + esc(platform) + (frontText ? ' · retning ' + esc(frontText.toLowerCase()) : '') + '</div>' : '')
-        + '<div class="itin-row' + (isLastLeg ? ' final' : '') + '"><span>' + esc(toName) + '</span><span class="itin-time' + (isLastLeg ? ' final' : '') + '">' + (arrT2 ? clk(arrT2) : '—') + '</span></div>'
-        + '</div></div>';
-
-      if (!isLastLeg) {
-        const nextLeg = allLegs[i + 1];
-        if (isFoot) {
-          // foot row is itself the connector — no divider
-        } else if (nextLeg.mode === 'foot') {
-          const wDep = nextLeg.expectedStartTime || nextLeg.aimedStartTime;
-          const wArr = nextLeg.expectedEndTime   || nextLeg.aimedEndTime;
-          const wMin = wDep && wArr ? Math.round((new Date(wArr).getTime() - new Date(wDep).getTime()) / 60000) : null;
-          itinHtml += '<div class="itin-xfer">gå' + (wMin !== null ? ' · ' + wMin + ' min' : '') + '</div>';
-        } else {
-          const nextDepT = (nextLeg.fromEstimatedCall && (nextLeg.fromEstimatedCall.expectedDepartureTime || nextLeg.fromEstimatedCall.aimedDepartureTime))
-            || nextLeg.expectedStartTime || nextLeg.aimedStartTime;
-          const waitMins = arrT2 && nextDepT
-            ? Math.round((new Date(nextDepT).getTime() - new Date(arrT2).getTime()) / 60000) : null;
-          itinHtml += '<div class="itin-xfer">bytt' + (waitMins !== null ? ' · ' + waitMins + ' min' : '') + '</div>';
-        }
-      }
-    });
-    itinHtml += (tmin ? '<div class="itin-total">' + tmin + ' min reise</div>' : '') + '</div>';
-    journeyDetail = itinHtml;
+    /* REISELØPET (v1.208.0). Her sto en tabell med stoppnavn i små
+     * bokstaver, Journey Planners «destination» som siste stopp, gangen
+     * mellom etappene to ganger med to ulike minutter, plattform bare fra
+     * etappe to, og ingen dom om byttet. Se `ui/reiselop.js`. */
+    journeyDetail = reiselop(c._allLegs || c._legs, {
+      fra: dir.from, til: dir.to, ekstraMin: loadWalkBuffer(),
+      // Trinnfri fra stoppestedsregisteret, når den er kjent. Spørsmålet
+      // sendes første gang; svaret står ved neste oppfriskning.
+      tilgang: id => {
+        if (!id) return null;
+        const k = stoppestedKjent(id);
+        if (k === undefined) { hentStoppested(id); return null; }
+        return k && k.tilgang && k.tilgang.kind !== 'vet-ikke' ? k.tilgang.kind : null;
+      },
+    }) + (tmin ? '<div class="itin-total">' + tmin + ' min reise</div>' : '');
   } else {
     journeyDetail = '<div class="journey-detail">'
       + '<div class="jd-cell"' + (arrT ? '' : ' style="grid-column:1/-1"') + '>'
-      + '<div class="jd-label">avgår ' + esc(cleanName(dir.from).toLowerCase()) + '</div>'
+      + '<div class="jd-label">avgår ' + esc(visStopp(cleanName(dir.from))) + '</div>'
       + '<div class="jd-val departure">' + clkDay(c.expectedDepartureTime) + '</div>'
       + (delayed ? '<div class="jd-sub">rute ' + clk(c.aimedDepartureTime) + '</div>' : '')
       + '</div>'
       + (arrT
         ? '<div class="jd-cell">'
-          + '<div class="jd-label">ankommer ' + esc(cleanName(dir.to).toLowerCase()) + '</div>'
+          + '<div class="jd-label">ankommer ' + esc(visStopp(cleanName(dir.to))) + '</div>'
           + '<div class="jd-val arrival">' + clkDay(arrT) + '</div>'
           + '<div class="jd-sub">'
           + (tmin ? tmin + ' min reise' : '')
@@ -737,7 +752,7 @@ export function renderSelected() {
     + (quay !== '?' ? '<span class="tc-meta">spor <span>' + quay + '</span>' + (delayed ? ' · <span style="color:#fcd34d">forsinket</span>' : '') + '</span>' : (delayed ? '<span class="tc-meta"><span style="color:#fcd34d">forsinket</span></span>' : ''))
     + '</div>'
     + '<div id="s-live-status"></div>'
-    + '<div class="sel-route-ctx">' + esc(dir.from.toLowerCase()) + ' → ' + esc(dir.to.toLowerCase()) + '</div>'
+    + '<div class="sel-route-ctx">' + esc(visStopp(dir.from)) + ' → ' + esc(visStopp(dir.to)) + '</div>'
     + '<div class="sel-weather" id="sel-weather-content">' + _selWeatherHtml(arrT) + '</div>'
     + (departed
       ? '<div class="departed-banner">avgikk ' + clk(depTs) + ' · reisen er i gang</div>'

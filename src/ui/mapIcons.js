@@ -111,6 +111,18 @@ function _bodyPath(x, y, w, long, rx, nose) {
     + 'Q' + r(x) + ' ' + r(y) + ' ' + r(x + w / 2) + ' ' + r(y)
     + 'Z';
 }
+/**
+ * Markøralternativene for et kjøretøy på kartet. Én definisjon for alle tre
+ * skjermene som tegner et.
+ *
+ * leaflet-rotate holder markører rett opp på SKJERMEN som standard. Ikonet
+ * dreies til kursen mot nord, så når kartet var dreid, pekte bussen mot nord
+ * mens linja den kjører på var dreid bort. Rapportert med skjermbilde: linja
+ * kom inn fra vest, bussen pekte nord-nordøst. `rotateWithView` legger
+ * kartets dreining til, så nesen følger linja slik den står på skjermen.
+ */
+export const VEHICLE_MARKER_OPTS = Object.freeze({ rotateWithView: true });
+
 export function makeVehicleIcon(mode, color, opts = {}) {
   const { bearing = null, estimated = false } = opts;
 

@@ -23,7 +23,7 @@ import { startBoard, _interpolateVehiclePos } from './board.js';
 import { livePosFeed } from '../api/vehicles.js';
 import { seksjon, nesteForsøk } from '../api/seksjon.js';
 import { loadRecentDests, saveRecentDest, removeRecentDest } from '../api/recentDests.js';
-import { makeVehicleIcon, makeRouteStopIcon, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
+import { makeVehicleIcon, VEHICLE_MARKER_OPTS, makeRouteStopIcon, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _trainPosition, SRC_LABEL } from './trainPosition.js';
 import { VEHICLE_NOUN, VEHICLE_WORD, MODE_PIN } from '../api/posSource.js';
@@ -395,7 +395,7 @@ function _renderTrackMap(now, cs, legs) {
       }
     } else {
       _tVehIconKey = _tVehKey(pos);
-      _tVehicleMarker = L.marker([pos.lat, pos.lon], { icon }).addTo(_tLayer);
+      _tVehicleMarker = L.marker([pos.lat, pos.lon], { icon, ...VEHICLE_MARKER_OPTS }).addTo(_tLayer);
     }
     // «TOGET» STO HARDKODET HER, PÅ EN SKJERM DER `leg.mode` KAN VÆRE BUSS.
     //

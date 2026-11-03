@@ -6,6 +6,7 @@ import { clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL, fartNå, loadWalkBuffer } from '../geo.js';
 import { gangGjelder } from '../api/ombord.js';
+import { ensureApproach, approachPoints } from '../api/approach.js';
 import { _headingDeg } from '../ui/path.js';
 import { fetchJourneyMeta } from '../api/entur.js';
 import { quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
@@ -342,6 +343,15 @@ export function destroySelMap() {
   _selVehIconKey = null;
 }
 
+/**
+ * Streken fra deg til påstigningen: gangruta når den finnes, ellers den rette
+ * streken mellom de to punktene.
+ */
+export function gangLinje(gangrute, fra, til) {
+  if (Array.isArray(gangrute) && gangrute.length >= 2) return gangrute;
+  return [[fra.lat, fra.lon], [til.lat, til.lon]];
+}
+
 function _selMapStructKey(dep, legs, dir) {
   const jid = (dep.serviceJourney && dep.serviceJourney.id) || '';
   const destSuffix = (dir._toLat && dir._toLon && !dir.toStopId)
@@ -418,7 +428,19 @@ function _renderSelMap(dep, fromName, toName, now) {
 
   // Rebuild only when the route itself changes — renderSelected runs every
   // second and recreating the Leaflet map each tick flickers and resets pan/zoom
-  const key = _selMapStructKey(dep, legs, dir);
+  // GANGRUTA TIL STOPPET, fra den felles bufferen tavla og auto-reise leser.
+  // Bedt om her, før nøkkelen: når ruta kommer, er den en del av hva kartet
+  // viser, og kartet bygges om én gang. Ikke i fart: en strek fra deg til
+  // påstigningen er et råd om å gå. Samme regel som tavla og auto-reise
+  // (`gangGjelder`).
+  const påstigning = legs[0] && legs[0].stops && legs[0].stops[0];
+  const harPåstigning = !!(påstigning && påstigning.lat != null && påstigning.lon != null);
+  const gå = gangGjelder(fartNå(), state.walkFromLL !== null);
+  const herfra = userLL();
+  ensureApproach(gå && herfra && harPåstigning ? herfra : null,
+    harPåstigning ? { lat: påstigning.lat, lon: påstigning.lon } : null);
+  const gangrute = approachPoints();
+  const key = _selMapStructKey(dep, legs, dir) + '|gang:' + (gangrute ? gangrute.length : 0);
   // Kartet bygges bare om når ruta endrer seg, men kjøretøyet flytter seg
   // hvert sekund. To kallesteder, én funksjon.
   if (key === _selMapKey && _selMap) { _selVehicle(dep, legs, now); return; }
@@ -589,16 +611,17 @@ function _renderSelMap(dep, fromName, toName, now) {
     // the ride and the walk at the far end, and left the reader to imagine
     // how they reached the platform.
     //
-    // A straight dashed line, as gangtid drew it: the route from a position
-    // to a platform is not in the trip response — we ask from a stop id on
-    // purpose (v1.4.1) — so a drawn path here would be invented.
-    const board = legs[0] && legs[0].stops && legs[0].stops[0];
-    // Ikke i fart: en strek fra deg til påstigningen er et råd om å gå.
-    // Samme regel som tavla og auto-reise (`gangGjelder`).
-    const gå = gangGjelder(fartNå(), state.walkFromLL !== null);
-    if (gå && board && board.lat != null && board.lon != null) {
-      drawWalk(_selLayer, [[userPos.lat, userPos.lon], [board.lat, board.lon]]);
-      pts.push([userPos.lat, userPos.lon], [board.lat, board.lon]);
+    // Ruta er gangruta fra `api/approach.js` (Valhalla, så Entur), den samme
+    // tavla og auto-reise tegner, og den samme «N m» er målt langs. Den rette
+    // streken står bare mens ruta hentes, eller når ingen ruter svarte.
+    //
+    // Den sto her alene før, med begrunnelsen at «en tegnet sti ville vært
+    // oppdiktet». Det var sant før `approach.js` fantes. Rapportert med
+    // skjermbilde: en strek rett over hus og skog, under «802 m · 12 min».
+    if (gå && harPåstigning) {
+      const linje = gangLinje(gangrute, userPos, påstigning);
+      drawWalk(_selLayer, linje);
+      linje.forEach(p => pts.push(p));
     }
   }
 

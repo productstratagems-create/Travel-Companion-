@@ -26,7 +26,7 @@ import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
 import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg, fitPadding } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
-import { makeVehicleIcon } from '../ui/mapIcons.js';
+import { makeVehicleIcon, VEHICLE_MARKER_OPTS } from '../ui/mapIcons.js';
 import { departureVehicle, depLineRef, depMode, SRC_LABEL } from './trainPosition.js';
 import { VEHICLE_NOUN } from '../api/posSource.js';
 import { livePosFeed } from '../api/vehicles.js';
@@ -396,7 +396,7 @@ function _selVehicle(dep, legs, now) {
     if (_selVehIconKey !== key) { _selVehIconKey = key; _selVehMarker.setIcon(icon()); }
   } else {
     _selVehIconKey = key;
-    _selVehMarker = L.marker([pos.lat, pos.lon], { icon: icon() }).addTo(_selLayer);
+    _selVehMarker = L.marker([pos.lat, pos.lon], { icon: icon(), ...VEHICLE_MARKER_OPTS }).addTo(_selLayer);
   }
 
   // Ikke permanent: båndet bærer alt to faste stoppnavn, og `selected.js`

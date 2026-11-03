@@ -23,7 +23,7 @@ import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
 import { fetchNearbyStops, _resetNearbyCache } from '../api/stops.js';
-import { makeStopIcon, makeVehicleIcon, makeRouteStopIcon, makeJourneyPointIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
+import { makeStopIcon, makeVehicleIcon, VEHICLE_MARKER_OPTS, makeRouteStopIcon, makeJourneyPointIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { livePosFeed, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
 import { belegg, beleggTekst, fraEntur } from '../api/belegg.js';
@@ -2400,7 +2400,7 @@ function renderVehicleMarkers(vehicles, paths) {
     L.marker([pos.lat, pos.lon], { icon: makeVehicleIcon(mode, color, {
       bearing,
       estimated: !live,
-    }) })
+    }), ...VEHICLE_MARKER_OPTS })
       // The train's own line, not the global selection. With one line
       // selected the two happened to agree; with several, every marker would
       // have claimed to be the same line.

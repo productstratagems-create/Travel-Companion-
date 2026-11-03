@@ -1,5 +1,7 @@
 // All user-specific localStorage keys — used for migration and profile deletion.
 const ALL_KEYS = [
+  // Knappebruk (v1.212.0): tellere per knapp og dag, bak samtykket.
+  't.knappebruk',
   't.dest', 't.dep', 't.via', 't.walkSpeed', 't.walkBuf', 't.walkFrom',
   't.weekendMode', 't.theme', 't.dir', 't.jny', 't.favs', 't.plan',
   't.calSeq',

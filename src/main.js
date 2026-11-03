@@ -32,6 +32,14 @@ import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState,
 import { getActiveProfile, storage } from './storage.js';
 import { state } from './state.js';
 import { nullstillVaneTelling } from './api/smart.js';
+import { tellTrykk } from './api/knappebruk.js';
+
+/* KNAPPEBRUK. Ett trykk telles der det skjer, med capture så en knapp som
+ * stopper hendelsen selv også telles. Uten samtykke skriver tellTrykk
+ * ingenting. */
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', e => tellTrykk(e.target), true);
+}
 
 const prefilledRoute = (function applyPrefillFromQuery() {
   const params = new URLSearchParams(window.location.search);

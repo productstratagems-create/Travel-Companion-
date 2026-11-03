@@ -6,6 +6,7 @@ import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
 import { loadFreq, trackPlace, glemAlleSteder } from '../api/usage.js';
 import { logEvent, recentEvents, describeEvent, clearEvents, MEMORY_DAYS } from '../api/eventLog.js';
+import { rangering, rangeringTekst, glemKnappebruk } from '../api/knappebruk.js';
 import { clearRecentDests } from '../api/recentDests.js';
 import { loadConsent, saveConsent } from '../api/consent.js';
 import L from 'leaflet';
@@ -925,6 +926,7 @@ export function renderMemory() {
   // projects off-screen, drawn and invisible. The probe measured «10
   // tegnet, 2 synlige». Deferring one frame lets the layout settle
   // whatever order the caller used, rather than depending on it.
+  _renderKnappebruk();
   const pts = events.filter(e => e.pos);
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => _renderMemMap(pts));
   else _renderMemMap(pts);
@@ -1004,8 +1006,45 @@ export function initMemory() {
      * uten noe vindu i det hele tatt. Loggen ved siden av tømmes etter sju
      * døgn; denne ble aldri tømt av noe annet enn å slette hele profilen. */
     glemVaner();
+    // Og knappebruken: «alt» betyr alt.
+    glemKnappebruk();
     renderMemory();
   });
+  const kbClr = document.getElementById('kb-clear');
+  if (kbClr) kbClr.addEventListener('click', () => { glemKnappebruk(); renderMemory(); });
+  const kbCopy = document.getElementById('kb-copy');
+  if (kbCopy) kbCopy.addEventListener('click', () => {
+    const tekst = rangeringTekst(rangering(Date.now()));
+    const ferdig = () => { kbCopy.textContent = 'kopiert'; setTimeout(() => { kbCopy.textContent = 'kopier som tekst'; }, 1500); };
+    try { navigator.clipboard.writeText(tekst).then(ferdig, () => {}); } catch { /* ingen utklippstavle */ }
+  });
+}
+
+/**
+ * Knappebruken, rangert fra mest til minst trykket. Hele lista, fordi alt som
+ * lagres skal vises. Knapper som er vist men aldri trykket, står for seg:
+ * de er kandidatene til å flyttes lenger unna.
+ */
+export function knappebrukHtml(liste) {
+  if (!liste.length) {
+    return '<div class="mem-empty">Ingen knapper talt ennå. Hver knapp telles når du trykker '
+      + 'på den, og hver gang den står på skjermen du åpner.</div>';
+  }
+  const brukt = liste.filter(r => r.trykk > 0);
+  const aldri = liste.filter(r => r.trykk === 0);
+  const pst = r => (r.andel == null ? '—' : Math.round(r.andel * 100) + ' %');
+  const rad = (r, i) => '<tr><td class="kb-nr">' + (i + 1) + '</td><td class="kb-knapp">' + esc(r.knapp)
+    + '</td><td class="kb-skjerm">' + esc(r.skjerm) + '</td><td class="kb-n">' + r.trykk
+    + '</td><td class="kb-n">' + r.vist + '</td><td class="kb-n">' + pst(r) + '</td></tr>';
+  const tabell = (rows, start) => '<table class="kb-tab"><thead><tr><th>#</th><th>knapp</th><th>skjerm</th>'
+    + '<th>trykk</th><th>vist</th><th>andel</th></tr></thead><tbody>' + rows.map((r, i) => rad(r, i + start)).join('') + '</tbody></table>';
+  return '<div class="kb-sub">mest brukt</div>' + (brukt.length ? tabell(brukt, 0) : '<div class="mem-empty">ingen trykk ennå</div>')
+    + (aldri.length ? '<div class="kb-sub">vist, men aldri trykket</div>' + tabell(aldri, brukt.length) : '');
+}
+
+function _renderKnappebruk() {
+  const el = document.getElementById('kb-list');
+  if (el) el.innerHTML = knappebrukHtml(rangering(Date.now()));
 }
 
 export function showPrefs() {

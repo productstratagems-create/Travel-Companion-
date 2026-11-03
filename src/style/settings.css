@@ -845,3 +845,15 @@
    i stedet for ett svar. Rapportert, og rullet tilbake: den er en fotnote på
    setningen over, ikke et nytt utsagn. */
 #v-auto .auto-dest-more{ color:var(--text-muted); }
+
+/* Knappebruk: rangeringen, tett og lesbar på telefonbredde. */
+.kb-label{margin-top:1rem}
+.kb-sub{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-soft);margin:.6rem 0 .25rem}
+.kb-tab{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+.kb-tab th{font-weight:500;color:var(--text-soft);text-align:left;padding:.2rem .25rem}
+.kb-tab td{padding:.25rem;border-top:1px solid rgba(var(--border-rgb),.15);overflow-wrap:anywhere}
+.kb-tab th:nth-child(1),.kb-nr{width:1.6rem}
+.kb-tab th:nth-child(3),.kb-skjerm{width:4.6rem;color:var(--text-soft)}
+.kb-tab th:nth-child(n+4),.kb-n{width:3rem;text-align:right}
+.kb-actions{display:flex;gap:.5rem;flex-wrap:wrap}
+.kb-btn{flex:1 1 0;padding:.5rem .75rem;margin-top:.5rem;background:none;border:1px solid rgba(var(--border-rgb),.2);border-radius:6px;font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-soft);cursor:pointer}

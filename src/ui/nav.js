@@ -1,3 +1,4 @@
+import { tellVist } from '../api/knappebruk.js';
 import config from '../config.js';
 import { state } from '../state.js';
 import { addFav } from './favs.js';
@@ -331,6 +332,10 @@ export function initHistory() {
 }
 
 export function show(id) {
+  // Ett skjermbesøk for knappebruken: neste bilde, når skjermen er tegnet.
+  // Bunnmenyen også: den ligger utenfor skjermene, og proben viste den med
+  // trykk men aldri vist.
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { tellVist(document.getElementById(id)); tellVist(document.getElementById('app-nav')); });
   closeSpectatePanel();
   closeBoardMenu();
   if (id !== 'v-selected') window._destroySelMap && window._destroySelMap();

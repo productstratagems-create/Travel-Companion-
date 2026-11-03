@@ -6,6 +6,7 @@ import { clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL, fartNå, loadWalkBuffer } from '../geo.js';
 import { gangGjelder } from '../api/ombord.js';
+import { plattformTekst } from '../bytte.js';
 import { ensureApproach, approachPoints } from '../api/approach.js';
 import { _headingDeg } from '../ui/path.js';
 import { fetchJourneyMeta } from '../api/entur.js';
@@ -736,7 +737,11 @@ export function renderSelected() {
       + '<div class="jd-cell"' + (arrT ? '' : ' style="grid-column:1/-1"') + '>'
       + '<div class="jd-label">avgår ' + esc(visStopp(cleanName(dir.from))) + '</div>'
       + '<div class="jd-val departure">' + clkDay(c.expectedDepartureTime) + '</div>'
-      + (delayed ? '<div class="jd-sub">rute ' + clk(c.aimedDepartureTime) + '</div>' : '')
+      + (() => {
+        const sub = [delayed ? 'rute ' + clk(c.aimedDepartureTime) : null, plattformTekst(quay, depMode(c))]
+          .filter(Boolean).join(' · ');
+        return sub ? '<div class="jd-sub">' + esc(sub) + '</div>' : '';
+      })()
       + '</div>'
       + (arrT
         ? '<div class="jd-cell">'
@@ -744,7 +749,7 @@ export function renderSelected() {
           + '<div class="jd-val arrival">' + clkDay(arrT) + '</div>'
           + '<div class="jd-sub">'
           + (tmin ? tmin + ' min reise' : '')
-          + (c._arrQuay ? (tmin ? ' · ' : '') + 'spor ' + esc(c._arrQuay) : '')
+          + (plattformTekst(c._arrQuay, depMode(c)) ? (tmin ? ' · ' : '') + esc(plattformTekst(c._arrQuay, depMode(c))) : '')
           + '</div>'
           + '</div>'
         : '')
@@ -772,7 +777,9 @@ export function renderSelected() {
     + '<div class="train-chip">'
     + chipBadges
     + '<span class="tc-dest">' + esc(dest) + '</span>'
-    + (quay !== '?' ? '<span class="tc-meta">spor <span>' + quay + '</span>' + (delayed ? ' · <span style="color:#fcd34d">forsinket</span>' : '') + '</span>' : (delayed ? '<span class="tc-meta"><span style="color:#fcd34d">forsinket</span></span>' : ''))
+    // Sporet står under avgangstiden, ikke her: hvert spor ett sted, ved
+    // stoppet det gjelder (avgår- og ankommer-cellen nedenfor).
+    + (delayed ? '<span class="tc-meta"><span style="color:#fcd34d">forsinket</span></span>' : '')
     + '</div>'
     + '<div id="s-live-status"></div>'
     + '<div class="sel-route-ctx">' + esc(visStopp(dir.from)) + ' → ' + esc(visStopp(dir.to)) + '</div>'

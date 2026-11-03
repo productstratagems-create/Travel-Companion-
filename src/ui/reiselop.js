@@ -261,11 +261,19 @@ const _ll = p => (p && Number.isFinite(p.latitude) && Number.isFinite(p.longitud
 /**
  * På, bytt og av — med linje og plattform, på KVAIENS koordinater (en
  * etappes `fromPlace` er kvaien, ikke stoppestedets midtpunkt).
+ *
+ * UTEN BYTTE STÅR STOPPNAVNET, ikke plattformen. Da står plattformen allerede
+ * under avgangs- og ankomsttiden over kartet. Rapportert: «spor 1» ved
+ * linjenavnet, i kartetiketten og under tiden, og «spor 2» uten å si at det
+ * var på Jernbanetorget. Hvert spor står nå ett sted, ved stoppet det gjelder.
+ * Med bytte er plattformene en del av byttet og står i både tabellen og
+ * kartet, som før.
  * @returns {Array<{kind:'på'|'bytt'|'av', lat, lon, linje?, farge?, tekst}>}
  */
 export function kartPunkter(alle) {
   const kjør = (alle || []).filter(l => l && l.mode !== 'foot');
   const ut = [];
+  const medBytte = kjør.length > 1;
   kjør.forEach((l, k) => {
     const p = _ll(l.fromPlace);
     const line = (l.serviceJourney && l.serviceJourney.line) || {};
@@ -273,8 +281,8 @@ export function kartPunkter(alle) {
     if (p) {
       ut.push({ kind: k === 0 ? 'på' : 'bytt', lat: p[0], lon: p[1],
         linje: line.publicCode || '?', farge,
-        tekst: plattformTekst(l.fromEstimatedCall && l.fromEstimatedCall.quay
-          && l.fromEstimatedCall.quay.publicCode, l.mode) || visStopp(legEnds(l).fra) });
+        tekst: (medBytte && plattformTekst(l.fromEstimatedCall && l.fromEstimatedCall.quay
+          && l.fromEstimatedCall.quay.publicCode, l.mode)) || visStopp(legEnds(l).fra) });
     }
     /* OG DER DU GÅR AV — også midt i reisen. Uten det viste et zoomet bytte
      * bare den ene enden: «bytt» der du går på, og ingenting der bussen

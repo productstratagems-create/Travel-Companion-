@@ -223,6 +223,10 @@ let _selMap = null, _selLayer = null;
  * tegnes. Fra de samme rå etappene som tabellen, så «e1» er samme etappe
  * begge steder. */
 let _selGeo = null;
+/* Hele reisens punkter og gangen til stoppet, til «hele reisen»-knappen.
+ * Reiser uten etapper har ingen `kartUtsnitt`, så knappen leser disse. */
+let _selFrame = [];
+let _selGå = [];
 /** Omtrent høyden på en permanent etikett over eller under et punkt. */
 const ETIKETT_PX = 30;
 
@@ -356,6 +360,17 @@ export function gangLinje(gangrute, fra, til) {
   return [[fra.lat, fra.lon], [til.lat, til.lon]];
 }
 
+/**
+ * Første utsnitt når du skal gå til påstigningen: deg, stoppet og gangruta
+ * mellom dere. Null når du ikke skal gå dit (i fart, avgått, fast «gå fra»
+ * eller ukjent posisjon). Da er første utsnitt hele reisen, som før.
+ */
+export function startUtsnitt(herfra, påstigning, gangrute) {
+  if (!herfra || !påstigning || påstigning.lat == null || påstigning.lon == null) return null;
+  return [[herfra.lat, herfra.lon], [påstigning.lat, påstigning.lon]]
+    .concat(Array.isArray(gangrute) ? gangrute : []);
+}
+
 function _selMapStructKey(dep, legs, dir) {
   const jid = (dep.serviceJourney && dep.serviceJourney.id) || '';
   const destSuffix = (dir._toLat && dir._toLon && !dir.toStopId)
@@ -444,7 +459,11 @@ function _renderSelMap(dep, fromName, toName, now) {
   ensureApproach(gå && herfra && harPåstigning ? herfra : null,
     harPåstigning ? { lat: påstigning.lat, lon: påstigning.lon } : null);
   const gangrute = approachPoints();
-  const key = _selMapStructKey(dep, legs, dir) + '|gang:' + (gangrute ? gangrute.length : 0);
+  // Når avgangen har gått, er gangen ikke lenger det du skal gjøre. Kartet
+  // bygges om én gang og viser da hele reisen.
+  const avgått = new Date(dep.expectedDepartureTime).getTime() < now;
+  const key = _selMapStructKey(dep, legs, dir) + '|gang:' + (gangrute ? gangrute.length : 0)
+    + (avgått ? '|avgått' : '');
   // Kartet bygges bare om når ruta endrer seg, men kjøretøyet flytter seg
   // hvert sekund. To kallesteder, én funksjon.
   if (key === _selMapKey && _selMap) { _selVehicle(dep, legs, now); return; }
@@ -473,9 +492,11 @@ function _renderSelMap(dep, fromName, toName, now) {
     alt.id = 'sel-map-alt'; alt.type = 'button'; alt.className = 'sel-map-alt';
     alt.textContent = 'hele reisen';
     alt.addEventListener('click', () => {
-      if (_selMap && _selGeo && _selGeo.alt.length) {
+      // Hele reisen, og gangen dit når den er tegnet.
+      const hele = (_selGeo && _selGeo.alt.length ? _selGeo.alt : _selFrame).concat(_selGå);
+      if (_selMap && hele.length) {
         const pad = fitPadding(mapEl.clientHeight);
-        _selMap.fitBounds(_selGeo.alt, { padding: [pad, pad], maxZoom: 15, animate: true });
+        _selMap.fitBounds(hele, { padding: [pad, pad], maxZoom: 15, animate: true });
       }
       alt.hidden = true;
     });
@@ -504,6 +525,8 @@ function _renderSelMap(dep, fromName, toName, now) {
   legs.forEach(lg => (lg.stops || []).forEach(st => frame.push([st.lat, st.lon])));
   if (destIsVenue) frame.push([dir._toLat, dir._toLon]);
   if (frame.length) _selMap.fitBounds(frame, { padding: [pad, pad], maxZoom: 15, animate: false });
+  _selFrame = frame;
+  _selGå = [];
 
   legs.forEach(({ stops, pts: legPts, color, mode }, li) => {
     const lc = color || tokens().accent;
@@ -626,6 +649,7 @@ function _renderSelMap(dep, fromName, toName, now) {
       const linje = gangLinje(gangrute, userPos, påstigning);
       drawWalk(_selLayer, linje);
       linje.forEach(p => pts.push(p));
+      _selGå = linje;
     }
   }
 
@@ -634,7 +658,18 @@ function _renderSelMap(dep, fromName, toName, now) {
   // beads stay as they were rather than being re-judged mid-render — a marker
   // that appears and disappears within one paint is worse than one drawn
   // against a frame a little tighter than the last.
-  if (pts.length) _selMap.fitBounds(pts, { padding: [pad, pad], maxZoom: 15, animate: false });
+  //
+  // DER DU STÅR OG DER DU GÅR PÅ, når du skal gå dit. Rapportert med
+  // skjermbilde: kartet viste hele turen til Jernbanetorget i 5 km-skala, og
+  // deg og stoppet 800 m unna som én prikk. Det du skal gjøre nå er å gå til
+  // stoppet, så første utsnitt er den gangen. «Hele reisen» viser resten.
+  const fokus = startUtsnitt(gå && !avgått && userPos ? userPos : null, harPåstigning ? påstigning : null, gangrute);
+  if (fokus) {
+    _selMap.fitBounds(fokus, { padding: [pad, pad], maxZoom: 17, animate: false });
+    alt.hidden = false;
+  } else if (pts.length) {
+    _selMap.fitBounds(pts, { padding: [pad, pad], maxZoom: 15, animate: false });
+  }
   setTimeout(() => _selMap && _selMap.invalidateSize(), 100);
 
   bindMapExpand(_selMap, mapEl, document.getElementById('sel-map-expand'));

@@ -272,6 +272,34 @@ let _windowRejected = false;
 export function _windowRefused() { return _windowRejected; }
 export function _resetWindowProbe() { _windowRejected = false; }
 
+/**
+ * Hvilket valgfritt felt en avvisning fra Entur gjelder, eller null.
+ *
+ * Trappen under dropper ett felt om gangen. Før gjorde den det i fast
+ * rekkefølge, fordi det ikke var kjent hva feilen sa. Det er kjent nå: målt
+ * 2026-11-03 sa Entur `Validation error (UnknownType@[stopPlace/situations/
+ * affects]) : Unknown type 'AffectedQuay'`. Den faste rekkefølgen kastet da
+ * innstilte, bytte og ider, som alle virker, før den kom til affects.
+ *
+ * Rekkefølgen her betyr noe: «affects» før «quay», fordi feilen over også
+ * inneholder «Quay». Uten treff svarer den null, og trappen bruker den
+ * faste rekkefølgen som før.
+ */
+const _AVVIST = [
+  ['affects', /affects|Affected/],
+  ['innstilte', /includeRealtimeCancellations/],
+  ['bytte', /interchangeTo|staySeated|guaranteed/],
+  ['ider', /(fromPlace|toPlace)\/quay/],
+  ['window', /searchWindow/],
+  ['coach', /\bcoach\b/],
+  ['lookback', /dateTime/],
+];
+export function avvistFlagg(feil) {
+  const tekst = (feil || []).map(e => (e && e.message) || '').join(' ');
+  const hit = _AVVIST.find(([, re]) => re.test(tekst));
+  return hit ? hit[0] : null;
+}
+
 export function fetchTrip(dir, onSuccess, onError, atMs) {
   if (tripController) tripController.abort();
   if (boardController) boardController.abort();
@@ -344,38 +372,43 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
           // Affects goes first of all. Shedding it costs only how well the
           // messages are sorted; shedding any of the others costs departures.
           // The cheapest loss leads, as the comment above says.
+          // DET FEILEN PEKER PÅ, når den peker på noe. Ellers den faste
+          // rekkefølgen under, som før. `gjelder(x)` er sann for x når
+          // feilen nevner x, eller når den ikke nevner noe kjent.
+          const pekt = (!j.data && j.errors) ? avvistFlagg(j.errors) : null;
+          const gjelder = x => pekt === null || pekt === x;
           // Innstilte reiser FØRST av alt: tapet er nøyaktig dagens oppførsel.
-          if (withInnstilte && !j.data && j.errors) {
+          if (withInnstilte && !j.data && j.errors && gjelder('innstilte')) {
             _innstilteRejected = true;
             logMsg('innstilte reiser: avvist, spør uten' + why, 'err');
             return ask(withLookback, withCoach, withWindow, withAffects, false, withBytte, withIder);
           }
-          if (withBytte && !j.data && j.errors) {
+          if (withBytte && !j.data && j.errors && gjelder('bytte')) {
             _bytteRejected = true;
             logMsg('bli sittende: interchangeTo avvist, spør uten' + why, 'err');
             return ask(withLookback, withCoach, withWindow, withAffects, withInnstilte, false, withIder);
           }
-          if (withIder && !j.data && j.errors) {
+          if (withIder && !j.data && j.errors && gjelder('ider')) {
             _iderRejected = true;
             logMsg('stoppested-id: Place.quay avvist, matcher på navn' + why, 'err');
             return ask(withLookback, withCoach, withWindow, withAffects, withInnstilte, withBytte, false);
           }
-          if (withAffects && !j.data && j.errors) {
+          if (withAffects && !j.data && j.errors && gjelder('affects')) {
             _affectsRejected = true;
             logMsg('situasjoner: affects avvist, sorteres på herkomst' + why, 'err');
             return ask(withLookback, withCoach, withWindow, false, withInnstilte, withBytte, withIder);
           }
-          if (withWindow && !j.data && j.errors) {
+          if (withWindow && !j.data && j.errors && gjelder('window')) {
             _windowRejected = true;
             logMsg('søkevindu: searchWindow avvist' + why, 'err');
             return ask(withLookback, withCoach, false, withAffects, withInnstilte, withBytte, withIder);
           }
-          if (withCoach && !j.data && j.errors) {
+          if (withCoach && !j.data && j.errors && gjelder('coach')) {
             _coachRejected = true;
             logMsg('ekspressbuss: coach avvist' + why, 'err');
             return ask(withLookback, false, withWindow, withAffects, withInnstilte, withBytte, withIder);
           }
-          if (withLookback && !j.data && j.errors) {
+          if (withLookback && !j.data && j.errors && gjelder('lookback')) {
             logMsg('trip: dateTime avvist, tilbakeblikket tapt denne pollen' + why, 'err');
             noteLookbackLost();
             return ask(false, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder);

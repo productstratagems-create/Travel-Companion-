@@ -48,10 +48,17 @@ export function lookbackISO(now) {
  * Without it the app falls back to provenance alone — where the message hung
  * — which is today's behaviour, not something worse.
  */
+/* ETTER DET EKTE SKJEMAET (introspeksjon av unionen `Affects`, 2026-11-03).
+ * Her sto `... on AffectedQuay`, en type som ikke finnes: plattformen er et
+ * felt på `AffectedStopPlace`. Entur avviste hele spørringen, og trappen i
+ * `fetchTrip` mistet tre felt som virker før den kom til denne. Funnet av
+ * testrutene. `AffectedUnknown` har bare en beskrivelse, så den spørres
+ * ikke om. Leseren (`situations.js`) leser etter feltform, ikke typenavn. */
 export const AFFECTS_GQL = ' affects{__typename'
   + ' ... on AffectedLine{line{id}}'
-  + ' ... on AffectedStopPlace{stopPlace{id}}'
-  + ' ... on AffectedQuay{quay{stopPlace{id}}}'
+  + ' ... on AffectedStopPlace{stopPlace{id} quay{stopPlace{id}}}'
+  + ' ... on AffectedStopPlaceOnLine{stopPlace{id} quay{stopPlace{id}} line{id}}'
+  + ' ... on AffectedStopPlaceOnServiceJourney{stopPlace{id} quay{stopPlace{id}} serviceJourney{id}}'
   + ' ... on AffectedServiceJourney{serviceJourney{id}}}';
 
 export function sitsGQL(basic, withAffects) {

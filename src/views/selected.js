@@ -371,6 +371,37 @@ export function startUtsnitt(herfra, påstigning, gangrute) {
     .concat(Array.isArray(gangrute) ? gangrute : []);
 }
 
+/**
+ * Høyden det utvidede kartet har mellom statuslinja og knapperaden, i px.
+ *
+ * Rapportert med skjermbilde: det utvidede kartet var 72vh uansett hva som
+ * ellers sto på skjermen, så den nederste delen (målestokk og kilde) lå bak
+ * knapperaden og bunnmenyen. Raden står fast over menyen (`sticky`, se
+ * selected.css), så plassen er skjermen minus stripa over statuslinja, minus
+ * raden, minus det raden står på (`bottom`).
+ *
+ * Ren, så regelen kan prøves uten nettleser.
+ */
+export function utvidetKartHøyde(skjermH, toppPx, radH, radBunnPx) {
+  return Math.max(200, Math.floor(skjermH - toppPx - radH - radBunnPx));
+}
+
+export function _plasserUtvidetKart(el, open) {
+  if (!open) { el.style.removeProperty('--map-h-open'); return; }
+  const rad = document.querySelector('#s-ctas > .cta-row');
+  const topp = parseFloat(getComputedStyle(document.body, '::before').height) || 0;
+  const radH = rad ? rad.getBoundingClientRect().height : 0;
+  const bunn = rad ? (parseFloat(getComputedStyle(rad).bottom) || 0) : 0;
+  el.style.setProperty('--map-h-open', utvidetKartHøyde(window.innerHeight, topp, radH, bunn) + 'px');
+  // Kartets topp rett under statuslinja, så det fyller plassen helt.
+  // scrollIntoView, ikke window.scrollTo: det er ikke alltid vinduet som
+  // ruller, og da flyttet window.scrollTo ingenting.
+  // Etter høydeovergangen (0,3 s, som `bindMapExpand` venter på): før den er
+  // siden ikke høy nok til å rulle så langt, og rullingen stoppet halvveis.
+  el.style.scrollMarginTop = topp + 'px';
+  setTimeout(() => el.classList.contains('expanded') && el.scrollIntoView({ block: 'start', behavior: 'auto' }), 320);
+}
+
 function _selMapStructKey(dep, legs, dir) {
   const jid = (dep.serviceJourney && dep.serviceJourney.id) || '';
   const destSuffix = (dir._toLat && dir._toLon && !dir.toStopId)
@@ -672,7 +703,7 @@ function _renderSelMap(dep, fromName, toName, now) {
   }
   setTimeout(() => _selMap && _selMap.invalidateSize(), 100);
 
-  bindMapExpand(_selMap, mapEl, document.getElementById('sel-map-expand'));
+  bindMapExpand(_selMap, mapEl, document.getElementById('sel-map-expand'), { onToggle: (open) => _plasserUtvidetKart(mapEl, open) });
   _selVehicle(dep, legs, now);
 }
 

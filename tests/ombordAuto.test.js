@@ -267,11 +267,14 @@ describe('ganglinja fra deg til stoppet', () => {
 
   it('og avgangsdetaljene tegner den ikke i fart', () => {
     const s = strip('src/views/selected.js');
-    const i = s.indexOf('drawWalk(_selLayer, [[userPos.lat, userPos.lon], [board.lat, board.lon]])');
+    // Siden v1.211.1 er streken gangruta (`gangLinje`), ikke en rett strek.
+    // Påstanden er den samme: ingen strek i fart.
+    const i = s.indexOf('drawWalk(_selLayer, linje)');
     expect(i).toBeGreaterThan(0);
+    expect(s).toMatch(/const gå = gangGjelder\(fartNå\(\), state\.walkFromLL !== null\);/);
     // Og at `if`-en BRUKER svaret. Første utgave så bare at uttrykket stod
     // like før streken — mutanten som lot `if`-en ignorere det overlevde.
-    expect(s.slice(i - 300, i)).toMatch(/const gå = gangGjelder\(fartNå\(\), state\.walkFromLL !== null\);\s*if \(gå && board/);
+    expect(s.slice(i - 300, i)).toMatch(/if \(gå && harPåstigning\) \{\s*const linje = gangLinje\(/);
   });
 
   it('og tavla er dekket av isWalkActive, som alt sjekker farten', () => {

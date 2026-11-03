@@ -237,6 +237,8 @@
 /* Uten posisjon: ingen pil, og det sies med ord. En pil som peker nordover
    fordi den ikke vet bedre er verre enn ingen pil. */
 .sel-heading-ukjent{font-size:11px;color:var(--text-soft);margin-bottom:.6rem}
+/* I nedtellingen: midtstilt under «gå senest», som én blokk med tallet. */
+.leaveby-hero .sel-heading{justify-content:center;margin:.45rem 0 0}
 
 /* A BAND, and 130px is a measurement: v1.103.1 shrank it so «reis» clears
    the bottom menu without moving anything. It is not the full height minus a

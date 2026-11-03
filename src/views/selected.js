@@ -125,13 +125,16 @@ function _retningHtml(dir) {
     + '</div>';
 }
 
-function _subLine(rcls, mtl, leaveByTs, depTs, now) {
+export function _subLine(rcls, mtl, leaveByTs, depTs, now) {
   // clkDay, not clk: a departure tomorrow has a deadline tomorrow, and «gå
   // senest 11:19» beside a hero reading «i morgen» invited the reader to leave
   // today. The prefix is empty for today, so nothing changes in the ordinary
   // case.
   const deadline = 'gå senest ' + clkDay(leaveByTs, now);
   if (rcls === 'r-far') return deadline;
+  // «45 min igjen» er det store tallet rett over, en gang til. Det står bare
+  // når det sier noe tallet ikke sier («passert for 3 min siden»).
+  if (rcls !== 'missed' && countdownText(rcls, mtl, depTs, now).counting) return deadline;
   return deadline + ' · ' + leaveByMsg(rcls, mtl, depTs, now);
 }
 
@@ -771,9 +774,14 @@ export function renderSelected() {
   // Remember the original departure platform so we can detect changes later
   if (!c._origQuay && quay !== '?') c._origQuay = quay;
 
-  // (se _retningHtml nedenfor)
+  // GANGEN ER SAMLET I NEDTELLINGEN. Rapportert: «834 m · 13 min å gå»
+  // øverst, «45 min» midt på og «gå senest 19:50 · 45 min igjen» under,
+  // spredt over en halv skjerm og med minuttene to ganger. Når nedtellingen
+  // vises, står retning og avstand i den, rett under «gå senest». Uten
+  // nedtelling (avgått, eller du går ikke) står de øverst som før.
+  const heroVises = !departed && walkActive;
   document.getElementById('s-content').innerHTML = ''
-    + _retningHtml(dir)
+    + (heroVises ? '' : _retningHtml(dir))
     + '<div class="train-chip">'
     + chipBadges
     + '<span class="tc-dest">' + esc(dest) + '</span>'
@@ -792,6 +800,7 @@ export function renderSelected() {
           + '<div class="leaveby-time ' + ltCls + '">' + heroNum
           + '<span class="lt-unit">' + heroUnit + '</span></div>'
           + '<div class="leaveby-sub soft">' + _subLine(rcls, mtl, leaveByTs, depTs, now) + '</div>'
+          + _retningHtml(dir)
           + '</div>'
         : '')
     // Folded once it is time to go. The itinerary is what you read while

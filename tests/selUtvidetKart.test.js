@@ -1,34 +1,39 @@
-// Det utvidede kartet fyller plassen mellom statuslinja og knapperaden.
+// Det utvidede kartet fyller plassen mellom statuslinja og det faste nederst,
+// på både avgangsdetaljer og underveis. Én regel i ui/map.js.
 //
-// Rapportert med skjermbilde: kartet var 72vh uansett, og den nederste
-// delen lå bak knapperaden og bunnmenyen.
+// Rapportert to ganger: først i avgangsdetaljer (kartet bak knapperaden),
+// så i underveis (kartet bak bunnmenyen). Begge var 72vh uansett.
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-vi.mock('leaflet', () => ({ default: {} }));
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
-vi.mock('../src/ui/log.js', () => ({ logMsg: vi.fn(), setDot: vi.fn() }));
-import { utvidetKartHøyde } from '../src/views/selected.js';
+import { expandedMapHeight, bottomEdge } from '../src/ui/map.js';
 
 describe('høyden på det utvidede kartet', () => {
-  it('er skjermen minus statuslinja, knapperaden og menyen under den', () => {
-    // iPhone: 896 høy, 47 innsett øverst, rad 69, menyen 56 + 34 innsett.
-    expect(utvidetKartHøyde(896, 47, 69, 90)).toBe(690);
+  it('er fra statuslinja til det faste nederst', () => {
+    expect(expandedMapHeight(47, 737)).toBe(690);
   });
   it('blir aldri mindre enn et brukbart kart', () => {
-    expect(utvidetKartHøyde(300, 47, 69, 90)).toBe(200);
+    expect(expandedMapHeight(47, 150)).toBe(200);
   });
 });
 
-describe('koblingen', () => {
-  const s = readFileSync('src/views/selected.js', 'utf8');
-  it('avgangsdetaljene sier fra når kartet åpnes og lukkes', () => {
-    expect(s).toMatch(/bindMapExpand\(_selMap, mapEl, [^)]*\), \{ onToggle: \(open\) => _plasserUtvidetKart\(mapEl, open\) \}\)/);
+describe('det faste nederst', () => {
+  it('er toppen av bunnmenyen når den er der (underveis har ingen knapperad)', () => {
+    document.body.innerHTML = '<nav id="app-nav" style="position:fixed"></nav>';
+    const nav = document.getElementById('app-nav');
+    nav.getClientRects = () => [{}];
+    nav.getBoundingClientRect = () => ({ top: 700, height: 56 });
+    expect(bottomEdge()).toBe(700);
   });
-  it('høyden settes på kartet, ruller etter overgangen, og fjernes når det lukkes', () => {
-    const f = s.slice(s.indexOf('export function _plasserUtvidetKart('), s.indexOf('function _selMapStructKey('));
-    expect(f).toMatch(/if \(!open\) \{ el\.style\.removeProperty\('--map-h-open'\); return; \}/);
-    expect(f).toMatch(/el\.style\.setProperty\('--map-h-open', utvidetKartHøyde\(/);
-    expect(f).toMatch(/setTimeout\([\s\S]*scrollIntoView\([\s\S]*320\)/);
+  it('er skjermens bunn når ingenting ligger fast der', () => {
+    document.body.innerHTML = '';
+    expect(bottomEdge()).toBe(window.innerHeight);
+  });
+});
+
+describe('begge skjermene bruker regelen', () => {
+  it.each(['src/views/selected.js', 'src/views/track.js'])('%s', (f) => {
+    expect(readFileSync(f, 'utf8')).toMatch(/bindMapExpand\([^;]*\{ onToggle: \(open\) => fitExpandedMap\(mapEl, open\) \}\)/);
   });
   it('map.js gir skjermen beskjed', () => {
     expect(readFileSync('src/ui/map.js', 'utf8')).toMatch(/if \(opts\.onToggle\) opts\.onToggle\(open\);/);

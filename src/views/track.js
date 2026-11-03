@@ -34,7 +34,7 @@ import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { fetchWalkRoute } from '../api/route.js';
-import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints, fitPadding } from '../ui/map.js';
+import { createMap, bindMapExpand, fitExpandedMap, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints, fitPadding } from '../ui/map.js';
 import { storage } from '../storage.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -373,7 +373,7 @@ function _renderTrackMap(now, cs, legs) {
     if (allPts.length) _tMap.fitBounds(allPts, { padding: [28, 28], maxZoom: 16, animate: false });
     setTimeout(() => _tMap && _tMap.invalidateSize(), 100);
 
-    bindMapExpand(_tMap, mapEl, document.getElementById('t-map-expand'));
+    bindMapExpand(_tMap, mapEl, document.getElementById('t-map-expand'), { onToggle: (open) => fitExpandedMap(mapEl, open) });
   }
 
   if (!_tMap) return;

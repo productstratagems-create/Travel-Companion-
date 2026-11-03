@@ -1,6 +1,6 @@
 # Testruter
 
-Kjørt mot Entur 2026-11-03 19:39 UTC.
+Kjørt mot Entur 2026-11-03 20:02 UTC.
 
 | rute | når | rader | beste reise | brudd |
 |---|---|---|---|---|
@@ -31,11 +31,11 @@ Kjørt mot Entur 2026-11-03 19:39 UTC.
 
 ## Spørringen etter trappen
 
-5 spørsmål før Entur svarte. Felt i spørringen som ble brukt:
+1 spørsmål før Entur svarte. Felt i spørringen som ble brukt:
 
-- `includeRealtimeCancellations`: **droppet**
-- `interchangeTo`: **droppet**
-- `quay{id`: **droppet**
+- `includeRealtimeCancellations`: med
+- `interchangeTo`: med
+- `quay{id`: med
 - `searchWindow`: med
 - `transportMode:coach`: med
-- `affects`: **droppet**
+- `affects`: med

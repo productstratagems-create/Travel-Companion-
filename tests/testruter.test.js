@@ -65,23 +65,26 @@ async function kjør(rute, tid) {
 
 const { vurder } = await import('../src/testruter.js');
 
-/* KJENT FEIL, funnet av testrutene 2026-11-03 mot det ekte API-et.
+/* FUNNET AV TESTRUTENE 2026-11-03 mot det ekte API-et, rettet i v1.211.8.
  *
  * Entur avviser `affects` («Unknown type 'AffectedQuay'»). Feilmeldingen
  * sier ikke hvilket argument som var galt, og trappen i `fetchTrip` dropper
  * derfor i fast rekkefølge: innstilte, bytte, ider og først deretter affects.
  * Tre felt som virker (`includeRealtimeCancellations`, `interchangeTo`,
  * `quay{id}`) går tapt for hele økta, og første henting bruker fem
- * spørsmål. `it.fails` til det er rettet: da feiler denne og skal gjøres
- * om til en vanlig `it`. */
+ * spørsmål. Rettet ved å spørre etter det ekte skjemaet og ved å la
+ * trappen droppe feltet feilen peker på. */
 describe('trappen i fetchTrip', () => {
-  it.fails('beholder feltene Entur godtar', async () => {
+  it('beholder feltene Entur godtar', async () => {
     const fil = DIR + '/oslos-lillestrom-hverdag.json';
     if (!existsSync(fil)) return;
     const siste = JSON.parse(readFileSync(fil, 'utf8')).slice(-1)[0].query;
     expect(siste).toContain('includeRealtimeCancellations');
     expect(siste).toContain('interchangeTo');
     expect(siste).toContain('quay{id');
+    expect(siste).toContain('affects{');
+    // Og første gang, ikke etter fem forsøk.
+    expect(JSON.parse(readFileSync(fil, 'utf8'))).toHaveLength(1);
   });
 });
 const resultater = [];

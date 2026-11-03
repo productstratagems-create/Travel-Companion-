@@ -17,9 +17,13 @@ const ok = (patterns) => ({
   ok: true, status: 200,
   json: () => Promise.resolve({ data: { trip: { tripPatterns: patterns }, stopPlace: { situations: [] } } }),
 });
+/* EN FEIL SOM IKKE PEKER PÅ NOE. Siden v1.211.8 dropper trappen feltet
+ * feilen nevner (`avvistFlagg`). Disse testene gjelder rekkefølgen når den
+ * ikke vet, så meldingen her nevner ingen av feltene. Den sto som «Unknown
+ * argument 'dateTime'», og den peker nå rett på tilbakeblikket. */
 const gqlError = () => ({
   ok: true, status: 200,
-  json: () => Promise.resolve({ errors: [{ message: 'Unknown argument \'dateTime\'' }] }),
+  json: () => Promise.resolve({ errors: [{ message: 'Validation error' }] }),
 });
 const bodyOf = (call) => JSON.parse(call[1].body).query;
 const settle = () => new Promise(r => setTimeout(r, 0));

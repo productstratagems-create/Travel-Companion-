@@ -166,11 +166,13 @@ export function fitPadding(heightPx) {
  * @param {HTMLElement} el   the map container that grows
  * @param {HTMLElement} btn  the button
  */
-export function bindMapExpand(map, el, btn) {
+export function bindMapExpand(map, el, btn, opts = {}) {
   if (!el || !btn) return;
   btn.onclick = () => {
     const open = el.classList.toggle('expanded');
     document.documentElement.classList.toggle('map-open', open);
+    // En skjerm som vet hvor mye plass kartet har, får si det her.
+    if (opts.onToggle) opts.onToggle(open);
     btn.textContent = open ? '\u2715' : '\u2922';
     const label = open ? 'Minimer kart' : 'Utvid kart';
     btn.setAttribute('aria-label', label);

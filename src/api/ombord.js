@@ -30,12 +30,20 @@ import { metresBetween } from '../haversine.js';
 export const OMBORD_KINDS = ['ombord', 'ombord-tvil', 'vet-ikke'];
 
 /**
- * Under dette går du. 5 m/s er 18 km/t — godt over rask gange (2 m/s) og
- * jogging (3 m/s), og under en buss i bytrafikk mellom stopp. En buss som
- * står ved et stopp er under terskelen; da tier dommen til den kjører igjen,
- * og det er riktig: stillestående sier ingenting om hva du står i.
+ * Under dette går du: 10 km/t, brukerens eget tall («en hastighet som
+ * overgår 10 km i timen»). Rask gange er ca 2 m/s (7 km/t); 10 km/t er
+ * 2,78 m/s.
+ *
+ * Det var 5 m/s (18 km/t). Det er en buss i fart, men ikke en buss i
+ * bytrafikk eller en trikk som kryper mellom stopp, og der tidde appen.
+ * Prisen for det lavere tallet: en som jogger fort kan leses som «i fart».
+ * Tilbudet krever likevel at en avgangs forventede posisjon følger sporet
+ * ditt over tid, så en jogger blir ikke «ombord» av farten alene.
+ *
+ * En buss som står ved et stopp er under terskelen. Da tier dommen til den
+ * kjører igjen, og det er riktig: å stå stille sier ingenting om hva du står i.
  */
-export const OMBORD_MIN_FART_MS = 5;
+export const OMBORD_MIN_FART_MS = 10 / 3.6;
 
 /** Minst så mange brukbare fikser … */
 export const OMBORD_MIN_FIKSER = 3;
@@ -130,6 +138,47 @@ export function ombord(o) {
   // To eller flere som følger deg like godt: to linjer på samme trasé til
   // samme tid. Appen velger ikke for deg.
   return { kind: treff.length === 1 ? 'ombord' : 'ombord-tvil', grunn: null, kandidater: treff };
+}
+
+/* ── STOPPET PÅ LINJA DU ER PÅ ───────────────────────────────────────── */
+
+const _ms = c => { const v = _tid(c); return v ? new Date(v).getTime() : NaN; };
+
+/**
+ * Det neste stoppet kandidatens tur skal innom etter `nå`, eller null.
+ */
+export function nesteStopp(k, nå) {
+  const sj = k && k.call && k.call.serviceJourney;
+  const alle = (sj && Array.isArray(sj.estimatedCalls)) ? sj.estimatedCalls : [];
+  const c = alle.find(x => _ms(x) > nå);
+  const q = c && c.quay;
+  const sp = q && q.stopPlace;
+  if (!sp || !sp.id) return null;
+  const lat = Number.isFinite(sp.latitude) ? sp.latitude : q.latitude;
+  const lon = Number.isFinite(sp.longitude) ? sp.longitude : q.longitude;
+  return { id: sp.id, name: sp.name || '', lat: Number.isFinite(lat) ? lat : null, lon: Number.isFinite(lon) ? lon : null };
+}
+
+/**
+ * Stoppet «du er ved» skal vise når du er i fart: det neste på linja du
+ * mest sannsynlig er på, ikke det nærmeste.
+ *
+ * Rapportert: i fart byttet «nærmeste stopp» til hvilket som helst stopp ved
+ * veien, også stopp for linjer du ikke er på. Dommen over (`ombord`) visste
+ * allerede hvilken avgang som følger sporet ditt.
+ *
+ * Ved tvil, altså to linjer som følger deg like godt, velger appen bare når
+ * begge skal til samme neste stopp. Ellers står det nærmeste, som før. Det er
+ * samme regel som tilbudet: appen velger ikke linje for deg.
+ *
+ * @returns {{stop:{id,name,lat,lon}, linjer:string[]}|null}
+ */
+export function stoppPåLinja(dom, nå) {
+  if (!dom || (dom.kind !== 'ombord' && dom.kind !== 'ombord-tvil')) return null;
+  const neste = dom.kandidater.map(k => nesteStopp(k, nå));
+  if (!neste.length || neste.some(n => !n) || neste.some(n => n.id !== neste[0].id)) return null;
+  const linjer = [...new Set(dom.kandidater.map(k => k.linje))];
+  return { stop: neste[0], linjer };
 }
 
 /* ── REISEN DU BLIR MED PÅ ──────────────────────────────────────────── */

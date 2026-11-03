@@ -29,7 +29,7 @@ import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
 import { plattformTekst } from '../bytte.js';
-import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS } from '../api/ombord.js';
+import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja } from '../api/ombord.js';
 import { _interpolateVehiclePos, _interpolateOnPath } from '../api/forventetPos.js';
 import { journeyShapeCached } from '../api/entur.js';
 import { joinJourney } from '../journey.js';
@@ -1381,12 +1381,34 @@ export function ombordKortHtml(dom, nå) {
     + '</div>';
 }
 
+/**
+ * Dommen «sitter du på noe?», ett sted. Tilbudet og «du er ved» leser
+ * begge denne, så de ikke kan svare hver sin linje.
+ */
+function _ombordDom(nå) {
+  const spor = state.posTrail || [];
+  return ombord({ spor, fartMS: fartNå(nå), kandidater: ombordKandidater(_rå, spor, _avvistOmbord) });
+}
+
+/**
+ * I fart, på en linje: neste stopp på den linja går foran det nærmeste.
+ * Ren, så regelen kan prøves uten DOM. `pinned` (du trykket selv) vinner.
+ *
+ * @returns {{stop:object|null, changed:boolean, linjer:string[]|null}}
+ */
+export function velgStoppIFart(picked, current, pinned, påLinja, list) {
+  if (pinned || !påLinja) return { ...picked, linjer: null };
+  // Avstanden fra lista når stoppet står der; ellers ukjent, ikke gjettet.
+  const fra = (list || []).find(s => s.id === påLinja.stop.id);
+  const stop = fra ? { ...fra } : { ...påLinja.stop, distM: null };
+  return { stop, changed: !current || current.id !== stop.id, linjer: påLinja.linjer };
+}
+
 function _renderOmbord() {
   const el = _el('auto-ombord');
   if (!el) return;
   const nå = Date.now();
-  const spor = state.posTrail || [];
-  const dom = ombord({ spor, fartMS: fartNå(nå), kandidater: ombordKandidater(_rå, spor, _avvistOmbord) });
+  const dom = _ombordDom(nå);
   const html = ombordKortHtml(dom, nå);
   el.style.display = html ? '' : 'none';
   el.innerHTML = html;
@@ -1417,11 +1439,22 @@ function _renderOmbord() {
   });
 }
 
+/**
+ * Overskriften over stoppet. «Du er ved» er usant fra en buss i 40 km/t.
+ * På en kjent linje er det neste stopp på den; ellers bare nærmeste.
+ */
+export function whereLabel(fart, linjer) {
+  if (fart && linjer && linjer.length) return 'neste stopp på ' + linjer.join(' / ');
+  return fart ? 'nærmeste stopp' : 'du er ved';
+}
+
 function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
   const list = _stops();
-  const picked = pickStop(list, _stop, _stopPinned, _bandOf());
+  const nåW = Date.now();
+  const picked = velgStoppIFart(pickStop(list, _stop, _stopPinned, _bandOf()), _stop, _stopPinned,
+    stoppPåLinja(_ombordDom(nåW), nåW), list);
   _stop = picked.stop;
   // A different stop is a different board. Without this the departures below
   // would keep belonging to the stop the reader has walked away from — and
@@ -1449,7 +1482,7 @@ function _renderWhere() {
   // posAgeMins already returns null while the fix is fresh (POS_STALE_MS), so
   // the threshold is not repeated here. One definition of "stale".
   // «Du er ved» er usant fra en buss i 40 km/t. «Nærmeste stopp» er sant.
-  el.innerHTML = '<div class="set-label">' + (fart ? 'nærmeste stopp' : 'du er ved') + '</div>'
+  el.innerHTML = '<div class="set-label">' + esc(whereLabel(fart, picked.linjer)) + '</div>'
     + stopHeadHtml(_stop, others.length, open, {
       iFart: fart,
       walkDist: w ? w.dist : null,

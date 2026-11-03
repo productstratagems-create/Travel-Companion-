@@ -251,3 +251,39 @@ describe('kartet på avgangsdetaljene', () => {
     expect(src()).toMatch(/_selMap\.fitBounds\(geo/);
   });
 });
+
+/* HVERT SPOR ETT STED. Rapportert: «spor 1» ved linjenavnet, i kartetiketten
+ * og under tiden, og «spor 2» uten å si hvilket stopp det gjaldt. Uten
+ * bytte står plattformen under avgangs- og ankomsttiden, og kartet sier
+ * stoppnavnet. */
+describe('punktene uten bytte', () => {
+  const p = () => kartPunkter([BUSS]);
+  it('sier stoppnavnet der du går på, ikke plattformen', () => {
+    expect(p()[0]).toMatchObject({ kind: 'på', linje: '74', tekst: 'Mortensrud' });
+  });
+  it('og der du går av', () => {
+    expect(p()[1]).toMatchObject({ kind: 'av', tekst: 'Jernbanetorget' });
+  });
+  it('mens en reise med bytte fortsatt sier plattformen', () => {
+    expect(kartPunkter(ALLE)[0].tekst).toBe('plattform B');
+  });
+});
+
+import { readFileSync } from 'node:fs';
+describe('avgangsdetaljene: sporet under tiden', () => {
+  const s = readFileSync('src/views/selected.js', 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const chip = s.slice(s.indexOf('<div class="train-chip">'), s.indexOf('<div id="s-live-status">'));
+  it('står ikke ved linjenavnet', () => {
+    expect(chip).not.toMatch(/spor|quay|plattformTekst/);
+  });
+  it('avgangssporet står under avgår-tiden', () => {
+    const avg = s.slice(s.indexOf("'<div class=\"jd-label\">avgår "), s.indexOf("'<div class=\"jd-label\">ankommer "));
+    expect(avg).toContain('plattformTekst(quay, depMode(c))');
+  });
+  it('ankomstsporet under ankommer-tiden, med ordet som passer transportmiddelet', () => {
+    const ank = s.slice(s.indexOf("'<div class=\"jd-label\">ankommer "), s.indexOf("'<div class=\"jd-label\">ankommer ") + 500);
+    expect(ank).toContain('plattformTekst(c._arrQuay, depMode(c))');
+    expect(ank).not.toMatch(/'spor '/);
+  });
+});

@@ -26,7 +26,7 @@ import { startBoard, boardRows } from './board.js';
 import { renderAlertsInto } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
-import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, drawLeg, fitPadding } from '../ui/map.js';
+import { createMap, bindMapExpand, fitExpandedMap, drawRoute, drawWalk, userDot, drawLeg, fitPadding } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
 import { makeVehicleIcon, VEHICLE_MARKER_OPTS } from '../ui/mapIcons.js';
 import { departureVehicle, depLineRef, depMode, SRC_LABEL } from './trainPosition.js';
@@ -180,6 +180,19 @@ function _hero(secsToLeave, depTs, now, rcls) {
 }
 
 let _selWeather = null;
+/* REISEPLAN-FOLDEN HUSKER AT DU ÅPNET DEN. `#s-content` skrives om ved hver
+ * oppfriskning, og en ny `<details>` er lukket. Rapportert: den lukket seg
+ * igjen rett etter trykket. Nullstilles når du forlater skjermen, så en ny
+ * avgang starter lukket. */
+let _foldÅpen = false;
+export function foldÅpen() { return _foldÅpen; }
+if (typeof document !== 'undefined') {
+  // `toggle` bobler ikke, derfor capture.
+  document.addEventListener('toggle', e => {
+    const d = e.target;
+    if (d && d.classList && d.classList.contains('itin-fold')) _foldÅpen = d.open;
+  }, true);
+}
 
 function _selWeatherHtml(arrT) {
   if (!_selWeather) return '<span class="sel-wx-loading">laster vær…</span>';
@@ -369,37 +382,6 @@ export function startUtsnitt(herfra, påstigning, gangrute) {
   if (!herfra || !påstigning || påstigning.lat == null || påstigning.lon == null) return null;
   return [[herfra.lat, herfra.lon], [påstigning.lat, påstigning.lon]]
     .concat(Array.isArray(gangrute) ? gangrute : []);
-}
-
-/**
- * Høyden det utvidede kartet har mellom statuslinja og knapperaden, i px.
- *
- * Rapportert med skjermbilde: det utvidede kartet var 72vh uansett hva som
- * ellers sto på skjermen, så den nederste delen (målestokk og kilde) lå bak
- * knapperaden og bunnmenyen. Raden står fast over menyen (`sticky`, se
- * selected.css), så plassen er skjermen minus stripa over statuslinja, minus
- * raden, minus det raden står på (`bottom`).
- *
- * Ren, så regelen kan prøves uten nettleser.
- */
-export function utvidetKartHøyde(skjermH, toppPx, radH, radBunnPx) {
-  return Math.max(200, Math.floor(skjermH - toppPx - radH - radBunnPx));
-}
-
-export function _plasserUtvidetKart(el, open) {
-  if (!open) { el.style.removeProperty('--map-h-open'); return; }
-  const rad = document.querySelector('#s-ctas > .cta-row');
-  const topp = parseFloat(getComputedStyle(document.body, '::before').height) || 0;
-  const radH = rad ? rad.getBoundingClientRect().height : 0;
-  const bunn = rad ? (parseFloat(getComputedStyle(rad).bottom) || 0) : 0;
-  el.style.setProperty('--map-h-open', utvidetKartHøyde(window.innerHeight, topp, radH, bunn) + 'px');
-  // Kartets topp rett under statuslinja, så det fyller plassen helt.
-  // scrollIntoView, ikke window.scrollTo: det er ikke alltid vinduet som
-  // ruller, og da flyttet window.scrollTo ingenting.
-  // Etter høydeovergangen (0,3 s, som `bindMapExpand` venter på): før den er
-  // siden ikke høy nok til å rulle så langt, og rullingen stoppet halvveis.
-  el.style.scrollMarginTop = topp + 'px';
-  setTimeout(() => el.classList.contains('expanded') && el.scrollIntoView({ block: 'start', behavior: 'auto' }), 320);
 }
 
 function _selMapStructKey(dep, legs, dir) {
@@ -703,7 +685,7 @@ function _renderSelMap(dep, fromName, toName, now) {
   }
   setTimeout(() => _selMap && _selMap.invalidateSize(), 100);
 
-  bindMapExpand(_selMap, mapEl, document.getElementById('sel-map-expand'), { onToggle: (open) => _plasserUtvidetKart(mapEl, open) });
+  bindMapExpand(_selMap, mapEl, document.getElementById('sel-map-expand'), { onToggle: (open) => fitExpandedMap(mapEl, open) });
   _selVehicle(dep, legs, now);
 }
 
@@ -875,7 +857,7 @@ export function renderSelected() {
     // than a toggle of our own: it opens on tap, it is reachable by keyboard,
     // and a screen reader announces it — none of which we would get for free.
     + (focus
-      ? '<details class="itin-fold"><summary>reiseplan · ' + esc(dest) + '</summary>'
+      ? '<details class="itin-fold"' + (_foldÅpen ? ' open' : '') + '><summary>reiseplan · ' + esc(dest) + '</summary>'
         + journeyDetail + '</details>'
       : journeyDetail);
 
@@ -1085,6 +1067,7 @@ export function startSelRefresh() {
 export function stopSelRefresh() {
   if (intervals.sel) { clearInterval(intervals.sel); intervals.sel = null; }
   _selWeather = null;
+  _foldÅpen = false;
 }
 
 function _fetchSel() {

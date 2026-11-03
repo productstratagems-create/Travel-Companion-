@@ -166,6 +166,56 @@ export function fitPadding(heightPx) {
  * @param {HTMLElement} el   the map container that grows
  * @param {HTMLElement} btn  the button
  */
+/**
+ * Høyden det utvidede kartet har mellom statuslinja og det som ligger fast
+ * nederst på skjermen, i px. Aldri under 200.
+ *
+ * Det var 72vh uansett hva som sto på skjermen, så bunnen av kartet (med
+ * målestokk og kilde) lå bak knapperaden i avgangsdetaljer og bak bunnmenyen
+ * i underveis. Én regel for begge skjermene.
+ */
+export function expandedMapHeight(toppPx, bunnGrensePx) {
+  return Math.max(200, Math.floor(bunnGrensePx - toppPx));
+}
+
+/**
+ * Hvor det faste nederst på skjermen begynner: den høyeste av knapperaden der
+ * den står fast (sticky, så den regnes fra `bottom`, ikke fra der den står
+ * nå), bunnmenyen og reisebrikken. Skjermens bunn når ingen av dem vises.
+ */
+// Synlig: har en boks. Ikke `offsetParent`, som alltid er null for et
+// element med position:fixed, så menyen ble hoppet over (sett i prøven).
+const _synlig = e => !!e && !e.hidden && getComputedStyle(e).display !== 'none' && e.getClientRects().length > 0;
+
+export function bottomEdge() {
+  const h = window.innerHeight;
+  const kanter = [h];
+  const rad = document.querySelector('#s-ctas > .cta-row');
+  if (_synlig(rad)) {
+    const bunn = parseFloat(getComputedStyle(rad).bottom) || 0;
+    kanter.push(h - bunn - rad.getBoundingClientRect().height);
+  }
+  ['app-nav', 'onboard-chip'].forEach(id => {
+    const e = document.getElementById(id);
+    if (_synlig(e) && getComputedStyle(e).position === 'fixed') {
+      kanter.push(e.getBoundingClientRect().top);
+    }
+  });
+  return Math.min(...kanter);
+}
+
+/** Gi et utvidet kart plassen mellom statuslinja og det faste nederst. */
+export function fitExpandedMap(el, open) {
+  if (!open) { el.style.removeProperty('--map-h-open'); return; }
+  const topp = parseFloat(getComputedStyle(document.body, '::before').height) || 0;
+  el.style.setProperty('--map-h-open', expandedMapHeight(topp, bottomEdge()) + 'px');
+  // Etter høydeovergangen (0,3 s, som invalidateSize under venter på): før den
+  // er siden ikke høy nok til å rulle så langt. scrollIntoView, ikke
+  // window.scrollTo: det er ikke alltid vinduet som ruller.
+  el.style.scrollMarginTop = topp + 'px';
+  setTimeout(() => el.classList.contains('expanded') && el.scrollIntoView({ block: 'start', behavior: 'auto' }), 320);
+}
+
 export function bindMapExpand(map, el, btn, opts = {}) {
   if (!el || !btn) return;
   btn.onclick = () => {

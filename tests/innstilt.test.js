@@ -337,6 +337,6 @@ describe('ankomsten på en rad med brutt reise', () => {
   it('og tavla bruker den, med bruddet', () => {
     const src = require('node:fs').readFileSync('src/views/board.js', 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-    expect(src).toMatch(/ankomstHtml\(arrT, now, \{ brudd: !erInnstilt\(c\) && !!c\._brudd, fraStopptavle: !!c\._fromStopBoard \}\)/);
+    expect(src).toMatch(/ankomstHtml\(arrT, now, \{ brudd: !erInnstilt\(c\) && !!c\._brudd, fraStopptavle: !!c\._fromStopBoard, fra: depTs \}\)/);
   });
 });

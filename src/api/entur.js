@@ -330,6 +330,18 @@ export function slåSammenSvar(js, vias, viaNavn) {
   return { ...base, data: { ...base.data, trip: { ...(base.data.trip || {}), tripPatterns: mønstre } } };
 }
 
+/**
+ * De valgfrie feltene tavla spør om, slik økta har lært dem: coach, window,
+ * affects, innstilte, bytte, ider. ÉN liste for første henting og for neste
+ * side. Neste side spurte uten dem, også uten `searchWindow`, og fra 00:34
+ * svarte Entur bare med 00:33 én gang til. Lista sa da «det er alt Entur har
+ * herfra», mens 03:59 og 04:29 fantes.
+ */
+export function _tripFlagg() {
+  return [!_coachRejected, !_windowRejected, !_affectsRejected, !_innstilteRejected,
+    !_bytteRejected, !_iderRejected];
+}
+
 export function fetchTrip(dir, onSuccess, onError, atMs) {
   if (tripController) tripController.abort();
   if (boardController) boardController.abort();
@@ -447,8 +459,7 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
           }
           return j;
         });
-      return ask(true, !_coachRejected, !_windowRejected, !_affectsRejected, !_innstilteRejected,
-        !_bytteRejected, !_iderRejected);
+      return ask(true, ..._tripFlagg());
       };
       /* «OGSÅ VIA»: via som et ønske, ikke et krav. Rapportert: 3 → Hellerud
        * → 2 → Tveita → 69 kom aldri fram, fordi Entur foretrekker reisen med
@@ -519,16 +530,21 @@ export function fetchTripPage(dir, atMs, n, onSuccess, onError) {
     .then(([fromId, toId, viaId]) => {
       if (signal.aborted) return null;
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
-      return enturFetch(config.api.journeyPlanner, {
+      // Samme felt som første henting (`_tripFlagg`), og med «også via» begge
+      // spørsmålene, så side to ikke mister den ene halvdelen.
+      const side = (v) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: tripGQL(fromId, toId, viaId || null, n || 12, walkSpeedMs, atMs) }),
+        body: JSON.stringify({ query: tripGQL(fromId, toId, v || null, n || 12, walkSpeedMs, atMs,
+          false, true, ..._tripFlagg()) }),
         signal,
       }).then(r => {
         if (!r || signal.aborted) return null;
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       });
+      const vias = (dir.viaOgså && viaId) ? [viaId, null] : [viaId];
+      return Promise.all(vias.map(side)).then(js => (js.some(j => !j) ? null : slåSammenSvar(js, vias, dir.via || null)));
     })
     .then(j => {
       if (!j || signal.aborted) return;

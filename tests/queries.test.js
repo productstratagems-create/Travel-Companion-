@@ -576,7 +576,7 @@ describe('keepTime', () => {
   // returning a full and plausible list of the wrong journeys.
   it('is what fetchTrip passes on its retry', () => {
     const src = fs.readFileSync('src/api/entur.js', 'utf8');
-    const line = src.split('\n').find(l => l.includes('tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true,'));
+    const line = src.split('\n').find(l => l.includes('tripGQL(fromId, toId, v || null, 12, walkSpeedMs, atMs == null ? null : atMs, true,'));
     expect(line).toBeTruthy();
     expect(line).toContain('atMs != null');
   });

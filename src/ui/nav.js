@@ -410,6 +410,7 @@ function toggleDir() {
       via: dir.via || null,
       viaStopId: dir.viaStopId || null,
       viaGeo: dir.viaGeo || null,
+      viaOgså: !!dir.viaOgså,
     }, { chosen: true });
   } else {
     // The neutral pair is a placeholder, only reachable before a route has

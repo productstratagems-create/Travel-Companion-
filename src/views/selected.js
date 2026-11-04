@@ -384,6 +384,20 @@ export function startUtsnitt(herfra, påstigning, gangrute) {
     .concat(Array.isArray(gangrute) ? gangrute : []);
 }
 
+/**
+ * Dagen til de to store tidene, som går i ETIKETTEN, ikke i tallet.
+ *
+ * Rapportert (samme feil som tavla i v1.213.2): «I MORGEN 00:03» og «I
+ * MORGEN 00:28» i 2,4 rem i hver sin halve celle. Begge brøt over to linjer,
+ * og dagen tok like mye plass som klokkeslettet. Nå står klokkeslettet alene,
+ * og dagen står i etiketten over: «avgår i morgen · Mortensrud».
+ * Ankomstens dag regnes fra avgangen. Samme dag som du reiser: ingenting.
+ */
+export function jdDag(depTs, arrT, now) {
+  return { dep: dayPrefix(depTs, now).trim(), ank: arrT ? dayPrefix(arrT, depTs).trim() : '' };
+}
+export function jdEtikett(dag, sted) { return dag ? dag + ' · ' + sted : sted; }
+
 function _selMapStructKey(dep, legs, dir) {
   const jid = (dep.serviceJourney && dep.serviceJourney.id) || '';
   const destSuffix = (dir._toLat && dir._toLon && !dir.toStopId)
@@ -786,8 +800,8 @@ export function renderSelected() {
   } else {
     journeyDetail = '<div class="journey-detail">'
       + '<div class="jd-cell"' + (arrT ? '' : ' style="grid-column:1/-1"') + '>'
-      + '<div class="jd-label">avgår ' + esc(visStopp(cleanName(dir.from))) + '</div>'
-      + '<div class="jd-val departure">' + clkDay(c.expectedDepartureTime) + '</div>'
+      + '<div class="jd-label">avgår ' + esc(jdEtikett(jdDag(depTs, arrT, now).dep, visStopp(cleanName(dir.from)))) + '</div>'
+      + '<div class="jd-val departure">' + clk(c.expectedDepartureTime) + '</div>'
       + (() => {
         const sub = [delayed ? 'rute ' + clk(c.aimedDepartureTime) : null, plattformTekst(quay, depMode(c))]
           .filter(Boolean).join(' · ');
@@ -796,8 +810,8 @@ export function renderSelected() {
       + '</div>'
       + (arrT
         ? '<div class="jd-cell">'
-          + '<div class="jd-label">ankommer ' + esc(visStopp(cleanName(dir.to))) + '</div>'
-          + '<div class="jd-val arrival">' + clkDay(arrT) + '</div>'
+          + '<div class="jd-label">ankommer ' + esc(jdEtikett(jdDag(depTs, arrT, now).ank, visStopp(cleanName(dir.to)))) + '</div>'
+          + '<div class="jd-val arrival">' + clk(arrT) + '</div>'
           + '<div class="jd-sub">'
           + (tmin ? tmin + ' min reise' : '')
           + (plattformTekst(c._arrQuay, depMode(c)) ? (tmin ? ' · ' : '') + esc(plattformTekst(c._arrQuay, depMode(c))) : '')

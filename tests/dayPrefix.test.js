@@ -102,8 +102,10 @@ describe('the rule reaches the screens a departure opens onto', () => {
   // The detail view: the headline departure and arrival are the answer to
   // "when", and they were plain clocks.
   it('the journey detail names the day on both ends', async () => {
-    expect(await has('src/views/selected.js', "jd-val departure\">' + clkDay(")).toBe(true);
-    expect(await has('src/views/selected.js', "jd-val arrival\">' + clkDay(")).toBe(true);
+    // Dagen står i etiketten siden v1.213.3, ikke i det store tallet: i
+    // tallet brøt «I MORGEN 00:03» over to linjer i en halv celle.
+    expect(await has('src/views/selected.js', "avgår ' + esc(jdEtikett(jdDag(depTs, arrT, now).dep")).toBe(true);
+    expect(await has('src/views/selected.js', "ankommer ' + esc(jdEtikett(jdDag(depTs, arrT, now).ank")).toBe(true);
   });
 
   it('the active plan names it on departure and arrival', async () => {

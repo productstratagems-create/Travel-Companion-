@@ -314,7 +314,9 @@ export function reiseNøkkel(tp) {
 export function slåSammenSvar(js, vias, viaNavn) {
   if (!js || js.length < 2) return js && js[0];
   const medData = js.filter(j => j && j.data);
-  if (!medData.length) return js[0];
+  // Ingen med data: gi tilbake det siste (spørringen uten via), så feilen
+  // derfra er den som vises.
+  if (!medData.length) return js[js.length - 1];
   const sett = new Set();
   const mønstre = [];
   js.forEach((j, i) => {
@@ -466,7 +468,17 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
        * færre bytter når ankomsten er lik. Spurt via Hellerud finnes den.
        * Med `dir.viaOgså` spørres begge, og svarene slås sammen. */
       const vias = (dir.viaOgså && viaId) ? [viaId, null] : [viaId];
-      return Promise.all(vias.map(spør)).then(js => slåSammenSvar(js, vias, dir.via || null));
+      /* VIA-HALVDELEN ER ET TILLEGG, og den kan ikke ta tavla med seg.
+       * Målt i nettleseren kl. 23: Entur svarte 422 på via-spørringen (for
+       * tungt søk), og hele tavla sa «Ruta kunne ikke hentes» enda
+       * spørringen uten via hadde svart. Feiler via-halvdelen, vises resten. */
+      const tillegg = (v) => spør(v).catch(e => {
+        if (e && e.name === 'AbortError') throw e;
+        logMsg('også via: via-spørringen feilet, viser reisene uten via — ' + (e && e.message), 'err');
+        return null;
+      });
+      return Promise.all(vias.map((v, i) => (vias.length > 1 && i === 0 ? tillegg(v) : spør(v))))
+        .then(js => slåSammenSvar(js, vias, dir.via || null));
     })
     .then(j => {
       if (!j || signal.aborted) return;

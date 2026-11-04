@@ -30,3 +30,21 @@ describe('slåSammenSvar', () => {
     expect(reiseNøkkel(A)).toBe('sj3@08:09>sj2@08:33');
   });
 });
+
+describe('via-halvdelen kan ikke ta tavla med seg', () => {
+  it('via-svaret mangler (feilet): reisene uten via vises', () => {
+    const r = slåSammenSvar([null, svar(B)], ['V', null], 'Hellerud');
+    expect(r.data.trip.tripPatterns).toHaveLength(1);
+  });
+  it('fetchTrip fanger en feil i via-halvdelen', () => {
+    const s = require('node:fs').readFileSync('src/api/entur.js', 'utf8');
+    expect(s).toMatch(/vias\.map\(\(v, i\) => \(vias\.length > 1 && i === 0 \? tillegg\(v\) : spør\(v\)\)\)/);
+  });
+});
+
+describe('når begge feiler', () => {
+  it('er det feilen fra spørringen uten via som vises', () => {
+    const uten = { errors: [{ message: 'uten via' }] };
+    expect(slåSammenSvar([null, uten], ['V', null], 'Hellerud')).toBe(uten);
+  });
+});

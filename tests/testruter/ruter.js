@@ -59,4 +59,14 @@ export const RUTER = [
   { id: 'hareid-alesund', navn: 'Hareid kai → Ålesund sentrum', tester: 'distrikt, båt og buss, koordinat som mål',
     fra: { stopId: 'NSR:StopPlace:60039' }, til: { _toLat: 62.4723, _toLon: 6.1549 },
     forventer: ['water', 'bus'], maxBytter: 2, maxGangM: 1500 },
+  /* «OGSÅ VIA» (v1.213.0). Brukerens egen rute: 3 → Hellerud → 2 → Tveita →
+   * 69. Entur foreslår den aldri av seg selv (samme ankomst som reiser med
+   * færre bytter), men den finnes via Hellerud. Med `viaOgså` skal både den
+   * og Enturs beste uten via være med. Torsdag 08:05, da den ble målt. */
+  { id: 'mortensrud-lutvann-via', navn: 'Mortensrud → Lutvann skole, også via Hellerud', tester: 'via som ønske, ikke krav',
+    fra: { stopId: 'NSR:StopPlace:58228' }, til: { toStopId: 'NSR:StopPlace:6207' },
+    ekstra: { via: 'Hellerud', viaStopId: 'NSR:StopPlace:58198', viaOgså: true },
+    tider: [['torsdag', Date.parse('2026-11-05T07:05:00Z')]],
+    forventer: ['metro', 'bus'], maxBytter: 2, maxGangM: 800,
+    måHa: ['metro:3>metro:2>bus:69'] },
 ];

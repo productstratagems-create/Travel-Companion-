@@ -782,7 +782,7 @@ export function renderSelected() {
         if (k === undefined) { hentStoppested(id); return null; }
         return k && k.tilgang && k.tilgang.kind !== 'vet-ikke' ? k.tilgang.kind : null;
       },
-    }) + (tmin ? '<div class="itin-total">' + tmin + ' min reise</div>' : '');
+    }) + (tmin ? '<div class="itin-total">' + tmin + ' min reise' + (c._via ? ' · via ' + esc(c._via) : '') + '</div>' : '');
   } else {
     journeyDetail = '<div class="journey-detail">'
       + '<div class="jd-cell"' + (arrT ? '' : ' style="grid-column:1/-1"') + '>'

@@ -3223,6 +3223,8 @@ export function renderBoard() {
       // kind of statement: a fact about the shape of this journey, not a
       // warning. The two modifier classes that exist (-soft, -at) each carry
       // a rule; a third with no rule would be a dead hook.
+      // Ruta du valgte som «også via» (innstillinger), sagt der den står.
+      + (c._via ? '<span class="dep-tag">via ' + esc(c._via) + '</span>' : '')
       + (rq.changed ? '<span class="dep-tag">spor endret</span>' : '')
       + (walkMins ? '<span class="dep-tag">+ ' + walkMins + ' min gange</span>' : '')
       /* «BYTTE INNSTILT» I STEDET FOR «1 BYTTE», IKKE VED SIDEN AV.

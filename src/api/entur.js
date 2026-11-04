@@ -300,6 +300,36 @@ export function avvistFlagg(feil) {
   return hit ? hit[0] : null;
 }
 
+/**
+ * To svar fra «også via» til ett. Reiser fra via-svaret merkes `_via` (navnet
+ * på via-stoppet), og like reiser (samme linjer med samme avgang per etappe)
+ * telles én gang, med via-svarets først så merket står. Ett svar gis
+ * uendret tilbake.
+ */
+export function reiseNøkkel(tp) {
+  return ((tp && tp.legs) || []).filter(l => l && l.mode !== 'foot')
+    .map(l => ((l.serviceJourney && l.serviceJourney.id) || (l.line && l.line.publicCode) || l.mode)
+      + '@' + (l.expectedStartTime || l.aimedStartTime || '')).join('>');
+}
+export function slåSammenSvar(js, vias, viaNavn) {
+  if (!js || js.length < 2) return js && js[0];
+  const medData = js.filter(j => j && j.data);
+  if (!medData.length) return js[0];
+  const sett = new Set();
+  const mønstre = [];
+  js.forEach((j, i) => {
+    const tps = (j && j.data && j.data.trip && j.data.trip.tripPatterns) || [];
+    tps.forEach(tp => {
+      const k = reiseNøkkel(tp);
+      if (k && sett.has(k)) return;
+      sett.add(k);
+      mønstre.push(vias[i] ? { ...tp, _via: viaNavn || vias[i] } : tp);
+    });
+  });
+  const base = medData[0];
+  return { ...base, data: { ...base.data, trip: { ...(base.data.trip || {}), tripPatterns: mønstre } } };
+}
+
 export function fetchTrip(dir, onSuccess, onError, atMs) {
   if (tripController) tripController.abort();
   if (boardController) boardController.abort();
@@ -323,12 +353,14 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
       logMsg('trip → ' + label(fromId) + (viaId ? ' via ' + viaId : '') + ' → ' + label(toId));
       // Rekkefølgen på argumentene er rekkefølgen trinnene ble lagt til i,
       // ikke rekkefølgen de droppes i. Den står i `if`-ene under.
+      // Én trapp per via-stopp (null = uten). Med `viaOgså` kjøres to.
+      const spør = (v) => {
       const ask = (withLookback, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: withLookback
-            ? tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? undefined : atMs,
+            ? tripGQL(fromId, toId, v || null, 12, walkSpeedMs, atMs == null ? undefined : atMs,
               false, false, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder)
             // The retry deliberately drops dateTime: it is the argument that
             // could never be verified against the live API, so it is the one
@@ -336,7 +368,7 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
             // the two-minute lookback, and with it a train standing at the
             // platform a minute late — so the diagnostic records that it
             // happened rather than trading a silent loss for a silent outage.
-            : tripGQL(fromId, toId, viaId || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder),
+            : tripGQL(fromId, toId, v || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder),
         }),
         signal,
       })
@@ -417,6 +449,13 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
         });
       return ask(true, !_coachRejected, !_windowRejected, !_affectsRejected, !_innstilteRejected,
         !_bytteRejected, !_iderRejected);
+      };
+      /* «OGSÅ VIA»: via som et ønske, ikke et krav. Rapportert: 3 → Hellerud
+       * → 2 → Tveita → 69 kom aldri fram, fordi Entur foretrekker reisen med
+       * færre bytter når ankomsten er lik. Spurt via Hellerud finnes den.
+       * Med `dir.viaOgså` spørres begge, og svarene slås sammen. */
+      const vias = (dir.viaOgså && viaId) ? [viaId, null] : [viaId];
+      return Promise.all(vias.map(spør)).then(js => slåSammenSvar(js, vias, dir.via || null));
     })
     .then(j => {
       if (!j || signal.aborted) return;

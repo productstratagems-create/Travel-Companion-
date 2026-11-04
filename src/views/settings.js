@@ -825,6 +825,8 @@ export function showSettings() {
   const viaWrap = document.getElementById('set-via-wrap');
   const viaToggle = document.getElementById('set-via-toggle');
   if (viaInput) { viaInput.value = savedVia || ''; syncClear('set-via', 'set-via-clear'); }
+  const viaOgså = document.getElementById('set-via-ogsa');
+  if (viaOgså) viaOgså.checked = !!(config.dirs[state.dIdx] && config.dirs[state.dIdx].viaOgså);
   if (viaWrap) viaWrap.style.display = savedVia ? 'block' : 'none';
   if (viaToggle) viaToggle.style.display = savedVia ? 'none' : 'block';
 
@@ -1103,6 +1105,8 @@ export function applyRoute() {
     via:      via || null,
     viaStopId: viaId || null,
     viaGeo:   (via && !viaId) ? via : null,
+    // Bare med et via-stopp: uten via finnes det ingenting å vise «også».
+    viaOgså:  !!(via && (document.getElementById('set-via-ogsa') || {}).checked),
     _fromLat: depLat,
     _fromLon: depLon,
     _toLat:   arrLat,

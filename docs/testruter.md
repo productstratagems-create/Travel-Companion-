@@ -1,6 +1,6 @@
 # Testruter
 
-Kjørt mot Entur 2026-11-03 20:02 UTC.
+Kjørt mot Entur 2026-11-04 16:42 UTC.
 
 | rute | når | rader | beste reise | brudd |
 |---|---|---|---|---|
@@ -28,6 +28,7 @@ Kjørt mot Entur 2026-11-03 20:02 UTC.
 | Adresse på Tåsen → Oslo S | lørdag | 12/12 | metro | — |
 | Hareid kai → Ålesund sentrum | hverdag | 12/12 | water | — |
 | Hareid kai → Ålesund sentrum | lørdag | 9/9 | water | — |
+| Mortensrud → Lutvann skole, også via Hellerud | torsdag | 9/18 | metro → metro | — |
 
 ## Spørringen etter trappen
 

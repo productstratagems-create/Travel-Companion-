@@ -29,9 +29,11 @@ vi.mock('../src/api/http.js', async (orig) => {
   return { ...ekte, enturFetch: async (url, opts = {}) => {
     const query = opts.body ? JSON.parse(opts.body).query : null;
     if (avspilling) {
-      const neste = avspilling.shift();
-      if (!neste) throw new Error('avspilling: flere spørsmål enn i opptaket');
-      if (neste.query !== query) throw new Error('avspilling: spørsmålet har endret seg — kjør npm run testruter');
+      // Etter spørsmålet, ikke rekkefølgen: «også via» spør to ganger
+      // samtidig, og hvilket svar som kom først er tilfeldig.
+      const i = avspilling.findIndex(o => o.query === query);
+      if (i < 0) throw new Error('avspilling: spørsmålet finnes ikke i opptaket — kjør npm run testruter');
+      const [neste] = avspilling.splice(i, 1);
       return { ok: true, status: 200, json: async () => neste.svar };
     }
     const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), 'ET-Client-Name': ekte.ET_CLIENT_NAME } });
@@ -52,7 +54,7 @@ async function kjør(rute, tid) {
   opptak = [];
   avspilling = LIVE ? null : JSON.parse(readFileSync(fil, 'utf8'));
   const rå = await new Promise((ok, feil) =>
-    entur.fetchTrip({ key: rute.id, ...rute.fra, ...rute.til }, p => ok(p), e => feil(new Error(e)), tid[1]));
+    entur.fetchTrip({ key: rute.id, ...rute.fra, ...rute.til, ...(rute.ekstra || {}) }, p => ok(p), e => feil(new Error(e)), tid[1]));
   if (LIVE) { mkdirSync(DIR, { recursive: true }); writeFileSync(fil, JSON.stringify(opptak)); }
   const spurt = (LIVE ? opptak : JSON.parse(readFileSync(fil, 'utf8'))).map(o => o.query);
   takeDropReasons();
@@ -90,7 +92,7 @@ describe('trappen i fetchTrip', () => {
 const resultater = [];
 
 describe.each(RUTER)('$navn ($tester)', (rute) => {
-  describe.each(TIDER)('%s', (navn, tid) => {
+  describe.each(rute.tider || TIDER)('%s', (navn, tid) => {
     let res;
     beforeAll(async () => {
       if (!LIVE && !existsSync(DIR + '/' + rute.id + '-' + navn + '.json')) return;
@@ -98,6 +100,18 @@ describe.each(RUTER)('$navn ($tester)', (rute) => {
       res = { k, regler: vurder(rute, k.rå, k.adaptert.length, k.rader, k.grunner) };
       resultater.push({ rute, navn, ...res });
     }, 60000);
+    // Reiser som MÅ være blant radene, som linjekjeder («metro:3>metro:2>bus:69»).
+    it.each(rute.måHa || [])('har %s', (kjede) => {
+      if (!res) return;
+      const kjeder = res.k.rader.map(({ c }) => (c._legs || []).map(l => l.mode + ':' + ((l.serviceJourney && l.serviceJourney.line && l.serviceJourney.line.publicCode) || '?')).join('>'));
+      expect(kjeder, kjeder.join(' | ')).toContain(kjede);
+    });
+    // «Også»: noe fra spørringen uten via skal stå der også.
+    if (rute.ekstra && rute.ekstra.viaOgså) it('har reiser uten via-stoppet også', () => {
+      if (!res) return;
+      expect(res.k.rader.some(({ c }) => !c._via)).toBe(true);
+      expect(res.k.rader.some(({ c }) => c._via === rute.ekstra.via)).toBe(true);
+    });
     it.each(['svar', 'ingen stille tap', 'riktig transportmiddel', 'ikke dårligere enn Entur',
       'bytter', 'gange', 'stigende avganger'])('%s', (regel) => {
       if (!res) return;                    // ikke tatt opp ennå

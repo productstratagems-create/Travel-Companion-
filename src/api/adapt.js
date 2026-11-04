@@ -356,6 +356,8 @@ export function adaptTripPattern(tp) {
       _transferAt:       transfers.length ? transfers[0].at : null,
       _transferPlatform: transfers.length ? transfers[0].platform : null,
       _transferFrontText: transfers.length ? transfers[0].frontText : null,
+      // «Også via»: reisen kom fra via-spørringen (navnet på stoppet), ellers null.
+      _via:              tp._via || null,
       _finalArrival:     (() => {
         if (lastAny.toEstimatedCall) {
           return lastAny.toEstimatedCall.expectedArrivalTime || lastAny.toEstimatedCall.aimedArrivalTime;

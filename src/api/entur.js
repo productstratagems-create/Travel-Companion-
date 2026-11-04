@@ -822,13 +822,24 @@ export function fetchBoard(dir, onSuccess, onError, want, perLine) {
  * Resolves to { stop, departures, situations } — the arrival stop's onward
  * departures AND its disruptions, which no other call in the app fetches.
  */
-export function fetchArrBoard(stopId, n) {
-  return enturFetch(config.api.journeyPlanner, {
+/**
+ * @param {{fraMs?:number, perLinje?:number, vinduMin?:number}} [o] spør fra
+ *   et tidspunkt (ankomsten) med tak per linje. Per linje deler probe med
+ *   `fetchBoard` (`_perLineRejected`): avvist der er avvist her.
+ */
+export function fetchArrBoard(stopId, n, o) {
+  const opt = o || {};
+  const ask = (perLinje) => enturFetch(config.api.journeyPlanner, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: arrBoardGQL(stopId, n) }),
+    body: JSON.stringify({ query: arrBoardGQL(stopId, n, false, opt.fraMs, perLinje, opt.vinduMin) }),
   })
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(j => {
+      if (perLinje && j && !j.data && j.errors) { _perLineRejected = true; return ask(0); }
+      return j;
+    });
+  return ask(_perLineRejected ? 0 : opt.perLinje)
     .then(j => {
       const stop = (j && j.data && j.data.stopPlace) || null;
       const calls = (stop && stop.estimatedCalls) || [];

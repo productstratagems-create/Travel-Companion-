@@ -198,10 +198,21 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
  * until now a closure at the far end of the trip was invisible. Same fragment
  * and same shape as boardGQL, so ui/alerts.js renders it unchanged.
  */
-export function arrBoardGQL(id, n, basic) {
+/**
+ * @param {number} [fraMs] Spør FRA dette tidspunktet, ikke fra nå. Uten det
+ *   var alle de åtte avgangene fra Tveita forbi før du var framme
+ *   (rapportert: to grå rader og ingen du kunne ta).
+ * @param {number} [perLinje] Tak per linje og retning, så T-banens tette
+ *   avganger ikke fyller lista før bussene kommer med.
+ * @param {number} [vinduMin] Hvor langt fram, i minutter.
+ */
+export function arrBoardGQL(id, n, basic, fraMs, perLinje, vinduMin) {
   const sits = sitsGQL(basic);
+  const fra = Number.isFinite(fraMs) ? 'startTime:"' + new Date(fraMs).toISOString() + '" ' : '';
+  const vindu = Number.isFinite(fraMs) && vinduMin ? 'timeRange:' + vinduMin * 60 + ' ' : '';
+  const per = perLinje ? 'numberOfDeparturesPerLineAndDestinationDisplay:' + perLinje + ' ' : '';
   return '{stopPlace(id:"' + id + '"){name latitude longitude ' + sits + ' '
-    + 'estimatedCalls(numberOfDepartures:' + (n || 8) + '){'
+    + 'estimatedCalls(' + fra + vindu + per + 'numberOfDepartures:' + (n || 8) + '){'
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation '
     + sits + ' '
     + 'destinationDisplay{frontText} quay{publicCode} '

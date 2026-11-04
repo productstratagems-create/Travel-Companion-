@@ -18,7 +18,7 @@ import { collectStopSituations } from '../api/situations.js';
 import { pruneHidden } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
 import { pickUsual, usualState } from '../api/usual.js';
-import { fmtMins, esc, clk, clkDay, countdownText } from '../ui/fmt.js';
+import { fmtMins, esc, clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
@@ -57,8 +57,28 @@ export { _interpolateVehiclePos, _interpolateOnPath };
  * @param {number} now
  * @param {{brudd?:boolean, fraStopptavle?:boolean}} [o]
  */
+/**
+ * Tidene til høyre på raden, uten å gjenta det som alt står.
+ *
+ * Rapportert med skjermbilde kl. 22:48: «00:03» stort til venstre, og ved
+ * siden av «i morgen 00:03» og «ank. i morgen 00:28». Samme klokkeslett to
+ * ganger og samme dag to ganger. Teksten var så lang at den gikk inn i
+ * spor-kolonnen.
+ *
+ * - Avgang: når venstre kolonne alt viser klokkeslettet (`klokke`), står bare
+ *   dagen her («i morgen»), og ingenting når det er i dag.
+ * - Ankomst: dagen regnes fra AVGANGEN, ikke fra nå. Samme dag som du reiser
+ *   gir bare klokkeslettet. Fram etter midnatt gir «i morgen».
+ */
+export function radTider(depTs, arrT, now, klokke) {
+  const dep = klokke ? dayPrefix(depTs, now).trim() : clkDay(depTs, now);
+  return { dep, ank: arrT ? clkDay(arrT, depTs) : null };
+}
+
 export function ankomstHtml(arrT, now, o) {
   const opt = o || {};
+  // Dagen regnes fra avgangen når den er kjent (`radTider`).
+  const ank = arrT ? clkDay(arrT, opt.fra != null ? opt.fra : now) : null;
   if (arrT && opt.brudd) {
     /* STREKEN, IKKE ET ORD TIL. Første utgave skrev «ankommer ikke» etter
      * tiden. Raden var like høy som før, så høyde-målingen sa at alt var i
@@ -66,9 +86,9 @@ export function ankomstHtml(arrT, now, o) {
      * skrive over «17:40» og «SPOR B». «Bytte innstilt» står rett under og
      * sier hvorfor. Ordet står for skjermleseren og ved langtrykk. */
     return '<span class="dep-arr dep-arr-brutt" title="ankommer ikke som planlagt"'
-      + ' aria-label="ankommer ikke som planlagt"><s>ank. ' + clkDay(arrT, now) + '</s></span>';
+      + ' aria-label="ankommer ikke som planlagt"><s>ank. ' + ank + '</s></span>';
   }
-  if (arrT) return '<span class="dep-arr">ank. ' + clkDay(arrT, now) + '</span>';
+  if (arrT) return '<span class="dep-arr">ank. ' + ank + '</span>';
   if (opt.fraStopptavle) return '<span class="dep-arr dep-tag-soft">ank. ukjent</span>';
   return '';
 }
@@ -3212,8 +3232,9 @@ export function renderBoard() {
       + '<div class="dep-top">'
       + lineBadges
       + '<div class="dep-times">'
-      + '<span class="dep-dep">' + clkDay(depTs, now) + '</span>'
-      + ankomstHtml(arrT, now, { brudd: !erInnstilt(c) && !!c._brudd, fraStopptavle: !!c._fromStopBoard })
+      + (() => { const d = radTider(depTs, arrT, now, isClock).dep;
+        return d ? '<span class="dep-dep">' + d + '</span>' : ''; })()
+      + ankomstHtml(arrT, now, { brudd: !erInnstilt(c) && !!c._brudd, fraStopptavle: !!c._fromStopBoard, fra: depTs })
       + (railDuration ? '<span class="dep-arr dep-rail-dur">' + railDuration + '</span>' : '')
       + '</div>'
       + '</div>'

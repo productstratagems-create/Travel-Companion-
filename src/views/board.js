@@ -3285,7 +3285,7 @@ export function renderBoard() {
   // one means Entur has no more to give, the other means we stopped.
   else if (_pageDone) html += '<div class="dep-more-msg">det er alt Entur har herfra.</div>';
   else if (_pageCapped) html += '<div class="dep-more-msg">viser de første ' + MAX_ROWS
-    + ' avgangene. sett en senere avreisetid for å se lenger fram.</div>';
+    + ' avgangene. velg tid i Utforsk for å se lenger fram.</div>';
 
   const keep = list.scrollTop;
   list.innerHTML = html;

@@ -29,7 +29,8 @@ import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
 import { plattformTekst } from '../bytte.js';
-import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja } from '../api/ombord.js';
+import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, nesteStopp } from '../api/ombord.js';
+import { oppdaterLås } from '../api/ombordLaas.js';
 import { _interpolateVehiclePos, _interpolateOnPath } from '../api/forventetPos.js';
 import { journeyShapeCached } from '../api/entur.js';
 import { joinJourney } from '../journey.js';
@@ -1404,6 +1405,37 @@ export function velgStoppIFart(picked, current, pinned, påLinja, list) {
   return { stop, changed: !current || current.id !== stop.id, linjer: påLinja.linjer };
 }
 
+/* LÅSEN PÅ TUREN DU SITTER PÅ (`api/ombordLaas.js`). Modulstate, som de
+ * andre her: skjermen tegnes hvert sekund, og en lås i DOM-en ville blitt
+ * skrevet over før den kunne leses. */
+let _lås = null;
+export function _nullstillLås() { _lås = null; }
+
+/**
+ * Neste stopp på linja: fra låsen når den holder, ellers fra dommen.
+ * Låsen oppdateres her, én gang per tegning, og hendelsene går til
+ * reiseloggen så tersklene kan måles.
+ */
+function _påLinjaMedLås(nå) {
+  const dom = _ombordDom(nå);
+  const fri = stoppPåLinja(dom, nå, state.posTrailLang);
+  // Avvist med × slipper låsen også: du har sagt at du ikke er på den.
+  if (_lås && _avvistOmbord.has(_lås.k.nøkkel)) _lås = null;
+  // Den låste turens forventede posisjon, regnet mot sporet nå, fra turens
+  // EGNE kall, ikke fra tavla for stoppet som vises.
+  const låstK = _lås ? (ombordKandidater([_lås.k.call], state.posTrail || [], null)[0] || null) : null;
+  const vinner = dom.kind === 'ombord' ? dom.kandidater[0] : (fri && fri.k) || null;
+  const r = oppdaterLås(_lås, { låstK, vinner, fartMS: fartNå(nå), spor: state.posTrail || [], nå });
+  if (r.hendelse) {
+    const k = (r.lås && r.lås.k) || (_lås && _lås.k);
+    logEvent('ombord', { svarte: r.hendelse, linje: k ? k.linje : '', handling: r.lås ? 'låst' : 'sluppet' }, null);
+  }
+  _lås = r.lås;
+  if (!_lås) return fri;
+  const neste = nesteStopp(_lås.k, nå);
+  return neste ? { stop: neste, linjer: [_lås.k.linje], k: _lås.k } : null;
+}
+
 function _renderOmbord() {
   const el = _el('auto-ombord');
   if (!el) return;
@@ -1453,8 +1485,9 @@ function _renderWhere() {
   if (!el) return;
   const list = _stops();
   const nåW = Date.now();
+  const påLinja = _påLinjaMedLås(nåW);
   const picked = velgStoppIFart(pickStop(list, _stop, _stopPinned, _bandOf()), _stop, _stopPinned,
-    stoppPåLinja(_ombordDom(nåW), nåW, state.posTrailLang), list);
+    påLinja, list);
   _stop = picked.stop;
   // A different stop is a different board. Without this the departures below
   // would keep belonging to the stop the reader has walked away from — and
@@ -1475,7 +1508,8 @@ function _renderWhere() {
 
   const w = walkMinsTo(_stop);
   // Samme terskel som tilbudet over, fra samme filter.
-  const fart = iFart(fartNå(Date.now()));
+  // Låst på en tur er du i fart også når bussen står ved holdeplassen.
+  const fart = iFart(fartNå(Date.now())) || !!_lås;
   const _way = (_stop && _stop.lat != null)
     ? approach(state.posTrail, { lat: _stop.lat, lon: _stop.lon })
     : { kind: 'vet-ikke', etaS: null };

@@ -71,7 +71,7 @@ describe('det lange sporet', () => {
   });
   it('auto-reise sender det lange sporet', () => {
     const s = require('node:fs').readFileSync('src/views/auto.js', 'utf8');
-    expect(s).toContain('stoppPåLinja(_ombordDom(nåW), nåW, state.posTrailLang)');
+    expect(s).toContain('const fri = stoppPåLinja(dom, nå, state.posTrailLang);');
     expect(require('node:fs').readFileSync('src/geo.js', 'utf8')).toContain('state.posTrailLang = pushLang(state.posTrailLang, here);');
   });
 });

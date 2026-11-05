@@ -1,6 +1,6 @@
 {
   "name": "travel-companion",
-  "version": "1.216.1",
+  "version": "1.216.3",
   "private": true,
   "license": "MIT",
   "scripts": {
@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "icons": "node scripts/make-icons.mjs",
-    "testruter": "TESTRUTER_LIVE=1 vitest run tests/testruter.test.js"
+    "testruter": "TESTRUTER_LIVE=1 vitest run tests/testruter.test.js",
+    "funksjonsruter": "FUNKSJON_LIVE=1 vitest run tests/funksjonsruter.test.js"
   },
   "devDependencies": {
     "jsdom": "^30.0.1",

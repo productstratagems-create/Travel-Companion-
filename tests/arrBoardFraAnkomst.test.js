@@ -46,9 +46,9 @@ describe('spurt fra ankomst', () => {
     expect(o.fraMs).toBe(ANK - ARR_BOARD_LOOKBACK_MINS * 60000);
     expect(o.perLinje).toBe(ARR_BOARD_PER_LINE);
     const q = arrBoardGQL('NSR:StopPlace:59517', ARR_BOARD_ASK, false, o.fraMs, o.perLinje, o.vinduMin);
-    expect(q).toContain('startTime:"' + new Date(ANK - 5 * 60000).toISOString() + '"');
+    expect(q).toContain('startTime:"' + new Date(ANK - ARR_BOARD_LOOKBACK_MINS * 60000).toISOString() + '"');
     expect(q).toContain('numberOfDeparturesPerLineAndDestinationDisplay:2');
-    expect(q).toContain('numberOfDepartures:24');
+    expect(q).toContain('numberOfDepartures:' + ARR_BOARD_ASK);
   });
   it('gir avganger du rekker, med T-bane og buss og bussen mot Lutvann', () => {
     const r = arrRows(FRA_ANKOMST, ANK, 0, '1').filter(x => x.rcls !== 'missed');

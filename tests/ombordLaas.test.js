@@ -99,3 +99,18 @@ describe('koblingen', () => {
     expect(s).toContain('const fart = iFart(fartNå(Date.now())) || !!_lås;');
   });
 });
+
+// Funnet av funksjonsrutene (v1.216.2): to korte opphold ved stopp som
+// ligger tett, ble til sammen regnet som at du gikk av.
+describe('to stopp tett: låsen holder', async () => {
+  const { sisteAvviksrekke } = await import('../src/api/ombordLaas.js');
+  const låst = () => ({ k: B76([fiks(0)]), stilleFra: null });
+  // Bort 20 s ved ett stopp, på turen 30 s, bort 20 s ved det neste.
+  const spor = [fiks(0, 0.004), fiks(10, 0.004), fiks(20, 0.004), fiks(30), fiks(40), fiks(50), fiks(60, 0.004), fiks(70, 0.004)];
+  it('bare den siste sammenhengende rekka teller', () => {
+    expect(sisteAvviksrekke(B76(spor), spor)).toHaveLength(2);
+  });
+  it('og den slipper ikke låsen', () => {
+    expect(oppdaterLås(låst(), { låstK: B76(spor), fartMS: 0, spor, nå: spor.at(-1).at }).lås).not.toBeNull();
+  });
+});

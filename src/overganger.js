@@ -17,10 +17,17 @@ import { transferMargin } from './bytte.js';
 import { reachCls } from './geo.js';
 import { stopKey } from './stopId.js';
 
-/** Hvor lenge før ankomst lista starter: nok til de to du så vidt mister. */
-export const ARR_BOARD_LOOKBACK_MINS = 5;
+/**
+ * Hvor lenge før ankomst lista starter: nok til de to du så vidt mister.
+ *
+ * 5 → 2, og 24 → 40. Funnet av funksjonsrutene (v1.216.2): på Jernbanetorget
+ * gikk alle de 24 avgangene i de 5 minuttene før ankomst. På et stort
+ * knutepunkt ble hele lista brukt på tilbakeblikket, og du fikk bare de du
+ * ikke rekker.
+ */
+export const ARR_BOARD_LOOKBACK_MINS = 2;
 /** Hvor mange avganger, og høyst hvor mange per linje og retning. */
-export const ARR_BOARD_ASK = 24;
+export const ARR_BOARD_ASK = 40;
 export const ARR_BOARD_PER_LINE = 2;
 /** How far ahead the onward list looks. */
 export const ARR_BOARD_HORIZON_MINS = 90;

@@ -920,11 +920,21 @@ export function fetchArrBoard(stopId, n, o) {
   })
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(j => {
-      if (perLinje && j && !j.data && j.errors) { _perLineRejected = true; return ask(0); }
+      /* BARE NÅR FEILEN GJELDER ARGUMENTET. Funnet av funksjonsrutene
+       * (v1.216.2): enhver feil, også et tidsavbrudd, slo av per linje for
+       * hele økta. Feilen må nevne argumentet, som `avvistFlagg` krever av
+       * reisesøket. */
+      if (perLinje && j && !j.data && j.errors
+        && /PerLine|numberOfDeparturesPerLineAndDestinationDisplay/.test(j.errors.map(e => e && e.message).join(' '))) {
+        _perLineRejected = true; return ask(0);
+      }
       return j;
     });
   return ask(_perLineRejected ? 0 : opt.perLinje)
     .then(j => {
+      // En feil er en feil, ikke «ingen avganger». Uten dette ble et
+      // tidsavbrudd vist som en tom liste.
+      if (j && !j.data && j.errors) throw new Error((j.errors[0] && j.errors[0].message) || 'Entur svarte med feil');
       const stop = (j && j.data && j.data.stopPlace) || null;
       const calls = (stop && stop.estimatedCalls) || [];
       const now = Date.now();

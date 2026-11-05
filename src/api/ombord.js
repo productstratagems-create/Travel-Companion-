@@ -173,12 +173,51 @@ export function nesteStopp(k, nå) {
  *
  * @returns {{stop:{id,name,lat,lon}, linjer:string[]}|null}
  */
-export function stoppPåLinja(dom, nå) {
+export function stoppPåLinja(dom, nå, lang) {
   if (!dom || (dom.kind !== 'ombord' && dom.kind !== 'ombord-tvil')) return null;
   const neste = dom.kandidater.map(k => nesteStopp(k, nå));
-  if (!neste.length || neste.some(n => !n) || neste.some(n => n.id !== neste[0].id)) return null;
-  const linjer = [...new Set(dom.kandidater.map(k => k.linje))];
-  return { stop: neste[0], linjer };
+  if (neste.length && neste.every(n => n) && neste.every(n => n.id === neste[0].id)) {
+    return { stop: neste[0], linjer: [...new Set(dom.kandidater.map(k => k.linje))] };
+  }
+  // TVIL OM NESTE STOPP: avgjøres av stoppene du alt har passert, når
+  // akkurat én kandidat har flere enn de andre. Ellers velger ikke appen.
+  if (dom.kind !== 'ombord-tvil' || !Array.isArray(lang) || !lang.length) return null;
+  const poeng = dom.kandidater.map(k => passerteStopp(k, lang, nå));
+  const best = Math.max(...poeng);
+  if (best < PASSERT_MIN || poeng.filter(p => p === best).length !== 1) return null;
+  const i = poeng.indexOf(best);
+  return neste[i] ? { stop: neste[i], linjer: [dom.kandidater[i].linje], passert: best } : null;
+}
+
+/** Hvor nær et stopp du må ha vært, og når, for at det teller som passert. */
+export const PASSERT_M = 150;
+export const PASSERT_MS = 3 * 60_000;
+/** Minst så mange passerte stopp før de avgjør noe. Ett kan være tilfeldig. */
+export const PASSERT_MIN = 2;
+
+/**
+ * Hvor mange av kandidatturens TIDLIGERE stopp (siste time) du var ved,
+ * omtrent da turen var der.
+ *
+ * Bestilt: er det uklart om neste stopp er T-bane eller buss, er det trolig
+ * det ene eller det andre ut fra hvilke stopp du alt har passert. En buss og
+ * en T-bane kan gå side om side et stykke, men de har ikke stoppet på de
+ * samme stedene til de samme tidene før det.
+ */
+export function passerteStopp(k, lang, nå) {
+  const sj = k && k.call && k.call.serviceJourney;
+  const alle = (sj && Array.isArray(sj.estimatedCalls)) ? sj.estimatedCalls : [];
+  let n = 0;
+  alle.forEach(c => {
+    const t = _ms(c);
+    if (!(t <= nå) || nå - t > 60 * 60_000) return;
+    const q = c.quay || {}; const sp = q.stopPlace || {};
+    const lat = Number.isFinite(q.latitude) ? q.latitude : sp.latitude;
+    const lon = Number.isFinite(q.longitude) ? q.longitude : sp.longitude;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    if (lang.some(f => Math.abs(f.at - t) <= PASSERT_MS && metresBetween(f, { lat, lon }) <= PASSERT_M)) n++;
+  });
+  return n;
 }
 
 /* ── REISEN DU BLIR MED PÅ ──────────────────────────────────────────── */

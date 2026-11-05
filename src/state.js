@@ -35,6 +35,8 @@ export const state = {
   // tab lives: never written to disk, never in the event log, never sent
   // anywhere. See src/trail.js for why that line is drawn where it is.
   posTrail: [],
+  // Den siste timen, glissent (trail.js `pushLang`). Bare i minnet.
+  posTrailLang: [],
   // When a fix was last held back for demanding a speed nobody travels at,
   // and how far it wanted to move you. Recorded so the screen can SAY it —
   // a silently withheld fix is exactly the fault 'unoyaktig' was added to fix.

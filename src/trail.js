@@ -82,6 +82,29 @@ const ok = (f) => !!f && Number.isFinite(f.lat) && Number.isFinite(f.lon)
  * trail can be held in state and compared by identity when deciding whether
  * anything needs redrawing.
  */
+/**
+ * DET LANGE SPORET: hvor du har vært den siste timen, glissent.
+ *
+ * Bestilt: hvis det er uklart om neste stopp er T-bane eller buss, er det
+ * trolig det ene eller det andre ut fra hvilke stopp du alt har passert.
+ * En tur er sjelden over 30–60 min. Sporet over er ett minutt (TRAIL_MAX),
+ * for kort til å huske hvilke stopp du passerte.
+ *
+ * Én fiks per LANG_STEG_MS, høyst LANG_MAKS_MS tilbake. Bare i minnet, aldri
+ * lagret: det er posisjonen din, og det trengs bare mens appen er åpen.
+ */
+export const LANG_STEG_MS = 20_000;
+export const LANG_MAKS_MS = 60 * 60_000;
+
+export function pushLang(lang, fix) {
+  if (!ok(fix)) return lang || [];
+  const l = lang || [];
+  const siste = l[l.length - 1];
+  if (siste && fix.at - siste.at < LANG_STEG_MS) return l;
+  return l.concat({ lat: fix.lat, lon: fix.lon, at: fix.at, acc: Number.isFinite(fix.acc) ? fix.acc : null })
+    .filter(f => fix.at - f.at <= LANG_MAKS_MS);
+}
+
 export function pushFix(trail, fix) {
   if (!ok(fix)) return trail || [];
   const out = (trail || []).concat({

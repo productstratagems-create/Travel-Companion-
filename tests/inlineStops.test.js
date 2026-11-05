@@ -65,7 +65,7 @@ describe('hvordan skjermen bruker dem nå', () => {
   // alternativ bærer sin EGEN rad, og ankomsten er den radens egen.
   it('tar alternativene fra radenes egne stopp', () => {
     const s = src();
-    expect(s).toMatch(/const dests = destinations\(live, freq, walkMins, now, _stop && _stop\.name\)/);
+    expect(s).toMatch(/const dests = destinations\(live, freq, walkMins, now, _stop && _stop\.name,/);
     expect(s).toMatch(/prev\.options\.push\(\{ i, d, call: ride\.call/);
   });
 

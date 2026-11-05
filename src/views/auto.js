@@ -2535,7 +2535,9 @@ function _renderBody() {
   // The indented stops are not deleted — they are this, folded up. Saying the
   // same clock time in two places is the fault this codebase spends most of
   // its time on.
-  const dests = destinations(live, freq, walkMins, now, _stop && _stop.name);
+  // Med det lange sporet når det finnes: retningen over minutter, ikke sekunder.
+  const dests = destinations(live, freq, walkMins, now, _stop && _stop.name,
+    (state.posTrailLang && state.posTrailLang.length >= 2) ? state.posTrailLang : state.posTrail);
   // Samme kort og samme alternativ som kortets overskrift: kartet og kortet
   // skal vise samme reise.
   const k0 = dests[0], o0 = k0 && k0.options && k0.options[0];
@@ -3045,7 +3047,16 @@ export function kortHtml(x, n) {
     + '</span>';
 }
 
-export function destinations(live, freq, walkMins, now, fromName) {
+/**
+ * Rekkefølgen etter hvor du er på vei. Bestilt: «Rekkefølgen på kortene
+ * under «Dit du ofte skal» bør være iht. sannsynlig reiseretning bruker er
+ * på.» Et sted sporet ditt nærmer seg (`approach` → 'mot') står først, så de
+ * sporet ikke sier noe om, og sist de du fjerner deg fra. Innenfor samme
+ * retning avgjør bruken, som før. Uten spor er rekkefølgen som før.
+ */
+export const RETNING_RANG = { mot: 0, staar: 1, 'vet-ikke': 1, fra: 2 };
+
+export function destinations(live, freq, walkMins, now, fromName, trail) {
   const hist = (freq || []).filter(p => p && p.name);
   if (!hist.length) return [];
   // The index is built the way stopShortcuts builds it, from the same fields,
@@ -3068,7 +3079,7 @@ export function destinations(live, freq, walkMins, now, fromName) {
       const key = stopKey(st.name);
       if (!key) return;
       const prev = out.get(key)
-        || { name: st.name, id: st.id, uses: n, options: [] };
+        || { name: st.name, id: st.id, uses: n, options: [], lat: st.lat, lon: st.lon };
       // The same row twice keeps only its own earliest arrival: one row is
       // one way there, whatever it is called on the way.
       const seen = prev.options.find(o => o.i === i);
@@ -3081,7 +3092,10 @@ export function destinations(live, freq, walkMins, now, fromName) {
 
   return [...out.values()]
     .map(x => ({ ...x, options: x.options.slice().sort((a, b) => a.at - b.at) }))
-    .sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name, 'nb'))
+    .map(x => ({ ...x, retning: (trail && trail.length && Number.isFinite(x.lat))
+      ? approach(trail, { lat: x.lat, lon: x.lon }).kind : 'vet-ikke' }))
+    .sort((a, b) => (RETNING_RANG[a.retning] - RETNING_RANG[b.retning])
+      || b.uses - a.uses || a.name.localeCompare(b.name, 'nb'))
     .slice(0, DEST_BLOCK);
 }
 

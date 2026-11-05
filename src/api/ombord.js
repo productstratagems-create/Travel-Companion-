@@ -156,7 +156,9 @@ export function nesteStopp(k, nå) {
   if (!sp || !sp.id) return null;
   const lat = Number.isFinite(sp.latitude) ? sp.latitude : q.latitude;
   const lon = Number.isFinite(sp.longitude) ? sp.longitude : q.longitude;
-  return { id: sp.id, name: sp.name || '', lat: Number.isFinite(lat) ? lat : null, lon: Number.isFinite(lon) ? lon : null };
+  return { id: sp.id, name: sp.name || '', lat: Number.isFinite(lat) ? lat : null, lon: Number.isFinite(lon) ? lon : null,
+    // Når turen er der: grunnlaget for overgangene (src/overganger.js).
+    at: _ms(c) };
 }
 
 /**

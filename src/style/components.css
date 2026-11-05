@@ -283,3 +283,16 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
 /* «i fart — viser ikke hva du rekker til fots». Stille, over radene på
    tavla og auto-reise: ingen rad er strøket på gangtid, og det skal sies. */
 .i-fart-notis{font-size:10px;letter-spacing:.08em;color:var(--text-muted);margin:0 0 .45rem;padding:0 .1rem}
+
+/* Overganger på neste stopp, i auto-reise underveis (v1.216.0). Sammenfoldet:
+   én linje til den åpnes, så det avgjørende står uten å skrolle. */
+.ov-fold{margin:.4rem 0 .2rem;font-size:12px}
+.ov-fold>summary{cursor:pointer;color:var(--accent);letter-spacing:.04em}
+.ov-rad{display:flex;align-items:center;gap:.45rem;padding:.25rem 0;min-width:0}
+.ov-dest{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-tid{font-variant-numeric:tabular-nums;color:var(--text-muted)}
+.ov-dom{white-space:nowrap;font-size:11px}
+.ov-relevant .ov-dest{font-weight:600}
+.ov-mer{color:var(--text-soft);font-size:11px;padding-top:.15rem}
+.ov-dom.rl-ok{color:var(--accent)}
+.ov-dom.rl-stramt{color:var(--warn)}

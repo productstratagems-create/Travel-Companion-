@@ -432,25 +432,10 @@ function _renderTrackMap(now, cs, legs) {
   }
 }
 
-/** Hvor lenge før ankomst lista starter: nok til de to du så vidt mister. */
-export const ARR_BOARD_LOOKBACK_MINS = 5;
-/** Hvor mange avganger, og høyst hvor mange per linje og retning. */
-export const ARR_BOARD_ASK = 24;
-export const ARR_BOARD_PER_LINE = 2;
-
-/**
- * Hva «videre med kollektivt» spør om: FRA ANKOMSTEN, ikke fra nå.
- *
- * Rapportert med skjermbilde ved Tveita, 17 min før ankomst: lista spurte om
- * de åtte neste fra NÅ. Alle åtte gikk før du var framme, og `arrRows`
- * beholdt de to siste, to grå rader og ingen du kunne ta. Spurt fra ankomst
- * med tak per linje ga samme stopp T-bane 2 og bussene 58 og 69 (den siste
- * mot Lutvann, dit du skulle). Ren, så kallet kan prøves.
- */
-export function arrBoardSpørsmål(ankomstMs) {
-  return { fraMs: ankomstMs - ARR_BOARD_LOOKBACK_MINS * 60000,
-    perLinje: ARR_BOARD_PER_LINE, vinduMin: ARR_BOARD_HORIZON_MINS + ARR_BOARD_LOOKBACK_MINS };
-}
+/* Spørsmålet og tallene bor i `src/overganger.js` nå: auto-reise stiller
+ * samme spørsmål om neste stopp underveis. Én definisjon, eksportert videre. */
+export { ARR_BOARD_LOOKBACK_MINS, ARR_BOARD_ASK, ARR_BOARD_PER_LINE, ARR_BOARD_HORIZON_MINS, arrBoardSpørsmål } from '../overganger.js';
+import { ARR_BOARD_ASK, ARR_BOARD_HORIZON_MINS, arrBoardSpørsmål } from '../overganger.js';
 
 function _fetchArrBoardData() {
   if (!_arrBoardStopId) return;
@@ -653,8 +638,6 @@ export function connAlertHtml(legs, i, extraMins) {
     + '</div>';
 }
 
-/** How far ahead the onward list looks. */
-export const ARR_BOARD_HORIZON_MINS = 90;
 /** How many onward departures are offered. */
 export const ARR_BOARD_ROWS = 8;
 /**

@@ -22,7 +22,8 @@ import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import config from '../config.js';
 import { state } from '../state.js';
-import { fetchNextDeparture, fetchBoard, fetchArrBoard } from '../api/entur.js';
+import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra } from '../api/entur.js';
+import { raskereHer } from '../raskere.js';
 import { overganger, arrBoardSpørsmål, ARR_BOARD_ASK } from '../overganger.js';
 import { domFraKlasse, _DOM_KLASSE } from '../ui/reiselop.js';
 import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
@@ -31,7 +32,7 @@ import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
 import { plattformTekst } from '../bytte.js';
-import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, nesteStopp } from '../api/ombord.js';
+import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, nesteStopp, stoppFram } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
 import { _interpolateVehiclePos, _interpolateOnPath } from '../api/forventetPos.js';
 import { journeyShapeCached } from '../api/entur.js';
@@ -1536,6 +1537,59 @@ export function overgangerHtml(ov, stoppNavn, åpen) {
     + '</details>';
 }
 
+/* «RASKERE HVIS DU GÅR AV HER» (src/raskere.js). Hentet én gang per neste
+ * stopp, tur og mål, og bare mens låsen holder og et mål er kjent (det
+ * første kortet under «Dit du ofte skal»). */
+let _rask = { key: null, svar: null };
+
+/** Når den låste turen selv er ved målet, eller null. */
+function _bliSittendeMs(k, målId, nå) {
+  const sj = k && k.call && k.call.serviceJourney;
+  const c = ((sj && sj.estimatedCalls) || []).find(x => {
+    const sp = x.quay && x.quay.stopPlace;
+    const t = new Date(x.expectedArrivalTime || x.aimedArrivalTime || x.expectedDepartureTime || 0).getTime();
+    return sp && sp.id === målId && t > nå;
+  });
+  return c ? new Date(c.expectedArrivalTime || c.aimedArrivalTime || c.expectedDepartureTime).getTime() : null;
+}
+
+function _raskereData(nå) {
+  const mål = _kortRute && _kortRute.id;
+  const neste = _lås && stoppFram(_lås.k, nå, 0);
+  if (!mål || !neste || !neste.id || neste.id === mål || !Number.isFinite(neste.at)) { _rask = { key: null, svar: null }; return null; }
+  const key = neste.id + '|' + _lås.k.nøkkel + '|' + mål;
+  if (_rask.key !== key) {
+    _rask = { key, svar: null };
+    const etter = stoppFram(_lås.k, nå, 1);
+    const bliMs = _bliSittendeMs(_lås.k, mål, nå);
+    const herfra = fetchTripFra(neste.id, mål, neste.at);
+    // Bare søk fra stoppet etter når turen ikke selv går til målet.
+    const senere = (bliMs == null && etter && etter.id && etter.id !== mål)
+      ? fetchTripFra(etter.id, mål, etter.at) : Promise.resolve(null);
+    Promise.all([herfra, senere]).then(([h, sn]) => {
+      if (_rask.key !== key) return;
+      _rask.svar = { navn: neste.name, mål: _kortRute ? _kortRute.navn : '',
+        r: raskereHer({ herfra: h, herfraAnk: neste.at, senere: sn, senereAnk: etter && etter.at, bliMs }) };
+    }).catch(() => { if (_rask.key === key) _rask.svar = { r: null }; });
+  }
+  return _rask.svar;
+}
+
+/**
+ * Én linje, og bare når det er raskere: «raskere å gå av på Tveita: 69 08:24 →
+ * Lutvann skole 08:32 · 5 min tidligere». Ellers ingenting.
+ */
+export function raskereHtml(svar) {
+  if (!svar || !svar.r) return '';
+  const legs = (svar.r.tp.legs || []).filter(l => l.mode !== 'foot');
+  const første = legs[0] || {};
+  const ln = (første.line && første.line.publicCode) || (første.serviceJourney && første.serviceJourney.line && første.serviceJourney.line.publicCode) || '?';
+  const går = clk(første.expectedStartTime || første.aimedStartTime);
+  return '<div class="rask-rad">raskere å gå av på ' + esc(svar.navn) + ': '
+    + '<b>' + esc(ln) + '</b> ' + går + (legs.length > 1 ? ' (' + (legs.length - 1) + ' bytte)' : '')
+    + ' → ' + esc(svar.mål) + ' ' + clk(svar.r.framMs) + ' · <b>' + svar.r.sparerMin + ' min tidligere</b></div>';
+}
+
 function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
@@ -1583,6 +1637,7 @@ function _renderWhere() {
       way: _way.kind,
       wayEtaS: _way.etaS,
     })
+    + (_lås ? raskereHtml(_raskereData(nåW)) : '')
     + (_lås ? overgangerHtml(_overgangerData(påLinja, nåW), (påLinja && påLinja.stop && påLinja.stop.name) || '', _ovÅpen) : '')
     + '<div id="auto-alts"' + (open ? '' : ' hidden') + '>'
     // One band per mode. The count in the heading above is the number of

@@ -66,7 +66,7 @@ describe('kortene sier hva de er', () => {
   });
 
   it('og rangeringen bak dem er faktisk på bruk', () => {
-    expect(src()).toMatch(/\.sort\(\(a, b\) => b\.uses - a\.uses/);
+    expect(src()).toMatch(/\.sort\(\(a, b\) => \(RETNING_RANG\[a\.retning\] - RETNING_RANG\[b\.retning\]\)\s*\|\| b\.uses - a\.uses/);
   });
 });
 

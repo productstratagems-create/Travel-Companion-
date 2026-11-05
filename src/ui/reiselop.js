@@ -44,12 +44,15 @@ const min = (a, b) => (a != null && b != null ? Math.max(0, Math.round((b - a) /
  * `reachCls`, ikke egne tall.
  */
 export function bytteDom(margin) {
-  const r = reachCls(margin);
+  return domFraKlasse(reachCls(margin));
+}
+/** Ordet for en `reachCls`-klasse. Én definisjon, lest av bytteraden og overgangene. */
+export function domFraKlasse(r) {
   if (r === 'missed') return 'rekker du ikke';
   if (r === 'r-soon' || r === 'r-now') return 'stramt';
   return 'god tid';
 }
-const _DOM_KLASSE = { 'god tid': 'rl-ok', 'stramt': 'rl-stramt', 'rekker du ikke': 'rl-miss' };
+export const _DOM_KLASSE = { 'god tid': 'rl-ok', 'stramt': 'rl-stramt', 'rekker du ikke': 'rl-miss' };
 
 /** Lengden langs en gangeetappes form, i meter (urundet) — eller null uten form. */
 function _formMeter(foot) {

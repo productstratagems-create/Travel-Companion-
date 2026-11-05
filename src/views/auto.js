@@ -22,7 +22,9 @@ import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import config from '../config.js';
 import { state } from '../state.js';
-import { fetchNextDeparture, fetchBoard } from '../api/entur.js';
+import { fetchNextDeparture, fetchBoard, fetchArrBoard } from '../api/entur.js';
+import { overganger, arrBoardSpørsmål, ARR_BOARD_ASK } from '../overganger.js';
+import { domFraKlasse, _DOM_KLASSE } from '../ui/reiselop.js';
 import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
 import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke, vaneSetning }
   from '../api/smart.js';
@@ -45,7 +47,7 @@ import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
-import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå } from '../geo.js';
+import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
 import L from 'leaflet';
 import { createMap, drawWalk, userDot, drawStopLine } from '../ui/map.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
@@ -1480,6 +1482,60 @@ export function whereLabel(fart, linjer) {
   return fart ? 'nærmeste stopp' : 'du er ved';
 }
 
+/* OVERGANGENE PÅ NESTE STOPP (src/overganger.js). Hentet én gang per stopp
+ * og tur, ikke per sekund, og bare mens låsen holder. */
+let _ov = { key: null, board: null };
+let _ovÅpen = false;
+if (typeof document !== 'undefined') {
+  document.addEventListener('toggle', e => {
+    if (e.target && e.target.classList && e.target.classList.contains('ov-fold')) _ovÅpen = e.target.open;
+  }, true);
+}
+
+function _overgangerData(påLinja, nå) {
+  const st = påLinja && påLinja.stop;
+  if (!_lås || !st || !st.id || !Number.isFinite(st.at)) { _ov = { key: null, board: null }; return null; }
+  const key = st.id + '|' + _lås.k.nøkkel;
+  if (_ov.key !== key) {
+    _ov = { key, board: null };
+    _ovÅpen = false;
+    fetchArrBoard(st.id, ARR_BOARD_ASK, arrBoardSpørsmål(st.at))
+      .then(res => { if (_ov.key === key) _ov.board = res.departures || []; })
+      .catch(() => { if (_ov.key === key) _ov.board = []; });
+  }
+  if (!_ov.board) return null;
+  return overganger(_ov.board, st.at, {
+    linje: _lås.k.linje, journeyId: _lås.k.nøkkel,
+    ofte: loadFreq('arr').map(p => p.name), ekstraMin: loadWalkBuffer(),
+  });
+}
+
+/**
+ * Overgangene som én sammenfoldet linje: «3 overganger på Tveita». Åpnet
+ * viser den linjemerke, skilt, avgang og dommen (samme ord som bytteraden).
+ * Tom når det ikke er noen, for stillhet her betyr at det ikke er noe å
+ * gjøre annerledes.
+ */
+export function overgangerHtml(ov, stoppNavn, åpen) {
+  if (!ov || !ov.rader.length) return '';
+  const rad = ({ c, rcls, relevant }) => {
+    const ln = c.ln || {};
+    const bg = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
+    const dom = domFraKlasse(rcls);
+    return '<div class="ov-rad' + (relevant ? ' ov-relevant' : '') + '">'
+      + '<span class="line-badge" style="background:' + bg + '">' + esc(ln.publicCode || '?') + '</span>'
+      + '<span class="ov-dest">' + esc(c.dest || '') + '</span>'
+      + '<span class="ov-tid">' + clk(c.depTs) + '</span>'
+      + '<span class="ov-dom ' + (_DOM_KLASSE[dom] || '') + '">' + esc(dom) + '</span></div>';
+  };
+  const n = ov.totalt;
+  return '<details class="ov-fold"' + (åpen ? ' open' : '') + '><summary>'
+    + n + (n === 1 ? ' overgang' : ' overganger') + ' på ' + esc(stoppNavn) + '</summary>'
+    + ov.rader.map(rad).join('')
+    + (n > ov.rader.length ? '<div class="ov-mer">+ ' + (n - ov.rader.length) + ' til innen 30 min</div>' : '')
+    + '</details>';
+}
+
 function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
@@ -1527,6 +1583,7 @@ function _renderWhere() {
       way: _way.kind,
       wayEtaS: _way.etaS,
     })
+    + (_lås ? overgangerHtml(_overgangerData(påLinja, nåW), (påLinja && påLinja.stop && påLinja.stop.name) || '', _ovÅpen) : '')
     + '<div id="auto-alts"' + (open ? '' : ' hidden') + '>'
     // One band per mode. The count in the heading above is the number of
     // STOPS, not of rows — an interchange stands in two lanes, and letting it

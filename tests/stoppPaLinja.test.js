@@ -103,7 +103,9 @@ describe('koblingen i auto-reise', () => {
   const src = readFileSync('src/views/auto.js', 'utf8');
   const where = src.slice(src.indexOf('function _renderWhere()'), src.indexOf('function _renderWhere()') + 600);
   it('«du er ved» velger med stoppet på linja fra samme dom som tilbudet', () => {
-    expect(where).toMatch(/velgStoppIFart\([\s\S]*stoppPåLinja\(_ombordDom\(/);
+    // Siden v1.215.0 gjennom låsen (`_påLinjaMedLås`), som bruker samme dom.
+    expect(where).toMatch(/const påLinja = _påLinjaMedLås\(nåW\);[\s\S]*velgStoppIFart\([\s\S]*påLinja, list\)/);
+    expect(src).toMatch(/const dom = _ombordDom\(nå\);\s*const fri = stoppPåLinja\(dom/);
   });
   it('tilbudet leser den samme dommen', () => {
     const omb = src.slice(src.indexOf('function _renderOmbord()'), src.indexOf('function _renderOmbord()') + 300);

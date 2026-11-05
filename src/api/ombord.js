@@ -177,7 +177,8 @@ export function stoppPåLinja(dom, nå, lang) {
   if (!dom || (dom.kind !== 'ombord' && dom.kind !== 'ombord-tvil')) return null;
   const neste = dom.kandidater.map(k => nesteStopp(k, nå));
   if (neste.length && neste.every(n => n) && neste.every(n => n.id === neste[0].id)) {
-    return { stop: neste[0], linjer: [...new Set(dom.kandidater.map(k => k.linje))] };
+    return { stop: neste[0], linjer: [...new Set(dom.kandidater.map(k => k.linje))],
+      k: dom.kandidater.length === 1 ? dom.kandidater[0] : null };
   }
   // TVIL OM NESTE STOPP: avgjøres av stoppene du alt har passert, når
   // akkurat én kandidat har flere enn de andre. Ellers velger ikke appen.
@@ -186,7 +187,7 @@ export function stoppPåLinja(dom, nå, lang) {
   const best = Math.max(...poeng);
   if (best < PASSERT_MIN || poeng.filter(p => p === best).length !== 1) return null;
   const i = poeng.indexOf(best);
-  return neste[i] ? { stop: neste[i], linjer: [dom.kandidater[i].linje], passert: best } : null;
+  return neste[i] ? { stop: neste[i], linjer: [dom.kandidater[i].linje], passert: best, k: dom.kandidater[i] } : null;
 }
 
 /** Hvor nær et stopp du må ha vært, og når, for at det teller som passert. */

@@ -1454,7 +1454,7 @@ function _renderWhere() {
   const list = _stops();
   const nåW = Date.now();
   const picked = velgStoppIFart(pickStop(list, _stop, _stopPinned, _bandOf()), _stop, _stopPinned,
-    stoppPåLinja(_ombordDom(nåW), nåW), list);
+    stoppPåLinja(_ombordDom(nåW), nåW, state.posTrailLang), list);
   _stop = picked.stop;
   // A different stop is a different board. Without this the departures below
   // would keep belonging to the stop the reader has walked away from — and

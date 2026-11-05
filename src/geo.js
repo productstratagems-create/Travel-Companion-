@@ -3,7 +3,7 @@ import { CENTRE } from './api/centre.js';
 import { state } from './state.js';
 import { nyttFilter, oppdater, framskriv, anslag, FRAMSKRIV_MAKS_MS } from './kalman.js';
 import { ACC_GATE, POS_STALE_MS, gpsErrorKind, fixJump } from './position.js';
-import { pushFix } from './trail.js';
+import { pushFix, pushLang } from './trail.js';
 import config from './config.js';
 import { TRANSIT_CATS, modesOf } from './api/stopCats.js';
 import { enturFetch } from './api/http.js';
@@ -824,6 +824,7 @@ function _handleFix(pos) {
     // Confirmed: the phone really is somewhere else. Start the series over
     // there rather than dragging a line across the country through it.
     state.posTrail = [];
+    state.posTrailLang = [];
     state.homeLL = null;
     _stationAnchor = null;
     // Filteret også: et estimat bygget der du VAR er verdiløst der du er, og
@@ -837,6 +838,7 @@ function _handleFix(pos) {
   // dot; a trail that inherited the gate would be blind in exactly the streets
   // and tunnels it exists for.
   state.posTrail = pushFix(state.posTrail, here);
+  state.posTrailLang = pushLang(state.posTrailLang, here);
 
   /* OG FILTERET TAR IMOT DEN SAMME FIKSEN, uansett nøyaktighet — av nøyaktig
    * samme grunn som serien over. En fiks på ±120 m flytter estimatet nesten

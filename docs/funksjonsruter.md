@@ -1,14 +1,14 @@
 # Funksjonsruter
 
-Kjørt mot Entur 2026-11-05 20:22 UTC, med reiser fra fredag 08:00 og neste side fra natt til lørdag 00:34.
+Kjørt mot Entur 2026-11-05 20:33 UTC, med reiser fra fredag 08:00 og neste side fra natt til lørdag 00:34.
 
 | funksjon | bestått | feilet | ikke aktuelt |
 |---|---|---|---|
 | neste side forbi midnatt | 12 | 0 | 0 |
-| videre fra ankomst | 10 | 1 | 1 |
+| videre fra ankomst | 11 | 0 | 1 |
 | overganger | 11 | 0 | 1 |
 | raskere | 9 | 0 | 3 |
-| lås | 4 | 5 | 3 |
+| lås | 9 | 0 | 3 |
 | også via | 9 | 0 | 3 |
 
 ## Per rute
@@ -16,28 +16,28 @@ Kjørt mot Entur 2026-11-05 20:22 UTC, med reiser fra fredag 08:00 og neste side
 | rute | funksjon | status | detalj |
 |---|---|---|---|
 | Mortensrud → Jernbanetorget | neste side forbi midnatt | bestått | 10 avganger etter nattpausen, første 01:29Z |
-| Mortensrud → Jernbanetorget | videre fra ankomst | feilet | 0 etter ankomst, 0 linjer,  |
+| Mortensrud → Jernbanetorget | videre fra ankomst | bestått | 30 etter ankomst, 17 linjer, metro/tram/bus |
 | Mortensrud → Jernbanetorget | overganger | bestått | 0 overganger på Meklenborg |
 | Mortensrud → Jernbanetorget | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
 | Mortensrud → Jernbanetorget | lås (bus) | bestått | hendelser: låst, sluppet:ende; holdt 183/184 tikk; neste stopp bakover 0 ganger |
 | Mortensrud → Jernbanetorget | også via | bestått | 0 via Meklenborg, 12 uten via |
 | Oslo S → Lillestrøm | neste side forbi midnatt | bestått | 11 avganger etter nattpausen, første 00:11Z |
-| Oslo S → Lillestrøm | videre fra ankomst | bestått | 18 etter ankomst, 7 linjer, rail |
+| Oslo S → Lillestrøm | videre fra ankomst | bestått | 23 etter ankomst, 7 linjer, rail |
 | Oslo S → Lillestrøm | overganger | bestått | 0 overganger på Sandvika stasjon |
 | Oslo S → Lillestrøm | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
-| Oslo S → Lillestrøm | lås (rail) | feilet | hendelser: låst, sluppet:brudd, låst, sluppet:ende; holdt 582/599 tikk; neste stopp bakover 0 ganger |
+| Oslo S → Lillestrøm | lås (rail) | bestått | hendelser: låst, sluppet:ende; holdt 598/599 tikk; neste stopp bakover 0 ganger |
 | Oslo S → Lillestrøm | også via | bestått | 12 via Sandvika stasjon, 12 uten via |
 | Jernbanetorget → Torshov | neste side forbi midnatt | bestått | 7 avganger etter nattpausen, første 00:05Z |
-| Jernbanetorget → Torshov | videre fra ankomst | bestått | 12 etter ankomst, 4 linjer, tram/bus |
+| Jernbanetorget → Torshov | videre fra ankomst | bestått | 15 etter ankomst, 5 linjer, tram/bus |
 | Jernbanetorget → Torshov | overganger | bestått | 0 overganger på Frogner stadion |
 | Jernbanetorget → Torshov | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
 | Jernbanetorget → Torshov | lås (tram) | bestått | hendelser: låst, sluppet:ende; holdt 250/251 tikk; neste stopp bakover 0 ganger |
 | Jernbanetorget → Torshov | også via | bestått | 0 via Frogner stadion, 12 uten via |
 | Lysaker → IT Fornebu | neste side forbi midnatt | bestått | 9 avganger etter nattpausen, første 00:41Z |
-| Lysaker → IT Fornebu | videre fra ankomst | bestått | 17 etter ankomst, 7 linjer, bus |
+| Lysaker → IT Fornebu | videre fra ankomst | bestått | 27 etter ankomst, 7 linjer, bus |
 | Lysaker → IT Fornebu | overganger | bestått | 0 overganger på Ammerud |
 | Lysaker → IT Fornebu | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
-| Lysaker → IT Fornebu | lås (bus) | feilet | hendelser: låst, sluppet:brudd, låst, sluppet:ende; holdt 368/388 tikk; neste stopp bakover 0 ganger |
+| Lysaker → IT Fornebu | lås (bus) | bestått | hendelser: låst, sluppet:ende; holdt 387/388 tikk; neste stopp bakover 0 ganger |
 | Lysaker → IT Fornebu | også via | bestått | 0 via Ammerud, 12 uten via |
 | Aker brygge → Nesoddtangen | neste side forbi midnatt | bestått | 11 avganger etter nattpausen, første 00:33Z |
 | Aker brygge → Nesoddtangen | videre fra ankomst | bestått | 16 etter ankomst, 7 linjer, bus/water |
@@ -46,40 +46,40 @@ Kjørt mot Entur 2026-11-05 20:22 UTC, med reiser fra fredag 08:00 og neste side
 | Aker brygge → Nesoddtangen | lås (water) | ikke aktuelt | for få stopp med koordinater |
 | Aker brygge → Nesoddtangen | også via | ikke aktuelt | ingen stopp underveis på første etappe |
 | Mortensrud → Torshov | neste side forbi midnatt | bestått | 9 avganger etter nattpausen, første 01:29Z |
-| Mortensrud → Torshov | videre fra ankomst | bestått | 13 etter ankomst, 5 linjer, bus/tram |
+| Mortensrud → Torshov | videre fra ankomst | bestått | 17 etter ankomst, 5 linjer, bus/tram |
 | Mortensrud → Torshov | overganger | bestått | 0 overganger på Meklenborg |
 | Mortensrud → Torshov | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
 | Mortensrud → Torshov | lås (bus) | bestått | hendelser: låst, sluppet:ende; holdt 183/184 tikk; neste stopp bakover 0 ganger |
 | Mortensrud → Torshov | også via | bestått | 0 via Meklenborg, 12 uten via |
 | Oslo S → Oslo lufthavn | neste side forbi midnatt | bestått | 12 avganger etter nattpausen, første 01:53Z |
-| Oslo S → Oslo lufthavn | videre fra ankomst | bestått | 19 etter ankomst, 12 linjer, bus/air/rail |
+| Oslo S → Oslo lufthavn | videre fra ankomst | bestått | 35 etter ankomst, 16 linjer, bus/air/rail |
 | Oslo S → Oslo lufthavn | overganger | ikke aktuelt | første etappe har ikke et neste stopp |
 | Oslo S → Oslo lufthavn | raskere | ikke aktuelt | for få stopp |
 | Oslo S → Oslo lufthavn | lås (rail) | ikke aktuelt | for få stopp med koordinater |
 | Oslo S → Oslo lufthavn | også via | ikke aktuelt | ingen stopp underveis på første etappe |
 | Bergen busstasjon → Stavanger bussterminal | neste side forbi midnatt | bestått | 12 avganger etter nattpausen, første 06:30Z |
-| Bergen busstasjon → Stavanger bussterminal | videre fra ankomst | bestått | 12 etter ankomst, 7 linjer, bus/coach |
+| Bergen busstasjon → Stavanger bussterminal | videre fra ankomst | bestått | 16 etter ankomst, 9 linjer, bus/coach |
 | Bergen busstasjon → Stavanger bussterminal | overganger | bestått | 0 overganger på Eikanger bru |
 | Bergen busstasjon → Stavanger bussterminal | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
-| Bergen busstasjon → Stavanger bussterminal | lås (coach) | feilet | hendelser: låst, sluppet:brudd, låst, sluppet:brudd, låst, sluppet:brudd, låst, sluppet:brudd, låst, sluppet:brudd, låst, sluppet:brudd, låst, sluppet:ende; holdt 5078/5195 tikk; neste stopp bakover 0 ganger |
+| Bergen busstasjon → Stavanger bussterminal | lås (coach) | bestått | hendelser: låst, sluppet:ende; holdt 5194/5195 tikk; neste stopp bakover 0 ganger |
 | Bergen busstasjon → Stavanger bussterminal | også via | bestått | 12 via Eikanger bru, 12 uten via |
 | Bergen stasjon → Bergen lufthavn | neste side forbi midnatt | bestått | 10 avganger etter nattpausen, første 00:16Z |
-| Bergen stasjon → Bergen lufthavn | videre fra ankomst | bestått | 8 etter ankomst, 6 linjer, tram/bus/air/coach |
+| Bergen stasjon → Bergen lufthavn | videre fra ankomst | bestått | 9 etter ankomst, 6 linjer, tram/bus/air/coach |
 | Bergen stasjon → Bergen lufthavn | overganger | bestått | 0 overganger på Eidsvåg E39 |
 | Bergen stasjon → Bergen lufthavn | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
-| Bergen stasjon → Bergen lufthavn | lås (bus) | feilet | hendelser: låst, sluppet:brudd, låst, sluppet:brudd, låst, sluppet:brudd, låst, sluppet:ende; holdt 292/347 tikk; neste stopp bakover 0 ganger |
+| Bergen stasjon → Bergen lufthavn | lås (bus) | bestått | hendelser: låst, sluppet:ende; holdt 346/347 tikk; neste stopp bakover 0 ganger |
 | Bergen stasjon → Bergen lufthavn | også via | bestått | 12 via Eidsvåg E39, 12 uten via |
 | Trondheim S → Trondheim lufthavn | neste side forbi midnatt | bestått | 12 avganger etter nattpausen, første 00:36Z |
-| Trondheim S → Trondheim lufthavn | videre fra ankomst | bestått | 15 etter ankomst, 6 linjer, rail/air/bus |
+| Trondheim S → Trondheim lufthavn | videre fra ankomst | bestått | 21 etter ankomst, 6 linjer, rail/air/bus |
 | Trondheim S → Trondheim lufthavn | overganger | bestått | 0 overganger på Fossegrenda |
 | Trondheim S → Trondheim lufthavn | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
 | Trondheim S → Trondheim lufthavn | lås (bus) | bestått | hendelser: låst, sluppet:ende; holdt 279/280 tikk; neste stopp bakover 0 ganger |
 | Trondheim S → Trondheim lufthavn | også via | bestått | 12 via Fossegrenda, 12 uten via |
 | Adresse på Tåsen → Oslo S | neste side forbi midnatt | bestått | 8 avganger etter nattpausen, første 00:06Z |
-| Adresse på Tåsen → Oslo S | videre fra ankomst | bestått | 20 etter ankomst, 10 linjer, rail |
+| Adresse på Tåsen → Oslo S | videre fra ankomst | bestått | 33 etter ankomst, 15 linjer, rail |
 | Adresse på Tåsen → Oslo S | overganger | bestått | 0 overganger på Kringsjå |
 | Adresse på Tåsen → Oslo S | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
-| Adresse på Tåsen → Oslo S | lås (metro) | feilet | hendelser: låst, sluppet:brudd, låst, sluppet:brudd, låst, sluppet:brudd, låst, sluppet:ende; holdt 355/436 tikk; neste stopp bakover 1 ganger |
+| Adresse på Tåsen → Oslo S | lås (metro) | bestått | hendelser: låst, sluppet:ende; holdt 435/436 tikk; neste stopp bakover 0 ganger |
 | Adresse på Tåsen → Oslo S | også via | bestått | 0 via Kringsjå, 12 uten via |
 | Hareid kai → Ålesund sentrum | neste side forbi midnatt | bestått | 9 avganger etter nattpausen, første 07:30Z |
 | Hareid kai → Ålesund sentrum | videre fra ankomst | ikke aktuelt | målet er en koordinat |

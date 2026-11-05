@@ -118,8 +118,9 @@ describe.skipIf(!LIVE)('funksjonsruter mot Entur', () => {
         if (!r.lås) sistIdx = -1;   // en ny lås begynner forfra
         lås = r.lås;
         if (hendelser.includes('låst')) { sjekket++; if (lås) holdt++;
-          const n = lås && O.nesteStopp(lås.k, nå); const idx = n ? kall.findIndex(c => c.quay.stopPlace.id === n.id) : -1;
-          if (idx >= 0) { if (idx < sistIdx) bakover++; sistIdx = idx; } }
+          // Etter tidspunktet, ikke ID-en: en linje som går i ring, er innom samme stopp to ganger.
+          const n = lås && O.nesteStopp(lås.k, nå);
+          if (n && Number.isFinite(n.at)) { if (n.at < sistIdx) bakover++; sistIdx = n.at; } }
       }
       // Bestått: låst, holdt til endestasjonen uten å slippe underveis, og aldri bakover.
       const fasit = hendelser[0] === 'låst' && !hendelser.some(h => h === 'sluppet:brudd' || h === 'sluppet:stille') && bakover === 0;

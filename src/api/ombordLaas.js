@@ -47,6 +47,18 @@ export function avvik(k, spor) {
 }
 
 /**
+ * Den siste sammenhengende rekka av fikser bort fra turen, som slutter i
+ * den siste fiksen. Tom når den siste fiksen er på turen.
+ */
+export function sisteAvviksrekke(k, spor) {
+  const fikser = (spor || []).filter(_ok);
+  const bort = new Set(avvik(k, fikser));
+  const ut = [];
+  for (let i = fikser.length - 1; i >= 0 && bort.has(fikser[i]); i--) ut.unshift(fikser[i]);
+  return ut;
+}
+
+/**
  * @param {object|null} lås {k, stilleFra}
  * @param {{låstK?:object|null, vinner?:object|null, fartMS?:number|null, spor?:Array, nå:number}} o
  *   låstK   den låste turen, med forventet posisjon regnet ut på nytt mot sporet
@@ -58,10 +70,13 @@ export function oppdaterLås(lås, o) {
   if (lås) {
     const k = låstK || lås.k;
     if (!nesteStopp(k, nå)) return { lås: null, hendelse: 'sluppet:ende' };
-    const bort = avvik(k, spor);
-    const siste = (spor || []).filter(_ok).slice(-1)[0];
-    if (siste && bort.includes(siste) && bort.length >= LÅS_BRUDD_FIKSER
-      && siste.at - bort[0].at >= LÅS_BRUDD_MS) {
+    // SAMMENHENGENDE, ikke summert. Funnet av funksjonsrutene (v1.216.2):
+    // regelen telte alle avvikende fikser i sporet. To korte opphold ved
+    // stopp som ligger tett ble til sammen «over 60 s og 3 fikser bort», og
+    // låsen slapp på tog, buss, ekspressbuss og T-bane midt i turen. Nå
+    // teller bare den siste sammenhengende rekka av avvik, fram til nå.
+    const rekke = sisteAvviksrekke(k, spor);
+    if (rekke.length >= LÅS_BRUDD_FIKSER && rekke[rekke.length - 1].at - rekke[0].at >= LÅS_BRUDD_MS) {
       return { lås: null, hendelse: 'sluppet:brudd' };
     }
     const stilleFra = iFart(fartMS) ? null : (lås.stilleFra != null ? lås.stilleFra : nå);

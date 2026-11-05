@@ -447,7 +447,10 @@ function _fetchArrBoardData() {
     _destAlerts = res.situations || [];
     _updateArrBoardSection();
     _updateDestAlertsSection();
-  }).catch(() => {});
+  }).catch(() => {
+    // Sagt, ikke tiet: `seksjon` viser feilen når lista ikke har noe ennå.
+    if (!Array.isArray(_arrBoard) || !_arrBoard.length) { _arrBoard = { _err: true }; _updateArrBoardSection(); }
+  });
 }
 
 /**

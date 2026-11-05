@@ -1,6 +1,6 @@
 # Funksjonsruter
 
-Kjørt mot Entur 2026-11-05 20:33 UTC, med reiser fra fredag 08:00 og neste side fra natt til lørdag 00:34.
+Kjørt mot Entur 2026-11-05 20:51 UTC, med reiser fra fredag 08:00 og neste side fra natt til lørdag 00:34.
 
 | funksjon | bestått | feilet | ikke aktuelt |
 |---|---|---|---|
@@ -50,7 +50,7 @@ Kjørt mot Entur 2026-11-05 20:33 UTC, med reiser fra fredag 08:00 og neste side
 | Mortensrud → Torshov | overganger | bestått | 0 overganger på Meklenborg |
 | Mortensrud → Torshov | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
 | Mortensrud → Torshov | lås (bus) | bestått | hendelser: låst, sluppet:ende; holdt 183/184 tikk; neste stopp bakover 0 ganger |
-| Mortensrud → Torshov | også via | bestått | 0 via Meklenborg, 12 uten via |
+| Mortensrud → Torshov | også via | bestått | 12 via Meklenborg, 12 uten via |
 | Oslo S → Oslo lufthavn | neste side forbi midnatt | bestått | 12 avganger etter nattpausen, første 01:53Z |
 | Oslo S → Oslo lufthavn | videre fra ankomst | bestått | 35 etter ankomst, 16 linjer, bus/air/rail |
 | Oslo S → Oslo lufthavn | overganger | ikke aktuelt | første etappe har ikke et neste stopp |

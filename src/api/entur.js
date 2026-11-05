@@ -534,6 +534,23 @@ let pageController = null;
  * @param {number} atMs Plan from this instant — the horizon, since OTP has no
  *   page cursor and `dateTime` is the only handle there is.
  */
+/**
+ * Reiser mellom to stopp fra et tidspunkt, med samme felt som tavla
+ * (`_tripFlagg`). For «raskere hvis du går av her» (src/raskere.js): ett
+ * søk fra neste stopp, ett fra stoppet etter. Et løfte, uten egen
+ * avbryter: svaret leses bare om det fortsatt gjelder.
+ */
+export function fetchTripFra(fraId, tilId, atMs, n) {
+  const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
+  return enturFetch(config.api.journeyPlanner, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: tripGQL(fraId, tilId, null, n || 4, walkSpeedMs, atMs, false, true, ..._tripFlagg()) }),
+  })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(j => (j && j.data && j.data.trip && j.data.trip.tripPatterns) || []);
+}
+
 export function fetchTripPage(dir, atMs, n, onSuccess, onError) {
   if (pageController) pageController.abort();
   pageController = new AbortController();

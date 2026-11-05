@@ -147,10 +147,13 @@ const _ms = c => { const v = _tid(c); return v ? new Date(v).getTime() : NaN; };
 /**
  * Det neste stoppet kandidatens tur skal innom etter `nå`, eller null.
  */
-export function nesteStopp(k, nå) {
+export function nesteStopp(k, nå) { return stoppFram(k, nå, 0); }
+
+/** Stopp nr. `n` framover (0 = neste), eller null. */
+export function stoppFram(k, nå, n) {
   const sj = k && k.call && k.call.serviceJourney;
   const alle = (sj && Array.isArray(sj.estimatedCalls)) ? sj.estimatedCalls : [];
-  const c = alle.find(x => _ms(x) > nå);
+  const c = alle.filter(x => _ms(x) > nå)[n || 0];
   const q = c && c.quay;
   const sp = q && q.stopPlace;
   if (!sp || !sp.id) return null;

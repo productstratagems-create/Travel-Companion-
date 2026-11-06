@@ -299,3 +299,15 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
 /* «Raskere hvis du går av her» (v1.216.1): det eneste som ber deg gjøre noe
    annet, så det står over overgangene, i aksentfarge. */
 .rask-rad{margin:.35rem 0 .1rem;padding:.35rem .55rem;border-left:3px solid var(--accent);background:rgba(var(--accent-rgb),.08);font-size:12px;line-height:1.35}
+
+/* «feil linje?» (v1.217.0): appen har valgt, og du kan rette det. */
+.rett-linje{display:flex;align-items:center;gap:.6rem;margin:.25rem 0;font-size:11px}
+.rett-gjettet{color:var(--text-soft);letter-spacing:.04em}
+.rett-feil{margin-left:auto;background:none;border:1px solid rgba(var(--border-rgb),.25);border-radius:999px;padding:.2rem .7rem;color:var(--accent);font:inherit;cursor:pointer}
+.rett-liste{display:flex;flex-direction:column;gap:.3rem;margin:.2rem 0 .4rem}
+.rett-valg,.rett-ingen{display:flex;align-items:center;gap:.5rem;background:var(--surface);border:1px solid rgba(var(--border-rgb),.2);border-radius:8px;padding:.45rem .6rem;color:var(--text);font:inherit;font-size:12px;cursor:pointer;text-align:left;min-width:0}
+.rett-front{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rett-ingen{color:var(--text-soft);justify-content:center}
+/* Treffes med tommelen: 44 px for valgene, 36 for «feil linje?» (målt 34 og 22 før). */
+.rett-valg,.rett-ingen{min-height:44px}
+.rett-feil{min-height:36px}

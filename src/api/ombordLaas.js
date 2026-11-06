@@ -59,16 +59,23 @@ export function sisteAvviksrekke(k, spor) {
 }
 
 /**
- * @param {object|null} lås {k, stilleFra}
+ * @param {object|null} lås {k, kilde: 'sikker'|'gjettet'|'valgt', stilleFra}
  * @param {{låstK?:object|null, vinner?:object|null, fartMS?:number|null, spor?:Array, nå:number}} o
  *   låstK   den låste turen, med forventet posisjon regnet ut på nytt mot sporet
  *   vinner  turen dommen peker på nå (én som følger deg, eller tvil avgjort)
  * @returns {{lås:object|null, hendelse:string|null}}
  */
 export function oppdaterLås(lås, o) {
-  const { låstK = null, vinner = null, fartMS = null, spor = [], nå } = o || {};
+  const { låstK = null, vinner = null, vinnerKilde = 'sikker', fartMS = null, spor = [], nå } = o || {};
   if (lås) {
     const k = låstK || lås.k;
+    /* ET GJETT KAN BYTTES når bevisene sier noe annet: en annen tur følger
+     * deg alene (`sikker`), eller vinner på passerte stopp. Et valg du har
+     * gjort selv (`valgt`), og en sikker lås, holdes. */
+    if (lås.kilde === 'gjettet' && vinner && vinner.nøkkel !== k.nøkkel && vinnerKilde === 'sikker'
+      && nesteStopp(vinner, nå)) {
+      return { lås: { k: vinner, kilde: 'sikker', stilleFra: null }, hendelse: 'byttet' };
+    }
     if (!nesteStopp(k, nå)) return { lås: null, hendelse: 'sluppet:ende' };
     // SAMMENHENGENDE, ikke summert. Funnet av funksjonsrutene (v1.216.2):
     // regelen telte alle avvikende fikser i sporet. To korte opphold ved
@@ -81,8 +88,10 @@ export function oppdaterLås(lås, o) {
     }
     const stilleFra = iFart(fartMS) ? null : (lås.stilleFra != null ? lås.stilleFra : nå);
     if (stilleFra != null && nå - stilleFra > LÅS_STOPP_MS) return { lås: null, hendelse: 'sluppet:stille' };
-    return { lås: { k, stilleFra }, hendelse: null };
+    return { lås: { k, kilde: lås.kilde || 'sikker', stilleFra }, hendelse: null };
   }
-  if (vinner && nesteStopp(vinner, nå)) return { lås: { k: vinner, stilleFra: null }, hendelse: 'låst' };
+  if (vinner && nesteStopp(vinner, nå)) {
+    return { lås: { k: vinner, kilde: vinnerKilde, stilleFra: null }, hendelse: vinnerKilde === 'gjettet' ? 'gjettet' : 'låst' };
+  }
   return { lås: null, hendelse: null };
 }

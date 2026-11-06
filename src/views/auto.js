@@ -32,12 +32,12 @@ import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
 import { plattformTekst } from '../bytte.js';
-import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, nesteStopp, stoppFram } from '../api/ombord.js';
+import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, nesteStopp, stoppFram, rangerKandidater } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
 import { _interpolateVehiclePos, _interpolateOnPath } from '../api/forventetPos.js';
 import { journeyShapeCached } from '../api/entur.js';
 import { joinJourney } from '../journey.js';
-import { logEvent } from '../api/eventLog.js';
+import { logEvent, recentEvents } from '../api/eventLog.js';
 import { loadConsent } from '../api/consent.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { approach } from '../trail.js';
@@ -1419,6 +1419,58 @@ export function _nullstillLås() { _lås = null; }
  * Låsen oppdateres her, én gang per tegning, og hendelsene går til
  * reiseloggen så tersklene kan måles.
  */
+/* Kandidatene sist tegning, til «feil linje?», og grunnen til et gjett. */
+let _sisteKand = [];
+let _gjettGrunn = '';
+let _feilÅpen = false;
+
+/** Hvor mange ganger hver linje er reist med den siste uka (reiseloggen). */
+function _linjeBruk(nå) {
+  const m = new Map();
+  recentEvents(nå).filter(e => e.kind === 'reise' && e.linje)
+    .forEach(e => String(e.linje).split(',').forEach(l => m.set(l, (m.get(l) || 0) + 1)));
+  return m;
+}
+
+/** Du valgte selv: den turen, holdt som et valg. */
+export function _velgLinje(nøkkel) {
+  const k = _sisteKand.find(x => x.nøkkel === nøkkel);
+  if (!k) return false;
+  logEvent('ombord', { svarte: 'rettet', linje: (_lås ? _lås.k.linje + '→' : '') + k.linje, handling: 'valgt' }, null);
+  _lås = { k, kilde: 'valgt', stilleFra: null };
+  _feilÅpen = false;
+  return true;
+}
+
+/** «ingen av disse»: ingen lås, og alle kandidatene avvist. */
+export function _ingenLinje() {
+  _sisteKand.forEach(k => _avvistOmbord.add(k.nøkkel));
+  if (_lås) logEvent('ombord', { svarte: 'rettet', linje: _lås.k.linje + '→ingen', handling: 'avvist' }, null);
+  _lås = null;
+  _feilÅpen = false;
+}
+
+/**
+ * «feil linje?» og, åpnet, de andre kandidatene. Med et gjett står «gjettet»
+ * og hvorfor. Ingenting uten lås.
+ */
+export function rettLinjeHtml(lås, kandidater, åpen, grunn) {
+  if (!lås) return '';
+  const andre = (kandidater || []).filter(k => k.nøkkel !== lås.k.nøkkel);
+  const topp = '<div class="rett-linje">'
+    + (lås.kilde === 'gjettet' ? '<span class="rett-gjettet">gjettet' + (grunn ? ' · ' + esc(grunn) : '') + '</span>' : '')
+    + '<button type="button" class="rett-feil" aria-expanded="' + (åpen ? 'true' : 'false') + '">feil linje?</button></div>';
+  if (!åpen) return topp;
+  const knapp = k => {
+    const bg = k.farge ? '#' + String(k.farge).replace('#', '') : '#7c2d12';
+    return '<button type="button" class="rett-valg" data-jid="' + esc(k.nøkkel) + '">'
+      + '<span class="line-badge" style="background:' + bg + '">' + esc(k.linje) + '</span>'
+      + '<span class="rett-front">mot ' + esc(k.front || '') + '</span></button>';
+  };
+  return topp + '<div class="rett-liste">' + andre.map(knapp).join('')
+    + '<button type="button" class="rett-ingen">ingen av disse</button></div>';
+}
+
 function _påLinjaMedLås(nå) {
   const dom = _ombordDom(nå);
   const fri = stoppPåLinja(dom, nå, state.posTrailLang);
@@ -1427,8 +1479,16 @@ function _påLinjaMedLås(nå) {
   // Den låste turens forventede posisjon, regnet mot sporet nå, fra turens
   // EGNE kall, ikke fra tavla for stoppet som vises.
   const låstK = _lås ? (ombordKandidater([_lås.k.call], state.posTrail || [], null)[0] || null) : null;
-  const vinner = dom.kind === 'ombord' ? dom.kandidater[0] : (fri && fri.k) || null;
-  const r = oppdaterLås(_lås, { låstK, vinner, fartMS: fartNå(nå), spor: state.posTrail || [], nå });
+  _sisteKand = dom.kandidater || [];
+  // ET VALG OGSÅ VED TVIL: den øverste i rangeringen, merket gjettet.
+  let vinner = dom.kind === 'ombord' ? dom.kandidater[0] : (fri && fri.k) || null;
+  let vinnerKilde = dom.kind === 'ombord' ? 'sikker' : 'gjettet';
+  if (!vinner && dom.kind === 'ombord-tvil') {
+    const rang = rangerKandidater(dom.kandidater, { spor: state.posTrail || [], lang: state.posTrailLang, nå,
+      linjeBruk: _linjeBruk(nå), ofte: new Set(loadFreq('arr').map(p => stopKey(p.name)).filter(Boolean)), stopKey });
+    if (rang[0]) { vinner = rang[0].k; _gjettGrunn = rang[0].grunn; }
+  }
+  const r = oppdaterLås(_lås, { låstK, vinner, vinnerKilde, fartMS: fartNå(nå), spor: state.posTrail || [], nå });
   if (r.hendelse) {
     const k = (r.lås && r.lås.k) || (_lås && _lås.k);
     logEvent('ombord', { svarte: r.hendelse, linje: k ? k.linje : '', handling: r.lås ? 'låst' : 'sluppet' }, null);
@@ -1637,6 +1697,7 @@ function _renderWhere() {
       way: _way.kind,
       wayEtaS: _way.etaS,
     })
+    + rettLinjeHtml(_lås, _sisteKand, _feilÅpen, _gjettGrunn)
     + (_lås ? raskereHtml(_raskereData(nåW)) : '')
     + (_lås ? overgangerHtml(_overgangerData(påLinja, nåW), (påLinja && påLinja.stop && påLinja.stop.name) || '', _ovÅpen) : '')
     + '<div id="auto-alts"' + (open ? '' : ' hidden') + '>'
@@ -1664,6 +1725,11 @@ function _renderWhere() {
       _renderWhere();
     });
   }
+  const feil = el.querySelector('.rett-feil');
+  if (feil) feil.addEventListener('click', () => { _feilÅpen = !_feilÅpen; _renderWhere(); });
+  el.querySelectorAll('.rett-valg').forEach(b => b.addEventListener('click', () => { if (_velgLinje(b.dataset.jid)) _renderWhere(); }));
+  const ingen = el.querySelector('.rett-ingen');
+  if (ingen) ingen.addEventListener('click', () => { _ingenLinje(); _renderWhere(); });
   el.querySelectorAll('.auto-alt').forEach(b => {
     b.addEventListener('click', () => pinStop(b.dataset.id));
   });

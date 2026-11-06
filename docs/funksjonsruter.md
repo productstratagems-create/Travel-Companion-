@@ -1,6 +1,6 @@
 # Funksjonsruter
 
-Kjørt mot Entur 2026-11-05 20:51 UTC, med reiser fra fredag 08:00 og neste side fra natt til lørdag 00:34.
+Kjørt mot Entur 2026-11-06 08:07 UTC, med reiser fra 2026-11-09 07:00 UTC og neste side fra 2026-11-06 23:34 UTC.
 
 | funksjon | bestått | feilet | ikke aktuelt |
 |---|---|---|---|
@@ -25,7 +25,7 @@ Kjørt mot Entur 2026-11-05 20:51 UTC, med reiser fra fredag 08:00 og neste side
 | Oslo S → Lillestrøm | videre fra ankomst | bestått | 23 etter ankomst, 7 linjer, rail |
 | Oslo S → Lillestrøm | overganger | bestått | 0 overganger på Sandvika stasjon |
 | Oslo S → Lillestrøm | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
-| Oslo S → Lillestrøm | lås (rail) | bestått | hendelser: låst, sluppet:ende; holdt 598/599 tikk; neste stopp bakover 0 ganger |
+| Oslo S → Lillestrøm | lås (rail) | bestått | hendelser: låst; holdt 597/597 tikk; neste stopp bakover 0 ganger |
 | Oslo S → Lillestrøm | også via | bestått | 12 via Sandvika stasjon, 12 uten via |
 | Jernbanetorget → Torshov | neste side forbi midnatt | bestått | 7 avganger etter nattpausen, første 00:05Z |
 | Jernbanetorget → Torshov | videre fra ankomst | bestått | 15 etter ankomst, 5 linjer, tram/bus |
@@ -50,9 +50,9 @@ Kjørt mot Entur 2026-11-05 20:51 UTC, med reiser fra fredag 08:00 og neste side
 | Mortensrud → Torshov | overganger | bestått | 0 overganger på Meklenborg |
 | Mortensrud → Torshov | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
 | Mortensrud → Torshov | lås (bus) | bestått | hendelser: låst, sluppet:ende; holdt 183/184 tikk; neste stopp bakover 0 ganger |
-| Mortensrud → Torshov | også via | bestått | 12 via Meklenborg, 12 uten via |
+| Mortensrud → Torshov | også via | bestått | 0 via Meklenborg, 12 uten via |
 | Oslo S → Oslo lufthavn | neste side forbi midnatt | bestått | 12 avganger etter nattpausen, første 01:53Z |
-| Oslo S → Oslo lufthavn | videre fra ankomst | bestått | 35 etter ankomst, 16 linjer, bus/air/rail |
+| Oslo S → Oslo lufthavn | videre fra ankomst | bestått | 36 etter ankomst, 16 linjer, bus/air/rail |
 | Oslo S → Oslo lufthavn | overganger | ikke aktuelt | første etappe har ikke et neste stopp |
 | Oslo S → Oslo lufthavn | raskere | ikke aktuelt | for få stopp |
 | Oslo S → Oslo lufthavn | lås (rail) | ikke aktuelt | for få stopp med koordinater |
@@ -64,7 +64,7 @@ Kjørt mot Entur 2026-11-05 20:51 UTC, med reiser fra fredag 08:00 og neste side
 | Bergen busstasjon → Stavanger bussterminal | lås (coach) | bestått | hendelser: låst, sluppet:ende; holdt 5194/5195 tikk; neste stopp bakover 0 ganger |
 | Bergen busstasjon → Stavanger bussterminal | også via | bestått | 12 via Eikanger bru, 12 uten via |
 | Bergen stasjon → Bergen lufthavn | neste side forbi midnatt | bestått | 10 avganger etter nattpausen, første 00:16Z |
-| Bergen stasjon → Bergen lufthavn | videre fra ankomst | bestått | 9 etter ankomst, 6 linjer, tram/bus/air/coach |
+| Bergen stasjon → Bergen lufthavn | videre fra ankomst | bestått | 12 etter ankomst, 6 linjer, air/tram/bus/coach |
 | Bergen stasjon → Bergen lufthavn | overganger | bestått | 0 overganger på Eidsvåg E39 |
 | Bergen stasjon → Bergen lufthavn | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
 | Bergen stasjon → Bergen lufthavn | lås (bus) | bestått | hendelser: låst, sluppet:ende; holdt 346/347 tikk; neste stopp bakover 0 ganger |
@@ -79,7 +79,7 @@ Kjørt mot Entur 2026-11-05 20:51 UTC, med reiser fra fredag 08:00 og neste side
 | Adresse på Tåsen → Oslo S | videre fra ankomst | bestått | 33 etter ankomst, 15 linjer, rail |
 | Adresse på Tåsen → Oslo S | overganger | bestått | 0 overganger på Kringsjå |
 | Adresse på Tåsen → Oslo S | raskere | bestått | sier ingenting (ingen gevinst ≥ 3 min) |
-| Adresse på Tåsen → Oslo S | lås (metro) | bestått | hendelser: låst, sluppet:ende; holdt 435/436 tikk; neste stopp bakover 0 ganger |
+| Adresse på Tåsen → Oslo S | lås (metro) | bestått | hendelser: låst; holdt 451/451 tikk; neste stopp bakover 0 ganger |
 | Adresse på Tåsen → Oslo S | også via | bestått | 0 via Kringsjå, 12 uten via |
 | Hareid kai → Ålesund sentrum | neste side forbi midnatt | bestått | 9 avganger etter nattpausen, første 07:30Z |
 | Hareid kai → Ålesund sentrum | videre fra ankomst | ikke aktuelt | målet er en koordinat |

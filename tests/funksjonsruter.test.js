@@ -15,8 +15,19 @@ vi.mock('../src/ui/log.js', () => ({ logMsg: () => {}, setDot: () => {} }));
 vi.mock('../src/api/http.js', async (o) => { const e = await o(); return { ...e,
   enturFetch: (u, op = {}) => fetch(u, { ...op, headers: { ...(op.headers || {}), 'ET-Client-Name': e.ET_CLIENT_NAME } }) }; });
 
-const MORGEN = Date.parse('2026-11-06T07:00:00Z');   // fredag 08:00
-const NATT = Date.parse('2026-11-06T23:34:00Z');     // natt til lørdag 00:34
+/* RELATIVE TIDER. De sto fast («2026-11-06T07:00Z»), og da den dagen kom,
+ * hadde avgangene gått: «videre fra ankomst» feilet på fire ruter fordi
+ * appen med rette filtrerer bort det som har gått. Neste hverdag kl. 08:00
+ * (07:00Z), minst en time fram, og neste natt kl. 00:34 (23:34Z). */
+function neste(hhmmZ, hverdag) {
+  const [h, m] = hhmmZ.split(':').map(Number);
+  const d = new Date(Date.now() + 60 * 60000);
+  d.setUTCHours(h, m, 0, 0);
+  while (d.getTime() < Date.now() + 60 * 60000 || (hverdag && [0, 6].includes(d.getUTCDay()))) d.setUTCDate(d.getUTCDate() + 1);
+  return d.getTime();
+}
+const MORGEN = neste('07:00', true);
+const NATT = neste('23:34', false);
 const MIN = 60000;
 const ms = v => (v ? new Date(v).getTime() : NaN);
 const tid = c => ms(c.expectedArrivalTime || c.aimedArrivalTime || c.expectedDepartureTime || c.aimedDepartureTime);
@@ -144,7 +155,7 @@ describe.skipIf(!LIVE)('funksjonsruter mot Entur', () => {
 
   it('rapport', () => {
     const f = [...new Set(res.map(r => r.f.replace(/ \(.*\)/, '')))];
-    const linjer = ['# Funksjonsruter', '', 'Kjørt mot Entur ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC, med reiser fra fredag 08:00 og neste side fra natt til lørdag 00:34.', '',
+    const linjer = ['# Funksjonsruter', '', 'Kjørt mot Entur ' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC, med reiser fra ' + new Date(MORGEN).toISOString().slice(0, 16).replace('T', ' ') + ' UTC og neste side fra ' + new Date(NATT).toISOString().slice(0, 16).replace('T', ' ') + ' UTC.', '',
       '| funksjon | bestått | feilet | ikke aktuelt |', '|---|---|---|---|',
       ...f.map(n => { const r = res.filter(x => x.f.replace(/ \(.*\)/, '') === n); return '| ' + n + ' | ' + r.filter(x => x.status === 'bestått').length + ' | ' + r.filter(x => x.status === 'feilet').length + ' | ' + r.filter(x => x.status === 'ikke aktuelt').length + ' |'; }),
       '', '## Per rute', '', '| rute | funksjon | status | detalj |', '|---|---|---|---|',

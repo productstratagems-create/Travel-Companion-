@@ -195,6 +195,59 @@ export function stoppPåLinja(dom, nå, lang) {
   return neste[i] ? { stop: neste[i], linjer: [dom.kandidater[i].linje], passert: best, k: dom.kandidater[i] } : null;
 }
 
+/**
+ * Snittavstanden mellom sporet og turens forventede posisjon, i meter.
+ * Lavere er tettere. Null uten noe å sammenligne.
+ */
+export function snittAvvik(k, spor) {
+  const ved = new Map(((k && k.forventet) || []).filter(Boolean).map(p => [p.at, p]));
+  const d = (spor || []).filter(f => f && Number.isFinite(f.lat) && ved.has(f.at)
+    && Number.isFinite(ved.get(f.at).lat)).map(f => metresBetween(f, ved.get(f.at)));
+  return d.length ? d.reduce((a, b) => a + b, 0) / d.length : null;
+}
+
+/** Under så mange meters forskjell i snittavvik er to kandidater like tette. */
+export const TETT_LIKT_M = 30;
+
+/**
+ * ALLTID ET VALG. Bestilt: «Auto-reise må i større grad greie å velge mest
+ * sannsynlige linje … uten at bruker har fortalt appen det. Ta et valg, men
+ * la bruker korrigere.» Ved tvil ga `stoppPåLinja` null, og appen valgte
+ * ingenting. Nå rangeres kandidatene, og den øverste velges:
+ *   1. passerte stopp (det lange sporet), sterkest;
+ *   2. hvor tett sporet følger turen, når forskjellen er over TETT_LIKT_M;
+ *   3. vanen: linja du har reist med siste uke, og om turen skal innom et
+ *      sted du ofte reiser til;
+ *   4. tettest, når alt annet er likt.
+ *
+ * @param {Array} kandidater fra `ombord()`
+ * @param {{spor?:Array, lang?:Array, nå:number, linjeBruk?:Map<string,number>, ofte?:Set<string>, stopKey?:Function}} o
+ * @returns {Array<{k, passert:number, avvik:number|null, vane:number, grunn:string}>}
+ */
+export function rangerKandidater(kandidater, o) {
+  const c = o || {};
+  const nøkkel = c.stopKey || (x => String(x || '').toLowerCase());
+  const rad = (kandidater || []).map(k => {
+    const sj = k.call && k.call.serviceJourney;
+    const framover = ((sj && sj.estimatedCalls) || []).filter(x => _ms(x) > c.nå);
+    const motOfte = c.ofte && framover.some(x => x.quay && x.quay.stopPlace && c.ofte.has(nøkkel(x.quay.stopPlace.name))) ? 1 : 0;
+    return { k, passert: Array.isArray(c.lang) ? passerteStopp(k, c.lang, c.nå) : 0,
+      avvik: snittAvvik(k, c.spor), vane: ((c.linjeBruk && c.linjeBruk.get(k.linje)) || 0) + motOfte };
+  });
+  const av = r => (r.avvik == null ? Infinity : r.avvik);
+  rad.sort((a, b) => (b.passert - a.passert)
+    || (Math.abs(av(a) - av(b)) > TETT_LIKT_M ? av(a) - av(b) : 0)
+    || (b.vane - a.vane) || (av(a) - av(b)));
+  rad.forEach((r, i) => {
+    const neste = rad[i + 1];
+    r.grunn = !neste ? 'eneste'
+      : r.passert > neste.passert ? 'passerte stopp'
+      : Math.abs(av(r) - av(neste)) > TETT_LIKT_M ? 'følger tettest'
+      : r.vane > neste.vane ? 'vanen din' : 'følger tettest';
+  });
+  return rad;
+}
+
 /** Hvor nær et stopp du må ha vært, og når, for at det teller som passert. */
 export const PASSERT_M = 150;
 export const PASSERT_MS = 3 * 60_000;

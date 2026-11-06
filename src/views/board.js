@@ -17,7 +17,7 @@ import { samePlace } from '../api/place.js';
 import { collectStopSituations } from '../api/situations.js';
 import { pruneHidden } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
-import { pickUsual, usualState } from '../api/usual.js';
+import { pickUsual, usualState, finnFavAvgang } from '../api/usual.js';
 import { fmtMins, esc, clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
@@ -3615,6 +3615,7 @@ function _fetchBoard() {
       state.lastFetch = Date.now();
       saveBoardSnapshot(dir, state.deps, state.lastFetch);
       document.getElementById('board-error').style.display = 'none';
+      _åpneBestiltFav(dir);
     }, _showBoardError, at);
     return;
   }
@@ -3644,6 +3645,26 @@ function _fetchBoard() {
     document.getElementById('board-error').style.display = 'none';
     setDot('ok');
   }, _showBoardError);
+}
+
+/**
+ * En lagret avgang ble trykket (favs.js `_loadFavRoute`): åpne raden når
+ * svaret er tegnet. Brukes én gang. Uten treff blir tavla stående, med en
+ * linje som sier det, for stillhet ville sett ut som at trykket ikke virket.
+ */
+export function _åpneBestiltFav(dir) {
+  const b = typeof window !== 'undefined' ? window._åpneFavAvgang : null;
+  if (!b) return null;
+  window._åpneFavAvgang = null;
+  if (dir && dir.atMs) delete dir.atMs;   // tavla viser «nå» igjen etterpå
+  const rad = finnFavAvgang(b.fav, state.deps, b.målMs);
+  if (rad) { window.tap && window.tap(rad); return rad; }
+  const el = document.getElementById('board-error');
+  if (el) {
+    el.textContent = 'Fant ikke ' + (b.fav.line || '') + ' kl. ' + b.fav.departureHHMM + ' blant avgangene. Viser tavla.';
+    el.style.display = 'block';
+  }
+  return null;
 }
 
 window.tapDepId = (id) => { const dep = _depMap.get(id); if (dep) window.tap(dep); };

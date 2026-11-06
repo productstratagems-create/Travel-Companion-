@@ -67,6 +67,48 @@ const depMs = d => {
 const lineOf = d => (d && d.serviceJourney && d.serviceJourney.line
   && d.serviceJourney.line.publicCode) || null;
 
+/**
+ * Avgangen på samme linje som er nærmest måltiden, og hvor nær. Én regel,
+ * lest av «din vanlige» (`usualState`) og av trykket på en lagret avgang
+ * (`finnFavAvgang`). Uten linjekode avgjør tiden alene.
+ */
+export function nærmesteAvgang(fav, deps, target) {
+  let hit = null, best = Infinity;
+  for (const d of (deps || [])) {
+    if (fav && fav.line && lineOf(d) !== fav.line) continue;
+    const ms = depMs(d);
+    if (ms == null) continue;
+    const diff = Math.abs(ms - target);
+    if (diff < best) { best = diff; hit = d; }
+  }
+  return { hit, best };
+}
+
+/**
+ * Hvor langt fra det lagrede klokkeslettet en avgang kan være og fortsatt
+ * åpnes. Strammere enn «din vanlige» (RETIMED_TOL_MINS = 10): den sier bare
+ * noe om avgangen, mens denne ÅPNER en. Med T-bane hvert 15. minutt ville 10
+ * kunnet åpne neste tog.
+ */
+export const FAV_ÅPNE_TOL_MINS = 3;
+
+/** Den lagrede avgangen blant radene, eller null. */
+export function finnFavAvgang(fav, deps, target) {
+  const { hit, best } = nærmesteAvgang(fav, deps, target);
+  return hit && best <= FAV_ÅPNE_TOL_MINS * MIN ? hit : null;
+}
+
+/**
+ * Neste gang klokkeslettet kommer: i dag hvis det ikke har gått, ellers i
+ * morgen. En lagret avgang er et klokkeslett, ikke en dato.
+ */
+export function nesteForekomst(hhmm, nå) {
+  const t = Number.isFinite(nå) ? nå : Date.now();
+  const i = hhmmAt(hhmm, t);
+  if (i == null) return null;
+  return i > t ? i : hhmmAt(hhmm, t + 86400000);
+}
+
 /** Does this starred departure belong to the route on screen? */
 function onThisRoute(fav, dir) {
   if (!fav || !dir) return false;
@@ -132,14 +174,7 @@ export function usualState(o) {
   // The nearest departure on the same line. Without a line code, time alone
   // decides — a starred row that lost its publicCode should not match every
   // bus at the stop.
-  let hit = null, best = Infinity;
-  for (const d of (c.deps || [])) {
-    if (fav.line && lineOf(d) !== fav.line) continue;
-    const ms = depMs(d);
-    if (ms == null) continue;
-    const diff = Math.abs(ms - target);
-    if (diff < best) { best = diff; hit = d; }
-  }
+  const { hit, best } = nærmesteAvgang(fav, c.deps, target);
 
   if (!hit || best > RETIMED_TOL_MINS * MIN) {
     // «ikke blant avgangene nå», not «går ikke i dag». The second is a

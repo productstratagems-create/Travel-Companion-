@@ -64,7 +64,9 @@ describe('gjettet eller valgt', () => {
     expect(r.hendelse).toBe('gjettet');
   });
   it('et gjett byttes når en annen tur følger deg alene', () => {
-    const r = oppdaterLås({ k: B76, kilde: 'gjettet', stilleFra: null }, { låstK: B76, vinner: T3, vinnerKilde: 'sikker', fartMS: 8, spor, nå: NÅ });
+    // Utenfor 76s rute (1 km til siden): gjettet stemmer ikke lenger.
+    const bort = spor.map(f => ({ ...f, lon: f.lon + 0.018 }));
+    const r = oppdaterLås({ k: B76, kilde: 'gjettet', stilleFra: null }, { låstK: B76, vinner: T3, vinnerKilde: 'sikker', fartMS: 8, spor: bort, nå: NÅ });
     expect(r.lås.k.linje).toBe('3');
     expect(r.hendelse).toBe('byttet');
   });

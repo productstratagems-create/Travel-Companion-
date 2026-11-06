@@ -1488,7 +1488,8 @@ function _påLinjaMedLås(nå) {
       linjeBruk: _linjeBruk(nå), ofte: new Set(loadFreq('arr').map(p => stopKey(p.name)).filter(Boolean)), stopKey });
     if (rang[0]) { vinner = rang[0].k; _gjettGrunn = rang[0].grunn; }
   }
-  const r = oppdaterLås(_lås, { låstK, vinner, vinnerKilde, fartMS: fartNå(nå), spor: state.posTrail || [], nå });
+  const r = oppdaterLås(_lås, { låstK, vinner, vinnerKilde, fartMS: fartNå(nå), spor: state.posTrail || [],
+    lang: state.posTrailLang, nå });
   if (r.hendelse) {
     const k = (r.lås && r.lås.k) || (_lås && _lås.k);
     logEvent('ombord', { svarte: r.hendelse, linje: k ? k.linje : '', handling: r.lås ? 'låst' : 'sluppet' }, null);

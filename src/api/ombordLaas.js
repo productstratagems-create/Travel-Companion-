@@ -46,13 +46,50 @@ export function avvik(k, spor) {
   });
 }
 
+const _kall = k => ((k && k.call && k.call.serviceJourney && k.call.serviceJourney.estimatedCalls) || [])
+  .map(c => { const q = c.quay || {}, sp = q.stopPlace || {};
+    return { lat: Number.isFinite(q.latitude) ? q.latitude : sp.latitude, lon: Number.isFinite(q.longitude) ? q.longitude : sp.longitude }; })
+  .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+
+/**
+ * Korteste avstand i meter fra en fiks til strekningen mellom turens stopp.
+ *
+ * Rapportert: låsen slapp når T-banen, bussen eller trikken forlot en
+ * stasjon. Avviket ble målt mot turens forventede PUNKT i tid. Sto bussen et
+ * minutt ekstra, lå punktet 300–600 m foran deg på samme linje, og det så ut
+ * som at du hadde gått av. Mot ruta er forsinkelse ikke avvik: du er på
+ * strekningen, uansett hvor langt bak rutetiden.
+ *
+ * Rette linjer mellom stoppene. Det er grovt i svinger, derfor
+ * OMBORD_MAKS_AVVIK_M (150 m) og fartskravet i `oppdaterLås`.
+ */
+export function avstandTilRute(kall, f) {
+  if (!f || !Array.isArray(kall) || !kall.length) return Infinity;
+  const kx = 111320 * Math.cos(f.lat * Math.PI / 180), ky = 110540;
+  const xy = p => [(p.lon - f.lon) * kx, (p.lat - f.lat) * ky];
+  let best = Infinity;
+  for (let i = 0; i < kall.length; i++) {
+    const [ax, ay] = xy(kall[i]);
+    if (i === kall.length - 1) { best = Math.min(best, Math.hypot(ax, ay)); break; }
+    const [bx, by] = xy(kall[i + 1]);
+    const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+    best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+  }
+  return best;
+}
+
 /**
  * Den siste sammenhengende rekka av fikser bort fra turen, som slutter i
  * den siste fiksen. Tom når den siste fiksen er på turen.
  */
 export function sisteAvviksrekke(k, spor) {
   const fikser = (spor || []).filter(_ok);
-  const bort = new Set(avvik(k, fikser));
+  // Fra RUTA, ikke fra punktet i rutetiden (v1.217.1). Se `avstandTilRute`.
+  const kall = _kall(k);
+  const bort = new Set(kall.length >= 2
+    ? fikser.filter(f => avstandTilRute(kall, f) - (Number.isFinite(f.acc) ? f.acc : 0) > OMBORD_MAKS_AVVIK_M)
+    : avvik(k, fikser));
   const ut = [];
   for (let i = fikser.length - 1; i >= 0 && bort.has(fikser[i]); i--) ut.unshift(fikser[i]);
   return ut;
@@ -66,14 +103,21 @@ export function sisteAvviksrekke(k, spor) {
  * @returns {{lås:object|null, hendelse:string|null}}
  */
 export function oppdaterLås(lås, o) {
-  const { låstK = null, vinner = null, vinnerKilde = 'sikker', fartMS = null, spor = [], nå } = o || {};
+  const { låstK = null, vinner = null, vinnerKilde = 'sikker', fartMS = null, spor = [], lang = null, nå } = o || {};
+  /* BRUDDET LESER DET LANGE SPORET når det finnes. Det korte er 12 fikser,
+   * omtrent 12 s i appen, og kunne aldri spenne over LÅS_BRUDD_MS (60 s):
+   * bruddet var i praksis av. Funnet da en mutant overlevde. */
+  const bruddSpor = Array.isArray(lang) && lang.length >= LÅS_BRUDD_FIKSER ? lang : spor;
   if (lås) {
     const k = låstK || lås.k;
     /* ET GJETT KAN BYTTES når bevisene sier noe annet: en annen tur følger
      * deg alene (`sikker`), eller vinner på passerte stopp. Et valg du har
      * gjort selv (`valgt`), og en sikker lås, holdes. */
+    // OG BARE NÅR GJETTET IKKE LENGER STEMMER: en linje som går ut fra samme
+    // stasjon samtidig, tar ikke over så lenge du er på din egen rute.
+    const utenfor = sisteAvviksrekke(k, spor).length > 0;
     if (lås.kilde === 'gjettet' && vinner && vinner.nøkkel !== k.nøkkel && vinnerKilde === 'sikker'
-      && nesteStopp(vinner, nå)) {
+      && utenfor && nesteStopp(vinner, nå)) {
       return { lås: { k: vinner, kilde: 'sikker', stilleFra: null }, hendelse: 'byttet' };
     }
     if (!nesteStopp(k, nå)) return { lås: null, hendelse: 'sluppet:ende' };
@@ -82,8 +126,11 @@ export function oppdaterLås(lås, o) {
     // stopp som ligger tett ble til sammen «over 60 s og 3 fikser bort», og
     // låsen slapp på tog, buss, ekspressbuss og T-bane midt i turen. Nå
     // teller bare den siste sammenhengende rekka av avvik, fram til nå.
-    const rekke = sisteAvviksrekke(k, spor);
-    if (rekke.length >= LÅS_BRUDD_FIKSER && rekke[rekke.length - 1].at - rekke[0].at >= LÅS_BRUDD_MS) {
+    // OG I GANGFART. Utenfor ruta i kjørefart, for eksempel der rette linjer
+    // mellom stoppene skjærer en sving, er ikke at du gikk av.
+    const rekke = sisteAvviksrekke(k, bruddSpor);
+    if (rekke.length >= LÅS_BRUDD_FIKSER && rekke[rekke.length - 1].at - rekke[0].at >= LÅS_BRUDD_MS
+      && !iFart(fartMS)) {
       return { lås: null, hendelse: 'sluppet:brudd' };
     }
     const stilleFra = iFart(fartMS) ? null : (lås.stilleFra != null ? lås.stilleFra : nå);

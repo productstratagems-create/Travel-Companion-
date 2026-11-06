@@ -8,6 +8,8 @@ import { confirmTap } from '../ui/confirm.js';
 import { renderPlan } from './plan.js';
 import { renderSpectateInline } from './spectate.js';
 import { esc } from '../ui/fmt.js';
+import { nesteForekomst } from '../api/usual.js';
+import { BOARD_WINDOW_MINS } from '../api/queries.js';
 
 export function renderFavs() {
   const el = document.getElementById('saved-favs');
@@ -86,6 +88,22 @@ window._useRouteDir = (dir, favId, opts) => {
 window._loadFavRoute = (id) => {
   const fav = loadFavs().find(f => f.id === id);
   if (!fav) return;
+  /* EN LAGRET AVGANG ÅPNER AVGANGEN, ikke bare tavla. Rapportert: et trykk
+   * på «3 08:39 Mortensrud → Jernbanetorget» viste tavla. Ruta hentes fra
+   * like før neste gang klokkeslettet kommer (i dag, eller i morgen om det
+   * har gått), og tavla åpner raden når svaret er tegnet
+   * (`_åpneBestiltFav` i board.js). */
+  if (fav.type === 'timed') {
+    const målMs = nesteForekomst(fav.departureHHMM, Date.now());
+    if (målMs != null) {
+      window._åpneFavAvgang = { fav, målMs };
+      // Innenfor tavlas vindu holder vanlig henting. Lenger fram (i morgen
+      // tidlig) spør tavla fra like før.
+      const langtFram = målMs - Date.now() > (BOARD_WINDOW_MINS - 10) * 60000;
+      window._useRouteDir(langtFram ? { ...favToDir(fav), atMs: målMs - 2 * 60000 } : favToDir(fav), fav.id);
+      return;
+    }
+  }
   window._useRouteDir(favToDir(fav), fav.id);
 };
 

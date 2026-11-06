@@ -109,35 +109,38 @@ describe.skipIf(!LIVE)('funksjonsruter mot Entur', () => {
       } catch (e) { ok(rute, 'raskere', 'feilet', String(e.message || e)); }
     } else ok(rute, 'raskere', 'ikke aktuelt', rute.til.toStopId ? 'for få stopp' : 'målet er en koordinat');
 
-    // 5. Lås og passerte stopp: syntetisk spor langs den ekte turen, med 40 s ved hvert stopp.
-    if (kall.length >= 3 && kall.every(c => Number.isFinite(ll(c).lat))) {
-      const t0 = tid(kall[0]), t1 = tid(kall.at(-1));
+    // 5. Lås: syntetisk spor langs den ekte turen, med 40 s ved hvert stopp.
+    //    Og forsinket: 90 s ekstra ved det andre stoppet, så turens punkt i
+    //    rutetiden løper foran deg (rapportert: låsen slapp ved avgang).
+    for (const forsinkelse of [0, 90]) {
+      const navn = (forsinkelse ? 'lås forsinket' : 'lås') + ' (' + leg.mode + ')';
+      if (!(kall.length >= 3 && kall.every(c => Number.isFinite(ll(c).lat)))) { ok(rute, navn, 'ikke aktuelt', 'for få stopp med koordinater'); continue; }
+      const t0 = tid(kall[0]), t1 = tid(kall.at(-1)) + forsinkelse * 1000, t2 = tid(kall[1]);
       const fikser = [];
       for (let t = t0; t <= t1; t += 10000) {
-        const vedStopp = kall.find(c => Math.abs(tid(c) - t) <= 20000);
-        const p = vedStopp ? ll(vedStopp) : posPå(kall, t);
-        if (p) fikser.push({ lat: p.lat, lon: p.lon, at: t, acc: 10, stille: !!vedStopp });
+        // Til og med det andre stoppet i rute; så står turen `forsinkelse` s ekstra.
+        const tt = t <= t2 ? t : Math.max(t2, t - forsinkelse * 1000);
+        const vedStopp = kall.find(c => Math.abs(tid(c) - tt) <= 20000);
+        const p = vedStopp ? ll(vedStopp) : posPå(kall, tt);
+        if (p) fikser.push({ lat: p.lat, lon: p.lon, at: t, acc: 10, stille: !!vedStopp || (t > t2 && t - t2 < forsinkelse * 1000) });
       }
       const k = (spor) => ({ nøkkel: sj.id, linje, call: { serviceJourney: { id: sj.id, estimatedCalls: kall } },
         forventet: spor.map(f => ({ at: f.at, ...(posPå(kall, f.at) || {}) })) });
-      let lås = null, sistIdx = -1, bakover = 0, hendelser = [], holdt = 0, sjekket = 0;
+      let lås = null, sist = -1, bakover = 0, hendelser = [];
       for (let i = 3; i < fikser.length; i++) {
         const spor = fikser.slice(Math.max(0, i - 11), i + 1), nå = fikser[i].at, fart = fikser[i].stille ? 0 : 8;
+        const lang = fikser.slice(0, i + 1).filter((f, j) => j % 2 === 0);
         const dom = O.ombord({ spor, fartMS: fart, kandidater: [k(spor)] });
-        const r = L.oppdaterLås(lås, { låstK: lås ? k(spor) : null, vinner: dom.kind === 'ombord' ? dom.kandidater[0] : null, fartMS: fart, spor, nå });
+        const r = L.oppdaterLås(lås, { låstK: lås ? k(spor) : null, vinner: dom.kind === 'ombord' ? dom.kandidater[0] : null, fartMS: fart, spor, lang, nå });
         if (r.hendelse) hendelser.push(r.hendelse);
-        if (!r.lås) sistIdx = -1;   // en ny lås begynner forfra
+        if (!r.lås) sist = -1;
         lås = r.lås;
-        if (hendelser.includes('låst')) { sjekket++; if (lås) holdt++;
-          // Etter tidspunktet, ikke ID-en: en linje som går i ring, er innom samme stopp to ganger.
-          const n = lås && O.nesteStopp(lås.k, nå);
-          if (n && Number.isFinite(n.at)) { if (n.at < sistIdx) bakover++; sistIdx = n.at; } }
+        const n = lås && O.nesteStopp(lås.k, nå);
+        if (n && Number.isFinite(n.at)) { if (n.at < sist) bakover++; sist = n.at; }
       }
-      // Bestått: låst, holdt til endestasjonen uten å slippe underveis, og aldri bakover.
       const fasit = hendelser[0] === 'låst' && !hendelser.some(h => h === 'sluppet:brudd' || h === 'sluppet:stille') && bakover === 0;
-      ok(rute, 'lås (' + (leg.mode) + ')', fasit ? 'bestått' : 'feilet',
-        'hendelser: ' + hendelser.join(', ') + '; holdt ' + holdt + '/' + sjekket + ' tikk; neste stopp bakover ' + bakover + ' ganger');
-    } else ok(rute, 'lås (' + leg.mode + ')', 'ikke aktuelt', 'for få stopp med koordinater');
+      ok(rute, navn, fasit ? 'bestått' : 'feilet', 'hendelser: ' + hendelser.join(', ') + '; neste stopp bakover ' + bakover + ' ganger');
+    }
 
     // 6. Også via, med via = et stopp på den beste reisen.
     // Via er et stopp UNDERVEIS, ikke målet: med via = målet er alle reisene like.

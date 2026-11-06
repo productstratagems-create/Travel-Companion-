@@ -20,6 +20,8 @@ const posBuss = (t) => {                       // der bussen er, sekunder etter 
   return 59.850 + 0.000068 * 90 + 0.000068 * (t - 130);
 };
 const fiks = (t, dLat = 0) => ({ lat: posBuss(t) + dLat, lon: 10.83, at: T0 + t * S, acc: 10 });
+// Til SIDEN for ruta (v1.217.1): fram langs ruta er forsinkelse, ikke at du gikk av.
+const side = (t, dLon) => ({ lat: posBuss(t), lon: 10.83 + dLon, at: T0 + t * S, acc: 10 });
 const kand = (linje, kallene, pos) => (spor) => ({ nøkkel: 'sj' + linje, linje,
   call: { serviceJourney: { id: 'sj' + linje, estimatedCalls: kallene } },
   forventet: spor.map(f => ({ at: f.at, lat: pos((f.at - T0) / S), lon: 10.83 })) });
@@ -64,7 +66,7 @@ describe('en busstur med stopp ved holdeplassen', () => {
 describe('låsen slippes når den skal', () => {
   const låst = () => ({ k: B76([fiks(0)]), stilleFra: null });
   it('du går av: sporet går bort fra bussen i over et minutt', () => {
-    const spor = Array.from({ length: 14 }, (_, i) => fiks(60 + i * 5, 0.004 + i * 0.0001));   // ~450 m unna
+    const spor = Array.from({ length: 14 }, (_, i) => side(60 + i * 5, 0.008 + i * 0.0002));   // ~450 m til siden
     const nå = spor[spor.length - 1].at;
     expect(oppdaterLås(låst(), { låstK: B76(spor), fartMS: 1.2, spor, nå }).hendelse).toBe('sluppet:brudd');
   });
@@ -106,11 +108,69 @@ describe('to stopp tett: låsen holder', async () => {
   const { sisteAvviksrekke } = await import('../src/api/ombordLaas.js');
   const låst = () => ({ k: B76([fiks(0)]), stilleFra: null });
   // Bort 20 s ved ett stopp, på turen 30 s, bort 20 s ved det neste.
-  const spor = [fiks(0, 0.004), fiks(10, 0.004), fiks(20, 0.004), fiks(30), fiks(40), fiks(50), fiks(60, 0.004), fiks(70, 0.004)];
+  const spor = [side(0, 0.008), side(10, 0.008), side(20, 0.008), fiks(30), fiks(40), fiks(50), side(60, 0.008), side(70, 0.008)];
   it('bare den siste sammenhengende rekka teller', () => {
     expect(sisteAvviksrekke(B76(spor), spor)).toHaveLength(2);
   });
   it('og den slipper ikke låsen', () => {
     expect(oppdaterLås(låst(), { låstK: B76(spor), fartMS: 0, spor, nå: spor.at(-1).at }).lås).not.toBeNull();
+  });
+});
+
+// Rapportert: låsen slapp når T-banen, bussen eller trikken forlot en
+// stasjon. Avviket ble målt mot turens punkt i rutetiden, og en forsinket
+// tur lå hundrevis av meter «foran» deg på samme strekning.
+describe('forsinket fra stasjonen: låsen holder', async () => {
+  const { avstandTilRute } = await import('../src/api/ombordLaas.js');
+  // Bussen går 90 s for sent: du er der bussen var 90 s tidligere.
+  const sen = (t) => ({ lat: posBuss(Math.max(0, t - 90)), lon: 10.83, at: T0 + t * S, acc: 10 });
+  it('på ruta er ikke avvik, uansett hvor langt bak rutetiden', () => {
+    expect(avstandTilRute(BUSS.map(c => ({ lat: c.quay.latitude, lon: c.quay.longitude })), sen(200))).toBeLessThan(5);
+  });
+  it('låst gjennom en hel forsinket tur', () => {
+    let lås = { k: B76([sen(0)]), kilde: 'sikker', stilleFra: null }; const hendelser = [];
+    for (let t = 60; t <= 300; t += 5) {
+      const spor = Array.from({ length: 12 }, (_, i) => sen(t - (11 - i) * 5));
+      // Det lange sporet, som appen gir låsen: én fiks per 20 s.
+      const lang = Array.from({ length: 6 }, (_, i) => sen(Math.max(0, t - (5 - i) * 20)));
+      // Står den (ekstra lenge ved stasjonen), er farten 0, og det er da
+      // punktet i rutetiden løper fra deg.
+      const fart = sen(t).lat === sen(t - 5).lat ? 0 : 7.5;
+      const r = oppdaterLås(lås, { låstK: B76(spor), fartMS: fart, spor, lang, nå: T0 + t * S });
+      if (r.hendelse) hendelser.push(r.hendelse);
+      lås = r.lås || lås;
+    }
+    expect(hendelser).toEqual([]);
+  });
+});
+
+describe('en annen linje fra samme stasjon', () => {
+  it('tar ikke over et gjett så lenge du er på din egen rute', () => {
+    const spor = Array.from({ length: 12 }, (_, i) => fiks(100 + i * 5));
+    const annen = { ...T3(spor), nøkkel: 'sjANNEN', call: { serviceJourney: { id: 'sjA', estimatedCalls: [kall('X', 59.9, 9)] } } };
+    const r = oppdaterLås({ k: B76(spor), kilde: 'gjettet', stilleFra: null }, { låstK: B76(spor), vinner: annen, vinnerKilde: 'sikker', fartMS: 7.5, spor, nå: spor.at(-1).at });
+    expect(r.lås.k.nøkkel).toBe('sj76');
+  });
+});
+
+describe('å gå av', () => {
+  const bort = Array.from({ length: 14 }, (_, i) => side(60 + i * 5, 0.008 + i * 0.0002));
+  it('med det korte sporet alene (12 s) kunne bruddet aldri skje; med det lange skjer det', () => {
+    const kort = bort.slice(-3);
+    expect(oppdaterLås({ k: B76(kort), kilde: 'sikker', stilleFra: null }, { låstK: B76(kort), fartMS: 1.3, spor: kort, nå: kort.at(-1).at }).lås).not.toBeNull();
+    expect(oppdaterLås({ k: B76(kort), kilde: 'sikker', stilleFra: null }, { låstK: B76(kort), fartMS: 1.3, spor: kort, lang: bort, nå: bort.at(-1).at }).hendelse).toBe('sluppet:brudd');
+  });
+  it('i gangfart, bort fra ruta i over et minutt: sluppet', () => {
+    expect(oppdaterLås({ k: B76(bort), kilde: 'sikker', stilleFra: null }, { låstK: B76(bort), fartMS: 1.3, spor: bort, nå: bort.at(-1).at }).hendelse).toBe('sluppet:brudd');
+  });
+  it('i kjørefart utenfor ruta (grov linje i en sving): holdes', () => {
+    expect(oppdaterLås({ k: B76(bort), kilde: 'sikker', stilleFra: null }, { låstK: B76(bort), fartMS: 9, spor: bort, nå: bort.at(-1).at }).lås).not.toBeNull();
+  });
+});
+
+describe('koblingen i auto-reise', () => {
+  it('låsen får det lange sporet til bruddet', () => {
+    const s = require('node:fs').readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toMatch(/oppdaterLås\(_lås, \{[^}]*lang: state\.posTrailLang, nå \}\)/);
   });
 });

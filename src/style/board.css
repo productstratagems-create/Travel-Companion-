@@ -99,7 +99,9 @@
 }
 
 .dep-mid{min-width:0}
-.dep-top{display:flex;align-items:center;gap:.45rem;margin-bottom:.15rem}
+/* BRYTER (v1.218.18): med to merker og to logoer var raden 19 px for bred, og
+   tidene la seg over sporet. Får de ikke plass, går de til neste linje. */
+.dep-top{display:flex;flex-wrap:wrap;row-gap:.1rem;align-items:center;gap:.45rem;margin-bottom:.15rem}
 .dep-times{margin-left:auto;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:.05rem}
 /* Og om den likevel blir for lang: kuttes med … her, flyter ikke inn i spor-kolonnen. */
 .dep-times{min-width:0;max-width:100%;overflow:hidden}

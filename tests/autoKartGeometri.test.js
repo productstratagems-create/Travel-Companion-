@@ -23,20 +23,21 @@ describe('formFraGeometri: bred når det ikke koster et zoomtrinn', () => {
     expect(formFraGeometri(her, [pkt(50, 600), pkt(-40, -500)], 'kvadrat', S)).toBe('kvadrat');
   });
   it('omtrent like bredt som høyt: bred koster et trinn → kvadrat', () => {
-    expect(formFraGeometri(her, [pkt(400, 380)], 'kvadrat', S)).toBe('kvadrat');
+    expect(formFraGeometri(her, [pkt(2400, 2280)], 'kvadrat', S)).toBe('kvadrat');
   });
   it('måler i meter, ikke grader', () => {
-    // 0.004° øst (~224 m) mot 0.003° nord (~334 m): bredere i grader, høyere i meter.
-    expect(formFraGeometri(her, [[her.lat + 0.003, her.lon + 0.004]], 'kvadrat', S)).toBe('kvadrat');
+    // 0.04° øst (~2,2 km) mot 0.03° nord (~3,3 km): bredere i grader, høyere i meter.
+    expect(formFraGeometri(her, [[her.lat + 0.03, her.lon + 0.04]], 'kvadrat', S)).toBe('kvadrat');
   });
   it('zoomFor stemmer med Web Mercator', () => {
-    // 1000 m bredt utsnitt (±500 m) i 330 px: m/px = 156543·cos/2^z → z = log2(156543·cos·330/1000).
-    expect(zoomFor(her, [pkt(500, 0)], [382, 1e6])).toBeCloseTo(Math.log2(156543.03 * kx * 330 / 1000), 6);
+    // 5000 m bredt utsnitt (±2500 m) i 330 px: m/px = 156543·cos/2^z → z = log2(156543·cos·330/5000).
+    // (Under taket START_ZOOM, ellers måles taket og ikke formelen.)
+    expect(zoomFor(her, [pkt(2500, 0)], [382, 1e6])).toBeCloseTo(Math.log2(156543.03 * kx * 330 / 5000), 6);
   });
   it('blafrer ikke: like over et trinnskifte går ikke inn i bred, men bred blir', () => {
     // Bredden begrenser kvadratet (trinn + 0,9); høyden begrenser bred like over
     // samme trinn (+ MARGIN/2). Samme trinn, men for lite å gå på.
-    const zHel = 15, C = 156543.03 * kx;
+    const zHel = 12, C = 156543.03 * kx;
     const øst = C * (382 - 2 * FIT_PAD) / Math.pow(2, zHel + 0.9) / 2;
     const nord = C * (215 - 2 * FIT_PAD) / Math.pow(2, zHel + MARGIN / 2) / 2;
     const pts = [pkt(øst, nord)];

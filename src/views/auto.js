@@ -173,7 +173,11 @@ export function groupDirections(calls, now) {
         // whether a disruption is about its line — the same shape as the
         // detail map drawing every mode alike until `mode` was added in
         // v1.114.0. `lineKey` above has had it in hand all along.
-        lines: code ? [{ code, colour, id: (ln && ln.id) || null }] : [],
+        // Transportmiddel og tilbyderens tekstfarge (v1.218.13): uten dem fikk
+        // merket verken Enturs ikon eller Ruters hvite tall — sett i proben.
+        lines: code ? [{ code, colour, id: (ln && ln.id) || null,
+          mode: (ln && ln.transportMode) || null,
+          tekst: (ln && ln.presentation && ln.presentation.textColour) || null }] : [],
         nextMs: ms,
         // EVERY DEPARTURE THIS WAY, as the CALLS and not just their times.
         //
@@ -740,7 +744,7 @@ export function boardState(o) {
 }
 
 export function badgeHtml(l) {
-  return linjemerke({ kode: l.code, farge: l.colour, linjeId: l.id, modus: l.mode });
+  return linjemerke({ kode: l.code, farge: l.colour, tekst: l.tekst, linjeId: l.id, modus: l.mode });
 }
 
 

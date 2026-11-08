@@ -851,8 +851,10 @@ function renderLineFilter(visibleDeps) {
     const code = (ln && ln.publicCode) || null;
     if (!code || seen.has(code)) return;
     seen.add(code);
-    const color = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
-    lines.push({ code, color });
+    // Linjens egne farger, id og transportmiddel (v1.218.13) — det samme
+    // merket som i radene under, ikke et brunt med tall.
+    lines.push({ code, color: ln.presentation && ln.presentation.colour,
+      tekst: ln.presentation && ln.presentation.textColour, id: ln.id, mode: _depMode(c) });
   });
 
   if (!lines.length) {
@@ -886,7 +888,7 @@ function renderLineFilter(visibleDeps) {
     + ' aria-pressed="' + (filtered && _lineOn(l.code) ? 'true' : 'false') + '"'
     + ' aria-label="' + (filtered && _lineOn(l.code)
       ? 'Vis alle linjer igjen' : 'Vis bare linje ' + esc(l.code)) + '">'
-    + linjemerke({ kode: l.code, farge: l.color, linjeId: l.id, modus: l.mode })
+    + linjemerke({ kode: l.code, farge: l.color, tekst: l.tekst, linjeId: l.id, modus: l.mode })
     + '</button>'
   ).join('');
   el.querySelectorAll('.line-pill').forEach(btn => {

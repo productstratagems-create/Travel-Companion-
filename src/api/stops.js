@@ -64,7 +64,45 @@ export function fetchNearbyStops(lat, lon) {
  * ikke hva som går der. Kartet trenger det siste for å vise bare holdeplasser
  * som gir en linje ingen nærmere har. Én spørring for alle, husket per id. */
 const _linjer = new Map();
-export function _resetStoppLinjer() { _linjer.clear(); }
+export function _resetStoppLinjer() { _linjer.clear(); _info.clear(); }
+
+/* VIKTIGHET (v1.218.10). Bestilt: «Vi trenger et system for å rangere
+ * stoppesteder (uavhengig av transportmiddel) … flere transportmidler og
+ * ruter/linjer på topp, og med kriterier som kan skille nr. 2 fra nr. 3.»
+ *
+ * Kriteriene, i rekkefølge — hver skiller bare der de foregående står likt:
+ *   1. transportmidler   T-bane + buss slår buss alene, uansett antall linjer
+ *   2. linjer            flere ulike linjer
+ *   3. plattformer       plattformer med linjer — flere retninger og bytter
+ * Linjene er ukjente til spørringen har svart: da teller geokoderens
+ * transportmidler, med 0 linjer og 0 plattformer, så et ukjent stopp aldri
+ * går foran et kjent med like mange transportmidler. */
+const _info = new Map();
+export function stoppInfo(id) { return _info.get(id); }
+export function viktighet(s, info) {
+  if (info) return info;
+  return { moduser: ((s && s.modes) || []).slice(), linjer: 0, plattformer: 0 };
+}
+/** <0 når a er viktigst. */
+export function sammenlignViktighet(a, b) {
+  return (b.moduser.length - a.moduser.length) || (b.linjer - a.linjer) || (b.plattformer - a.plattformer);
+}
+/** Svar → Map(id → {moduser, linjer, plattformer}). */
+export function infoFraSvar(j) {
+  const m = new Map();
+  ((j && j.data && j.data.stopPlaces) || []).forEach(sp => {
+    if (!sp || !sp.id) return;
+    const linjer = new Set(), moduser = [];
+    let plattformer = 0;
+    (sp.quays || []).forEach(q => {
+      const ls = (q && q.lines) || [];
+      if (ls.length) plattformer++;
+      ls.forEach(l => { if (!l || !l.id) return; linjer.add(l.id); if (l.transportMode && !moduser.includes(l.transportMode)) moduser.push(l.transportMode); });
+    });
+    m.set(sp.id, { moduser, linjer: linjer.size, plattformer });
+  });
+  return m;
+}
 
 /** Svar → Map(id → [linje-id …]), alle plattformene slått sammen. */
 export function linjerFraSvar(j) {
@@ -82,12 +120,12 @@ export function linjerFraSvar(j) {
 export function fetchStoppLinjer(ids) {
   const nye = [...new Set((ids || []).filter(id => id && !_linjer.has(id)))];
   if (!nye.length) return Promise.resolve(_linjer);
-  const q = '{ stopPlaces(ids:' + JSON.stringify(nye) + ') { id quays { lines { id } } } }';
+  const q = '{ stopPlaces(ids:' + JSON.stringify(nye) + ') { id quays { lines { id transportMode } } } }';
   return enturFetch(config.api.journeyPlanner, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }),
   })
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(j => { linjerFraSvar(j).forEach((v, k) => _linjer.set(k, v)); return _linjer; })
+    .then(j => { linjerFraSvar(j).forEach((v, k) => _linjer.set(k, v)); infoFraSvar(j).forEach((v, k) => _info.set(k, v)); return _linjer; })
     .catch(() => null);
 }
 export function stoppLinjer(id) { return _linjer.get(id); }

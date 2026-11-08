@@ -150,7 +150,7 @@ async function _renderPlanMap(legs) {
     // Destination / transfer stop: line-badge marker
     if (toCoord) {
       const badgeHtml = '<div style="text-align:center;transform:translate(-50%,-50%)">'
-        + linjemerke({ kode: leg.line, farge: color, linjeId: leg.lineId, modus: leg.mode, stil: 'font-size:11px;padding:3px 7px', logo: false })
+        + linjemerke({ kode: leg.line, farge: color, linjeId: leg.lineId, modus: leg.mode, stil: 'font-size:11px;padding:3px 7px' })
         + '</div>';
       const icon = L.divIcon({ className: '', html: badgeHtml, iconSize: [0, 0], iconAnchor: [0, 0] });
       L.marker([toCoord.lat, toCoord.lon], { icon })

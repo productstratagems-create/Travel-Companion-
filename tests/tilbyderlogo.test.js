@@ -47,10 +47,8 @@ describe('ved linjemerket', () => {
   it('kan slås av der det er trangt (kartnåler)', () => {
     expect(linjemerke({ kode: '74', linjeId: 'RUT:Line:74', modus: 'bus', logo: false })).not.toContain('lm-logo');
   });
-  it('kartnålene slår den av', () => {
-    expect(readFileSync('src/views/plan.js', 'utf8')).toMatch(/stil: 'font-size:11px;padding:3px 7px', logo: false/);
-    expect(readFileSync('src/views/track.js', 'utf8')).toMatch(/stil: 'font-size:13px;padding:4px 9px', logo: false/);
-  });
+  // v1.218.15: «Integrer symbolikk i kartene» — kartnålene har logo igjen.
+  // Påstanden er snudd og bor i tests/kartTilbyder.test.js.
 });
 
 describe('linjefilteret over Tavla-kartet', () => {

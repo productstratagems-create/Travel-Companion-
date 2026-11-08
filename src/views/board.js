@@ -23,7 +23,8 @@ import { fmtMins, esc, clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.j
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
-import { fetchNearbyStops, _resetNearbyCache, fetchStoppLinjer, stoppInfo, nærViktigFørst } from '../api/stops.js';
+import { fetchNearbyStops, _resetNearbyCache, fetchStoppLinjer, stoppInfo, stoppLinjer, nærViktigFørst } from '../api/stops.js';
+import { lappMedLogo } from '../ui/tilbyderlogo.js';
 import { makeStopIcon, makeVehicleIcon, VEHICLE_MARKER_OPTS, makeRouteStopIcon, makeJourneyPointIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { livePosFeed, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
@@ -654,7 +655,7 @@ function renderBoardMap(pos, modes) {
         // Det viktigste stoppet: større nål og fast lapp.
         const erViktigst = cluster === viktigst;
         L.marker([lat, lon], { icon: makeStopIcon(mode, cluster.length, { primary: isPrimary, viktig: erViktigst }) })
-          .bindTooltip(name, {
+          .bindTooltip(lappMedLogo(name, stoppLinjer(String(cluster[0].id).split('|')[0])), {
             permanent: erViktigst,
             direction: 'top',
             offset: [0, -15],

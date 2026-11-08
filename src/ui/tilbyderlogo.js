@@ -65,3 +65,41 @@ export function logoFor(linjeId) {
   const t = LOGO_FOR[linjeId.split(':')[0]];
   return t ? { ikon: t.ikon, navn: t.navn, ...LOGO[t.ikon] } : null;
 }
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/** Logoens HTML — ÉN definisjon, for linjemerket og kartlappene. */
+export function logoHtml(logo) {
+  return '<span class="lm-logo" role="img" aria-label="' + esc(logo.navn) + '" title="' + esc(logo.navn) + '"'
+    + ' style="--lm-forhold:' + logo.forhold + '">' + logo.svg + '</span>';
+}
+
+/* KARTENE (v1.218.15). Bestilt: «Integrer symbolikk i kartene slik at bruker
+ * gjenkjenner tilbyderne.» Hvem kjører fra en holdeplass leses av linjene vi
+ * allerede har hentet for den (stoppLinjer, v1.218.6) — ingen ny spørring.
+ * Flest linjer først; Vys kodeområder er én tilbyder. */
+export function tilbydereFor(linjeIder) {
+  if (!Array.isArray(linjeIder)) return [];
+  const tell = new Map();
+  linjeIder.forEach(id => {
+    const l = logoFor(id);
+    if (!l) return;
+    const t = tell.get(l.navn) || { logo: l, n: 0 };
+    t.n++; tell.set(l.navn, t);
+  });
+  return [...tell.values()].sort((a, b) => b.n - a.n).map(t => t.logo);
+}
+
+/* Høyst to logoer i en lapp; flere står som «+N». Lappen skal fortsatt være
+ * et navn med en gangtid, ikke en logovegg. */
+export const MAKS_LOGOER = 2;
+
+/** Lappens HTML med tilbydernes logoer foran. Ukjente linjer: lappen som før. */
+export function lappMedLogo(tekst, linjeIder) {
+  const t = tilbydereFor(linjeIder);
+  if (!t.length) return tekst;
+  const vis = t.slice(0, MAKS_LOGOER);
+  return '<span class="lapp-logoer">' + vis.map(logoHtml).join('')
+    + (t.length > vis.length ? '<span class="lapp-flere">+' + (t.length - vis.length) + '</span>' : '')
+    + '</span>' + tekst;
+}

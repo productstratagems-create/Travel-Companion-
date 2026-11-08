@@ -179,7 +179,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
     + (minimal ? '' : ' steps{streetName bogusName area distance relativeDirection}')
     // The one set of situations that is certainly about this journey.
     + (minimal ? '' : ' ' + sits)
-    + ' serviceJourney{id line{id publicCode presentation{colour}}'
+    + ' serviceJourney{id line{id publicCode presentation{colour textColour}}'
     + (minimal ? '' : ' ' + sits)
     + ' estimatedCalls{quay{latitude longitude stopPlace{id name latitude longitude}}'
     + ' aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
@@ -216,7 +216,7 @@ export function arrBoardGQL(id, n, basic, fraMs, perLinje, vinduMin) {
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation '
     + sits + ' '
     + 'destinationDisplay{frontText} quay{publicCode} '
-    + 'serviceJourney{id ' + sits + ' line{publicCode transportMode presentation{colour}}}}}}';
+    + 'serviceJourney{id ' + sits + ' line{id publicCode transportMode presentation{colour textColour}}}}}}';
 }
 
 /**
@@ -364,7 +364,7 @@ export function boardGQL(id, n, now, basic, fwdMins, modes, perLine, innstilte) 
     + 'realtime aimedDepartureTime expectedDepartureTime cancellation occupancyStatus '
     + sits + ' '
     + 'destinationDisplay{frontText} quay{id publicCode name} '
-    + 'serviceJourney{id line{id publicCode transportMode presentation{colour}} '
+    + 'serviceJourney{id line{id publicCode transportMode presentation{colour textColour}} '
     + sits + ' '
     + 'estimatedCalls{quay{latitude longitude stopPlace{id name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
@@ -422,7 +422,7 @@ export function trackGQL(jid) {
 // Normalised shape is JourneyMeta (see entur.js).
 export function journeyGQL(jid) {
   return '{serviceJourney(id:"' + normJid(jid) + '"){'
-    + 'line{publicCode transportMode presentation{colour}} '
+    + 'line{id publicCode transportMode presentation{colour textColour}} '
     + 'estimatedCalls{'
     + 'cancellation realtime '
     + 'destinationDisplay{frontText} '
@@ -494,7 +494,7 @@ export function inflightGQL(id, backMins, fwdMins) {
     // departure list is untouched.
     + 'actualArrivalTime actualDepartureTime '
     + 'destinationDisplay{frontText} '
-    + 'serviceJourney{id line{id publicCode transportMode presentation{colour}} '
+    + 'serviceJourney{id line{id publicCode transportMode presentation{colour textColour}} '
     + 'estimatedCalls{quay{latitude longitude stopPlace{id name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + '}}}';

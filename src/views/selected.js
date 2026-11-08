@@ -1,3 +1,4 @@
+import { linjemerke } from '../ui/linjemerke.js';
 import config from '../config.js';
 import { erInnstilt } from '../innstilt.js';
 import { normJid } from '../api/queries.js';
@@ -594,7 +595,7 @@ function _renderSelMap(dep, fromName, toName, now) {
    * tabellen (`kartPunkter`), så kartet og tabellen sier det samme. */
   kartPunkter(dep._allLegs || dep._legs).forEach(pk => {
     const badge = pk.linje
-      ? '<span class="line-badge" style="background:' + esc(pk.farge) + '">' + esc(pk.linje) + '</span> '
+      ? linjemerke({ kode: pk.linje, farge: pk.farge, linjeId: pk.linjeId, modus: pk.modus }) + ' '
       : '';
     const html = '<div class="sel-pkt sel-pkt-' + pk.kind + '"></div>';
     L.marker([pk.lat, pk.lon], {
@@ -774,10 +775,9 @@ export function renderSelected() {
   const chipBadges = isTransfer
     ? c._legs.map(l => {
         const ll = l.serviceJourney && l.serviceJourney.line;
-        const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
-        return '<span class="line-badge" style="background:' + bg + '">' + ((ll && ll.publicCode) || '?') + '</span>';
+        return linjemerke({ kode: ll && ll.publicCode, farge: ll && ll.presentation && ll.presentation.colour, tekst: ll && ll.presentation && ll.presentation.textColour, linjeId: ll && ll.id, modus: l.mode || (ll && ll.transportMode) });
       }).join('<span class="transfer-arrow" aria-hidden="true" style="color:#8a837d;font-size:9px;margin:0 .1rem">→</span>')
-    : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>';
+    : linjemerke({ kode: lc, farge: ln && ln.presentation && ln.presentation.colour, tekst: ln && ln.presentation && ln.presentation.textColour, linjeId: ln && ln.id, modus: ln && ln.transportMode });
 
   // Build journey detail — full itinerary for transfers, 2-cell grid for single-line
   let journeyDetail;

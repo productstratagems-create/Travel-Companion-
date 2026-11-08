@@ -1,3 +1,4 @@
+import { linjemerke } from '../ui/linjemerke.js';
 import config from '../config.js';
 import { erInnstilt } from '../innstilt.js';
 import { gangGjelder, I_FART_NOTIS } from '../api/ombord.js';
@@ -885,7 +886,7 @@ function renderLineFilter(visibleDeps) {
     + ' aria-pressed="' + (filtered && _lineOn(l.code) ? 'true' : 'false') + '"'
     + ' aria-label="' + (filtered && _lineOn(l.code)
       ? 'Vis alle linjer igjen' : 'Vis bare linje ' + esc(l.code)) + '">'
-    + '<span class="line-badge" style="background:' + l.color + '">' + esc(l.code) + '</span>'
+    + linjemerke({ kode: l.code, farge: l.color, linjeId: l.id, modus: l.mode })
     + '</button>'
   ).join('');
   el.querySelectorAll('.line-pill').forEach(btn => {
@@ -3190,12 +3191,10 @@ export function renderBoard() {
     const lineBadges = visLegs
       ? visLegs.map(l => {
           const ll = l.serviceJourney && l.serviceJourney.line;
-          const bg = ll && ll.presentation && ll.presentation.colour ? '#' + ll.presentation.colour : '#7c2d12';
-          const lcode = (ll && ll.publicCode) || '?';
-          return '<span class="line-badge" style="background:' + bg + '">' + lcode + '</span>'
+          return linjemerke({ kode: ll && ll.publicCode, farge: ll && ll.presentation && ll.presentation.colour, tekst: ll && ll.presentation && ll.presentation.textColour, linjeId: ll && ll.id, modus: l.mode || (ll && ll.transportMode) })
             + occPip(_legOcc(l));
         }).join('<span class="transfer-arrow" aria-hidden="true">→</span>')
-      : '<span class="line-badge" style="background:' + lbg + '">' + lc + '</span>'
+      : linjemerke({ kode: lc, farge: ln && ln.presentation && ln.presentation.colour, tekst: ln && ln.presentation && ln.presentation.textColour, linjeId: ln && ln.id, modus: ln && ln.transportMode })
         + occPip(belegning);
 
     const xferCount = c._transfers && c._transfers.length;

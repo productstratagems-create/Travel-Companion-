@@ -103,7 +103,7 @@ describe('makeVehicleIcon', () => {
   it('falls back to the mode colour when the caller has none', () => {
     const h = makeVehicleIcon('bus', '', { bearing: 0 }).html;
     expect(h).not.toContain('fill=""');
-    expect(bodyPath(h)).toContain('#e5006d');
+    expect(bodyPath(h)).toContain('#c5044e'); // Linje --standard-bus (v1.218.12)
   });
 
   // Anything outside the viewBox is silently clipped — a mistake that shows up
@@ -247,7 +247,7 @@ describe('sideVehicleSvg', () => {
   // Without the guard that reaches the DOM as fill="", an invisible vehicle.
   it('falls back to the mode colour when the operator gave none', () => {
     expect(svg('tram', '', '5')).not.toContain('fill=""');
-    expect(svg('tram', '', '5')).toContain('#7b3999');
+    expect(svg('tram', '', '5')).toContain('#78469a'); // Linje --standard-tram (v1.218.12)
   });
 
   it('writes the label on the flank', () => {

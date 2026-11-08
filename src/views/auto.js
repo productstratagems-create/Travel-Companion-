@@ -18,6 +18,7 @@
  * exactly as well. That is the difference between an engine that locks you
  * out and one that helps.
  */
+import { linjemerke } from '../ui/linjemerke.js';
 import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import config from '../config.js';
@@ -739,8 +740,7 @@ export function boardState(o) {
 }
 
 export function badgeHtml(l) {
-  return '<span class="line-badge" style="background:#'
-    + esc(l.colour || '7c2d12') + '">' + esc(l.code || '?') + '</span>';
+  return linjemerke({ kode: l.code, farge: l.colour, linjeId: l.id, modus: l.mode });
 }
 
 
@@ -1486,9 +1486,8 @@ export function rettLinjeHtml(lås, kandidater, åpen, grunn) {
     + '<button type="button" class="rett-feil" aria-expanded="' + (åpen ? 'true' : 'false') + '">feil linje?</button></div>';
   if (!åpen) return topp;
   const knapp = k => {
-    const bg = k.farge ? '#' + String(k.farge).replace('#', '') : '#7c2d12';
     return '<button type="button" class="rett-valg" data-jid="' + esc(k.nøkkel) + '">'
-      + '<span class="line-badge" style="background:' + bg + '">' + esc(k.linje) + '</span>'
+      + linjemerke({ kode: k.linje, farge: k.farge, linjeId: k.linjeId, modus: k.modus })
       + '<span class="rett-front">mot ' + esc(k.front || '') + '</span></button>';
   };
   return topp + '<div class="rett-liste">' + andre.map(knapp).join('')
@@ -1606,10 +1605,9 @@ export function overgangerHtml(ov, stoppNavn, åpen) {
   if (!ov || !ov.rader.length) return '';
   const rad = ({ c, rcls, relevant }) => {
     const ln = c.ln || {};
-    const bg = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
     const dom = domFraKlasse(rcls);
     return '<div class="ov-rad' + (relevant ? ' ov-relevant' : '') + '">'
-      + '<span class="line-badge" style="background:' + bg + '">' + esc(ln.publicCode || '?') + '</span>'
+      + linjemerke({ kode: ln.publicCode, farge: ln.presentation && ln.presentation.colour, tekst: ln.presentation && ln.presentation.textColour, linjeId: ln.id, modus: ln.transportMode })
       + '<span class="ov-dest">' + esc(c.dest || '') + '</span>'
       + '<span class="ov-tid">' + clk(c.depTs) + '</span>'
       + '<span class="ov-dom ' + (_DOM_KLASSE[dom] || '') + '">' + esc(dom) + '</span></div>';

@@ -170,6 +170,19 @@ body.app-nav-visible .onboard-chip-bar{
      shape meant to carry it. */
   line-height:1.2;
 }
+/* LINJEMERKET (v1.218.12, ui/linjemerke.js): Linjes TravelTag som grunnform —
+   0,25rem hjørner — og en form per tilbyder, så Ruter, Vy, Skyss og AtB kan
+   skilles på formen alene. Fargen er linjens egen (--lm-bg), teksten regnet
+   for kontrast (--lm-fg). */
+.lm{background:var(--lm-bg);color:var(--lm-fg);border-radius:.25rem;gap:.25rem;position:relative}
+.lm-firkant{border-radius:1px}                                   /* Ruter */
+.lm-pille{border-radius:999px;padding-left:.55rem;padding-right:.55rem} /* Vy, Flytoget, SJ, Go-Ahead */
+.lm-diagonal{border-radius:0 .55rem 0 .55rem}                    /* Skyss */
+.lm-flagg{border-radius:0 .6rem .6rem 0}                         /* AtB */
+.lm-kant{box-shadow:inset 0 -3px 0 rgba(0,0,0,.28)}              /* fylkesselskapene */
+.lm-tilb{font-size:.62em;font-weight:600;opacity:.8;letter-spacing:.02em;
+  padding-left:.25rem;border-left:1px solid currentColor;line-height:1}
+
 .nav-back{
   display:inline-flex;align-items:center;gap:.4rem;
   background:none;border:none;

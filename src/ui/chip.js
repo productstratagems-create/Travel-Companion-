@@ -1,3 +1,4 @@
+import { linjemerke } from './linjemerke.js';
 import { state } from '../state.js';
 import { confirmTap } from './confirm.js';
 
@@ -9,7 +10,7 @@ export function updateOnboardChip() {
     document.body.classList.add('jny-chip-visible');
     chip.innerHTML =
       '<button class="chip-main" aria-label="Vis reise underveis">'
-      + '<span class="line-badge" style="background:' + state.jny.lineBg + '">' + state.jny.lineCode + '</span>'
+      + linjemerke({ kode: state.jny.lineCode, farge: state.jny.lineBg, tekst: state.jny.legs && state.jny.legs[0] && state.jny.legs[0].lineFg, linjeId: state.jny.legs && state.jny.legs[0] && state.jny.legs[0].lineRef })
       + '<span class="chip-status">underveis · mot ' + (state.jny.frontText || state.jny.dest).toLowerCase() + '</span>'
       + (state.jny.arrival
         ? '<span class="chip-arrival">ank ' + state.jny.arrival.clk + ' →</span>'

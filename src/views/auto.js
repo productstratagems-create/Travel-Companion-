@@ -1673,8 +1673,15 @@ export function raskereHtml(svar) {
   const første = legs[0] || {};
   const ln = (første.line && første.line.publicCode) || (første.serviceJourney && første.serviceJourney.line && første.serviceJourney.line.publicCode) || '?';
   const går = clk(første.expectedStartTime || første.aimedStartTime);
+  /* GANGEN FØRST (v1.218.17): samme feil som Tavla hadde. Starter svaret med
+   * gange til et annet stopp, gikk linja ikke der du går av — si det. */
+  const f = (svar.r.tp.legs || [])[0];
+  const til = f && f.mode === 'foot' && første.fromPlace && første.fromPlace.name;
+  const gåMin = til && f.expectedStartTime && f.expectedEndTime
+    ? Math.round((new Date(f.expectedEndTime) - new Date(f.expectedStartTime)) / 60000) : null;
+  const gå = til && til !== svar.navn ? ' (gå ' + (gåMin != null ? gåMin + ' min ' : '') + 'til ' + esc(til) + ')' : '';
   return '<div class="rask-rad">raskere å gå av på ' + esc(svar.navn) + ': '
-    + '<b>' + esc(ln) + '</b> ' + går + (legs.length > 1 ? ' (' + (legs.length - 1) + ' bytte)' : '')
+    + '<b>' + esc(ln) + '</b> ' + går + gå + (legs.length > 1 ? ' (' + (legs.length - 1) + ' bytte)' : '')
     + ' → ' + esc(svar.mål) + ' ' + clk(svar.r.framMs) + ' · <b>' + svar.r.sparerMin + ' min tidligere</b></div>';
 }
 

@@ -37,11 +37,11 @@ describe('adapteren tar vare på gangen i starten', () => {
 describe('Tavla', () => {
   const b = readFileSync('src/views/board.js', 'utf8');
   it('én definisjon av når du må gå', () => {
-    expect(b).toMatch(/export function påstigningTs\(c\)/);
+    expect(b).toContain('export { påstigningTs };');  // bor i api/adapt.js fra v1.218.17
     expect(b).toContain('const mtl = walkActive ? mToLeave(påstigningTs(c)) : null;');
   });
   it('raden sier «gå N min til X», og sporet sier hvor', () => {
-    expect(b).toContain("(c._gåTil ? '<div class=\"dep-gaa\">gå ' + c._gåTil.min + ' min til ' + esc(c._gåTil.navn) + '</div>' : '')");
+    expect(b).toContain("(gåTilTekst(c) ? '<div class=\"dep-gaa\">' + esc(gåTilTekst(c)) + '</div>' : '')");
     expect(b).not.toContain('dep-tag-gaa');  // som tagg presset den destinasjonen ut
     expect(b).toMatch(/spor ' \+ esc\(quay\) \+ ' på ' \+ esc\(c\._gåTil\.navn\)/);
   });

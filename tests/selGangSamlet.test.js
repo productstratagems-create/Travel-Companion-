@@ -29,7 +29,7 @@ describe('retning og avstand står i nedtellingen', () => {
     expect(hero).toMatch(/_subLine\([^)]*\) \+ '<\/div>'\s*\+ _retningHtml\(dir\)/);
   });
   it('og ikke øverst når nedtellingen vises', () => {
-    expect(s).toMatch(/\+ \(heroVises \? '' : _retningHtml\(dir\)\)/);
+    expect(s).toMatch(/\+ \(heroVises \? '' : _retningHtml\(dir\)( \+ gåVidere)?\)/);
     expect(s).toMatch(/const heroVises = !departed && walkActive;/);
   });
 });

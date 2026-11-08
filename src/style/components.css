@@ -174,7 +174,7 @@ body.app-nav-visible .onboard-chip-bar{
    transportmiddelet + linjenummer, 0,25rem hjørner, ikonet i tekstfargen —
    skalert til appens kompakte høyde. Fargen er tilbyderens egen (--lm-bg). */
 .lm{background:var(--lm-bg);color:var(--lm-fg);border-radius:.25rem;gap:.2rem}
-.dep-gaa{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--warn, #d4a017);margin-top:.15rem}
+.jd-gaa,.dep-gaa{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--warn, #d4a017);margin-top:.15rem}
 .lm-par{display:inline-flex;align-items:center;gap:.3rem;flex-shrink:0}
 /* Enturs tilbyderlogo (ui/tilbyderlogo.js): i tekstfargen, dempet, en tanke
    lavere enn merket så nummeret fortsatt er det man leser først. */

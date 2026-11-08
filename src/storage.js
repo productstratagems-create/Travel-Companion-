@@ -22,6 +22,8 @@ const ALL_KEYS = [
   // Which order the auto-reise list is drawn in. A display choice, but one
   // the reader made, so it travels with the profile like the rest.
   't.autoSort',
+  // Om kartet i auto-reise er skjult (v1.218.4).
+  't.autoKart',
   // Legacy. v1.79.0 stored whether the nearby-stops list was open; v1.83.1
   // made that a module variable so the list starts collapsed every time.
   // Nothing writes this any more — it stays listed so a value left over from

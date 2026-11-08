@@ -51,7 +51,8 @@ import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
 import L from 'leaflet';
-import { createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper } from '../ui/map.js';
+import { createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap } from '../ui/map.js';
+import { storage } from '../storage.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
 import { ensureApproach, approachPoints, AT_STOP_M } from '../api/approach.js';
 import { centreward, CENTRE_LABEL } from '../api/centre.js';
@@ -1895,6 +1896,11 @@ export function gangLapp(s) {
   return s.name + (w ? ' · ' + w.mins + ' min' : (s.distM != null ? ' · ' + s.distM + ' m' : ''));
 }
 
+/* SKJULT KART huskes i `t.autoKart` (v1.218.4). Følger profilen (ALL_KEYS). */
+const KART_KEY = 't.autoKart';
+export function kartSkjult() { try { return storage.get(KART_KEY) === 'skjult'; } catch { return false; } }
+export function settKartSkjult(på) { try { storage.set(KART_KEY, på ? 'skjult' : ''); } catch { /* */ } }
+
 let _relevanteSist = [];
 let _tegning = 0;
 
@@ -1902,6 +1908,23 @@ function _renderMap() {
   const wrap = _el('auto-map-wrap');
   const el = _el('auto-map');
   if (!wrap || !el) return;
+  // Skjult: én linje «vis kart», og ingen kart å tegne.
+  const vis = _el('auto-map-vis');
+  const skjul = _el('auto-map-skjul');
+  if (vis && !vis._bundet) {
+    vis._bundet = true;
+    vis.addEventListener('click', () => { settKartSkjult(false); _aKey = ''; _aFitKey = ''; _renderMap(); });
+  }
+  if (skjul && !skjul._bundet) {
+    skjul._bundet = true;
+    skjul.addEventListener('click', () => { settKartSkjult(true); _renderMap(); });
+  }
+  if (kartSkjult()) {
+    wrap.style.display = 'none';
+    if (vis) vis.hidden = false;
+    return;
+  }
+  if (vis) vis.hidden = true;
 
   const userPos = userLL();
   // Nothing to orient by. A map showing neither you nor a stop is a grey
@@ -1913,6 +1936,13 @@ function _renderMap() {
     // `zoom: false` sto her. Kommentaren rett under sier at kartet er DITT
     // når du har dratt det — da skal knappene også si at du kan. Issue #397.
     _aMap = createMap(el);
+    // Fullskjerm som de andre kartene: plassen mellom statuslinja og
+    // bunnmenyen. Utsnittet tegnes på nytt, så du står i midten av den nye
+    // størrelsen.
+    bindMapExpand(_aMap, el, _el('auto-map-expand'), { onToggle: (open) => {
+      fitExpandedMap(el, open); _aKey = ''; _aFitKey = '';
+      setTimeout(() => _renderMap(), 340);
+    } });
     _aLayer = L.layerGroup().addTo(_aMap);
     // Once the reader has DRAGGED the map it is theirs. Same rule, and the
     // same single event, as the board (_bUserMoved): an auto-fit that keeps

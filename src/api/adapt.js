@@ -401,3 +401,20 @@ export function adaptTripPattern(tp) {
     return drop('feil: ' + ((err && err.message) || 'ukjent'));
   }
 }
+
+/**
+ * NÅR DU MÅ GÅ fra stoppet ditt (v1.218.16, flyttet hit i v1.218.17 så Tavla
+ * og avgangsdetaljene leser ÉN definisjon). Starter reisen med gange til et
+ * annet stopp, er det fotetappens start — ikke kjøretøyets avgang.
+ */
+export function påstigningTs(c) {
+  const t = c && c._gåTil && c._gåTil.startTid;
+  return t ? new Date(t).getTime() : new Date(c.expectedDepartureTime).getTime();
+}
+
+/** «gå 5 min til Mortensrud», eller null når du går på der du er. */
+export function gåTilTekst(c) {
+  const g = c && c._gåTil;
+  if (!g || !g.navn) return null;
+  return 'gå ' + (g.min != null ? g.min + ' min ' : '') + 'til ' + g.navn;
+}

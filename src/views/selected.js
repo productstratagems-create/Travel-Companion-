@@ -11,7 +11,7 @@ import { plattformTekst } from '../bytte.js';
 import { ensureApproach, approachPoints } from '../api/approach.js';
 import { _headingDeg } from '../ui/path.js';
 import { fetchJourneyMeta } from '../api/entur.js';
-import { quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
+import { quayLatLon, legShape, journeyPoints, _rowDest, påstigningTs, gåTilTekst } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
 import { addLegToPlan, isLegInPlan } from '../api/plan.js';
@@ -744,8 +744,8 @@ export function renderSelected() {
   const tmin = arrT ? Math.round((new Date(arrT).getTime() - depTs) / 60000) : null;
   const delayed = c.realtime && depTs - new Date(c.aimedDepartureTime).getTime() > 60000;
   const wk = walkInfo();
-  const leaveByTs = depTs - wk.mins * 60000;
-  const mtl = mToLeave(depTs);
+  const leaveByTs = påstigningTs(c) - wk.mins * 60000;
+  const mtl = mToLeave(påstigningTs(c));
   const rcls = reachCls(mtl);
   const ltCls = _ltCls(rcls);
 
@@ -798,9 +798,11 @@ export function renderSelected() {
       },
     }) + (tmin ? '<div class="itin-total">' + tmin + ' min reise' + (c._via ? ' · via ' + esc(c._via) : '') + '</div>' : '');
   } else {
-    journeyDetail = '<div class="journey-detail">'
+    // Gangen til stoppet du faktisk går på (v1.218.17), samme tekst som Tavla.
+    journeyDetail = (gåTilTekst(c) ? '<div class="jd-gaa">' + esc(gåTilTekst(c)) + '</div>' : '')
+      + '<div class="journey-detail">'
       + '<div class="jd-cell"' + (arrT ? '' : ' style="grid-column:1/-1"') + '>'
-      + '<div class="jd-label">avgår ' + esc(jdEtikett(jdDag(depTs, arrT, now).dep, visStopp(cleanName(dir.from)))) + '</div>'
+      + '<div class="jd-label">avgår ' + esc(jdEtikett(jdDag(depTs, arrT, now).dep, visStopp(cleanName(c._gåTil ? c._gåTil.navn : dir.from)))) + '</div>'
       + '<div class="jd-val departure">' + clk(c.expectedDepartureTime) + '</div>'
       + (() => {
         const sub = [delayed ? 'rute ' + clk(c.aimedDepartureTime) : null, plattformTekst(quay, depMode(c))]
@@ -842,8 +844,12 @@ export function renderSelected() {
   // vises, står retning og avstand i den, rett under «gå senest». Uten
   // nedtelling (avgått, eller du går ikke) står de øverst som før.
   const heroVises = !departed && walkActive;
+  // «812 m · 12 min å gå» er gangen til stoppet på ruta. Går kjøretøyet fra et
+  // annet stopp, står gangen VIDERE rett under (v1.218.17) — ikke bare inne i
+  // den foldede reiseplanen, der proben fant den.
+  const gåVidere = gåTilTekst(c) ? '<div class="jd-gaa sel-gaa">+ ' + esc(gåTilTekst(c)) + '</div>' : '';
   document.getElementById('s-content').innerHTML = ''
-    + (heroVises ? '' : _retningHtml(dir))
+    + (heroVises ? '' : _retningHtml(dir) + gåVidere)
     + '<div class="train-chip">'
     + chipBadges
     + '<span class="tc-dest">' + esc(dest) + '</span>'
@@ -862,7 +868,7 @@ export function renderSelected() {
           + '<div class="leaveby-time ' + ltCls + '">' + heroNum
           + '<span class="lt-unit">' + heroUnit + '</span></div>'
           + '<div class="leaveby-sub soft">' + _subLine(rcls, mtl, leaveByTs, depTs, now) + '</div>'
-          + _retningHtml(dir)
+          + _retningHtml(dir) + gåVidere
           + '</div>'
         : '')
     // Folded once it is time to go. The itinerary is what you read while
@@ -1166,8 +1172,8 @@ function _refreshSelDisplay() {
   if (!meta.cancelled) {
     const depTs    = new Date(c.expectedDepartureTime).getTime();
     const wk       = walkInfo();
-    const leaveByTs = depTs - wk.mins * 60000;
-    const mtl      = mToLeave(depTs);
+    const leaveByTs = påstigningTs(c) - wk.mins * 60000;
+    const mtl      = mToLeave(påstigningTs(c));
     const rcls     = reachCls(mtl);
     const ltCls    = _ltCls(rcls);
     const now      = Date.now();

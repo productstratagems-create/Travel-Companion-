@@ -12,7 +12,7 @@ import { storage } from '../storage.js';
 import { fartNå, walkInfo, walkMinsTo, mToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
-import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest } from '../api/adapt.js';
+import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest, påstigningTs, gåTilTekst } from '../api/adapt.js';
 import { loadPlan, legStatus } from '../api/plan.js';
 import { samePlace } from '../api/place.js';
 import { collectStopSituations } from '../api/situations.js';
@@ -299,15 +299,8 @@ export function _rowQuay(c, byJourney, kaier) {
  * What you board. Used for the icon, the row and the corridor's style — all
  * of which are about the vehicle you step onto, so the first leg is right.
  */
-/**
- * NÅR DU MÅ GÅ fra stoppet ditt (v1.218.16) — én definisjon. Starter reisen med
- * gange til et annet stopp, er det fotetappens start, ikke bussens avgang:
- * «4 min igjen» regnet ellers bort de seks minuttene til Mortensrud.
- */
-export function påstigningTs(c) {
-  const t = c && c._gåTil && c._gåTil.startTid;
-  return t ? new Date(t).getTime() : new Date(c.expectedDepartureTime).getTime();
-}
+// påstigningTs bor i api/adapt.js (v1.218.17); eksportert videre her.
+export { påstigningTs };
 
 function _depMode(dep) {
   if (dep._legs && dep._legs[0]) return normMode(dep._legs[0].mode);
@@ -3310,7 +3303,7 @@ export function renderBoard() {
        * tagg i infolinja presset den destinasjonen ut av raden i proben
        * («Jernbanet…», og på 74 forsvant den helt) — samme feil som «bytte
        * innstilt» hadde. Det avgjørende skal stå. */
-      + (c._gåTil ? '<div class="dep-gaa">gå ' + c._gåTil.min + ' min til ' + esc(c._gåTil.navn) + '</div>' : '')
+      + (gåTilTekst(c) ? '<div class="dep-gaa">' + esc(gåTilTekst(c)) + '</div>' : '')
       + (rekkeTekst(rcls)
         ? '<div class="dep-reach missed">' + esc(rekkeTekst(rcls)) + '</div>'
         : '')

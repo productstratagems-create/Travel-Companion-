@@ -50,3 +50,31 @@ describe('rangering', () => {
     expect(r[0].kort.name).toBe('Jernbanetorget');
   });
 });
+
+import { foldetSide } from '../src/maalModell.js';
+import { readFileSync } from 'node:fs';
+// Rapportert: på Mortensrud en helg kl. 11 gir «fra sentrum» ikke mening.
+describe('retningsgruppen som foldes', () => {
+  const SØNDAG_11 = L(8, 11), MANDAG_8 = L(9, 8), MANDAG_16 = L(9, 16), MANDAG_12 = L(9, 12);
+  it('helg dagtid i utkanten: «fra sentrum» foldes', () => {
+    expect(foldetSide(SØNDAG_11, MORT, new Set())).toBe('fra');
+  });
+  it('hverdagsmorgen: «fra sentrum» foldes, ettermiddag: «mot sentrum»', () => {
+    expect(foldetSide(MANDAG_8, MORT, new Set())).toBe('fra');
+    expect(foldetSide(MANDAG_16, MORT, new Set())).toBe('mot');
+  });
+  it('nøytralt midt på dagen: ingenting foldes', () => {
+    expect(foldetSide(MANDAG_12, MORT, new Set())).toBeNull();
+  });
+  it('i sentrum: ingenting foldes', () => {
+    expect(foldetSide(SØNDAG_11, JBT, new Set())).toBeNull();
+  });
+  it('ditt eget mål i den retningen nå: ingenting foldes', () => {
+    expect(foldetSide(SØNDAG_11, MORT, new Set(['fra']))).toBeNull();
+  });
+  it('auto-reise folder gruppen og lukker den', () => {
+    const s = readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toContain('const foldet = grouped ? foldetSide(now, _stop, egneSider) : null;');
+    expect(s).toContain("}).join('') + (iFold ? '</details>' : '')");
+  });
+});

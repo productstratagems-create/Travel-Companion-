@@ -974,7 +974,7 @@ function _makeTransitStopIcon(code, bg, mode, linjeId) {
   // metro. One table, and an unknown mode says nothing rather than a lie.
   const modeLabel = _MODE_PIN[mode] || '';
   const html = '<div style="text-align:center;line-height:1;white-space:nowrap;transform:translate(-50%,-50%)">'
-    + linjemerke({ kode: code, farge: bg, linjeId, modus: mode, stil: 'font-size:13px;padding:4px 9px' })
+    + linjemerke({ kode: code, farge: bg, linjeId, modus: mode, stil: 'font-size:13px;padding:4px 9px', logo: false })
     + '<div style="font-size:8px;color:#444;font-family:JetBrains Mono,monospace;letter-spacing:.08em;margin-top:3px">' + modeLabel + '</div>'
     + '</div>';
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });

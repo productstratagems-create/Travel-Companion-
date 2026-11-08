@@ -18,6 +18,8 @@
  * Merket var bygd for hånd på 22 steder før v1.218.12.
  */
 
+import { logoFor } from './tilbyderlogo.js';
+
 /* Linjes fargetokens, standard (lys) variant. Kilde: @entur/tokens 4.3.1,
  * dist/transport.css (EUPL-1.2). Nøklene er appens transportmidler. */
 export const LINJE_FARGE = {
@@ -118,8 +120,14 @@ export function linjemerke(o) {
     + i.d.map(d => '<path' + (i.evenodd ? ' fill-rule="evenodd" clip-rule="evenodd"' : '') + ' d="' + d + '"/>').join('') + '</svg>' : '';
   const hvem = [t && t.navn, MODUS_NAVN[o.modus]].filter(Boolean);
   const etikett = hvem.length ? (t ? t.navn + ', ' : '') + (MODUS_NAVN[o.modus] ? MODUS_NAVN[o.modus] + ' ' : 'linje ') + kode : '';
-  return '<span class="line-badge lm' + (o.klasse ? ' ' + o.klasse : '') + '"'
+  const merke = '<span class="line-badge lm' + (o.klasse ? ' ' + o.klasse : '') + '"'
     + (etikett ? ' aria-label="' + etikett + '" title="' + etikett + '"' : '')
     + ' style="--lm-bg:' + bg + ';--lm-fg:' + fg + (o.stil ? ';' + o.stil : '') + '">'
     + svg + kode + '</span>';
+  // Enturs tilbyderlogo ved merket (v1.218.14). Slås av der det er trangt.
+  const logo = o.logo === false ? null : logoFor(o.linjeId);
+  if (!logo) return merke;
+  return '<span class="lm-par">' + merke
+    + '<span class="lm-logo" role="img" aria-label="' + esc(logo.navn) + '" title="' + esc(logo.navn) + '"'
+    + ' style="--lm-forhold:' + logo.forhold + '">' + logo.svg + '</span></span>';
 }

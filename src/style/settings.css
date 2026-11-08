@@ -873,4 +873,5 @@
 #v-auto #auto-map.expanded{aspect-ratio:auto;height:var(--map-h-open)}
 .auto-kart-bryter{display:block;margin:.35rem 0 0 auto;background:none;border:none;color:var(--text-soft);font:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;min-height:32px}
 .auto-kart-bryter[hidden]{display:none}
+.auto-kart-flere{margin-left:0;text-transform:none;letter-spacing:0;font-size:12px}
 #auto-map-vis{margin:.2rem 0 .4rem}

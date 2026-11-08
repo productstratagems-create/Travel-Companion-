@@ -253,6 +253,9 @@ export function bindMapExpand(map, el, btn, opts = {}) {
     setTimeout(() => map && map.invalidateSize(), 320);
   };
   if (!opts.syklus) btn.setAttribute('aria-expanded', el.classList.contains('expanded') ? 'true' : 'false');
+  // Skjermen kan sette formen selv (v1.218.7: utgangsform fra geometrien) —
+  // gjennom samme `sett`, så knappen og syklusen står i takt.
+  return { settForm: (f) => { const j = syklus.indexOf(f); if (j < 0 || j === i) return false; i = j; sett(); merk(); return true; } };
 }
 
 /**

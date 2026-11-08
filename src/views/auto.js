@@ -1900,6 +1900,12 @@ export function gangLapp(s) {
 const KART_KEY = 't.autoKart';
 export function kartSkjult() { try { return storage.get(KART_KEY) === 'skjult'; } catch { return false; } }
 export function settKartSkjult(på) { try { storage.set(KART_KEY, på ? 'skjult' : ''); } catch { /* */ } }
+/* FORMEN (v1.218.5): knappen sykler kvadrat → bred → fullskjerm. Kvadrat/bred
+   huskes i `t.autoKartForm`; fullskjerm huskes ikke — den er et øyeblikk. */
+const KART_FORMER = ['kvadrat', 'bred', 'full'];
+const FORM_KEY = 't.autoKartForm';
+export function kartForm() { try { return storage.get(FORM_KEY) === 'bred' ? 'bred' : 'kvadrat'; } catch { return 'kvadrat'; } }
+export function settKartForm(f) { if (f === 'full') return; try { storage.set(FORM_KEY, f === 'bred' ? 'bred' : ''); } catch { /* */ } }
 
 let _relevanteSist = [];
 let _tegning = 0;
@@ -1939,8 +1945,8 @@ function _renderMap() {
     // Fullskjerm som de andre kartene: plassen mellom statuslinja og
     // bunnmenyen. Utsnittet tegnes på nytt, så du står i midten av den nye
     // størrelsen.
-    bindMapExpand(_aMap, el, _el('auto-map-expand'), { onToggle: (open) => {
-      fitExpandedMap(el, open); _aKey = ''; _aFitKey = '';
+    bindMapExpand(_aMap, el, _el('auto-map-expand'), { syklus: KART_FORMER, start: kartForm(), onToggle: (open, form) => {
+      fitExpandedMap(el, open); settKartForm(form); _aKey = ''; _aFitKey = '';
       setTimeout(() => _renderMap(), 340);
     } });
     _aLayer = L.layerGroup().addTo(_aMap);

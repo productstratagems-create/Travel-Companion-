@@ -218,21 +218,41 @@ export function fitExpandedMap(el, open) {
 
 export function bindMapExpand(map, el, btn, opts = {}) {
   if (!el || !btn) return;
-  btn.onclick = () => {
-    const open = el.classList.toggle('expanded');
-    document.documentElement.classList.toggle('map-open', open);
-    // En skjerm som vet hvor mye plass kartet har, får si det her.
-    if (opts.onToggle) opts.onToggle(open);
-    btn.textContent = open ? '\u2715' : '\u2922';
-    const label = open ? 'Minimer kart' : 'Utvid kart';
+  // `syklus` (v1.218.5): et kart kan ha flere former før fullskjerm, f.eks.
+  // ['kvadrat','bred','full']. Uten den er det to steg som før. Fullskjerm er
+  // fortsatt ÉN definisjon: `expanded` + `map-open`, her og ingen andre steder.
+  const syklus = opts.syklus || ['inne', 'full'];
+  const NESTE = { bred: ['Bredt kart', '\u25AD'], full: ['Fullskjerm', '\u2922'] };
+  let i = Math.max(0, syklus.indexOf(opts.start));
+  const merk = () => {
+    const neste = syklus[(i + 1) % syklus.length];
+    const open = syklus[i] === 'full';
+    const [label, tegn] = open ? ['Minimer kart', '\u2715']
+      : (opts.syklus ? (NESTE[neste] || ['Kvadratisk kart', '\u25A1']) : ['Utvid kart', '\u2922']);
+    btn.textContent = tegn;
     btn.setAttribute('aria-label', label);
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     // The hovering cursor gets told too. Three of the four forgot this.
     btn.title = label;
+  };
+  const sett = () => {
+    const form = syklus[i]; const open = form === 'full';
+    el.classList.toggle('expanded', open);
+    el.classList.toggle('form-bred', form === 'bred');
+    document.documentElement.classList.toggle('map-open', open);
+    return { form, open };
+  };
+  if (opts.syklus) { sett(); merk(); }
+  btn.onclick = () => {
+    i = (i + 1) % syklus.length;
+    const { form, open } = sett();
+    // En skjerm som vet hvor mye plass kartet har, får si det her.
+    if (opts.onToggle) opts.onToggle(open, form);
+    merk();
     // After the CSS transition, not before it: Leaflet measures the container.
     setTimeout(() => map && map.invalidateSize(), 320);
   };
-  btn.setAttribute('aria-expanded', el.classList.contains('expanded') ? 'true' : 'false');
+  if (!opts.syklus) btn.setAttribute('aria-expanded', el.classList.contains('expanded') ? 'true' : 'false');
 }
 
 /**

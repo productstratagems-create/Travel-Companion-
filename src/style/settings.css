@@ -869,6 +869,8 @@
 #auto-map .leaflet-tooltip.lapp-skjult{display:none}
 
 /* Utvidet: høyden mellom statuslinja og bunnmenyen (`fitExpandedMap`), ikke kvadratet. */
+#v-auto #auto-map.form-bred{aspect-ratio:16 / 9}
 #v-auto #auto-map.expanded{aspect-ratio:auto;height:var(--map-h-open)}
 .auto-kart-bryter{display:block;margin:.35rem 0 0 auto;background:none;border:none;color:var(--text-soft);font:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;min-height:32px}
+.auto-kart-bryter[hidden]{display:none}
 #auto-map-vis{margin:.2rem 0 .4rem}

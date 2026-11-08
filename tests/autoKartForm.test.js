@@ -24,7 +24,7 @@ describe('fullskjerm', () => {
   it('knappen finnes, og kartet bruker samme utvidelse som de andre', () => {
     expect(html).toContain('id="auto-map-expand"');
     expect(html).toMatch(/<div id="auto-map" class="map-expandable">/);
-    expect(src).toMatch(/bindMapExpand\(_aMap, el, _el\('auto-map-expand'\), \{ onToggle: \(open\) => \{\s*fitExpandedMap\(el, open\)/);
+    expect(src).toMatch(/bindMapExpand\(_aMap, el, _el\('auto-map-expand'\), \{ syklus: KART_FORMER, start: kartForm\(\), onToggle: \(open, form\) => \{\s*fitExpandedMap\(el, open\)/);
   });
 });
 

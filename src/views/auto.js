@@ -1852,6 +1852,57 @@ export function openLine(dir) {
   return { color: '#' + String(raw).replace(/^#/, ''), mode: (ln && ln.transportMode) || null };
 }
 
+/**
+ * Stoppene som får merkelapp på kartet: der du er, og de RELEVANT_ANDRE
+ * nærmeste alternativene, med et nytt transportmiddel først. Rapportert: ti
+ * prikker uten navn, og gangavstanden bare i et verktøytips. De andre står
+ * fortsatt som prikker: foldet, ikke fjernet.
+ */
+export const RELEVANT_ANDRE = 2;
+export function relevanteStopp(stopp, andre, n) {
+  const maks = Number.isFinite(n) ? n : RELEVANT_ANDRE;
+  const modus = s => normMode(((s && s.modes) || [])[0] || '');
+  const sett = new Set(stopp ? [modus(stopp)] : []);
+  const etter = (andre || []).filter(s => s && s.lat != null).slice().sort((a, b) => (a.distM ?? Infinity) - (b.distM ?? Infinity));
+  const valgt = [];
+  etter.forEach(s => { if (valgt.length < maks && !sett.has(modus(s))) { valgt.push(s); sett.add(modus(s)); } });
+  etter.forEach(s => { if (valgt.length < maks && !valgt.includes(s)) valgt.push(s); });
+  return valgt;
+}
+
+/**
+ * Punktene speilet om deg: med dem i utsnittet legger `fitBounds` deg i
+ * midten og viser likevel alle punktene. Bestilt: «Sentrert på brukers
+ * posisjon.»
+ */
+export function speiletOm(her, pts) {
+  if (!her) return pts || [];
+  return (pts || []).flatMap(p => [p, [2 * her.lat - p[0], 2 * her.lon - p[1]]]).concat([[her.lat, her.lon]]);
+}
+
+/**
+ * Faste merkelapper i `el` som overlapper en tidligere: skjult (klassen
+ * `lapp-skjult`), så den viser seg som verktøytips ved trykk i stedet.
+ * Første merkelapp vinner. Returnerer hvor mange som ble skjult.
+ */
+export function ryddMerkelapper(el) {
+  const lapper = [...(el ? el.querySelectorAll('.leaflet-tooltip.map-label') : [])];
+  const tatt = [];
+  let skjult = 0;
+  lapper.forEach(t => {
+    const r = t.getBoundingClientRect();
+    if (tatt.some(a => r.left < a.right && a.left < r.right && r.top < a.bottom && a.top < r.bottom)) { t.classList.add('lapp-skjult'); skjult++; }
+    else tatt.push(r);
+  });
+  return skjult;
+}
+
+/** Merkelappen: navn og gangtid, eller meter når gangtiden er ukjent. */
+export function gangLapp(s) {
+  const w = walkMinsTo(s);
+  return s.name + (w ? ' · ' + w.mins + ' min' : (s.distM != null ? ' · ' + s.distM + ' m' : ''));
+}
+
 function _renderMap() {
   const wrap = _el('auto-map-wrap');
   const el = _el('auto-map');
@@ -1964,20 +2015,28 @@ function _renderMap() {
   (walkPts || []).forEach(p => pts.push(p));
   if (userPos) pts.push([userPos.lat, userPos.lon]);
 
-  if (pts.length && !_aUserMoved && _aFitKey !== key + '|' + sizeKey) {
+  // DEG I MIDTEN når ingen retning eller kort er tema: stoppet du er ved og
+  // de relevante alternativene, speilet om posisjonen din.
+  const relevante = relevanteStopp(_stop, others);
+  const sentrert = !!(userPos && !line && !kortLinje);
+  const rammePts = sentrert
+    ? speiletOm(userPos, [_stop, ...relevante].filter(s => s && s.lat != null).map(s => [s.lat, s.lon]))
+    : pts;
+  if (rammePts.length && !_aUserMoved && _aFitKey !== key + '|' + sizeKey) {
     _aFitKey = key + '|' + sizeKey;
     // animate:false so the projection is TRUE the moment this returns. With
     // the default animation latLngToContainerPoint still answers for the view
     // being left, so the readability check below measured the old zoom and
     // kept every bead — 12px median where the threshold is 21.
-    _aMap.fitBounds(pts, { padding: [26, 26], maxZoom: 17, animate: false });
+    _aMap.fitBounds(rammePts, { padding: [26, 26], maxZoom: 17, animate: false });
   }
 
   if (_stop && _stop.lat != null) {
     L.marker([_stop.lat, _stop.lon], {
       icon: makeStopIcon(normMode((_stop.modes || [])[0]), (_stop.modes || []).length, { primary: true }),
     })
-      .bindTooltip(_stop.name, { className: 'map-label', direction: 'top', offset: [0, -8] })
+      .bindTooltip(sentrert ? gangLapp(_stop) : _stop.name,
+        { className: 'map-label', direction: 'top', offset: [0, -8], permanent: sentrert })
       .addTo(_aLayer);
   }
 
@@ -2030,7 +2089,8 @@ function _renderMap() {
       icon: makeStopIcon(normMode((s.modes || [])[0]), (s.modes || []).length),
       keyboard: false,
     })
-      .bindTooltip(s.name + ' · ' + s.distM + ' m', { className: 'map-label', direction: 'top', offset: [0, -8] })
+      // Gangtid med fast merkelapp på de relevante, prikk med verktøytips på resten.
+      .bindTooltip(gangLapp(s), { className: 'map-label', direction: 'top', offset: [0, -8], permanent: relevante.includes(s) })
       .on('click', () => pinStop(s.id))
       .addTo(_aLayer);
   });
@@ -2061,6 +2121,10 @@ function _renderMap() {
 
   if (walkPts && walkPts.length) drawWalk(_aLayer, walkPts);
   if (userPos) userDot(_aLayer, userPos);
+  // MERKELAPPER SOM KRASJER: den som kommer sist (lavere prioritet), blir et
+  // vanlig verktøytips. Stoppet du er ved tegnes først og beholdes. Målt i
+  // nettleserprøven: tre faste merkelapper i et 140 px kart overlappet.
+  if (sentrert && typeof requestAnimationFrame === 'function') requestAnimationFrame(() => ryddMerkelapper(el));
 }
 
 /**

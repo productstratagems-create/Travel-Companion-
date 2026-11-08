@@ -1,3 +1,4 @@
+import { LINJE_FARGE } from './linjemerke.js';
 import L from 'leaflet';
 
 const _BUS_SVG = '<svg viewBox="0 0 16 16" width="13" height="13" fill="white" xmlns="http://www.w3.org/2000/svg">'
@@ -298,16 +299,10 @@ export function sideVehicleSvg(mode, color, label, dim) {
 export const SIDE_VEHICLE_MAX_PX = Math.max(...Object.values(_SIDE).map(v => v.len));
 
 // Transit brand colours, kept because they carry meaning rather than style.
-const _MODE_COLOUR = {
-  metro: '#f5a000',
-  tram:  '#7b3999',
-  bus:   '#e5006d',
-  rail:  '#5a6b7d',
-  // Boats had no colour, so an unnamed operator got rail grey and a metro
-  // body: a ferry that read as a train. Deep sea blue — and distinct from
-  // --map-you, which must stay the one thing on the map that is you.
-  water: '#0e7490',
-};
+/* Linjes fargetokens (v1.218.12) — én tabell, i ui/linjemerke.js. Var egne
+ * verdier her; båtene hadde ingen og fikk tog-grått (se merknad i git-loggen
+ * for v1.218.11 og tidligere). */
+const _MODE_COLOUR = LINJE_FARGE;
 
 /**
  * A stop.
@@ -328,7 +323,9 @@ const _MODE_COLOUR = {
 export function makeStopIcon(mode, count, opts = {}) {
   const colour = _MODE_COLOUR[mode] || _MODE_COLOUR.rail;
   // Your own stop reads a step louder than the ones merely nearby.
-  const size = opts.primary ? 15 : 11;
+  // Et viktig stopp (flest transportmidler og linjer innen gangavstand,
+  // v1.218.11) et halvt steg høyere enn de andre — men lavere enn ditt eget.
+  const size = opts.primary ? 15 : (opts.viktig ? 13 : 11);
   const halo = _halo();
 
   const badge = (count > 1)

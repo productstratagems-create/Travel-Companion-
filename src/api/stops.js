@@ -87,6 +87,28 @@ export function viktighet(s, info) {
 export function sammenlignViktighet(a, b) {
   return (b.moduser.length - a.moduser.length) || (b.linjer - a.linjer) || (b.plattformer - a.plattformer);
 }
+/* NÆR OG VIKTIG (v1.218.11). Bestilt: «Bruk dette rangeringssystemet i å
+ * bestemme hvordan kartene skal se ut og hvilket innhold som skal være
+ * prioritert … og for å velge til hvilken holdeplass du skal tegne opp
+ * gangrute.» Valgt: viktigste innen gangavstand.
+ *
+ * Innen VIKTIG_GANG_M (fem minutter) avgjør viktigheten — Mortensrud T foran
+ * busslomma nærmere. Utenfor avgjør avstanden, og alt innenfor kommer først.
+ * ÉN regel: «du er ved» (og dermed gangruten), navnelappene i auto-reise og
+ * utvalget på Tavla-kartet leser alle denne. */
+export const VIKTIG_GANG_M = 400;
+export function nærViktigFørst(viktigAv, avstandAv = s => s.distM) {
+  const d = s => { const v = avstandAv(s); return v == null ? Infinity : v; };
+  return (a, b) => {
+    // «Innenfor før utenfor» trengs ikke som eget ledd: et stopp innenfor er
+    // alltid nærmere enn et utenfor, så avstanden under gir den rekkefølgen.
+    // (Mutasjonstesten viste at leddet ikke kunne feile.)
+    const ia = d(a) <= VIKTIG_GANG_M, ib = d(b) <= VIKTIG_GANG_M;
+    return (ia && ib && viktigAv ? sammenlignViktighet(viktighet(a, viktigAv(a)), viktighet(b, viktigAv(b))) : 0)
+      || (d(a) - d(b));
+  };
+}
+
 /** Svar → Map(id → {moduser, linjer, plattformer}). */
 export function infoFraSvar(j) {
   const m = new Map();

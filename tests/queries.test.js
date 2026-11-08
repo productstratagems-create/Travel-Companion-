@@ -205,7 +205,7 @@ describe('arrBoardGQL — the destination stop', () => {
 
   it('keeps the fields the onward-departures list renders', () => {
     ['expectedDepartureTime', 'cancellation', 'destinationDisplay{frontText}',
-     'quay{publicCode}', 'line{publicCode transportMode presentation{colour}}']
+     'quay{publicCode}', 'line{id publicCode transportMode presentation{colour textColour}}']
       .forEach(f => expect(q).toContain(f));
   });
 

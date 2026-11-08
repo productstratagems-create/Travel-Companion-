@@ -18,6 +18,7 @@
  * exactly as well. That is the difference between an engine that locks you
  * out and one that helps.
  */
+import { linjemerke } from '../ui/linjemerke.js';
 import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import config from '../config.js';
@@ -47,7 +48,7 @@ import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
 import { byLine } from '../api/situations.js';
 import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
-import { fetchStoppLinjer, stoppLinjer, stoppInfo, viktighet, sammenlignViktighet } from '../api/stops.js';
+import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst } from '../api/stops.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
@@ -739,8 +740,7 @@ export function boardState(o) {
 }
 
 export function badgeHtml(l) {
-  return '<span class="line-badge" style="background:#'
-    + esc(l.colour || '7c2d12') + '">' + esc(l.code || '?') + '</span>';
+  return linjemerke({ kode: l.code, farge: l.colour, linjeId: l.id, modus: l.mode });
 }
 
 
@@ -956,7 +956,7 @@ export function stopWay(s, trail) {
  * står likt på avstand — da avgjør viktigheten. Skrittene er faste (0–59,
  * 60–119 …) så rekkefølgen er transitiv; prisen er at 59 og 61 m havner i
  * hvert sitt skritt. 60 m er under ett minutts gange. */
-export const LIK_AVSTAND_M = 60;
+export const LIK_AVSTAND_M = 60;  // Brukes ikke fra v1.218.11 — erstattet av VIKTIG_GANG_M (api/stops.js). Står igjen, foldet.
 
 export function rankStops(list, uses, trail, viktigAv) {
   // WHICH WAY YOU ARE WALKING, which this function had no notion of at all: a
@@ -983,10 +983,9 @@ export function rankStops(list, uses, trail, viktigAv) {
     // still order predictably rather than by whatever the geocoder returned.
     || (band(a) === 1 ? usesOf(b, uses) - usesOf(a, uses) : 0)
     // VIKTIGHET SOM TIEBREAK, aldri i band 0: der står du.
-    || (band(a) === 0 || !viktigAv ? 0
-      : (Math.floor(d(a) / LIK_AVSTAND_M) - Math.floor(d(b) / LIK_AVSTAND_M))
-        || sammenlignViktighet(viktighet(a, viktigAv(a)), viktighet(b, viktigAv(b))))
-    || (d(a) - d(b)));
+    // NÆR OG VIKTIG (v1.218.11), aldri i band 0: der står du. Innen gangavstand
+    // avgjør viktigheten, ellers avstanden. Gangruten går til det som vinner.
+    || (band(a) === 0 ? d(a) - d(b) : nærViktigFørst(viktigAv)(a, b)));
 }
 
 function _stops() {
@@ -1487,9 +1486,8 @@ export function rettLinjeHtml(lås, kandidater, åpen, grunn) {
     + '<button type="button" class="rett-feil" aria-expanded="' + (åpen ? 'true' : 'false') + '">feil linje?</button></div>';
   if (!åpen) return topp;
   const knapp = k => {
-    const bg = k.farge ? '#' + String(k.farge).replace('#', '') : '#7c2d12';
     return '<button type="button" class="rett-valg" data-jid="' + esc(k.nøkkel) + '">'
-      + '<span class="line-badge" style="background:' + bg + '">' + esc(k.linje) + '</span>'
+      + linjemerke({ kode: k.linje, farge: k.farge, linjeId: k.linjeId, modus: k.modus })
       + '<span class="rett-front">mot ' + esc(k.front || '') + '</span></button>';
   };
   return topp + '<div class="rett-liste">' + andre.map(knapp).join('')
@@ -1607,10 +1605,9 @@ export function overgangerHtml(ov, stoppNavn, åpen) {
   if (!ov || !ov.rader.length) return '';
   const rad = ({ c, rcls, relevant }) => {
     const ln = c.ln || {};
-    const bg = ln.presentation && ln.presentation.colour ? '#' + ln.presentation.colour : '#7c2d12';
     const dom = domFraKlasse(rcls);
     return '<div class="ov-rad' + (relevant ? ' ov-relevant' : '') + '">'
-      + '<span class="line-badge" style="background:' + bg + '">' + esc(ln.publicCode || '?') + '</span>'
+      + linjemerke({ kode: ln.publicCode, farge: ln.presentation && ln.presentation.colour, tekst: ln.presentation && ln.presentation.textColour, linjeId: ln.id, modus: ln.transportMode })
       + '<span class="ov-dest">' + esc(c.dest || '') + '</span>'
       + '<span class="ov-tid">' + clk(c.depTs) + '</span>'
       + '<span class="ov-dom ' + (_DOM_KLASSE[dom] || '') + '">' + esc(dom) + '</span></div>';
@@ -1898,12 +1895,8 @@ export function relevanteStopp(stopp, andre, n, forrige, viktigAv) {
   if (behold.length === maks) return behold;
   const modus = s => normMode(((s && s.modes) || [])[0] || '');
   const sett = new Set(stopp ? [modus(stopp)] : []);
-  const dd = s => s.distM ?? Infinity;
   // Viktighet som tiebreak (v1.218.10): samme avstandsskritt → viktigst får lappen.
-  const etter = (andre || []).filter(s => s && s.lat != null).slice().sort((a, b) =>
-    (viktigAv ? (Math.floor(dd(a) / LIK_AVSTAND_M) - Math.floor(dd(b) / LIK_AVSTAND_M))
-      || sammenlignViktighet(viktighet(a, viktigAv(a)), viktighet(b, viktigAv(b))) : 0)
-    || (dd(a) - dd(b)));
+  const etter = (andre || []).filter(s => s && s.lat != null).slice().sort(nærViktigFørst(viktigAv));
   const valgt = behold.slice();
   behold.forEach(s => sett.add(modus(s)));
   etter.forEach(s => { if (valgt.length < maks && !valgt.includes(s) && !sett.has(modus(s))) { valgt.push(s); sett.add(modus(s)); } });
@@ -2247,14 +2240,17 @@ function _renderMap() {
   // alternatives are folded shut by default (_stopsShown), so when the app
   // has guessed the wrong stop the reader has to find a disclosure triangle
   // to discover it. On the map the mistake is visible immediately.
+  // Det viktigste av de andre stoppene (v1.218.11): stor nål og fast lapp.
+  const viktigst = others.slice().sort(nærViktigFørst(s => stoppInfo(s.id)))[0];
   others.forEach(s => {
     if (s.lat == null) return;
+    const fast = relevante.includes(s) || s === viktigst;
     L.marker([s.lat, s.lon], {
-      icon: makeStopIcon(normMode((s.modes || [])[0]), (s.modes || []).length),
+      icon: makeStopIcon(normMode((s.modes || [])[0]), (s.modes || []).length, { viktig: s === viktigst }),
       keyboard: false,
     })
       // Gangtid med fast merkelapp på de relevante, prikk med verktøytips på resten.
-      .bindTooltip(gangLapp(s), { className: relevante.includes(s) ? lappKlasse : 'map-label', direction: 'top', offset: [0, -8], permanent: relevante.includes(s) })
+      .bindTooltip(gangLapp(s), { className: fast ? lappKlasse : 'map-label', direction: 'top', offset: [0, -8], permanent: fast })
       .on('click', () => pinStop(s.id))
       .addTo(_aLayer);
   });

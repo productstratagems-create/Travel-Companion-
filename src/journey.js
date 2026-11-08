@@ -110,6 +110,8 @@ export function legsFromTrip(c, dir) {
         lineCode:    (legLine && legLine.publicCode) || '?',
         lineRef:     (legLine && legLine.id) || null,
         lineBg:      legLbg ? '#' + legLbg : '#7c2d12',
+        // Tilbyderens egen tekstfarge (v1.218.12) — samme merke underveis som på tavla.
+        lineFg:      (legLine && legLine.presentation && legLine.presentation.textColour) || null,
         mode:        leg.mode || 'metro',
         frontText:   (leg.fromEstimatedCall && leg.fromEstimatedCall.destinationDisplay && leg.fromEstimatedCall.destinationDisplay.frontText) || leg.toPlace.name,
         journeyId:   legSj && legSj.id,
@@ -162,6 +164,7 @@ export function legsFromTrip(c, dir) {
       lineCode:    (sj && sj.line && sj.line.publicCode) || config.line,
       lineRef:     (sj && sj.line && sj.line.id) || null,
       lineBg:      lbg ? '#' + lbg : '#7c2d12',
+      lineFg:      (sj && sj.line && sj.line.presentation && sj.line.presentation.textColour) || null,
       mode:        'metro',
       frontText:   (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to,
       journeyId:   sj && sj.id,
@@ -262,6 +265,7 @@ export function saveJny() {
         // the same stop.
         lineRef:     leg.lineRef || null,
         lineBg:      leg.lineBg,
+        lineFg:      leg.lineFg || null,
         mode:        leg.mode,
         frontText:   leg.frontText,
         journeyId:   leg.journeyId,

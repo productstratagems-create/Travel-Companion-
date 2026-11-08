@@ -1,3 +1,4 @@
+import { linjemerke } from '../ui/linjemerke.js';
 import config from '../config.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
@@ -68,7 +69,7 @@ function _resultHtml(meta) {
       + '</div>';
   }).join('');
   return '<div class="spec-summary">'
-    + (meta.lineCode ? '<span class="line-badge" style="background:' + (meta.lineBg || '#7c2d12') + '">' + esc(meta.lineCode) + '</span>' : '')
+    + (meta.lineCode ? linjemerke({ kode: meta.lineCode, farge: meta.lineBg, linjeId: meta.lineRef, modus: meta.mode }) : '')
     + '<span class="tb-dest">' + esc(meta.dest || '') + '</span>'
     + (meta.cancelled
       ? '<span class="dep-cancelled">innstilt</span>'

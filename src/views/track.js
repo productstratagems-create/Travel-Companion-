@@ -1,3 +1,4 @@
+import { linjemerke } from '../ui/linjemerke.js';
 import config from '../config.js';
 import { stopKey } from '../stopId.js';
 import { stopsUntil, alightEyebrow, visteMinutter, minutterIgjen, erFramme } from '../api/alight.js';
@@ -722,12 +723,11 @@ export function _renderArrBoardHtml() {
   return arrRows(_arrBoard, _arrivalDate().getTime(), loadWalkBuffer(),
     (state.jny && state.jny.arrQuay) || null).map(({ c, mins, rcls }) => {
     const lc = (c.ln && c.ln.publicCode) || '?';
-    const bg = (c.ln && c.ln.presentation && c.ln.presentation.colour) ? '#' + c.ln.presentation.colour : '#7c2d12';
     const minsHtml = mins <= 0 ? 'NÅ' : mins + '<span>min</span>';
     return '<div class="hn-arr-row ' + rcls + (c.cancelled ? ' cancelled' : '') + '">'
       + '<div class="hn-arr-mins">' + minsHtml + '</div>'
       + '<div class="hn-arr-mid">'
-      + '<span class="line-badge" style="background:' + bg + '">' + lc + '</span>'
+      + linjemerke({ kode: lc, farge: c.ln && c.ln.presentation && c.ln.presentation.colour, tekst: c.ln && c.ln.presentation && c.ln.presentation.textColour, linjeId: c.ln && c.ln.id, modus: c.ln && c.ln.transportMode })
       + '<span class="hn-arr-dest">' + esc(c.dest) + '</span>'
       + (c.cancelled ? '<span class="dep-cancelled">innstilt</span>' : '')
       // Said, not hidden: you can choose to run.
@@ -788,7 +788,7 @@ function _initArrMap(arrLL) {
   const arrCode = (jLast && jLast.lineCode) || '?';
   const arrBg   = (jLast && jLast.lineBg)   || '#7c2d12';
   const arrMode = (jLast && jLast.mode)      || 'metro';
-  L.marker([arrLL.lat, arrLL.lon], { icon: _makeTransitStopIcon(arrCode, arrBg, arrMode) }).addTo(_arrMap);
+  L.marker([arrLL.lat, arrLL.lon], { icon: _makeTransitStopIcon(arrCode, arrBg, arrMode, jLast && jLast.lineRef) }).addTo(_arrMap);
   _fitArrMap(arrLL);
 
 }
@@ -969,12 +969,12 @@ const _VEHICLE_NOUN = VEHICLE_NOUN;
 const _VEHICLE_WORD = VEHICLE_WORD;
 const _MODE_PIN = MODE_PIN;
 
-function _makeTransitStopIcon(code, bg, mode) {
+function _makeTransitStopIcon(code, bg, mode, linjeId) {
   // Anything unrecognised used to be labelled T-BANE, so a ferry pin said
   // metro. One table, and an unknown mode says nothing rather than a lie.
   const modeLabel = _MODE_PIN[mode] || '';
   const html = '<div style="text-align:center;line-height:1;white-space:nowrap;transform:translate(-50%,-50%)">'
-    + '<span class="line-badge" style="background:' + bg + ';font-size:13px;padding:4px 9px">' + code + '</span>'
+    + linjemerke({ kode: code, farge: bg, linjeId, modus: mode, stil: 'font-size:13px;padding:4px 9px' })
     + '<div style="font-size:8px;color:#444;font-family:JetBrains Mono,monospace;letter-spacing:.08em;margin-top:3px">' + modeLabel + '</div>'
     + '</div>';
   return L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] });
@@ -1968,7 +1968,7 @@ export function renderTrack() {
       });
       const visStopp = stopsLeft > 0 && avDom.kind !== 'na';
       headerHtml = '<div class="ct-detail">'
-        + '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
+        + linjemerke({ kode: leg.lineCode, farge: leg.lineBg, tekst: leg.lineFg, linjeId: leg.lineRef, modus: leg.mode })
         + '<span class="ct-dest">' + leg.frontText + '</span>'
         + '</div>'
         /* «N stopp igjen» FLYTTET HIT, opp på raden den hører til.
@@ -2019,7 +2019,7 @@ export function renderTrack() {
         return Math.round((new Date(leg.depTime.time).getTime() - new Date(leg._aimedDepTime).getTime()) / 60000);
       })();
       headerHtml = '<div class="ct-detail">'
-        + '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
+        + linjemerke({ kode: leg.lineCode, farge: leg.lineBg, tekst: leg.lineFg, linjeId: leg.lineRef, modus: leg.mode })
         + (leg.frontText ? '<span class="ct-dest">' + leg.frontText + '</span>' : '')
         + (nextLegDelayMins > 1 ? '<span class="ct-delay-tag">+' + nextLegDelayMins + ' min</span>' : '')
         + '</div>'
@@ -2088,7 +2088,7 @@ export function renderTrack() {
         + '<div class="alight-card-eyebrow">' + esc(eb.label) + '</div>'
         + '<div class="alight-card-stop">' + esc(displayStn(leg.toStation)) + '</div>'
         + '<div class="alight-card-next">'
-        + '<span class="line-badge" style="background:' + nextLeg.lineBg + '">' + nextLeg.lineCode + '</span>'
+        + linjemerke({ kode: nextLeg.lineCode, farge: nextLeg.lineBg, tekst: nextLeg.lineFg, linjeId: nextLeg.lineRef, modus: nextLeg.mode })
         + (nextLeg.frontText ? '<span class="alight-next-dest">' + nextLeg.frontText + '</span>' : '')
         + '</div>'
         + '<div class="alight-card-meta">'
@@ -2335,7 +2335,7 @@ function _renderJourneyStrip(now, cs, legs) {
 export function buildTrackBar() {
   const legs = (state.jny && state.jny.legs) || [];
   const badges = legs.map(leg =>
-    '<span class="line-badge" style="background:' + leg.lineBg + '">' + leg.lineCode + '</span>'
+    linjemerke({ kode: leg.lineCode, farge: leg.lineBg, tekst: leg.lineFg, linjeId: leg.lineRef, modus: leg.mode })
   ).join('<span class="transfer-arrow" aria-hidden="true">→</span>');
   const firstDep = legs[0] && legs[0].depTime;
   document.getElementById('t-train-bar').innerHTML =

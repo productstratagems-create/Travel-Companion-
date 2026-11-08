@@ -1,3 +1,4 @@
+import { linjemerke } from '../ui/linjemerke.js';
 import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent } from '../api/plan.js';
 import { shareLegCalendar } from '../api/calShare.js';
 import { placeName, placeLL, samePlace } from '../api/place.js';
@@ -149,8 +150,8 @@ async function _renderPlanMap(legs) {
     // Destination / transfer stop: line-badge marker
     if (toCoord) {
       const badgeHtml = '<div style="text-align:center;transform:translate(-50%,-50%)">'
-        + '<span class="line-badge" style="background:' + color + ';font-size:11px;padding:3px 7px">'
-        + leg.line + '</span></div>';
+        + linjemerke({ kode: leg.line, farge: color, linjeId: leg.lineId, modus: leg.mode, stil: 'font-size:11px;padding:3px 7px' })
+        + '</div>';
       const icon = L.divIcon({ className: '', html: badgeHtml, iconSize: [0, 0], iconAnchor: [0, 0] });
       L.marker([toCoord.lat, toCoord.lon], { icon })
         .bindTooltip(placeName(leg.to).toLowerCase(), { className: 'map-label', direction: 'top' })
@@ -223,7 +224,7 @@ export function updatePlanCtx() {
   el.innerHTML =
     '<button class="pctx-main" aria-label="Se reise underveis">'
     + '<span class="pctx-label">etappe ' + n + '</span>'
-    + '<span class="line-badge pctx-badge" style="background:#' + last.lineColour + '">' + last.line + '</span>'
+    + linjemerke({ kode: last.line, farge: last.lineColour, linjeId: last.lineId, modus: last.mode, klasse: 'pctx-badge' })
     + '<span class="pctx-dest">' + placeName(last.to).toLowerCase() + '</span>'
     + (arrTs ? '<span class="pctx-arr">ank. ' + clkDay(arrTs) + '</span>' : '')
     + '<span id="pctx-status" class="' + statusClass + '">' + statusText + '</span>'
@@ -360,7 +361,7 @@ export function renderPlan() {
           + ' aria-label="Legg etappen i kalenderen med alarm når du må gå">🔔</button>'
         : '')
       + '<div class="plan-leg-top">'
-      + '<span class="line-badge" style="background:#' + leg.lineColour + '">' + leg.line + '</span>'
+      + linjemerke({ kode: leg.line, farge: leg.lineColour, linjeId: leg.lineId, modus: leg.mode })
       + '<div class="plan-leg-route">'
       + '<div class="plan-leg-from">' + placeName(leg.from).toLowerCase() + '</div>'
       + '<div class="plan-leg-to">' + placeName(leg.to).toLowerCase() + '</div>'

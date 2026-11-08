@@ -23,6 +23,7 @@
  *
  * Ren funksjon: data inn, HTML ut. Prøves uten DOM.
  */
+import { linjemerke } from './linjemerke.js';
 import { esc, clk as klokke } from './fmt.js';
 import { legShape, legEnds } from '../api/adapt.js';
 import { reachCls } from '../geo.js';
@@ -191,8 +192,7 @@ export function reiselop(alle, o) {
     deler.push('<div class="rl-etappe" data-rl="e' + k + '" style="--rl-farge:' + esc(farge) + '">'
       + '<div class="rl-stopp rl-på"><span class="rl-tid">' + tid(fra(l)) + '</span>'
       + '<span class="rl-navn"><b>' + esc(visStopp(e.fra)) + '</b>' + (påPl ? ' · ' + esc(påPl) : '') + '</span></div>'
-      + '<div class="rl-linje"><span class="line-badge" style="background:' + esc(farge) + '">'
-      + esc(line.publicCode || '?') + '</span>'
+      + '<div class="rl-linje">' + linjemerke({ kode: line.publicCode, farge, linjeId: line.id, modus: l.mode })
       + (front ? '<span class="rl-mot">mot ' + esc(front) + '</span>' : '')
       + (n ? '<span class="rl-antall">· ' + n + ' stopp</span>' : '') + '</div>'
       + '<div class="rl-stopp rl-av"><span class="rl-tid">' + tid(til(l)) + '</span>'

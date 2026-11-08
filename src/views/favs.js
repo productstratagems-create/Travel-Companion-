@@ -1,3 +1,4 @@
+import { linjemerke } from '../ui/linjemerke.js';
 import config from '../config.js';
 import { state } from '../state.js';
 import { loadFavs, removeFav, favToDir, markFavUsed } from '../ui/favs.js';
@@ -39,10 +40,9 @@ export function renderFavs() {
   if (timed.length) {
     html += '<div class="fav-section-label">avganger</div>';
     timed.forEach(f => {
-      const bg = '#' + (f.lineColour || '7c2d12');
       html += '<div class="fav-card">'
         + '<div class="fav-timed-sel" onclick="window._loadFavRoute(\'' + f.id + '\')">'
-        + '<span class="line-badge" style="background:' + bg + '">' + esc(f.line || '?') + '</span>'
+        + linjemerke({ kode: f.line, farge: f.lineColour, linjeId: f.lineId, modus: f.mode })
         + '<span class="fav-timed-time">' + esc(f.departureHHMM) + '</span>'
         + '<span class="fav-timed-route">' + esc(f.from) + ' → ' + esc(f.to) + '</span>'
         + '</div>'

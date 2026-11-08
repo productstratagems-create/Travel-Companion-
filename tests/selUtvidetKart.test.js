@@ -36,6 +36,6 @@ describe('begge skjermene bruker regelen', () => {
     expect(readFileSync(f, 'utf8')).toMatch(/bindMapExpand\([^;]*\{ onToggle: \(open\) => fitExpandedMap\(mapEl, open\) \}\)/);
   });
   it('map.js gir skjermen beskjed', () => {
-    expect(readFileSync('src/ui/map.js', 'utf8')).toMatch(/if \(opts\.onToggle\) opts\.onToggle\(open\);/);
+    expect(readFileSync('src/ui/map.js', 'utf8')).toMatch(/if \(opts\.onToggle\) opts\.onToggle\(open, form\);/);
   });
 });

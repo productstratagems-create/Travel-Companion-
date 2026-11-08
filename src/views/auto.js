@@ -24,10 +24,11 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra } from '../api/entur.js';
 import { raskereHer } from '../raskere.js';
+import { rangerMål } from '../maalModell.js';
 import { overganger, arrBoardSpørsmål, ARR_BOARD_ASK } from '../overganger.js';
 import { domFraKlasse, _DOM_KLASSE } from '../ui/reiselop.js';
 import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
-import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke, vaneSetning }
+import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke, vaneSetning, loadSmartHist }
   from '../api/smart.js';
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
@@ -2750,7 +2751,8 @@ function _renderBody() {
   // its time on.
   // Med det lange sporet når det finnes: retningen over minutter, ikke sekunder.
   const dests = destinations(live, freq, walkMins, now, _stop && _stop.name,
-    (state.posTrailLang && state.posTrailLang.length >= 2) ? state.posTrailLang : state.posTrail);
+    (state.posTrailLang && state.posTrailLang.length >= 2) ? state.posTrailLang : state.posTrail,
+    { her: _stop, hist: loadSmartHist() });
   // Samme kort og samme alternativ som kortets overskrift: kartet og kortet
   // skal vise samme reise.
   const k0 = dests[0], o0 = k0 && k0.options && k0.options[0];
@@ -3242,6 +3244,8 @@ export function kortHtml(x, n) {
     + '<span class="auto-dest-name">' + esc(x.name) + '</span>'
     + '<span class="auto-dest-at">' + esc('framme ' + clk(o.at)) + '</span>'
     + '</span>'
+    // Hvorfor dette står her (src/maalModell.js), når det er noe å si.
+    + (x.grunn ? '<span class="auto-dest-grunn">' + esc(x.grunn) + '</span>' : '')
     /* Tellingen INNE i samme avsnitt, ikke som et eget barn. Kommentaren i
      * settings.css:731 forklarer hvorfor: som høyrestilt flex-barn brøt
      * leserekkefølgen på 414 px, og som egen blokk-linje ble den et nytt
@@ -3269,7 +3273,7 @@ export function kortHtml(x, n) {
  */
 export const RETNING_RANG = { mot: 0, staar: 1, 'vet-ikke': 1, fra: 2 };
 
-export function destinations(live, freq, walkMins, now, fromName, trail) {
+export function destinations(live, freq, walkMins, now, fromName, trail, modell) {
   const hist = (freq || []).filter(p => p && p.name);
   if (!hist.length) return [];
   // The index is built the way stopShortcuts builds it, from the same fields,
@@ -3307,8 +3311,16 @@ export function destinations(live, freq, walkMins, now, fromName, trail) {
     .map(x => ({ ...x, options: x.options.slice().sort((a, b) => a.at - b.at) }))
     .map(x => ({ ...x, retning: (trail && trail.length && Number.isFinite(x.lat))
       ? approach(trail, { lat: x.lat, lon: x.lon }).kind : 'vet-ikke' }))
+    // HVOR DU MEST SANNSYNLIG SKAL NÅ (src/maalModell.js): ditt mønster for
+    // tid og dagtype blandet med det vanlige mønsteret. Bevegelsen går foran.
+    .map((x, _, alle) => {
+      if (!modell) return x;
+      if (!alle._r) alle._r = new Map(rangerMål(alle, { nå: now, her: modell.her, hist: modell.hist }).map(r => [r.kort.name, r]));
+      const r = alle._r.get(x.name);
+      return { ...x, p: r ? r.p : 0, grunn: x.retning === 'mot' ? 'på vei dit' : (r ? r.grunn : '') };
+    })
     .sort((a, b) => (RETNING_RANG[a.retning] - RETNING_RANG[b.retning])
-      || b.uses - a.uses || a.name.localeCompare(b.name, 'nb'))
+      || ((b.p || 0) - (a.p || 0)) || b.uses - a.uses || a.name.localeCompare(b.name, 'nb'))
     .slice(0, DEST_BLOCK);
 }
 

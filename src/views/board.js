@@ -299,6 +299,16 @@ export function _rowQuay(c, byJourney, kaier) {
  * What you board. Used for the icon, the row and the corridor's style — all
  * of which are about the vehicle you step onto, so the first leg is right.
  */
+/**
+ * NÅR DU MÅ GÅ fra stoppet ditt (v1.218.16) — én definisjon. Starter reisen med
+ * gange til et annet stopp, er det fotetappens start, ikke bussens avgang:
+ * «4 min igjen» regnet ellers bort de seks minuttene til Mortensrud.
+ */
+export function påstigningTs(c) {
+  const t = c && c._gåTil && c._gåTil.startTid;
+  return t ? new Date(t).getTime() : new Date(c.expectedDepartureTime).getTime();
+}
+
 function _depMode(dep) {
   if (dep._legs && dep._legs[0]) return normMode(dep._legs[0].mode);
   const ln = dep.serviceJourney && dep.serviceJourney.line;
@@ -3078,7 +3088,7 @@ export function renderBoard() {
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
     const arr = findArr(sjc, dir.to, { etter: dir.from });
     const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
-    const mtl = walkActive ? mToLeave(depTs) : null;
+    const mtl = walkActive ? mToLeave(påstigningTs(c)) : null;
     const rcls = walkActive ? reachCls(mtl) : null;
     const isRail = _depMode(c) === 'rail';
     // `erInnstilt`: kallet ELLER hele turen. `c.cancellation` alene overså
@@ -3258,6 +3268,7 @@ export function renderBoard() {
       + '</div>'
       + '<div class="dep-info">'
       + '<span class="dep-dest">' + esc(dest) + '</span>'
+
       // Plain `.dep-tag`, the same treatment "1 bytte" gets — it is the same
       // kind of statement: a fact about the shape of this journey, not a
       // warning. The two modifier classes that exist (-soft, -at) each carry
@@ -3295,6 +3306,11 @@ export function renderBoard() {
        *
        * Samme sted som nedtellingen, fordi det er samme spørsmål besvart:
        * «når må jeg gå» har svaret «det er for sent». */
+      /* GANGEN TIL STOPPET DU FAKTISK GÅR PÅ (v1.218.16), på EGEN linje. Som
+       * tagg i infolinja presset den destinasjonen ut av raden i proben
+       * («Jernbanet…», og på 74 forsvant den helt) — samme feil som «bytte
+       * innstilt» hadde. Det avgjørende skal stå. */
+      + (c._gåTil ? '<div class="dep-gaa">gå ' + c._gåTil.min + ' min til ' + esc(c._gåTil.navn) + '</div>' : '')
       + (rekkeTekst(rcls)
         ? '<div class="dep-reach missed">' + esc(rekkeTekst(rcls)) + '</div>'
         : '')
@@ -3309,7 +3325,9 @@ export function renderBoard() {
           })()
         : '')
       + '</div>'
-      + '<div class="dep-spor' + (isRail ? ' dep-spor-rail' : '') + '"><div class="sl">spor</div><div class="sn">' + quay + '</div></div>'
+      + '<div class="dep-spor' + (isRail ? ' dep-spor-rail' : '') + '"'
+      + (c._gåTil ? ' title="spor ' + esc(quay) + ' på ' + esc(c._gåTil.navn) + '" aria-label="spor ' + esc(quay) + ' på ' + esc(c._gåTil.navn) + '"' : '')
+      + '><div class="sl">spor</div><div class="sn">' + quay + '</div></div>'
       + '</div>';
   });
   // The list is its own scroller now, and this rebuild happens every second.

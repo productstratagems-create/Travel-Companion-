@@ -337,6 +337,26 @@ export function adaptTripPattern(tp) {
       // distinct from 0, which means "it does, but it rounds to nothing".
       // The reader of this decides what to show; the adapter only reports.
       _alightName:       last.toPlace.name,
+      /* OG GANGEN I STARTEN (v1.218.16). Rapportert: «Olasrudveien er ikke en
+       * holdeplass på denne ruten, men appen later som om den er det.» OTP
+       * svarte gange 429 m til Mortensrud, så 74 fra spor E — og gangen ble
+       * filtrert bort over, så raden sto under Olasrudveien med Mortensruds
+       * spor. Samme form som gangen på slutten: stedet og minuttene (OTP har
+       * brukt din ganghastighet), og når du må gå. null når du går på der du er. */
+      _gåTil:            (() => {
+        const f = all[0];
+        // Bare navnet avgjør. Er første etappe ikke gange, er den selve
+        // kjøretøyet og navnene like — en egen sjekk av `mode` kunne aldri
+        // utgjøre en forskjell (mutasjonstesten viste det).
+        if (!f) return null;
+        const navn = first.fromPlace && first.fromPlace.name;
+        const fra = f.fromPlace && f.fromPlace.name;
+        if (!navn || navn === fra) return null;
+        const a = f.expectedStartTime || f.aimedStartTime;
+        const b = f.expectedEndTime || f.aimedEndTime;
+        const min = a && b ? Math.max(0, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000)) : null;
+        return { navn, min, startTid: a || null };
+      })(),
       _alightWalkMins:   (() => {
         if (lastAny.mode !== 'foot') return null;
         const a = lastAny.expectedStartTime || lastAny.aimedStartTime;

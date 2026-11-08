@@ -59,3 +59,35 @@ export function fetchNearbyStops(lat, lon) {
       return stops;
     });
 }
+
+/* LINJER PER HOLDEPLASS (v1.218.6). Geokoderen sier hvor en holdeplass er,
+ * ikke hva som går der. Kartet trenger det siste for å vise bare holdeplasser
+ * som gir en linje ingen nærmere har. Én spørring for alle, husket per id. */
+const _linjer = new Map();
+export function _resetStoppLinjer() { _linjer.clear(); }
+
+/** Svar → Map(id → [linje-id …]), alle plattformene slått sammen. */
+export function linjerFraSvar(j) {
+  const m = new Map();
+  ((j && j.data && j.data.stopPlaces) || []).forEach(sp => {
+    if (!sp || !sp.id) return;
+    const ids = [];
+    (sp.quays || []).forEach(q => (q && q.lines || []).forEach(l => { if (l && l.id && !ids.includes(l.id)) ids.push(l.id); }));
+    m.set(sp.id, ids);
+  });
+  return m;
+}
+
+/** @returns {Promise<Map|null>} `null` når vi ikke fikk svar — da skjules ingenting. */
+export function fetchStoppLinjer(ids) {
+  const nye = [...new Set((ids || []).filter(id => id && !_linjer.has(id)))];
+  if (!nye.length) return Promise.resolve(_linjer);
+  const q = '{ stopPlaces(ids:' + JSON.stringify(nye) + ') { id quays { lines { id } } } }';
+  return enturFetch(config.api.journeyPlanner, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }),
+  })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(j => { linjerFraSvar(j).forEach((v, k) => _linjer.set(k, v)); return _linjer; })
+    .catch(() => null);
+}
+export function stoppLinjer(id) { return _linjer.get(id); }

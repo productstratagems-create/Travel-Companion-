@@ -47,6 +47,7 @@ import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
 import { byLine } from '../api/situations.js';
 import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
+import { fetchStoppLinjer, stoppLinjer } from '../api/stops.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
@@ -1881,6 +1882,27 @@ export function relevanteStopp(stopp, andre, n, forrige) {
 }
 
 /**
+ * UNIKE HOLDEPLASSER (v1.218.6). Bestilt: «Kartet trenger kun å vise
+ * holdeplasser som tilbyr unike ruter, ingen grunn til å vise holdeplasser for
+ * ruter og linjer som betjenes av en holdeplass nærmere brukers posisjon.»
+ *
+ * Fra nærmest til fjernest, stoppet du er ved først: en holdeplass vises bare
+ * når den har en linje ingen NÆRMERE har. Ukjente linjer (`undefined`) skjules
+ * aldri — vi vet ikke at den er overflødig. Linje-id sier ikke retning.
+ */
+export function unikeStopp(stopp, andre, linjerAv) {
+  const sett = new Set(((stopp && linjerAv(stopp.id)) || []));
+  const vis = [], skjult = [];
+  (andre || []).slice().sort((a, b) => (a.distM ?? Infinity) - (b.distM ?? Infinity)).forEach(s => {
+    const l = linjerAv(s.id);
+    if (!Array.isArray(l)) { vis.push(s); return; }
+    if (l.some(x => !sett.has(x))) vis.push(s); else skjult.push(s);
+    l.forEach(x => sett.add(x));
+  });
+  return { vis, skjult };
+}
+
+/**
  * Punktene speilet om deg: med dem i utsnittet legger `fitBounds` deg i
  * midten og viser likevel alle punktene. Bestilt: «Sentrert på brukers
  * posisjon.»
@@ -1908,6 +1930,9 @@ export function kartForm() { try { return storage.get(FORM_KEY) === 'bred' ? 'br
 export function settKartForm(f) { if (f === 'full') return; try { storage.set(FORM_KEY, f === 'bred' ? 'bred' : ''); } catch { /* */ } }
 
 let _relevanteSist = [];
+let _linjerVenter = false;
+let _linjerFeilet = false;
+let _visLike = false;
 let _tegning = 0;
 
 function _renderMap() {
@@ -2005,7 +2030,24 @@ function _renderMap() {
     : null;
   // LITE ANNET: med en kortrute tegnes ikke de andre stoppene. De ligger
   // fortsatt bak «7 ▾» under «du er ved».
-  const others = (!_open && _stop && !kortLinje) ? nearbyAlternatives(_stops(), _stop) : [];
+  const alle = (!_open && _stop && !kortLinje) ? nearbyAlternatives(_stops(), _stop) : [];
+  // UNIKE: holdeplasser med bare linjer en nærmere holdeplass har, foldes inn
+  // under kartet — ikke kastet, ett trykk unna. Linjene hentes én gang per id;
+  // til de er her (eller om spørringen feiler) vises alle, som før.
+  const mangler = [_stop, ...alle].filter(s => s && s.id && stoppLinjer(s.id) === undefined).map(s => s.id);
+  if (mangler.length && !_linjerVenter && !_linjerFeilet) {
+    _linjerVenter = true;
+    fetchStoppLinjer(mangler).then(m => { _linjerVenter = false; if (m) { _aKey = ''; _renderMap(); } else { _linjerFeilet = true; logMsg('linjer per holdeplass: ikke svar — viser alle', 'warn'); } });
+  }
+  const { vis: unike, skjult: like } = unikeStopp(_stop, alle, stoppLinjer);
+  const others = _visLike ? alle : unike;
+  const flere = _el('auto-map-flere');
+  if (flere) {
+    flere.hidden = !like.length;
+    flere.textContent = _visLike ? '▾ skjul holdeplasser med samme linjer nærmere'
+      : '▸ ' + like.length + (like.length === 1 ? ' holdeplass' : ' holdeplasser') + ' til med samme linjer nærmere · vis';
+    if (!flere._bundet) { flere._bundet = true; flere.addEventListener('click', () => { _visLike = !_visLike; _aKey = ''; _renderMap(); }); }
+  }
   // The zoom is part of the content, because readability is. Culled beads must
   // come back when the reader pinches in — without this the map answers for
   // the zoom it was drawn at for the rest of the screen's life.

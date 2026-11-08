@@ -74,7 +74,7 @@ describe('kartet', () => {
   it('og tegner ikke de andre stoppene når kortet har en rute', () => {
     const i = src().indexOf('function _renderMap');
     expect(src().slice(i, i + 3000))
-      .toMatch(/const others = \(!_open && _stop && !kortLinje\) \? nearbyAlternatives/);
+      .toMatch(/const alle = \(!_open && _stop && !kortLinje\) \? nearbyAlternatives/);
   });
 
   /* Et kort fra et stopp du har gått fra skal ikke bli stående på kartet.

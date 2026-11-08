@@ -233,6 +233,45 @@ henne. Det er samme invariant `eventLog.js` alltid har båret for loggen —
 
 ---
 
+## Undersøkt og utsatt: pris og «kilopris» (2026-11-08)
+
+Forslag: sammenligne reiser på pris per km eller personkilometer, slik
+dagligvarer sammenlignes på kilopris, og regne ut prisen for spart tid.
+**Svaret er at åpne data ikke har priser.** Alt under er hentet fra
+tjenestene, ikke fra hukommelsen, unntatt der det står noe annet.
+
+| kilde | hva den har | pris? |
+|---|---|---|
+| Journey Planner v3 (hele skjemaet gjennomgått) | `tariffZones` per holdeplass og kvai, `Authority.fareUrl` | **nei.** Mortensrud og Jernbanetorget: begge «RUT sone 1». `fareUrl` er `null` for Ruter og Vy |
+| Offers API (`api.entur.io/offers/v2`) | billettilbud og priser | **bak avtale.** Svarer 401 uten innlogging. Partner-API med OAuth2 client credentials fra partnerportalen. Avtalekravet er hentet fra Enturs dokumentasjon via søk, fordi siden er stengt fra sandkassen |
+| NeTEx-eksport, Ruter (78 MB, 394 filer) og Vy (6 MB, 25 filer) | rutedata: 73 838 og 8 327 ServiceJourney | **nei.** 0 FareFrame, FareTable, FareZone, TariffZone, PreassignedFareProduct, SalesOfferPackage, Price, Amount, DistanceMatrixElement og UsageParameter |
+
+**Hvorfor dette stopper funksjonen:**
+- **Nøkkelen kan ikke skjules.** En partnernøkkel må holdes hemmelig. Appen har
+  ingen server, så nøkkelen ville ligget åpent i nettleseren.
+- **Takstsoner alene gir ingen pris.** Sonene sier bare at en reise er
+  innenfor sone 1, ikke hva den koster.
+
+**Og selv med pris ville tallet villedet.** Med sonepris koster en tur det samme
+uansett lengde innenfor sonen. Kroner per km sier da mer om billettypen enn om
+tilbudet, og med periodebillett er prisen per tur i praksis null.
+
+**PULL:** P og U er svake. Den som står på perrongen har som regel allerede
+billett, og velger avgang, ikke pris.
+
+**Ikke undersøkt:**
+- om Ruter eller Vy har egne åpne pris-API-er;
+- Enturs egen eksport av takstsoner (`/netex/fare-zones`).
+
+**Den eneste veien uten avtale** er en priseliste lagt inn for hånd, for eksempel
+Ruters enkeltbillett per antall soner. Den må vedlikeholdes ved hver
+prisendring. Utsatt, til noen trenger pris i valget av avgang.
+
+Det som *kan* bygges av data appen alt har, er tidsdelen: «X min raskere»
+mellom alternativene.
+
+---
+
 ## Vurdert og utsatt: bestillingstransport (Flex)
 
 Gjennomgangen av Journey Planner-integrasjonen (v1.194.0) fant at

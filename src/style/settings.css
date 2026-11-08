@@ -861,3 +861,5 @@
 .auto-dest-grunn{display:block;font-size:11px;color:var(--text-soft);letter-spacing:.02em;margin-top:.1rem}
 /* Retningsgruppen i motsatt retning av det vanlige mønsteret, foldet (v1.218.1). */
 #v-auto .auto-side-fold>summary{cursor:pointer;list-style:revert}
+/* Merkelapp som krasjet med en annen (v1.218.2): skjult, ikke fjernet. */
+#auto-map .leaflet-tooltip.lapp-skjult{display:none}

@@ -541,3 +541,20 @@ export function retileMaps() {
 // Swap basemaps the moment the theme does, so a light canvas never lingers
 // under a dark UI.
 onThemeChange(retileMaps);
+
+/**
+ * Faste merkelapper i `el` som overlapper en tidligere: skjult (klassen
+ * `lapp-skjult`), så den viser seg som verktøytips ved trykk i stedet.
+ * Første merkelapp vinner. Returnerer hvor mange som ble skjult.
+ */
+export function ryddMerkelapper(el) {
+  const lapper = [...(el ? el.querySelectorAll('.leaflet-tooltip.map-label') : [])];
+  const tatt = [];
+  let skjult = 0;
+  lapper.forEach(t => {
+    const r = t.getBoundingClientRect();
+    if (tatt.some(a => r.left < a.right && a.left < r.right && r.top < a.bottom && a.top < r.bottom)) { t.classList.add('lapp-skjult'); skjult++; }
+    else tatt.push(r);
+  });
+  return skjult;
+}

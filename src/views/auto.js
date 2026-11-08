@@ -51,7 +51,7 @@ import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
 import L from 'leaflet';
-import { createMap, drawWalk, userDot, drawStopLine } from '../ui/map.js';
+import { createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper } from '../ui/map.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
 import { ensureApproach, approachPoints, AT_STOP_M } from '../api/approach.js';
 import { centreward, CENTRE_LABEL } from '../api/centre.js';
@@ -1878,23 +1878,6 @@ export function relevanteStopp(stopp, andre, n) {
 export function speiletOm(her, pts) {
   if (!her) return pts || [];
   return (pts || []).flatMap(p => [p, [2 * her.lat - p[0], 2 * her.lon - p[1]]]).concat([[her.lat, her.lon]]);
-}
-
-/**
- * Faste merkelapper i `el` som overlapper en tidligere: skjult (klassen
- * `lapp-skjult`), så den viser seg som verktøytips ved trykk i stedet.
- * Første merkelapp vinner. Returnerer hvor mange som ble skjult.
- */
-export function ryddMerkelapper(el) {
-  const lapper = [...(el ? el.querySelectorAll('.leaflet-tooltip.map-label') : [])];
-  const tatt = [];
-  let skjult = 0;
-  lapper.forEach(t => {
-    const r = t.getBoundingClientRect();
-    if (tatt.some(a => r.left < a.right && a.left < r.right && r.top < a.bottom && a.top < r.bottom)) { t.classList.add('lapp-skjult'); skjult++; }
-    else tatt.push(r);
-  });
-  return skjult;
 }
 
 /** Merkelappen: navn og gangtid, eller meter når gangtiden er ukjent. */

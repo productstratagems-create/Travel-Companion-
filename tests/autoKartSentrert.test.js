@@ -49,7 +49,7 @@ describe('koblingen', () => {
 });
 
 describe('merkelapper som krasjer', async () => {
-  const { ryddMerkelapper } = await import('../src/views/auto.js');
+  const { ryddMerkelapper } = await import('../src/ui/map.js');
   it('den første beholdes, en som overlapper skjules, en fri står', () => {
     const el = document.createElement('div');
     el.innerHTML = ['a', 'b', 'c'].map(x => '<div class="leaflet-tooltip map-label">' + x + '</div>').join('');

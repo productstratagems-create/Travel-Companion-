@@ -51,6 +51,24 @@ describe('kortene etter reiseretning', () => {
 describe('koblingen', () => {
   it('auto-reise sender sporet, det lange når det finnes', () => {
     const s = require('node:fs').readFileSync('src/views/auto.js', 'utf8');
-    expect(s).toContain('(state.posTrailLang && state.posTrailLang.length >= 2) ? state.posTrailLang : state.posTrail);');
+    expect(s).toContain('(state.posTrailLang && state.posTrailLang.length >= 2) ? state.posTrailLang : state.posTrail,');
+  });
+});
+
+describe('kortene etter hvor du mest sannsynlig skal nå', () => {
+  // Ski er brukt mest totalt, men det er mandag morgen, og du er i utkanten.
+  const H2 = [{ name: 'Jernbanetorget', count: 3, stopId: 'NSR:StopPlace:JBT', lastUsed: NÅ },
+    { name: 'Ski stasjon', count: 6, stopId: 'NSR:StopPlace:Ski', lastUsed: NÅ }];
+  const her = { name: 'Mortensrud', lat: 59.8494, lon: 10.8294 };
+  it('uten modell: mest brukt først (som før)', () => {
+    expect(destinations(live(), H2, 0, NÅ, 'Mortensrud').map(d => d.name)[0]).toBe('Ski stasjon');
+  });
+  it('hverdagsmorgen: sentrum først, med grunnen', () => {
+    const d = destinations(live(), H2, 0, NÅ, 'Mortensrud', null, { her, hist: [] });   // NÅ er torsdag 07:30
+    expect(d[0].name).toBe('Jernbanetorget');
+    expect(d[0].grunn).toBe('hverdagsmorgen: mot sentrum');
+  });
+  it('og koblingen sender stoppet du er ved og historikken', () => {
+    expect(require('node:fs').readFileSync('src/views/auto.js', 'utf8')).toContain('{ her: _stop, hist: loadSmartHist() });');
   });
 });

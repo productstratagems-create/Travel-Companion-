@@ -857,3 +857,5 @@
 .kb-tab th:nth-child(n+4),.kb-n{width:3rem;text-align:right}
 .kb-actions{display:flex;gap:.5rem;flex-wrap:wrap}
 .kb-btn{flex:1 1 0;padding:.5rem .75rem;margin-top:.5rem;background:none;border:1px solid rgba(var(--border-rgb),.2);border-radius:6px;font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-soft);cursor:pointer}
+/* Hvorfor kortet står her (v1.218.0): stille, under navnet. */
+.auto-dest-grunn{display:block;font-size:11px;color:var(--text-soft);letter-spacing:.02em;margin-top:.1rem}

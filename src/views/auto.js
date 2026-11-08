@@ -1792,7 +1792,10 @@ export function mapKey(stop, userPos, others, walkPts, open) {
   const r = v => (v == null ? '-' : v.toFixed(4));
   return [
     stop ? stop.id : '-',
-    userPos ? r(userPos.lat) + ',' + r(userPos.lon) : '-',
+    /* ~100 M, IKKE ~11. Rapportert: kartet zoomet inn, viste gangtid i et
+     * sekund og «snappet tilbake». Hver GPS-fiks flyttet posisjonen litt,
+     * nøkkelen endret seg, og kartet ble tegnet helt på nytt hvert sekund. */
+    userPos ? userPos.lat.toFixed(3) + ',' + userPos.lon.toFixed(3) : '-',
     others.length,
     walkPts ? walkPts.length : 0,
     // WHICH DIRECTION IS OPEN, AND HOW MANY STOPS ARE STILL AHEAD.
@@ -1859,13 +1862,19 @@ export function openLine(dir) {
  * fortsatt som prikker: foldet, ikke fjernet.
  */
 export const RELEVANT_ANDRE = 2;
-export function relevanteStopp(stopp, andre, n) {
+export function relevanteStopp(stopp, andre, n, forrige) {
   const maks = Number.isFinite(n) ? n : RELEVANT_ANDRE;
+  /* STABILT: de som ble valgt sist, beholdes så lenge de fortsatt er i
+   * nærheten. Uten dette byttet valget mellom Olasrudveien, Kantarellen og
+   * P. A. Holms vei hvert sekund mens GPS-en flyttet seg noen meter. */
+  const behold = (andre || []).filter(s => s && s.lat != null && (forrige || []).includes(s.id)).slice(0, maks);
+  if (behold.length === maks) return behold;
   const modus = s => normMode(((s && s.modes) || [])[0] || '');
   const sett = new Set(stopp ? [modus(stopp)] : []);
   const etter = (andre || []).filter(s => s && s.lat != null).slice().sort((a, b) => (a.distM ?? Infinity) - (b.distM ?? Infinity));
-  const valgt = [];
-  etter.forEach(s => { if (valgt.length < maks && !sett.has(modus(s))) { valgt.push(s); sett.add(modus(s)); } });
+  const valgt = behold.slice();
+  behold.forEach(s => sett.add(modus(s)));
+  etter.forEach(s => { if (valgt.length < maks && !valgt.includes(s) && !sett.has(modus(s))) { valgt.push(s); sett.add(modus(s)); } });
   etter.forEach(s => { if (valgt.length < maks && !valgt.includes(s)) valgt.push(s); });
   return valgt;
 }
@@ -1885,6 +1894,9 @@ export function gangLapp(s) {
   const w = walkMinsTo(s);
   return s.name + (w ? ' · ' + w.mins + ' min' : (s.distM != null ? ' · ' + s.distM + ' m' : ''));
 }
+
+let _relevanteSist = [];
+let _tegning = 0;
 
 function _renderMap() {
   const wrap = _el('auto-map-wrap');
@@ -2000,7 +2012,10 @@ function _renderMap() {
 
   // DEG I MIDTEN når ingen retning eller kort er tema: stoppet du er ved og
   // de relevante alternativene, speilet om posisjonen din.
-  const relevante = relevanteStopp(_stop, others);
+  const relevante = relevanteStopp(_stop, others, RELEVANT_ANDRE, _relevanteSist);
+  _relevanteSist = relevante.map(s => s.id);
+  // Hver tegning har sitt nummer, så ryddingen bare ser denne tegningens merkelapper.
+  const lappKlasse = 'map-label lapp-t' + (++_tegning);
   const sentrert = !!(userPos && !line && !kortLinje);
   const rammePts = sentrert
     ? speiletOm(userPos, [_stop, ...relevante].filter(s => s && s.lat != null).map(s => [s.lat, s.lon]))
@@ -2019,7 +2034,7 @@ function _renderMap() {
       icon: makeStopIcon(normMode((_stop.modes || [])[0]), (_stop.modes || []).length, { primary: true }),
     })
       .bindTooltip(sentrert ? gangLapp(_stop) : _stop.name,
-        { className: 'map-label', direction: 'top', offset: [0, -8], permanent: sentrert })
+        { className: sentrert ? lappKlasse : 'map-label', direction: 'top', offset: [0, -8], permanent: sentrert })
       .addTo(_aLayer);
   }
 
@@ -2073,7 +2088,7 @@ function _renderMap() {
       keyboard: false,
     })
       // Gangtid med fast merkelapp på de relevante, prikk med verktøytips på resten.
-      .bindTooltip(gangLapp(s), { className: 'map-label', direction: 'top', offset: [0, -8], permanent: relevante.includes(s) })
+      .bindTooltip(gangLapp(s), { className: relevante.includes(s) ? lappKlasse : 'map-label', direction: 'top', offset: [0, -8], permanent: relevante.includes(s) })
       .on('click', () => pinStop(s.id))
       .addTo(_aLayer);
   });
@@ -2107,7 +2122,7 @@ function _renderMap() {
   // MERKELAPPER SOM KRASJER: den som kommer sist (lavere prioritet), blir et
   // vanlig verktøytips. Stoppet du er ved tegnes først og beholdes. Målt i
   // nettleserprøven: tre faste merkelapper i et 140 px kart overlappet.
-  if (sentrert && typeof requestAnimationFrame === 'function') requestAnimationFrame(() => ryddMerkelapper(el));
+  if (sentrert && typeof requestAnimationFrame === 'function') requestAnimationFrame(() => ryddMerkelapper(el, lappKlasse.split(' ').pop()));
 }
 
 /**

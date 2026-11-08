@@ -1947,7 +1947,13 @@ export function kartFormValgt() { try { const v = storage.get(FORM_KEY); return 
  * så utstrekningen er 2× lengste avstand hver vei, i meter.
  * Hysterese: inn i bred bare med `MARGIN` trinn å gå på — ellers blafrer det
  * når GPS-en flytter deg over en grense. */
-export const FIT_PAD = 26, FIT_MAKS_ZOOM = 17, MARGIN = 0.15;
+/* UTGANGSZOOM (v1.218.8): «Dette er detaljgraden og zoom-nivået kartet her bør
+ * ha som utgangspunkt» — skjermbilde fra Mortensrud, gjenskapt i proben: z=14.
+ * Gatenavn og E6 for sammenheng. Rammen zoomer aldri nærmere; lenger ut bare
+ * når stoppene ellers ikke får plass. Var 17: tett ved holdeplassene ble det
+ * få gater og ingen sammenheng (Lysaker 16, Bislett og Nydalen 15). */
+export const START_ZOOM = 14;
+export const FIT_PAD = 26, FIT_MAKS_ZOOM = START_ZOOM, MARGIN = 0.15;
 const M_PER_GRAD = 111320;
 export function zoomFor(her, pts, [b, h]) {
   const kx = Math.cos(her.lat * Math.PI / 180);

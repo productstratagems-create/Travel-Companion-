@@ -233,6 +233,83 @@ henne. Det er samme invariant `eventLog.js` alltid har båret for loggen —
 
 ---
 
+## Kart over Entur-data (2026-11-08)
+
+Spørsmålet var: «Hva annet har Entur data på som kan være Proven, Better
+eller New?» For å svare ble skjemaet til Journey Planner v3 hentet og
+sammenlignet med `src/api/*.js`. Feltene appen ikke bruker, ble prøvd mot det
+ekte API-et: Mortensrud, Oslo S og reisen Mortensrud → Oslo S. Eksemplene
+under er fra de prøvene. Det som ikke er prøvd, står merket.
+
+### Har data, ikke brukt
+
+| felt | målt eksempel | klasse |
+|---|---|---|
+| `EstimatedCall.empiricalDelay{p50 p90}` | L1 fra Oslo S: p50 0, p90 5 min. RE11: 0 og 2 min. Tomt for mange avganger | New |
+| `ServiceJourney.privateCode` | tognummer: Vy 838, T-bane 8050, buss 278 | Proven |
+| `requestStop`, `extraCall`, `isReplacement`, `forBoarding/forAlighting` | har verdi, alle `false` i prøven | Better |
+| `Leg.elevationProfile` | 13 punkter på 290 m gange, høyde 3,0–5,4 m | Better |
+| `ServiceJourney.operator` | Vy, Go-Ahead Nordic AS, Flytoget | Proven |
+| `ServiceJourney.activeDates` | fra 1 til 37 driftsdager per tur | Better |
+| `transportSubmode` | localBus, metro, airportLinkRail, regionalRail | Proven |
+| `TripPattern.walkTime/waitingTime/streetDistance` | 313 s / 0 s / 338 m | Better |
+| `nearest(filterByPlaceTypes:[bikePark])` | sykkelparkering 66 m fra Mortensrud | Proven |
+
+### Finnes i skjemaet, men tomt eller ubrukelig i dag
+
+- `emission{co2}`, CO₂ per reise og etappe: `null`.
+- `wheelchairAccessible` og `bikesAllowed` på turen: `noInformation`.
+- `vehicleAssignment` (kjøretøy-id og kjøretøytype): `null`.
+- `Line.branding`: `null`.
+- `notices` på avgang, tur og linje: tom i prøven.
+- `BikePark.spacesAvailable`: 2147483647, en fyllverdi, og `realtime: false`.
+- `Authority.fareUrl`: `null` (se pris-avsnittet).
+
+Tomt i dag kan bety tomt i Oslo, ikke i hele landet. Feltene bør prøves på
+nytt før noen bygger på dem.
+
+### Ti nye kandidater
+
+PULL avgjør om noe bygges, og Proven·Better·New sier hva det koster.
+Rekkefølgen er etter forventet PULL.
+
+1. **Byttedom med historikk (New).** Sammenlign `empiricalDelay.p90` for
+   turen du bytter *fra* med byttemarginen: «byttet ryker omtrent 1 av 10
+   ganger». Det utvider tillitsgraden til bytter, der appen i dag bare har
+   dagens sanntid. *PULL: ja hele veien.* Et bytte er en frist, og ingen av
+   alternativene sier hvor ofte det ryker.
+2. **«Vanligvis i rute» ved avgangen (New).** `empiricalDelay` brukt direkte:
+   «vanligvis i rute · 1 av 10 ganger 5 min sent». Gir historisk grunnlag
+   uten at appen lagrer noe om deg. Er feltet tomt, står ingenting.
+   *PULL: ja.*
+3. **«Går ikke i helgene» for lagrede avganger (Better).** Varsle med
+   `activeDates` før du står på perrongen. Turer med få driftsdager er
+   vanlige, R12 har for eksempel 11. *PULL: P og U ja. L er ikke testet.*
+4. **Varighet på avvik (Better).** «Gjelder til 18:00» fra
+   `PtSituationElement.validityPeriods`. *Ikke prøvd mot data.*
+5. **Bakker i gangtiden (Better).** `elevationProfile` gir for eksempel
+   «+12 m stigning» og en justert gangtid. *Ikke testet om OTP allerede
+   regner bakker inn i varigheten.* Gjør den det, er bare ordene nye.
+6. **Turtype i klartekst (Proven).** `transportSubmode` gir «flytog»,
+   «nattbuss» og «buss for tog». Det er det skiltene sier.
+7. **Tognummer (Proven).** `privateCode` er det høyttalere og skilt på
+   stasjonen bruker («tog 838 til Skien»).
+8. **Gange og venting i reisen (Better).** `walkTime` og `waitingTime` gir
+   «5 min gange · 0 min venting». Lite å bygge, og det sier hvordan reisen
+   er satt sammen.
+9. **Hvem som kjører (Proven).** `operator`, for eksempel Go-Ahead Nordic på
+   F5. *PULL: svak.* Nyttig mest når noe går galt og du lurer på hvem du
+   skal klage til.
+10. **Holdeplasser der du drar kartet (Proven).** Hent stopp for området
+    kartet viser (`stopPlacesByBbox`). *Faller på siste L, akkurat som rad →
+    kart: Ruter-appen gjør dette godt.*
+
+Funnene fra samme undersøkelse som allerede var foreslått: `empiricalDelay`
+alene (kandidat 2), tognummeret (7), og «stopper på signal», «ekstraavgang»,
+«buss for tog» og «kun avstigning». De fire siste har felt med verdi i API-et.
+
+---
+
 ## Undersøkt og utsatt: pris og «kilopris» (2026-11-08)
 
 Forslag: sammenligne reiser på pris per km eller personkilometer, slik

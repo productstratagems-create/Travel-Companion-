@@ -8,19 +8,20 @@ vi.mock('../src/ui/log.js', () => ({ logMsg: () => {}, setDot: () => {} }));
 const mod = await import('../src/views/auto.js');
 
 describe('utgangszoom', () => {
-  it('er z=14, og er taket for rammen', () => {
-    expect(mod.START_ZOOM).toBe(14);
+  // v1.218.9: nytt skjermbilde, ett trinn inn — 15.
+  it('er z=15, og er taket for rammen', () => {
+    expect(mod.START_ZOOM).toBe(15);
     expect(mod.FIT_MAKS_ZOOM).toBe(mod.START_ZOOM);
   });
-  it('holdeplasser tett på deg zoomer ikke nærmere enn 14', () => {
+  it('holdeplasser tett på deg zoomer ikke nærmere enn utgangszoomen', () => {
     const her = { lat: 59.85, lon: 10.82 };
-    expect(mod.zoomFor(her, [[59.8509, 10.8205]], [382, 382])).toBe(14);
+    expect(mod.zoomFor(her, [[59.8509, 10.8205]], [382, 382])).toBe(mod.START_ZOOM);
   });
   it('langt unna zoomer lenger ut — stoppet skal synes', () => {
     const her = { lat: 59.85, lon: 10.82 };
-    expect(mod.zoomFor(her, [[59.862, 10.82]], [382, 382])).toBeLessThan(14);
+    expect(mod.zoomFor(her, [[59.862, 10.82]], [382, 382])).toBeLessThan(mod.START_ZOOM);
   });
   it('rammen bruker taket, ikke et eget tall', () => {
-    expect(readFileSync('src/views/auto.js', 'utf8')).toContain('maxZoom: FIT_MAKS_ZOOM, animate: false');
+    expect(readFileSync('src/views/auto.js', 'utf8')).toContain('Math.min(FIT_MAKS_ZOOM, pass)');
   });
 });

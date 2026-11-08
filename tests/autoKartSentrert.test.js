@@ -41,9 +41,10 @@ describe('merkelappen', () => {
 
 describe('koblingen', () => {
   const s = readFileSync('src/views/auto.js', 'utf8');
-  it('rammen er speilet om deg når ingen linje er tema, og de relevante har fast merkelapp', () => {
+  // v1.218.9: speilet om deg → midt mellom alle punktene (bestilt med skjermbilde).
+  it('rammen settes når ingen linje er tema, og de relevante har fast merkelapp', () => {
     expect(s).toContain('const sentrert = !!(userPos && !line && !kortLinje);');
-    expect(s).toMatch(/_aMap\.fitBounds\(rammePts,/);
+    expect(s).toMatch(/_aMap\.setView\(midtpunkt\(rammePts\),/);
     expect(s).toContain("permanent: relevante.includes(s) })");
   });
 });

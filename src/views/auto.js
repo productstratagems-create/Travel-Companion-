@@ -1927,10 +1927,49 @@ export function settKartSkjult(på) { try { storage.set(KART_KEY, på ? 'skjult'
 const KART_FORMER = ['kvadrat', 'bred', 'full'];
 const FORM_KEY = 't.autoKartForm';
 export function kartForm() { try { return storage.get(FORM_KEY) === 'bred' ? 'bred' : 'kvadrat'; } catch { return 'kvadrat'; } }
-export function settKartForm(f) { if (f === 'full') return; try { storage.set(FORM_KEY, f === 'bred' ? 'bred' : ''); } catch { /* */ } }
+export function settKartForm(f) { if (f === 'full') return; try { storage.set(FORM_KEY, f === 'bred' ? 'bred' : 'kvadrat'); } catch { /* */ } }
+/** Det brukeren har valgt med knappen, eller `null` — da velger geometrien. */
+export function kartFormValgt() { try { const v = storage.get(FORM_KEY); return v === 'bred' || v === 'kvadrat' ? v : null; } catch { return null; } }
+
+/* UTGANGSFORM FRA GEOMETRIEN (v1.218.7). Bestilt: «Bestem utgangsformat for
+ * kart (rektangel eller kvadrat basert på holdeplass-geometrien.»
+ *
+ * Spørsmålet er ikke «er holdeplassene brede», men «koster bred noe». Kvadratet
+ * gir alltid minst like stor målestokk, men Leaflet zoomer i HELE trinn — så
+ * får bred samme trinn som kvadratet, viser den det samme og sparer 167 px
+ * høyde til lista. Da velges bred. Koster bred et trinn, velges kvadrat.
+ *
+ * Første forsøk sammenlignet bredde mot høyde med terskel 16:9: på seksten
+ * ekte steder rundt Oslo ble det aldri bredt (høyest Bygdøynes, 1,42). Et
+ * utsnitt speilet om deg er sjelden så flatt.
+ *
+ * `størrelser`: { kvadrat:[b,h], bred:[b,h] } i px. Utsnittet er speilet om deg,
+ * så utstrekningen er 2× lengste avstand hver vei, i meter.
+ * Hysterese: inn i bred bare med `MARGIN` trinn å gå på — ellers blafrer det
+ * når GPS-en flytter deg over en grense. */
+export const FIT_PAD = 26, FIT_MAKS_ZOOM = 17, MARGIN = 0.15;
+const M_PER_GRAD = 111320;
+export function zoomFor(her, pts, [b, h]) {
+  const kx = Math.cos(her.lat * Math.PI / 180);
+  let dx = 0, dy = 0;
+  pts.forEach(([la, lo]) => { dx = Math.max(dx, Math.abs(lo - her.lon) * kx * M_PER_GRAD); dy = Math.max(dy, Math.abs(la - her.lat) * M_PER_GRAD); });
+  // Meter per piksel på zoom z: 156543·cos(lat)/2^z (Web Mercator, 256 px fliser).
+  const z = (px, m) => m > 0 ? Math.log2(156543.03 * kx * px / m) : Infinity;
+  return Math.min(FIT_MAKS_ZOOM, z(b - 2 * FIT_PAD, 2 * dx), z(h - 2 * FIT_PAD, 2 * dy));
+}
+export function formFraGeometri(her, pts, nå, størrelser) {
+  if (!her || !pts || !pts.length || !størrelser) return nå;
+  const zK = zoomFor(her, pts, størrelser.kvadrat), zB = zoomFor(her, pts, størrelser.bred);
+  if (!Number.isFinite(zK) || !Number.isFinite(zB)) return nå;
+  const trinnK = Math.floor(zK), trinnB = Math.floor(zB);
+  if (trinnB < trinnK) return 'kvadrat';
+  if (nå === 'bred') return 'bred';
+  return (zB - trinnB >= MARGIN || zB >= FIT_MAKS_ZOOM) ? 'bred' : 'kvadrat';
+}
 
 let _relevanteSist = [];
 let _linjerVenter = false;
+let _aForm = null;
 let _linjerFeilet = false;
 let _visLike = false;
 let _tegning = 0;
@@ -1970,7 +2009,7 @@ function _renderMap() {
     // Fullskjerm som de andre kartene: plassen mellom statuslinja og
     // bunnmenyen. Utsnittet tegnes på nytt, så du står i midten av den nye
     // størrelsen.
-    bindMapExpand(_aMap, el, _el('auto-map-expand'), { syklus: KART_FORMER, start: kartForm(), onToggle: (open, form) => {
+    _aForm = bindMapExpand(_aMap, el, _el('auto-map-expand'), { syklus: KART_FORMER, start: kartForm(), onToggle: (open, form) => {
       fitExpandedMap(el, open); settKartForm(form); _aKey = ''; _aFitKey = '';
       setTimeout(() => _renderMap(), 340);
     } });
@@ -2098,13 +2137,20 @@ function _renderMap() {
   const rammePts = sentrert
     ? speiletOm(userPos, [_stop, ...relevante].filter(s => s && s.lat != null).map(s => [s.lat, s.lon]))
     : pts;
+  // Formen før rammen: et nytt format er en ny ramme.
+  if (sentrert && !kartFormValgt() && !el.classList.contains('expanded') && _aForm) {
+    const b = el.getBoundingClientRect().width;
+    const f = formFraGeometri(userPos, [_stop, ...relevante].filter(s => s && s.lat != null).map(s => [s.lat, s.lon]),
+      el.classList.contains('form-bred') ? 'bred' : 'kvadrat', { kvadrat: [b, b], bred: [b, b * 9 / 16] });
+    if (_aForm.settForm(f)) { _aMap.invalidateSize(false); _aFitKey = ''; }
+  }
   if (rammePts.length && !_aUserMoved && _aFitKey !== key + '|' + sizeKey) {
     _aFitKey = key + '|' + sizeKey;
     // animate:false so the projection is TRUE the moment this returns. With
     // the default animation latLngToContainerPoint still answers for the view
     // being left, so the readability check below measured the old zoom and
     // kept every bead — 12px median where the threshold is 21.
-    _aMap.fitBounds(rammePts, { padding: [26, 26], maxZoom: 17, animate: false });
+    _aMap.fitBounds(rammePts, { padding: [FIT_PAD, FIT_PAD], maxZoom: FIT_MAKS_ZOOM, animate: false });
   }
 
   if (_stop && _stop.lat != null) {

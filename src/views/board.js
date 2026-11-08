@@ -22,7 +22,7 @@ import { fmtMins, esc, clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.j
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
-import { fetchNearbyStops, _resetNearbyCache } from '../api/stops.js';
+import { fetchNearbyStops, _resetNearbyCache, fetchStoppLinjer, stoppInfo, nærViktigFørst } from '../api/stops.js';
 import { makeStopIcon, makeVehicleIcon, VEHICLE_MARKER_OPTS, makeRouteStopIcon, makeJourneyPointIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { livePosFeed, livePosition, _resetVehicleCache } from '../api/vehicles.js';
 import { fetchInflight } from '../api/entur.js';
@@ -361,6 +361,7 @@ export function filterByModes(list, activeModes) {
 
 // ── Board map (single universal map for all modes) ──────────────────────────
 let _bMap = null;
+const _bInfoBedt = new Set();  // id-er vi har spurt om linjer for; fetchStoppLinjer husker svaret
 let _bLayer = null;
 let _bUserMoved = false;
 let _bFitted = false;
@@ -621,9 +622,20 @@ function renderBoardMap(pos, modes) {
       // with the metres inlined; scooters had no clustering at all.
       const clusters = clusterByDistance(stops, STOP_CLUSTER_M, s => s.mode);
 
-      // Keep only the 2 nearest clusters per mode to limit marker density
+      // VIKTIGHET (v1.218.11): linjene hentes én gang per stopp; når de kommer,
+      // tegnes kartet på nytt. Til da: nærmeste først, som før.
+      const ider = [...new Set(stops.map(s => String(s.id).split('|')[0]))];
+      const nye = ider.filter(id => !stoppInfo(id) && !_bInfoBedt.has(id));
+      if (nye.length) {
+        nye.forEach(id => _bInfoBedt.add(id));
+        fetchStoppLinjer(nye).then(m => { if (m && _bMap) renderBoardMap(pos, modes); });
+      }
+      // De 2 viktigste innen gangavstand per transportmiddel (ellers nærmeste) —
+      // ikke bare de 2 nærmeste. Den samme regelen som «du er ved» i auto-reise.
+      const etterViktighet = clusters.slice().sort(nærViktigFørst(c => stoppInfo(c[0].id.split('|')[0]), c => c[0].dist));
+      const viktigst = etterViktighet[0];
       const perMode = {};
-      clusters.forEach(cl => {
+      etterViktighet.forEach(cl => {
         const mode = cl[0].mode;
         if (!perMode[mode]) perMode[mode] = [];
         if (perMode[mode].length < 2) perMode[mode].push(cl);
@@ -638,9 +650,11 @@ function renderBoardMap(pos, modes) {
         // Permanent label only for the single closest stop of the primary mode;
         // everything else reveals its name on tap.
         const isPrimary = transitModes[0] === mode && clusters.indexOf(cluster) === 0;
-        L.marker([lat, lon], { icon: _makeStopIcon(mode, cluster.length, isPrimary) })
+        // Det viktigste stoppet: større nål og fast lapp.
+        const erViktigst = cluster === viktigst;
+        L.marker([lat, lon], { icon: makeStopIcon(mode, cluster.length, { primary: isPrimary, viktig: erViktigst }) })
           .bindTooltip(name, {
-            permanent: false,
+            permanent: erViktigst,
             direction: 'top',
             offset: [0, -15],
             className: 'map-label',

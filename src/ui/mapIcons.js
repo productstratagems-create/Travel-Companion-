@@ -328,7 +328,9 @@ const _MODE_COLOUR = {
 export function makeStopIcon(mode, count, opts = {}) {
   const colour = _MODE_COLOUR[mode] || _MODE_COLOUR.rail;
   // Your own stop reads a step louder than the ones merely nearby.
-  const size = opts.primary ? 15 : 11;
+  // Et viktig stopp (flest transportmidler og linjer innen gangavstand,
+  // v1.218.11) et halvt steg høyere enn de andre — men lavere enn ditt eget.
+  const size = opts.primary ? 15 : (opts.viktig ? 13 : 11);
   const halo = _halo();
 
   const badge = (count > 1)

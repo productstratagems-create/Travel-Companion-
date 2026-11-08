@@ -47,7 +47,7 @@ import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
 import { byLine } from '../api/situations.js';
 import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
-import { fetchStoppLinjer, stoppLinjer, stoppInfo, viktighet, sammenlignViktighet } from '../api/stops.js';
+import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst } from '../api/stops.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
@@ -956,7 +956,7 @@ export function stopWay(s, trail) {
  * står likt på avstand — da avgjør viktigheten. Skrittene er faste (0–59,
  * 60–119 …) så rekkefølgen er transitiv; prisen er at 59 og 61 m havner i
  * hvert sitt skritt. 60 m er under ett minutts gange. */
-export const LIK_AVSTAND_M = 60;
+export const LIK_AVSTAND_M = 60;  // Brukes ikke fra v1.218.11 — erstattet av VIKTIG_GANG_M (api/stops.js). Står igjen, foldet.
 
 export function rankStops(list, uses, trail, viktigAv) {
   // WHICH WAY YOU ARE WALKING, which this function had no notion of at all: a
@@ -983,10 +983,9 @@ export function rankStops(list, uses, trail, viktigAv) {
     // still order predictably rather than by whatever the geocoder returned.
     || (band(a) === 1 ? usesOf(b, uses) - usesOf(a, uses) : 0)
     // VIKTIGHET SOM TIEBREAK, aldri i band 0: der står du.
-    || (band(a) === 0 || !viktigAv ? 0
-      : (Math.floor(d(a) / LIK_AVSTAND_M) - Math.floor(d(b) / LIK_AVSTAND_M))
-        || sammenlignViktighet(viktighet(a, viktigAv(a)), viktighet(b, viktigAv(b))))
-    || (d(a) - d(b)));
+    // NÆR OG VIKTIG (v1.218.11), aldri i band 0: der står du. Innen gangavstand
+    // avgjør viktigheten, ellers avstanden. Gangruten går til det som vinner.
+    || (band(a) === 0 ? d(a) - d(b) : nærViktigFørst(viktigAv)(a, b)));
 }
 
 function _stops() {
@@ -1898,12 +1897,8 @@ export function relevanteStopp(stopp, andre, n, forrige, viktigAv) {
   if (behold.length === maks) return behold;
   const modus = s => normMode(((s && s.modes) || [])[0] || '');
   const sett = new Set(stopp ? [modus(stopp)] : []);
-  const dd = s => s.distM ?? Infinity;
   // Viktighet som tiebreak (v1.218.10): samme avstandsskritt → viktigst får lappen.
-  const etter = (andre || []).filter(s => s && s.lat != null).slice().sort((a, b) =>
-    (viktigAv ? (Math.floor(dd(a) / LIK_AVSTAND_M) - Math.floor(dd(b) / LIK_AVSTAND_M))
-      || sammenlignViktighet(viktighet(a, viktigAv(a)), viktighet(b, viktigAv(b))) : 0)
-    || (dd(a) - dd(b)));
+  const etter = (andre || []).filter(s => s && s.lat != null).slice().sort(nærViktigFørst(viktigAv));
   const valgt = behold.slice();
   behold.forEach(s => sett.add(modus(s)));
   etter.forEach(s => { if (valgt.length < maks && !valgt.includes(s) && !sett.has(modus(s))) { valgt.push(s); sett.add(modus(s)); } });
@@ -2247,14 +2242,17 @@ function _renderMap() {
   // alternatives are folded shut by default (_stopsShown), so when the app
   // has guessed the wrong stop the reader has to find a disclosure triangle
   // to discover it. On the map the mistake is visible immediately.
+  // Det viktigste av de andre stoppene (v1.218.11): stor nål og fast lapp.
+  const viktigst = others.slice().sort(nærViktigFørst(s => stoppInfo(s.id)))[0];
   others.forEach(s => {
     if (s.lat == null) return;
+    const fast = relevante.includes(s) || s === viktigst;
     L.marker([s.lat, s.lon], {
-      icon: makeStopIcon(normMode((s.modes || [])[0]), (s.modes || []).length),
+      icon: makeStopIcon(normMode((s.modes || [])[0]), (s.modes || []).length, { viktig: s === viktigst }),
       keyboard: false,
     })
       // Gangtid med fast merkelapp på de relevante, prikk med verktøytips på resten.
-      .bindTooltip(gangLapp(s), { className: relevante.includes(s) ? lappKlasse : 'map-label', direction: 'top', offset: [0, -8], permanent: relevante.includes(s) })
+      .bindTooltip(gangLapp(s), { className: fast ? lappKlasse : 'map-label', direction: 'top', offset: [0, -8], permanent: fast })
       .on('click', () => pinStop(s.id))
       .addTo(_aLayer);
   });

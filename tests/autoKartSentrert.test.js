@@ -45,7 +45,8 @@ describe('koblingen', () => {
   it('rammen settes når ingen linje er tema, og de relevante har fast merkelapp', () => {
     expect(s).toContain('const sentrert = !!(userPos && !line && !kortLinje);');
     expect(s).toMatch(/_aMap\.setView\(midtpunkt\(rammePts\),/);
-    expect(s).toContain("permanent: relevante.includes(s) })");
+    expect(s).toContain("const fast = relevante.includes(s) || s === viktigst;");
+    expect(s).toContain("permanent: fast })");
   });
 });
 

@@ -547,8 +547,10 @@ onThemeChange(retileMaps);
  * `lapp-skjult`), så den viser seg som verktøytips ved trykk i stedet.
  * Første merkelapp vinner. Returnerer hvor mange som ble skjult.
  */
-export function ryddMerkelapper(el) {
-  const lapper = [...(el ? el.querySelectorAll('.leaflet-tooltip.map-label') : [])];
+export function ryddMerkelapper(el, klasse) {
+  // Bare denne tegningens merkelapper (`klasse`): de forrige kan ligge i
+  // kartet et øyeblikk til, og da ble de nye skjult bak de gamle.
+  const lapper = [...(el ? el.querySelectorAll('.leaflet-tooltip.' + (klasse || 'map-label')) : [])];
   const tatt = [];
   let skjult = 0;
   lapper.forEach(t => {

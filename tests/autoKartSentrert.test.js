@@ -62,3 +62,28 @@ describe('merkelapper som krasjer', async () => {
     expect(a.classList.contains('lapp-skjult') || c.classList.contains('lapp-skjult')).toBe(false);
   });
 });
+
+// Rapportert: kartet viste gangtid i et sekund og «snappet tilbake». Hver
+// GPS-fiks tegnet kartet på nytt, valget av stopp skiftet, og ryddingen
+// skjulte de nye merkelappene bak de gamle.
+describe('stabilt kart mens GPS-en flytter seg', async () => {
+  const { mapKey } = await import('../src/views/auto.js');
+  const { ryddMerkelapper } = await import('../src/ui/map.js');
+  it('noen meter flytting gir samme kartnøkkel', () => {
+    const a = mapKey({ id: 'S' }, { lat: 59.85421, lon: 10.81721 }, [], null, null);
+    const b = mapKey({ id: 'S' }, { lat: 59.85432, lon: 10.81738 }, [], null, null);
+    expect(a).toBe(b);
+  });
+  it('de relevante beholdes så lenge de er i nærheten', () => {
+    const forrige = ['A', 'D'];
+    const andre = [S('E', 'bus', 100), S('A', 'bus', 300), S('D', 'tram', 900)];
+    expect(relevanteStopp(HER, andre, 2, forrige).map(s => s.id)).toEqual(['A', 'D']);
+  });
+  it('ryddingen ser bare på denne tegningens merkelapper', () => {
+    const el = document.createElement('div');
+    el.innerHTML = '<div class="leaflet-tooltip map-label lapp-t1">gammel</div><div class="leaflet-tooltip map-label lapp-t2">ny</div>';
+    [...el.children].forEach(c => { c.getBoundingClientRect = () => ({ left: 0, right: 100, top: 0, bottom: 20 }); });
+    expect(ryddMerkelapper(el, 'lapp-t2')).toBe(0);
+    expect(el.children[1].classList.contains('lapp-skjult')).toBe(false);
+  });
+});

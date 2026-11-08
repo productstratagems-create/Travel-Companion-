@@ -632,6 +632,6 @@ describe('auto-reise gir marginen båndet den skal måle med', () => {
   it('og bånd-oppslaget er rangeringens eget', () => {
     const t = src();
     expect(t).toMatch(/function _bandOf\(\)[\s\S]{0,200}stopBand\(s, uses, state\.posTrail\)/);
-    expect(t).toMatch(/rankStops\(list, depUses\(\), state\.posTrail\)/);
+    expect(t).toMatch(/rankStops\(list, depUses\(\), state\.posTrail, s => stoppInfo\(s\.id\)\)/);
   });
 });

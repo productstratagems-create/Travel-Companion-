@@ -47,7 +47,7 @@ import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
 import { byLine } from '../api/situations.js';
 import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
-import { fetchStoppLinjer, stoppLinjer } from '../api/stops.js';
+import { fetchStoppLinjer, stoppLinjer, stoppInfo, viktighet, sammenlignViktighet } from '../api/stops.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
@@ -952,7 +952,13 @@ export function stopWay(s, trail) {
     ? approach(trail, { lat: s.lat, lon: s.lon }).kind : 'vet-ikke';
 }
 
-export function rankStops(list, uses, trail) {
+/* LIK AVSTAND (v1.218.10): to stopp der avstanden skiller mindre enn dette,
+ * står likt på avstand — da avgjør viktigheten. Skrittene er faste (0–59,
+ * 60–119 …) så rekkefølgen er transitiv; prisen er at 59 og 61 m havner i
+ * hvert sitt skritt. 60 m er under ett minutts gange. */
+export const LIK_AVSTAND_M = 60;
+
+export function rankStops(list, uses, trail, viktigAv) {
   // WHICH WAY YOU ARE WALKING, which this function had no notion of at all: a
   // stop you are walking away from and one you are walking towards were both
   // just a number of metres to it.
@@ -976,6 +982,10 @@ export function rankStops(list, uses, trail) {
     // Then count, and distance breaks the tie — so two equally used stops
     // still order predictably rather than by whatever the geocoder returned.
     || (band(a) === 1 ? usesOf(b, uses) - usesOf(a, uses) : 0)
+    // VIKTIGHET SOM TIEBREAK, aldri i band 0: der står du.
+    || (band(a) === 0 || !viktigAv ? 0
+      : (Math.floor(d(a) / LIK_AVSTAND_M) - Math.floor(d(b) / LIK_AVSTAND_M))
+        || sammenlignViktighet(viktighet(a, viktigAv(a)), viktighet(b, viktigAv(b))))
     || (d(a) - d(b)));
 }
 
@@ -991,7 +1001,7 @@ function _stops() {
   // place would move a list nobody asked to move.
   // The trail is read here, once, for the same reason the ranking is: the
   // heading and the alternatives must not disagree about the order.
-  return rankStops(list, depUses(), state.posTrail);
+  return rankStops(list, depUses(), state.posTrail, s => stoppInfo(s.id));
 }
 
 /** The band function the heading's margin asks with — the ranking's own. */
@@ -1666,10 +1676,25 @@ export function raskereHtml(svar) {
     + ' → ' + esc(svar.mål) + ' ' + clk(svar.r.framMs) + ' · <b>' + svar.r.sparerMin + ' min tidligere</b></div>';
 }
 
+/* LINJER OG VIKTIGHET hentes her, én gang per holdeplass, for HELE lista —
+ * ikke bare der kartet tegnes: rangeringen (rankStops) trenger dem også når
+ * kartet er skjult. Kommer svaret, tegnes både «du er ved» og kartet på nytt. */
+function _hentStoppInfo(list) {
+  const mangler = (list || []).filter(s => s && s.id && stoppLinjer(s.id) === undefined).map(s => s.id);
+  if (!mangler.length || _linjerVenter || _linjerFeilet) return;
+  _linjerVenter = true;
+  fetchStoppLinjer(mangler).then(m => {
+    _linjerVenter = false;
+    if (m) { _renderWhere(); _aKey = ''; _renderMap(); }
+    else { _linjerFeilet = true; logMsg('linjer per holdeplass: ikke svar — viser alle, rangert som før', 'warn'); }
+  });
+}
+
 function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
   const list = _stops();
+  _hentStoppInfo(list);
   const nåW = Date.now();
   const påLinja = _påLinjaMedLås(nåW);
   const picked = velgStoppIFart(pickStop(list, _stop, _stopPinned, _bandOf()), _stop, _stopPinned,
@@ -1864,7 +1889,7 @@ export function openLine(dir) {
  * fortsatt som prikker: foldet, ikke fjernet.
  */
 export const RELEVANT_ANDRE = 2;
-export function relevanteStopp(stopp, andre, n, forrige) {
+export function relevanteStopp(stopp, andre, n, forrige, viktigAv) {
   const maks = Number.isFinite(n) ? n : RELEVANT_ANDRE;
   /* STABILT: de som ble valgt sist, beholdes så lenge de fortsatt er i
    * nærheten. Uten dette byttet valget mellom Olasrudveien, Kantarellen og
@@ -1873,7 +1898,12 @@ export function relevanteStopp(stopp, andre, n, forrige) {
   if (behold.length === maks) return behold;
   const modus = s => normMode(((s && s.modes) || [])[0] || '');
   const sett = new Set(stopp ? [modus(stopp)] : []);
-  const etter = (andre || []).filter(s => s && s.lat != null).slice().sort((a, b) => (a.distM ?? Infinity) - (b.distM ?? Infinity));
+  const dd = s => s.distM ?? Infinity;
+  // Viktighet som tiebreak (v1.218.10): samme avstandsskritt → viktigst får lappen.
+  const etter = (andre || []).filter(s => s && s.lat != null).slice().sort((a, b) =>
+    (viktigAv ? (Math.floor(dd(a) / LIK_AVSTAND_M) - Math.floor(dd(b) / LIK_AVSTAND_M))
+      || sammenlignViktighet(viktighet(a, viktigAv(a)), viktighet(b, viktigAv(b))) : 0)
+    || (dd(a) - dd(b)));
   const valgt = behold.slice();
   behold.forEach(s => sett.add(modus(s)));
   etter.forEach(s => { if (valgt.length < maks && !valgt.includes(s) && !sett.has(modus(s))) { valgt.push(s); sett.add(modus(s)); } });
@@ -2089,11 +2119,6 @@ function _renderMap() {
   // UNIKE: holdeplasser med bare linjer en nærmere holdeplass har, foldes inn
   // under kartet — ikke kastet, ett trykk unna. Linjene hentes én gang per id;
   // til de er her (eller om spørringen feiler) vises alle, som før.
-  const mangler = [_stop, ...alle].filter(s => s && s.id && stoppLinjer(s.id) === undefined).map(s => s.id);
-  if (mangler.length && !_linjerVenter && !_linjerFeilet) {
-    _linjerVenter = true;
-    fetchStoppLinjer(mangler).then(m => { _linjerVenter = false; if (m) { _aKey = ''; _renderMap(); } else { _linjerFeilet = true; logMsg('linjer per holdeplass: ikke svar — viser alle', 'warn'); } });
-  }
   const { vis: unike, skjult: like } = unikeStopp(_stop, alle, stoppLinjer);
   const others = _visLike ? alle : unike;
   const flere = _el('auto-map-flere');
@@ -2145,7 +2170,7 @@ function _renderMap() {
 
   // DEG I MIDTEN når ingen retning eller kort er tema: stoppet du er ved og
   // de relevante alternativene, speilet om posisjonen din.
-  const relevante = relevanteStopp(_stop, others, RELEVANT_ANDRE, _relevanteSist);
+  const relevante = relevanteStopp(_stop, others, RELEVANT_ANDRE, _relevanteSist, s => stoppInfo(s.id));
   _relevanteSist = relevante.map(s => s.id);
   // Hver tegning har sitt nummer, så ryddingen bare ser denne tegningens merkelapper.
   const lappKlasse = 'map-label lapp-t' + (++_tegning);

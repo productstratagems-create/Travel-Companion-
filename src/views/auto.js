@@ -24,7 +24,7 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra } from '../api/entur.js';
 import { raskereHer } from '../raskere.js';
-import { rangerMål } from '../maalModell.js';
+import { rangerMål, foldetSide } from '../maalModell.js';
 import { overganger, arrBoardSpørsmål, ARR_BOARD_ASK } from '../overganger.js';
 import { domFraKlasse, _DOM_KLASSE } from '../ui/reiselop.js';
 import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
@@ -571,11 +571,16 @@ export function dirAlertHtml(msgs, openKeys, key, idx) {
   const label = msgs.length === 1
     ? 'Vis meldingen om denne linjen'
     : 'Vis ' + msgs.length + ' meldinger om denne linjen';
-  const mark = '<button type="button" class="auto-dir-alert' + (severe ? ' sev-severe' : '') + '"'
+  /* ET SPAN MED role=button, IKKE EN <button>. Merket står inni raden, og
+   * raden er selv en <button>. En knapp inni en knapp brytes ut av
+   * HTML-parseren når lista tegnes fra tekst: raden ble et tomt merke, og
+   * navn, spor og tider havnet utenfor den (sett i nettleserprøven for
+   * v1.218.1). Tastaturet når det fortsatt (tabindex, Enter og mellomrom). */
+  const mark = '<span role="button" tabindex="0" class="auto-dir-alert' + (severe ? ' sev-severe' : '') + '"'
     + ' data-i="' + esc(String(idx)) + '"'
     + ' aria-expanded="' + (open ? 'true' : 'false') + '"'
     + ' aria-label="' + esc(label) + '">'
-    + (msgs.length > 1 ? msgs.length : '!') + '</button>';
+    + (msgs.length > 1 ? msgs.length : '!') + '</span>';
   // A SIBLING of the row, not a child: .auto-dir is itself a button, and
   // ui/alerts.js explains beside its own ✕ why a button inside a button is
   // invalid markup and one unpredictable tap target. Same classes as the
@@ -1422,6 +1427,13 @@ export function _nullstillLås() { _lås = null; }
  */
 /* Kandidatene sist tegning, til «feil linje?», og grunnen til et gjett. */
 let _sisteKand = [];
+/* Den sammenfoldede retningsgruppen husker at du åpnet den. */
+let _sideFoldÅpen = false;
+if (typeof document !== 'undefined') {
+  document.addEventListener('toggle', e => {
+    if (e.target && e.target.classList && e.target.classList.contains('auto-side-fold')) _sideFoldÅpen = e.target.open;
+  }, true);
+}
 let _gjettGrunn = '';
 let _feilÅpen = false;
 
@@ -2806,6 +2818,13 @@ function _renderBody() {
   if (whereLabel) whereLabel.textContent = listeOverskrift(dests.length > 0);
 
   let shown;
+  /* GRUPPEN I MOTSATT RETNING AV MØNSTERET, FOLDET (src/maalModell.js
+   * `foldetSide`). Unntatt når dine egne mål akkurat nå ligger i den. */
+  const egneSider = new Set();
+  dests.filter(x => x.eget > 0).forEach(x => x.options.forEach(o => { const k = side.get(o.i); if (k) egneSider.add(k); }));
+  const foldet = grouped ? foldetSide(now, _stop, egneSider) : null;
+  const antallI = k => ordered.filter(({ i }) => (side.get(i) || null) === k).length;
+  let iFold = false;
   // SI DET: i fart strykes ingen rad på gangtid, og ustrøkne rader uten
   // forklaring leses som at alt kan nås.
   const fartNotis = gangGjelder(fartNå(now), state.walkFromLL !== null) ? ''
@@ -2859,8 +2878,13 @@ function _renderBody() {
         const k = side.get(i) || null;
         if (k !== shown) {
           shown = k;
-          head = '<div class="auto-side">'
-            + esc(k ? CENTRE_LABEL[k] : 'andre retninger') + '</div>';
+          const navn = k ? CENTRE_LABEL[k] : 'andre retninger';
+          head = (iFold ? '</details>' : '')
+            + (k && k === foldet
+              ? '<details class="auto-side-fold"' + (_sideFoldÅpen ? ' open' : '') + '><summary class="auto-side">'
+                + esc(navn + ' · ' + antallI(k)) + '</summary>'
+              : '<div class="auto-side">' + esc(navn) + '</div>');
+          iFold = !!(k && k === foldet);
         }
       }
       return head + '<button class="nearby-btn auto-dir'
@@ -2885,7 +2909,7 @@ function _renderBody() {
         + '<span class="nearby-dist">' + vaneHtml + _timesHtml(d, now, walkMins) + '</span>'
         + '</button>'
         + msg.block;
-    }).join('')
+    }).join('') + (iFold ? '</details>' : '')
     // SAID, NOT IMPLIED. The list is complete at a small stop and cut at a
     // hub, and it looked identical either way — so it earned trust where it
     // was right and spent it where it was not. One quiet line, only when
@@ -2912,6 +2936,10 @@ function _renderBody() {
       const k = rm.keys.get(Number(b.dataset.i)) || '';
       if (_openMsgs.has(k)) _openMsgs.delete(k); else _openMsgs.add(k);
       _renderBody();
+    });
+    b.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault(); e.stopPropagation(); b.click();
     });
   });
   // THE SAME DOOR the indented stop went through, and the «ofte brukt» row
@@ -3317,7 +3345,7 @@ export function destinations(live, freq, walkMins, now, fromName, trail, modell)
       if (!modell) return x;
       if (!alle._r) alle._r = new Map(rangerMål(alle, { nå: now, her: modell.her, hist: modell.hist }).map(r => [r.kort.name, r]));
       const r = alle._r.get(x.name);
-      return { ...x, p: r ? r.p : 0, grunn: x.retning === 'mot' ? 'på vei dit' : (r ? r.grunn : '') };
+      return { ...x, p: r ? r.p : 0, eget: r ? r.eget : 0, grunn: x.retning === 'mot' ? 'på vei dit' : (r ? r.grunn : '') };
     })
     .sort((a, b) => (RETNING_RANG[a.retning] - RETNING_RANG[b.retning])
       || ((b.p || 0) - (a.p || 0)) || b.uses - a.uses || a.name.localeCompare(b.name, 'nb'))

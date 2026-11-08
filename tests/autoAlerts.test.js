@@ -233,8 +233,8 @@ describe('merket på raden', () => {
   // «The mark says HOW MANY» was written in the comment while the code wrote
   // a literal `!` — one fact, two places, disagreeing.
   it('sier hvor mange når det er flere enn én', () => {
-    expect(box(dirAlertHtml(two, new Set(), 'K', 0).mark).querySelector('button').textContent).toBe('2');
-    expect(box(dirAlertHtml(one, new Set(), 'K', 0).mark).querySelector('button').textContent).toBe('!');
+    expect(box(dirAlertHtml(two, new Set(), 'K', 0).mark).querySelector('.auto-dir-alert').textContent).toBe('2');
+    expect(box(dirAlertHtml(one, new Set(), 'K', 0).mark).querySelector('.auto-dir-alert').textContent).toBe('!');
   });
 
   it('tegner ingenting uten meldinger', () => {
@@ -254,22 +254,22 @@ describe('merket på raden', () => {
 
   it('sier om den er åpen, så en skjermleser kan høre det', () => {
     expect(box(dirAlertHtml(one, new Set(), 'K', 0).mark)
-      .querySelector('button').getAttribute('aria-expanded')).toBe('false');
+      .querySelector('.auto-dir-alert').getAttribute('aria-expanded')).toBe('false');
     expect(box(dirAlertHtml(one, new Set(['K']), 'K', 0).mark)
-      .querySelector('button').getAttribute('aria-expanded')).toBe('true');
+      .querySelector('.auto-dir-alert').getAttribute('aria-expanded')).toBe('true');
   });
 
   // The mark is amber by default — «warn rather than err». A closure is not
   // a warning, and the colour is the only thing saying so before the tap.
   it('farger stengingen annerledes enn en vanlig melding', () => {
     const bad = box(dirAlertHtml([onLine('x', 'RUT:Line:2', 'severe')], new Set(), 'K', 0).mark);
-    expect(bad.querySelector('button').className).toContain('sev-severe');
-    expect(box(dirAlertHtml(one, new Set(), 'K', 0).mark).querySelector('button').className)
+    expect(bad.querySelector('.auto-dir-alert').className).toContain('sev-severe');
+    expect(box(dirAlertHtml(one, new Set(), 'K', 0).mark).querySelector('.auto-dir-alert').className)
       .not.toContain('sev-severe');
   });
 
   it('har en merkelapp å lese opp, ikke bare et utropstegn', () => {
-    const b = box(dirAlertHtml(two, new Set(), 'K', 0).mark).querySelector('button');
+    const b = box(dirAlertHtml(two, new Set(), 'K', 0).mark).querySelector('.auto-dir-alert');
     expect(b.getAttribute('aria-label')).toBe('Vis 2 meldinger om denne linjen');
   });
 
@@ -576,5 +576,24 @@ describe('folderaden i åpen tilstand', () => {
   it('sier fortsatt om den er åpen for en skjermleser', () => {
     expect(moreRowHtml(1, 0, true, w)).toContain('aria-expanded="true"');
     expect(moreRowHtml(1, 0, false, w)).toContain('aria-expanded="false"');
+  });
+});
+
+
+// v1.218.1: merket er et span med role=button. En <button> inni radens
+// <button> ble brutt ut av HTML-parseren, og raden mistet innholdet sitt.
+describe('merket er ikke en knapp inni en knapp', () => {
+  it('span med role=button og tabindex, ikke <button>', () => {
+    const one = [{ id: 's1', summary: [{ value: 'x' }], severity: 'normal' }];
+    const m = dirAlertHtml(one, new Set(), 'K', 0).mark;
+    expect(m).not.toContain('<button');
+    expect(m).toMatch(/^<span role="button" tabindex="0" class="auto-dir-alert/);
+  });
+  it('og parset inni en rad blir den værende inni raden', () => {
+    const one = [{ id: 's1', summary: [{ value: 'x' }], severity: 'normal' }];
+    const d = document.createElement('div');
+    d.innerHTML = '<button class="auto-dir"><span class="auto-badges">' + dirAlertHtml(one, new Set(), 'K', 0).mark + '</span><span class="nearby-name">mot Kolsås</span></button>';
+    expect(d.querySelectorAll('button')).toHaveLength(1);
+    expect(d.querySelector('button .nearby-name')).not.toBeNull();
   });
 });

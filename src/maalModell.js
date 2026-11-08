@@ -82,3 +82,29 @@ export function rangerMål(kort, o) {
     return { kort: x, p, eget, vanlig, grunn };
   }).sort((a, b) => b.p - a.p);
 }
+
+/**
+ * Hvilken retningsgruppe som foldes sammen, eller null.
+ *
+ * Rapportert med skjermbilde på Mortensrud, helg kl. 11: «mot sentrum» gir
+ * mening, men «fra sentrum» gir det ikke, gitt hvor du står. Gruppen i
+ * motsatt retning av det vanlige mønsteret foldes sammen. Den slettes ikke:
+ * kan vi ikke bevise at noe er irrelevant, foldes det, det kastes ikke.
+ *
+ * Ikke når du står i sentrum (da finnes ingen «fra»), ikke når mønsteret er
+ * nøytralt, og ikke når DIN historikk har et mål i den retningen nå
+ * (`egneSider`): ditt mønster slår det vanlige.
+ *
+ * @param {number} nå
+ * @param {{lat,lon}|null} her
+ * @param {Set<'mot'|'fra'>} egneSider retningene dine egne mål akkurat nå ligger i
+ * @returns {'mot'|'fra'|null}
+ */
+export function foldetSide(nå, her, egneSider) {
+  const m = vanligMønster(nå);
+  if (!m.mot || !her) return null;
+  const km = kmTo(her, CENTRE);
+  if (km == null || km < AT_CENTRE_KM) return null;
+  const motsatt = m.mot === 'sentrum' ? 'fra' : 'mot';
+  return egneSider && egneSider.has(motsatt) ? null : motsatt;
+}

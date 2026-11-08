@@ -1902,7 +1902,17 @@ export function unikeStopp(stopp, andre, linjerAv) {
   return { vis, skjult };
 }
 
+/** Midt mellom punktene: midten av rammen rundt dem, ikke gjennomsnittet —
+ *  tre holdeplasser samlet på én side skal ikke dra deg ut av kartet. */
+export function midtpunkt(pts) {
+  if (!pts || !pts.length) return null;
+  const la = pts.map(p => p[0]), lo = pts.map(p => p[1]);
+  return [(Math.min(...la) + Math.max(...la)) / 2, (Math.min(...lo) + Math.max(...lo)) / 2];
+}
+
 /**
+ * (Brukes ikke lenger for rammen fra v1.218.9 — kartet sentreres midt mellom
+ * punktene. Står igjen, foldet.)
  * Punktene speilet om deg: med dem i utsnittet legger `fitBounds` deg i
  * midten og viser likevel alle punktene. Bestilt: «Sentrert på brukers
  * posisjon.»
@@ -1952,7 +1962,7 @@ export function kartFormValgt() { try { const v = storage.get(FORM_KEY); return 
  * Gatenavn og E6 for sammenheng. Rammen zoomer aldri nærmere; lenger ut bare
  * når stoppene ellers ikke får plass. Var 17: tett ved holdeplassene ble det
  * få gater og ingen sammenheng (Lysaker 16, Bislett og Nydalen 15). */
-export const START_ZOOM = 14;
+export const START_ZOOM = 15;  // v1.218.9: nytt skjermbilde, 2,03× det forrige → ett trinn inn.
 export const FIT_PAD = 26, FIT_MAKS_ZOOM = START_ZOOM, MARGIN = 0.15;
 const M_PER_GRAD = 111320;
 export function zoomFor(her, pts, [b, h]) {
@@ -2140,23 +2150,24 @@ function _renderMap() {
   // Hver tegning har sitt nummer, så ryddingen bare ser denne tegningens merkelapper.
   const lappKlasse = 'map-label lapp-t' + (++_tegning);
   const sentrert = !!(userPos && !line && !kortLinje);
+  // UTGANGSKARTET (v1.218.9). Bestilt med skjermbilde: «Velg kvadratisk og
+  // dette zoom-nivået. Senter av kartet må beregnes som punktet midt mellom
+  // alle punktene i kartet; brukers posisjon, holdeplasser og stasjoner.»
+  // Punktene er deg, stoppet og holdeplassene som faktisk er TEGNET (også de
+  // utfoldede). Midt mellom dem, på START_ZOOM — eller lenger ut om de ellers
+  // ikke får plass. Speilingen om deg (speiletOm) og formregelen
+  // (formFraGeometri) er koblet fra her; begge står igjen, foldet.
   const rammePts = sentrert
-    ? speiletOm(userPos, [_stop, ...relevante].filter(s => s && s.lat != null).map(s => [s.lat, s.lon]))
+    ? [userPos, _stop, ...others].filter(s => s && s.lat != null).map(s => [s.lat, s.lon])
     : pts;
-  // Formen før rammen: et nytt format er en ny ramme.
-  if (sentrert && !kartFormValgt() && !el.classList.contains('expanded') && _aForm) {
-    const b = el.getBoundingClientRect().width;
-    const f = formFraGeometri(userPos, [_stop, ...relevante].filter(s => s && s.lat != null).map(s => [s.lat, s.lon]),
-      el.classList.contains('form-bred') ? 'bred' : 'kvadrat', { kvadrat: [b, b], bred: [b, b * 9 / 16] });
-    if (_aForm.settForm(f)) { _aMap.invalidateSize(false); _aFitKey = ''; }
-  }
   if (rammePts.length && !_aUserMoved && _aFitKey !== key + '|' + sizeKey) {
     _aFitKey = key + '|' + sizeKey;
     // animate:false so the projection is TRUE the moment this returns. With
     // the default animation latLngToContainerPoint still answers for the view
     // being left, so the readability check below measured the old zoom and
     // kept every bead — 12px median where the threshold is 21.
-    _aMap.fitBounds(rammePts, { padding: [FIT_PAD, FIT_PAD], maxZoom: FIT_MAKS_ZOOM, animate: false });
+    const pass = _aMap.getBoundsZoom(L.latLngBounds(rammePts), false, L.point(2 * FIT_PAD, 2 * FIT_PAD));
+    _aMap.setView(midtpunkt(rammePts), Math.min(FIT_MAKS_ZOOM, pass), { animate: false });
   }
 
   if (_stop && _stop.lat != null) {

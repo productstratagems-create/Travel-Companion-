@@ -51,7 +51,9 @@ describe('formFraGeometri: bred når det ikke koster et zoomtrinn', () => {
     expect(formFraGeometri(her, [pkt(600, 50)], 'kvadrat', null)).toBe('kvadrat');
   });
   it('rammen og regelen bruker samme padding og maks-zoom', () => {
-    expect(readFileSync('src/views/auto.js', 'utf8')).toContain('_aMap.fitBounds(rammePts, { padding: [FIT_PAD, FIT_PAD], maxZoom: FIT_MAKS_ZOOM, animate: false });');
+    const s = readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toContain('L.point(2 * FIT_PAD, 2 * FIT_PAD)');
+    expect(s).toContain('Math.min(FIT_MAKS_ZOOM, pass)');
   });
 });
 
@@ -69,8 +71,10 @@ describe('brukerens valg vinner', () => {
     expect(btn.getAttribute('aria-label')).toBe('Fullskjerm');
     btn.click(); expect(el.classList.contains('expanded')).toBe(true);
   });
-  it('auto.js velger bare når brukeren ikke har valgt, og ikke i fullskjerm', () => {
+  // v1.218.9: «Velg kvadratisk» — formregelen er koblet fra kartet, foldet, ikke slettet.
+  it('auto.js velger ikke form fra geometrien lenger; regelen står igjen', () => {
     const src = readFileSync('src/views/auto.js', 'utf8');
-    expect(src).toMatch(/if \(sentrert && !kartFormValgt\(\) && !el\.classList\.contains\('expanded'\) && _aForm\)/);
+    expect(src).toContain('export function formFraGeometri(');
+    expect(src.slice(src.indexOf('function _renderMap'))).not.toMatch(/formFraGeometri\(userPos/);
   });
 });

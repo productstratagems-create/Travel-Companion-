@@ -469,8 +469,14 @@
        question this screen could not answer — it had no map at all, and the
        walking time it already computed went to the debug log. -->
   <div id="auto-map-wrap" class="set-section" style="display:none">
-    <div id="auto-map"></div>
+    <!-- v1.218.4: kvadratisk, kan blåses opp (⤢) og skjules. -->
+    <div class="map-wrap" style="position:relative">
+      <div id="auto-map" class="map-expandable"></div>
+      <button class="map-expand-btn" id="auto-map-expand" type="button" aria-label="Utvid kart" title="Utvid kart">⤢</button>
+    </div>
+    <button type="button" id="auto-map-skjul" class="auto-kart-bryter">skjul kart</button>
   </div>
+  <button type="button" id="auto-map-vis" class="auto-kart-bryter" hidden>▸ vis kart</button>
   <!-- «Dit du skal» — kortene. Egen container, fordi sorteringsbryteren står
        MELLOM dem og lista under, og en statisk bryter kan bare stå mellom to
        elementer som faktisk er to. -->

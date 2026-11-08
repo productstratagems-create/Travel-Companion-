@@ -425,8 +425,12 @@
 /* ET BÅND, og 140px er en måling: så mange som fire retningsrader skal stå
    over folden ved siden av det. Den sto bare i base.css sin fellesblokk, og
    et tall med en begrunnelse langt unna leses som et tall uten en. */
+/* KVADRATISK fra v1.218.4 (bestilt: «Kartet bør muligens ha en kvadratisk
+   form»). Båndet på 140 px holdt fire retningsrader over folden; nå kan
+   kartet skjules når lista er det viktigste, og blåses opp når kartet er det. */
 #v-auto #auto-map {
-  height: 140px;
+  height: auto;
+  aspect-ratio: 1 / 1;
   border-radius: 8px;
   overflow: hidden;
   background: var(--surface-2);
@@ -863,3 +867,8 @@
 #v-auto .auto-side-fold>summary{cursor:pointer;list-style:revert}
 /* Merkelapp som krasjet med en annen (v1.218.2): skjult, ikke fjernet. */
 #auto-map .leaflet-tooltip.lapp-skjult{display:none}
+
+/* Utvidet: høyden mellom statuslinja og bunnmenyen (`fitExpandedMap`), ikke kvadratet. */
+#v-auto #auto-map.expanded{aspect-ratio:auto;height:var(--map-h-open)}
+.auto-kart-bryter{display:block;margin:.35rem 0 0 auto;background:none;border:none;color:var(--text-soft);font:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;min-height:32px}
+#auto-map-vis{margin:.2rem 0 .4rem}

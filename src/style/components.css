@@ -179,6 +179,9 @@ body.app-nav-visible .onboard-chip-bar{
    lavere enn merket så nummeret fortsatt er det man leser først. */
 .lm-logo{display:inline-flex;align-items:center;color:var(--text-muted);height:.95em;line-height:0}
 .lm-logo svg{height:100%;width:auto;max-width:5.5em;display:block}
+.lapp-logoer{display:inline-flex;align-items:center;gap:.25rem;margin-right:.35rem;vertical-align:-1px;height:1em}
+.lapp-logoer .lm-logo{height:1em}
+.lapp-flere{font-size:.85em;opacity:.75}
 .lm-ikon{width:1.25em;height:1.25em;fill:currentColor;flex-shrink:0;margin-left:-.1rem}
 
 .nav-back{

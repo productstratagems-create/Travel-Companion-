@@ -19,6 +19,7 @@
  * out and one that helps.
  */
 import { linjemerke } from '../ui/linjemerke.js';
+import { lappMedLogo } from '../ui/tilbyderlogo.js';
 import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import config from '../config.js';
@@ -2196,7 +2197,7 @@ function _renderMap() {
     L.marker([_stop.lat, _stop.lon], {
       icon: makeStopIcon(normMode((_stop.modes || [])[0]), (_stop.modes || []).length, { primary: true }),
     })
-      .bindTooltip(sentrert ? gangLapp(_stop) : _stop.name,
+      .bindTooltip(lappMedLogo(sentrert ? gangLapp(_stop) : _stop.name, stoppLinjer(_stop.id)),
         { className: sentrert ? lappKlasse : 'map-label', direction: 'top', offset: [0, -8], permanent: sentrert })
       .addTo(_aLayer);
   }
@@ -2254,7 +2255,7 @@ function _renderMap() {
       keyboard: false,
     })
       // Gangtid med fast merkelapp på de relevante, prikk med verktøytips på resten.
-      .bindTooltip(gangLapp(s), { className: fast ? lappKlasse : 'map-label', direction: 'top', offset: [0, -8], permanent: fast })
+      .bindTooltip(lappMedLogo(gangLapp(s), stoppLinjer(s.id)), { className: fast ? lappKlasse : 'map-label', direction: 'top', offset: [0, -8], permanent: fast })
       .on('click', () => pinStop(s.id))
       .addTo(_aLayer);
   });

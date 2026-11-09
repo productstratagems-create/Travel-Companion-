@@ -27,6 +27,10 @@
  */
 import { metresBetween } from '../haversine.js';
 
+/** Det du har sagt (api/linjeSvar.js) veier dobbelt så tungt som vanen. Her, så
+ *  bladmodulen forblir et blad; linjeSvar.js eksporterer den videre. */
+export const SVAR_VEKT = 2;
+
 export const OMBORD_KINDS = ['ombord', 'ombord-tvil', 'vet-ikke'];
 
 /**
@@ -232,7 +236,10 @@ export function rangerKandidater(kandidater, o) {
     const framover = ((sj && sj.estimatedCalls) || []).filter(x => _ms(x) > c.nå);
     const motOfte = c.ofte && framover.some(x => x.quay && x.quay.stopPlace && c.ofte.has(nøkkel(x.quay.stopPlace.name))) ? 1 : 0;
     return { k, passert: Array.isArray(c.lang) ? passerteStopp(k, c.lang, c.nå) : 0,
-      avvik: snittAvvik(k, c.spor), vane: ((c.linjeBruk && c.linjeBruk.get(k.linje)) || 0) + motOfte };
+      avvik: snittAvvik(k, c.spor),
+      // Det du har SAGT (v1.218.19) går inn i samme felt, med dobbel vekt.
+      sagt: (c.svar && c.svar.get(k.linje)) || 0,
+      vane: ((c.linjeBruk && c.linjeBruk.get(k.linje)) || 0) + motOfte + SVAR_VEKT * ((c.svar && c.svar.get(k.linje)) || 0) };
   });
   const av = r => (r.avvik == null ? Infinity : r.avvik);
   rad.sort((a, b) => (b.passert - a.passert)
@@ -243,7 +250,7 @@ export function rangerKandidater(kandidater, o) {
     r.grunn = !neste ? 'eneste'
       : r.passert > neste.passert ? 'passerte stopp'
       : Math.abs(av(r) - av(neste)) > TETT_LIKT_M ? 'følger tettest'
-      : r.vane > neste.vane ? 'vanen din' : 'følger tettest';
+      : r.vane > neste.vane ? (r.sagt > neste.sagt ? 'du har bekreftet denne før' : 'vanen din') : 'følger tettest';
   });
   return rad;
 }

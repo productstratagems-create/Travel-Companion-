@@ -56,6 +56,7 @@ import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userL
 import L from 'leaflet';
 import { createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap } from '../ui/map.js';
 import { storage } from '../storage.js';
+import { kontekst, lærSvar, svarFor } from '../api/linjeSvar.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
 import { ensureApproach, approachPoints, AT_STOP_M } from '../api/approach.js';
 import { centreward, CENTRE_LABEL } from '../api/centre.js';
@@ -1461,11 +1462,32 @@ function _linjeBruk(nå) {
   return m;
 }
 
+/* LINJESVAR (v1.218.19): konteksten et svar læres i — holdeplassen kandidaten
+ * kom fra, ellers stoppet du er ved. Én definisjon for lagring og oppslag. */
+function _svarKx(k, nå) {
+  const id = (k && k.call && k.call.quay && k.call.quay.stopPlace && k.call.quay.stopPlace.id) || (_stop && _stop.id);
+  return kontekst(id, nå);
+}
+function _svarNavn(k) {
+  return (k && k.call && k.call.quay && k.call.quay.stopPlace && k.call.quay.stopPlace.name) || (_stop && _stop.name) || null;
+}
+
+/** «Stemmer»: hypotesen er bekreftet. Holdes som et valg, og læres. */
+export function _bekreftLinje() {
+  if (!_lås) return false;
+  lærSvar(_svarKx(_lås.k, Date.now()), { ja: [_lås.k.linje], navn: _svarNavn(_lås.k) });
+  logEvent('ombord', { svarte: 'bekreftet', linje: _lås.k.linje, handling: 'bekreftet' }, null);
+  _lås = { k: _lås.k, kilde: 'valgt', stilleFra: null };
+  _feilÅpen = false;
+  return true;
+}
+
 /** Du valgte selv: den turen, holdt som et valg. */
 export function _velgLinje(nøkkel) {
   const k = _sisteKand.find(x => x.nøkkel === nøkkel);
   if (!k) return false;
   logEvent('ombord', { svarte: 'rettet', linje: (_lås ? _lås.k.linje + '→' : '') + k.linje, handling: 'valgt' }, null);
+  lærSvar(_svarKx(k, Date.now()), { ja: [k.linje], nei: _lås && _lås.k.linje !== k.linje ? [_lås.k.linje] : [], navn: _svarNavn(k) });
   _lås = { k, kilde: 'valgt', stilleFra: null };
   _feilÅpen = false;
   return true;
@@ -1475,6 +1497,7 @@ export function _velgLinje(nøkkel) {
 export function _ingenLinje() {
   _sisteKand.forEach(k => _avvistOmbord.add(k.nøkkel));
   if (_lås) logEvent('ombord', { svarte: 'rettet', linje: _lås.k.linje + '→ingen', handling: 'avvist' }, null);
+  if (_lås) lærSvar(_svarKx(_lås.k, Date.now()), { nei: [_lås.k.linje], navn: _svarNavn(_lås.k) });
   _lås = null;
   _feilÅpen = false;
 }
@@ -1488,6 +1511,9 @@ export function rettLinjeHtml(lås, kandidater, åpen, grunn) {
   const andre = (kandidater || []).filter(k => k.nøkkel !== lås.k.nøkkel);
   const topp = '<div class="rett-linje">'
     + (lås.kilde === 'gjettet' ? '<span class="rett-gjettet">gjettet' + (grunn ? ' · ' + esc(grunn) : '') + '</span>' : '')
+    // Bekreft eller avkreft (v1.218.19). Besvart: en stille kvittering.
+    + (lås.kilde === 'valgt' ? '<span class="rett-bekreftet">bekreftet av deg</span>'
+      : '<button type="button" class="rett-ja">stemmer</button>')
     + '<button type="button" class="rett-feil" aria-expanded="' + (åpen ? 'true' : 'false') + '">feil linje?</button></div>';
   if (!åpen) return topp;
   const knapp = k => {
@@ -1513,7 +1539,8 @@ function _påLinjaMedLås(nå) {
   let vinnerKilde = dom.kind === 'ombord' ? 'sikker' : 'gjettet';
   if (!vinner && dom.kind === 'ombord-tvil') {
     const rang = rangerKandidater(dom.kandidater, { spor: state.posTrail || [], lang: state.posTrailLang, nå,
-      linjeBruk: _linjeBruk(nå), ofte: new Set(loadFreq('arr').map(p => stopKey(p.name)).filter(Boolean)), stopKey });
+      linjeBruk: _linjeBruk(nå), ofte: new Set(loadFreq('arr').map(p => stopKey(p.name)).filter(Boolean)), stopKey,
+      svar: svarFor(_svarKx(dom.kandidater[0], nå)) });
     if (rang[0]) { vinner = rang[0].k; _gjettGrunn = rang[0].grunn; }
   }
   const r = oppdaterLås(_lås, { låstK, vinner, vinnerKilde, fartMS: fartNå(nå), spor: state.posTrail || [],
@@ -1775,6 +1802,8 @@ function _renderWhere() {
       _renderWhere();
     });
   }
+  const ja = el.querySelector('.rett-ja');
+  if (ja) ja.addEventListener('click', () => { if (_bekreftLinje()) _renderWhere(); });
   const feil = el.querySelector('.rett-feil');
   if (feil) feil.addEventListener('click', () => { _feilÅpen = !_feilÅpen; _renderWhere(); });
   el.querySelectorAll('.rett-valg').forEach(b => b.addEventListener('click', () => { if (_velgLinje(b.dataset.jid)) _renderWhere(); }));

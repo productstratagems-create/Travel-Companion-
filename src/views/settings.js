@@ -1,3 +1,4 @@
+import { linjeSvarOversikt, glemLinjeSvar } from '../api/linjeSvar.js';
 import config from '../config.js';
 import { stopKey, findStop } from '../stopId.js';
 import { enturFetch } from '../api/http.js';
@@ -876,7 +877,22 @@ function _destroyMemMap() {
  * returnerte uten å tegne noe når bryteren var av, og da fikk den som aldri
  * sier ja aldri se det appen lagrer om henne uansett.
  */
+/* Linjene du har bekreftet eller rettet i auto-reise (v1.218.19). Nivå 1, «det
+ * du har sagt»: vises alltid, uavhengig av samtykkebryteren. */
+function _renderLinjeSvar() {
+  const el = document.getElementById('mem-linjesvar');
+  if (!el) return;
+  const rader = linjeSvarOversikt();
+  el.innerHTML = rader.length
+    ? rader.map(r => '<div class="mem-row">'
+        + '<span class="mem-when">' + esc(r.navn + ' · ' + r.dag + ' ' + String(r.blokk).padStart(2, '0') + '–' + String(r.blokk + 3).padStart(2, '0')) + '</span>'
+        + '<span class="mem-text">' + esc(Object.entries(r.linjer).map(([l, n]) => l + ' ' + (n > 0 ? '+' : '') + n).join(' · ')) + '</span>'
+        + '</div>').join('')
+    : '<div class="mem-empty">Ingen svar ennå. Når auto-reise gjetter linja, kan du si «stemmer» eller «feil linje?».</div>';
+}
+
 function _renderVaner() {
+  _renderLinjeSvar();
   const el = document.getElementById('mem-vane');
   if (!el) return;
   const d = document.getElementById('mem-vane-dager');
@@ -1010,6 +1026,8 @@ export function initMemory() {
     glemVaner();
     // Og knappebruken: «alt» betyr alt.
     glemKnappebruk();
+    // Og linjene du har bekreftet (v1.218.19).
+    glemLinjeSvar();
     renderMemory();
   });
   const kbClr = document.getElementById('kb-clear');

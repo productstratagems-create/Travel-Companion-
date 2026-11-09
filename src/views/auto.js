@@ -37,7 +37,7 @@ import { erInnstilt } from '../innstilt.js';
 import { plattformTekst } from '../bytte.js';
 import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, nesteStopp, stoppFram, rangerKandidater } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
-import { journeyShapeCached } from '../api/entur.js';
+import { journeyShapeCached, fetchJourneyShape } from '../api/entur.js';
 import { joinJourney } from '../journey.js';
 import { logEvent, recentEvents } from '../api/eventLog.js';
 import { loadConsent } from '../api/consent.js';
@@ -1536,6 +1536,12 @@ function _påLinjaMedLås(nå) {
     if (rang[0]) { vinner = rang[0].k; _gjettGrunn = rang[0].grunn; }
     _sisteRang = rang;
   }
+  // TRASÉEN for låsen og for kandidatene i tvil (v1.218.21): uten den måles
+  // «utenfor ruta» mot rette streker, og på T-bane 3 ga det bytte til buss.
+  // Hentet én gang per tur; ved neste vurdering ligger den i hurtiglageret.
+  [_lås && _lås.k, ...(dom.kind === 'ombord-tvil' ? dom.kandidater.slice(0, 5) : [])]
+    .filter(k => k && k.nøkkel && journeyShapeCached(k.nøkkel) === undefined)
+    .forEach(k => { fetchJourneyShape(k.nøkkel).catch(() => {}); });
   const r = oppdaterLås(_lås, { låstK, vinner, vinnerKilde, fartMS: fartNå(nå), spor: state.posTrail || [],
     lang: state.posTrailLang, nå });
   if (r.hendelse) {

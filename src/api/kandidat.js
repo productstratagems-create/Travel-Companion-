@@ -21,6 +21,8 @@ export function kandidatAv(c, spor, form) {
     farge: (sj.line && sj.line.presentation && sj.line.presentation.colour) || null,
     front: (c.destinationDisplay && c.destinationDisplay.frontText) || '',
     call: c,
+    // Traséen, så låsen kan måle «utenfor ruta» mot den (v1.218.21).
+    form: Array.isArray(form) && form.length >= 2 ? form : null,
     forventet: (spor || []).map(f => {
       const p = pos(f.at);
       return { at: f.at, lat: p ? p.lat : null, lon: p ? p.lon : null };

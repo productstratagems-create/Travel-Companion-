@@ -83,10 +83,22 @@ export function avstandTilRute(kall, f) {
  * Den siste sammenhengende rekka av fikser bort fra turen, som slutter i
  * den siste fiksen. Tom når den siste fiksen er på turen.
  */
+/* RUTA: den ekte traséen når den er kjent, ellers rette streker mellom stoppene.
+ * Rapportert (v1.218.21): «På T-banelinje 3 begynner appen å tro at bruker
+ * plutselig er på tilstøtende busslinjer.» Målt mot Enturs trasé: 131 av 595
+ * punkter på linje 3 ligger >150 m fra de rette strekene, ved Brynseng 300 m.
+ * Du satt PÅ T-banen og så ut til å være utenfor ruta — og et gjett kunne da
+ * byttes til en buss som gikk i nærheten. */
+export function rutePunkter(k) {
+  const f = k && k.form;
+  if (Array.isArray(f) && f.length >= 2) return f.map(([lat, lon]) => ({ lat, lon }));
+  return _kall(k);
+}
+
 export function sisteAvviksrekke(k, spor) {
   const fikser = (spor || []).filter(_ok);
   // Fra RUTA, ikke fra punktet i rutetiden (v1.217.1). Se `avstandTilRute`.
-  const kall = _kall(k);
+  const kall = rutePunkter(k);
   const bort = new Set(kall.length >= 2
     ? fikser.filter(f => avstandTilRute(kall, f) - (Number.isFinite(f.acc) ? f.acc : 0) > OMBORD_MAKS_AVVIK_M)
     : avvik(k, fikser));

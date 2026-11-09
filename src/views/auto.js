@@ -37,7 +37,6 @@ import { erInnstilt } from '../innstilt.js';
 import { plattformTekst } from '../bytte.js';
 import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, nesteStopp, stoppFram, rangerKandidater } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
-import { _interpolateVehiclePos, _interpolateOnPath } from '../api/forventetPos.js';
 import { journeyShapeCached } from '../api/entur.js';
 import { joinJourney } from '../journey.js';
 import { logEvent, recentEvents } from '../api/eventLog.js';
@@ -56,6 +55,8 @@ import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userL
 import L from 'leaflet';
 import { createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap } from '../ui/map.js';
 import { storage } from '../storage.js';
+import { kandidatAv } from '../api/kandidat.js';
+import { taOpp, lagreTuropptak } from '../api/turopptak.js';
 import { kontekst, lærSvar, svarFor } from '../api/linjeSvar.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
 import { ensureApproach, approachPoints, AT_STOP_M } from '../api/approach.js';
@@ -1360,22 +1361,9 @@ export function ombordKandidater(kall, spor, avvist) {
     const sj = c && c.serviceJourney;
     if (!sj || !sj.id || sett.has(sj.id)) return;
     if (erInnstilt(c) || (avvist && avvist.has(sj.id))) return;
-    const stopp = sj.estimatedCalls;
-    if (!Array.isArray(stopp) || stopp.length < 2) return;
-    const form = journeyShapeCached(sj.id);
-    const pos = at => (Array.isArray(form) && form.length >= 2
-      ? _interpolateOnPath(stopp, at, form) : _interpolateVehiclePos(stopp, at));
-    sett.set(sj.id, {
-      nøkkel: sj.id,
-      linje: (sj.line && sj.line.publicCode) || '?',
-      farge: (sj.line && sj.line.presentation && sj.line.presentation.colour) || null,
-      front: (c.destinationDisplay && c.destinationDisplay.frontText) || '',
-      call: c,
-      forventet: (spor || []).map(f => {
-        const p = pos(f.at);
-        return { at: f.at, lat: p ? p.lat : null, lon: p ? p.lon : null };
-      }),
-    });
+    // Én definisjon (api/kandidat.js), delt med avspillingen av turopptak.
+    const k = kandidatAv(c, spor, journeyShapeCached(sj.id));
+    if (k) sett.set(sj.id, k);
   });
   return [...sett.values()];
 }
@@ -1452,6 +1440,9 @@ if (typeof document !== 'undefined') {
   }, true);
 }
 let _gjettGrunn = '';
+let _sisteRang = null;
+// Turopptaket skrives samlet; det som står i minnet lagres når fanen skjules.
+if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.hidden) lagreTuropptak(); });
 let _feilÅpen = false;
 
 /** Hvor mange ganger hver linje er reist med den siste uka (reiseloggen). */
@@ -1535,6 +1526,7 @@ function _påLinjaMedLås(nå) {
   const låstK = _lås ? (ombordKandidater([_lås.k.call], state.posTrail || [], null)[0] || null) : null;
   _sisteKand = dom.kandidater || [];
   // ET VALG OGSÅ VED TVIL: den øverste i rangeringen, merket gjettet.
+  _sisteRang = null;
   let vinner = dom.kind === 'ombord' ? dom.kandidater[0] : (fri && fri.k) || null;
   let vinnerKilde = dom.kind === 'ombord' ? 'sikker' : 'gjettet';
   if (!vinner && dom.kind === 'ombord-tvil') {
@@ -1542,6 +1534,7 @@ function _påLinjaMedLås(nå) {
       linjeBruk: _linjeBruk(nå), ofte: new Set(loadFreq('arr').map(p => stopKey(p.name)).filter(Boolean)), stopKey,
       svar: svarFor(_svarKx(dom.kandidater[0], nå)) });
     if (rang[0]) { vinner = rang[0].k; _gjettGrunn = rang[0].grunn; }
+    _sisteRang = rang;
   }
   const r = oppdaterLås(_lås, { låstK, vinner, vinnerKilde, fartMS: fartNå(nå), spor: state.posTrail || [],
     lang: state.posTrailLang, nå });
@@ -1550,6 +1543,13 @@ function _påLinjaMedLås(nå) {
     logEvent('ombord', { svarte: r.hendelse, linje: k ? k.linje : '', handling: r.lås ? 'låst' : 'sluppet' }, null);
   }
   _lås = r.lås;
+  // TUROPPTAK (v1.218.20): bare med samtykke, og bare når appen ser deg om bord
+  // eller har en lås. Se api/turopptak.js.
+  if (_lås || r.hendelse || dom.kind === 'ombord' || dom.kind === 'ombord-tvil') {
+    const siste = (state.posTrail || [])[(state.posTrail || []).length - 1];
+    taOpp({ nå, fiks: siste, fart: fartNå(nå), dom: dom.kind, kandidater: dom.kandidater, rang: _sisteRang,
+      vinner, vinnerKilde, lås: _lås, hendelse: r.hendelse, form: n => journeyShapeCached(n) });
+  }
   if (!_lås) return fri;
   const neste = nesteStopp(_lås.k, nå);
   return neste ? { stop: neste, linjer: [_lås.k.linje], k: _lås.k } : null;

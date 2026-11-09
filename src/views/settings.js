@@ -1,4 +1,5 @@
 import { linjeSvarOversikt, glemLinjeSvar } from '../api/linjeSvar.js';
+import { turopptak, turJson, slettTur, glemTuropptak } from '../api/turopptak.js';
 import config from '../config.js';
 import { stopKey, findStop } from '../stopId.js';
 import { enturFetch } from '../api/http.js';
@@ -877,6 +878,31 @@ function _destroyMemMap() {
  * returnerte uten å tegne noe når bryteren var av, og da fikk den som aldri
  * sier ja aldri se det appen lagrer om henne uansett.
  */
+/** Turopptakene (v1.218.20): dato, linjer, antall punkter, kopier og slett. */
+export function turerHtml(liste) {
+  if (!liste.length) return '<div class="mem-empty">Ingen turer tatt opp ennå.</div>';
+  const kl = ms => new Date(ms).toLocaleString('nb-NO', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return liste.map(t => '<div class="mem-row mem-tur">'
+    + '<span class="mem-when">' + esc(kl(t.start)) + '</span>'
+    + '<span class="mem-text">' + esc((t.linjer.join(', ') || 'ukjent linje') + ' · ' + t.bilder + ' punkter'
+      + (t.hendelser.length ? ' · ' + t.hendelser.join(', ') : '')) + '</span>'
+    + '<button type="button" class="kb-btn tur-kopier" data-id="' + esc(t.id) + '">kopier turen</button>'
+    + '<button type="button" class="kb-btn tur-slett" data-id="' + esc(t.id) + '">slett</button>'
+    + '</div>').join('');
+}
+
+function _renderTurer() {
+  const el = document.getElementById('mem-turer');
+  if (!el) return;
+  el.innerHTML = turerHtml(turopptak());
+  el.querySelectorAll('.tur-kopier').forEach(b => b.addEventListener('click', () => {
+    const json = turJson(b.dataset.id);
+    if (!json) return;
+    try { navigator.clipboard.writeText(json).then(() => { b.textContent = 'kopiert'; setTimeout(() => { b.textContent = 'kopier turen'; }, 1500); }, () => {}); } catch { /* */ }
+  }));
+  el.querySelectorAll('.tur-slett').forEach(b => b.addEventListener('click', () => { slettTur(b.dataset.id); _renderTurer(); }));
+}
+
 /* Linjene du har bekreftet eller rettet i auto-reise (v1.218.19). Nivå 1, «det
  * du har sagt»: vises alltid, uavhengig av samtykkebryteren. */
 function _renderLinjeSvar() {
@@ -944,6 +970,7 @@ export function renderMemory() {
   // projects off-screen, drawn and invisible. The probe measured «10
   // tegnet, 2 synlige». Deferring one frame lets the layout settle
   // whatever order the caller used, rather than depending on it.
+  _renderTurer();
   _renderKnappebruk();
   const pts = events.filter(e => e.pos);
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => _renderMemMap(pts));
@@ -992,6 +1019,8 @@ export function initMemory() {
     // Turning it off EMPTIES the log. Leaving it sitting there unused would
     // mean the app still holds a week of positions after being told not to.
     if (!cb.checked) clearEvents();
+    // Og turopptakene: de bærer posisjoner, samme regel (v1.218.20).
+    if (!cb.checked) glemTuropptak();
     renderMemory();
   });
   /* KNAPPEN SIER «SLETT ALT APPEN HUSKER», OG DET ER ABSOLUTT.
@@ -1028,6 +1057,8 @@ export function initMemory() {
     glemKnappebruk();
     // Og linjene du har bekreftet (v1.218.19).
     glemLinjeSvar();
+    // Og turopptakene (v1.218.20).
+    glemTuropptak();
     renderMemory();
   });
   const kbClr = document.getElementById('kb-clear');

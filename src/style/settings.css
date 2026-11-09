@@ -875,3 +875,6 @@
 .auto-kart-bryter[hidden]{display:none}
 .auto-kart-flere{margin-left:0;text-transform:none;letter-spacing:0;font-size:12px}
 #auto-map-vis{margin:.2rem 0 .4rem}
+/* Turopptak (v1.218.20): knappene som knappebruk-knappene, på egen linje under turen. */
+.mem-tur{flex-wrap:wrap}
+.mem-tur .kb-btn{flex:0 0 auto;margin-top:.3rem;margin-right:.4rem;min-height:32px}

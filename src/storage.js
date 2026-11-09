@@ -29,6 +29,8 @@ const ALL_KEYS = [
   't.linjeSvar',
   // Turopptak om bord (v1.218.20). Nivå 3: samtykke, 7 døgn.
   't.turopptak',
+  // Svarene dine på «neste reise» (v1.218.22). Nivå 1.
+  't.nesteSvar',
   // Legacy. v1.79.0 stored whether the nearby-stops list was open; v1.83.1
   // made that a module variable so the list starts collapsed every time.
   // Nothing writes this any more — it stays listed so a value left over from

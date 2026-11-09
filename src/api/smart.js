@@ -263,6 +263,9 @@ export function destRanking(at) {
     if (!prev || score > prev.score) {
       best.set(k, { fromName: e.fromName || null, toName: e.toName, toStopId: e.toStopId,
         fromStopId: e.fromStopId || null, score,
+        // Målets koordinater (v1.218.22). Lagret i historikken hele tiden, men
+        // kastet her — og «neste reise» kunne da ikke si hvilken retning.
+        toLat: Number.isFinite(e.toLat) ? e.toLat : null, toLon: Number.isFinite(e.toLon) ? e.toLon : null,
         // Vinnerpostens egne to fakta, båret ut i stedet for å forsvinne
         // inn i scoren: traff vi RETT tidsbøtte, og rett slags ukedag.
         diff, ukedag: e.isWeekend === isWeekend });

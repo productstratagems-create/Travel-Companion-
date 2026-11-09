@@ -55,6 +55,8 @@ import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userL
 import L from 'leaflet';
 import { createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap } from '../ui/map.js';
 import { storage } from '../storage.js';
+import { nesteReise } from '../nesteReise.js';
+import { nesteSvarFor, lærNesteSvar } from '../api/nesteSvar.js';
 import { kandidatAv } from '../api/kandidat.js';
 import { taOpp, lagreTuropptak } from '../api/turopptak.js';
 import { kontekst, lærSvar, svarFor } from '../api/linjeSvar.js';
@@ -1732,9 +1734,46 @@ function _hentStoppInfo(list) {
   });
 }
 
+/* NESTE REISE (v1.218.22, src/nesteReise.js): hva appen tror er din neste
+ * reise, med fuzzy tid og retning, og «stemmer» / «nei». Skjult om bord: da
+ * er reisen i gang, og spørsmålet er et annet. */
+let _nesteBesvart = null;   // nøkkelen til hypotesen du har svart på denne økta
+export function nesteReiseHtml(h, besvart) {
+  if (!h) return '';
+  const hvor = 'trolig mot <b>' + esc(h.toName) + '</b>' + (h.retning ? ' (' + esc(h.retning) + ')' : '');
+  const grunnlag = h.antall + (h.antall === 1 ? ' reise' : ' reiser') + ' ' + (h.helg ? 'i helgene' : 'på hverdager') + ' da'
+    + (h.sagt > 0 ? ' · bekreftet av deg' : '');
+  return '<div class="neste-reise">'
+    + '<div class="set-label">neste reise</div>'
+    + '<div class="neste-tekst">' + hvor + ' · ' + esc(h.tekst) + '</div>'
+    + '<div class="neste-grunn">' + esc(grunnlag) + '</div>'
+    + (besvart
+      ? '<div class="neste-takk">takk, husket</div>'
+      : '<div class="neste-svar"><button type="button" class="neste-ja">stemmer</button>'
+        + '<button type="button" class="neste-nei">nei</button></div>')
+    + '</div>';
+}
+
+function _renderNeste(nå) {
+  const el = _el('auto-neste');
+  if (!el) return;
+  if (_lås || (_ombordDom(nå).kind || '').startsWith('ombord')) { el.style.display = 'none'; return; }
+  const h = nesteReise({ nå, her: userLL(), rangering: at => destRanking(at), svar: nesteSvarFor });
+  const nøkkel = h ? h.toName + '|' + h.bucket + '|' + h.helg : null;
+  const html = nesteReiseHtml(h, nøkkel && nøkkel === _nesteBesvart);
+  el.style.display = html ? '' : 'none';
+  if (el.innerHTML === html) return;
+  el.innerHTML = html;
+  const svar = tegn => () => { lærNesteSvar(h, tegn); _nesteBesvart = nøkkel; _renderNeste(Date.now()); };
+  const ja = el.querySelector('.neste-ja'), nei = el.querySelector('.neste-nei');
+  if (ja) ja.addEventListener('click', svar(+1));
+  if (nei) nei.addEventListener('click', svar(-1));
+}
+
 function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
+  _renderNeste(Date.now());
   const list = _stops();
   _hentStoppInfo(list);
   const nåW = Date.now();

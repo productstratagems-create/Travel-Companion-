@@ -1,4 +1,5 @@
 import { linjeSvarOversikt, glemLinjeSvar } from '../api/linjeSvar.js';
+import { nesteSvarOversikt, glemNesteSvar } from '../api/nesteSvar.js';
 import { turopptak, turJson, slettTur, glemTuropptak } from '../api/turopptak.js';
 import config from '../config.js';
 import { stopKey, findStop } from '../stopId.js';
@@ -917,8 +918,19 @@ function _renderLinjeSvar() {
     : '<div class="mem-empty">Ingen svar ennå. Når auto-reise gjetter linja, kan du si «stemmer» eller «feil linje?».</div>';
 }
 
+function _renderNesteSvar() {
+  const el = document.getElementById('mem-nestesvar');
+  if (!el) return;
+  const rader = nesteSvarOversikt();
+  el.innerHTML = rader.length
+    ? rader.map(r => '<div class="mem-row"><span class="mem-when">' + esc((r.helg ? 'helg' : 'hverdag') + ' ' + String(r.bucket * 2).padStart(2, '0') + '–' + String(r.bucket * 2 + 2).padStart(2, '0'))
+        + '</span><span class="mem-text">' + esc(r.toName + ' ' + (r.n > 0 ? '+' : '') + r.n) + '</span></div>').join('')
+    : '<div class="mem-empty">Ingen svar ennå.</div>';
+}
+
 function _renderVaner() {
   _renderLinjeSvar();
+  _renderNesteSvar();
   const el = document.getElementById('mem-vane');
   if (!el) return;
   const d = document.getElementById('mem-vane-dager');
@@ -1057,6 +1069,7 @@ export function initMemory() {
     glemKnappebruk();
     // Og linjene du har bekreftet (v1.218.19).
     glemLinjeSvar();
+    glemNesteSvar();
     // Og turopptakene (v1.218.20).
     glemTuropptak();
     renderMemory();

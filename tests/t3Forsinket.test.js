@@ -33,7 +33,6 @@ describe('T-bane 3, 40 s forsinket mellom Bøler og Ulsrud', () => {
     expect(d.kind).toBe('ombord');
     expect(d.kandidater[0].linje).toBe('3');
   });
-  it('slingringsmonnet er ±90 s rutetid', () => { expect(OMBORD_TIDSSLINGRE_MS).toBe(90_000); });
   it('men et tog som er 5 minutter unna, følger deg ikke', () => {
     const fjern = tider.map(t => { const p = posAt(t - 300_000); return { lat: p.lat, lon: p.lon, acc: 8, at: t }; });
     expect(ombord({ spor: fjern, fartMS: 9, kandidater: [kandidatAv(call, fjern, F.form)] }).kind).toBe('vet-ikke');
@@ -49,5 +48,17 @@ describe('turopptaket tar også opp når appen ikke kjenner igjen noen tur', () 
     expect(a).toContain("dom.kind === 'ombord-tvil' || iFart(fartNå(nå))) {");
     expect(a).toContain('domGrunn: dom.grunn,');
     expect(readFileSync('src/api/turopptak.js', 'utf8')).toContain('    g: b.domGrunn || null,');
+  });
+});
+
+describe('målt i turopptaket 2026-11-10: toget 80–165 s foran sanntiden', () => {
+  // Opptaket fra Mortensrud → Bøler: signalfeil, sanntiden hang etter, og toget
+  // gikk opptil 165 s FORAN expectedArrivalTime. Ved ±90 s ble det «vet-ikke».
+  it('165 s foran: fortsatt om bord', () => {
+    const foran = tider.map(t => { const p = posAt(t + 165_000); return { lat: p.lat, lon: p.lon, acc: 8, at: t }; });
+    expect(ombord({ spor: foran, fartMS: 9, kandidater: [kandidatAv(call, foran, F.form)] }).kind).toBe('ombord');
+  });
+  it('slingringsmonnet er målt: ±180 s (165 s + margin)', () => {
+    expect(OMBORD_TIDSSLINGRE_MS).toBe(180_000);
   });
 });

@@ -31,6 +31,8 @@ const ALL_KEYS = [
   't.turopptak',
   // Svarene dine på «neste reise» (v1.218.22). Nivå 1.
   't.nesteSvar',
+  // Låsen på turen du sitter på, så den overlever en omlasting (v1.218.25).
+  't.ombordLås',
   // Legacy. v1.79.0 stored whether the nearby-stops list was open; v1.83.1
   // made that a module variable so the list starts collapsed every time.
   // Nothing writes this any more — it stays listed so a value left over from

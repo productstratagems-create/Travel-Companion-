@@ -75,11 +75,13 @@ export const OMBORD_MAKS_AVVIK_M = 150;
  * T-banen ble aldri kjent igjen. Kravet var 150 m fra turens posisjon ETTER
  * RUTETIDEN på sekundet; en T-bane i ~8 m/s er utenfor etter 20 s.
  *
- * Nå: nærmeste av turens posisjoner innenfor ±90 s rutetid. Et tog 5 minutter
- * unna følger deg fortsatt ikke. Valgt ved resonnement (typisk forsinkelse
- * uten sanntid), ikke målt — turopptaket skal vise om det holder.
+ * Nå: nærmeste av turens posisjoner innenfor ±180 s rutetid. MÅLT
+ * (v1.218.25): turopptaket fra linje 3 samme morgen viste toget 80–165 s FORAN
+ * sanntiden (signalfeil; sanntiden hang etter). ±90 s, valgt ved resonnement i
+ * v1.218.24, ville gitt «vet-ikke» fra Skullerud. Et tog 5 minutter unna
+ * følger deg fortsatt ikke.
  */
-export const OMBORD_TIDSSLINGRE_MS = 90_000;
+export const OMBORD_TIDSSLINGRE_MS = 180_000;
 const SLINGRE_STEG_MS = 10_000;
 
 /** Meter fra fiksen til turen, med slingringsmonn i rutetid når turen kan si hvor den er (`posAt`). */

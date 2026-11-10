@@ -55,6 +55,7 @@ import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userL
 import L from 'leaflet';
 import { createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap } from '../ui/map.js';
 import { storage } from '../storage.js';
+import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise } from '../nesteReise.js';
 import { nesteSvarFor, lærNesteSvar } from '../api/nesteSvar.js';
 import { kandidatAv } from '../api/kandidat.js';
@@ -1518,7 +1519,18 @@ export function rettLinjeHtml(lås, kandidater, åpen, grunn) {
     + '<button type="button" class="rett-ingen">ingen av disse</button></div>';
 }
 
+let _låsHentet = false;
+let _låsLagret = '';
 function _påLinjaMedLås(nå) {
+  // OMLASTING (v1.218.25): låsen fra før omlastingen, hvis turen fortsatt går.
+  if (!_lås && !_låsHentet) {
+    _låsHentet = true;
+    const h = hentLås(nå);
+    if (h) {
+      const k = ombordKandidater([h.call], state.posTrail || [], null)[0];
+      if (k) _lås = { k, kilde: h.kilde, stilleFra: null };
+    }
+  }
   const dom = _ombordDom(nå);
   const fri = stoppPåLinja(dom, nå, state.posTrailLang);
   // Avvist med × slipper låsen også: du har sagt at du ikke er på den.
@@ -1551,6 +1563,9 @@ function _påLinjaMedLås(nå) {
     logEvent('ombord', { svarte: r.hendelse, linje: k ? k.linje : '', handling: r.lås ? 'låst' : 'sluppet' }, null);
   }
   _lås = r.lås;
+  // Lagret når den endres — tur eller kilde — ikke hvert sekund.
+  const låsNøkkel = _lås ? _lås.k.nøkkel + '|' + _lås.kilde : '';
+  if (låsNøkkel !== _låsLagret) { _låsLagret = låsNøkkel; lagreLås(_lås, nå); }
   // TUROPPTAK (v1.218.20): bare med samtykke, og bare når appen ser deg om bord
   // eller har en lås. Se api/turopptak.js.
   // OGSÅ I FART UTEN NOEN TUR (v1.218.24): turen på linje 3 der appen aldri

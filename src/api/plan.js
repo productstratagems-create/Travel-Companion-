@@ -26,7 +26,10 @@ export function addLegToPlan(c, dir) {
   if (legs.some(l => serviceJourneyId ? l.serviceJourneyId === serviceJourneyId : l.depIso === depIso)) return false;
   const ln = c.serviceJourney && c.serviceJourney.line;
   const line = (ln && ln.publicCode) || '?';
-  const lineColour = (ln && ln.presentation && ln.presentation.colour) || '7c2d12';
+  // INGEN FARGE ER INGEN FARGE (review 2026-11-10): her sto den brune
+  // plassholderen 7c2d12, og en linje uten farge fra Entur ble brun i planen.
+  // Linjemerket gir da Linjes farge for transportmiddelet.
+  const lineColour = (ln && ln.presentation && ln.presentation.colour) || null;
   const dest = (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to;
   const arrIso = c._finalArrival || null;
   // RETURNS THE LEG, not just true: the departure screen offers the calendar
@@ -58,6 +61,14 @@ export function addLegToPlan(c, dir) {
     depIso,
     arrIso,
     serviceJourneyId,
+    // DET LINJEMERKET OG RADEN TRENGER (review 2026-11-10): uten disse hadde
+    // planen verken tilbyderlogo, ikon for transportmiddelet eller plattform.
+    lineId: (ln && ln.id) || null,
+    mode: (c._legs && c._legs[0] && c._legs[0].mode) || (ln && ln.transportMode) || null,
+    lineFg: (ln && ln.presentation && ln.presentation.textColour) || null,
+    quay: (c.quay && c.quay.publicCode && c.quay.publicCode !== '?') ? c.quay.publicCode : null,
+    // Gange til et annet stopp først (v1.218.16), så planen ikke later som.
+    gåTil: c._gåTil || null,
     addedAt: Date.now(),
   };
   legs.push(leg);
@@ -148,4 +159,11 @@ export function legExtent(calls, leg) {
   // Finner vi ikke etappen, sies det: dette er hele reisen, ikke din del av
   // den. Skjermen kan da la være å påstå noe den ikke vet.
   return { fromIdx: 0, toIdx: list.length - 1, source: 'hele reisen' };
+}
+
+/** Linjens farge, eller null. Den brune plassholderen fra før er ingen farge. */
+export const GAMMEL_PLASSHOLDER = '7c2d12';
+export function legFarge(leg) {
+  const f = leg && leg.lineColour;
+  return f && String(f).replace('#', '').toLowerCase() !== GAMMEL_PLASSHOLDER ? f : null;
 }

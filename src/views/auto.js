@@ -48,7 +48,8 @@ import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
 import { byLine } from '../api/situations.js';
 import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
-import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst } from '../api/stops.js';
+import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
+import { profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
@@ -1791,12 +1792,14 @@ let _nesteBesvart = null;   // nøkkelen til hypotesen du har svart på denne ø
 export function vanligAvgang(dirs, h, fromName, walkMins, now) {
   if (!h || !h.toName || !Array.isArray(dirs)) return null;
   const want = stopKey(h.toName);
+  // Profilen (v1.218.29) treffer på flere holdeplasser: alle innen gangavstand
+  // fra hjem eller jobb, eller alle i sentrum. Ellers: navnet.
+  const treff = typeof h.treff === 'function' ? h.treff : st => stopKey(st.name) === want;
   let best = null;
   dirs.forEach(d => {
-    const ride = catchable(d, walkMins, now).find(r => stopsAhead(r.call, fromName, now)
-      .some(st => stopKey(st.name) === want));
+    const ride = catchable(d, walkMins, now).find(r => stopsAhead(r.call, fromName, now).some(treff));
     if (ride && (!best || ride.ms < best.ride.ms)) {
-      const stop = stopsAhead(ride.call, fromName, now).find(st => stopKey(st.name) === want);
+      const stop = stopsAhead(ride.call, fromName, now).find(treff);
       best = { dir: d, ride, stop };
     }
   });
@@ -1835,11 +1838,65 @@ export function nesteReiseHtml(h, besvart, o = {}) {
 }
 
 let _nesteAvvist = null;
+
+/* ── BRUKERPROFILEN I AUTO-REISE (v1.218.29, src/profil.js) ──────────── */
+function _profilNå() {
+  const hist = loadSmartHist();
+  const p = profil(hist);
+  return { p, m: vaneMatrise(hist, p) };
+}
+function _herSom() {
+  return _stop ? { navn: _stop.name, stopId: _stop.id, lat: _stop.lat, lon: _stop.lon } : null;
+}
+/* Spørsmål du har sagt «senere» til, denne økta. */
+const _profilSenere = new Set();
+export function profilSpørsmålHtml(q) {
+  if (!q) return '';
+  return '<div class="profil-q">'
+    + '<div class="set-label">om deg</div>'
+    + '<div class="profil-q-tekst">' + esc(q.tekst) + '</div>'
+    + '<div class="neste-svar"><button type="button" class="neste-ja profil-ja">ja</button>'
+    + '<button type="button" class="neste-nei profil-nei">nei</button>'
+    + '<button type="button" class="neste-nei profil-senere">senere</button></div>'
+    + '</div>';
+}
+function _renderProfilQ(nå) {
+  const el = _el('auto-profil');
+  if (!el) return;
+  // Ett spørsmål, og bare når du står stille: i fart og om bord er det
+  // andre spørsmål som gjelder.
+  if (_lås || iFart(fartNå(nå)) || (_ombordDom(nå).kind || '').startsWith('ombord')) { el.style.display = 'none'; return; }
+  const { p, m } = _profilNå();
+  const q = nesteSpørsmål(p, m, nå, _profilSenere);
+  const html = profilSpørsmålHtml(q);
+  el.style.display = html ? '' : 'none';
+  if (el.innerHTML === html) return;
+  el.innerHTML = html;
+  if (!q) return;
+  const ferdig = () => { _profilSenere.add(q.nøkkel); _renderProfilQ(Date.now()); };
+  el.querySelector('.profil-ja').addEventListener('click', () => {
+    if (q.art === 'reise') { svarReise(q.celle, q.type, true); ferdig(); return; }
+    // Holdeplassene innen gangavstand følger med, så hjem er «hjem» fra alle.
+    const s = q.sted;
+    const lagre = nær => { settSted(q.rolle, s, nær); ferdig(); };
+    if (Number.isFinite(s.lat)) fetchNearbyStops(s.lat, s.lon).then(l => lagre(l || []), () => lagre([]));
+    else lagre([]);
+  });
+  el.querySelector('.profil-nei').addEventListener('click', () => {
+    if (q.art === 'reise') svarReise(q.celle, q.type, false); else avvisSted(q.rolle, q.sted);
+    ferdig();
+  });
+  el.querySelector('.profil-senere').addEventListener('click', ferdig);
+}
+
 function _renderNeste(nå) {
   const el = _el('auto-neste');
   if (!el) return;
   if (_lås || (_ombordDom(nå).kind || '').startsWith('ombord')) { el.style.display = 'none'; return; }
-  const h = nesteReise({ nå, her: userLL(), rangering: at => destRanking(at), svar: nesteSvarFor });
+  // PROFILEN FØRST (v1.218.29): hjem/jobb/sentrum for døgndelen du er i.
+  // Uten noe der: vanen per mål, som før.
+  const { p: prof, m: matr } = _profilNå();
+  const h = hypoteseNå(prof, matr, nå, _herSom()) || nesteReise({ nå, her: userLL(), rangering: at => destRanking(at), svar: nesteSvarFor });
   const nøkkel = h ? h.toName + '|' + h.bucket + '|' + h.helg : null;
   // Samme gangtid som lista bruker til «rekker du den?».
   const w = _stop ? gangTil(_stop) : null;
@@ -1849,7 +1906,7 @@ function _renderNeste(nå) {
   el.style.display = html ? '' : 'none';
   if (el.innerHTML === html) return;
   el.innerHTML = html;
-  const svar = tegn => () => { lærNesteSvar(h, tegn); _nesteBesvart = nøkkel; if (tegn < 0) _nesteAvvist = nøkkel; _renderNeste(Date.now()); };
+  const svar = tegn => () => { if (h.kilde === 'profil') svarReise(h.celle, h.type, tegn > 0); else lærNesteSvar(h, tegn); _nesteBesvart = nøkkel; if (tegn < 0) _nesteAvvist = nøkkel; _renderNeste(Date.now()); };
   const ja = el.querySelector('.neste-ja'), nei = el.querySelector('.neste-nei');
   if (ja) ja.addEventListener('click', svar(+1));
   if (nei) nei.addEventListener('click', svar(-1));
@@ -1862,6 +1919,7 @@ function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
   _renderNeste(Date.now());
+  _renderProfilQ(Date.now());
   const list = _stops();
   _hentStoppInfo(list);
   const nåW = Date.now();

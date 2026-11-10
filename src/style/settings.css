@@ -878,3 +878,9 @@
 /* Turopptak (v1.218.20): knappene som knappebruk-knappene, på egen linje under turen. */
 .mem-tur{flex-wrap:wrap}
 .mem-tur .kb-btn{flex:0 0 auto;margin-top:.3rem;margin-right:.4rem;min-height:32px}
+
+/* «DU ER VED» + «NESTE STASJON» om bord (v1.218.26). Fast høyde: ingenting
+   hopper når stasjonen byttes. */
+.ved-neste{margin:.25rem 0 .5rem;display:grid;gap:.15rem}
+.ved-rad{font-size:15px;line-height:22px;min-height:22px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ved-merke{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-soft)}

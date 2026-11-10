@@ -35,7 +35,7 @@ import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
 import { plattformTekst } from '../bytte.js';
-import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, nesteStopp, stoppFram, rangerKandidater } from '../api/ombord.js';
+import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, stoppFram, vedOgNeste, rangerKandidater } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
 import { journeyShapeCached, fetchJourneyShape } from '../api/entur.js';
 import { joinJourney } from '../journey.js';
@@ -1575,9 +1575,36 @@ function _påLinjaMedLås(nå) {
     taOpp({ nå, fiks: siste, fart: fartNå(nå), dom: dom.kind, domGrunn: dom.grunn, kandidater: dom.kandidater, rang: _sisteRang,
       vinner, vinnerKilde, lås: _lås, hendelse: r.hendelse, form: n => journeyShapeCached(n) });
   }
-  if (!_lås) return fri;
-  const neste = nesteStopp(_lås.k, nå);
-  return neste ? { stop: neste, linjer: [_lås.k.linje], k: _lås.k } : null;
+  return medVedOgNeste(_lås ? { linjer: [_lås.k.linje], k: _lås.k } : fri, nå,
+    (state.posTrail || [])[(state.posTrail || []).length - 1]);
+}
+
+/**
+ * «DU ER VED» + «NESTE STASJON» (v1.218.26): på én kjent tur leses begge fra
+ * `vedOgNeste`, og stoppet tavla viser ER neste stasjon — samme kilde, så
+ * raden og tavla ikke kan si hver sin ting. Uten én tur: uendret.
+ */
+export function medVedOgNeste(påLinja, nå, fiks) {
+  if (!påLinja || !påLinja.k) return påLinja || null;
+  const vn = vedOgNeste(påLinja.k, nå, fiks);
+  if (!vn.neste) return null;
+  return { ...påLinja, stop: vn.neste, ved: vn.ved, forrige: vn.forrige };
+}
+
+/** Radene over stopphodet om bord. Tom uten én kjent tur. */
+export function vedNesteHtml(påLinja, nå) {
+  if (!påLinja || !påLinja.k || !påLinja.stop) return '';
+  const her = påLinja.ved
+    ? 'du er ved <b>' + esc(påLinja.ved.name) + '</b>'
+    : påLinja.forrige
+      ? 'mellom <b>' + esc(påLinja.forrige.name) + '</b> og <b>' + esc(påLinja.stop.name) + '</b>'
+      : 'på vei til <b>' + esc(påLinja.stop.name) + '</b>';
+  const min = Number.isFinite(påLinja.stop.at) ? Math.max(0, Math.round((påLinja.stop.at - nå) / 60000)) : null;
+  return '<div class="ved-neste">'
+    + '<div class="ved-rad">' + her + '</div>'
+    + '<div class="ved-rad"><span class="ved-merke">neste stasjon</span> <b>' + esc(påLinja.stop.name) + '</b>'
+    + (min == null ? '' : ' · ' + (min === 0 ? 'nå' : 'om ' + min + ' min')) + '</div>'
+    + '</div>';
 }
 
 function _renderOmbord() {
@@ -1825,7 +1852,9 @@ function _renderWhere() {
   // posAgeMins already returns null while the fix is fresh (POS_STALE_MS), so
   // the threshold is not repeated here. One definition of "stale".
   // «Du er ved» er usant fra en buss i 40 km/t. «Nærmeste stopp» er sant.
-  el.innerHTML = '<div class="set-label">' + esc(whereLabel(fart, picked.linjer)) + '</div>'
+  // Med «du er ved / neste stasjon» over er «neste stopp på 3» samme setning to ganger.
+  const vn = picked.linjer ? vedNesteHtml(påLinja, nåW) : '';
+  el.innerHTML = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer)) + '</div>')
     + stopHeadHtml(_stop, others.length, open, {
       iFart: fart,
       walkDist: w ? w.dist : null,

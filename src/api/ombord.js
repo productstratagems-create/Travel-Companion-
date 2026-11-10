@@ -183,9 +183,56 @@ export function nesteStopp(k, nå) { return stoppFram(k, nå, 0); }
 
 /** Stopp nr. `n` framover (0 = neste), eller null. */
 export function stoppFram(k, nå, n) {
+  return _stoppAv(_kall(k).filter(x => _ms(x) > nå)[n || 0]);
+}
+
+const _kall = k => {
   const sj = k && k.call && k.call.serviceJourney;
-  const alle = (sj && Array.isArray(sj.estimatedCalls)) ? sj.estimatedCalls : [];
-  const c = alle.filter(x => _ms(x) > nå)[n || 0];
+  return (sj && Array.isArray(sj.estimatedCalls)) ? sj.estimatedCalls : [];
+};
+
+/** Står du så nær et stopp (eller innenfor fiksens nøyaktighet), er du VED det. */
+export const VED_STOPP_M = 80;
+
+/**
+ * «DU ER VED» OG «NESTE STASJON», fra samme tur (v1.218.26).
+ *
+ * Rapportert: «Jeg ønsker at auto-reise viser både «Du er ved» og «Neste
+ * stasjon».» Turopptaket fra linje 3 (10.11): toget sto 2 m fra Brynseng,
+ * men rutetiden der var passert, så appen sa bare «neste stopp Hellerud».
+ * Tiden alene sier ikke hvor toget står — posisjonen gjør det. Tiden brukes
+ * bare til å skille to besøk på samme stopp (±OMBORD_TIDSSLINGRE_MS).
+ *
+ * @returns {{ved:object|null, forrige:object|null, neste:object|null}}
+ */
+export function vedOgNeste(k, nå, fiks) {
+  const alle = _kall(k);
+  const tom = { ved: null, forrige: null, neste: null };
+  if (!alle.length) return tom;
+  let vedI = -1;
+  if (fiks && Number.isFinite(fiks.lat) && Number.isFinite(fiks.lon)) {
+    const radius = Math.max(VED_STOPP_M, Number.isFinite(fiks.acc) ? fiks.acc : 0);
+    let best = Infinity;
+    alle.forEach((c, i) => {
+      const s = _stoppAv(c);
+      const t = _ms(c);
+      if (!s || s.lat == null || !Number.isFinite(t) || Math.abs(t - nå) > OMBORD_TIDSSLINGRE_MS) return;
+      const d = metresBetween(fiks, s);
+      if (d <= radius && d < best) { best = d; vedI = i; }
+    });
+  }
+  let nesteI = vedI >= 0 ? vedI + 1 : alle.findIndex(x => _ms(x) > nå);
+  if (nesteI < 0 || nesteI >= alle.length) nesteI = -1;
+  const forrigeI = vedI >= 0 ? -1 : (nesteI > 0 ? nesteI - 1 : -1);
+  return {
+    ved: vedI >= 0 ? _stoppAv(alle[vedI]) : null,
+    forrige: forrigeI >= 0 ? _stoppAv(alle[forrigeI]) : null,
+    neste: nesteI >= 0 ? _stoppAv(alle[nesteI]) : null,
+  };
+}
+
+/** Stoppet i et kall, i formen resten av appen leser. Én definisjon. */
+function _stoppAv(c) {
   const q = c && c.quay;
   const sp = q && q.stopPlace;
   if (!sp || !sp.id) return null;

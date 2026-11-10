@@ -56,7 +56,7 @@ import L from 'leaflet';
 import { createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap } from '../ui/map.js';
 import { storage } from '../storage.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
-import { nesteReise } from '../nesteReise.js';
+import { nesteReise, tilstand } from '../nesteReise.js';
 import { nesteSvarFor, lærNesteSvar } from '../api/nesteSvar.js';
 import { kandidatAv } from '../api/kandidat.js';
 import { taOpp, lagreTuropptak } from '../api/turopptak.js';
@@ -1782,36 +1782,80 @@ function _hentStoppInfo(list) {
  * reise, med fuzzy tid og retning, og «stemmer» / «nei». Skjult om bord: da
  * er reisen i gang, og spørsmålet er et annet. */
 let _nesteBesvart = null;   // nøkkelen til hypotesen du har svart på denne økta
-export function nesteReiseHtml(h, besvart) {
-  if (!h) return '';
-  const hvor = 'trolig mot <b>' + esc(h.toName) + '</b>' + (h.retning ? ' (' + esc(h.retning) + ')' : '');
-  const grunnlag = h.antall + (h.antall === 1 ? ' reise' : ' reiser') + ' ' + (h.helg ? 'i helgene' : 'på hverdager') + ' da'
-    + (h.sagt > 0 ? ' · bekreftet av deg' : '');
+/**
+ * Avgangen som tar deg dit du pleier (v1.218.27): den første du REKKER med
+ * gangtiden, som stopper ved målet. Samme `catchable` og `stopsAhead` som
+ * lista og «alle stopp» bruker, så kortet ikke kan foreslå et tog lista har
+ * strøket.
+ */
+export function vanligAvgang(dirs, h, fromName, walkMins, now) {
+  if (!h || !h.toName || !Array.isArray(dirs)) return null;
+  const want = stopKey(h.toName);
+  let best = null;
+  dirs.forEach(d => {
+    const ride = catchable(d, walkMins, now).find(r => stopsAhead(r.call, fromName, now)
+      .some(st => stopKey(st.name) === want));
+    if (ride && (!best || ride.ms < best.ride.ms)) {
+      const stop = stopsAhead(ride.call, fromName, now).find(st => stopKey(st.name) === want);
+      best = { dir: d, ride, stop };
+    }
+  });
+  return best;
+}
+
+export function nesteReiseHtml(h, besvart, o = {}) {
+  const { nå = Date.now(), hit = null, walkMins = null } = o;
+  if (!h || tilstand(h, nå) !== 'nær') return '';
+  const spør = !(h.sagt > 0) && !besvart;
+  let linje;
+  if (hit) {
+    const c = hit.ride.call;
+    const ln = (c.serviceJourney && c.serviceJourney.line) || {};
+    const spor = c.quay && c.quay.publicCode;
+    const gåMs = hit.ride.ms - (walkMins || 0) * 60_000;
+    const gåMin = Math.round((gåMs - nå) / 60_000);
+    const gå = walkMins ? (gåMin <= 0 ? '<b class="neste-gaa-naa">gå nå</b>' : 'gå om ' + gåMin + ' min') : null;
+    linje = 'til <b>' + esc(h.toName) + '</b> · '
+      + linjemerke({ kode: ln.publicCode, farge: ln.presentation && ln.presentation.colour,
+        tekst: ln.presentation && ln.presentation.textColour, linjeId: ln.id, modus: ln.transportMode })
+      + ' kl ' + clk(hit.ride.ms) + (spor ? ' fra spor ' + esc(spor) : '')
+      + (gå ? ' · ' + gå : '') + (hit.stop && hit.stop.at != null ? ' · framme ' + clk(hit.stop.at) : '');
+  } else {
+    // Si hva du ikke vet: vanen er nær, men ingen avgang herfra går dit.
+    linje = 'til <b>' + esc(h.toName) + '</b> · ' + esc(h.tekst) + ' · ingen avgang herfra går dit';
+  }
   return '<div class="neste-reise">'
-    + '<div class="set-label">neste reise</div>'
-    + '<div class="neste-tekst">' + hvor + ' · ' + esc(h.tekst) + '</div>'
-    + '<div class="neste-grunn">' + esc(grunnlag) + '</div>'
-    + (besvart
-      ? '<div class="neste-takk">takk, husket</div>'
-      : '<div class="neste-svar"><button type="button" class="neste-ja">stemmer</button>'
-        + '<button type="button" class="neste-nei">nei</button></div>')
+    + '<div class="set-label">din vanlige reise</div>'
+    + '<div class="neste-tekst">' + linje + '</div>'
+    + (spør
+      ? '<div class="neste-svar"><span class="neste-grunn">' + esc(h.antall + (h.antall === 1 ? ' reise' : ' reiser') + ' da')
+        + '</span><button type="button" class="neste-ja">stemmer</button><button type="button" class="neste-nei">nei</button></div>'
+      : '')
     + '</div>';
 }
 
+let _nesteAvvist = null;
 function _renderNeste(nå) {
   const el = _el('auto-neste');
   if (!el) return;
   if (_lås || (_ombordDom(nå).kind || '').startsWith('ombord')) { el.style.display = 'none'; return; }
   const h = nesteReise({ nå, her: userLL(), rangering: at => destRanking(at), svar: nesteSvarFor });
   const nøkkel = h ? h.toName + '|' + h.bucket + '|' + h.helg : null;
-  const html = nesteReiseHtml(h, nøkkel && nøkkel === _nesteBesvart);
+  // Samme gangtid som lista bruker til «rekker du den?».
+  const w = _stop ? gangTil(_stop) : null;
+  const hit = h && _stop && tilstand(h, nå) === 'nær' ? vanligAvgang(_dirs, h, _stop.name, w ? w.mins : null, nå) : null;
+  const html = nøkkel && nøkkel === _nesteAvvist ? ''
+    : nesteReiseHtml(h, nøkkel && nøkkel === _nesteBesvart, { nå, hit, walkMins: w ? w.mins : null });
   el.style.display = html ? '' : 'none';
   if (el.innerHTML === html) return;
   el.innerHTML = html;
-  const svar = tegn => () => { lærNesteSvar(h, tegn); _nesteBesvart = nøkkel; _renderNeste(Date.now()); };
+  const svar = tegn => () => { lærNesteSvar(h, tegn); _nesteBesvart = nøkkel; if (tegn < 0) _nesteAvvist = nøkkel; _renderNeste(Date.now()); };
   const ja = el.querySelector('.neste-ja'), nei = el.querySelector('.neste-nei');
   if (ja) ja.addEventListener('click', svar(+1));
   if (nei) nei.addEventListener('click', svar(-1));
+  // Trykk på kortet: retningen åpnes, med stoppene og ankomsten.
+  const t = el.querySelector('.neste-tekst');
+  if (t && hit) t.addEventListener('click', () => { _open = hit.dir; _renderBody(); });
 }
 
 function _renderWhere() {

@@ -84,3 +84,17 @@ export function nesteReise(o) {
   }
   return null;
 }
+
+/**
+ * JOBBEN (v1.218.27): «når det nærmer seg tiden jeg pleier å reise, vil jeg
+ * vite når jeg må gå og hvilken avgang som tar meg dit.» Kl. 17:26 sto
+ * «i morgen tidlig, mellom 06 og 08» i fire linjer over kartet — en
+ * opplysning uten noe å gjøre med. Kortet vises bare når reisen er NÆR.
+ */
+export const NÆR_FØR_MIN = 60;
+
+/** 'nær' fra NÆR_FØR_MIN før vinduet til det er over; ellers 'senere'. */
+export function tilstand(h, nå) {
+  if (!h || !Number.isFinite(h.fra) || !Number.isFinite(h.til)) return null;
+  return nå >= h.fra - NÆR_FØR_MIN * 60_000 && nå < h.til ? 'nær' : 'senere';
+}

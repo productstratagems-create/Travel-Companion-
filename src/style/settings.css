@@ -291,8 +291,12 @@
    there are not, so the button's own defaults have to be undone or the two
    would not look alike: a browser button brings its own font, background,
    border, padding and centred text. */
+/* width:auto, ikke 100% (v1.218.30): kart- og sorteringsknappene flyter til
+   høyre for «du er ved» (v1.218.28). En knapp med full bredde får ikke plass
+   ved siden av en float og ble skjøvet ned under den — 33 px tomrom mellom
+   overskriften og navnet, målt. Med auto fyller den bredden som er igjen. */
 #v-auto button.auto-stop {
-  width: 100%;
+  width: auto;
   padding: 0;
   background: none;
   border: 0;
@@ -336,6 +340,9 @@
 /* How far, how long, and how fresh — one quiet line under the name.
    Allowed to wrap: at .75rem this is a sentence, and a sentence taking two
    lines is not a layout fault. */
+/* v1.218.30: faktaene under navnet starter under kart- og sorteringsknappene. */
+#v-auto .auto-stop-under { clear: right; margin: -.45rem 0 .7rem; }
+
 #v-auto .auto-stop-facts {
   display: block;
   font-size: .75rem;

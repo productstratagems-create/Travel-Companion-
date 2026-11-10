@@ -1260,12 +1260,17 @@ export function stopHeadHtml(stop, count, open, extra) {
         + (open ? '▴' : '▾') + '</span>'
       : '')
     + '</span>';
-  if (!count) return '<div class="auto-stop">' + head + facts + '</div>';
+  // FAKTA UNDER, UTENFOR NAVNET (v1.218.30). Kart- og sorteringsknappene
+  // flyter til høyre for overskriften; navnet står ved siden av dem, og
+  // faktaene inni navnet ble brutt i den smale spalten («5 min / gange»).
+  // Som egen blokk med clear:right starter de under knappene, i full bredde.
+  const under = facts ? '<div class="auto-stop-under">' + facts + '</div>' : '';
+  if (!count) return '<div class="auto-stop">' + head + '</div>' + under;
   return '<button class="auto-stop" type="button" id="auto-stop-toggle"'
     + ' aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="auto-alts"'
     + ' aria-label="' + name + ', ' + count + ' holdeplasser i nærheten.'
     + ' Trykk for å ' + (open ? 'skjule' : 'vise') + '">'
-    + head + facts + '</button>';
+    + head + '</button>' + under;
 }
 
 /**

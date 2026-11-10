@@ -926,3 +926,10 @@
 .auto-ctl-btn.active{border-color:var(--accent)}
 .auto-ctl-btn[hidden]{display:none}
 #auto-where-label[hidden]{display:none}
+
+/* v1.218.34: knappebruk sammenfoldet; summary er overskriften. */
+.kb-fold > summary{cursor:pointer;list-style:none}
+.kb-fold > summary::-webkit-details-marker{display:none}
+.kb-fold > summary::before{content:'▸ ';}
+.kb-fold[open] > summary::before{content:'▾ ';}
+#kb-clear[hidden]{display:none}

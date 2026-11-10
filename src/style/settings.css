@@ -338,11 +338,29 @@
    aldri under det lengste ordet, og «7 ▾» går ned på neste linje først.
    Får ikke ordet plass ved siden av kart/sortering, legger hele navneknappen
    seg under dem i full bredde (en blokk ved en float gjør det selv). */
+/* v1.218.32: SOM PÅ TAVLA, OG ÉN LINJE. Bestilt: «Bruk fonten og stilen som
+   på tavla også for holdeplassen under «Du er ved», og reduser
+   font-størrelsen i stedet for å flytte tallet og pila ned på neste linje.»
+   Samme uttrykk som `.station-name` (board.css): Bebas Neue, aksentfarge,
+   glød. Aldri brutt — verken midt i ordet (v1.218.31) eller mellom ordene:
+   `tilpassNavn` (views/auto.js) krymper skriften til navnet og «7 ▾» får
+   plass ved siden av kart/sortering, ned til NAVN_MIN_PX. Først der kommer
+   «…», og hele navnet står i aria-label. */
+#v-auto .auto-stop-name { flex-wrap: nowrap; }
 #v-auto .auto-stop-label {
-  min-width: min-content;
-  overflow-wrap: normal;
+  font-family: "Bebas Neue", sans-serif;
+  font-weight: 400;
+  font-size: clamp(2rem, 8vw, 2.8rem);
+  letter-spacing: .04em;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 0 0 20px rgba(var(--accent-rgb), .8), 0 0 40px rgba(var(--accent-rgb), .15);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
-#v-auto .auto-stop-name { flex-wrap: wrap; }
+#v-auto .auto-stop-more { flex-shrink: 0; }
 
 /* How far, how long, and how fresh — one quiet line under the name.
    Allowed to wrap: at .75rem this is a sentence, and a sentence taking two

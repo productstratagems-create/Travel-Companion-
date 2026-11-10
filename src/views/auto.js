@@ -1254,7 +1254,7 @@ export function stopHeadHtml(stop, count, open, extra) {
   // a bare text node beside the caret, which is also why a browser probe that
   // swept ELEMENTS could not see it overflow — it had no box of its own.
   const head = '<span class="auto-stop-name">'
-    + '<span class="auto-stop-label">' + name + '</span>'
+    + '<span class="auto-stop-label" title="' + name + '">' + name + '</span>'
     + (count > 0
       ? '<span class="auto-stop-more">' + (open ? '' : count + ' ')
         + (open ? '▴' : '▾') + '</span>'
@@ -1920,6 +1920,68 @@ function _renderNeste(nå) {
   if (t && hit) t.addEventListener('click', () => { _open = hit.dir; _renderBody(); });
 }
 
+/** Minste skriftstørrelse for holdeplassnavnet før det får «…». */
+export const NAVN_MIN_PX = 18;
+const _navnPx = new Map();   // navn|bredde → px, så tegningen hvert sekund ikke måler på nytt
+/**
+ * Krymp holdeplassnavnet til det får plass på én linje (v1.218.32), i stedet
+ * for å bryte det eller skyve «7 ▾» ned. Starter fra CSS-størrelsen (som på
+ * tavla) og går ned én piksel om gangen til NAVN_MIN_PX.
+ */
+export function tilpassNavn(lab) {
+  if (!lab || !lab.isConnected) return;
+  lab.style.fontSize = '';
+  // Navneraden skal stå VED kart/sortering, ikke under: en <button> vil være
+  // bred nok til hele teksten og hopper ellers ned under floaten. Bredden den
+  // har, er plassen fram til knappene.
+  const rad = lab.closest('.auto-stop');
+  const ctl = typeof document !== 'undefined' && document.getElementById('auto-ctl');
+  if (rad && rad.parentElement) {
+    const venstre = rad.parentElement.getBoundingClientRect().left;
+    const cr = ctl && ctl.offsetParent !== null ? ctl.getBoundingClientRect() : null;
+    rad.style.maxWidth = cr && cr.width ? Math.max(0, Math.floor(cr.left - venstre - 8)) + 'px' : '';
+  }
+  // Bebas Neue lastes etter første tegning; målt med reserveskriften ble
+  // «Jernbanetorget» til «JERNBANETORG…» da den kom (sett i proben). Om
+  // skriftene er lastet hører derfor med i nøkkelen, så den måles på nytt.
+  const fonter = typeof document !== 'undefined' && document.fonts ? document.fonts.status : '';
+  const nøkkel = lab.textContent + '|' + (rad ? rad.style.maxWidth : '') + '|' + fonter;
+  if (_navnPx.has(nøkkel)) {
+    const v = _navnPx.get(nøkkel);
+    if (v.under && rad) rad.style.maxWidth = '';
+    if (v.px) lab.style.fontSize = v.px + 'px';
+    return;
+  }
+  // Tekstens egen bredde, med desimaler. scrollWidth rundes til hele piksler,
+  // og «JERNBANETORG…» sto på skjermen mens scrollWidth sa at det fikk plass.
+  // Målt mot PLASSEN, ikke mot feltet: navnefeltet er like bredt som teksten
+  // sin. Plassen er radens grense (knappene, eller hele bredden) minus «7 ▾».
+  const forBred = () => {
+    const r = document.createRange(); r.selectNodeContents(lab);
+    const navn = lab.parentElement;
+    const merke = navn && navn.querySelector('.auto-stop-more');
+    const gap = navn ? parseFloat(getComputedStyle(navn).columnGap) || 0 : 0;
+    const grense = rad && rad.style.maxWidth ? parseFloat(rad.style.maxWidth)
+      : (rad && rad.parentElement ? rad.parentElement.clientWidth : Infinity);
+    const plass = grense - (merke ? merke.getBoundingClientRect().width + gap : 0);
+    return r.getBoundingClientRect().width > plass - 0.5;
+  };
+  const krymp = () => {
+    lab.style.fontSize = '';
+    let px = parseFloat(getComputedStyle(lab).fontSize) || 0, satt = 0;
+    while (px > NAVN_MIN_PX && forBred()) {
+      px = Math.max(NAVN_MIN_PX, px - 1); lab.style.fontSize = px + 'px'; satt = px;
+    }
+    return satt;
+  };
+  let satt = krymp();
+  // Får det ikke plass ved knappene selv på minste størrelse, får navnet hele
+  // bredden under dem — større skrift, uten «…».
+  let under = false;
+  if (rad && rad.style.maxWidth && forBred()) { rad.style.maxWidth = ''; satt = krymp(); under = true; }
+  _navnPx.set(nøkkel, { px: satt, under });
+}
+
 function _renderWhere() {
   const el = _el('auto-where');
   if (!el) return;
@@ -1989,6 +2051,7 @@ function _renderWhere() {
       + '</div>').join('')
     + '</div>';
 
+  tilpassNavn(el.querySelector('.auto-stop-label'));
   // Listeners are re-attached on every tick, which is fine and is how the
   // alternatives have always worked. It is the STATE that cannot live here:
   // this innerHTML is rewritten once a second, so a class on the markup would

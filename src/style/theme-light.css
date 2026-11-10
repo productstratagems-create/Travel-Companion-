@@ -87,7 +87,8 @@ html[data-theme="light"] .cta-btn.secondary:active {
 html[data-theme="light"] .board-header-slim { border-bottom-color: rgba(var(--border-rgb),.08); }
 html[data-theme="light"] #via-label { color: rgba(var(--accent-rgb),.8); }
 
-html[data-theme="light"] .station-name {
+html[data-theme="light"] .station-name,
+html[data-theme="light"] #v-auto .auto-stop-label {
   color: var(--accent);
   text-shadow: none;
 }

@@ -47,6 +47,24 @@ describe('stoppnavnet deles aldri midt i et ord (v1.218.31)', () => {
     const r = regel('#v-auto .auto-stop-label');
     expect(r).not.toMatch(/overflow-wrap:\s*anywhere/);
     expect(r).not.toMatch(/word-break:\s*break-all/);
-    expect(r).toMatch(/min-width:\s*min-content/);
+    // v1.218.32: én linje, og skriften krymper i stedet (tilpassNavn).
+    expect(r).toMatch(/white-space:\s*nowrap/);
+  });
+});
+
+describe('holdeplassnavnet som på tavla, krympet i stedet for brutt (v1.218.32)', () => {
+  const css = readFileSync('src/style/settings.css', 'utf8');
+  const tavla = readFileSync('src/style/board.css', 'utf8');
+  const regel = (c, sel) => { const i = c.lastIndexOf(sel + ' {') >= 0 ? c.lastIndexOf(sel + ' {') : c.indexOf(sel + '{'); return c.slice(i, c.indexOf('}', i)); };
+  it('samme font, størrelse og farge som .station-name', () => {
+    const a = regel(css, '#v-auto .auto-stop-label'), b = regel(tavla, '.station-name');
+    for (const f of ['font-family', 'font-size', 'color']) {
+      const v = x => (x.match(new RegExp(f + ':\\s*([^;]+)')) || [])[1].replace(/\s+/g, '');
+      expect(v(a)).toBe(v(b));
+    }
+  });
+  it('«7 ▾» krymper aldri og går ikke ned på neste linje', () => {
+    expect(css).toMatch(/#v-auto \.auto-stop-name \{ flex-wrap: nowrap; \}/);
+    expect(css).toMatch(/#v-auto \.auto-stop-more \{ flex-shrink: 0; \}/);
   });
 });

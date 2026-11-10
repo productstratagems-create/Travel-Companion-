@@ -2204,12 +2204,30 @@ function _renderMap() {
     skjul._bundet = true;
     skjul.addEventListener('click', () => { settKartSkjult(true); _renderMap(); });
   }
-  if (kartSkjult()) {
-    wrap.style.display = 'none';
-    if (vis) vis.hidden = false;
-    return;
+  // v1.218.28: «▸ vis kart» tok en egen linje over lista. Bryteren står nå
+  // på linja med «du er ved» (#auto-kart-knapp); den gamle er foldet bort.
+  const knapp = _el('auto-kart-knapp');
+  if (knapp && !knapp._bundet) {
+    knapp._bundet = true;
+    knapp.addEventListener('click', () => {
+      const skjult = !kartSkjult();
+      settKartSkjult(skjult);
+      if (!skjult) { _aKey = ''; _aFitKey = ''; }
+      _renderMap();
+    });
+  }
+  if (knapp) {
+    knapp.setAttribute('aria-pressed', kartSkjult() ? 'false' : 'true');
+    knapp.className = 'auto-ctl-btn' + (kartSkjult() ? '' : ' active');
+    knapp.setAttribute('aria-label', kartSkjult() ? 'Vis kart' : 'Skjul kart');
   }
   if (vis) vis.hidden = true;
+  // «skjul kart» under kartet: samme knapp som over, foldet bort.
+  if (skjul) skjul.hidden = true;
+  if (kartSkjult()) {
+    wrap.style.display = 'none';
+    return;
+  }
 
   const userPos = userLL();
   // Nothing to orient by. A map showing neither you nor a stop is a grey
@@ -2893,7 +2911,22 @@ function _showSort(on) {
   const ends = on ? sortEndLabels(_dirs, localCodespace(_dirs)) : null;
   // Hidden when there is only one group on screen: see sortEndLabels.
   const show = shouldShowSort(on, ends);
-  el.style.display = show ? '' : 'none';
+  // v1.218.28: segmentbryteren og «sorter» tok to linjer over lista. Én
+  // knapp på linja med «du er ved» sier hva som gjelder og bytter ved trykk.
+  el.style.display = 'none';
+  const knapp = _el('auto-sort-knapp');
+  if (knapp) {
+    knapp.hidden = !show;
+    if (show) {
+      const nå = desc ? ends.desc : ends.asc, annen = desc ? ends.asc : ends.desc;
+      knapp.textContent = sorterKnappTekst(ends, desc);
+      knapp.setAttribute('aria-label', 'Sortert: ' + nå + ' først. Trykk for ' + annen + ' først');
+      if (!knapp._bundet) {
+        knapp._bundet = true;
+        knapp.addEventListener('click', () => { saveAutoSort(!loadAutoSort().desc); _renderBody(); });
+      }
+    }
+  }
   if (!show) return;
   el.querySelectorAll('.pref-btn').forEach(b => {
     const wantsDesc = b.dataset.val === 'desc';
@@ -3215,7 +3248,9 @@ function _renderBody() {
    * render for en etikett. Er seksjonen skjult, spiller teksten ingen rolle,
    * så ingen av `_visListeDel(false)`-stiene trenger å nullstille noe. */
   const whereLabel = _el('auto-where-label');
-  if (whereLabel) whereLabel.textContent = listeOverskrift(dests.length > 0);
+  // Uten kort over er «reisealternativer» en overskrift over det eneste som
+  // står der; «mot sentrum» under sier allerede hva lista er (v1.218.28).
+  if (whereLabel) { whereLabel.textContent = listeOverskrift(dests.length > 0); whereLabel.hidden = !dests.length; }
 
   let shown;
   /* GRUPPEN I MOTSATT RETNING AV MØNSTERET, FOLDET (src/maalModell.js
@@ -3485,6 +3520,11 @@ export const DEST_BLOCK = 2;
  * det samme i begge: det er den samme lista, og bare forholdet til det over
  * som endrer seg.
  */
+/** Teksten på sorteringsknappen: valget som gjelder, og at den bytter. */
+export function sorterKnappTekst(ends, desc) {
+  return (desc ? ends.desc : ends.asc) + ' først ⇅';
+}
+
 export function listeOverskrift(harKort) {
   return (harKort ? 'andre ' : '') + 'reisealternativer';
 }

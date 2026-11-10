@@ -462,6 +462,13 @@
   <!-- Sitter du på noe? Et tilbud, aldri en handling (api/ombord.js).
        Over «du er ved», fordi det er det første spørsmålet når svaret er ja. -->
   <div id="auto-ombord" class="set-section" style="display:none"></div>
+  <!-- v1.218.28: kart og sortering på linja med «du er ved», ikke i en egen
+       blokk over lista. Utenfor #auto-where fordi den tegnes på nytt hvert
+       sekund; knappene bindes én gang. -->
+  <div id="auto-ctl" class="auto-ctl">
+    <button type="button" id="auto-kart-knapp" class="auto-ctl-btn" aria-pressed="false">kart</button>
+    <button type="button" id="auto-sort-knapp" class="auto-ctl-btn" hidden></button>
+  </div>
   <div id="auto-where" class="set-section"></div>
   <!-- Neste reise (v1.218.22): fuzzy tid og retning, og «stemmer»/«nei». -->
   <div id="auto-neste" class="set-section" style="display:none"></div>

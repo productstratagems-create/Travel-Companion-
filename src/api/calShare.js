@@ -21,7 +21,7 @@
  * Nothing leaves the phone that the reader did not send: the file is built
  * here and handed to the operating system, which asks them where it goes.
  */
-import { legIcs, leadMins, loadLeadPref, LEAD_AUTO } from './ics.js';
+import { legIcs, leadMins, loadLeadPref, LEAD_AUTO, ALARM_MAKS_GANG_MIN } from './ics.js';
 import { storage } from '../storage.js';
 import { placeName, placeLL } from './place.js';
 import { logEvent } from './eventLog.js';
@@ -64,7 +64,11 @@ export function legLead(leg) {
     || (state.statLL && state.statLL[config.dirs[state.dIdx].key]));
   return leadMins(leg, {
     pref: pref === LEAD_AUTO ? null : pref,
-    walkMins: w ? w.mins : null,
+    // REALISTISK GANGTID ELLER INGEN (review 2026-11-10): gangtiden måles fra
+    // der du står når du trykker. Sto du på Mortensrud og la inn en etappe fra
+    // Oslo S, ble alarmen satt 126 min før avgang. Over grensen er det ikke
+    // gangtid til stoppet, og standard gangtid brukes — merket som det.
+    walkMins: w && w.mins <= ALARM_MAKS_GANG_MIN ? w.mins : null,
     buffer: loadWalkBuffer(),
     fallback: config.defaultWalkMinutes,
   });

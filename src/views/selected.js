@@ -469,7 +469,7 @@ function _renderSelMap(dep, fromName, toName, now) {
   const mapEl = document.getElementById('sel-map');
   if (!wrap || !mapEl) return;
 
-  const dir = config.dirs[state.dIdx];
+  const dir = _selDir();
   const legs = _depToRouteLegs(dep, fromName, toName);
   if (!legs) { wrap.style.display = 'none'; destroySelMap(); return; }
 
@@ -704,6 +704,10 @@ function _renderSelMap(dep, fromName, toName, now) {
   _selVehicle(dep, legs, now);
 }
 
+/** RUTA FOR AVGANGEN SOM VISES (review 2026-11-10): dens egen når den har en
+ *  (en etappe i reiseplanen), ellers den aktive. Én definisjon for skjermen. */
+function _selDir() { return (state.sel && state.sel._dir) || config.dirs[state.dIdx]; }
+
 export function renderSelected() {
   const c = state.sel;
   if (!c) return;
@@ -712,7 +716,7 @@ export function renderSelected() {
   // above it, this read the departure from its temporal dead zone and threw
   // «Cannot access 'c' before initialization», which the render loop caught
   // and logged while the screen simply stayed blank.
-  const dir = config.dirs[state.dIdx];
+  const dir = _selDir();
   const _meta = state.lockedJourneyMeta;
   renderAlertsInto(document.getElementById('s-alerts'), state.serviceAlerts, renderSelected, {
     journeyIds: [state.lockedJourneyId].filter(Boolean),
@@ -1106,7 +1110,7 @@ function _fetchSel() {
       // The journey query returns the line's FULL run — calls[0] is the line's
       // origin terminal, not the user's boarding stop. All live values (departure
       // time, delay, platform) must come from the boarding stop's call.
-      const dir = config.dirs[state.dIdx];
+      const dir = _selDir();
       const norm = s => (s || '').toLowerCase().replace(/\s+t$/i, '').trim();
       const fromN = norm(dir.from);
       const boarding = meta.calls.find(c => norm(c.name) === fromN) || null;

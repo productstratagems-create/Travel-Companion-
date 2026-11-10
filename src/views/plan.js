@@ -1,5 +1,6 @@
 import { linjemerke } from '../ui/linjemerke.js';
-import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent } from '../api/plan.js';
+import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent, legFarge } from '../api/plan.js';
+import { LINJE_FARGE, LINJE_NØYTRAL } from '../ui/linjemerke.js';
 import { shareLegCalendar } from '../api/calShare.js';
 import { placeName, placeLL, samePlace } from '../api/place.js';
 import { logMsg } from '../ui/log.js';
@@ -57,7 +58,7 @@ async function _renderPlanMap(legs) {
   // Fetch precise stop data — use fetchJourneyMeta when serviceJourneyId available
   // (journeyGQL returns lat/lon per stop), fall back to geocoding otherwise
   const legData = await Promise.all(legs.map(async (leg) => {
-    const color = '#' + (leg.lineColour || '7c2d12');
+    const color = legFarge(leg) ? '#' + String(legFarge(leg)).replace('#', '') : (LINJE_FARGE[leg.mode] || LINJE_NØYTRAL);
 
     // ETAPPEN BÆRER LISTA SI. Ingen henting, ingen gjetting, og kartet
     // tegnes selv uten nett. Den ble tatt vare på i det øyeblikket etappen
@@ -121,7 +122,10 @@ async function _renderPlanMap(legs) {
     _planUserMoved = false;
   _planMap = createMap(el, { expandable: true });
 
-    _planMap.on('dragstart zoomstart', () => { _planUserMoved = true; });
+    // Bare dragstart (review 2026-11-10): appens egen fitBounds utløser
+    // zoomstart, og da trodde kartet at du hadde flyttet det og sluttet å
+    // ramme inn — en ny etappe havnet utenfor. Samme feil som auto.js rettet.
+    _planMap.on('dragstart', () => { _planUserMoved = true; });
   bindMapExpand(_planMap, el, document.getElementById('plan-map-expand'));
   }
 
@@ -224,7 +228,7 @@ export function updatePlanCtx() {
   el.innerHTML =
     '<button class="pctx-main" aria-label="Se reise underveis">'
     + '<span class="pctx-label">etappe ' + n + '</span>'
-    + linjemerke({ kode: last.line, farge: last.lineColour, linjeId: last.lineId, modus: last.mode, klasse: 'pctx-badge' })
+    + linjemerke({ kode: last.line, farge: legFarge(last), tekst: last.lineFg, linjeId: last.lineId, modus: last.mode, klasse: 'pctx-badge' })
     + '<span class="pctx-dest">' + placeName(last.to).toLowerCase() + '</span>'
     + (arrTs ? '<span class="pctx-arr">ank. ' + clkDay(arrTs) + '</span>' : '')
     + '<span id="pctx-status" class="' + statusClass + '">' + statusText + '</span>'
@@ -361,7 +365,7 @@ export function renderPlan() {
           + ' aria-label="Legg etappen i kalenderen med alarm når du må gå">🔔</button>'
         : '')
       + '<div class="plan-leg-top">'
-      + linjemerke({ kode: leg.line, farge: leg.lineColour, linjeId: leg.lineId, modus: leg.mode })
+      + linjemerke({ kode: leg.line, farge: legFarge(leg), tekst: leg.lineFg, linjeId: leg.lineId, modus: leg.mode })
       + '<div class="plan-leg-route">'
       + '<div class="plan-leg-from">' + placeName(leg.from).toLowerCase() + '</div>'
       + '<div class="plan-leg-to">' + placeName(leg.to).toLowerCase() + '</div>'
@@ -488,27 +492,51 @@ window._tapPlanLeg = (id) => {
     if (live) { window.tap(live); return; }
   }
 
-  // Synthesise a departure object from the stored plan data
+  // ETAPPEN SOM ETAPPEN (review 2026-11-10). Her sto transportMode 'metro'
+  // for alt, plattform '?', ingen stopp, og ruta var den som tilfeldigvis var
+  // aktiv — avgangsdetaljene sa «Jernbanetorget → Nationaltheatret» og
+  // «−1 min reise» om buss 74 fra Mortensrud. Nå bærer avgangen sin egen rute
+  // (`_dir`, lest av `_selDir()` i selected.js), sine stopp og sitt spor.
+  const d = legDir(leg);
+  if (state.statLL && !state.statLL[d.key] && placeLL(leg.from)) state.statLL[d.key] = placeLL(leg.from);
   window.tap({
     serviceJourney: {
       id: leg.serviceJourneyId || null,
       line: {
+        id: leg.lineId || null,
         publicCode: leg.line,
-        presentation: { colour: leg.lineColour },
-        transportMode: 'metro',
+        presentation: { colour: legFarge(leg), textColour: leg.lineFg || null },
+        transportMode: leg.mode || null,
       },
-      estimatedCalls: [],
+      estimatedCalls: legKall(leg),
     },
     destinationDisplay: { frontText: leg.frontText || placeName(leg.to) },
-    quay: { publicCode: '?' },
+    quay: { publicCode: leg.quay || '?' },
     expectedDepartureTime: leg.depIso,
     aimedDepartureTime: leg.depIso,
     realtime: false,
     cancellation: false,
     _finalArrival: leg.arrIso || null,
     _isTransfer: false,
+    _gåTil: leg.gåTil || null,
+    _dir: legDir(leg),
   });
 };
+
+/** Etappens egen rute, i formen avgangsdetaljene leser. */
+export function legDir(leg) {
+  return { key: 'plan:' + leg.id, from: placeName(leg.from), to: placeName(leg.to),
+    stopId: (leg.from && leg.from.id) || null, toStopId: (leg.to && leg.to.id) || null, filter: null, line: null };
+}
+
+/** Etappens stopp som kall, så ankomsten finnes ved navn (findArr). */
+export function legKall(leg) {
+  return (Array.isArray(leg.stops) ? leg.stops : []).map(s => ({
+    quay: { publicCode: null, latitude: s.lat, longitude: s.lon, stopPlace: { id: s.id || null, name: s.name, latitude: s.lat, longitude: s.lon } },
+    expectedArrivalTime: s.at || null, aimedArrivalTime: s.at || null,
+    expectedDepartureTime: s.at || null, aimedDepartureTime: s.at || null,
+  }));
+}
 
 window._renderPlan = renderPlan;
 window._updatePlanCtx = updatePlanCtx;

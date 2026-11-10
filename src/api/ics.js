@@ -97,6 +97,14 @@ const stamp = (ms) => new Date(ms).toISOString().replace(/[-:]|\.\d{3}/g, '');
  * is two rules that must agree, and this codebase has paid for that shape
  * about fifteen times. One list, one stored value, one reader.
  */
+/** Over dette er gangtid fra der du står ikke gangtid til stoppet (calShare). */
+export const ALARM_MAKS_GANG_MIN = 30;
+
+/** Klokkeslett i norsk tid, for tekst et menneske leser (review 2026-11-10). */
+export function osloKl(ms) {
+  return new Date(ms).toLocaleTimeString('nb-NO', { timeZone: 'Europe/Oslo', hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+}
+
 export const LEAD_AUTO = 'auto';
 export const LEAD_KEY = 't.lead';
 export const LEAD_CHOICES = [LEAD_AUTO, 5, 10, 15, 30];
@@ -166,7 +174,7 @@ export function legIcs(leg, lead, seq) {
       : mins + ' min før avgang: standard gangtid, ikke målt for dette stoppet';
   const desc = 'Alarmen sier GÅ NÅ, ikke at avgangen går nå — den er satt '
     + why + '.\n'
-    + 'Avgang ' + new Date(dep).toISOString().slice(11, 16) + ' UTC fra ' + placeName(leg.from) + '.\n'
+    + 'Avgang ' + osloKl(dep) + ' fra ' + placeName(leg.from) + '.\n'
     + 'En forsinkelse når ikke kalenderen. Sjekk appen før du går.';
 
   const rows = [

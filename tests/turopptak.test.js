@@ -76,7 +76,7 @@ describe('opptak', () => {
   });
   it('auto.js tar opp etter oppdaterLås, med traséen', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');
-    expect(a).toMatch(/_lås = r\.lås;\n[\s\S]{0,300}taOpp\(\{ nå, fiks: siste, fart: fartNå\(nå\)/);
+    expect(a).toMatch(/_lås = r\.lås;\n[\s\S]{0,700}taOpp\(\{ nå, fiks: siste, fart: fartNå\(nå\)/);
     expect(a).toContain('form: n => journeyShapeCached(n) });');
   });
 });

@@ -68,6 +68,37 @@ export const OMBORD_MIN_SPENN_MS = 20_000;
 export const OMBORD_MAKS_AVVIK_M = 150;
 
 /**
+ * SLINGRINGSMONN I RUTETID (v1.218.24). Rapportert: «Auto-reise feilet på
+ * linje 3 fra Mortensrud. Mellom Bøler og Ulsrud trodde appen bruker plutselig
+ * var på bussen.» Feilsøkingsloggen viste «sanntidsposisjoner: 0 for
+ * RUT:Line:3» og «nærmeste:» Bøler → Olav Nygards veg (bus) → Ulsrud → … —
+ * T-banen ble aldri kjent igjen. Kravet var 150 m fra turens posisjon ETTER
+ * RUTETIDEN på sekundet; en T-bane i ~8 m/s er utenfor etter 20 s.
+ *
+ * Nå: nærmeste av turens posisjoner innenfor ±180 s rutetid. MÅLT
+ * (v1.218.25): turopptaket fra linje 3 samme morgen viste toget 80–165 s FORAN
+ * sanntiden (signalfeil; sanntiden hang etter). ±90 s, valgt ved resonnement i
+ * v1.218.24, ville gitt «vet-ikke» fra Skullerud. Et tog 5 minutter unna
+ * følger deg fortsatt ikke.
+ */
+export const OMBORD_TIDSSLINGRE_MS = 180_000;
+const SLINGRE_STEG_MS = 10_000;
+
+/** Meter fra fiksen til turen, med slingringsmonn i rutetid når turen kan si hvor den er (`posAt`). */
+export function avstandTilTur(k, f) {
+  if (k && typeof k.posAt === 'function') {
+    let best = Infinity;
+    for (let d = -OMBORD_TIDSSLINGRE_MS; d <= OMBORD_TIDSSLINGRE_MS; d += SLINGRE_STEG_MS) {
+      const p = k.posAt(f.at + d);
+      if (p && Number.isFinite(p.lat) && Number.isFinite(p.lon)) best = Math.min(best, metresBetween(f, p));
+    }
+    return best;
+  }
+  const p = ((k && k.forventet) || []).find(x => x && x.at === f.at);
+  return p && Number.isFinite(p.lat) && Number.isFinite(p.lon) ? metresBetween(f, p) : Infinity;
+}
+
+/**
  * Er du i fart — raskere enn noen som går?
  *
  * ÉN TERSKEL FOR TO SKJERMDELER. Tilbudet «ser ut som du er på» og
@@ -107,12 +138,9 @@ const _brukbar = f => _ok(f) && !(Number.isFinite(f.acc) && f.acc > OMBORD_MAKS_
  * Fiksens egen `acc` trekkes fra: en fiks på ±40 m 160 m unna kan være 120.
  */
 function _følger(k, fikser) {
-  const ved = new Map(((k && k.forventet) || []).filter(Boolean).map(p => [p.at, p]));
   return fikser.every(f => {
-    const p = ved.get(f.at);
-    if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) return false;
     const acc = Number.isFinite(f.acc) ? f.acc : 0;
-    return metresBetween(f, p) - acc <= OMBORD_MAKS_AVVIK_M;
+    return avstandTilTur(k, f) - acc <= OMBORD_MAKS_AVVIK_M;
   });
 }
 
@@ -204,9 +232,9 @@ export function stoppPåLinja(dom, nå, lang) {
  * Lavere er tettere. Null uten noe å sammenligne.
  */
 export function snittAvvik(k, spor) {
-  const ved = new Map(((k && k.forventet) || []).filter(Boolean).map(p => [p.at, p]));
-  const d = (spor || []).filter(f => f && Number.isFinite(f.lat) && ved.has(f.at)
-    && Number.isFinite(ved.get(f.at).lat)).map(f => metresBetween(f, ved.get(f.at)));
+  // Samme mål som «følger» (avstandTilTur), så «følger tettest» er enig med det.
+  const d = (spor || []).filter(f => f && Number.isFinite(f.lat) && Number.isFinite(f.at))
+    .map(f => avstandTilTur(k, f)).filter(Number.isFinite);
   return d.length ? d.reduce((a, b) => a + b, 0) / d.length : null;
 }
 

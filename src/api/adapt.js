@@ -309,6 +309,13 @@ export function adaptTripPattern(tp) {
         return null;
       })(),
       destinationDisplay:    { frontText: lastAny.toPlace.name || last.toPlace.name },
+      // LINJAS RETNING (v1.218.35): skiltet på kjøretøyet, «Kolsås» — ikke
+      // målet ditt. Avgangsdetaljene viste «3 Jernbanetorget», som ingen
+      // T-bane har på fronten. Hentet allerede (queries.js), aldri tatt vare på.
+      _retning:              (first.fromEstimatedCall && first.fromEstimatedCall.destinationDisplay
+                              && first.fromEstimatedCall.destinationDisplay.frontText) || null,
+      // Belegg fra Entur for avgangen du går på, når det finnes.
+      _belegg:               (first.fromEstimatedCall && first.fromEstimatedCall.occupancyStatus) || null,
       quay:                  { publicCode: (first.fromEstimatedCall && first.fromEstimatedCall.quay && first.fromEstimatedCall.quay.publicCode) || '?' },
       serviceJourney: {
         id:   first.serviceJourney && first.serviceJourney.id,

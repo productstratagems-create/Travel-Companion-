@@ -153,16 +153,21 @@
   <div class="screen-header">
     <button class="nav-back" id="s-back">← avganger</button>
     <span class="screen-label" role="heading" aria-level="2">avgangsdetaljer</span>
-    <button class="nav-plan-btn" id="s-plan-btn" aria-label="Reiseplan">📋</button>
+    <!-- 📋 (v1.218.35): skjult, ikke slettet. «Legg til i reiseplan» står under
+         knappene, og et ikon i toppen som bare åpnet en annen skjerm sa ikke hva det gjorde. -->
+    <button class="nav-plan-btn" id="s-plan-btn" aria-label="Reiseplan" hidden>📋</button>
       <button class="hdr-more-btn" data-more type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋮</button>
   </div>
-  <div id="s-alerts" style="display:none"
-    role="region" aria-label="Servicevarsler" aria-live="polite"></div>
   <div id="s-content"></div>
   <div class="map-wrap" id="sel-map-wrap" style="display:none">
     <div id="sel-map" class="map-expandable"></div>
     <button class="map-expand-btn" id="sel-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
   </div>
+  <!-- Meldingene om DENNE avgangen (v1.218.35): under svaret og kartet, ikke over
+       dem — og ikke mellom svaret og REIS.
+       Fortsatt filtrert til linja, turen og stoppene (renderAlertsInto). -->
+  <div id="s-alerts" style="display:none"
+    role="region" aria-label="Servicevarsler" aria-live="polite"></div>
 </div>
 
 <!-- ══ 3: TRACKING ══ -->

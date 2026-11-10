@@ -8,6 +8,7 @@ import { state, intervals } from '../state.js';
 import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL, fartNå, loadWalkBuffer } from '../geo.js';
 import { gangGjelder } from '../api/ombord.js';
 import { plattformTekst } from '../bytte.js';
+import { belegg, beleggTekst } from '../api/belegg.js';
 import { ensureApproach, approachPoints } from '../api/approach.js';
 import { _headingDeg } from '../ui/path.js';
 import { fetchJourneyMeta } from '../api/entur.js';
@@ -91,6 +92,42 @@ function leaveByMsg(rcls, mtl, depTs, now) {
  *
  * @returns {{kind:'ukjent'|'ved'|'retning', deg?:number, dist?:number, mins?:number}}
  */
+
+/**
+ * REISESAMMENDRAGET (v1.218.35): det appene som har satt standarden for
+ * avgangsdetaljer viser uten å skrolle — hvor og fra hvilket spor, når, om
+ * tiden er sanntid eller rutetid, og når og hvor du er framme. Alt dette sto
+ * her før, men sammenfoldet under «reiseplan ▾» når det var tid for å gå.
+ * Ren, så innholdet prøves uten DOM.
+ */
+export function sammendragHtml(o) {
+  const { fra, spor, avg, rute, sanntid, til, ank, min, ankSpor, belegg: bl } = o || {};
+  if (!Number.isFinite(avg)) return '';
+  const forsinkMin = Number.isFinite(rute) ? Math.round((avg - rute) / 60000) : 0;
+  const tidsmerke = sanntid
+    ? '<span class="ss-rt is-sanntid">sanntid</span>'
+    : '<span class="ss-rt is-rutetid">rutetid</span>';
+  const linje1 = '<div class="ss-rad">'
+    + '<span class="ss-sted">' + esc(fra || '') + '</span>'
+    + (spor ? '<span class="ss-spor">' + esc(spor) + '</span>' : '')
+    + '<span class="ss-tid">' + clk(avg) + '</span>'
+    + (forsinkMin >= 2 ? '<span class="ss-forsink">+' + forsinkMin + '</span>' : '')
+    + tidsmerke
+    + '</div>';
+  const linje2 = Number.isFinite(ank)
+    ? '<div class="ss-rad ss-ank">'
+      + '<span class="ss-pil" aria-hidden="true">→</span>'
+      + '<span class="ss-sted">' + esc(til || '') + '</span>'
+      + (ankSpor ? '<span class="ss-spor">' + esc(ankSpor) + '</span>' : '')
+      + '<span class="ss-tid">' + clk(ank) + '</span>'
+      + (Number.isFinite(min) ? '<span class="ss-min">' + min + ' min</span>' : '')
+      + '</div>'
+    : '';
+  const b = bl ? beleggTekst(bl) : null;
+  const linje3 = b && b.kort ? '<div class="ss-rad ss-belegg" title="' + esc(b.fullt) + '">' + esc(b.kort) + '</div>' : '';
+  return '<div class="sel-summary">' + linje1 + linje2 + linje3 + '</div>';
+}
+
 export function retningInfo(her, stopp, walk) {
   if (!her || !stopp || !Number.isFinite(stopp.lat) || !Number.isFinite(stopp.lon)) {
     return { kind: 'ukjent' };
@@ -856,13 +893,21 @@ export function renderSelected() {
     + (heroVises ? '' : _retningHtml(dir) + gåVidere)
     + '<div class="train-chip">'
     + chipBadges
-    + '<span class="tc-dest">' + esc(dest) + '</span>'
+    // RETNINGEN, som på skiltet (v1.218.35). Målet ditt står i sammendraget.
+    + '<span class="tc-dest">' + esc(c._retning || dest) + '</span>'
     // Sporet står under avgangstiden, ikke her: hvert spor ett sted, ved
     // stoppet det gjelder (avgår- og ankommer-cellen nedenfor).
     + (delayed ? '<span class="tc-meta"><span style="color:#fcd34d">forsinket</span></span>' : '')
     + '</div>'
     + '<div id="s-live-status"></div>'
-    + '<div class="sel-route-ctx">' + esc(visStopp(dir.from)) + ' → ' + esc(visStopp(dir.to)) + '</div>'
+    // «Mortensrud → Jernbanetorget» er foldet inn i sammendraget (v1.218.35).
+    + sammendragHtml({
+      fra: visStopp(cleanName(c._gåTil ? c._gåTil.navn : dir.from)), spor: plattformTekst(quay, depMode(c)),
+      avg: depTs, rute: c.aimedDepartureTime ? new Date(c.aimedDepartureTime).getTime() : NaN, sanntid: !!c.realtime,
+      til: visStopp(cleanName(dir.to)), ank: arrT ? new Date(arrT).getTime() : NaN, min: tmin,
+      ankSpor: plattformTekst(c._arrQuay, depMode(c)),
+      belegg: c._belegg ? belegg({ status: c._belegg }) : null,
+    })
     + '<div class="sel-weather" id="sel-weather-content">' + _selWeatherHtml(arrT) + '</div>'
     + (departed
       ? '<div class="departed-banner">avgikk ' + clk(depTs) + ' · reisen er i gang</div>'
@@ -880,7 +925,9 @@ export function renderSelected() {
     // held at arm's length the two cannot both be first. <details> rather
     // than a toggle of our own: it opens on tap, it is reachable by keyboard,
     // and a screen reader announces it — none of which we would get for free.
-    + (focus
+    // ÉN LINJE: avgår/ankommer står nå i sammendraget, så rutenettet er
+    // alltid foldet (v1.218.35) — ikke sagt to ganger, og ikke slettet.
+    + (focus || !isTransfer
       ? '<details class="itin-fold"' + (_foldÅpen ? ' open' : '') + '><summary>reiseplan · ' + esc(dest) + '</summary>'
         + journeyDetail + '</details>'
       : journeyDetail);
@@ -995,7 +1042,10 @@ export function renderSelected() {
     ctaDiv.appendChild(planBtn);
   }
 
-  document.getElementById('v-selected').appendChild(ctaDiv);
+  // Før meldingene (v1.218.35): forrige · REIS · neste rett under kartet.
+  const _vs = document.getElementById('v-selected');
+  const _al = document.getElementById('s-alerts');
+  if (_al && _al.parentNode === _vs) _vs.insertBefore(ctaDiv, _al); else _vs.appendChild(ctaDiv);
   _renderSelMap(state.sel, dir.from, dir.to, now);
 }
 

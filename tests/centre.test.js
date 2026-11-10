@@ -13,6 +13,7 @@
  * opposite way, so this module says nothing wherever it does not know.
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import fs from 'node:fs';
 import {
   centreward, kmTo, CENTRE, CENTRE_LABEL,
@@ -103,9 +104,18 @@ describe('the coordinate, and the label', () => {
   // partitioned instead, and the chosen order survives inside each group.
   it('the screen partitions rather than emitting on change', () => {
     const src = fs.readFileSync('src/views/auto.js', 'utf8');
-    expect(src).toMatch(/const groups = \[\['mot', \[\]\], \['fra', \[\]\], \[null, \[\]\]\]/);
+    expect(src).toMatch(/const groups = \[\['mot', \[\]\], \[null, \[\]\]\]/);
     expect(src).toMatch(/const ordered = grouped \? groups\.flatMap/);
     // And with nothing judgeable, the screen is what it was.
     expect(src).toMatch(/: live;/);
+  });
+});
+
+describe('to grupper: mot sentrum og andre retninger (v1.218.33)', () => {
+  const src = readFileSync('src/views/auto.js', 'utf8');
+  it('«fra sentrum» står under «andre retninger»', () => {
+    expect(src).toMatch(/const gruppe = i => \(side\.get\(i\) === 'mot' \? 'mot' : null\);/);
+    expect(src).toMatch(/groups\[gruppe\(row\.i\) === 'mot' \? 0 : 1\]/);
+    expect(src).not.toMatch(/\['fra', \[\]\]/);
   });
 });

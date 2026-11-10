@@ -3303,6 +3303,8 @@ function _renderBody() {
   // times the work for one answer.
   const freq = loadFreq('arr');
   const side = new Map();
+  /** Gruppen raden står i: 'mot' sentrum, ellers null («andre retninger»). */
+  const gruppe = i => (side.get(i) === 'mot' ? 'mot' : null);
   for (const { d, i } of live) {
     // The row's own onward stops, for the centre grouping. Read from the
     // departure you can catch, so the row is judged by the journey the
@@ -3333,10 +3335,11 @@ function _renderBody() {
   // først), and a heading-on-change would interleave «mot sentrum» through
   // that order three times over. Within each group the chosen order is kept
   // exactly as it was.
-  const groups = [['mot', []], ['fra', []], [null, []]];
-  for (const row of live) {
-    (groups.find(g => g[0] === side.get(row.i)) || groups[2])[1].push(row);
-  }
+  // TO GRUPPER, IKKE TRE (v1.218.33). Bestilt: «kutt «Fra sentrum» og legg
+  // alt som ikke er mot sentrum under «Andre retninger».» `centreward` svarer
+  // fortsatt mot/fra/null; skjermen spør bare om raden går mot sentrum.
+  const groups = [['mot', []], [null, []]];
+  for (const row of live) groups[gruppe(row.i) === 'mot' ? 0 : 1][1].push(row);
   const grouped = groups.some(([k, rows]) => k && rows.length);
   const ordered = grouped ? groups.flatMap(([, rows]) => rows) : live;
 
@@ -3382,9 +3385,9 @@ function _renderBody() {
   /* GRUPPEN I MOTSATT RETNING AV MØNSTERET, FOLDET (src/maalModell.js
    * `foldetSide`). Unntatt når dine egne mål akkurat nå ligger i den. */
   const egneSider = new Set();
-  dests.filter(x => x.eget > 0).forEach(x => x.options.forEach(o => { const k = side.get(o.i); if (k) egneSider.add(k); }));
+  dests.filter(x => x.eget > 0).forEach(x => x.options.forEach(o => { const k = gruppe(o.i); if (k) egneSider.add(k); }));
   const foldet = grouped ? foldetSide(now, _stop, egneSider) : null;
-  const antallI = k => ordered.filter(({ i }) => (side.get(i) || null) === k).length;
+  const antallI = k => ordered.filter(({ i }) => gruppe(i) === k).length;
   let iFold = false;
   // SI DET: i fart strykes ingen rad på gangtid, og ustrøkne rader uten
   // forklaring leses som at alt kan nås.
@@ -3436,7 +3439,7 @@ function _renderBody() {
       // group order and cannot interleave.
       let head = '';
       if (grouped) {
-        const k = side.get(i) || null;
+        const k = gruppe(i);
         if (k !== shown) {
           shown = k;
           const navn = k ? CENTRE_LABEL[k] : 'andre retninger';

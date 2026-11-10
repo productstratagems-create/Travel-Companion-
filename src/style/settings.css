@@ -332,10 +332,17 @@
    halve bredden der. Avkortet ville «Kongsvinger stasjon vestre» blitt
    «Kongsvinger …» — «hvor er jeg» med halve svaret. Navnet brytes heller til
    to linjer; andre linje har hele bredden, under knappene. Aldri utenfor. */
+/* v1.218.31: men ALDRI midt i et ord. «Mortensru / d» (skjermbilde, iPhone)
+   kom av `overflow-wrap: anywhere` og `min-width: 0`: navnet fikk krympe
+   under bredden av sitt lengste ord. Nå: brytes bare mellom ord, krymper
+   aldri under det lengste ordet, og «7 ▾» går ned på neste linje først.
+   Får ikke ordet plass ved siden av kart/sortering, legger hele navneknappen
+   seg under dem i full bredde (en blokk ved en float gjør det selv). */
 #v-auto .auto-stop-label {
-  min-width: 0;
-  overflow-wrap: anywhere;
+  min-width: min-content;
+  overflow-wrap: normal;
 }
+#v-auto .auto-stop-name { flex-wrap: wrap; }
 
 /* How far, how long, and how fresh — one quiet line under the name.
    Allowed to wrap: at .75rem this is a sentence, and a sentence taking two

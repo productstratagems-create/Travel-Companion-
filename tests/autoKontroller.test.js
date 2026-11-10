@@ -39,3 +39,14 @@ describe('«du er ved» rett over navnet (v1.218.30)', () => {
     expect(css).toMatch(/#v-auto \.auto-stop-under \{ clear: right;/);
   });
 });
+
+describe('stoppnavnet deles aldri midt i et ord (v1.218.31)', () => {
+  const css = readFileSync('src/style/settings.css', 'utf8');
+  const regel = sel => { const i = css.lastIndexOf(sel + ' {'); return css.slice(i, css.indexOf('}', i)); };
+  it('«Mortensru / d»: brytes bare mellom ord, krymper ikke under det lengste', () => {
+    const r = regel('#v-auto .auto-stop-label');
+    expect(r).not.toMatch(/overflow-wrap:\s*anywhere/);
+    expect(r).not.toMatch(/word-break:\s*break-all/);
+    expect(r).toMatch(/min-width:\s*min-content/);
+  });
+});

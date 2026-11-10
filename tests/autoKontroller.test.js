@@ -25,3 +25,17 @@ describe('kart og sortering ved «du er ved»', () => {
     expect(sort.slice(0, 1500)).toMatch(/el\.style\.display = 'none';/);
   });
 });
+
+describe('«du er ved» rett over navnet (v1.218.30)', () => {
+  const css = readFileSync('src/style/settings.css', 'utf8');
+  it('navneknappen fyller bredden ved siden av knappene, ikke hele (som dyttet den under)', () => {
+    const regel = css.slice(css.indexOf('#v-auto button.auto-stop {'));
+    expect(regel.slice(0, regel.indexOf('}'))).toMatch(/width:\s*auto;/);
+  });
+  it('faktaene står under navnet, utenfor knappen, og starter under kart/sortering', async () => {
+    const { stopHeadHtml } = await import('../src/views/auto.js');
+    const html = stopHeadHtml({ name: 'Lofsrud' }, 1, false, { walkDist: 229, walkMins: 5, pos: 'ok' });
+    expect(html).toMatch(/<\/button><div class="auto-stop-under">/);
+    expect(css).toMatch(/#v-auto \.auto-stop-under \{ clear: right;/);
+  });
+});

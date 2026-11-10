@@ -39,6 +39,6 @@ describe('skjule', () => {
     expect(readFileSync('src/storage.js', 'utf8')).toContain("'t.autoKart',");
   });
   it('skjult tegnes ikke', () => {
-    expect(src).toMatch(/if \(kartSkjult\(\)\) \{\s*wrap\.style\.display = 'none';\s*if \(vis\) vis\.hidden = false;\s*return;/);
+    expect(src).toMatch(/if \(kartSkjult\(\)\) \{\s*wrap\.style\.display = 'none';\s*return;/);
   });
 });

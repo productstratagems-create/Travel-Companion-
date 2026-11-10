@@ -324,11 +324,13 @@
    the count sit OUTSIDE this box so they can never be the part that is cut:
    they are two characters and you cannot guess them, while a truncated name
    is still recognisable. */
+/* v1.218.28: kart og sortering står nå til høyre for overskriften og tar
+   halve bredden der. Avkortet ville «Kongsvinger stasjon vestre» blitt
+   «Kongsvinger …» — «hvor er jeg» med halve svaret. Navnet brytes heller til
+   to linjer; andre linje har hele bredden, under knappene. Aldri utenfor. */
 #v-auto .auto-stop-label {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 /* How far, how long, and how fresh — one quiet line under the name.
@@ -884,3 +886,11 @@
 .ved-neste{margin:.25rem 0 .5rem;display:grid;gap:.15rem}
 .ved-rad{font-size:15px;line-height:22px;min-height:22px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ved-merke{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-soft)}
+
+/* v1.218.28: kart og sortering på linja med «du er ved». Flyter til høyre
+   over overskriften, så de tar null egne linjer. 44 px trykkflate. */
+.auto-ctl{float:right;display:flex;gap:.4rem;position:relative;z-index:2;margin:.1rem 0 0 .5rem}
+.auto-ctl-btn{min-height:44px;min-width:44px;padding:0 .75rem;background:none;border:1px solid rgba(var(--border-rgb),.35);border-radius:999px;color:var(--accent);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.auto-ctl-btn.active{border-color:var(--accent)}
+.auto-ctl-btn[hidden]{display:none}
+#auto-where-label[hidden]{display:none}

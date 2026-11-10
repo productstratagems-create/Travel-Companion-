@@ -342,3 +342,9 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
 /* Treffes med tommelen: 44 px for valgene, 36 for «feil linje?» (målt 34 og 22 før). */
 .rett-valg,.rett-ingen{min-height:44px}
 .rett-feil{min-height:36px}
+
+/* Brukerprofilen (v1.218.29): ett spørsmål, samme knappeform som «neste reise». */
+.profil-q{margin-bottom:.6rem}
+.profil-q-tekst{font-size:14px;margin:.15rem 0}
+.mem-profil-tittel{margin-top:1rem}
+.mem-profil-nei,.mem-profil-reise-nei{background:none;border:none;color:var(--accent);font:inherit;font-size:11px;cursor:pointer;padding:0 .2rem;min-height:32px}

@@ -1,5 +1,6 @@
 import { linjeSvarOversikt, glemLinjeSvar } from '../api/linjeSvar.js';
 import { nesteSvarOversikt, glemNesteSvar } from '../api/nesteSvar.js';
+import { profil, vaneMatrise, reiserI, DØGNDELER, DAGTYPER, REISETYPER, avvisSted, svarReise, glemProfil } from '../profil.js';
 import { turopptak, turJson, slettTur, glemTuropptak } from '../api/turopptak.js';
 import config from '../config.js';
 import { stopKey, findStop } from '../stopId.js';
@@ -928,9 +929,50 @@ function _renderNesteSvar() {
     : '<div class="mem-empty">Ingen svar ennå.</div>';
 }
 
+/** MIN PROFIL (v1.218.29): ren, så innholdet kan prøves uten DOM. */
+export function profilHtml(p, m) {
+  const sted = (rolle, s) => '<div class="mem-row"><span class="mem-when">' + rolle + '</span>'
+    + '<span class="mem-text">' + (s
+      ? esc(s.navn) + ' · ' + (s.kilde === 'bekreftet' ? 'bekreftet' : 'foreslått')
+        + (s.nær && s.nær.length ? ' · ' + s.nær.length + (s.nær.length === 1 ? ' holdeplass' : ' holdeplasser') + ' innen gangavstand' : '')
+        + ' <button type="button" class="mem-profil-nei" data-rolle="' + rolle + '">ikke riktig</button>'
+      : 'ikke kjent ennå') + '</span></div>';
+  const celler = [];
+  DAGTYPER.forEach(dt => DØGNDELER.forEach(d => {
+    const r = reiserI(p, m, dt.id, d.id);
+    if (r.length) celler.push('<div class="mem-row"><span class="mem-when">' + esc(dt.navn + ', ' + d.navn) + '</span>'
+      + '<span class="mem-text">' + r.map(x => esc(REISETYPER[x.type]) + ' (' + (x.kilde === 'bekreftet' ? 'bekreftet' : x.turer + ' reiser') + ')'
+        + ' <button type="button" class="mem-profil-reise-nei" data-celle="' + dt.id + '|' + d.id + '" data-type="' + x.type + '">fjern</button>').join(' · ')
+      + '</span></div>');
+  }));
+  return sted('hjem', p.hjem) + sted('jobb', p.jobb)
+    + (celler.length ? celler.join('') : '<div class="mem-empty">Ingen faste reiser ennå. De dukker opp når appen har sett deg reise hjem–jobb eller til sentrum noen ganger.</div>')
+    + '<button type="button" class="mem-clear mem-profil-glem">glem profilen</button>';
+}
+
+function _renderProfil() {
+  const el = document.getElementById('mem-profil');
+  if (!el) return;
+  const hist = loadSmartHist();
+  const p = profil(hist);
+  el.innerHTML = profilHtml(p, vaneMatrise(hist, p));
+  el.querySelectorAll('.mem-profil-nei').forEach(b => b.addEventListener('click', () => {
+    const s = p[b.dataset.rolle];
+    if (s) avvisSted(b.dataset.rolle, s);
+    _renderProfil();
+  }));
+  el.querySelectorAll('.mem-profil-reise-nei').forEach(b => b.addEventListener('click', () => {
+    svarReise(b.dataset.celle, b.dataset.type, false);
+    _renderProfil();
+  }));
+  const g = el.querySelector('.mem-profil-glem');
+  if (g) g.addEventListener('click', () => { glemProfil(); _renderProfil(); });
+}
+
 function _renderVaner() {
   _renderLinjeSvar();
   _renderNesteSvar();
+  _renderProfil();
   const el = document.getElementById('mem-vane');
   if (!el) return;
   const d = document.getElementById('mem-vane-dager');
@@ -1070,6 +1112,7 @@ export function initMemory() {
     // Og linjene du har bekreftet (v1.218.19).
     glemLinjeSvar();
     glemNesteSvar();
+    glemProfil();
     // Og turopptakene (v1.218.20).
     glemTuropptak();
     renderMemory();

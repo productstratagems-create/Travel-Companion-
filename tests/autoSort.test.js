@@ -444,8 +444,9 @@ describe('the sort switch asks before it shows', () => {
     const src = fs.readFileSync('src/views/auto.js', 'utf8').replace(/\/\/[^\n]*/g, '');
     const i = src.indexOf('function _showSort(');
     expect(i).toBeGreaterThan(-1);
-    const body = src.slice(i, i + 900);
+    const body = src.slice(i, i + 1400);
     expect(body).toMatch(/const show = shouldShowSort\(on, ends\);/);
-    expect(body).toMatch(/display = show \?/);
+    // v1.218.28: én knapp på linja med «du er ved», styrt av samme `show`.
+    expect(body).toMatch(/knapp\.hidden = !show;/);
   });
 });

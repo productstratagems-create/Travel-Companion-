@@ -70,6 +70,8 @@ export function taOpp(b) {
     p: b.fiks && Number.isFinite(b.fiks.lat) ? [+b.fiks.lat.toFixed(6), +b.fiks.lon.toFixed(6), b.fiks.acc ?? null, b.fiks.at ?? nå] : null,
     v: Number.isFinite(b.fart) ? +b.fart.toFixed(2) : null,
     d: b.dom || null,
+    // Hvorfor «vet ikke» (ingen-fart, går, kort-spor, ingen-følger) — v1.218.24.
+    g: b.domGrunn || null,
     k: kand.map(k => k.nøkkel),
     r: (b.rang || []).slice(0, 5).map(r => ({ n: r.k && r.k.nøkkel, ps: r.passert, av: r.avvik == null ? null : Math.round(r.avvik), g: r.grunn })),
     w: b.vinner ? b.vinner.nøkkel : null,
@@ -77,7 +79,7 @@ export function taOpp(b) {
     l: b.lås ? { n: b.lås.k.nøkkel, kilde: b.lås.kilde } : null,
     h: b.hendelse || null,
   };
-  const endret = !_forrige || bilde.h || bilde.d !== _forrige.d || bilde.w !== _forrige.w
+  const endret = !_forrige || bilde.h || bilde.d !== _forrige.d || bilde.g !== _forrige.g || bilde.w !== _forrige.w
     || JSON.stringify(bilde.l) !== JSON.stringify(_forrige.l) || bilde.k.join() !== _forrige.k.join();
   if (!endret && nå - _forrige.t < BILDE_MIN_MS) return false;
   _forrige = bilde;

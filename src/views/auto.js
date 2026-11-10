@@ -1553,9 +1553,11 @@ function _påLinjaMedLås(nå) {
   _lås = r.lås;
   // TUROPPTAK (v1.218.20): bare med samtykke, og bare når appen ser deg om bord
   // eller har en lås. Se api/turopptak.js.
-  if (_lås || r.hendelse || dom.kind === 'ombord' || dom.kind === 'ombord-tvil') {
+  // OGSÅ I FART UTEN NOEN TUR (v1.218.24): turen på linje 3 der appen aldri
+  // kjente igjen T-banen, ga ikke noe opptak — det var nettopp den som trengtes.
+  if (_lås || r.hendelse || dom.kind === 'ombord' || dom.kind === 'ombord-tvil' || iFart(fartNå(nå))) {
     const siste = (state.posTrail || [])[(state.posTrail || []).length - 1];
-    taOpp({ nå, fiks: siste, fart: fartNå(nå), dom: dom.kind, kandidater: dom.kandidater, rang: _sisteRang,
+    taOpp({ nå, fiks: siste, fart: fartNå(nå), dom: dom.kind, domGrunn: dom.grunn, kandidater: dom.kandidater, rang: _sisteRang,
       vinner, vinnerKilde, lås: _lås, hendelse: r.hendelse, form: n => journeyShapeCached(n) });
   }
   if (!_lås) return fri;

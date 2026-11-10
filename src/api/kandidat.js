@@ -21,6 +21,9 @@ export function kandidatAv(c, spor, form) {
     farge: (sj.line && sj.line.presentation && sj.line.presentation.colour) || null,
     front: (c.destinationDisplay && c.destinationDisplay.frontText) || '',
     call: c,
+    // Hvor turen er ved et vilkårlig tidspunkt (v1.218.24), så «følger deg» kan
+    // tåle at turen er litt for sent eller tidlig — se OMBORD_TIDSSLINGRE_MS.
+    posAt: pos,
     // Traséen, så låsen kan måle «utenfor ruta» mot den (v1.218.21).
     form: Array.isArray(form) && form.length >= 2 ? form : null,
     forventet: (spor || []).map(f => {

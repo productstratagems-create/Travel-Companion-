@@ -1151,7 +1151,14 @@ export function knappebrukHtml(liste) {
 
 function _renderKnappebruk() {
   const el = document.getElementById('kb-list');
-  if (el) el.innerHTML = knappebrukHtml(rangering(Date.now()));
+  const liste = rangering(Date.now());
+  if (el) el.innerHTML = knappebrukHtml(liste);
+  // Antallet i overskriften, så det synes uten å folde ut (v1.218.34).
+  const n = document.getElementById('kb-antall');
+  if (n) n.textContent = liste.length ? ' · ' + liste.length + (liste.length === 1 ? ' knapp' : ' knapper') : '';
+  // Ingenting å slette: ingen slettknapp.
+  const clr = document.getElementById('kb-clear');
+  if (clr) clr.hidden = !liste.length;
 }
 
 export function showPrefs() {

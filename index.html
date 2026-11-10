@@ -404,11 +404,17 @@
         den bestemte. Opptaket inneholder posisjoner. Kopier en tur og send den,
         så kan feil gjenkjenning rettes etter ekte data.</div>
       <div id="mem-turer" class="mem-list"></div>
-      <div class="set-label kb-label">knappebruk · siste 7 døgn</div>
-      <div id="kb-list" class="kb-list"></div>
+      <!-- KNAPPEBRUK (v1.218.34): sammenfoldet som standard, og slettknappen
+           UTENFOR folden, så den kan slettes uten å åpne lista. -->
+      <details class="kb-fold">
+        <summary class="set-label kb-label">knappebruk · siste 7 døgn<span id="kb-antall"></span></summary>
+        <div id="kb-list" class="kb-list"></div>
+        <div class="kb-actions">
+          <button type="button" class="kb-btn" id="kb-copy">kopier som tekst</button>
+        </div>
+      </details>
       <div class="kb-actions">
-        <button type="button" class="kb-btn" id="kb-copy">kopier som tekst</button>
-        <button type="button" class="kb-btn" id="kb-clear">nullstill knappebruk</button>
+        <button type="button" class="kb-btn" id="kb-clear">slett knappebruk</button>
       </div>
     </div>
 

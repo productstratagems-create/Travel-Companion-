@@ -174,15 +174,16 @@ function _fraId(l) {
  * spurt / ikke svar). Ankomsten er et anslag — neste avgang pluss etappens
  * egen kjøretid — og sier det med «ca.».
  */
-export function nesteRadHtml(nx, arrMs, tid) {
+export function rykerHtml(nx, kode, arrMs, tid) {
   if (!nx) return '';
-  if (nx.ingen) return '<div class="rl-neste rl-neste-ingen"><span class="rl-tid"></span><span class="rl-navn">rekker du ikke denne: ingen ny avgang innen 2 t</span></div>';
+  // I BYTTEFELTET (v1.218.44), ikke som en løs rad under målet: dommen
+  // «stramt» og svaret på «hva om det ryker» står på samme sted.
+  if (nx.ingen) return '<span class="rl-ryker rl-ryker-ingen">Ryker byttet: ingen ny avgang innen 2 t</span>';
   if (!Number.isFinite(nx.dep)) return '';
   const ekstra = Number.isFinite(nx.ankCa) && Number.isFinite(arrMs) ? Math.round((nx.ankCa - arrMs) / MIN) : null;
-  return '<div class="rl-neste"><span class="rl-tid">' + tid(nx.dep) + '</span>'
-    + '<span class="rl-navn">neste →'
-    + (Number.isFinite(nx.ankCa) ? ' framme ca. ' + tid(nx.ankCa) + (ekstra != null ? ' · +' + ekstra + ' min' : '') : '')
-    + '</span></div>';
+  return '<span class="rl-ryker">Ryker byttet: neste ' + esc(kode || '') + ' kl. ' + tid(nx.dep)
+    + (Number.isFinite(nx.ankCa) ? ' → framme ca. ' + tid(nx.ankCa) + (ekstra != null ? ' (+' + ekstra + ' min)' : '') : '')
+    + '</span>';
 }
 
 export function reiselop(alle, o) {
@@ -225,9 +226,6 @@ export function reiselop(alle, o) {
       + (n ? '<span class="rl-antall">· ' + n + ' stopp</span>' : '') + '</div>'
       + '<div class="rl-stopp rl-av"><span class="rl-tid">' + tid(til(l)) + '</span>'
       + '<span class="rl-navn"><b>' + esc(visStopp(e.til)) + '</b>' + (avPl ? ' · ank. ' + esc(avPl) : '') + '</span></div>'
-      // Bare etter et bytte: første etappe har «← forrige / neste →» selv.
-      + (k > 0 && opt.neste ? nesteRadHtml(opt.neste({ stopId: _fraId(l), lineId: line.id || null, kode: line.publicCode,
-        front: front || null, dep: fra(l), arr: til(l) }), til(l), tid) : '')
       + '</div>');
 
     const neste = kjør[k + 1];
@@ -262,6 +260,14 @@ export function reiselop(alle, o) {
       + (nyPl ? esc(nyPl) : '')
       + (dom ? ' — <span class="rl-dom">' + esc(dom) + '</span>' : '')
       + (t === 'trinnfri' ? ' · trinnfri' : t === 'ikke-trinnfri' ? ' · ikke trinnfri' : '')
+      + (() => {
+        if (!opt.neste) return '';
+        const nl = (neste.l.serviceJourney && neste.l.serviceJourney.line) || {};
+        const nf = neste.l.fromEstimatedCall && neste.l.fromEstimatedCall.destinationDisplay
+          && neste.l.fromEstimatedCall.destinationDisplay.frontText;
+        return rykerHtml(opt.neste({ stopId: _fraId(neste.l), lineId: nl.id || null, kode: nl.publicCode,
+          front: nf || null, dep: fra(neste.l), arr: til(neste.l) }), nl.publicCode, til(neste.l), tid);
+      })()
       + (rundt
         ? '<span class="rl-omvei">Plattformene ligger ca ' + _caM(rundt.luft) + ' m fra hverandre, men '
           + (rundt.via.length

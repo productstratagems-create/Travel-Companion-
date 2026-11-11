@@ -52,7 +52,7 @@ import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
 import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
-import { profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
+import { stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
@@ -3506,7 +3506,7 @@ function _renderBody() {
    * `foldetSide`). Unntatt når dine egne mål akkurat nå ligger i den. */
   const egneSider = new Set();
   dests.filter(x => x.eget > 0).forEach(x => x.options.forEach(o => { const k = gruppe(o.i); if (k) egneSider.add(k); }));
-  const foldet = grouped ? foldetSide(now, _stop, egneSider) : null;
+  const foldet = grouped ? foldetSide(now, _stop, egneSider, stedType(_herSom(), _profilNå().p)) : null;
   const antallI = k => ordered.filter(({ i }) => gruppe(i) === k).length;
   let iFold = false;
   // SI DET: i fart strykes ingen rad på gangtid, og ustrøkne rader uten

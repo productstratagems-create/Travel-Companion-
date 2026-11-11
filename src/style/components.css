@@ -366,5 +366,8 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
 .sel-summary .ss-tid{font-size:20px}
 
 /* «Ryker byttet» i byttefeltet (v1.218.44): egen linje, dempet; varsel uten ny avgang. */
-.reiselop .rl-ryker{display:block;margin-top:.25rem;font-size:12px;color:var(--text-soft)}
+.reiselop .rl-ryker{display:block;font-size:12px;color:var(--text-soft)}
+/* v1.218.45: reserven står UNDER etappen den gjelder, som en fotnote til planen. */
+.reiselop .rl-reserve{margin:.2rem 0 .5rem 1.4rem;padding:.35rem .6rem;border-left:2px solid rgba(var(--border-rgb),.45);background:rgba(var(--border-rgb),.06);border-radius:0 6px 6px 0}
+.reiselop .rl-reserve-ingen{border-left-color:var(--warn)}
 .reiselop .rl-ryker-ingen{color:var(--warn)}

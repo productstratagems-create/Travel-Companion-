@@ -52,6 +52,28 @@
  */
 export const CENTRE = { lat: 59.9139, lon: 10.7522 };
 
+/**
+ * BYENES SENTRUM (v1.218.41). Rapportert ved gjennomgang av Bergen: med Oslo
+ * som eneste sentrum svarte `centreward` null for hvert stopp mer enn 40 km
+ * unna, og «mot sentrum» fantes ikke i Bergen. Profilens «sentrum» pekte til
+ * Oslo, 300 km unna. Nå: nærmeste bysentrum innenfor CENTRE_MAX_KM.
+ * `CENTRE` er fortsatt Oslo og fortsatt søkets reservefokus.
+ */
+export const SENTRA = [
+  { by: 'Oslo', lat: CENTRE.lat, lon: CENTRE.lon },
+  { by: 'Bergen', lat: 60.3913, lon: 5.3221 },       // Byparken
+  { by: 'Trondheim', lat: 63.4305, lon: 10.3951 },   // Torvet
+  { by: 'Stavanger', lat: 58.9700, lon: 5.7331 },    // Torget
+];
+
+/** Sentrum i byen du er i, eller null utenfor alle. */
+export function sentrumFor(p) {
+  if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) return null;
+  let best = null, bestKm = Infinity;
+  for (const s of SENTRA) { const d = kmTo(p, s); if (d != null && d < bestKm) { best = s; bestKm = d; } }
+  return bestKm <= CENTRE_MAX_KM ? best : null;
+}
+
 /** Beyond this, the app does not know where «sentrum» is, and says so by saying nothing. */
 export const CENTRE_MAX_KM = 40;
 /** Inside this you are already there, and the question does not arise. */
@@ -80,11 +102,13 @@ export function kmTo(a, b) {
  * @returns {'mot'|'fra'|null}
  */
 export function centreward(from, stops) {
-  const here = kmTo(from, CENTRE);
+  const S = sentrumFor(from);
+  if (!S) return null;
+  const here = kmTo(from, S);
   if (here == null || here > CENTRE_MAX_KM || here < AT_CENTRE_KM) return null;
 
   const ds = (stops || [])
-    .map(s => kmTo(s, CENTRE))
+    .map(s => kmTo(s, S))
     .filter(d => d != null);
   if (!ds.length) return null;
 

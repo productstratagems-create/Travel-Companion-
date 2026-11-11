@@ -362,9 +362,11 @@ describe('sortEndLabels names what is here', () => {
       .toMatchObject({ asc: 'T-bane', desc: 'Tog' });   // no boat at this stop
   });
 
-  it('says Trikk at a Bergen stop where Bybanen is the rail-bound mode', () => {
+  // v1.218.41: Bybanen heter Bybanen (gjennomgang av Bergen). Fortsatt ikke «T-bane».
+  it('says Bybanen at a Bergen stop where Bybanen is the rail-bound mode', () => {
     const ends = sortEndLabels([d('tram', 'SKY:Line:1'), d('bus', 'SKY:Line:5')], 'SKY:');
-    expect(ends.asc).toBe('Trikk');
+    expect(ends.asc).toBe('Bybanen');
+    expect(sortEndLabels([d('tram', 'RUT:Line:17'), d('bus', 'RUT:Line:20')], 'RUT:').asc).toBe('Trikk');
     expect(ends.asc).not.toBe('T-bane');
   });
 

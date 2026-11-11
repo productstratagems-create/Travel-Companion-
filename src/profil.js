@@ -23,7 +23,7 @@
  */
 import { storage } from './storage.js';
 import { VANE_MIN_TURER } from './api/smart.js';
-import { CENTRE, AT_CENTRE_KM, kmTo } from './api/centre.js';
+import { sentrumFor, AT_CENTRE_KM, kmTo } from './api/centre.js';
 
 const KEY = 't.profil';
 
@@ -64,7 +64,9 @@ export function sammeSted(a, b) {
   return nk(a.navn) === nk(b.navn);
 }
 function iSentrum(p) {
-  return !!p && Number.isFinite(p.lat) && kmTo(p, CENTRE) <= AT_CENTRE_KM;
+  // Sentrum i byen stedet ligger i (v1.218.41).
+  const S = p && Number.isFinite(p.lat) ? sentrumFor(p) : null;
+  return !!S && kmTo(p, S) <= AT_CENTRE_KM;
 }
 /** Hva slags sted et punkt er i profilen: hjem, jobb, sentrum eller null. */
 export function stedType(p, prof) {
@@ -252,13 +254,19 @@ export function nesteSpørsmål(prof, matrise, nå, hoppOver = new Set()) {
  * er i, fra der du står. Til auto-reise (neste reise og rangering av kortene).
  * @returns {{til:object, type:string, kilde:string}|null}
  */
+/** «Sentrum» som mål: byens, der du er — ellers der hjemmet ditt er (v1.218.41). */
+function _sentrumMål(her, prof) {
+  const S = sentrumFor(her) || sentrumFor(prof && prof.hjem);
+  return S ? { navn: 'sentrum', lat: S.lat, lon: S.lon } : null;
+}
+
 export function målNå(prof, matrise, nå, her) {
   const reiser = reiserI(prof, matrise, dagtypeAv(nå), delAvTime(new Date(nå).getHours()));
   const fraType = her ? stedType(her, prof) : null;
   for (const r of reiser) {
     const [a, b] = r.type.split('-');
     if (fraType && fraType !== a) continue;
-    const til = b === 'hjem' ? prof.hjem : b === 'jobb' ? prof.jobb : b === 'sentrum' ? { navn: 'sentrum', lat: CENTRE.lat, lon: CENTRE.lon } : null;
+    const til = b === 'hjem' ? prof.hjem : b === 'jobb' ? prof.jobb : b === 'sentrum' ? _sentrumMål(her, prof) : null;
     if (til) return { til, type: r.type, kilde: r.kilde };
   }
   return null;
@@ -284,7 +292,7 @@ export function hypoteseNå(prof, matrise, nå, her, førMin = 60) {
     const celle = (helg ? 'helg' : 'ukedag') + '|' + del.id;
     const til = m.til;
     const treff = til.navn === 'sentrum'
-      ? st => Number.isFinite(st.lat) && kmTo(st, CENTRE) <= AT_CENTRE_KM
+      ? st => Number.isFinite(st.lat) && iSentrum(st)
       : st => sammeSted({ navn: st.name || st.navn, stopId: st.id || st.stopId }, til)
         || (til.nær || []).some(n => sammeSted({ navn: st.name || st.navn, stopId: st.id || st.stopId }, n));
     return { toName: til.navn, fra: start, til: slutt, helg, bucket: Math.floor(dt.getHours() / 2),

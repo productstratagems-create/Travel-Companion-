@@ -19,7 +19,7 @@
  * out and one that helps.
  */
 import { metresBetween } from '../haversine.js';
-import { linjemerke } from '../ui/linjemerke.js';
+import { linjemerke, modusOrd } from '../ui/linjemerke.js';
 import { lappMedLogo } from '../ui/tilbyderlogo.js';
 import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
@@ -67,7 +67,7 @@ import { taOpp, lagreTuropptak } from '../api/turopptak.js';
 import { kontekst, lærSvar, svarFor } from '../api/linjeSvar.js';
 import { makeStopIcon } from '../ui/mapIcons.js';
 import { ensureApproach, approachPoints, AT_STOP_M } from '../api/approach.js';
-import { centreward, CENTRE_LABEL } from '../api/centre.js';
+import { centreward, CENTRE_LABEL, sentrumFor } from '../api/centre.js';
 
 const MIN = 60000;
 /**
@@ -376,9 +376,13 @@ export function sortEndLabels(dirs, local) {
   const here = named.filter(r =>
     (dirs || []).some(d => dirRank(d, local) === _RANK_OF[r.key]));
   const use = here.length ? here : named;
+  // Bybanen i Bergen (v1.218.41): trikkeraden heter det linjene her heter.
+  const trikk = (dirs || []).map(d => d && d.call && d.call.serviceJourney && d.call.serviceJourney.line)
+    .find(ln => ln && normMode(ln.transportMode) === 'tram');
+  const ord = r => (r.key === 'tram' && trikk ? (modusOrd('tram', trikk.id) || '').replace(/^./, c => c.toUpperCase()) : r.label);
   return {
-    asc: use[0].label,
-    desc: use[use.length - 1].label,
+    asc: ord(use[0]),
+    desc: ord(use[use.length - 1]),
     // ONE GROUP MEANS THERE IS NOTHING TO ORDER. Reported with a screenshot
     // from Mortensrud: every departure was a local bus, so both ends of the
     // table named the same group and the switch offered «Lokalbuss først»
@@ -1083,7 +1087,11 @@ export const LANES = [
 export function laneStops(list) {
   return LANES
     .map(({ mode, label }) => ({
-      mode, label,
+      mode,
+      // Bybanen når trikkestoppene ligger i Bergen (v1.218.41). Et stopp har
+      // ingen linje-id, men det har en plass.
+      label: mode === 'tram' && (list || []).some(s => s && (s.modes || []).includes('tram')
+        && (sentrumFor(s) || {}).by === 'Bergen') ? 'Bybanen' : label,
       stops: (list || []).filter(s => {
         const m = (s && s.modes) || [];
         return mode === null ? !m.length : m.includes(mode);

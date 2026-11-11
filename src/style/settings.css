@@ -947,3 +947,7 @@
 /* Belegg på raden, etter sporet, på tidslinja (v1.218.36). */
 #v-auto .auto-dir .nearby-dist .auto-belegg { float: left; margin-right: .6rem; font-size: .7rem; opacity: .75; line-height: inherit; padding-top: .1em; }
 #v-auto .auto-dir .auto-belegg.belegg-4, #v-auto .auto-dir .auto-belegg.belegg-5 { color: var(--warn); opacity: 1; }
+/* Natt (v1.218.38): «siste i natt · neste 05:12» under tidene, i varselfarge. */
+#v-auto .auto-dir .auto-natt { flex: 0 0 100%; text-align: right; font-size: .7rem; color: var(--warn); letter-spacing: .03em; }
+#v-auto .auto-natt-ferdige { margin-top: .8rem; }
+#v-auto .auto-natt-rad { font-size: .8rem; color: var(--text-soft); padding: .15rem 0; }

@@ -29,7 +29,8 @@ import { raskereHer } from '../raskere.js';
 import { rangerMål, foldetSide } from '../maalModell.js';
 import { overganger, arrBoardSpørsmål, ARR_BOARD_ASK } from '../overganger.js';
 import { domFraKlasse, _DOM_KLASSE } from '../ui/reiselop.js';
-import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
+import { NEXT_DEPARTURE_HORIZON_MINS, BOARD_WINDOW_MINS } from '../api/queries.js';
+import { erNatt, radNøkkel, nesteEtter, sisteDom, ferdigeRetninger } from '../nattTrafikk.js';
 import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke, vaneSetning, loadSmartHist }
   from '../api/smart.js';
 import { sistReist } from '../api/eventLog.js';
@@ -2693,6 +2694,7 @@ function _load() {
       _dirs = groupDirections(stop.estimatedCalls || []);
       _rå = stop.estimatedCalls || [];
       _hentetMs = Date.now();
+      _spørNatt(_stop && _stop.id, _hentetMs);
       // Keep WHERE each message hung. This screen has done it right since
       // v1.137.0 — by writing the loop out here. It was the fourth copy of
       // one loop, and two of the four had lost the origin entirely; the
@@ -2844,6 +2846,42 @@ export function radBeleggHtml(call) {
   if (b.kind !== 'målt') return '';
   const t = beleggTekst(b);
   return '<span class="auto-belegg belegg-' + b.nivå + '" title="' + esc(t.fullt) + '">' + esc(t.kort) + '</span>';
+}
+
+/* NATT (v1.218.38, src/nattTrafikk.js): første avgang per linje og retning
+ * ETTER vinduet, hentet én gang per stopp og bare om natta. */
+let _natt = { stopId: null, spurt: false, etter: new Map() };
+function _spørNatt(stopId, nå) {
+  if (!stopId || !erNatt(nå) || _natt.stopId === stopId) return;
+  _natt = { stopId, spurt: false, etter: new Map() };
+  fetchArrBoard(stopId, 60, { fraMs: nå + BOARD_WINDOW_MINS * 60000, perLinje: 1, vinduMin: 10 * 60 })
+    .then(r => {
+      if (_natt.stopId !== stopId) return;
+      _natt = { stopId, spurt: true, etter: nesteEtter(r && r.departures) };
+      _renderBody();
+    })
+    .catch(() => { /* ikke svar: ingen påstand om «siste» */ });
+}
+/** «siste i natt · neste 05:12» under radens tider, når hullet er sett. */
+export function nattRadHtml(d, natt) {
+  if (!natt || !natt.spurt || !d || !d.calls || !d.calls.length) return '';
+  // Bare når den siste i vinduet står på skjermen (raden viser tre tider).
+  if (d.calls.length > 3) return '';
+  const ln = d.lines && d.lines[0];
+  const dom = sisteDom(d.calls[d.calls.length - 1].ms, natt.etter.get(radNøkkel(ln && (ln.id || ln.code), d.frontText)), natt.spurt);
+  if (!dom) return '';
+  return '<span class="auto-natt">siste i natt · '
+    + 'neste ' + clk(dom.neste) + '</span>';
+}
+/** Retninger som er ferdige for natta, med neste avgang. */
+export function nattFerdigeHtml(dirs, natt) {
+  if (!natt || !natt.spurt) return '';
+  const iLista = new Set((dirs || []).map(d => radNøkkel(d.lines && d.lines[0] && (d.lines[0].id || d.lines[0].code), d.frontText)));
+  const ferdige = ferdigeRetninger(natt.etter, iLista).slice(0, 6);
+  if (!ferdige.length) return '';
+  return '<div class="auto-natt-ferdige"><div class="set-label">ingen flere i natt</div>'
+    + ferdige.map(f => '<div class="auto-natt-rad">' + esc(f.kode + ' mot ' + f.dest) + ' · neste ' + clk(f.depTs) + '</div>').join('')
+    + '</div>';
 }
 
 /* NÅR AVGANGENE BLE HENTET (v1.218.36). Appen visste det og sa det aldri —
@@ -3522,9 +3560,11 @@ function _renderBody() {
         + (q ? '<span class="auto-quay" aria-hidden="true">' + esc(q) + '</span>' : '')
         + radBeleggHtml(d.call)
         + _timesHtml(d, now, walkMins) + '</span>'
+        + nattRadHtml(d, _natt)
         + '</button>'
         + msg.block;
     }).join('') + (iFold ? '</details>' : '')
+    + nattFerdigeHtml(_dirs, _natt)
     // SAID, NOT IMPLIED. The list is complete at a small stop and cut at a
     // hub, and it looked identical either way — so it earned trust where it
     // was right and spent it where it was not. One quiet line, only when

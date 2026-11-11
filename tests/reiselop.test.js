@@ -287,3 +287,30 @@ describe('avgangsdetaljene: sporet under tiden', () => {
     expect(ank).not.toMatch(/'spor '/);
   });
 });
+
+// v1.218.43 — «putte inn neste avgang … slik at bruker kan vurdere om det er verdt å ta sjansen».
+import { velgNeste } from '../src/views/selected.js';
+describe('neste avgang etter et bytte', () => {
+  it('står ved etappen etter byttet, med anslått ankomst og ekstra tid', () => {
+    const spurt = [];
+    const h = tekst(lag({ neste: e => { spurt.push(e); return { dep: T0 + 58 * 60000, ankCa: T0 + 70 * 60000 }; } }));
+    expect(h).toMatch(/22:47 neste → framme ca\. 22:59 · \+15 min/);
+    // Bare etappe 2 (trikken) spørres — første etappe har «forrige / neste» selv.
+    expect(spurt.map(e => e.kode)).toEqual(['18']);
+    expect(spurt[0]).toMatchObject({ stopId: 'NSR:StopPlace:Jernbanetorget', front: 'Storo-Grefsen st.', dep: T0 + 43 * 60000, arr: T0 + 55 * 60000 });
+  });
+  it('ingen ny avgang: sier det i varselfarge', () => {
+    expect(lag({ neste: () => ({ ingen: true }) })).toContain('rl-neste-ingen');
+    expect(tekst(lag({ neste: () => ({ ingen: true }) }))).toMatch(/ingen ny avgang innen 2 t/);
+  });
+  it('ikke svar ennå: ingenting', () => {
+    expect(lag({ neste: () => null })).not.toContain('rl-neste');
+  });
+  it('velgNeste: samme linje og retning, etter avgangen, kjøretiden lagt til', () => {
+    const e = { lineId: 'L18', kode: '18', front: 'Storo-Grefsen st.', dep: 1000_000, arr: 1000_000 + 12 * 60000 };
+    const d = (ms, id = 'L18', dest = 'Storo-Grefsen st.', cancelled = false) => ({ ln: { id, publicCode: '18' }, dest, depTs: ms, cancelled });
+    expect(velgNeste([d(1000_000), d(1600_000, 'L18', 'Ljabru'), d(1900_000, 'L18', 'Storo-Grefsen st.', true), d(2200_000), d(2500_000)], e))
+      .toEqual({ dep: 2200_000, ankCa: 2200_000 + 12 * 60000 });
+    expect(velgNeste([d(1600_000, 'L17')], e)).toEqual({ ingen: true });
+  });
+});

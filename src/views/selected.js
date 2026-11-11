@@ -11,7 +11,7 @@ import { plattformTekst } from '../bytte.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
 import { ensureApproach, approachPoints } from '../api/approach.js';
 import { _headingDeg } from '../ui/path.js';
-import { fetchJourneyMeta } from '../api/entur.js';
+import { fetchJourneyMeta, fetchArrBoard } from '../api/entur.js';
 import { quayLatLon, legShape, journeyPoints, _rowDest, påstigningTs, gåTilTekst } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
@@ -745,6 +745,32 @@ function _renderSelMap(dep, fromName, toName, now) {
  *  (en etappe i reiseplanen), ellers den aktive. Én definisjon for skjermen. */
 function _selDir() { return (state.sel && state.sel._dir) || config.dirs[state.dIdx]; }
 
+/* NESTE AVGANG ETTER ET BYTTE (v1.218.43, ui/reiselop.js `nesteRadHtml`).
+ * Ett oppslag per byttestopp, linje, retning og avgang; svaret mellomlagres
+ * så tegningen hvert sekund ikke spør på nytt. undefined = spurt, venter;
+ * null = ikke svar (ingenting vises). */
+const _nesteSvar = new Map();
+export const NESTE_VINDU_MIN = 120;
+export function velgNeste(departures, e) {
+  const passer = (departures || []).filter(d => d && !d.cancelled && Number.isFinite(d.depTs) && d.depTs > e.dep + 30000
+    && ((e.lineId && d.ln && d.ln.id === e.lineId) || (!e.lineId && d.ln && d.ln.publicCode === e.kode))
+    && (!e.front || String(d.dest || '').trim().toLowerCase() === String(e.front).trim().toLowerCase()))
+    .sort((a, b) => a.depTs - b.depTs);
+  if (!passer.length) return { ingen: true };
+  const kjøretid = Number.isFinite(e.arr) && Number.isFinite(e.dep) ? e.arr - e.dep : null;
+  return { dep: passer[0].depTs, ankCa: kjøretid != null ? passer[0].depTs + kjøretid : null };
+}
+function _neste(e) {
+  if (!e || !e.stopId || !Number.isFinite(e.dep)) return null;
+  const k = [e.stopId, e.lineId || e.kode, e.front, e.dep].join('|');
+  if (_nesteSvar.has(k)) return _nesteSvar.get(k) || null;
+  _nesteSvar.set(k, undefined);
+  fetchArrBoard(e.stopId, 30, { fraMs: e.dep + 60000, perLinje: 1, vinduMin: NESTE_VINDU_MIN })
+    .then(r => { _nesteSvar.set(k, velgNeste(r && r.departures, e)); renderSelected(); })
+    .catch(() => _nesteSvar.set(k, null));
+  return null;
+}
+
 export function renderSelected() {
   const c = state.sel;
   if (!c) return;
@@ -829,6 +855,7 @@ export function renderSelected() {
      * etappe to, og ingen dom om byttet. Se `ui/reiselop.js`. */
     journeyDetail = reiselop(c._allLegs || c._legs, {
       fra: dir.from, til: dir.to, ekstraMin: loadWalkBuffer(),
+      neste: _neste,
       // Trinnfri fra stoppestedsregisteret, når den er kjent. Spørsmålet
       // sendes første gang; svaret står ved neste oppfriskning.
       tilgang: id => {

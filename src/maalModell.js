@@ -103,9 +103,15 @@ export function rangerMål(kort, o) {
  * @param {Set<'mot'|'fra'>} egneSider retningene dine egne mål akkurat nå ligger i
  * @returns {'mot'|'fra'|null}
  */
-export function foldetSide(nå, her, egneSider) {
+export function foldetSide(nå, her, egneSider, sted) {
   const m = vanligMønster(nå);
   if (!m.mot || !her) return null;
+  // DER MØNSTERET ALT ER OPPFYLT (v1.218.42). Rapportert: hverdag 17:34 på
+  // Mortensrud, «mot sentrum» foldet — fordi ettermiddagen er «hjemover». Men
+  // Mortensrud ER hjemme, og en reise derfra kl. 17:34 går bort fra hjemmet.
+  // Står du hjemme om ettermiddagen, eller på jobb om morgenen, folder ikke
+  // det faste mønsteret noe. `sted` er profilens svar (profil.js stedType).
+  if ((m.mot === 'ut' && sted === 'hjem') || (m.mot === 'sentrum' && sted === 'jobb')) return null;
   const S = sentrumFor(her);
   const km = S ? kmTo(her, S) : null;
   if (km == null || km < AT_CENTRE_KM) return null;

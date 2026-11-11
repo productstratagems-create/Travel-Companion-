@@ -74,7 +74,26 @@ describe('retningsgruppen som foldes', () => {
   });
   it('auto-reise folder gruppen og lukker den', () => {
     const s = readFileSync('src/views/auto.js', 'utf8');
-    expect(s).toContain('const foldet = grouped ? foldetSide(now, _stop, egneSider) : null;');
+    expect(s).toContain('const foldet = grouped ? foldetSide(now, _stop, egneSider, stedType(_herSom(), _profilNå().p)) : null;');
     expect(s).toContain("}).join('') + (iFold ? '</details>' : '')");
+  });
+});
+
+// Rapportert (v1.218.42): hverdag 17:34 på Mortensrud, som er hjemme, var «mot sentrum» foldet.
+describe('mønsteret folder ikke der det alt er oppfylt', () => {
+  const ONSDAG_1734 = new Date('2026-11-11T17:34:00').getTime();
+  const ONSDAG_0800 = new Date('2026-11-11T08:00:00').getTime();
+  it('før-bildet: uten profil folder ettermiddagen «mot»', () => {
+    expect(foldetSide(ONSDAG_1734, MORT, new Set())).toBe('mot');
+  });
+  it('hjemme om ettermiddagen: ingenting foldes', () => {
+    expect(foldetSide(ONSDAG_1734, MORT, new Set(), 'hjem')).toBeNull();
+  });
+  it('på jobb om ettermiddagen: fortsatt «mot» foldet (du skal hjem)', () => {
+    expect(foldetSide(ONSDAG_1734, MORT, new Set(), 'jobb')).toBe('mot');
+  });
+  it('på jobb om morgenen: ingenting foldes; hjemme om morgenen: «fra» foldet', () => {
+    expect(foldetSide(ONSDAG_0800, MORT, new Set(), 'jobb')).toBeNull();
+    expect(foldetSide(ONSDAG_0800, MORT, new Set(), 'hjem')).toBe('fra');
   });
 });

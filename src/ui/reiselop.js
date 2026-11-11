@@ -157,6 +157,34 @@ function _tilId(l) {
  *          tilgang?:(stopId:string)=>('trinnfri'|'ikke-trinnfri'|null)}} o
  * @returns {string} HTML
  */
+function _fraId(l) {
+  const e = legEnds(l);
+  if (e.fraId) return e.fraId;
+  const kall = (l.serviceJourney && l.serviceJourney.estimatedCalls) || [];
+  const c = kall.find(k => k && k.quay && k.quay.stopPlace
+    && stopKey(k.quay.stopPlace.name) === stopKey(e.fra));
+  return (c && c.quay.stopPlace.id) || null;
+}
+
+/**
+ * NESTE AVGANG ETTER ET BYTTE (v1.218.43). Bestilt med skjermbilde: «putte inn
+ * neste avgang … slik at bruker kan vurdere om det er verdt å ta sjansen på
+ * denne reisen gitt evt. ventetid på neste dersom det blir forsinkelser».
+ * `opt.neste(etappe)` gir `{dep, ankCa}`, `{ingen:true}` eller null (ikke
+ * spurt / ikke svar). Ankomsten er et anslag — neste avgang pluss etappens
+ * egen kjøretid — og sier det med «ca.».
+ */
+export function nesteRadHtml(nx, arrMs, tid) {
+  if (!nx) return '';
+  if (nx.ingen) return '<div class="rl-neste rl-neste-ingen"><span class="rl-tid"></span><span class="rl-navn">rekker du ikke denne: ingen ny avgang innen 2 t</span></div>';
+  if (!Number.isFinite(nx.dep)) return '';
+  const ekstra = Number.isFinite(nx.ankCa) && Number.isFinite(arrMs) ? Math.round((nx.ankCa - arrMs) / MIN) : null;
+  return '<div class="rl-neste"><span class="rl-tid">' + tid(nx.dep) + '</span>'
+    + '<span class="rl-navn">neste →'
+    + (Number.isFinite(nx.ankCa) ? ' framme ca. ' + tid(nx.ankCa) + (ekstra != null ? ' · +' + ekstra + ' min' : '') : '')
+    + '</span></div>';
+}
+
 export function reiselop(alle, o) {
   const opt = o || {};
   const clk = opt.clk || klokke;
@@ -197,6 +225,9 @@ export function reiselop(alle, o) {
       + (n ? '<span class="rl-antall">· ' + n + ' stopp</span>' : '') + '</div>'
       + '<div class="rl-stopp rl-av"><span class="rl-tid">' + tid(til(l)) + '</span>'
       + '<span class="rl-navn"><b>' + esc(visStopp(e.til)) + '</b>' + (avPl ? ' · ank. ' + esc(avPl) : '') + '</span></div>'
+      // Bare etter et bytte: første etappe har «← forrige / neste →» selv.
+      + (k > 0 && opt.neste ? nesteRadHtml(opt.neste({ stopId: _fraId(l), lineId: line.id || null, kode: line.publicCode,
+        front: front || null, dep: fra(l), arr: til(l) }), til(l), tid) : '')
       + '</div>');
 
     const neste = kjør[k + 1];

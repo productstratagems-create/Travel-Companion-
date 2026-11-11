@@ -48,6 +48,7 @@ import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
 import { byLine } from '../api/situations.js';
 import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
+import { belegg, beleggTekst } from '../api/belegg.js';
 import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
 import { profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
@@ -2836,6 +2837,15 @@ export function catchable(d, walkMins, now) {
     .sort((a, b) => a.ms - b.ms);
 }
 
+/* BELEGG PÅ RADEN (v1.218.36): samme dom og ord som tavla (`belegg.js`), men
+ * bare MÅLT — et anslag per rad i en liste på ti ville vært gjetting ti ganger. */
+export function radBeleggHtml(call) {
+  const b = belegg({ status: call && call.occupancyStatus });
+  if (b.kind !== 'målt') return '';
+  const t = beleggTekst(b);
+  return '<span class="auto-belegg belegg-' + b.nivå + '" title="' + esc(t.fullt) + '">' + esc(t.kort) + '</span>';
+}
+
 /* NÅR AVGANGENE BLE HENTET (v1.218.36). Appen visste det og sa det aldri —
  * AGENTS.md: «Si hva du ikke vet». Ferskt: en stille linje. Gammelt eller
  * frakoblet: et varsel, fordi tidene under da kan være feil. */
@@ -3385,6 +3395,9 @@ function _renderBody() {
    * road, and four of them under a heading would be the list this block
    * exists to replace.
    */
+  // NÅR DU MÅ GÅ (v1.218.36), på alternativet, så kortet og lista leser samme
+  // gangtid (`walkMins`, den samme `catchable` stryker med).
+  dests.forEach(x => (x.options || []).forEach(o => { o.gåMin = walkMins == null ? null : minsToLeave(o.ms, walkMins, now); }));
   const destHtml = (x, n) => kortHtml(x, n);
 
   /* KORTENE I SIN EGEN CONTAINER, radene i sin.
@@ -3507,6 +3520,7 @@ function _renderBody() {
         // under space-between — and that warning is there because it happened.
         + '<span class="nearby-dist">' + vaneHtml
         + (q ? '<span class="auto-quay" aria-hidden="true">' + esc(q) + '</span>' : '')
+        + radBeleggHtml(d.call)
         + _timesHtml(d, now, walkMins) + '</span>'
         + '</button>'
         + msg.block;
@@ -3846,7 +3860,9 @@ export function kortHtml(x, n) {
   const o = x.options[0];
   const q = quayLabel(o.call);
   const ln = (o.d.lines && o.d.lines[0]) || {};
-  const how = 'mot ' + o.d.frontText + (q ? ' · ' + q : '') + ' · går ' + clk(o.ms);
+  // «gå om N min» — det kortet manglet: det sa når toget går, ikke når DU går.
+  const gå = Number.isFinite(o.gåMin) ? (o.gåMin <= 0 ? ' · gå nå' : ' · gå om ' + o.gåMin + ' min') : '';
+  const how = 'mot ' + o.d.frontText + (q ? ' · ' + q : '') + ' · går ' + clk(o.ms) + gå;
   // Ordene for en skjermleser. Et merke er en farge, og en forskjell som bare
   // er en farge er en forskjell halve lesergruppa ikke har.
   const sagt = 'linje ' + (ln.code || '?') + ' ' + how;

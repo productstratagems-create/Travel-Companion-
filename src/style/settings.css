@@ -944,3 +944,6 @@
 #v-auto .auto-dir .missed.is-sanntid::before, #v-auto .auto-dir .auto-t-innstilt.is-sanntid::before { opacity: .45; }
 #v-auto .auto-oppdatert { font-size: 11px; letter-spacing: .05em; color: var(--text-soft); text-align: right; margin: -.2rem 0 .3rem; }
 #v-auto .auto-oppdatert.is-gammel { color: var(--warn); }
+/* Belegg på raden, etter sporet, på tidslinja (v1.218.36). */
+#v-auto .auto-dir .nearby-dist .auto-belegg { float: left; margin-right: .6rem; font-size: .7rem; opacity: .75; line-height: inherit; padding-top: .1em; }
+#v-auto .auto-dir .auto-belegg.belegg-4, #v-auto .auto-dir .auto-belegg.belegg-5 { color: var(--warn); opacity: 1; }

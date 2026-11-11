@@ -54,3 +54,19 @@ describe('sporet på samme plass', () => {
     expect(s.slice(s.indexOf("'<span class=\"nearby-name\">mot '"), i)).not.toMatch(/\+ \(q \?/);
   });
 });
+
+describe('steg 2', () => {
+  it('belegg på raden bare når Entur har målt det', async () => {
+    const { radBeleggHtml } = await import('../src/views/auto.js');
+    expect(radBeleggHtml({ occupancyStatus: 'standingRoomOnly' })).toContain('travelt');
+    expect(radBeleggHtml({ occupancyStatus: 'noData' })).toBe('');
+    expect(radBeleggHtml(null)).toBe('');
+  });
+  it('kortet «dit du ofte skal» sier når du må gå', async () => {
+    const { kortHtml } = await import('../src/views/auto.js');
+    const o = { ms: NÅ + 18 * 60000, at: NÅ + 43 * 60000, call: { quay: { publicCode: '1' } }, d: { frontText: 'Kolsås', lines: [{ code: '3' }] } };
+    expect(kortHtml({ name: 'Jernbanetorget', options: [{ ...o, gåMin: 9 }] }, 0)).toContain('gå om 9 min');
+    expect(kortHtml({ name: 'Jernbanetorget', options: [{ ...o, gåMin: 0 }] }, 0)).toContain('gå nå');
+    expect(kortHtml({ name: 'Jernbanetorget', options: [o] }, 0)).not.toContain('gå om');
+  });
+});

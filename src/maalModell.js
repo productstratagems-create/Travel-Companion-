@@ -22,7 +22,7 @@
  * Ren og uten DOM. Tidspunktene i det vanlige mønsteret er valgt av
  * resonnement, ikke målt på befolkningsdata.
  */
-import { CENTRE, AT_CENTRE_KM, MIN_GAIN_KM, kmTo } from './api/centre.js';
+import { sentrumFor, AT_CENTRE_KM, MIN_GAIN_KM, kmTo } from './api/centre.js';
 import { stopKey } from './stopId.js';
 
 export const BLANDING_K = 5;
@@ -39,7 +39,10 @@ export function vanligMønster(nå) {
 /** 1 når målet passer med det vanlige mønsteret, 0 når det går imot, ½ ellers. */
 export function passerMønster(mål, her, m) {
   if (!m.mot || !mål || !her) return 0.5;
-  const fraHer = kmTo(her, CENTRE), fraMål = kmTo(mål, CENTRE);
+  // Byens sentrum (v1.218.41), ikke Oslos: i Bergen målte dette 300 km begge veier.
+  const S = sentrumFor(her);
+  if (!S) return 0.5;
+  const fraHer = kmTo(her, S), fraMål = kmTo(mål, S);
   if (fraHer == null || fraMål == null || fraHer < AT_CENTRE_KM) return 0.5;
   const nærmere = fraMål <= fraHer - MIN_GAIN_KM, lenger = fraMål >= fraHer + MIN_GAIN_KM;
   if (!nærmere && !lenger) return 0.5;
@@ -103,7 +106,8 @@ export function rangerMål(kort, o) {
 export function foldetSide(nå, her, egneSider) {
   const m = vanligMønster(nå);
   if (!m.mot || !her) return null;
-  const km = kmTo(her, CENTRE);
+  const S = sentrumFor(her);
+  const km = S ? kmTo(her, S) : null;
   if (km == null || km < AT_CENTRE_KM) return null;
   const motsatt = m.mot === 'sentrum' ? 'fra' : 'mot';
   return egneSider && egneSider.has(motsatt) ? null : motsatt;

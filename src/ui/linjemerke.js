@@ -79,6 +79,17 @@ export const IKON = {
 const IKON_FOR = { coach: 'bus' };  // regionbuss: Enturs bussikon
 const MODUS_NAVN = { bus: 'buss', coach: 'buss', metro: 'T-bane', tram: 'trikk', rail: 'tog', water: 'båt', air: 'fly', cableway: 'taubane', funicular: 'kabelbane', taxi: 'taxi' };
 
+/**
+ * Navnet på transportmidlet, for linja det gjelder (v1.218.41). I Bergen er
+ * trikken Bybanen — det er det den heter på skiltene, i Skyss' egne apper og i
+ * munnen på folk. «Trikk» der var Oslos ord. Én definisjon, brukt av merket,
+ * sorteringsknappen og båndene.
+ */
+export function modusOrd(modus, linjeId) {
+  if (modus === 'tram' && String(linjeId || '').startsWith('SKY:')) return 'Bybanen';
+  return MODUS_NAVN[modus] || null;
+}
+
 export function tilbyder(linjeId) {
   if (!linjeId || typeof linjeId !== 'string') return null;
   return TILBYDERE[linjeId.split(':')[0]] || null;
@@ -118,8 +129,9 @@ export function linjemerke(o) {
   const i = IKON[IKON_FOR[o.modus] || o.modus];
   const svg = i ? '<svg class="lm-ikon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
     + i.d.map(d => '<path' + (i.evenodd ? ' fill-rule="evenodd" clip-rule="evenodd"' : '') + ' d="' + d + '"/>').join('') + '</svg>' : '';
-  const hvem = [t && t.navn, MODUS_NAVN[o.modus]].filter(Boolean);
-  const etikett = hvem.length ? (t ? t.navn + ', ' : '') + (MODUS_NAVN[o.modus] ? MODUS_NAVN[o.modus] + ' ' : 'linje ') + kode : '';
+  const mn = modusOrd(o.modus, o.linjeId);
+  const hvem = [t && t.navn, mn].filter(Boolean);
+  const etikett = hvem.length ? (t ? t.navn + ', ' : '') + (mn ? mn + ' ' : 'linje ') + kode : '';
   const merke = '<span class="line-badge lm' + (o.klasse ? ' ' + o.klasse : '') + '"'
     + (etikett ? ' aria-label="' + etikett + '" title="' + etikett + '"' : '')
     + ' style="--lm-bg:' + bg + ';--lm-fg:' + fg + (o.stil ? ';' + o.stil : '') + '">'

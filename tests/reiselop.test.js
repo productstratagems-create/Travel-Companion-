@@ -294,14 +294,21 @@ describe('neste avgang etter et bytte', () => {
   it('står i byttefeltet, med anslått ankomst og ekstra tid', () => {
     const spurt = [];
     const h = tekst(lag({ neste: e => { spurt.push(e); return { dep: T0 + 58 * 60000, ankCa: T0 + 70 * 60000 }; } }));
-    expect(h).toMatch(/Bytte på Jernbanetorget[^]*Ryker byttet: neste 18 kl\. 22:47 → framme ca\. 22:59 \(\+15 min\)/);
+    expect(h).toMatch(/Ryker byttet på Jernbanetorget: neste 18 kl\. 22:47 → framme ca\. 22:59 \(\+15 min\)/);
+    // v1.218.45: etter den foreslåtte etappen (trikken til Torshov), ikke i byttefeltet foran den.
+    expect(h.indexOf('Ryker byttet')).toBeGreaterThan(h.indexOf('Torshov'));
+    const r = lag({ neste: () => ({ dep: T0 + 58 * 60000, ankCa: T0 + 70 * 60000 }) });
+    const bytte = r.slice(r.indexOf('rl-bytte'), r.indexOf('</div>', r.indexOf('rl-bytte')));
+    expect(bytte).not.toContain('Ryker');
     // Bare etappe 2 (trikken) spørres — første etappe har «forrige / neste» selv.
     expect(spurt.map(e => e.kode)).toEqual(['18']);
     expect(spurt[0]).toMatchObject({ stopId: 'NSR:StopPlace:Jernbanetorget', front: 'Storo-Grefsen st.', dep: T0 + 43 * 60000, arr: T0 + 55 * 60000 });
   });
   it('ingen ny avgang: sier det i varselfarge', () => {
     expect(lag({ neste: () => ({ ingen: true }) })).toContain('rl-ryker-ingen');
-    expect(tekst(lag({ neste: () => ({ ingen: true }) }))).toMatch(/Ryker byttet: ingen ny avgang innen 2 t/);
+    expect(tekst(lag({ neste: () => ({ ingen: true }) }))).toMatch(/Ryker byttet på Jernbanetorget: ingen ny avgang innen 2 t/);
+    const t = tekst(lag({ neste: () => ({ ingen: true }) }));
+    expect(t.indexOf('Ryker byttet')).toBeGreaterThan(t.indexOf('Torshov'));
   });
   it('ikke svar ennå: ingenting', () => {
     expect(lag({ neste: () => null })).not.toContain('rl-ryker');

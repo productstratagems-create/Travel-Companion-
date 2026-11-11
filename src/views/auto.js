@@ -240,6 +240,8 @@ export function groupDirections(calls, now) {
         // holdes i takt — og en sortering av den ene uten den andre ville
         // strøket feil avgang.
         innstiltMs: new Set(calls.filter(x => x.innstilt).map(x => x.ms)),
+        // Hvilke tider som er SANNTID (v1.218.36), samme oppslag på verdi.
+        sanntidMs: new Set(calls.filter(x => x.call && x.call.realtime).map(x => x.ms)),
       };
     })
     // Sortert ETTER at neste er valgt, så rekkefølgen følger avgangene som går.
@@ -2689,6 +2691,7 @@ function _load() {
     (stop) => {
       _dirs = groupDirections(stop.estimatedCalls || []);
       _rå = stop.estimatedCalls || [];
+      _hentetMs = Date.now();
       // Keep WHERE each message hung. This screen has done it right since
       // v1.137.0 — by writing the loop out here. It was the fourth copy of
       // one loop, and two of the four had lost the origin entirely; the
@@ -2833,6 +2836,22 @@ export function catchable(d, walkMins, now) {
     .sort((a, b) => a.ms - b.ms);
 }
 
+/* NÅR AVGANGENE BLE HENTET (v1.218.36). Appen visste det og sa det aldri —
+ * AGENTS.md: «Si hva du ikke vet». Ferskt: en stille linje. Gammelt eller
+ * frakoblet: et varsel, fordi tidene under da kan være feil. */
+let _hentetMs = null;
+export const OPPDATERT_GAMMEL_MIN = 3;
+export function oppdatertHtml(hentetMs, nå, påNett = true) {
+  if (!Number.isFinite(hentetMs)) return '';
+  const alder = Math.floor((nå - hentetMs) / 60000);
+  if (!påNett) return '<div class="auto-oppdatert is-gammel">frakoblet · tidene er fra ' + clk(hentetMs) + '</div>';
+  if (alder >= OPPDATERT_GAMMEL_MIN) return '<div class="auto-oppdatert is-gammel">oppdatert for ' + alder + ' min siden · trykk ↻</div>';
+  return '<div class="auto-oppdatert">oppdatert ' + clk(hentetMs) + '</div>';
+}
+
+/** Fra så mange minutter står klokkeslettet i stedet for minuttene (v1.218.36). */
+export const KLOKKE_FRA_MIN = 15;
+
 export function _timesHtml(d, now, walkMins) {
   const raw = (d.times && d.times.length) ? d.times : null;
   const mins = raw ? raw.map(ms => _minsUntil(ms, now)) : [d.mins];
@@ -2853,7 +2872,15 @@ export function _timesHtml(d, now, walkMins) {
     if (walkMins == null || x.ms == null) return '';
     return canCatch(x.ms, walkMins, now) ? reachCls(minsToLeave(x.ms, walkMins, now)) : 'missed';
   };
-  const label = (x) => (x.m === 0 ? 'nå' : String(x.m));
+  // KLOKKESLETT LENGER FRAM (v1.218.36): «72 min» kl. 00:15 er regnestykket
+  // leseren må gjøre selv. Fra KLOKKE_FRA_MIN står klokkeslettet.
+  const klokke = (x) => x.ms != null && x.m > KLOKKE_FRA_MIN;
+  const label = (x) => (x.m === 0 ? 'nå' : klokke(x) ? clk(x.ms) : String(x.m));
+  // SANNTID: en prikk ved tider som følger kjøretøyet; rutetid har ingen.
+  const sanntid = d.sanntidMs instanceof Set ? d.sanntidMs : new Set();
+  const rt = (x) => (x.ms != null && sanntid.has(x.ms) ? ' is-sanntid' : '');
+  // «min» etter det SISTE minuttallet, ikke etter et klokkeslett.
+  const sisteMin = (() => { for (let i = keep.length - 1; i >= 0; i--) if (!klokke(keep[i]) && keep[i].m !== 0) return i; return -1; })();
 
   // THE ONE YOU AIM FOR IS THE ONE THAT CARRIES THE EMPHASIS.
   //
@@ -2894,14 +2921,17 @@ export function _timesHtml(d, now, walkMins) {
       return '<span class="auto-t-dim auto-t-innstilt" aria-label="' + label(x)
         + enhet + ', innstilt"><s>' + label(x) + enhet + '</s> innstilt</span>';
     }
+    const enhet = i === sisteMin && keep.slice(i + 1).some(klokke) ? ' min' : '';
     return '<span class="' + (loud ? 'auto-t-next' : 'auto-t-dim')
-      + (r ? ' ' + r : '') + '">' + label(x) + '</span>';
+      + (r ? ' ' + r : '') + rt(x) + '"' + (rt(x) ? ' title="sanntid"' : '') + '>' + label(x) + '</span>' + enhet;
   }).join('<span class="auto-t-sep"> · </span>');
 
   // Den felles enheten hører til tallene som GÅR. Er den siste innstilt,
   // har den sin egen inni streken, og en til ville hengt etter «innstilt».
   const sist = keep[keep.length - 1];
   if (rcls(sist) === 'innstilt') return html;
+  // Er den siste et klokkeslett, sto «min» alt ved siste minuttall.
+  if (klokke(sist)) return html;
   return html + (keep[0].m === 0 && keep.length === 1 ? '' : ' min');
 }
 
@@ -3393,7 +3423,8 @@ function _renderBody() {
   // forklaring leses som at alt kan nås.
   const fartNotis = gangGjelder(fartNå(now), state.walkFromLL !== null) ? ''
     : '<div class="i-fart-notis">' + esc(I_FART_NOTIS) + '</div>';
-  body.innerHTML = fartNotis + ordered.map(({ d, i }) => {
+  body.innerHTML = fartNotis + oppdatertHtml(_hentetMs, now, typeof navigator !== 'undefined' ? navigator.onLine !== false : true)
+    + ordered.map(({ d, i }) => {
       /* Merket bare når det finnes noe å si om STYRKEN. `gjetning` er
        * `t.freqArr`-fallbacken, som ikke vet noe om tid på døgnet —
        * `autoJumpDest` nekter alt å handle på den, og en rad merket «du
@@ -3464,13 +3495,19 @@ function _renderBody() {
         // measured. The name is the flexible one and gives way first; the
         // platform is two characters and must never be the part that
         // truncates, because it is the part you cannot guess.
-        + (q ? '<span class="auto-quay" aria-hidden="true">' + esc(q) + '</span>' : '')
+        // SPORET PÅ TIDSLINJA (v1.218.36): ved siden av navnet ble det skjøvet
+        // ned på egen linje når navnet var langt («73 mot Holmlia stasjon /
+        // plattform B»), og sto til høyre på de andre radene. Navnet forkortes
+        // ikke (rapportert «mot Hels…»), så sporet flytter: alltid venstre på
+        // linja med tidene, samme plass på hver rad.
         // "2 · 12 · 22 min": the one you might catch, then the fallbacks.
         //
         // Text inside the existing span, not new children. settings.css:267
         // warns in plain words that a third child pushes the label adrift
         // under space-between — and that warning is there because it happened.
-        + '<span class="nearby-dist">' + vaneHtml + _timesHtml(d, now, walkMins) + '</span>'
+        + '<span class="nearby-dist">' + vaneHtml
+        + (q ? '<span class="auto-quay" aria-hidden="true">' + esc(q) + '</span>' : '')
+        + _timesHtml(d, now, walkMins) + '</span>'
         + '</button>'
         + msg.block;
     }).join('') + (iFold ? '</details>' : '')

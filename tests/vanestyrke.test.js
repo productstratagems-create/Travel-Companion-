@@ -509,7 +509,8 @@ describe('raden', () => {
    * tidslinja er tom på hver rad; navnelinja har ingen plass å gi. */
   it('setter merket på linja med tidene', () => {
     const s = src();
-    expect(s).toMatch(/'<span class="nearby-dist">' \+ vaneHtml \+ _timesHtml\(/);
+    // v1.218.36: sporet står mellom merket og tidene, på samme linje.
+    expect(s).toMatch(/'<span class="nearby-dist">' \+ vaneHtml\s*\+ \(q \? '<span class="auto-quay"[^\n]*\n\s*\+ _timesHtml\(/);
     const badges = s.slice(s.indexOf("'<span class=\"auto-badges\">'"), s.indexOf("'<span class=\"nearby-name\">"));
     expect(badges).not.toMatch(/auto-vane/);
   });

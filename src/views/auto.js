@@ -18,6 +18,7 @@
  * exactly as well. That is the difference between an engine that locks you
  * out and one that helps.
  */
+import { metresBetween } from '../haversine.js';
 import { linjemerke } from '../ui/linjemerke.js';
 import { lappMedLogo } from '../ui/tilbyderlogo.js';
 import { esc, clk, clkDay } from '../ui/fmt.js';
@@ -1730,10 +1731,36 @@ function _bliSittendeMs(k, målId, nå) {
   return c ? new Date(c.expectedArrivalTime || c.aimedArrivalTime || c.expectedDepartureTime).getTime() : null;
 }
 
+/**
+ * GJELDER MÅLET TUREN DU SITTER PÅ? (v1.218.39)
+ *
+ * Rapportert: på linje 3 fra Bogerud mot sentrum sa appen «raskere å gå av på
+ * Bøler: 3 07:43 → Mortensrud». Målet var kortet «dit du ofte skal» fra
+ * stoppet — Mortensrud, der du KOM FRA. Turen kjører bort fra det, så å gå av
+ * og snu blir alltid «raskere» enn å bli sittende til et sted turen aldri når.
+ * Rådet gjelder bare et mål som ligger foran:
+ *   - har turen alt vært innom målet, er det bak deg: nei;
+ *   - skal turen selv innom det: ja;
+ *   - ellers: bare når turen nærmer seg det (stoppet etter er nærmere enn neste).
+ */
+export function målForan(k, mål, nå, neste, etter) {
+  if (!mål || !mål.id) return false;
+  const sj = k && k.call && k.call.serviceJourney;
+  const kall = (sj && sj.estimatedCalls) || [];
+  const tid = x => new Date(x.expectedArrivalTime || x.aimedArrivalTime || x.expectedDepartureTime || x.aimedDepartureTime || 0).getTime();
+  const her = x => x.quay && x.quay.stopPlace && x.quay.stopPlace.id === mål.id;
+  if (kall.some(x => her(x) && tid(x) <= nå)) return false;
+  if (kall.some(x => her(x) && tid(x) > nå)) return true;
+  const ok = p => p && Number.isFinite(p.lat) && Number.isFinite(p.lon);
+  if (!ok(mål) || !ok(neste) || !ok(etter)) return false;
+  return metresBetween(etter, mål) < metresBetween(neste, mål);
+}
+
 function _raskereData(nå) {
   const mål = _kortRute && _kortRute.id;
   const neste = _lås && stoppFram(_lås.k, nå, 0);
-  if (!mål || !neste || !neste.id || neste.id === mål || !Number.isFinite(neste.at)) { _rask = { key: null, svar: null }; return null; }
+  if (!mål || !neste || !neste.id || neste.id === mål || !Number.isFinite(neste.at)
+    || !målForan(_lås.k, _kortRute, nå, neste, stoppFram(_lås.k, nå, 1))) { _rask = { key: null, svar: null }; return null; }
   const key = neste.id + '|' + _lås.k.nøkkel + '|' + mål;
   if (_rask.key !== key) {
     _rask = { key, svar: null };
@@ -3407,7 +3434,11 @@ function _renderBody() {
   // Samme kort og samme alternativ som kortets overskrift: kartet og kortet
   // skal vise samme reise.
   const k0 = dests[0], o0 = k0 && k0.options && k0.options[0];
-  _kortRute = o0 ? { navn: k0.name, id: k0.id || null, d: o0.d, call: o0.call } : null;
+  // Koordinaten til målet følger med (v1.218.39), så «raskere å gå av» kan
+  // spørre om turen du sitter på er på vei MOT det.
+  const mål0 = o0 ? stopsAhead(o0.call, _stop && _stop.name, now).find(st => (k0.id && st.id === k0.id) || stopKey(st.name) === stopKey(k0.name)) : null;
+  _kortRute = o0 ? { navn: k0.name, id: k0.id || null, d: o0.d, call: o0.call,
+    lat: mål0 && Number.isFinite(mål0.lat) ? mål0.lat : null, lon: mål0 && Number.isFinite(mål0.lon) ? mål0.lon : null } : null;
   // PARTITIONED, not a heading emitted whenever the value changes. The list
   // is already sorted by the reader's own choice (T-bane først / Lokalbuss
   // først), and a heading-on-change would interleave «mot sentrum» through

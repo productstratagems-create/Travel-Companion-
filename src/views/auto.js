@@ -29,7 +29,8 @@ import { raskereHer } from '../raskere.js';
 import { rangerMål, foldetSide } from '../maalModell.js';
 import { overganger, arrBoardSpørsmål, ARR_BOARD_ASK } from '../overganger.js';
 import { domFraKlasse, _DOM_KLASSE } from '../ui/reiselop.js';
-import { NEXT_DEPARTURE_HORIZON_MINS } from '../api/queries.js';
+import { NEXT_DEPARTURE_HORIZON_MINS, BOARD_WINDOW_MINS } from '../api/queries.js';
+import { erNatt, radNøkkel, nesteEtter, sisteDom, ferdigeRetninger } from '../nattTrafikk.js';
 import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke, vaneSetning, loadSmartHist }
   from '../api/smart.js';
 import { sistReist } from '../api/eventLog.js';
@@ -48,6 +49,7 @@ import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
 import { byLine } from '../api/situations.js';
 import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
+import { belegg, beleggTekst } from '../api/belegg.js';
 import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
 import { profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
@@ -240,6 +242,8 @@ export function groupDirections(calls, now) {
         // holdes i takt — og en sortering av den ene uten den andre ville
         // strøket feil avgang.
         innstiltMs: new Set(calls.filter(x => x.innstilt).map(x => x.ms)),
+        // Hvilke tider som er SANNTID (v1.218.36), samme oppslag på verdi.
+        sanntidMs: new Set(calls.filter(x => x.call && x.call.realtime).map(x => x.ms)),
       };
     })
     // Sortert ETTER at neste er valgt, så rekkefølgen følger avgangene som går.
@@ -2689,6 +2693,8 @@ function _load() {
     (stop) => {
       _dirs = groupDirections(stop.estimatedCalls || []);
       _rå = stop.estimatedCalls || [];
+      _hentetMs = Date.now();
+      _spørNatt(_stop && _stop.id, _hentetMs);
       // Keep WHERE each message hung. This screen has done it right since
       // v1.137.0 — by writing the loop out here. It was the fourth copy of
       // one loop, and two of the four had lost the origin entirely; the
@@ -2833,6 +2839,67 @@ export function catchable(d, walkMins, now) {
     .sort((a, b) => a.ms - b.ms);
 }
 
+/* BELEGG PÅ RADEN (v1.218.36): samme dom og ord som tavla (`belegg.js`), men
+ * bare MÅLT — et anslag per rad i en liste på ti ville vært gjetting ti ganger. */
+export function radBeleggHtml(call) {
+  const b = belegg({ status: call && call.occupancyStatus });
+  if (b.kind !== 'målt') return '';
+  const t = beleggTekst(b);
+  return '<span class="auto-belegg belegg-' + b.nivå + '" title="' + esc(t.fullt) + '">' + esc(t.kort) + '</span>';
+}
+
+/* NATT (v1.218.38, src/nattTrafikk.js): første avgang per linje og retning
+ * ETTER vinduet, hentet én gang per stopp og bare om natta. */
+let _natt = { stopId: null, spurt: false, etter: new Map() };
+function _spørNatt(stopId, nå) {
+  if (!stopId || !erNatt(nå) || _natt.stopId === stopId) return;
+  _natt = { stopId, spurt: false, etter: new Map() };
+  fetchArrBoard(stopId, 60, { fraMs: nå + BOARD_WINDOW_MINS * 60000, perLinje: 1, vinduMin: 10 * 60 })
+    .then(r => {
+      if (_natt.stopId !== stopId) return;
+      _natt = { stopId, spurt: true, etter: nesteEtter(r && r.departures) };
+      _renderBody();
+    })
+    .catch(() => { /* ikke svar: ingen påstand om «siste» */ });
+}
+/** «siste i natt · neste 05:12» under radens tider, når hullet er sett. */
+export function nattRadHtml(d, natt) {
+  if (!natt || !natt.spurt || !d || !d.calls || !d.calls.length) return '';
+  // Bare når den siste i vinduet står på skjermen (raden viser tre tider).
+  if (d.calls.length > 3) return '';
+  const ln = d.lines && d.lines[0];
+  const dom = sisteDom(d.calls[d.calls.length - 1].ms, natt.etter.get(radNøkkel(ln && (ln.id || ln.code), d.frontText)), natt.spurt);
+  if (!dom) return '';
+  return '<span class="auto-natt">siste i natt · '
+    + 'neste ' + clk(dom.neste) + '</span>';
+}
+/** Retninger som er ferdige for natta, med neste avgang. */
+export function nattFerdigeHtml(dirs, natt) {
+  if (!natt || !natt.spurt) return '';
+  const iLista = new Set((dirs || []).map(d => radNøkkel(d.lines && d.lines[0] && (d.lines[0].id || d.lines[0].code), d.frontText)));
+  const ferdige = ferdigeRetninger(natt.etter, iLista).slice(0, 6);
+  if (!ferdige.length) return '';
+  return '<div class="auto-natt-ferdige"><div class="set-label">ingen flere i natt</div>'
+    + ferdige.map(f => '<div class="auto-natt-rad">' + esc(f.kode + ' mot ' + f.dest) + ' · neste ' + clk(f.depTs) + '</div>').join('')
+    + '</div>';
+}
+
+/* NÅR AVGANGENE BLE HENTET (v1.218.36). Appen visste det og sa det aldri —
+ * AGENTS.md: «Si hva du ikke vet». Ferskt: en stille linje. Gammelt eller
+ * frakoblet: et varsel, fordi tidene under da kan være feil. */
+let _hentetMs = null;
+export const OPPDATERT_GAMMEL_MIN = 3;
+export function oppdatertHtml(hentetMs, nå, påNett = true) {
+  if (!Number.isFinite(hentetMs)) return '';
+  const alder = Math.floor((nå - hentetMs) / 60000);
+  if (!påNett) return '<div class="auto-oppdatert is-gammel">frakoblet · tidene er fra ' + clk(hentetMs) + '</div>';
+  if (alder >= OPPDATERT_GAMMEL_MIN) return '<div class="auto-oppdatert is-gammel">oppdatert for ' + alder + ' min siden · trykk ↻</div>';
+  return '<div class="auto-oppdatert">oppdatert ' + clk(hentetMs) + '</div>';
+}
+
+/** Fra så mange minutter står klokkeslettet i stedet for minuttene (v1.218.36). */
+export const KLOKKE_FRA_MIN = 15;
+
 export function _timesHtml(d, now, walkMins) {
   const raw = (d.times && d.times.length) ? d.times : null;
   const mins = raw ? raw.map(ms => _minsUntil(ms, now)) : [d.mins];
@@ -2853,7 +2920,15 @@ export function _timesHtml(d, now, walkMins) {
     if (walkMins == null || x.ms == null) return '';
     return canCatch(x.ms, walkMins, now) ? reachCls(minsToLeave(x.ms, walkMins, now)) : 'missed';
   };
-  const label = (x) => (x.m === 0 ? 'nå' : String(x.m));
+  // KLOKKESLETT LENGER FRAM (v1.218.36): «72 min» kl. 00:15 er regnestykket
+  // leseren må gjøre selv. Fra KLOKKE_FRA_MIN står klokkeslettet.
+  const klokke = (x) => x.ms != null && x.m > KLOKKE_FRA_MIN;
+  const label = (x) => (x.m === 0 ? 'nå' : klokke(x) ? clk(x.ms) : String(x.m));
+  // SANNTID: en prikk ved tider som følger kjøretøyet; rutetid har ingen.
+  const sanntid = d.sanntidMs instanceof Set ? d.sanntidMs : new Set();
+  const rt = (x) => (x.ms != null && sanntid.has(x.ms) ? ' is-sanntid' : '');
+  // «min» etter det SISTE minuttallet, ikke etter et klokkeslett.
+  const sisteMin = (() => { for (let i = keep.length - 1; i >= 0; i--) if (!klokke(keep[i]) && keep[i].m !== 0) return i; return -1; })();
 
   // THE ONE YOU AIM FOR IS THE ONE THAT CARRIES THE EMPHASIS.
   //
@@ -2894,14 +2969,17 @@ export function _timesHtml(d, now, walkMins) {
       return '<span class="auto-t-dim auto-t-innstilt" aria-label="' + label(x)
         + enhet + ', innstilt"><s>' + label(x) + enhet + '</s> innstilt</span>';
     }
+    const enhet = i === sisteMin && keep.slice(i + 1).some(klokke) ? ' min' : '';
     return '<span class="' + (loud ? 'auto-t-next' : 'auto-t-dim')
-      + (r ? ' ' + r : '') + '">' + label(x) + '</span>';
+      + (r ? ' ' + r : '') + rt(x) + '"' + (rt(x) ? ' title="sanntid"' : '') + '>' + label(x) + '</span>' + enhet;
   }).join('<span class="auto-t-sep"> · </span>');
 
   // Den felles enheten hører til tallene som GÅR. Er den siste innstilt,
   // har den sin egen inni streken, og en til ville hengt etter «innstilt».
   const sist = keep[keep.length - 1];
   if (rcls(sist) === 'innstilt') return html;
+  // Er den siste et klokkeslett, sto «min» alt ved siste minuttall.
+  if (klokke(sist)) return html;
   return html + (keep[0].m === 0 && keep.length === 1 ? '' : ' min');
 }
 
@@ -3355,6 +3433,9 @@ function _renderBody() {
    * road, and four of them under a heading would be the list this block
    * exists to replace.
    */
+  // NÅR DU MÅ GÅ (v1.218.36), på alternativet, så kortet og lista leser samme
+  // gangtid (`walkMins`, den samme `catchable` stryker med).
+  dests.forEach(x => (x.options || []).forEach(o => { o.gåMin = walkMins == null ? null : minsToLeave(o.ms, walkMins, now); }));
   const destHtml = (x, n) => kortHtml(x, n);
 
   /* KORTENE I SIN EGEN CONTAINER, radene i sin.
@@ -3393,7 +3474,8 @@ function _renderBody() {
   // forklaring leses som at alt kan nås.
   const fartNotis = gangGjelder(fartNå(now), state.walkFromLL !== null) ? ''
     : '<div class="i-fart-notis">' + esc(I_FART_NOTIS) + '</div>';
-  body.innerHTML = fartNotis + ordered.map(({ d, i }) => {
+  body.innerHTML = fartNotis + oppdatertHtml(_hentetMs, now, typeof navigator !== 'undefined' ? navigator.onLine !== false : true)
+    + ordered.map(({ d, i }) => {
       /* Merket bare når det finnes noe å si om STYRKEN. `gjetning` er
        * `t.freqArr`-fallbacken, som ikke vet noe om tid på døgnet —
        * `autoJumpDest` nekter alt å handle på den, og en rad merket «du
@@ -3464,16 +3546,25 @@ function _renderBody() {
         // measured. The name is the flexible one and gives way first; the
         // platform is two characters and must never be the part that
         // truncates, because it is the part you cannot guess.
-        + (q ? '<span class="auto-quay" aria-hidden="true">' + esc(q) + '</span>' : '')
+        // SPORET PÅ TIDSLINJA (v1.218.36): ved siden av navnet ble det skjøvet
+        // ned på egen linje når navnet var langt («73 mot Holmlia stasjon /
+        // plattform B»), og sto til høyre på de andre radene. Navnet forkortes
+        // ikke (rapportert «mot Hels…»), så sporet flytter: alltid venstre på
+        // linja med tidene, samme plass på hver rad.
         // "2 · 12 · 22 min": the one you might catch, then the fallbacks.
         //
         // Text inside the existing span, not new children. settings.css:267
         // warns in plain words that a third child pushes the label adrift
         // under space-between — and that warning is there because it happened.
-        + '<span class="nearby-dist">' + vaneHtml + _timesHtml(d, now, walkMins) + '</span>'
+        + '<span class="nearby-dist">' + vaneHtml
+        + (q ? '<span class="auto-quay" aria-hidden="true">' + esc(q) + '</span>' : '')
+        + radBeleggHtml(d.call)
+        + _timesHtml(d, now, walkMins) + '</span>'
+        + nattRadHtml(d, _natt)
         + '</button>'
         + msg.block;
     }).join('') + (iFold ? '</details>' : '')
+    + nattFerdigeHtml(_dirs, _natt)
     // SAID, NOT IMPLIED. The list is complete at a small stop and cut at a
     // hub, and it looked identical either way — so it earned trust where it
     // was right and spent it where it was not. One quiet line, only when
@@ -3809,7 +3900,9 @@ export function kortHtml(x, n) {
   const o = x.options[0];
   const q = quayLabel(o.call);
   const ln = (o.d.lines && o.d.lines[0]) || {};
-  const how = 'mot ' + o.d.frontText + (q ? ' · ' + q : '') + ' · går ' + clk(o.ms);
+  // «gå om N min» — det kortet manglet: det sa når toget går, ikke når DU går.
+  const gå = Number.isFinite(o.gåMin) ? (o.gåMin <= 0 ? ' · gå nå' : ' · gå om ' + o.gåMin + ' min') : '';
+  const how = 'mot ' + o.d.frontText + (q ? ' · ' + q : '') + ' · går ' + clk(o.ms) + gå;
   // Ordene for en skjermleser. Et merke er en farge, og en forskjell som bare
   // er en farge er en forskjell halve lesergruppa ikke har.
   const sagt = 'linje ' + (ln.code || '?') + ' ' + how;

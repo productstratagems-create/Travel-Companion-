@@ -1659,12 +1659,19 @@ export function fokusNavHtml(p, nå) {
   // Antall stasjoner fram regnes fra der toget er: står det ved en, er den 0.
   const fram = n + (p.ved ? 0 : 1);
   const rolle = n === 0 ? '' : (fram === 1 ? 'neste stasjon' : 'om ' + fram + ' stasjoner') + (Number.isFinite(p.stop.at) ? ' · ' + clk(p.stop.at) : '');
+  /* ÉN VEI TILBAKE (v1.218.50). Rapportert: «To knapper for å gå tilbake gir
+   * ikke mening» — ‹ Skullerud og «↩ tilbake til Skullerud» gjorde det samme.
+   * Nå: ‹ er ett steg. Først fra to steg ut blir midten selv hoppet hjem,
+   * «↩ til Bogerud»; da gjør de to noe forskjellig. */
+  const hjem = (p.base || p.ved || p.neste).name;
+  const midt = n >= 2
+    ? '<button type="button" class="fokus-tilbake fokus-rolle" aria-label="Tilbake til ' + esc(hjem) + '">' + esc(rolle) + '<br>↩ til ' + esc(hjem) + '</button>'
+    : '<span class="fokus-rolle">' + esc(rolle) + '</span>';
   return '<div class="fokus-nav">'
     + (p.fokusForrige ? '<button type="button" class="fokus-forrige" aria-label="Se ' + esc(p.fokusForrige.name) + '">‹ ' + esc(p.fokusForrige.name) + '</button>' : '<span></span>')
-    + '<span class="fokus-rolle">' + esc(rolle) + '</span>'
+    + midt
     + (p.fokusEtter ? '<button type="button" class="fokus-etter" aria-label="Se ' + esc(p.fokusEtter.name) + '">' + esc(p.fokusEtter.name) + ' ›</button>' : '<span></span>')
-    + '</div>'
-    + (n > 0 ? '<button type="button" class="fokus-tilbake">↩ tilbake til ' + (p.ved ? esc((p.base || p.ved).name) : 'neste stasjon, ' + esc((p.base || p.neste).name)) + '</button>' : '');
+    + '</div>';
 }
 
 /** Radene over stopphodet om bord. Tom uten én kjent tur. */

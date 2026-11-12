@@ -263,7 +263,8 @@ describe('ganglinja fra deg til stoppet', () => {
 
   it('auto-reise ber ikke om den i fart', () => {
     expect(strip('src/views/auto.js'))
-      .toMatch(/ensureApproach\(gangGjelder\(fartNå\(\), state\.walkFromLL !== null\) \? userPos : null, _stop\)/);
+      // v1.218.48: og ikke om bord (låst), også når toget står stille.
+      .toMatch(/ensureApproach\(!_lås && gangGjelder\(fartNå\(\), state\.walkFromLL !== null\) \? userPos : null, _stop\)/);
   });
 
   it('og avgangsdetaljene tegner den ikke i fart', () => {

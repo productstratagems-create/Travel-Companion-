@@ -46,7 +46,9 @@ describe('bla langs linja om bord', () => {
     expect(h).toContain('om 2 stasjoner');
     expect(h).toContain('‹ Hellerud');
     expect(h).toContain('Skøyenåsen ›');
-    expect(h).toContain('↩ tilbake til Brynseng');
+    // v1.218.50: én vei tilbake — fra to steg ut er midten hoppet hjem.
+    expect(h).toContain('↩ til Brynseng');
+    expect(h.match(/fokus-tilbake/g)).toHaveLength(1);
   });
   it('forbi endestasjonen: stopper der, uten pil videre', () => {
     const r = p(20);
@@ -58,5 +60,13 @@ describe('bla langs linja om bord', () => {
     expect(justerFokus(1, 'NSR:StopPlace:5968', 'NSR:StopPlace:5971')).toBe(0);
     expect(justerFokus(0, 'NSR:StopPlace:5968', 'NSR:StopPlace:5971')).toBe(0);
     expect(justerFokus(2, 'NSR:StopPlace:6140', 'NSR:StopPlace:6140')).toBe(2);
+  });
+});
+
+describe('én vei tilbake (v1.218.50)', () => {
+  it('ett steg ut: bare ‹, ingen egen tilbake-knapp', () => {
+    const h = fokusNavHtml(p(1), NÅ);
+    expect(h).toContain('‹ Brynseng');
+    expect(h).not.toContain('fokus-tilbake');
   });
 });

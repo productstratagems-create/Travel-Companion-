@@ -965,9 +965,11 @@
 #testpos-sec .set-field input{width:100%}
 
 /* Bla langs linja om bord (v1.218.47). */
-#v-auto .fokus-nav{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:.4rem;margin:.1rem 0 .3rem;clear:right}
+#v-auto .fokus-nav{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto) minmax(0,1fr);align-items:center;gap:.5rem;margin:.1rem 0 .3rem;clear:right}
 #v-auto .fokus-nav button{background:none;border:1px solid rgba(var(--border-rgb),.35);border-radius:999px;color:var(--accent);font:inherit;font-size:12px;min-height:40px;padding:0 .7rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #v-auto .fokus-nav .fokus-forrige{justify-self:start}
 #v-auto .fokus-nav .fokus-etter{justify-self:end}
 #v-auto .fokus-rolle{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-soft);text-align:center}
-#v-auto .fokus-tilbake{display:block;width:100%;margin:0 0 .4rem;background:rgba(var(--accent-rgb),.1);border:1px solid rgba(var(--accent-rgb),.45);border-radius:8px;color:var(--accent);font:inherit;font-size:13px;min-height:40px;cursor:pointer}
+/* v1.218.50: midten er hoppet hjem fra to steg ut — én knapp, ikke en rad til. */
+#v-auto .fokus-nav .fokus-tilbake{border:0;background:none;color:var(--accent);font-size:10px;line-height:1.35;min-height:40px;padding:0 .2rem;white-space:normal;text-align:center}
+#v-auto .fokus-rolle{overflow:hidden;text-overflow:ellipsis}

@@ -43,6 +43,8 @@
 </script>
 </head>
 <body>
+<!-- Testposisjon på (v1.218.46): alltid synlig, så den ikke glemmes. -->
+<button type="button" id="testpos-stripe" class="testpos-stripe" hidden></button>
 <main class="wrap" id="main-content">
 
 <div id="offline-banner" style="display:none"
@@ -456,6 +458,21 @@
          husker» med mindre du først hadde sagt ja til å bli husket mer.
          Fjerde gang denne knappen ikke holder det den lover. -->
     <button type="button" class="mem-clear" id="mem-clear">slett alt appen husker</button>
+  </div>
+  <!-- TESTPOSISJON (v1.218.46): et sted brukt i stedet for GPS, for å teste
+       appen i andre områder. Ingenting fra testen lagres som vaner eller posisjon. -->
+  <div class="set-section" id="testpos-sec">
+    <div class="set-label">testposisjon</div>
+    <div class="mem-vane-why">Bruk et annet sted enn der du er, for å teste appen i andre områder. GPS er av
+      så lenge et sted er valgt, og ingenting du gjør lagres som vaner eller posisjon.</div>
+    <div id="testpos-status" class="testpos-status"></div>
+    <div class="set-field">
+      <input type="text" id="testpos-sok" placeholder="søk etter sted eller holdeplass"
+        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    </div>
+    <div id="testpos-sugg" class="stop-sugg" hidden></div>
+    <div id="testpos-faste" class="testpos-faste"></div>
+    <button type="button" class="mem-clear" id="testpos-av" hidden>bruk GPS igjen</button>
   </div>
   <div class="set-section">
     <div class="set-label">om appen</div>

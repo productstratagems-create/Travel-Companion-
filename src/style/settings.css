@@ -951,3 +951,15 @@
 #v-auto .auto-dir .auto-natt { flex: 0 0 100%; text-align: right; font-size: .7rem; color: var(--warn); letter-spacing: .03em; }
 #v-auto .auto-natt-ferdige { margin-top: .8rem; }
 #v-auto .auto-natt-rad { font-size: .8rem; color: var(--text-soft); padding: .15rem 0; }
+
+/* Testposisjon (v1.218.46). */
+.testpos-stripe{position:sticky;top:0;z-index:50;display:block;width:100%;border:0;padding:.35rem .8rem;
+  background:var(--warn);color:#111;font:inherit;font-size:11px;letter-spacing:.08em;text-align:center;cursor:pointer}
+.testpos-stripe[hidden]{display:none}
+.testpos-status{font-size:13px;margin:.3rem 0 .4rem;color:var(--text-soft)}
+.testpos-status b{color:var(--warn)}
+.testpos-faste{display:flex;flex-wrap:wrap;gap:.35rem;margin:.5rem 0}
+.testpos-faste button{background:none;border:1px solid rgba(var(--border-rgb),.35);border-radius:999px;color:var(--accent);font:inherit;font-size:12px;padding:.2rem .7rem;min-height:36px;cursor:pointer}
+.testpos-faste button.aktiv{border-color:var(--warn);color:var(--warn)}
+#testpos-av[hidden]{display:none}
+#testpos-sec .set-field input{width:100%}

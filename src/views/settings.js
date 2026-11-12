@@ -20,6 +20,9 @@ import { loadLeadPref, saveLeadPref, LEAD_AUTO } from '../api/ics.js';
 import { haver, walkMinsTo, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, landingPref, saveLandingPref, focusParam } from '../geo.js';
 import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
+import { hentTestPos, TEST_STEDER } from '../api/testPos.js';
+import { brukTestPos } from '../geo.js';
+import { oppdaterTestStripe } from '../ui/testStripe.js';
 import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
@@ -1161,9 +1164,60 @@ function _renderKnappebruk() {
   if (clr) clr.hidden = !liste.length;
 }
 
+/** Linja om hva som er i bruk (v1.218.46). Ren, så den prøves uten DOM. */
+export function testPosStatus(t) {
+  return t ? 'I bruk: <b>' + esc(t.navn) + '</b>. GPS er av.' : 'Av. Appen bruker GPS.';
+}
+
+let _tpTimer = null;
+function _velgTestPos(p) {
+  brukTestPos(p);
+  oppdaterTestStripe();
+  _renderTestPos();
+  window._onTestPos && window._onTestPos();
+}
+function _renderTestPos() {
+  const st = document.getElementById('testpos-status');
+  if (!st) return;
+  const t = hentTestPos();
+  st.innerHTML = testPosStatus(t);
+  const av = document.getElementById('testpos-av');
+  if (av) av.hidden = !t;
+  const faste = document.getElementById('testpos-faste');
+  if (faste) {
+    faste.innerHTML = TEST_STEDER.map((p, i) => '<button type="button" data-i="' + i + '"'
+      + (t && t.navn === p.navn ? ' class="aktiv"' : '') + '>' + esc(p.navn) + '</button>').join('');
+    faste.querySelectorAll('button').forEach(b => b.addEventListener('click', () => _velgTestPos(TEST_STEDER[+b.dataset.i])));
+  }
+  if (av && !av._bundet) { av._bundet = true; av.addEventListener('click', () => _velgTestPos(null)); }
+  const sok = document.getElementById('testpos-sok');
+  if (sok && !sok._bundet) {
+    sok._bundet = true;
+    sok.addEventListener('input', () => {
+      const q = sok.value.trim();
+      const sugg = document.getElementById('testpos-sugg');
+      if (_tpTimer) clearTimeout(_tpTimer);
+      if (!sugg) return;
+      if (q.length < 2) { sugg.hidden = true; sugg.innerHTML = ''; return; }
+      _tpTimer = setTimeout(() => {
+        geocodePlace(q).then(results => {
+          sugg.innerHTML = '';
+          if (!results.length) { sugg.hidden = true; return; }
+          results.slice(0, 6).forEach(r => sugg.appendChild(makeSuggBtn(r.label, r.category || [], () => {
+            sok.value = ''; sugg.hidden = true; sugg.innerHTML = '';
+            _velgTestPos({ navn: r.label, lat: r.lat, lon: r.lon });
+          })));
+          sugg.hidden = false;
+        }).catch(() => {});
+      }, 250);
+    });
+  }
+}
+
 export function showPrefs() {
   _highlightPrefs();
   renderMemory();
+  _renderTestPos();
 }
 
 export function applyRoute() {

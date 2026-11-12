@@ -1,6 +1,7 @@
 import { storage } from '../storage.js';
 import { MEMORY_DAYS, logEvent } from './eventLog.js';
 import { eldes } from '../vane.js';
+import { testPosPå } from './testPos.js';
 
 const HIST_KEY = 't.smartHist';
 const HIST_MAX = 300;
@@ -32,6 +33,8 @@ function _load() {
 // Record a route with time context. Called when user applies a route.
 export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon, fromStopId) {
   if (!fromName || !toName) return;
+  // Testposisjon (v1.218.46): turer der teller ikke som vaner.
+  if (testPosPå()) return;
   const now = new Date();
   const bucket = Math.floor(now.getHours() / 2); // 2-hour slots, 0-11
   const isWeekend = now.getDay() === 0 || now.getDay() === 6;

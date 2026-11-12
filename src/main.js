@@ -33,6 +33,7 @@ import { getActiveProfile, storage } from './storage.js';
 import { state } from './state.js';
 import { nullstillVaneTelling } from './api/smart.js';
 import { tellTrykk } from './api/knappebruk.js';
+import { oppdaterTestStripe } from './ui/testStripe.js';
 
 /* KNAPPEBRUK. Ett trykk telles der det skjer, med capture så en knapp som
  * stopper hendelsen selv også telles. Uten samtykke skriver tellTrykk
@@ -122,6 +123,8 @@ initOfflineBanner();
 attachEventListeners();
 initDebugToggle();
 initSettings();
+// Testposisjon (v1.218.46): stripen fra første tegning.
+oppdaterTestStripe();
 updateHeader();
 startRenderLoop();
 

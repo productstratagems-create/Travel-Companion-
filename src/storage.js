@@ -33,6 +33,8 @@ const ALL_KEYS = [
   't.nesteSvar',
   // Brukerprofilen (v1.218.29): hjem, jobb og vanene du har bekreftet. Nivå 1.
   't.profil',
+  // Testposisjon i stedet for GPS (v1.218.46).
+  't.testPos',
   // Låsen på turen du sitter på, så den overlever en omlasting (v1.218.25).
   't.ombordLås',
   // Legacy. v1.79.0 stored whether the nearby-stops list was open; v1.83.1

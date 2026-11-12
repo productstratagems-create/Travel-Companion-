@@ -1,6 +1,7 @@
 import { storage } from '../storage.js';
 import { loadConsent } from './consent.js';
 import { stopKey } from '../stopId.js';
+import { testPosPå } from './testPos.js';
 
 /**
  * Hva appen husker om deg, i sju døgn, på din egen telefon.
@@ -189,6 +190,8 @@ export function skalLogges(forrige, nokkel, naa, minMs) {
 
 export function logEvent(kind, data, pos) {
   if (!loadConsent()) return false;
+  // Testposisjon (v1.218.46): en tur «fra Bergen» skal ikke bli en vane.
+  if (testPosPå()) return false;
   if (!KINDS[kind]) return false;
   const list = prune(_load(), Date.now());
   list.push(_shape(kind, data, pos));

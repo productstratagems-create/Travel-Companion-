@@ -22,6 +22,7 @@ import { loadConsent } from './consent.js';
 import { oppdaterLås } from './ombordLaas.js';
 import { pushLang } from '../trail.js';
 import { kandidatAv } from './kandidat.js';
+import { testPosPå } from './testPos.js';
 
 const KEY = 't.turopptak';
 export const MAKS_TURER = 5;
@@ -62,7 +63,8 @@ function kallAv(k) { return k && k.call ? JSON.parse(JSON.stringify(k.call)) : n
  *   lås?:object|null, hendelse?:string|null}} b
  */
 export function taOpp(b) {
-  if (!b || !Number.isFinite(b.nå) || !loadConsent()) return false;
+  // Ingen opptak av en testposisjon (v1.218.46).
+  if (!b || !Number.isFinite(b.nå) || !loadConsent() || testPosPå()) return false;
   const nå = b.nå;
   const kand = (b.kandidater || []).slice(0, 5);
   const bilde = {

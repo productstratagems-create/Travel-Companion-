@@ -15,6 +15,7 @@ const WALK_SPEED_KEY  = 't.walkSpeed';
 const WALK_BUF_KEY    = 't.walkBuf';
 const WALK_FROM_KEY   = 't.walkFrom';
 const HOME_LL_KEY     = 't.homeLL';
+import { hentTestPos, settTestPos, slettTestPos } from './api/testPos.js';
 // Ganghastigheten bor i sin egen bladmodul (se walkSpeed.js) og
 // re-eksporteres her under navnet kallestedene alt kjenner.
 export { SPEED_MPN, SPEED_DEFAULT } from './walkSpeed.js';
@@ -757,14 +758,14 @@ export function fartNå(nå) {
 }
 
 export function locateUser(onFound, onFail) {
-  if (!navigator.geolocation) {
+  if (!navigator.geolocation && !hentTestPos()) {
     // A state of its own: there is no switch for this reader to turn on.
     state.gpsError = 'unsupported';
     logMsg('geolokasjon ikke tilgjengelig', 'err');
     if (onFail) onFail('geolokasjon ikke tilgjengelig');
     return;
   }
-  if (_watchId !== null) return; // single watch for the session lifetime
+  if (_watchId !== null || _testTimer) return; // single watch for the session lifetime
 
   // Cached position: call onFound immediately so the UI doesn't wait for GPS
   // warm-up. GPS still runs in the background and re-resolves stations once
@@ -879,7 +880,8 @@ function _handleFix(pos) {
       // hoppet da over alle alderssjekkene og kalte en posisjon fra i går
       // fersk, mens _trainPosition avviste den samme posisjonen. To dommer
       // om ett faktum, og de var uenige nøyaktig ved oppstart.
-      storage.set(HOME_LL_KEY, JSON.stringify({
+      // Testposisjonen lagres aldri som din posisjon (v1.218.46).
+      if (!hentTestPos()) storage.set(HOME_LL_KEY, JSON.stringify({
         lat: state.homeLL.lat, lon: state.homeLL.lon, at: state.posAt }));
     }
     updateWalkDbg();
@@ -922,7 +924,39 @@ function _handleFix(pos) {
   }
 }
 
+/* TESTPOSISJON (v1.218.46, api/testPos.js): en syntetisk fiks hvert 5. s,
+ * gjennom samme `_handleFix` som en ekte — alt nedstrøms er uendret. */
+let _testTimer = null;
+export const TEST_FIKS_MS = 5000;
+function _testFiks() {
+  const t = hentTestPos();
+  if (!t) return;
+  _handleFix({ coords: { latitude: t.lat, longitude: t.lon, accuracy: 10, speed: 0, heading: null }, timestamp: Date.now() });
+}
+function _stoppKilder() {
+  if (_watchId !== null && typeof navigator !== 'undefined' && navigator.geolocation) navigator.geolocation.clearWatch(_watchId);
+  _watchId = null;
+  if (_testTimer) { clearInterval(_testTimer); _testTimer = null; }
+}
+/**
+ * Slå testposisjonen på (med et sted) eller av (null). Sporet og ankeret
+ * nullstilles begge veier: hoppet Oslo → Bergen ville ellers lest som fart.
+ */
+export function brukTestPos(p) {
+  _stoppKilder();
+  if (p) settTestPos(p); else slettTestPos();
+  state.posTrail = []; state.posTrailLang = []; state.homeLL = null; state.posAt = null;
+  _stationAnchor = null; _filter = null; _pending = [];
+  _startWatch();
+}
+
 function _startWatch() {
+  if (hentTestPos()) {
+    if (_testTimer) return;
+    _testFiks();
+    _testTimer = setInterval(_testFiks, TEST_FIKS_MS);
+    return;
+  }
   if (_watchId !== null || !navigator.geolocation) return;
   _watchId = navigator.geolocation.watchPosition(
     _handleFix,
@@ -957,6 +991,7 @@ function _bindVisibility() {
         navigator.geolocation.clearWatch(_watchId);
         _watchId = null;
       }
+      if (_testTimer) { clearInterval(_testTimer); _testTimer = null; }
       // The position outlives the watch; only the sensor stops.
       _flushPosition();
     } else {
@@ -967,7 +1002,7 @@ function _bindVisibility() {
 }
 
 function _flushPosition() {
-  if (!state.homeLL) return;
+  if (!state.homeLL || hentTestPos()) return;
   _savedAt = Date.now();
   storage.set(HOME_LL_KEY, JSON.stringify({ lat: state.homeLL.lat, lon: state.homeLL.lon }));
 }

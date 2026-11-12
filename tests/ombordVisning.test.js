@@ -43,3 +43,11 @@ describe('«dit du ofte skal» om bord', () => {
     expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/x\.bliSittende = _lås \? \(_bliSittendeMs\(_lås\.k, x\.id, now\)/);
   });
 });
+
+describe('toget står ved stasjonen som vises (v1.218.49)', () => {
+  it('«toget står her»', () => {
+    const h = tekst(stopHeadHtml({ name: 'Godlia' }, 2, false, { ombordAt: T, ombordHer: true, pos: 'ok' }));
+    expect(h).toContain('toget står her');
+    expect(h).not.toContain('toget er der');
+  });
+});

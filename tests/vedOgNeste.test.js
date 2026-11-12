@@ -57,9 +57,11 @@ describe('du er ved + neste stasjon', () => {
     const r = vedOgNeste(k, ts('16:06:41'), { lat: S[1][2] + 0.0018, lon: S[1][3], acc: 5 });
     expect(r.ved).toBe(null);
   });
-  it('tavla og raden leser samme kilde: stoppet ER neste stasjon', () => {
+  // v1.218.49: står toget VED en stasjon, er det den tavla viser («du er ved Godlia» → Godlia).
+  it('tavla viser stasjonen toget står ved; raden sier neste', () => {
     const p = medVedOgNeste({ k, linjer: ['3'], stop: { name: 'Hellerud-fra-tid' } }, ts('16:09:30'), ved(3));
-    expect(p.stop.name).toBe('Skøyenåsen');
+    expect(p.stop.name).toBe('Godlia');
+    expect(p.neste.name).toBe('Skøyenåsen');
     const html = vedNesteHtml(p, ts('16:09:30'));
     expect(html).toContain('du er ved <b>Godlia</b>');
     expect(html).toContain('neste stasjon</span> <b>Skøyenåsen</b>');

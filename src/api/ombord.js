@@ -231,6 +231,19 @@ export function vedOgNeste(k, nå, fiks) {
   };
 }
 
+/**
+ * Stopp nr. `n` etter stoppet `id` på turen (0 = stoppet selv), eller null.
+ * Til å bla langs linja om bord (v1.218.47). Første forekomst som ikke er
+ * passert, så en tur innom samme stopp to ganger ikke forveksles.
+ */
+export function stoppEtterId(k, id, n, nå) {
+  const alle = _kall(k);
+  const i = alle.findIndex(x => x.quay && x.quay.stopPlace && x.quay.stopPlace.id === id
+    && !(_ms(x) < nå - OMBORD_TIDSSLINGRE_MS));
+  if (i < 0 || !Number.isInteger(n) || n < 0) return null;
+  return _stoppAv(alle[i + n]) || null;
+}
+
 /** Stoppet i et kall, i formen resten av appen leser. Én definisjon. */
 function _stoppAv(c) {
   const q = c && c.quay;

@@ -37,7 +37,7 @@ import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
 import { plattformTekst } from '../bytte.js';
-import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, stoppFram, vedOgNeste, rangerKandidater } from '../api/ombord.js';
+import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, stoppFram, vedOgNeste, stoppEtterId, rangerKandidater } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
 import { journeyShapeCached, fetchJourneyShape } from '../api/entur.js';
 import { joinJourney } from '../journey.js';
@@ -1594,20 +1594,65 @@ function _påLinjaMedLås(nå) {
     taOpp({ nå, fiks: siste, fart: fartNå(nå), dom: dom.kind, domGrunn: dom.grunn, kandidater: dom.kandidater, rang: _sisteRang,
       vinner, vinnerKilde, lås: _lås, hendelse: r.hendelse, form: n => journeyShapeCached(n) });
   }
-  return medVedOgNeste(_lås ? { linjer: [_lås.k.linje], k: _lås.k } : fri, nå,
-    (state.posTrail || [])[(state.posTrail || []).length - 1]);
+  const grunn = _lås ? { linjer: [_lås.k.linje], k: _lås.k } : fri;
+  const fiks = (state.posTrail || [])[(state.posTrail || []).length - 1];
+  if (!grunn || !grunn.k) { _fokusN = 0; _fokusNesteId = null; return medVedOgNeste(grunn, nå, fiks); }
+  // FOKUSET FØLGER TOGET (v1.218.47): passerer toget en stasjon, er stasjonen
+  // du ser på én nærmere. Når den du så på er passert, er fokuset neste igjen.
+  const nå0 = medVedOgNeste(grunn, nå, fiks, 0);
+  const nesteId = nå0 && nå0.neste && nå0.neste.id;
+  _fokusN = justerFokus(_fokusN, _fokusNesteId, nesteId);
+  _fokusNesteId = nesteId || null;
+  const r2 = medVedOgNeste(grunn, nå, fiks, _fokusN);
+  if (r2) _fokusN = r2.fokusN || 0;
+  return r2;
 }
+
+/** Toget passerte en stasjon: stasjonen i fokus er én nærmere. Ren. */
+export function justerFokus(n, forrigeNesteId, nesteId) {
+  return nesteId && forrigeNesteId && nesteId !== forrigeNesteId && n > 0 ? n - 1 : n;
+}
+
+/* Stasjonen i fokus om bord: antall stasjoner etter neste (v1.218.47).
+ * Modulstate, ikke lagret — som _stopsShown. */
+let _fokusN = 0;
+let _fokusNesteId = null;
+export function _settFokus(n) { _fokusN = Math.max(0, n | 0); }
+export function _fokus() { return _fokusN; }
 
 /**
  * «DU ER VED» + «NESTE STASJON» (v1.218.26): på én kjent tur leses begge fra
  * `vedOgNeste`, og stoppet tavla viser ER neste stasjon — samme kilde, så
  * raden og tavla ikke kan si hver sin ting. Uten én tur: uendret.
  */
-export function medVedOgNeste(påLinja, nå, fiks) {
+export function medVedOgNeste(påLinja, nå, fiks, fokusN = 0) {
   if (!påLinja || !påLinja.k) return påLinja || null;
   const vn = vedOgNeste(påLinja.k, nå, fiks);
   if (!vn.neste) return null;
-  return { ...påLinja, stop: vn.neste, ved: vn.ved, forrige: vn.forrige };
+  /* BLA LANGS LINJA (v1.218.47): fokus `fokusN` stasjoner etter neste. Tavla,
+   * overgangene og kortet følger `stop`; «neste stasjon» er fortsatt `neste`.
+   * Går fokuset forbi endestasjonen, stopper det der. */
+  let n = Math.max(0, fokusN | 0), fokus = vn.neste;
+  while (n > 0) { const f = stoppEtterId(påLinja.k, vn.neste.id, n, nå); if (f) { fokus = f; break; } n--; }
+  return { ...påLinja, stop: fokus, neste: vn.neste, ved: vn.ved, forrige: vn.forrige, fokusN: n,
+    fokusForrige: n > 0 ? (n === 1 ? vn.neste : stoppEtterId(påLinja.k, vn.neste.id, n - 1, nå)) : null,
+    fokusEtter: stoppEtterId(påLinja.k, vn.neste.id, n + 1, nå) };
+}
+
+/** Navigasjonen langs linja under «neste stasjon» (v1.218.47). Ren. */
+export function fokusNavHtml(p, nå) {
+  if (!p || !p.k || !p.stop || !p.neste) return '';
+  const n = p.fokusN || 0;
+  const min = Number.isFinite(p.stop.at) ? Math.max(0, Math.round((p.stop.at - nå) / 60000)) : null;
+  // Ved neste stasjon står rollen alt i raden over; ikke si den to ganger.
+  void min;
+  const rolle = n === 0 ? '' : 'om ' + (n + 1) + ' stasjoner' + (Number.isFinite(p.stop.at) ? ' · ' + clk(p.stop.at) : '');
+  return '<div class="fokus-nav">'
+    + (p.fokusForrige ? '<button type="button" class="fokus-forrige" aria-label="Se ' + esc(p.fokusForrige.name) + '">‹ ' + esc(p.fokusForrige.name) + '</button>' : '<span></span>')
+    + '<span class="fokus-rolle">' + esc(rolle) + '</span>'
+    + (p.fokusEtter ? '<button type="button" class="fokus-etter" aria-label="Se ' + esc(p.fokusEtter.name) + '">' + esc(p.fokusEtter.name) + ' ›</button>' : '<span></span>')
+    + '</div>'
+    + (n > 0 ? '<button type="button" class="fokus-tilbake">↩ tilbake til neste stasjon, ' + esc(p.neste.name) + '</button>' : '');
 }
 
 /** Radene over stopphodet om bord. Tom uten én kjent tur. */
@@ -1616,12 +1661,13 @@ export function vedNesteHtml(påLinja, nå) {
   const her = påLinja.ved
     ? 'du er ved <b>' + esc(påLinja.ved.name) + '</b>'
     : påLinja.forrige
-      ? 'mellom <b>' + esc(påLinja.forrige.name) + '</b> og <b>' + esc(påLinja.stop.name) + '</b>'
-      : 'på vei til <b>' + esc(påLinja.stop.name) + '</b>';
-  const min = Number.isFinite(påLinja.stop.at) ? Math.max(0, Math.round((påLinja.stop.at - nå) / 60000)) : null;
+      ? 'mellom <b>' + esc(påLinja.forrige.name) + '</b> og <b>' + esc((påLinja.neste || påLinja.stop).name) + '</b>'
+      : 'på vei til <b>' + esc((påLinja.neste || påLinja.stop).name) + '</b>';
+  const ns = påLinja.neste || påLinja.stop;
+  const min = Number.isFinite(ns.at) ? Math.max(0, Math.round((ns.at - nå) / 60000)) : null;
   return '<div class="ved-neste">'
     + '<div class="ved-rad">' + her + '</div>'
-    + '<div class="ved-rad"><span class="ved-merke">neste stasjon</span> <b>' + esc(påLinja.stop.name) + '</b>'
+    + '<div class="ved-rad"><span class="ved-merke">neste stasjon</span> <b>' + esc(ns.name) + '</b>'
     + (min == null ? '' : ' · ' + (min === 0 ? 'nå' : 'om ' + min + ' min')) + '</div>'
     + '</div>';
 }
@@ -2061,7 +2107,7 @@ function _renderWhere() {
   // the threshold is not repeated here. One definition of "stale".
   // «Du er ved» er usant fra en buss i 40 km/t. «Nærmeste stopp» er sant.
   // Med «du er ved / neste stasjon» over er «neste stopp på 3» samme setning to ganger.
-  const vn = picked.linjer ? vedNesteHtml(påLinja, nåW) : '';
+  const vn = picked.linjer ? vedNesteHtml(påLinja, nåW) + fokusNavHtml(påLinja, nåW) : '';
   el.innerHTML = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer)) + '</div>')
     + stopHeadHtml(_stop, others.length, open, {
       iFart: fart,
@@ -2102,6 +2148,11 @@ function _renderWhere() {
       _renderWhere();
     });
   }
+  // Bla langs linja (v1.218.47), og veien tilbake.
+  const fE = el.querySelector('.fokus-etter'), fF = el.querySelector('.fokus-forrige'), fT = el.querySelector('.fokus-tilbake');
+  if (fE) fE.addEventListener('click', () => { _fokusN++; _renderWhere(); _renderBody && _renderBody(); });
+  if (fF) fF.addEventListener('click', () => { _fokusN = Math.max(0, _fokusN - 1); _renderWhere(); _renderBody && _renderBody(); });
+  if (fT) fT.addEventListener('click', () => { _fokusN = 0; _renderWhere(); _renderBody && _renderBody(); });
   const ja = el.querySelector('.rett-ja');
   if (ja) ja.addEventListener('click', () => { if (_bekreftLinje()) _renderWhere(); });
   const feil = el.querySelector('.rett-feil');

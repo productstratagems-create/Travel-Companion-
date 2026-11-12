@@ -18,30 +18,35 @@ const VED = { lat: S[1][2] + 0.00027, lon: S[1][3], acc: 5 };   // på Brynseng
 const p = n => medVedOgNeste({ k, linjer: ['3'] }, NÅ, VED, n);
 
 describe('bla langs linja om bord', () => {
-  it('stoppEtterId: stasjon nr. n etter neste', () => {
+  it('stoppEtterId: stasjon nr. n etter et stopp', () => {
     expect(stoppEtterId(k, 'NSR:StopPlace:6140', 2, NÅ).name).toBe('Skøyenåsen');
     expect(stoppEtterId(k, 'NSR:StopPlace:6140', 9, NÅ)).toBe(null);
   });
-  it('fokus 0: neste stasjon; tavla viser den; ingen «tilbake»', () => {
+  // v1.218.49: står toget ved Brynseng, er det Brynseng som vises (rapportert: «du er ved Godlia»,
+  // men overskriften sa Skøyenåsen).
+  it('ved en stasjon: den stasjonen; «neste stasjon» er Hellerud; ingen «tilbake»', () => {
     const r = p(0);
-    expect(r.stop.name).toBe('Hellerud');
+    expect(r.stop.name).toBe('Brynseng');
     expect(r.neste.name).toBe('Hellerud');
     expect(r.fokusForrige).toBe(null);
-    expect(r.fokusEtter.name).toBe('Godlia');
-    const h = fokusNavHtml(r, NÅ);
-    // Rollen står alt i raden over («neste stasjon Hellerud»).
-    expect(h).not.toContain('neste stasjon');
-    expect(h).not.toContain('fokus-tilbake');
+    expect(r.fokusEtter.name).toBe('Hellerud');
+    expect(fokusNavHtml(r, NÅ)).not.toContain('fokus-tilbake');
   });
-  it('fokus 2: Skøyenåsen; «neste stasjon» er fortsatt Hellerud; vei tilbake', () => {
+  it('mellom to stasjoner: neste stasjon, som før', () => {
+    const mellom = { lat: (S[1][2] + S[2][2]) / 2, lon: (S[1][3] + S[2][3]) / 2, acc: 5 };
+    const r = medVedOgNeste({ k, linjer: ['3'] }, NÅ, mellom, 0);
+    expect(r.stop.name).toBe('Hellerud');
+    expect(medVedOgNeste({ k, linjer: ['3'] }, NÅ, mellom, 1).stop.name).toBe('Godlia');
+  });
+  it('fokus 2 fra Brynseng: Godlia; vei tilbake til Brynseng', () => {
     const r = p(2);
-    expect(r.stop.name).toBe('Skøyenåsen');
+    expect(r.stop.name).toBe('Godlia');
     expect(vedNesteHtml(r, NÅ)).toContain('neste stasjon</span> <b>Hellerud</b>');
     const h = fokusNavHtml(r, NÅ);
-    expect(h).toContain('om 3 stasjoner');
-    expect(h).toContain('‹ Godlia');
-    expect(h).toContain('Oppsal ›');
-    expect(h).toContain('↩ tilbake til neste stasjon, Hellerud');
+    expect(h).toContain('om 2 stasjoner');
+    expect(h).toContain('‹ Hellerud');
+    expect(h).toContain('Skøyenåsen ›');
+    expect(h).toContain('↩ tilbake til Brynseng');
   });
   it('forbi endestasjonen: stopper der, uten pil videre', () => {
     const r = p(20);

@@ -1194,7 +1194,7 @@ export function stopHeadHtml(stop, count, open, extra) {
   // stasjonen toget skal til — en avstand til fots, og en gang-ETA, fra et
   // tog. Når toget er der, er svaret.
   const ombordAt = extra && Number.isFinite(extra.ombordAt) ? extra.ombordAt : null;
-  if (ombordAt != null) bits.push('toget er der ' + clk(ombordAt));
+  if (ombordAt != null) bits.push(extra.ombordHer ? 'toget står her' : 'toget er der ' + clk(ombordAt));
   else if (extra && extra.walkDist != null) bits.push(extra.walkDist + (fart ? ' m' : ' m å gå'));
   else if (stop && stop.distM != null) bits.push(stop.distM + ' m');
   if (ombordAt == null && !fart && extra && extra.walkMins != null) bits.push(extra.walkMins + ' min gange');
@@ -1605,7 +1605,8 @@ function _påLinjaMedLås(nå) {
   // FOKUSET FØLGER TOGET (v1.218.47): passerer toget en stasjon, er stasjonen
   // du ser på én nærmere. Når den du så på er passert, er fokuset neste igjen.
   const nå0 = medVedOgNeste(grunn, nå, fiks, 0);
-  const nesteId = nå0 && nå0.neste && nå0.neste.id;
+  // Utgangspunktet (ved- eller neste-stasjonen) er det fokuset telles fra.
+  const nesteId = nå0 && nå0.base && nå0.base.id;
   _fokusN = justerFokus(_fokusN, _fokusNesteId, nesteId);
   _fokusNesteId = nesteId || null;
   const r2 = medVedOgNeste(grunn, nå, fiks, _fokusN);
@@ -1637,11 +1638,15 @@ export function medVedOgNeste(påLinja, nå, fiks, fokusN = 0) {
   /* BLA LANGS LINJA (v1.218.47): fokus `fokusN` stasjoner etter neste. Tavla,
    * overgangene og kortet følger `stop`; «neste stasjon» er fortsatt `neste`.
    * Går fokuset forbi endestasjonen, stopper det der. */
-  let n = Math.max(0, fokusN | 0), fokus = vn.neste;
-  while (n > 0) { const f = stoppEtterId(påLinja.k, vn.neste.id, n, nå); if (f) { fokus = f; break; } n--; }
-  return { ...påLinja, stop: fokus, neste: vn.neste, ved: vn.ved, forrige: vn.forrige, fokusN: n,
-    fokusForrige: n > 0 ? (n === 1 ? vn.neste : stoppEtterId(påLinja.k, vn.neste.id, n - 1, nå)) : null,
-    fokusEtter: stoppEtterId(påLinja.k, vn.neste.id, n + 1, nå) };
+  // UTGANGSPUNKTET (v1.218.49): står toget VED en stasjon, er det der du er —
+  // rapportert: «du er ved Godlia», men overskriften sa Skøyenåsen. Mellom
+  // to stasjoner: neste, som før.
+  const base = vn.ved || vn.neste;
+  let n = Math.max(0, fokusN | 0), fokus = base;
+  while (n > 0) { const f = stoppEtterId(påLinja.k, base.id, n, nå); if (f) { fokus = f; break; } n--; }
+  return { ...påLinja, stop: fokus, neste: vn.neste, ved: vn.ved, forrige: vn.forrige, fokusN: n, base,
+    fokusForrige: n > 0 ? (n === 1 ? base : stoppEtterId(påLinja.k, base.id, n - 1, nå)) : null,
+    fokusEtter: stoppEtterId(påLinja.k, base.id, n + 1, nå) };
 }
 
 /** Navigasjonen langs linja under «neste stasjon» (v1.218.47). Ren. */
@@ -1651,13 +1656,15 @@ export function fokusNavHtml(p, nå) {
   const min = Number.isFinite(p.stop.at) ? Math.max(0, Math.round((p.stop.at - nå) / 60000)) : null;
   // Ved neste stasjon står rollen alt i raden over; ikke si den to ganger.
   void min;
-  const rolle = n === 0 ? '' : 'om ' + (n + 1) + ' stasjoner' + (Number.isFinite(p.stop.at) ? ' · ' + clk(p.stop.at) : '');
+  // Antall stasjoner fram regnes fra der toget er: står det ved en, er den 0.
+  const fram = n + (p.ved ? 0 : 1);
+  const rolle = n === 0 ? '' : (fram === 1 ? 'neste stasjon' : 'om ' + fram + ' stasjoner') + (Number.isFinite(p.stop.at) ? ' · ' + clk(p.stop.at) : '');
   return '<div class="fokus-nav">'
     + (p.fokusForrige ? '<button type="button" class="fokus-forrige" aria-label="Se ' + esc(p.fokusForrige.name) + '">‹ ' + esc(p.fokusForrige.name) + '</button>' : '<span></span>')
     + '<span class="fokus-rolle">' + esc(rolle) + '</span>'
     + (p.fokusEtter ? '<button type="button" class="fokus-etter" aria-label="Se ' + esc(p.fokusEtter.name) + '">' + esc(p.fokusEtter.name) + ' ›</button>' : '<span></span>')
     + '</div>'
-    + (n > 0 ? '<button type="button" class="fokus-tilbake">↩ tilbake til neste stasjon, ' + esc(p.neste.name) + '</button>' : '');
+    + (n > 0 ? '<button type="button" class="fokus-tilbake">↩ tilbake til ' + (p.ved ? esc((p.base || p.ved).name) : 'neste stasjon, ' + esc((p.base || p.neste).name)) + '</button>' : '');
 }
 
 /** Radene over stopphodet om bord. Tom uten én kjent tur. */
@@ -2149,6 +2156,8 @@ function _renderWhere() {
       // OM BORD (v1.218.48): avstanden til fots er ikke spørsmålet når toget
       // kjører dit. Stopphodet sier når toget er der.
       ombordAt: _lås && påLinja && påLinja.stop && Number.isFinite(påLinja.stop.at) ? påLinja.stop.at : null,
+      // Toget står ved stasjonen som vises (v1.218.49).
+      ombordHer: !!(_lås && påLinja && påLinja.ved && påLinja.stop && påLinja.ved.id === påLinja.stop.id),
       walkDist: w ? w.dist : null,
       walkMins: w ? w.mins : null,
       pos: _posState(),

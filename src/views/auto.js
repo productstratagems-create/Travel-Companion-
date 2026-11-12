@@ -43,7 +43,7 @@ import { journeyShapeCached, fetchJourneyShape } from '../api/entur.js';
 import { joinJourney } from '../journey.js';
 import { logEvent, recentEvents } from '../api/eventLog.js';
 import { loadConsent } from '../api/consent.js';
-import { renderRouteShortcuts } from '../ui/favs.js';
+import { renderRouteShortcuts, relevanteSnarveier } from '../ui/favs.js';
 import { approach } from '../trail.js';
 import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
   SEVERITY_RANK } from '../ui/alerts.js';
@@ -3039,6 +3039,11 @@ export function oppdatertHtml(hentetMs, nå, påNett = true) {
   return '<div class="auto-oppdatert">oppdatert ' + clk(hentetMs) + '</div>';
 }
 
+/* Navnene på kortene «dit du ofte skal», sist tegnet — så «ofte brukt» ikke
+ * gjentar et mål kortene alt viser (v1.218.51). */
+let _kortNavn = [];
+function _kortNavnFra(dests) { _kortNavn = (dests || []).map(x => x && x.name).filter(Boolean); return dests; }
+
 /** Fra så mange minutter står klokkeslettet i stedet for minuttene (v1.218.36). */
 export const KLOKKE_FRA_MIN = 15;
 
@@ -3546,6 +3551,7 @@ function _renderBody() {
   const dests = destinations(live, freq, walkMins, now, _stop && _stop.name,
     (state.posTrailLang && state.posTrailLang.length >= 2) ? state.posTrailLang : state.posTrail,
     { her: _stop, hist: loadSmartHist() });
+  _kortNavnFra(dests);
   // Samme kort og samme alternativ som kortets overskrift: kartet og kortet
   // skal vise samme reise.
   const k0 = dests[0], o0 = k0 && k0.options && k0.options[0];
@@ -4336,7 +4342,10 @@ export function renderAuto() {
     delivered: rm.ids,
     otherWord: { one: 'melding om en annen linje', many: 'meldinger om andre linjer' },
   });
-  renderRouteShortcuts('auto-fav-routes', 2);
+  // Bare reiser du kan ta herfra, og ikke de kortene alt viser (v1.218.51).
+  // «Velg rute» viser fortsatt den globale lista.
+  renderRouteShortcuts('auto-fav-routes', 2, liste => relevanteSnarveier(liste,
+    _stop ? [_stop, ...nearbyAlternatives(_stops(), _stop)] : [], _kortNavn));
   // Før «du er ved»: sitter du på noe, er det det første spørsmålet.
   _renderOmbord();
   _renderWhere();

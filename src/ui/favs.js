@@ -251,10 +251,31 @@ export function favToDir(fav) {
  * @param {Element|string} elOrId container, or its id
  * @param {number} [n] how many to show (routeShortcuts defaults to 2)
  */
-export function renderRouteShortcuts(elOrId, n) {
+/**
+ * «OFTE BRUKT» I AUTO-REISE (v1.218.51): bare reiser du kan ta herfra.
+ * Rapportert med skjermbilde: på Mortensrud sto «Ensjø → Jernbanetorget» og
+ * «Helsfyr → Jernbanetorget» — den globale lista, fra steder du ikke står ved.
+ * En snarvei vises når den starter ved et av `her` (stoppet og de innen
+ * gangavstand), og målet ikke alt står som et kort (`kort`). Ren.
+ */
+export function relevanteSnarveier(liste, her, kort) {
+  const ider = new Set((her || []).map(s => s && s.id).filter(Boolean));
+  const navn = new Set((her || []).map(s => s && stopKey(s.name)).filter(Boolean));
+  const mål = new Set((kort || []).map(stopKey));
+  return (liste || []).filter(t => {
+    const id = t.dir && t.dir.stopId;
+    const herfra = (id && ider.has(id)) || navn.has(stopKey(t.from));
+    return herfra && !mål.has(stopKey(t.to));
+  });
+}
+
+export function renderRouteShortcuts(elOrId, n, filter) {
   const el = typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
   if (!el) return;
-  const top = routeShortcuts(loadFavs(), loadSmartHist(), tripCount, n);
+  // Med et filter: spør bredt, filtrer, og ta de n første etterpå.
+  const top = typeof filter === 'function'
+    ? filter(routeShortcuts(loadFavs(), loadSmartHist(), tripCount, 50)).slice(0, n)
+    : routeShortcuts(loadFavs(), loadSmartHist(), tripCount, n);
   if (!top.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = 'block';
   el.innerHTML = '<div class="set-label">ofte brukt</div>'

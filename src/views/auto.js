@@ -1190,9 +1190,14 @@ export function stopHeadHtml(stop, count, open, extra) {
   // fire minutter og ti sekunder om samme stopp. Avstanden er fortsatt sann
   // og står; gangen gjør det ikke.
   const fart = !!(extra && extra.iFart);
-  if (extra && extra.walkDist != null) bits.push(extra.walkDist + (fart ? ' m' : ' m å gå'));
+  // OM BORD (v1.218.48): «773 m» og «du nærmer deg den · ca 30 s» sto under
+  // stasjonen toget skal til — en avstand til fots, og en gang-ETA, fra et
+  // tog. Når toget er der, er svaret.
+  const ombordAt = extra && Number.isFinite(extra.ombordAt) ? extra.ombordAt : null;
+  if (ombordAt != null) bits.push('toget er der ' + clk(ombordAt));
+  else if (extra && extra.walkDist != null) bits.push(extra.walkDist + (fart ? ' m' : ' m å gå'));
   else if (stop && stop.distM != null) bits.push(stop.distM + ' m');
-  if (!fart && extra && extra.walkMins != null) bits.push(extra.walkMins + ' min gange');
+  if (ombordAt == null && !fart && extra && extra.walkMins != null) bits.push(extra.walkMins + ' min gange');
   // WHY THIS STOP AND NOT ANOTHER.
   //
   // From v1.141.0 the ranking can prefer a stop you are walking TOWARDS over
@@ -1213,7 +1218,7 @@ export function stopHeadHtml(stop, count, open, extra) {
   // Samme `approach()`, men verbet følger farten: du GÅR ikke mot et stopp
   // fra en buss, du nærmer deg det.
   const verb = fart ? 'du nærmer deg den' : 'du går mot den';
-  const wayNote = (extra && extra.way === 'mot')
+  const wayNote = (ombordAt == null && extra && extra.way === 'mot')
     ? '<span class="auto-way-note">' + esc(extra.wayEtaS != null && extra.wayEtaS < 600
       ? verb + ' · ca ' + _etaOrd(extra.wayEtaS)
       : verb) + '</span>'
@@ -1774,6 +1779,36 @@ export function overgangerHtml(ov, stoppNavn, åpen) {
  * første kortet under «Dit du ofte skal»). */
 let _rask = { key: null, svar: null };
 
+/** Kortet når turen du sitter på selv går dit (v1.218.48). Samme ramme og ×. */
+function _bliSittendeKort(x, n) {
+  const how = 'bli sittende' + (x.bliLinje ? ' på ' + x.bliLinje : '');
+  return '<span class="auto-dest-rad" data-rad="' + esc(x.name) + '">'
+    + '<button class="nearby-btn auto-dest" type="button" data-d="' + n + '"'
+    + ' aria-label="' + esc(x.name + ', ' + how + ', framme ' + clk(x.bliSittende)) + '">'
+    + '<span class="auto-dest-top">'
+    + '<span class="auto-dest-name">' + esc(x.name) + '</span>'
+    + '<span class="auto-dest-at">' + esc('framme ' + clk(x.bliSittende)) + '</span>'
+    + '</span>'
+    + '<span class="auto-dest-how">' + esc(how) + '</span>'
+    + '</button>'
+    + '<button class="auto-dest-del" type="button" data-glem="' + esc(x.name) + '"'
+    + (x.id ? ' data-glem-id="' + esc(x.id) + '"' : '')
+    + ' aria-label="' + esc('Glem ' + x.name) + '">\u00d7</button>'
+    + '</span>';
+}
+
+/** Samme, på navn, når målet ikke har id. */
+function _bliSittendeNavn(k, navn, nå) {
+  if (!navn) return null;
+  const sj = k && k.call && k.call.serviceJourney;
+  const c = ((sj && sj.estimatedCalls) || []).find(x => {
+    const sp = x.quay && x.quay.stopPlace;
+    const t = new Date(x.expectedArrivalTime || x.aimedArrivalTime || x.expectedDepartureTime || 0).getTime();
+    return sp && stopKey(sp.name) === stopKey(navn) && t > nå;
+  });
+  return c ? new Date(c.expectedArrivalTime || c.aimedArrivalTime || c.expectedDepartureTime).getTime() : null;
+}
+
 /** Når den låste turen selv er ved målet, eller null. */
 function _bliSittendeMs(k, målId, nå) {
   const sj = k && k.call && k.call.serviceJourney;
@@ -2111,6 +2146,9 @@ function _renderWhere() {
   el.innerHTML = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer)) + '</div>')
     + stopHeadHtml(_stop, others.length, open, {
       iFart: fart,
+      // OM BORD (v1.218.48): avstanden til fots er ikke spørsmålet når toget
+      // kjører dit. Stopphodet sier når toget er der.
+      ombordAt: _lås && påLinja && påLinja.stop && Number.isFinite(påLinja.stop.at) ? påLinja.stop.at : null,
       walkDist: w ? w.dist : null,
       walkMins: w ? w.mins : null,
       pos: _posState(),
@@ -2501,7 +2539,9 @@ function _renderMap() {
   // buss er det feil råd. Samme regel som radene (`gangGjelder`, v1.202.0);
   // `null` tømmer en linje som alt var hentet før du gikk på.
   if (userPos && _stop) {
-    ensureApproach(gangGjelder(fartNå(), state.walkFromLL !== null) ? userPos : null, _stop);
+    // Og ikke om bord (v1.218.48): når toget står ved en stasjon er farten
+    // null, og ganglinja kom tilbake. Låsen er det sikre tegnet.
+    ensureApproach(!_lås && gangGjelder(fartNå(), state.walkFromLL !== null) ? userPos : null, _stop);
   }
   const walkPts = approachPoints();
 
@@ -3526,6 +3566,13 @@ function _renderBody() {
   // NÅR DU MÅ GÅ (v1.218.36), på alternativet, så kortet og lista leser samme
   // gangtid (`walkMins`, den samme `catchable` stryker med).
   dests.forEach(x => (x.options || []).forEach(o => { o.gåMin = walkMins == null ? null : minsToLeave(o.ms, walkMins, now); }));
+  // OM BORD (v1.218.48): går turen du sitter på selv til målet, er svaret
+  // «bli sittende» — ikke et bytte fra stasjonen tavla viser. Rapportert: T2
+  // fra Hellerud til Jernbanetorget, fra en linje 3 som skulle dit.
+  dests.forEach(x => {
+    x.bliSittende = _lås ? (_bliSittendeMs(_lås.k, x.id, now) || _bliSittendeNavn(_lås.k, x.name, now)) : null;
+    x.bliLinje = x.bliSittende && _lås ? _lås.k.linje : null;
+  });
   const destHtml = (x, n) => kortHtml(x, n);
 
   /* KORTENE I SIN EGEN CONTAINER, radene i sin.
@@ -3987,6 +4034,7 @@ export function _bindKort(destBody, dests) {
 }
 
 export function kortHtml(x, n) {
+  if (Number.isFinite(x.bliSittende)) return _bliSittendeKort(x, n);
   const o = x.options[0];
   const q = quayLabel(o.call);
   const ln = (o.d.lines && o.d.lines[0]) || {};

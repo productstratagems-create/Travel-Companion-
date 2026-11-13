@@ -89,7 +89,8 @@ describe('og renderen setter den faktisk', () => {
      * aria-label-søk traff et helt annet aria-label lenger oppe. */
     const i = s.indexOf('destBody.innerHTML');
     expect(i).toBeGreaterThan(-1);
-    expect(s.slice(i, i + 500)).toMatch(/listeOverskrift\(dests\.length/);
+    // v1.218.52: blokka fikk «din reise», så vinduet er større.
+    expect(s.slice(i, i + 1200)).toMatch(/listeOverskrift\(dests\.length/);
   });
 
   it('og index.html har et sted å sette den', () => {

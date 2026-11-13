@@ -973,3 +973,8 @@
 /* v1.218.50: midten er hoppet hjem fra to steg ut — én knapp, ikke en rad til. */
 #v-auto .fokus-nav .fokus-tilbake{border:0;background:none;color:var(--accent);font-size:10px;line-height:1.35;min-height:40px;padding:0 .2rem;white-space:normal;text-align:center}
 #v-auto .fokus-rolle{overflow:hidden;text-overflow:ellipsis}
+/* Din reise (v1.218.52). */
+#v-auto .auto-reise-kort{cursor:default;border-color:rgba(var(--accent-rgb),.55)}
+#v-auto .avstigning{font-size:13px;color:var(--text-soft);white-space:normal;overflow:visible;min-height:0}
+#v-auto .avstigning-nå{color:var(--warn);font-weight:700}
+#v-auto .auto-avg-fold > summary,#v-auto .auto-andre-mål > summary{cursor:pointer}

@@ -1650,7 +1650,7 @@ export function medVedOgNeste(påLinja, nå, fiks, fokusN = 0) {
 }
 
 /** Navigasjonen langs linja under «neste stasjon» (v1.218.47). Ren. */
-export function fokusNavHtml(p, nå) {
+export function fokusNavHtml(p, nå, dest) {
   if (!p || !p.k || !p.stop || !p.neste) return '';
   const n = p.fokusN || 0;
   const min = Number.isFinite(p.stop.at) ? Math.max(0, Math.round((p.stop.at - nå) / 60000)) : null;
@@ -1664,9 +1664,11 @@ export function fokusNavHtml(p, nå) {
    * Nå: ‹ er ett steg. Først fra to steg ut blir midten selv hoppet hjem,
    * «↩ til Bogerud»; da gjør de to noe forskjellig. */
   const hjem = (p.base || p.ved || p.neste).name;
+  // Målet for reisen din, når du blar dit (v1.218.52).
+  const avHer = !!dest && n > 0 && stopKey(p.stop.name) === stopKey(dest);
   const midt = n >= 2
-    ? '<button type="button" class="fokus-tilbake fokus-rolle" aria-label="Tilbake til ' + esc(hjem) + '">' + esc(rolle) + '<br>↩ til ' + esc(hjem) + '</button>'
-    : '<span class="fokus-rolle">' + esc(rolle) + '</span>';
+    ? '<button type="button" class="fokus-tilbake fokus-rolle" aria-label="Tilbake til ' + esc(hjem) + '">' + esc(avHer ? 'gå av her · ' + rolle : rolle) + '<br>↩ til ' + esc(hjem) + '</button>'
+    : '<span class="fokus-rolle">' + esc(avHer ? 'gå av her · ' + rolle : rolle) + '</span>';
   return '<div class="fokus-nav">'
     + (p.fokusForrige ? '<button type="button" class="fokus-forrige" aria-label="Se ' + esc(p.fokusForrige.name) + '">‹ ' + esc(p.fokusForrige.name) + '</button>' : '<span></span>')
     + midt
@@ -2156,7 +2158,11 @@ function _renderWhere() {
   // the threshold is not repeated here. One definition of "stale".
   // «Du er ved» er usant fra en buss i 40 km/t. «Nærmeste stopp» er sant.
   // Med «du er ved / neste stasjon» over er «neste stopp på 3» samme setning to ganger.
-  const vn = picked.linjer ? vedNesteHtml(påLinja, nåW) + fokusNavHtml(påLinja, nåW) : '';
+  const r = reiseAktiv(state.jny, _lås, state.lockedJourneyId);
+  const fra = påLinja && (påLinja.base || påLinja.neste || påLinja.stop);
+  _reiseInfo = r ? { r, igjen: fra ? stasjonerIgjen(r.k, fra.id, r.dest, nåW) : null } : null;
+  const vn = picked.linjer ? vedNesteHtml(påLinja, nåW) + (_reiseInfo ? avstigningHtml(r, _reiseInfo.igjen) : '')
+    + fokusNavHtml(påLinja, nåW, r && r.dest) : '';
   el.innerHTML = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer)) + '</div>')
     + stopHeadHtml(_stop, others.length, open, {
       iFart: fart,
@@ -3044,6 +3050,62 @@ export function oppdatertHtml(hentetMs, nå, påNett = true) {
 let _kortNavn = [];
 function _kortNavnFra(dests) { _kortNavn = (dests || []).map(x => x && x.name).filter(Boolean); return dests; }
 
+/* ── DIN REISE (v1.218.52) ─────────────────────────────────────────────
+ * Rapportert med skjermbilde: brukeren har trykket «reis» (Mortensrud →
+ * Jernbanetorget, linje 3, ank 09:13), men auto-reise kalte målet «dit du
+ * ofte skal», viste avganger fra stoppet toget går fra, og sa ingenting om
+ * hvor mange stasjoner det er igjen. Reisen er det sterkeste signalet appen
+ * har; når låsen er turen den gjelder, styrer den skjermen. */
+
+/** Reisen, når den og låsen er samme tur; ellers null. Ren. */
+export function reiseAktiv(jny, lås, lockedId) {
+  if (!jny || !jny.dest || !lås || !lås.k) return null;
+  const id = lockedId || (jny.legs && jny.legs[0] && jny.legs[0].journeyId) || null;
+  if (!id || lås.k.nøkkel !== id) return null;
+  return { dest: jny.dest, ank: jny.arrival && Number.isFinite(jny.arrival.time) ? jny.arrival.time : null,
+    linje: jny.lineCode || lås.k.linje || null, k: lås.k };
+}
+
+/** Stasjoner fra `fraId` (ikke medregnet) til målet (medregnet), eller null. Ren. */
+export function stasjonerIgjen(k, fraId, målNavn, nå) {
+  const sj = k && k.call && k.call.serviceJourney;
+  const kall = (sj && sj.estimatedCalls) || [];
+  const t = c => new Date(c.expectedArrivalTime || c.aimedArrivalTime || c.expectedDepartureTime || 0).getTime();
+  const i = kall.findIndex(c => c.quay && c.quay.stopPlace && c.quay.stopPlace.id === fraId && !(t(c) < nå - 180000));
+  if (i < 0) return null;
+  const j = kall.findIndex((c, n) => n >= i && c.quay && c.quay.stopPlace && stopKey(c.quay.stopPlace.name) === stopKey(målNavn));
+  return j < 0 ? null : j - i;
+}
+
+/** Kortet øverst når du har startet en reise. Ikke en knapp: reisen er valgt. */
+export function reiseKortHtml(r, igjen) {
+  if (!r) return '';
+  const deler = ['bli sittende' + (r.linje ? ' på ' + r.linje : '')];
+  if (Number.isFinite(igjen) && igjen > 0) deler.push(igjen + (igjen === 1 ? ' stasjon igjen' : ' stasjoner igjen'));
+  return '<div class="set-label">din reise</div>'
+    + '<div class="nearby-btn auto-dest auto-reise-kort">'
+    + '<span class="auto-dest-top"><span class="auto-dest-name">' + esc(r.dest) + '</span>'
+    + (Number.isFinite(r.ank) ? '<span class="auto-dest-at">' + esc('framme ' + clk(r.ank)) + '</span>' : '') + '</span>'
+    + '<span class="auto-dest-how">' + esc(deler.join(' · ')) + '</span></div>';
+}
+
+/** Linja under «neste stasjon»: hvor du går av. Ren. */
+export function avstigningHtml(r, igjen) {
+  if (!r || !Number.isFinite(igjen)) return '';
+  const tekst = igjen <= 0 ? 'gå av her'
+    : igjen === 1 ? 'neste: gå av på ' + r.dest
+    : 'går av på ' + r.dest + (Number.isFinite(r.ank) ? ' ' + clk(r.ank) : '') + ' · ' + igjen + ' stasjoner igjen';
+  return '<div class="ved-rad avstigning' + (igjen <= 1 ? ' avstigning-nå' : '') + '">' + esc(tekst) + '</div>';
+}
+
+let _reiseInfo = null;   // { r, igjen } for denne tegningen
+let _avgÅpen = false;    // avgangslista om bord, utfoldet av deg
+if (typeof document !== 'undefined') {
+  document.addEventListener('toggle', e => {
+    if (e.target && e.target.classList && e.target.classList.contains('auto-avg-fold')) _avgÅpen = e.target.open;
+  }, true);
+}
+
 /** Fra så mange minutter står klokkeslettet i stedet for minuttene (v1.218.36). */
 export const KLOKKE_FRA_MIN = 15;
 
@@ -3605,9 +3667,19 @@ function _renderBody() {
    * kontrollen hører sammen uten at noen av dem tegnes på nytt hvert sekund. */
   const destBody = _el('auto-dest-body');
   if (destBody) {
-    destBody.innerHTML = dests.length
-      ? '<div class="set-label">dit du ofte skal</div>' + dests.map(destHtml).join('')
-      : '';
+    destBody.innerHTML = _reiseInfo
+      // DIN REISE (v1.218.52): det valgte målet, ikke en gjetning; de andre
+      // vanekortene foldet, ikke slettet.
+      ? reiseKortHtml(_reiseInfo.r, _reiseInfo.igjen)
+        + (() => {
+          // Ikke reisens eget mål en gang til.
+          const andre = dests.map((x, n) => ({ x, n })).filter(({ x }) => stopKey(x.name) !== stopKey(_reiseInfo.r.dest));
+          return andre.length ? '<details class="auto-andre-mål"><summary class="auto-side">andre mål · ' + andre.length + '</summary>'
+            + andre.map(({ x, n }) => destHtml(x, n)).join('') + '</details>' : '';
+        })()
+      : dests.length
+        ? '<div class="set-label">dit du ofte skal</div>' + dests.map(destHtml).join('')
+        : '';
   }
 
   /* OVERSKRIFTEN UNDER, FRA DET ENE STEDET SOM VET OM DET BLE KORT.
@@ -3619,7 +3691,7 @@ function _renderBody() {
   const whereLabel = _el('auto-where-label');
   // Uten kort over er «reisealternativer» en overskrift over det eneste som
   // står der; «mot sentrum» under sier allerede hva lista er (v1.218.28).
-  if (whereLabel) { whereLabel.textContent = listeOverskrift(dests.length > 0); whereLabel.hidden = !dests.length; }
+  if (whereLabel) { whereLabel.textContent = listeOverskrift(dests.length > 0); whereLabel.hidden = !dests.length || !!_reiseInfo; }
 
   let shown;
   /* GRUPPEN I MOTSATT RETNING AV MØNSTERET, FOLDET (src/maalModell.js
@@ -3732,6 +3804,10 @@ function _renderBody() {
       ? '<div class="auto-more-note">flere avganger enn vi får plass til \u2014 '
         + 'vis flere stopp eller velg en linje for hele lista</div>'
       : '');
+  // OM BORD PÅ REISEN DIN (v1.218.52): avgangene fra stoppet er ikke spørsmålet
+  // lenger. Foldet til én linje — ett trykk unna om du ombestemmer deg.
+  if (_reiseInfo) body.innerHTML = '<details class="auto-avg-fold"' + (_avgÅpen ? ' open' : '') + '><summary class="auto-side">avganger fra '
+    + esc((_stop && _stop.name) || 'stoppet') + ' · ' + ordered.length + '</summary>' + body.innerHTML + '</details>';
   body.querySelectorAll('.auto-dir').forEach(b => {
     b.addEventListener('click', () => { _open = _dirs[Number(b.dataset.i)]; _renderBody(); });
   });

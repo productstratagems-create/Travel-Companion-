@@ -1530,7 +1530,8 @@ export function rettLinjeHtml(lås, kandidater, åpen, grunn) {
   const topp = '<div class="rett-linje">'
     + (lås.kilde === 'gjettet' ? '<span class="rett-gjettet">gjettet' + (grunn ? ' · ' + esc(grunn) : '') + '</span>' : '')
     // Bekreft eller avkreft (v1.218.19). Besvart: en stille kvittering.
-    + (lås.kilde === 'valgt' ? '<span class="rett-bekreftet">bekreftet av deg</span>'
+    + (reiseAktiv(state.jny, lås, state.lockedJourneyId) ? '<span class="rett-bekreftet">din reise</span>'
+      : lås.kilde === 'valgt' ? '<span class="rett-bekreftet">bekreftet av deg</span>'
       : '<button type="button" class="rett-ja">stemmer</button>')
     + '<button type="button" class="rett-feil" aria-expanded="' + (åpen ? 'true' : 'false') + '">feil linje?</button></div>';
   if (!åpen) return topp;
@@ -1557,6 +1558,13 @@ function _påLinjaMedLås(nå) {
   }
   const dom = _ombordDom(nå);
   const fri = stoppPåLinja(dom, nå, state.posTrailLang);
+  // REISEN GIR LÅSEN (v1.218.53): har du startet en reise og turen er blant
+  // kandidatene, er det den — ikke et spørsmål.
+  if (!_lås && state.jny) {
+    const id = state.lockedJourneyId || (state.jny.legs && state.jny.legs[0] && state.jny.legs[0].journeyId);
+    const k = id && (dom.kandidater || []).find(x => x.nøkkel === id);
+    if (k) _lås = { k, kilde: 'valgt', stilleFra: null };
+  }
   // Avvist med × slipper låsen også: du har sagt at du ikke er på den.
   if (_lås && _avvistOmbord.has(_lås.k.nøkkel)) _lås = null;
   // Den låste turens forventede posisjon, regnet mot sporet nå, fra turens
@@ -1693,12 +1701,24 @@ export function vedNesteHtml(påLinja, nå) {
     + '</div>';
 }
 
+/**
+ * IKKE SPØR OM DET APPEN ALT VET (v1.218.53). Rapportert: med en startet
+ * reise og en lås «bekreftet av deg» sto «DU ER PÅ EN AV DISSE» (2, 3, 4)
+ * øverst. Ingen spørsmål når låsen er satt av deg, eller reisen er låsens tur.
+ * Ren.
+ */
+export function trengerSvar(lås, jny, lockedId) {
+  if (lås && lås.kilde === 'valgt') return false;
+  if (reiseAktiv(jny, lås, lockedId)) return false;
+  return true;
+}
+
 function _renderOmbord() {
   const el = _el('auto-ombord');
   if (!el) return;
   const nå = Date.now();
   const dom = _ombordDom(nå);
-  const html = ombordKortHtml(dom, nå);
+  const html = trengerSvar(_lås, state.jny, state.lockedJourneyId) ? ombordKortHtml(dom, nå) : '';
   el.style.display = html ? '' : 'none';
   el.innerHTML = html;
   if (!html) return;

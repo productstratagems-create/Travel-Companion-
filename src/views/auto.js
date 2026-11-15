@@ -57,7 +57,7 @@ import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
 import L from 'leaflet';
-import { createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap } from '../ui/map.js';
+import { SPOR_ZOOM as PLATTFORM_ZOOM_AUTO, createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap } from '../ui/map.js';
 import { uthevAvgang } from '../ui/stasjonslag.js';
 import { storage } from '../storage.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
@@ -2507,13 +2507,63 @@ export function lappAnker(stopp, erSynlig) {
 }
 
 /** Får en lapp b×h plass i kartet W×H, satt utover fra stoppet? Ren. */
-export function lappPasser(pt, stopPt, b, h, W, H) {
-  const r = lappRetning(stopPt, pt), m = 8;
+export function lappPasser(pt, stopPt, b, h, W, H, hindre = [], side = null) {
+  const r = side || lappRetning(stopPt, pt), m = 8;
   const venstre = pt.x - (r === 'left' ? b + m : r === 'right' ? 0 : b / 2);
   const høyre = pt.x + (r === 'right' ? b + m : r === 'left' ? 0 : b / 2);
   const topp = pt.y - (r === 'top' ? h + m : r === 'bottom' ? 0 : h / 2);
   const bunn = pt.y + (r === 'bottom' ? h + m : r === 'top' ? 0 : h / 2);
-  return venstre >= 0 && høyre <= W && topp >= 0 && bunn <= H;
+  if (!(venstre >= 0 && høyre <= W && topp >= 0 && bunn <= H)) return false;
+  // HINDRENE (v1.218.66): zoomknappene, fullskjermknappen og kreditteringen.
+  // Bestilt: «Flytt lappene bort fra zoomknappene.»
+  return !(hindre || []).some(r => venstre < r.høyre && høyre > r.venstre && topp < r.bunn && bunn > r.topp);
+}
+
+/**
+ * HOLDEPLASSLAPPEN (v1.218.66). Bestilt: den skal ikke synes før man har
+ * zoomet inn litt, og ikke dekke kartdetaljene for holdeplassen. Utzoomet
+ * står navn og gangtid alt i hodet over kartet; på kartet er det støy.
+ */
+export const STOPP_LAPP_ZOOM = 14;
+/** Fra plattformzoom står lappen så langt ut at plattformer og innganger synes. */
+export const STOPP_LAPP_AVSTAND_NÆR = 44;
+
+/**
+ * Plassen for en lapp på beinet (v1.218.66): siste stopp der den passer på
+ * sin naturlige side (utover), ellers på en annen side. Ingen plass noe sted:
+ * null — da står ingen lapp, heller enn at den dekker en knapp. Ren.
+ */
+export function lappPlass(stopp, passer, naturlig) {
+  const sider = ['top', 'bottom', 'right', 'left'];
+  for (let i = (stopp || []).length - 1; i >= 0; i--) {
+    const n = naturlig(stopp[i]);
+    if (passer(stopp[i], n)) return { stopp: stopp[i], side: n };
+  }
+  for (let i = (stopp || []).length - 1; i >= 0; i--) {
+    for (const r of sider) if (passer(stopp[i], r)) return { stopp: stopp[i], side: r };
+  }
+  return null;
+}
+
+/** Siden med færrest bein ut fra stoppet — der lappen dekker minst. Ren. */
+export function stoppLappSide(stopPt, endePts, passer = () => true) {
+  const tell = { top: 0, bottom: 0, right: 0, left: 0 };
+  (endePts || []).forEach(p => { tell[lappRetning(stopPt, p)]++; });
+  const sider = ['top', 'bottom', 'right', 'left'];
+  const kandidater = sider.filter(passer);
+  return (kandidater.length ? kandidater : sider).reduce((best, r) => (tell[r] < tell[best] ? r : best));
+}
+
+/** Forskyvningen for en side og en avstand. Ren. */
+export function lappForskyv(side, avstand) {
+  return { top: [0, -avstand], bottom: [0, avstand], left: [-avstand, 0], right: [avstand, 0] }[side];
+}
+
+/** Knappene og kreditteringen på kartet, i kartets egne koordinater. */
+function _kartHindre(el, box) {
+  return [...(el.parentElement || el).querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution, .map-expand-btn, [id$="-map-expand"]')]
+    .map(n => n.getBoundingClientRect()).filter(r => r.width && r.height)
+    .map(r => ({ venstre: r.left - box.left - 4, høyre: r.right - box.left + 4, topp: r.top - box.top - 4, bunn: r.bottom - box.top + 4 }));
 }
 
 /** Lappens innhold på et nivå. */
@@ -2872,12 +2922,34 @@ function _renderMap() {
     _aMap.setView(midtpunkt(rammePts), Math.min(FIT_MAKS_ZOOM, pass), { animate: false });
   }
 
+  let stoppHinder = null;
   if (_stop && _stop.lat != null) {
     L.marker([_stop.lat, _stop.lon], {
       icon: makeStopIcon(normMode((_stop.modes || [])[0]), (_stop.modes || []).length, { primary: true }),
     })
       .bindTooltip(lappMedLogo(sentrert ? gangLapp(_stop) : _stop.name, stoppLinjer(_stop.id)),
-        { className: sentrert ? lappKlasse : 'map-label', direction: 'top', offset: [0, -8], permanent: sentrert })
+        (() => {
+          // Bort fra beina og gangruta, og lenger ut når stasjonsdetaljene vises.
+          const z = _aMap.getZoom();
+          const sp = _aMap.latLngToContainerPoint([_stop.lat, _stop.lon]);
+          const ender = bein.map(b => { const e = b.stopp[0]; return _aMap.latLngToContainerPoint([e.lat, e.lon]); })
+            .concat(userPos ? [_aMap.latLngToContainerPoint([userPos.lat, userPos.lon])] : []);
+          // Siden med færrest bein, men bare om lappen (anslått 150×20) får plass der.
+          const bx = el.getBoundingClientRect(), hindre = _kartHindre(el, bx);
+          const av = z >= PLATTFORM_ZOOM_AUTO ? STOPP_LAPP_AVSTAND_NÆR : 8;
+          const passer = r => { const [dx, dy] = lappForskyv(r, av); return lappPasser({ x: sp.x + dx, y: sp.y + dy }, sp, 150, 20, bx.width, bx.height, hindre, r); };
+          const side = stoppLappSide(sp, ender, passer);
+          // Linjelappene skal ikke legge seg oppå denne (v1.218.66).
+          if (sentrert && z >= STOPP_LAPP_ZOOM) {
+            const [dx, dy] = lappForskyv(side, av), w = 150, h = 20;
+            const cx = sp.x + dx, cy = sp.y + dy;
+            stoppHinder = { venstre: cx - (side === 'left' ? w : side === 'right' ? 0 : w / 2), høyre: cx + (side === 'right' ? w : side === 'left' ? 0 : w / 2),
+              topp: cy - (side === 'top' ? h : side === 'bottom' ? 0 : h / 2), bunn: cy + (side === 'bottom' ? h : side === 'top' ? 0 : h / 2) };
+          }
+          return { className: sentrert ? lappKlasse : 'map-label', direction: side,
+            offset: lappForskyv(side, av),
+            permanent: sentrert && z >= STOPP_LAPP_ZOOM };
+        })())
       .addTo(_aLayer);
   }
 
@@ -2899,11 +2971,16 @@ function _renderMap() {
     if (!først) g.eachLayer(l => l.setStyle && l.setStyle({ opacity: 0.55 }));
     // HELE LAPPEN INNENFOR, i piksler: lappen står på den siden beinet går,
     // og er så bred som nivået sier. En marg i prosent var smalere enn lappen.
-    const W = box.width, H = box.height, stopPt = _aMap.latLngToContainerPoint([_stop.lat, _stop.lon]);
+    const W = box.width, H = box.height, hindre = _kartHindre(el, box).concat(stoppHinder ? [stoppHinder] : []), stopPt = _aMap.latLngToContainerPoint([_stop.lat, _stop.lon]);
     const { b: lw, h: lh } = LAPP_NIVÅ[nivåer[bi]];
-    const e = lappAnker(b.stopp, s => lappPasser(_aMap.latLngToContainerPoint([s.lat, s.lon]), stopPt, lw, lh, W, H));
-    const retning = lappRetning(_aMap.latLngToContainerPoint([_stop.lat, _stop.lon]), _aMap.latLngToContainerPoint([e.lat, e.lon]));
-    const lapp = _lappHtml(b, nivåer[bi]);
+    const tilPt = st => _aMap.latLngToContainerPoint([st.lat, st.lon]);
+    // Kandidatene: stoppene, og midt mellom holdeplassen og første stopp —
+    // nærmest deg, der et bein som går rett i knappene fortsatt har plass.
+    const midt = { lat: (_stop.lat + b.stopp[0].lat) / 2, lon: (_stop.lon + b.stopp[0].lon) / 2 };
+    const plass = nivåer[bi] > 0 ? lappPlass([midt, ...b.stopp], (st, r) => lappPasser(tilPt(st), stopPt, lw, lh, W, H, hindre, r), st => lappRetning(stopPt, tilPt(st))) : null;
+    const e = plass ? plass.stopp : b.stopp[b.stopp.length - 1];
+    const retning = plass ? plass.side : 'top';
+    const lapp = plass ? _lappHtml(b, nivåer[bi]) : null;
     const ende = L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'edderkopp-ende', html: '', iconSize: [8, 8] }), keyboard: false })
       .on('click', () => { _open = b.dir; _renderBody(); });
     if (lapp) ende.bindTooltip(lapp, { className: lappKlasse + ' edderkopp-lapp nivå-' + nivåer[bi] + (først ? ' først' : ''), direction: retning,

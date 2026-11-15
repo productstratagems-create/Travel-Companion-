@@ -239,3 +239,43 @@ describe('av/på per transportmiddel i kartet (v1.218.67)', () => {
     expect(fs.readFileSync('src/views/auto.js', 'utf8')).toMatch(/\[id\$="-map-expand"\], #auto-map-modi'/);
   });
 });
+
+describe('edderkoppnettet mangler på telefonen (v1.218.68)', () => {
+  // Rapportert 00:04 på Mortensrud: lista hadde fire retninger, kartet ingen bein.
+  const med = (front, kode, om, n, navnHer) => {
+    const d = retning(front, kode, om, n);
+    d.call.serviceJourney.estimatedCalls[0].quay.stopPlace.name = navnHer;
+    d.call.serviceJourney.estimatedCalls[0].quay.stopPlace.id = 'NSR:StopPlace:5687';
+    return d;
+  };
+  it('navnet på stoppet avviker, men ID-en er den samme: beinet tegnes', () => {
+    const teller = {};
+    const b = edderkoppBein([med('Kolsås', '3', 14, 8, 'Mortensrud terminal')], 'Mortensrud', NÅ, null, 12, 5,
+      { teller, stopId: 'NSR:StopPlace:5687' });
+    expect(b).toHaveLength(1);
+  });
+  it('uten ID og med avvikende navn: telleren sier hvorfor', () => {
+    const teller = {};
+    const b = edderkoppBein([med('Kolsås', '3', 14, 8, 'Mortensrud terminal')], 'Mortensrud', NÅ, null, 12, 5, { teller });
+    expect(b).toHaveLength(0);
+    expect(teller.ikkeFunnet).toBe(1);
+  });
+  it('første avgang uten koordinater: neste i samme retning brukes', () => {
+    const d = retning('Kolsås', '3', 14, 8);
+    const tom = { serviceJourney: { line: d.call.serviceJourney.line, estimatedCalls: [
+      { quay: { stopPlace: { name: 'Mortensrud', id: 'S' } } }, { quay: { stopPlace: { name: 'X', id: 'X' } } }, { quay: { stopPlace: { name: 'Y', id: 'Y' } } }] } };
+    d.calls = [{ ms: NÅ + 14 * 60000, call: tom }, { ms: NÅ + 29 * 60000, call: d.call }];
+    const teller = {};
+    const b = edderkoppBein([d], 'Mortensrud', NÅ, null, 12, 5, { teller });
+    expect(b).toHaveLength(1);
+    expect(b[0].ms).toBe(NÅ + 14 * 60000);
+  });
+});
+
+import { manglendeBeinTekst } from '../src/views/auto.js';
+describe('si det når beina mangler (v1.218.68)', () => {
+  it('retninger uten bein: en linje', () => { expect(manglendeBeinTekst(4, 0)).toMatch(/kan ikke tegnes/); });
+  it('ingen retninger eller noen bein: ingenting', () => {
+    expect(manglendeBeinTekst(0, 0)).toBe(''); expect(manglendeBeinTekst(4, 2)).toBe('');
+  });
+});

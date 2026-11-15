@@ -978,3 +978,6 @@
 #v-auto .avstigning{font-size:13px;color:var(--text-soft);white-space:normal;overflow:visible;min-height:0}
 #v-auto .avstigning-nå{color:var(--warn);font-weight:700}
 #v-auto .auto-avg-fold > summary,#v-auto .auto-andre-mål > summary{cursor:pointer}
+#v-auto .auto-kontekst{font-size:12px;color:var(--text-soft);margin:.15rem 0 .5rem;line-height:1.4}
+/* v1.218.55: vanemerket og sporet deler tidslinja; luft mellom dem. */
+#v-auto .auto-dir .nearby-dist .auto-vane{margin-right:.6rem}

@@ -25,6 +25,7 @@ import { erHelgLik, dagtype } from './dagtype.js';
 import { storage } from './storage.js';
 import { VANE_MIN_TURER } from './api/smart.js';
 import { sentrumFor, AT_CENTRE_KM, kmTo } from './api/centre.js';
+import { tidsvindu, retningOrd } from './nesteReise.js';
 
 const KEY = 't.profil';
 
@@ -311,13 +312,69 @@ export function hypoteseNå(prof, matrise, nå, her, førMin = 60) {
  * profilen. Rangeringen av kortene og «din vanlige reise» leser begge denne.
  * Ren.
  */
+/**
+ * NESTE REISE UTOVER DEN NÆRMESTE TIMEN (v1.218.55). `hypoteseNå` ser bare
+ * døgndelen du er i og 60 min fram; søndag kveld hjemme svarte den ingenting,
+ * mens svaret er «i morgen tidlig til jobb». Leter del for del de neste 24
+ * timene — dagen fra `dagtype`, så mandag er hverdag og 17. mai fridag — og
+ * gir første reise som starter der du er. Ren.
+ */
+export function nesteFraProfil(prof, matrise, nå, her) {
+  if (!prof) return null;
+  const nåDel = delAvTime(new Date(nå).getHours());
+  for (let h = 1; h <= 24; h++) {
+    const t = nå + h * 3600_000, dt = new Date(t);
+    const del = DØGNDELER.find(x => x.id === delAvTime(dt.getHours()));
+    if (h < 24 && del.id === nåDel && dt.getDate() === new Date(nå).getDate()) continue;   // samme del i dag: hypoteseNå sitt
+    if (dt.getHours() !== del.fra) continue;   // én gang per del, ved starten
+    const m = målNå(prof, matrise || {}, t, her);
+    if (!m) continue;
+    const fra = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), del.fra).getTime();
+    const til = fra + (((del.til - del.fra) + 24) % 24) * 3600_000;
+    return { type: m.type, til: m.til, fra, slutt: til, kilde: m.kilde, tekst: tidsvindu(nå, fra, til),
+      retning: her && Number.isFinite(her.lat) && Number.isFinite(m.til.lat) ? retningOrd(her, { toLat: m.til.lat, toLon: m.til.lon }) : null };
+  }
+  return null;
+}
+
+const _DAG = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag'];
+const _STED = { hjem: 'hjemme', jobb: 'på jobb', sentrum: 'i sentrum' };
+const _MÅL = t => (t === 'jobb' ? 'jobb' : t === 'hjem' ? 'hjem' : t === 'sentrum' ? 'sentrum' : '');
+
+/**
+ * Linja som SIER konteksten (v1.218.55): «søndag kveld · hjemme · neste reise:
+ * i morgen tidlig til jobb (Helsfyr), nordvest». Uten profil: tom — appen
+ * påstår ikke å vite det den ikke vet. Ren.
+ */
+export function kontekstLinje(k, nå) {
+  if (!k || !k.harProfil) return '';
+  const d = new Date(nå);
+  const deler = [_DAG[d.getDay()] + (k.dag === 'fridag' ? ' (fridag)' : '') + ' ' + DØGNDELER.find(x => x.id === k.del).navn];
+  if (_STED[k.sted]) deler.push(_STED[k.sted]);
+  const n = k.neste;
+  if (n && n.kilde === 'profil') {
+    deler.push('neste reise: nå til ' + (n.type ? _MÅL(n.type.split('-')[1]) + (n.toName && n.toName !== 'sentrum' ? ' (' + n.toName + ')' : '') : n.toName));
+  } else if (k.senere) {
+    const mål = k.senere.type.split('-')[1];
+    deler.push('neste reise: ' + k.senere.tekst.replace(/, mellom \d+ og \d+$/, '') + ' til ' + _MÅL(mål)
+      + (mål !== 'sentrum' && k.senere.til && k.senere.til.navn ? ' (' + k.senere.til.navn + ')' : '')
+      + (k.senere.retning ? ', ' + k.senere.retning : ''));
+  } else {
+    deler.push('ingen faste reiser i ' + DØGNDELER.find(x => x.id === k.del).navn.replace('midt på dagen', 'dag'));
+  }
+  return deler.join(' · ');
+}
+
 export function kontekstNå(nå, her, prof, matrise) {
   const neste = prof ? hypoteseNå(prof, matrise || {}, nå, her) : null;
+  const harProfil = !!(prof && (prof.hjem || prof.jobb));
   return {
     dag: dagtype(nå),
     del: delAvTime(new Date(nå).getHours()),
     sted: (her && prof && stedType(her, prof)) || 'ukjent',
     neste,
+    harProfil,
+    senere: !neste && harProfil ? nesteFraProfil(prof, matrise, nå, her) : null,
     // Til rangerMål: treffer et kort det profilen sier du skal nå?
     profilMål: neste ? { treff: neste.treff, tekst: 'din vanlige reise · ' + (REISETYPER[neste.type] || '') } : null,
   };

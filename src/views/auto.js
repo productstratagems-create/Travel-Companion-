@@ -52,7 +52,7 @@ import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
 import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
-import { kontekstNå, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
+import { kontekstNå, kontekstLinje, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
@@ -2199,6 +2199,14 @@ function _renderWhere() {
       way: _way.kind,
       wayEtaS: _way.etaS,
     })
+    // HVA APPEN TROR (v1.218.55): dag, del av døgnet, hvor du er og neste
+    // reise, sagt — ikke bare brukt. Bare til fots; om bord sier raden over det.
+    + (() => {
+      if (picked.linjer) return '';
+      const { p: pr, m: ma } = _profilNå();
+      const linje = kontekstLinje(kontekstNå(nåW, _herSom(), pr, ma), nåW);
+      return linje ? '<div class="auto-kontekst">' + esc(linje) + '</div>' : '';
+    })()
     + rettLinjeHtml(_lås, _sisteKand, _feilÅpen, _gjettGrunn)
     + (_lås ? raskereHtml(_raskereData(nåW)) : '')
     + (_lås ? overgangerHtml(_overgangerData(påLinja, nåW), (påLinja && påLinja.stop && påLinja.stop.name) || '', _ovÅpen) : '')
@@ -4191,7 +4199,9 @@ export function kortHtml(x, n) {
     + '<span class="auto-dest-at">' + esc('framme ' + clk(o.at)) + '</span>'
     + '</span>'
     // Hvorfor dette står her (src/maalModell.js), når det er noe å si.
-    + (x.grunn ? '<span class="auto-dest-grunn">' + esc(x.grunn) + '</span>' : '')
+    // Hvorfor kortet står her. Uten en grunn fra konteksten er det et vanemål
+    // herfra — sagt, så det ikke leses som at du skal dit nå (v1.218.55).
+    + '<span class="auto-dest-grunn">' + esc(x.grunn || 'ofte herfra') + '</span>'
     /* Tellingen INNE i samme avsnitt, ikke som et eget barn. Kommentaren i
      * settings.css:731 forklarer hvorfor: som høyrestilt flex-barn brøt
      * leserekkefølgen på 414 px, og som egen blokk-linje ble den et nytt

@@ -104,6 +104,7 @@ import { isExample } from '../firstRun.js';
 import { newRecord, stage, showRecord, takeLookbackLost } from '../api/diagnose.js';
 import { BOARD_MODES, LOOKBACK_MINS, normJid, BOARD_WINDOW_MINS } from '../api/queries.js';
 import { takeDropReasons } from '../api/adapt.js';
+import { plattformer, hentPlattformer, plattformMedKode } from '../api/quays.js';
 import { loadReturn, returnWindow, loadSkip, dayKey, departAtMs } from '../api/returnTrip.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -369,6 +370,35 @@ export function filterByModes(list, activeModes) {
 let _bMap = null;
 const _bInfoBedt = new Set();  // id-er vi har spurt om linjer for; fetchStoppLinjer husker svaret
 let _bLayer = null;
+let _bQuayLayer = null;
+let _bQuayKey = null;
+/** Fra dette zoomnivået vises plattformene på kartet (v1.218.56). */
+export const PLATTFORM_ZOOM = 16;
+
+/**
+ * Plattformene som markører: koden i en liten lapp, den avgangen går fra
+ * uthevet. Ren nok til å prøves: gir det som skal tegnes.
+ */
+export function plattformMarkører(liste, aktivKode) {
+  return (liste || []).map(q => ({ lat: q.lat, lon: q.lon, kode: q.kode, tekst: q.tekst || q.kode,
+    aktiv: !!aktivKode && q.kode === String(aktivKode) }));
+}
+
+function _tegnPlattformer(dir, aktivKode) {
+  if (!_bQuayLayer || !dir || !dir.stopId) return;
+  const liste = plattformer(dir.stopId);
+  if (liste === undefined) { hentPlattformer(dir.stopId).then(() => { _bQuayKey = null; }); return; }
+  const key = dir.stopId + '|' + (aktivKode || '') + '|' + (liste ? liste.length : 0);
+  if (key === _bQuayKey) return;
+  _bQuayKey = key;
+  _bQuayLayer.clearLayers();
+  plattformMarkører(liste, aktivKode).forEach(m => {
+    L.marker([m.lat, m.lon], { icon: L.divIcon({ className: 'quay-pin' + (m.aktiv ? ' aktiv' : ''),
+      html: '<span>' + esc(m.kode) + '</span>', iconSize: null }), zIndexOffset: m.aktiv ? 500 : 0 })
+      .bindTooltip(m.tekst + (m.aktiv ? ' · din avgang' : ''), { className: 'map-label', direction: 'top', offset: [0, -10] })
+      .addTo(_bQuayLayer);
+  });
+}
 let _bUserMoved = false;
 let _bFitted = false;
 let _bDestLL = null;
@@ -554,6 +584,11 @@ function _ensureMap(pos) {
   _bMap = createMap(mapEl, { expandable: true });
   _bMap.on('dragstart', () => { _bUserMoved = true; });
   _bLayer = L.layerGroup().addTo(_bMap);
+  // PLATTFORMENE (v1.218.56) i eget lag, synlige først når du har zoomet inn
+  // på stasjonen — på bydelsnivå er de støy.
+  _bQuayLayer = L.layerGroup().addTo(_bMap);
+  const vis = () => mapEl.classList.toggle('quay-skjult', _bMap.getZoom() < PLATTFORM_ZOOM);
+  _bMap.on('zoomend', vis); setTimeout(vis, 0);
   // Oslo S only when the app knows nothing — geoFocus says what it does know.
   const c = pos || geoFocus();
   _bMap.setView([c.lat, c.lon], 14);
@@ -2849,9 +2884,14 @@ export function renderBoard() {
     // row: isWalkActive means a walk applies at all, and the stop's own
     // coordinate is the one the route is measured to — not stops[0], which is
     // the kerb you happen to be nearest (v1.89.0).
-    const stopLL = state.statLL && state.statLL[dir.key];
+    // GANGRUTEN TIL PLATTFORMEN (v1.218.56): til sporet den første avgangen
+    // går fra, når plattformen er kjent — ikke stasjonens midtpunkt.
+    const førsteKode = _rows && _rows[0] && _rows[0].c && _rows[0].c.quay && _rows[0].c.quay.publicCode;
+    const pl = dir.stopId ? plattformMedKode(plattformer(dir.stopId), førsteKode) : null;
+    const stopLL = pl ? { lat: pl.lat, lon: pl.lon } : (state.statLL && state.statLL[dir.key]);
     _ensureApproach(isWalkActive(dir) ? (state.walkFromLL || state.homeLL) : null, stopLL);
     renderBoardMap(pos, modes);
+    _tegnPlattformer(dir, førsteKode);
     // After the map exists, and every tick: the route lands asynchronously and
     // renderBoardMap returns early once its own key is unchanged.
     _renderApproach();

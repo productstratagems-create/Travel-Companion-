@@ -8,8 +8,9 @@ const kall = (navn, i) => ({ quay: { stopPlace: { name: navn, id: 'S' + navn, la
 const retning = (front, kode, om, n) => {
   const sjc = [kall('Mortensrud', 0)];
   for (let i = 1; i <= n; i++) sjc.push(kall(front + i, i));
-  return { frontText: front, nextMs: NÅ + om * 60000, lines: [{ code: kode, colour: 'E60000', id: 'RUT:Line:' + kode, mode: 'metro' }],
-    call: { serviceJourney: { line: { id: 'RUT:Line:' + kode, transportMode: 'metro' }, estimatedCalls: sjc } } };
+  const call = { serviceJourney: { line: { id: 'RUT:Line:' + kode, transportMode: 'metro' }, estimatedCalls: sjc } };
+  return { frontText: front, nextMs: NÅ + om * 60000, calls: [{ ms: NÅ + om * 60000, call }], lines: [{ code: kode, colour: 'E60000', id: 'RUT:Line:' + kode, mode: 'metro' }],
+    call };
 };
 
 describe('edderkoppkartet i auto-reise (v1.218.61)', () => {
@@ -73,5 +74,20 @@ describe('lappene i edderkoppnettet (v1.218.62)', () => {
     expect(t.length).toBeLessThanOrEqual(LAPP_TEGN);
     expect(t.endsWith('…')).toBe(true);
     expect(t).not.toMatch(/·…$/);
+  });
+});
+
+describe('kartet og lista er enige om hva du rekker (v1.218.63)', () => {
+  it('rapportert: 12 min gange, 3 om 6 min er strøket — lappen viser neste du rekker', () => {
+    const d = retning('Kolsås', '3', 6, 8);
+    d.calls.push({ ms: NÅ + 21 * 60000, call: d.call });
+    const [b] = edderkoppBein([d], 'Mortensrud', NÅ, null, 12);
+    expect(b.ms).toBe(NÅ + 21 * 60000);
+  });
+  it('en retning du ikke rekker noe av, får ikke bein', () => {
+    expect(edderkoppBein([retning('Bjørndal', '71', 4, 8)], 'Mortensrud', NÅ, null, 12)).toEqual([]);
+  });
+  it('uten posisjon teller alt, som i lista', () => {
+    expect(edderkoppBein([retning('Bjørndal', '71', 4, 8)], 'Mortensrud', NÅ, null, null)).toHaveLength(1);
   });
 });

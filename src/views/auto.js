@@ -2372,6 +2372,8 @@ export function openLine(dir) {
  */
 export const EDDERKOPP_MAKS = 5;
 export const EDDERKOPP_STOPP = 6;
+/** Hvor duset linja er fra sjette stopp til endestoppet (v1.218.64). */
+export const EDDERKOPP_REST_OPASITET = 0.28;
 
 /** Beina: én per retning, den foretrukne først, så etter neste avgang. Ren. */
 // v1.218.63: avgangen på lappen er den første du REKKER, med samme regel som
@@ -2386,11 +2388,16 @@ export function edderkoppBein(dirs, stopName, now, foretrukket, walkMins = null)
     .filter(x => x.ride)
     .sort((a, b) => (b.først - a.først) || (a.ride.ms - b.ride.ms))
     .map(({ d, ride }) => {
-      const stopp = stopsAhead(ride.call, stopName, now).filter(s => s.lat != null && s.lon != null).slice(0, EDDERKOPP_STOPP);
+      const alle = stopsAhead(ride.call, stopName, now).filter(s => s.lat != null && s.lon != null);
+      const stopp = alle.slice(0, EDDERKOPP_STOPP);
+      // RESTEN AV LINJA (v1.218.64), fra sjette stopp til endestoppet: tegnes
+      // dusere. Starter PÅ sjette stopp, så de to strekene henger sammen.
+      const rest = alle.slice(EDDERKOPP_STOPP - 1);
       const l = (d.lines && d.lines[0]) || {};
       const { color, mode } = openLine(d);
       return { key: nøkkel(d), dir: d, farge: color, modus: mode || l.mode || null, kode: l.code || null,
-        linjeId: l.id || null, tekst: l.tekst || null, front: d.frontText, ms: ride.ms, stopp };
+        linjeId: l.id || null, tekst: l.tekst || null, front: d.frontText, ms: ride.ms, stopp,
+        rester: rest.length >= 2 ? [rest] : [] };
     })
     .filter(b => b.stopp.length >= 2)
     .reduce((acc, b) => slåSammenBein(acc, b), [])
@@ -2411,6 +2418,9 @@ export function slåSammenBein(acc, b) {
   if (!før) { acc.push({ ...b, fronter: [b.front] }); return acc; }
   if (!før.fronter.includes(b.front)) før.fronter.push(b.front);
   if (b.stopp.length > før.stopp.length) før.stopp = b.stopp;
+  // Grenene beholdes hver for seg: Kolsås og Stortinget deler korridoren, men
+  // ender ulike steder, og begge endene er en del av hvor du kan reise.
+  før.rester = (før.rester || []).concat(b.rester || []);
   if (b.ms < før.ms) { før.ms = b.ms; før.dir = b.dir; }
   return acc;
 }
@@ -2788,6 +2798,12 @@ function _renderMap() {
   // v1.218.62: lappen er linjemerket og klokka, retningen liten under; satt
   // utover; den første avgangen full styrke, resten dempet.
   const førsteMs = bein.length ? Math.min(...bein.map(b => b.ms)) : null;
+  // Restene først, så de klare beina ligger oppå dem.
+  bein.forEach(b => (b.rester || []).forEach(r => {
+    const g = L.layerGroup().addTo(_aLayer);
+    drawStopLine(g, r, { color: b.farge, mode: normMode(b.modus), dots: false });
+    g.eachLayer(l => l.setStyle && l.setStyle({ opacity: EDDERKOPP_REST_OPASITET }));
+  }));
   bein.forEach(b => {
     const først = b.ms === førsteMs;
     const g = L.layerGroup().addTo(_aLayer);

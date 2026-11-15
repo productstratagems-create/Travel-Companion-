@@ -2280,7 +2280,7 @@ let _aOpenKey = null;
 /** Test seam: module state, and a test must be able to clear it. */
 export function _resetAutoMap() {
   if (_aMap) { try { _aMap.remove(); } catch (_) {} }
-  _aMap = null; _aLayer = null; _aKey = ''; _aFitKey = ''; _aUserMoved = false;
+  _aMap = null; _aLayer = null; _modiKontroll = null; _modiNøkkel = ''; _aKey = ''; _aFitKey = ''; _aUserMoved = false;
   _aOpenKey = null; _linePicked = null;
 }
 export function _autoMap() { return _aMap; }
@@ -2561,9 +2561,66 @@ export function lappForskyv(side, avstand) {
   return { top: [0, -avstand], bottom: [0, avstand], left: [-avstand, 0], right: [avstand, 0] }[side];
 }
 
+/**
+ * AV/PÅ PER TRANSPORTMIDDEL (v1.218.67). Bestilt med skjermbilde: knapper i
+ * kartets tomme venstre kant for å vise/skjule T-bane, trikk, buss, tog —
+ * de som er relevante her. Samme piller som tavlekartet (`.mode-pill`), men
+ * eget valg: tavlas filter er en annen skjerm.
+ */
+export const MODI_REKKEFØLGE = ['metro', 'tram', 'rail', 'bus', 'water'];
+const MODI_NAVN = { metro: 'T-bane', tram: 'Trikk', rail: 'Tog', bus: 'Buss', water: 'Båt' };
+const SKJULT_NØKKEL = 't.autoKartSkjult';
+
+/** Transportmidlene på beina, med antall; tom under to (ingenting å velge). Ren. */
+export function kartModi(bein) {
+  const tell = new Map();
+  (bein || []).forEach(b => { const m = normMode(b.modus) || 'bus'; tell.set(m, (tell.get(m) || 0) + 1); });
+  const ut = [...tell.entries()].map(([modus, antall]) => ({ modus, antall }))
+    .sort((a, b) => (MODI_REKKEFØLGE.indexOf(a.modus) + 99) % 99 - (MODI_REKKEFØLGE.indexOf(b.modus) + 99) % 99);
+  return ut.length >= 2 ? ut : [];
+}
+
+/** Beina uten de skjulte transportmidlene. Ren. */
+export function filtrerBein(bein, skjult) {
+  const s = skjult instanceof Set ? skjult : new Set(skjult || []);
+  return (bein || []).filter(b => !s.has(normMode(b.modus) || 'bus'));
+}
+
+function _skjulteModi() {
+  try { return new Set(JSON.parse(storage.get(SKJULT_NØKKEL) || '[]')); } catch { return new Set(); }
+}
+
+let _modiKontroll = null, _modiNøkkel = '';
+function _tegnModiKnapper(modi) {
+  if (!_aMap) return;
+  if (!_modiKontroll) {
+    const C = L.Control.extend({ onAdd() {
+      const d = L.DomUtil.create('div', 'auto-map-modi'); d.id = 'auto-map-modi';
+      L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+      return d;
+    } });
+    _modiKontroll = new C({ position: 'topleft' }).addTo(_aMap);
+  }
+  const el = _modiKontroll.getContainer();
+  const skjult = _skjulteModi();
+  const nøkkel = modi.map(m => m.modus + m.antall + (skjult.has(m.modus) ? '-' : '+')).join(',');
+  if (nøkkel === _modiNøkkel) return;
+  _modiNøkkel = nøkkel;
+  el.hidden = !modi.length;
+  el.innerHTML = modi.map(m => '<button type="button" class="mode-pill' + (skjult.has(m.modus) ? '' : ' active')
+    + '" data-modus="' + m.modus + '" aria-pressed="' + !skjult.has(m.modus) + '">'
+    + esc(MODI_NAVN[m.modus] || m.modus) + ' ' + m.antall + '</button>').join('');
+  el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    const s = _skjulteModi();
+    if (s.has(b.dataset.modus)) s.delete(b.dataset.modus); else s.add(b.dataset.modus);
+    try { storage.set(SKJULT_NØKKEL, JSON.stringify([...s])); } catch (_) {}
+    _modiNøkkel = ''; _aKey = ''; _renderMap();
+  }));
+}
+
 /** Knappene og kreditteringen på kartet, i kartets egne koordinater. */
 function _kartHindre(el, box) {
-  return [...(el.parentElement || el).querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution, .map-expand-btn, [id$="-map-expand"]')]
+  return [...(el.parentElement || el).querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution, .map-expand-btn, [id$="-map-expand"], #auto-map-modi')]
     .map(n => n.getBoundingClientRect()).filter(r => r.width && r.height)
     .map(r => ({ venstre: r.left - box.left - 4, høyre: r.right - box.left + 4, topp: r.top - box.top - 4, bunn: r.bottom - box.top + 4 }));
 }
@@ -2856,7 +2913,7 @@ function _renderMap() {
     // Beina endres når en avgang går, ikke hvert sekund (ro).
     + '|e' + (!line && !kortLinje ? (_dirs || []).map(d => d.nextMs).join(',')
       // og når en avgang glipper fra rekkevidde: minuttet, bare når nettet vises
-      + '|' + Math.floor(Date.now() / 60000) : '-');
+      + '|' + Math.floor(Date.now() / 60000) + '|s' + [..._skjulteModi()].join() : '-');
   // Redraw when the content changed; re-fit when the content OR the frame
   // changed. Returning early on content alone is what let the bad first fit
   // survive for the life of the screen.
@@ -2908,8 +2965,12 @@ function _renderMap() {
   // Beina tegnes bare i utgangskartet: med en åpen retning eller et kort er
   // kartet om DEN reisen, og fem streker til ville stjele den.
   const _gang = _stop ? gangTil(_stop) : null;
-  const bein = sentrert && _stop ? edderkoppBein(_dirs, _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null,
+  let bein = sentrert && _stop ? edderkoppBein(_dirs, _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null,
     beinMaks(box.width, box.height)) : [];
+  // AV/PÅ PER TRANSPORTMIDDEL (v1.218.67), fra beina før filteret.
+  const _modi = kartModi(bein);
+  _tegnModiKnapper(_modi);
+  bein = filtrerBein(bein, _skjulteModi());
   const rammePts = sentrert
     ? [userPos, _stop, ...others].filter(s => s && s.lat != null).map(s => [s.lat, s.lon])
       .concat(bein.map(b => { const e = b.stopp[b.stopp.length - 1]; return [e.lat, e.lon]; }))

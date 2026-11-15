@@ -35,7 +35,7 @@ describe('edderkoppkartet i auto-reise (v1.218.61)', () => {
 
   it('tegnes bare i utgangskartet', () => {
     const s = fs.readFileSync('src/views/auto.js', 'utf8');
-    expect(s).toMatch(/const bein = sentrert && _stop \? edderkoppBein\(/);
+    expect(s).toMatch(/let bein = sentrert && _stop \? edderkoppBein\(/);
   });
 });
 
@@ -218,5 +218,24 @@ describe('holdeplasslappen viker for den viktigste linja (v1.218.66)', () => {
     const o = { x: 200, y: 200 };
     expect(stoppLappSide(o, [{ x: 200, y: 50 }, { x: 200, y: 350, vekt: 3 }, { x: 50, y: 200 }], r => r !== 'right')).toBe('top');
     expect(stoppLappSide(o, [{ x: 200, y: 50, vekt: 3 }, { x: 200, y: 350 }, { x: 50, y: 200 }], r => r !== 'right')).toBe('bottom');
+  });
+});
+
+import { kartModi, filtrerBein } from '../src/views/auto.js';
+describe('av/på per transportmiddel i kartet (v1.218.67)', () => {
+  const b = (kode, modus) => ({ kode, modus });
+  const bein = [b('71', 'bus'), b('3', 'metro'), b('73', 'bus'), b('74', 'bus'), b('76', 'coach')];
+  it('transportmidlene her, med antall, T-bane først', () => {
+    expect(kartModi(bein)).toEqual([{ modus: 'metro', antall: 1 }, { modus: 'bus', antall: 4 }]);
+  });
+  it('bare ett transportmiddel: ingen knapper', () => {
+    expect(kartModi([b('71', 'bus'), b('73', 'bus')])).toEqual([]);
+  });
+  it('skjult buss: bare T-banen tegnes', () => {
+    expect(filtrerBein(bein, new Set(['bus'])).map(x => x.kode)).toEqual(['3']);
+    expect(filtrerBein(bein, [])).toHaveLength(5);
+  });
+  it('lappene holder seg unna knappene', () => {
+    expect(fs.readFileSync('src/views/auto.js', 'utf8')).toMatch(/\[id\$="-map-expand"\], #auto-map-modi'/);
   });
 });

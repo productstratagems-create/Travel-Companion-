@@ -98,6 +98,7 @@ export function ankomstHtml(arrT, now, o) {
 
 import { decodePolyline } from '../ui/polyline.js';
 import { ensureApproach, approachPoints, approachKey, resetApproach } from '../api/approach.js';
+import { innganger, hentInnganger, valgtInngang } from '../api/innganger.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
 import { isExample } from '../firstRun.js';
@@ -384,11 +385,13 @@ export function plattformMarkører(liste, aktivKode) {
     aktiv: !!aktivKode && q.kode === String(aktivKode) }));
 }
 
-function _tegnPlattformer(dir, aktivKode) {
+function _tegnPlattformer(dir, aktivKode, inngang) {
   if (!_bQuayLayer || !dir || !dir.stopId) return;
   const liste = plattformer(dir.stopId);
   if (liste === undefined) { hentPlattformer(dir.stopId).then(() => { _bQuayKey = null; }); return; }
-  const key = dir.stopId + '|' + (aktivKode || '') + '|' + (liste ? liste.length : 0);
+  const dører = innganger(dir.stopId) || [];
+  const key = dir.stopId + '|' + (aktivKode || '') + '|' + (liste ? liste.length : 0)
+    + '|' + dører.length + '|' + (inngang ? inngang.id : '');
   if (key === _bQuayKey) return;
   _bQuayKey = key;
   _bQuayLayer.clearLayers();
@@ -396,6 +399,15 @@ function _tegnPlattformer(dir, aktivKode) {
     L.marker([m.lat, m.lon], { icon: L.divIcon({ className: 'quay-pin' + (m.aktiv ? ' aktiv' : ''),
       html: '<span>' + esc(m.kode) + '</span>', iconSize: null }), zIndexOffset: m.aktiv ? 500 : 0 })
       .bindTooltip(m.tekst + (m.aktiv ? ' · din avgang' : ''), { className: 'map-label', direction: 'top', offset: [0, -10] })
+      .addTo(_bQuayLayer);
+  });
+  // INNGANGENE (v1.218.57), fra OSM. Den gangruten går gjennom utheves.
+  dører.forEach(e => {
+    const aktiv = !!inngang && e.id === inngang.id;
+    const navn = 'Inngang' + (e.ref ? ' ' + e.ref : '') + (e.navn ? ' · ' + e.navn : '') + (e.trinnfri ? ' · trinnfri' : '');
+    L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'inngang-pin' + (aktiv ? ' aktiv' : ''),
+      html: '<span>' + (e.ref ? esc(e.ref) : '⇥') + '</span>', iconSize: null }), zIndexOffset: aktiv ? 400 : 0 })
+      .bindTooltip(navn + (aktiv ? ' · din vei inn' : ''), { className: 'map-label', direction: 'top', offset: [0, -10] })
       .addTo(_bQuayLayer);
   });
 }
@@ -2888,10 +2900,16 @@ export function renderBoard() {
     // går fra, når plattformen er kjent — ikke stasjonens midtpunkt.
     const førsteKode = _rows && _rows[0] && _rows[0].c && _rows[0].c.quay && _rows[0].c.quay.publicCode;
     const pl = dir.stopId ? plattformMedKode(plattformer(dir.stopId), førsteKode) : null;
-    const stopLL = pl ? { lat: pl.lat, lon: pl.lon } : (state.statLL && state.statLL[dir.key]);
-    _ensureApproach(isWalkActive(dir) ? (state.walkFromLL || state.homeLL) : null, stopLL);
+    const midt = state.statLL && state.statLL[dir.key];
+    const stopLL = pl ? { lat: pl.lat, lon: pl.lon } : midt;
+    const fraLL = isWalkActive(dir) ? (state.walkFromLL || state.homeLL) : null;
+    // INNGANGEN (v1.218.57): har OSM innganger, går ruten til den som gir
+    // kortest vei fra deg og videre til plattformen. Uten svar: som før.
+    if (dir.stopId && midt && innganger(dir.stopId) === undefined) hentInnganger(dir.stopId, midt).then(() => { _bQuayKey = null; });
+    const inngang = valgtInngang(dir.stopId ? innganger(dir.stopId) : null, fraLL, stopLL);
+    _ensureApproach(fraLL, inngang ? { lat: inngang.lat, lon: inngang.lon } : stopLL);
     renderBoardMap(pos, modes);
-    _tegnPlattformer(dir, førsteKode);
+    _tegnPlattformer(dir, førsteKode, inngang);
     // After the map exists, and every tick: the route lands asynchronously and
     // renderBoardMap returns early once its own key is unchanged.
     _renderApproach();

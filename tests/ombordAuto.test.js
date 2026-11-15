@@ -280,7 +280,7 @@ describe('ganglinja fra deg til stoppet', () => {
   });
 
   it('og tavla er dekket av isWalkActive, som alt sjekker farten', () => {
-    expect(strip('src/views/board.js')).toMatch(/_ensureApproach\(isWalkActive\(dir\) \?/);
+    expect(strip('src/views/board.js')).toMatch(/const fraLL = isWalkActive\(dir\) \?/);
   });
 
   /* Og en tom forespørsel tømmer linja — ellers ville den forrige stått

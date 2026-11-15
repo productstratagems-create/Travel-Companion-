@@ -12,6 +12,7 @@
  *   ja         +1 (bekreftet, eller valgt i «feil linje?»)
  *   nei        −1 (den du rettet bort fra, eller alle ved «ingen av disse»)
  */
+import { erHelgLik } from '../dagtype.js';
 import { storage } from '../storage.js';
 
 const KEY = 't.linjeSvar';
@@ -28,7 +29,7 @@ function skriv(v) { try { storage.set(KEY, JSON.stringify(v)); } catch { /* full
 export function kontekst(stoppId, nåMs) {
   if (!stoppId || !Number.isFinite(nåMs)) return null;
   const d = new Date(nåMs);
-  const helg = d.getDay() === 0 || d.getDay() === 6;
+  const helg = erHelgLik(nåMs);
   return stoppId + '|' + (helg ? 'helg' : 'hverdag') + '|' + Math.floor(d.getHours() / 3) * 3;
 }
 

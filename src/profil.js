@@ -21,6 +21,7 @@
  * Ren der det betyr noe: `avledProfil`, `slåSammen`, `reiserI`, `nesteSpørsmål`
  * tar alt inn som argument, så reglene prøves uten lager og DOM.
  */
+import { erHelgLik, dagtype } from './dagtype.js';
 import { storage } from './storage.js';
 import { VANE_MIN_TURER } from './api/smart.js';
 import { sentrumFor, AT_CENTRE_KM, kmTo } from './api/centre.js';
@@ -46,7 +47,8 @@ export function delAvTime(t) {
 }
 /** Døgndelen en totimersbøtte hører til (bøttene deler aldri en grense). */
 export const delAvBøtte = b => delAvTime(b * 2);
-export function dagtypeAv(ms) { const d = new Date(ms).getDay(); return d === 0 || d === 6 ? 'helg' : 'ukedag'; }
+// Fridager (17. mai, påske …) oppfører seg som helg — én definisjon i dagtype.js.
+export function dagtypeAv(ms) { return erHelgLik(ms) ? 'helg' : 'ukedag'; }
 
 /* ── REISETYPENE ───────────────────────────────────────────────────────── */
 export const REISETYPER = {
@@ -301,4 +303,22 @@ export function hypoteseNå(prof, matrise, nå, her, førMin = 60) {
       kilde: 'profil', celle, type: m.type, treff };
   }
   return null;
+}
+
+/**
+ * KONTEKSTEN NÅ (v1.218.54), samlet ett sted: hva slags dag, hvilken del av
+ * døgnet, hvor du er (hjem/jobb/sentrum/ukjent), og neste reise etter
+ * profilen. Rangeringen av kortene og «din vanlige reise» leser begge denne.
+ * Ren.
+ */
+export function kontekstNå(nå, her, prof, matrise) {
+  const neste = prof ? hypoteseNå(prof, matrise || {}, nå, her) : null;
+  return {
+    dag: dagtype(nå),
+    del: delAvTime(new Date(nå).getHours()),
+    sted: (her && prof && stedType(her, prof)) || 'ukjent',
+    neste,
+    // Til rangerMål: treffer et kort det profilen sier du skal nå?
+    profilMål: neste ? { treff: neste.treff, tekst: 'din vanlige reise · ' + (REISETYPER[neste.type] || '') } : null,
+  };
 }

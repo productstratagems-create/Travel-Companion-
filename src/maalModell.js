@@ -23,13 +23,14 @@
  * resonnement, ikke målt på befolkningsdata.
  */
 import { sentrumFor, AT_CENTRE_KM, MIN_GAIN_KM, kmTo } from './api/centre.js';
+import { erHelgLik } from './dagtype.js';
 import { stopKey } from './stopId.js';
 
 export const BLANDING_K = 5;
 
 /** Det vanlige mønsteret: hvilken vei, og hvor sterkt (0–1). */
 export function vanligMønster(nå) {
-  const d = new Date(nå), h = d.getHours(), helg = d.getDay() === 0 || d.getDay() === 6;
+  const d = new Date(nå), h = d.getHours(), helg = erHelgLik(nå);
   if (!helg && h >= 6 && h < 10) return { mot: 'sentrum', styrke: 1, tekst: 'hverdagsmorgen: mot sentrum' };
   if (!helg && h >= 14 && h < 19) return { mot: 'ut', styrke: 1, tekst: 'hverdagsettermiddag: hjemover' };
   if (helg && h >= 10 && h < 18) return { mot: 'sentrum', styrke: 0.4, tekst: 'helg: mot sentrum' };
@@ -59,7 +60,7 @@ const _dagNavn = ['søndager', 'mandager', 'tirsdager', 'onsdager', 'torsdager',
  */
 export function rangerMål(kort, o) {
   const c = o || {};
-  const d = new Date(c.nå), bøtte = Math.floor(d.getHours() / 2), helg = d.getDay() === 0 || d.getDay() === 6;
+  const d = new Date(c.nå), bøtte = Math.floor(d.getHours() / 2), helg = erHelgLik(c.nå);
   const herKey = c.her && stopKey(c.her.name);
   const poeng = new Map();
   let n = 0;
@@ -75,14 +76,22 @@ export function rangerMål(kort, o) {
   const maks = Math.max(0, ...poeng.values());
   const vekt = n / (n + BLANDING_K);
   const m = vanligMønster(c.nå);
+  // PROFILEN FØRST (v1.218.54): sier den hvor du skal nå (hjem, jobb, sentrum
+  // — ut fra dag, klokke og hvor du er), står det kortet øverst. Det faste
+  // mønsteret over gjelder bare når profilen ikke vet. Samme svar som «din
+  // vanlige reise», så de to ikke kan si hvert sitt.
+  const pr = c.profil && typeof c.profil.treff === 'function' ? c.profil : null;
   return (kort || []).map(x => {
     const eget = maks ? (poeng.get(stopKey(x.name)) || 0) / maks : 0;
     const vanlig = passerMønster(x, c.her, m);
-    const p = vekt * eget + (1 - vekt) * vanlig;
-    const grunn = eget > 0 && vekt * eget >= (1 - vekt) * Math.abs(vanlig - 0.5)
-      ? 'du pleier hit ' + _dagNavn[d.getDay()] + ' rundt nå'
-      : (vanlig > 0.5 ? m.tekst : '');
-    return { kort: x, p, eget, vanlig, grunn };
+    const profilTreff = !!pr && pr.treff({ name: x.name, id: x.id, lat: x.lat, lon: x.lon });
+    // Over alt det faste mønsteret kan gi (maks 1), så profilen alltid går foran.
+    const p = profilTreff ? 2 + eget : vekt * eget + (1 - vekt) * vanlig;
+    const grunn = profilTreff ? (pr.tekst || 'din vanlige reise')
+      : eget > 0 && vekt * eget >= (1 - vekt) * Math.abs(vanlig - 0.5)
+        ? 'du pleier hit ' + _dagNavn[d.getDay()] + ' rundt nå'
+        : (vanlig > 0.5 ? m.tekst : '');
+    return { kort: x, p, eget, vanlig, grunn, profil: profilTreff };
   }).sort((a, b) => b.p - a.p);
 }
 

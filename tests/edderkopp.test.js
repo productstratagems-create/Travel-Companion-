@@ -91,3 +91,25 @@ describe('kartet og lista er enige om hva du rekker (v1.218.63)', () => {
     expect(edderkoppBein([retning('Bjørndal', '71', 4, 8)], 'Mortensrud', NÅ, null, null)).toHaveLength(1);
   });
 });
+
+describe('hele linja, duset etter sjette stopp (v1.218.64)', () => {
+  it('beinet er seks stopp; resten går fra sjette stopp til endestoppet', () => {
+    const [b] = edderkoppBein([retning('Kolsås', '3', 4, 12)], 'Mortensrud', NÅ);
+    expect(b.stopp).toHaveLength(EDDERKOPP_STOPP);
+    expect(b.rester).toHaveLength(1);
+    expect(b.rester[0][0]).toEqual(b.stopp[EDDERKOPP_STOPP - 1]);
+    expect(b.rester[0][b.rester[0].length - 1].name).toBe('Kolsås12');
+  });
+  it('en kort linje har ingen rest', () => {
+    expect(edderkoppBein([retning('Bergkrystallen', '79', 6, 4)], 'Mortensrud', NÅ)[0].rester).toEqual([]);
+  });
+  it('grener i samme korridor beholder hver sin rest', () => {
+    const st = (...ids) => ids.map(id => ({ id, name: id, lat: 1, lon: 1 }));
+    const ut = [{ kode: '3', linjeId: 'L3', front: 'Kolsås', ms: 4, stopp: st('A', 'B'), rester: [st('B', 'K')] },
+      { kode: '3', linjeId: 'L3', front: 'Stortinget', ms: 5, stopp: st('A', 'B'), rester: [st('B', 'S')] }].reduce(slåSammenBein, []);
+    expect(ut[0].rester.map(r => r[1].id)).toEqual(['K', 'S']);
+  });
+  it('rammen følger bare de klare beina, ikke restene', () => {
+    expect(fs.readFileSync('src/views/auto.js', 'utf8')).toMatch(/bein\.map\(b => \{ const e = b\.stopp\[b\.stopp\.length - 1\]/);
+  });
+});

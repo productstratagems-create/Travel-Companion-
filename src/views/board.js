@@ -32,7 +32,7 @@ import { fetchInflight } from '../api/entur.js';
 import { belegg, beleggTekst, fraEntur } from '../api/belegg.js';
 import { SRC_LABEL } from '../api/posSource.js';
 import { hentStoppested, stoppestedKjent } from '../api/stoppested.js';
-import { createMap, bindMapExpand, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby, drawLeg, drawJourneyPoints } from '../ui/map.js';
+import { SPOR_ZOOM, createMap, bindMapExpand, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby, drawLeg, drawJourneyPoints } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _headingDeg, projectOnPath, pointAtDistance } from '../ui/path.js';
 import { _callTime, _callPoints, _interpolateVehiclePos, _interpolateOnPath } from '../api/forventetPos.js';
@@ -374,7 +374,7 @@ let _bLayer = null;
 let _bQuayLayer = null;
 let _bQuayKey = null;
 /** Fra dette zoomnivået vises plattformene på kartet (v1.218.56). */
-export const PLATTFORM_ZOOM = 16;
+export const PLATTFORM_ZOOM = SPOR_ZOOM;
 
 /**
  * Plattformene som markører: koden i en liten lapp, den avgangen går fra

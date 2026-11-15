@@ -11,7 +11,7 @@
  */
 import L from 'leaflet';
 import { esc } from './fmt.js';
-import { ruterFor, hentRute, plattformerIRute, RUTE_GRAD, plattformer } from '../api/quays.js';
+import { ruterFor, hentRute, plattformerIRute, RUTE_GRAD, plattformer, hentPlattformer } from '../api/quays.js';
 import { hentInngangerRute, inngangerIRute, innganger } from '../api/innganger.js';
 
 /** Maks ruter hentet per utsnitt; zoom ≥ 16 på en telefon dekker 1–4. */
@@ -91,4 +91,26 @@ export function settStasjonAktiv(map, aktiv) {
   if (!st) return;
   st.aktiv = aktiv || null;
   _tegn(map, st);
+}
+
+/**
+ * DIN PLATTFORM, fra avgangen (v1.218.60). Én regel for tavla, avgangsdetaljer
+ * og auto-reise: koden er avgangens `quay.publicCode`, stoppet er avgangens
+ * eget stoppested — eller det skjermen alt kjenner. Ingen kode, ingen påstand.
+ * Ren.
+ */
+export function aktivFraAvgang(call, stopId, inngangId) {
+  const q = call && call.quay;
+  const kode = q && q.publicCode;
+  const sid = (q && q.stopPlace && q.stopPlace.id) || stopId || null;
+  if (!kode || kode === '?' || !sid) return null;
+  return { stopId: sid, kode: String(kode), inngangId: inngangId != null ? inngangId : null };
+}
+
+/** Uthev avgangens plattform på kartet; henter stoppets plattformer om de mangler. */
+export function uthevAvgang(map, call, stopId, inngangId) {
+  const aktiv = aktivFraAvgang(call, stopId, inngangId);
+  if (aktiv && plattformer(aktiv.stopId) === undefined) hentPlattformer(aktiv.stopId).then(() => settStasjonAktiv(map, aktiv));
+  settStasjonAktiv(map, aktiv);
+  return aktiv;
 }

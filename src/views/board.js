@@ -99,7 +99,7 @@ export function ankomstHtml(arrT, now, o) {
 import { decodePolyline } from '../ui/polyline.js';
 import { ensureApproach, approachPoints, approachKey, resetApproach } from '../api/approach.js';
 import { innganger, hentInnganger, valgtInngang } from '../api/innganger.js';
-import { settStasjonAktiv } from '../ui/stasjonslag.js';
+import { settStasjonAktiv, uthevAvgang } from '../ui/stasjonslag.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
 import { isExample } from '../firstRun.js';
@@ -389,9 +389,7 @@ export function plattformMarkører(liste, aktivKode) {
 // plattformen den første avgangen går fra, og inngangen ruten går gjennom.
 function _tegnPlattformer(dir, aktivKode, inngang) {
   if (!_bMap || !dir || !dir.stopId) return;
-  const aktiv = { stopId: dir.stopId, kode: aktivKode || null, inngangId: inngang ? inngang.id : null };
-  if (plattformer(dir.stopId) === undefined) hentPlattformer(dir.stopId).then(() => settStasjonAktiv(_bMap, aktiv));
-  settStasjonAktiv(_bMap, aktiv);
+  uthevAvgang(_bMap, { quay: { publicCode: aktivKode } }, dir.stopId, inngang ? inngang.id : null);
 }
 let _bUserMoved = false;
 let _bFitted = false;

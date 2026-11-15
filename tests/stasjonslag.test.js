@@ -32,3 +32,30 @@ describe('stasjonslaget på alle kart (v1.218.59)', () => {
     expect(ut.plattformer[0].aktiv).toBe(false);
   });
 });
+
+import { aktivFraAvgang } from '../src/ui/stasjonslag.js';
+import fs from 'node:fs';
+
+describe('din plattform på alle skjermer (v1.218.60)', () => {
+  it('leser kode og stopp fra avgangen', () => {
+    expect(aktivFraAvgang({ quay: { publicCode: '2', stopPlace: { id: 'S1' } } }, 'X'))
+      .toEqual({ stopId: 'S1', kode: '2', inngangId: null });
+  });
+  it('bruker stoppet skjermen kjenner når avgangen ikke bærer det', () => {
+    expect(aktivFraAvgang({ quay: { publicCode: 'E' } }, 'S9', 7)).toEqual({ stopId: 'S9', kode: 'E', inngangId: 7 });
+  });
+  it('ingen kode, ingen påstand', () => {
+    expect(aktivFraAvgang(null, 'S1')).toBeNull();
+    expect(aktivFraAvgang({ quay: { publicCode: '?' } }, 'S1')).toBeNull();
+    expect(aktivFraAvgang({ quay: { publicCode: '1' } }, null)).toBeNull();
+  });
+  it('avgangen uthever riktig plattform, ikke samme kode på nabostoppet', () => {
+    const p = [{ id: 'a', stopId: 'S1', kode: '1' }, { id: 'b', stopId: 'S2', kode: '1' }];
+    const a = aktivFraAvgang({ quay: { publicCode: '1', stopPlace: { id: 'S2' } } }, 'S1');
+    expect(stasjonsInnhold(p, [], a).plattformer.map(x => x.id + (x.aktiv ? '*' : ''))).toEqual(['a', 'b*']);
+  });
+  it('tavla, avgangsdetaljer og auto-reise bruker samme regel', () => {
+    ['board', 'selected', 'auto'].forEach(f =>
+      expect(fs.readFileSync('src/views/' + f + '.js', 'utf8')).toMatch(/uthevAvgang\([^;]*(stopId|_stop && _stop\.id)/));
+  });
+});

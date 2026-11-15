@@ -173,3 +173,50 @@ describe('hele lappen innenfor kartet (v1.218.65)', () => {
     expect(lappPasser({ x: 200, y: 60 }, stopp, 80, 32, 382, 382)).toBe(true);
   });
 });
+
+import { stoppLappSide, lappForskyv, STOPP_LAPP_ZOOM } from '../src/views/auto.js';
+describe('lappene unna knappene, og holdeplasslappen (v1.218.66)', () => {
+  const stopp = { x: 200, y: 200 };
+  const zoomKnapper = { venstre: 330, høyre: 382, topp: 290, bunn: 382 };
+  it('en lapp som ville dekket zoomknappene, passer ikke', () => {
+    expect(lappPasser({ x: 300, y: 320 }, stopp, 80, 18, 382, 382, [zoomKnapper])).toBe(false);
+    expect(lappPasser({ x: 300, y: 320 }, stopp, 80, 18, 382, 382, [])).toBe(true);
+  });
+  it('holdeplasslappen går til siden uten bein', () => {
+    expect(stoppLappSide(stopp, [{ x: 200, y: 50 }, { x: 200, y: 350 }, { x: 50, y: 200 }])).toBe('right');
+    expect(stoppLappSide(stopp, [])).toBe('top');
+  });
+  it('forskyvningen følger siden', () => {
+    expect(lappForskyv('left', 44)).toEqual([-44, 0]);
+    expect(lappForskyv('bottom', 8)).toEqual([0, 8]);
+  });
+  it('holdeplasslappen er fast først fra STOPP_LAPP_ZOOM', () => {
+    expect(STOPP_LAPP_ZOOM).toBeGreaterThan(12);
+    expect(fs.readFileSync('src/views/auto.js', 'utf8')).toMatch(/permanent: sentrert && z >= STOPP_LAPP_ZOOM/);
+  });
+});
+
+import { lappPlass } from '../src/views/auto.js';
+describe('lappen prøver alle sider før den gir opp (v1.218.66)', () => {
+  const st = [{ id: 1 }, { id: 2 }];
+  it('naturlig side først', () => {
+    expect(lappPlass(st, () => true, () => 'bottom')).toEqual({ stopp: st[1], side: 'bottom' });
+  });
+  it('ellers en annen side på samme bein', () => {
+    expect(lappPlass(st, (s, r) => r === 'left', () => 'bottom')).toEqual({ stopp: st[1], side: 'left' });
+  });
+  it('ingen plass: ingen lapp', () => {
+    expect(lappPlass(st, () => false, () => 'top')).toBeNull();
+  });
+  it('holdeplasslappen velger en side der den får plass', () => {
+    expect(stoppLappSide({ x: 200, y: 200 }, [{ x: 200, y: 50 }, { x: 200, y: 350 }, { x: 50, y: 200 }], r => r !== 'right')).toBe('top');
+  });
+});
+
+describe('holdeplasslappen viker for den viktigste linja (v1.218.66)', () => {
+  it('beinet med vekt får siden for seg selv', () => {
+    const o = { x: 200, y: 200 };
+    expect(stoppLappSide(o, [{ x: 200, y: 50 }, { x: 200, y: 350, vekt: 3 }, { x: 50, y: 200 }], r => r !== 'right')).toBe('top');
+    expect(stoppLappSide(o, [{ x: 200, y: 50, vekt: 3 }, { x: 200, y: 350 }, { x: 50, y: 200 }], r => r !== 'right')).toBe('bottom');
+  });
+});

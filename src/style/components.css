@@ -381,3 +381,5 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
   font:700 10px/1.3 var(--font-mono,monospace);text-align:center;background:var(--surface,#fff);color:var(--text);border:1.5px dashed var(--muted,#888)}
 .inngang-pin.aktiv span{border-style:solid;border-color:var(--accent);color:var(--accent)}
 .quay-skjult .inngang-pin{display:none}
+/* Sporlaget (v1.218.58): lyse linjer på mørkt grunnkart blender — snudd og dempet. */
+:root:not([data-theme="light"]) .spor-tiles{filter:invert(1) hue-rotate(180deg);opacity:.4!important}

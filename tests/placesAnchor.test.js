@@ -20,6 +20,7 @@ vi.mock('../src/api/places.js', () => ({
 }));
 vi.mock('../src/api/weather.js', () => ({ fetchWeather: vi.fn(async () => null) }));
 vi.mock('../src/ui/map.js', () => ({
+  SPOR_ZOOM: 16,
   createMap: () => ({
     setView: vi.fn(), remove: vi.fn(), panTo: vi.fn(), fitBounds: vi.fn(),
     removeLayer: vi.fn(), addLayer: vi.fn(), on: vi.fn(), invalidateSize: vi.fn(),

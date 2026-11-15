@@ -45,6 +45,21 @@ export function currentTileUrl() {
   return KEY ? base + '?api_key=' + encodeURIComponent(KEY) : base;
 }
 
+/**
+ * SPOR OG PLATTFORMKANTER VED HØY ZOOM (v1.218.58). Grunnkartet er bevisst
+ * nøytralt, og der forsvinner skinner og perronger. OpenRailwayMap «standard»
+ * er gjennomsiktige fliser med nettopp det, lagt oppå. Fra SPOR_ZOOM, som også
+ * er terskelen for plattformmerkene på tavla — ett navn.
+ * PROBE: flisene kan ikke hentes herfra; feiler de, står grunnkartet som før.
+ */
+export const SPOR_ZOOM = 16;
+export const SPOR_URL = 'https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png';
+const SPOR_ATTR = '© <a href="https://www.openrailwaymap.org/" target="_blank" rel="noopener">OpenRailwayMap</a> (CC-BY-SA)';
+export function sporLag() {
+  return L.tileLayer(SPOR_URL, { subdomains: 'abc', minZoom: SPOR_ZOOM, maxZoom: 20, maxNativeZoom: 19, opacity: 0.55,
+    className: 'spor-tiles', attribution: SPOR_ATTR });
+}
+
 function tileLayer() {
   return L.tileLayer(currentTileUrl(), {
     // The URL carries {r}; without detectRetina Leaflet substitutes an empty
@@ -110,6 +125,7 @@ export function createMap(el, opts = {}) {
     maxZoom: 20,
   });
   const tiles = tileLayer().addTo(map);
+  if (opts.spor !== false) sporLag().addTo(map);
   // Bottom-right on every map: thumb reach on a phone, and out of the way of
   // the expand button and filter pills that live top-left/top-right.
   if (zoom) L.control.zoom({ position: 'bottomright' }).addTo(map);

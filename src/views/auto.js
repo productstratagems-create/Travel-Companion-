@@ -2361,6 +2361,38 @@ export function openLine(dir) {
 }
 
 /**
+ * EDDERKOPPKARTET (v1.218.61). Spurt: «Hvordan kan vi gi brukeren en god
+ * oversikt over reisemulighetene i kartet i auto-reise?» Kartet svarte på
+ * «hvor er jeg» og «hvor er stoppet», men ikke «hvor kan jeg reise herfra» —
+ * retningene sto bare i lista. Plakaten ved holdeplassen (Ruter, TfL) er det
+ * etablerte svaret: hver linje en farget strek ut fra stoppet, med nummer,
+ * retning og neste avgang ved enden. Stoppene finnes alt i svaret
+ * (`stopsAhead`); ingen nye oppslag. Rette streker mellom stopp — boardGQL
+ * henter ikke pointsOnLink, som for den åpne linja.
+ */
+export const EDDERKOPP_MAKS = 5;
+export const EDDERKOPP_STOPP = 6;
+
+/** Beina: én per retning, den foretrukne først, så etter neste avgang. Ren. */
+export function edderkoppBein(dirs, stopName, now, foretrukket) {
+  const nøkkel = d => (d.frontText || '') + '\u0000' + ((d.lines && d.lines[0] && (d.lines[0].id || d.lines[0].code)) || '');
+  const fFront = foretrukket ? String(foretrukket).trim().toLowerCase() : null;
+  return (dirs || [])
+    .filter(d => d && d.call && Number.isFinite(d.nextMs))
+    .map(d => ({ d, først: !!fFront && (d.frontText || '').trim().toLowerCase() === fFront }))
+    .sort((a, b) => (b.først - a.først) || (a.d.nextMs - b.d.nextMs))
+    .map(({ d }) => {
+      const stopp = stopsAhead(d.call, stopName, now).filter(s => s.lat != null && s.lon != null).slice(0, EDDERKOPP_STOPP);
+      const l = (d.lines && d.lines[0]) || {};
+      const { color, mode } = openLine(d);
+      return { key: nøkkel(d), dir: d, farge: color, modus: mode || l.mode || null, kode: l.code || null,
+        linjeId: l.id || null, tekst: l.tekst || null, front: d.frontText, ms: d.nextMs, stopp };
+    })
+    .filter(b => b.stopp.length >= 2)
+    .slice(0, EDDERKOPP_MAKS);
+}
+
+/**
  * Stoppene som får merkelapp på kartet: der du er, og de RELEVANT_ANDRE
  * nærmeste alternativene, med et nytt transportmiddel først. Rapportert: ti
  * prikker uten navn, og gangavstanden bare i et verktøytips. De andre står
@@ -2630,7 +2662,9 @@ function _renderMap() {
   // the zoom it was drawn at for the rest of the screen's life.
   const key = mapKey(_stop, userPos, others, walkPts, openKey(_open, line))
     + '|k' + (kortLinje ? (_kortRute.id || _kortRute.navn) + ':' + kortLinje.length : '-')
-    + '|z' + (_aMap.getZoom ? Math.round(_aMap.getZoom() * 2) / 2 : 0);
+    + '|z' + (_aMap.getZoom ? Math.round(_aMap.getZoom() * 2) / 2 : 0)
+    // Beina endres når en avgang går, ikke hvert sekund (ro).
+    + '|e' + (!line && !kortLinje ? (_dirs || []).map(d => d.nextMs).join(',') : '-');
   // Redraw when the content changed; re-fit when the content OR the frame
   // changed. Returning early on content alone is what let the bad first fit
   // survive for the life of the screen.
@@ -2679,8 +2713,12 @@ function _renderMap() {
   // utfoldede). Midt mellom dem, på START_ZOOM — eller lenger ut om de ellers
   // ikke får plass. Speilingen om deg (speiletOm) og formregelen
   // (formFraGeometri) er koblet fra her; begge står igjen, foldet.
+  // Beina tegnes bare i utgangskartet: med en åpen retning eller et kort er
+  // kartet om DEN reisen, og fem streker til ville stjele den.
+  const bein = sentrert && _stop ? edderkoppBein(_dirs, _stop.name, Date.now(), _kortRute && _kortRute.navn) : [];
   const rammePts = sentrert
     ? [userPos, _stop, ...others].filter(s => s && s.lat != null).map(s => [s.lat, s.lon])
+      .concat(bein.map(b => { const e = b.stopp[b.stopp.length - 1]; return [e.lat, e.lon]; }))
     : pts;
   if (rammePts.length && !_aUserMoved && _aFitKey !== key + '|' + sizeKey) {
     _aFitKey = key + '|' + sizeKey;
@@ -2700,6 +2738,18 @@ function _renderMap() {
         { className: sentrert ? lappKlasse : 'map-label', direction: 'top', offset: [0, -8], permanent: sentrert })
       .addTo(_aLayer);
   }
+
+  // ── EDDERKOPPBEINA (v1.218.61) ──────────────────────────────────────
+  bein.forEach(b => {
+    drawStopLine(_aLayer, [{ lat: _stop.lat, lon: _stop.lon }, ...b.stopp], { color: b.farge, mode: normMode(b.modus), dots: false });
+    const e = b.stopp[b.stopp.length - 1];
+    const lapp = linjemerke({ kode: b.kode, farge: b.farge.replace(/^#/, ''), tekst: b.tekst, linjeId: b.linjeId, modus: b.modus, logo: false })
+      + ' ' + esc(b.front) + ' · ' + clk(b.ms);
+    L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'edderkopp-ende', html: '', iconSize: [10, 10] }), keyboard: false })
+      .bindTooltip(lapp, { className: lappKlasse + ' edderkopp-lapp', direction: 'top', offset: [0, -4], permanent: true, interactive: true })
+      .on('click', () => { _open = b.dir; _renderBody(); })
+      .addTo(_aLayer);
+  });
 
   // ── The line ahead, when one is open ──────────────────────────────────
   //

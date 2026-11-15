@@ -383,3 +383,6 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
 .quay-skjult .inngang-pin{display:none}
 /* Sporlaget (v1.218.58): lyse linjer på mørkt grunnkart blender — snudd og dempet. */
 :root:not([data-theme="light"]) .spor-tiles{filter:invert(1) hue-rotate(180deg);opacity:.4!important}
+/* Edderkoppbeina i auto-reise (v1.218.61): enden av hvert bein, og lappen er trykkbar. */
+.edderkopp-ende{border-radius:50%;background:var(--surface,#fff);border:2px solid var(--text)}
+.edderkopp-lapp{cursor:pointer;pointer-events:auto}

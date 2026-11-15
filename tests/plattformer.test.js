@@ -32,6 +32,7 @@ describe('plattformene på stasjonen', () => {
   });
   it('gangruten på tavla går til plattformen når den er kjent', () => {
     const s = readFileSync('src/views/board.js', 'utf8');
-    expect(s).toMatch(/const stopLL = pl \? \{ lat: pl\.lat, lon: pl\.lon \} : \(state\.statLL && state\.statLL\[dir\.key\]\);/);
+    expect(s).toMatch(/const stopLL = pl \? \{ lat: pl\.lat, lon: pl\.lon \} : midt;/);
+    expect(s).toMatch(/_ensureApproach\(fraLL, inngang \? \{ lat: inngang\.lat, lon: inngang\.lon \} : stopLL\)/);
   });
 });

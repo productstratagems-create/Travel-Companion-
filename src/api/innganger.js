@@ -66,3 +66,30 @@ export function valgtInngang(liste, fra, til) {
 
 /** Bare for tester. */
 export function _nullstillInnganger() { _cache.clear(); }
+
+/**
+ * INNGANGER I EN RUTE (v1.218.59), for stasjonslaget på alle kart. Samme
+ * rutenett som plattformene (`ruterFor` i quays.js), ett Overpass-oppslag per rute.
+ */
+const _ruter = new Map();
+export function inngangerIRute(nøkkel) {
+  const v = _ruter.get(nøkkel);
+  return Array.isArray(v) ? v : null;
+}
+export function hentInngangerRute(nøkkel, grad) {
+  if (_ruter.has(nøkkel)) return Promise.resolve(_ruter.get(nøkkel));
+  const [la, lo] = nøkkel.split(',').map(Number);
+  const s = la * grad, v = lo * grad;
+  const bbox = [s, v, s + grad, v + grad].map(x => x.toFixed(5)).join(',');
+  const ql = '[out:json][timeout:15];node["railway"~"^(subway_entrance|train_station_entrance)$"](' + bbox + ');out 80;';
+  const p = fetchMedFrist(_OVERPASS_URL, {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'data=' + encodeURIComponent(ql),
+  })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(j => { const l = inngangerFraSvar(j); _ruter.set(nøkkel, l); return l; })
+    .catch(() => { _ruter.set(nøkkel, null); return null; });
+  _ruter.set(nøkkel, p);
+  return p;
+}
+export function _nullstillInngangRuter() { _ruter.clear(); }

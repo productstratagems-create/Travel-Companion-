@@ -20,6 +20,7 @@ vi.mock('leaflet', () => ({ default: {
              scale: (o) => ({ addTo: () => drawn.push('scale@' + o.position) }) },
 } }));
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
+vi.mock('../src/ui/stasjonslag.js', () => ({ festStasjonslag: vi.fn() }));
 vi.mock('../src/ui/themeTokens.js', () => ({ onThemeChange: vi.fn(), tokens: () => ({}) }));
 
 const { bindMapExpand } = await import('../src/ui/map.js');

@@ -2379,15 +2379,16 @@ export const EDDERKOPP_REST_OPASITET = 0.28;
 // v1.218.63: avgangen på lappen er den første du REKKER, med samme regel som
 // streken i lista (`catchable`). Rapportert: kartet sa «3 Kolsås 22:48» mens
 // lista strøk 22:48 og viste 23:03 — 12 min gange, 6 min igjen.
-export function edderkoppBein(dirs, stopName, now, foretrukket, walkMins = null) {
+export function edderkoppBein(dirs, stopName, now, foretrukket, walkMins = null, maks = EDDERKOPP_MAKS) {
   const nøkkel = d => (d.frontText || '') + '\u0000' + ((d.lines && d.lines[0] && (d.lines[0].id || d.lines[0].code)) || '');
   const fFront = foretrukket ? String(foretrukket).trim().toLowerCase() : null;
   return (dirs || [])
     .filter(d => d && d.call && Number.isFinite(d.nextMs))
-    .map(d => ({ d, ride: catchable(d, walkMins, now)[0], først: !!fFront && (d.frontText || '').trim().toLowerCase() === fFront }))
+    .map(d => ({ d, rides: catchable(d, walkMins, now), først: !!fFront && (d.frontText || '').trim().toLowerCase() === fFront }))
+    .map(x => ({ ...x, ride: x.rides[0] }))
     .filter(x => x.ride)
     .sort((a, b) => (b.først - a.først) || (a.ride.ms - b.ride.ms))
-    .map(({ d, ride }) => {
+    .map(({ d, ride, rides }) => {
       const alle = stopsAhead(ride.call, stopName, now).filter(s => s.lat != null && s.lon != null);
       const stopp = alle.slice(0, EDDERKOPP_STOPP);
       // RESTEN AV LINJA (v1.218.64), fra sjette stopp til endestoppet: tegnes
@@ -2397,11 +2398,13 @@ export function edderkoppBein(dirs, stopName, now, foretrukket, walkMins = null)
       const { color, mode } = openLine(d);
       return { key: nøkkel(d), dir: d, farge: color, modus: mode || l.mode || null, kode: l.code || null,
         linjeId: l.id || null, tekst: l.tekst || null, front: d.frontText, ms: ride.ms, stopp,
+        // De neste du rekker, til lappens høyeste nivå (v1.218.65).
+        tider: rides.slice(0, 3).map(r => r.ms),
         rester: rest.length >= 2 ? [rest] : [] };
     })
     .filter(b => b.stopp.length >= 2)
     .reduce((acc, b) => slåSammenBein(acc, b), [])
-    .slice(0, EDDERKOPP_MAKS);
+    .slice(0, maks);
 }
 
 /**
@@ -2421,6 +2424,7 @@ export function slåSammenBein(acc, b) {
   // Grenene beholdes hver for seg: Kolsås og Stortinget deler korridoren, men
   // ender ulike steder, og begge endene er en del av hvor du kan reise.
   før.rester = (før.rester || []).concat(b.rester || []);
+  før.tider = [...new Set([...(før.tider || []), ...(b.tider || [])])].sort((x, y) => x - y).slice(0, 3);
   if (b.ms < før.ms) { før.ms = b.ms; før.dir = b.dir; }
   return acc;
 }
@@ -2442,6 +2446,88 @@ export function lappRetning(fra, til) {
   if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'right' : 'left';
   return dy > 0 ? 'bottom' : 'top';
 }
+/**
+ * LAPPENE SKALERER (v1.218.65). Bestilt: «skalere opp og ned hvilke lapper
+ * som vises, og detaljgraden for hver lapp basert på zoom-nivå, kartstørrelse
+ * og antall linjer». Én trapp, fra ingenting til alt; størrelsene er anslag
+ * (`ryddMerkelapper` tar det trappa bommer på).
+ *   0 ingen lapp · 1 merket · 2 + neste tid · 3 + retning · 4 tre tider, hel retning
+ */
+export const LAPP_NIVÅ = [
+  { b: 0, h: 0 }, { b: 34, h: 18 }, { b: 80, h: 18 }, { b: 100, h: 32 }, { b: 160, h: 32 },
+];
+/** Andelen av kartflaten lappene får dekke. */
+export const LAPP_ANDEL = 0.15;
+/** Den viktigste lappen viser alltid minst neste avgang du rekker. */
+export const LAPP_GULV_FØRST = 2;
+
+/** Høyeste nivå zoomen tillater. Ren. */
+export function nivåTak(zoom) {
+  if (!Number.isFinite(zoom)) return 3;
+  return zoom < 12 ? 1 : zoom < 14 ? 2 : zoom < 16 ? 3 : 4;
+}
+
+/**
+ * Nivå per bein. Alle starter på taket; så lenge lappene dekker mer enn
+ * budsjettet, senkes det minst viktige (det siste) ett hakk — helt til 0 før
+ * det neste røres. Rekkefølgen er alt viktigheten: kortets retning, så
+ * avgangen du rekker. Ren.
+ */
+export function lappNivåer(bein, { bredde, høyde, zoom }) {
+  const tak = nivåTak(zoom);
+  const n = (bein || []).length;
+  const nivå = Array(n).fill(tak);
+  if (n) nivå[0] = Math.max(tak, LAPP_GULV_FØRST);
+  const budsjett = Math.max(0, bredde || 0) * Math.max(0, høyde || 0) * LAPP_ANDEL;
+  const flate = () => nivå.reduce((s, v) => s + LAPP_NIVÅ[v].b * LAPP_NIVÅ[v].h, 0);
+  const gulv = i => (i === 0 ? LAPP_GULV_FØRST : 0);
+  while (flate() > budsjett) {
+    let i = n - 1;
+    while (i >= 0 && nivå[i] <= gulv(i)) i--;
+    if (i < 0) break;
+    nivå[i]--;
+  }
+  return nivå;
+}
+
+/** Hvor mange bein kartet bærer: strekene er billige, lappene trenger plass. Ren. */
+export function beinMaks(bredde, høyde) {
+  const flate = Math.max(0, bredde || 0) * Math.max(0, høyde || 0);
+  return Math.max(4, Math.min(8, Math.round(flate / 30000)));
+}
+
+/**
+ * Hvor på beinet lappen står (v1.218.65): det siste stoppet som er godt
+ * innenfor kartet. Zoomet inn lå sjette stopp utenfor rammen, og lappen ble
+ * kuttet eller borte. Ingen synlige: første stopp, nærmest deg. Ren.
+ */
+export function lappAnker(stopp, erSynlig) {
+  for (let i = (stopp || []).length - 1; i >= 0; i--) if (erSynlig(stopp[i])) return stopp[i];
+  return (stopp || [])[0] || null;
+}
+
+/** Får en lapp b×h plass i kartet W×H, satt utover fra stoppet? Ren. */
+export function lappPasser(pt, stopPt, b, h, W, H) {
+  const r = lappRetning(stopPt, pt), m = 8;
+  const venstre = pt.x - (r === 'left' ? b + m : r === 'right' ? 0 : b / 2);
+  const høyre = pt.x + (r === 'right' ? b + m : r === 'left' ? 0 : b / 2);
+  const topp = pt.y - (r === 'top' ? h + m : r === 'bottom' ? 0 : h / 2);
+  const bunn = pt.y + (r === 'bottom' ? h + m : r === 'top' ? 0 : h / 2);
+  return venstre >= 0 && høyre <= W && topp >= 0 && bunn <= H;
+}
+
+/** Lappens innhold på et nivå. */
+function _lappHtml(b, nivå) {
+  if (nivå <= 0) return null;
+  const merke = linjemerke({ kode: b.kode, farge: b.farge.replace(/^#/, ''), tekst: b.tekst, linjeId: b.linjeId, modus: b.modus, logo: false });
+  if (nivå === 1) return '<span class="edd-topp">' + merke + '</span>';
+  const tider = nivå >= 4 ? (b.tider && b.tider.length ? b.tider : [b.ms]) : [b.ms];
+  const topp = '<span class="edd-topp">' + merke + '<b class="edd-tid">' + tider.map(clk).join(' · ') + '</b></span>';
+  if (nivå === 2) return topp;
+  const mot = nivå >= 4 ? (b.fronter || [b.front]).join(' · ') : lappFronter(b.fronter || [b.front]);
+  return topp + '<span class="edd-mot">' + esc(mot) + '</span>';
+}
+
 const _LAPP_FORSKYV = { top: [0, -6], bottom: [0, 6], left: [-6, 0], right: [6, 0] };
 
 /**
@@ -2770,7 +2856,8 @@ function _renderMap() {
   // Beina tegnes bare i utgangskartet: med en åpen retning eller et kort er
   // kartet om DEN reisen, og fem streker til ville stjele den.
   const _gang = _stop ? gangTil(_stop) : null;
-  const bein = sentrert && _stop ? edderkoppBein(_dirs, _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null) : [];
+  const bein = sentrert && _stop ? edderkoppBein(_dirs, _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null,
+    beinMaks(box.width, box.height)) : [];
   const rammePts = sentrert
     ? [userPos, _stop, ...others].filter(s => s && s.lat != null).map(s => [s.lat, s.lon])
       .concat(bein.map(b => { const e = b.stopp[b.stopp.length - 1]; return [e.lat, e.lon]; }))
@@ -2798,27 +2885,30 @@ function _renderMap() {
   // v1.218.62: lappen er linjemerket og klokka, retningen liten under; satt
   // utover; den første avgangen full styrke, resten dempet.
   const førsteMs = bein.length ? Math.min(...bein.map(b => b.ms)) : null;
+  const nivåer = lappNivåer(bein, { bredde: box.width, høyde: box.height, zoom: _aMap.getZoom() });
   // Restene først, så de klare beina ligger oppå dem.
   bein.forEach(b => (b.rester || []).forEach(r => {
     const g = L.layerGroup().addTo(_aLayer);
     drawStopLine(g, r, { color: b.farge, mode: normMode(b.modus), dots: false });
     g.eachLayer(l => l.setStyle && l.setStyle({ opacity: EDDERKOPP_REST_OPASITET }));
   }));
-  bein.forEach(b => {
+  bein.forEach((b, bi) => {
     const først = b.ms === førsteMs;
     const g = L.layerGroup().addTo(_aLayer);
     drawStopLine(g, [{ lat: _stop.lat, lon: _stop.lon }, ...b.stopp], { color: b.farge, mode: normMode(b.modus), dots: false });
     if (!først) g.eachLayer(l => l.setStyle && l.setStyle({ opacity: 0.55 }));
-    const e = b.stopp[b.stopp.length - 1];
+    // HELE LAPPEN INNENFOR, i piksler: lappen står på den siden beinet går,
+    // og er så bred som nivået sier. En marg i prosent var smalere enn lappen.
+    const W = box.width, H = box.height, stopPt = _aMap.latLngToContainerPoint([_stop.lat, _stop.lon]);
+    const { b: lw, h: lh } = LAPP_NIVÅ[nivåer[bi]];
+    const e = lappAnker(b.stopp, s => lappPasser(_aMap.latLngToContainerPoint([s.lat, s.lon]), stopPt, lw, lh, W, H));
     const retning = lappRetning(_aMap.latLngToContainerPoint([_stop.lat, _stop.lon]), _aMap.latLngToContainerPoint([e.lat, e.lon]));
-    const lapp = '<span class="edd-topp">'
-      + linjemerke({ kode: b.kode, farge: b.farge.replace(/^#/, ''), tekst: b.tekst, linjeId: b.linjeId, modus: b.modus, logo: false })
-      + '<b class="edd-tid">' + clk(b.ms) + '</b></span><span class="edd-mot">' + esc(lappFronter(b.fronter)) + '</span>';
-    L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'edderkopp-ende', html: '', iconSize: [8, 8] }), keyboard: false })
-      .bindTooltip(lapp, { className: lappKlasse + ' edderkopp-lapp' + (først ? ' først' : ''), direction: retning,
-        offset: _LAPP_FORSKYV[retning], permanent: true, interactive: true })
-      .on('click', () => { _open = b.dir; _renderBody(); })
-      .addTo(g);
+    const lapp = _lappHtml(b, nivåer[bi]);
+    const ende = L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'edderkopp-ende', html: '', iconSize: [8, 8] }), keyboard: false })
+      .on('click', () => { _open = b.dir; _renderBody(); });
+    if (lapp) ende.bindTooltip(lapp, { className: lappKlasse + ' edderkopp-lapp nivå-' + nivåer[bi] + (først ? ' først' : ''), direction: retning,
+      offset: _LAPP_FORSKYV[retning], permanent: true, interactive: true });
+    ende.addTo(g);
   });
 
   // ── The line ahead, when one is open ──────────────────────────────────

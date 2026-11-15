@@ -386,3 +386,14 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
 /* Edderkoppbeina i auto-reise (v1.218.61): enden av hvert bein, og lappen er trykkbar. */
 .edderkopp-ende{border-radius:50%;background:var(--surface,#fff);border:2px solid var(--text)}
 .edderkopp-lapp{cursor:pointer;pointer-events:auto}
+/* v1.218.62: lappen uten boks — merket, klokka og en liten retning, med glorie i kartets farge. */
+.leaflet-tooltip.map-label.edderkopp-lapp{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;opacity:.75;
+  display:flex;flex-direction:column;gap:1px;line-height:1.1;white-space:nowrap}
+.leaflet-tooltip.edderkopp-lapp::before{display:none}
+.leaflet-tooltip.map-label.edderkopp-lapp.først{opacity:1}
+.edderkopp-lapp .edd-topp{display:flex;align-items:center;gap:3px}
+.edderkopp-lapp .line-badge{font-size:11px;padding:1px 5px}
+.edderkopp-lapp .edd-tid{font:700 12px/1 var(--font-mono,monospace);color:var(--text);
+  text-shadow:0 0 3px var(--bg),0 0 3px var(--bg),0 0 2px var(--bg)}
+.edderkopp-lapp .edd-mot{font-size:10px;color:var(--muted,var(--text));
+  text-shadow:0 0 3px var(--bg),0 0 3px var(--bg),0 0 2px var(--bg)}

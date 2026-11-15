@@ -37,3 +37,41 @@ describe('edderkoppkartet i auto-reise (v1.218.61)', () => {
     expect(s).toMatch(/const bein = sentrert && _stop \? edderkoppBein\(/);
   });
 });
+
+import { slåSammenBein, lappRetning, lappFronter, LAPP_TEGN } from '../src/views/auto.js';
+
+describe('lappene i edderkoppnettet (v1.218.62)', () => {
+  const st = (...ids) => ids.map(id => ({ id, name: id, lat: 1, lon: 1 }));
+  const b = (kode, front, ms, stopp) => ({ kode, linjeId: 'L' + kode, front, ms, stopp, dir: { f: front } });
+
+  it('samme linje i samme korridor blir ett bein, med alle retninger og tidligste tid', () => {
+    const ut = [b('3', 'Stortinget', 9, st('A', 'B', 'C')), b('3', 'Kolsås', 4, st('A', 'B', 'C', 'D')),
+      b('74', 'Jernbanetorget', 6, st('A', 'B')), b('3', 'Avløs', 12, st('A', 'B'))].reduce(slåSammenBein, []);
+    expect(ut).toHaveLength(2);
+    expect(ut[0].fronter).toEqual(['Stortinget', 'Kolsås', 'Avløs']);
+    expect(ut[0].ms).toBe(4);
+    expect(ut[0].dir.f).toBe('Kolsås');
+    expect(ut[0].stopp).toHaveLength(4);
+  });
+
+  it('samme linje i motsatt retning forblir to bein', () => {
+    const ut = [b('3', 'Kolsås', 4, st('A', 'B')), b('3', 'Mortensrud', 5, st('X', 'Y'))].reduce(slåSammenBein, []);
+    expect(ut).toHaveLength(2);
+  });
+
+  it('lappen står utover fra stoppet', () => {
+    const o = { x: 100, y: 100 };
+    expect(lappRetning(o, { x: 100, y: 20 })).toBe('top');
+    expect(lappRetning(o, { x: 100, y: 180 })).toBe('bottom');
+    expect(lappRetning(o, { x: 190, y: 110 })).toBe('right');
+    expect(lappRetning(o, { x: 10, y: 90 })).toBe('left');
+  });
+
+  it('retningsteksten avkortes', () => {
+    expect(lappFronter(['Kolsås'])).toBe('Kolsås');
+    const t = lappFronter(['Kolsås', 'Stortinget', 'Avløs']);
+    expect(t.length).toBeLessThanOrEqual(LAPP_TEGN);
+    expect(t.endsWith('…')).toBe(true);
+    expect(t).not.toMatch(/·…$/);
+  });
+});

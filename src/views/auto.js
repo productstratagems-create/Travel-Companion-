@@ -484,7 +484,7 @@ export function dirRows(dirs, desc, keep, local) {
  * The cut is made on the first call whose name matches yours, not on
  * position, because the board's own stop is the anchor we have.
  */
-export function stopsAhead(call, fromName, now) {
+export function stopsAhead(call, fromName, now, fraId = null) {
   const t0 = now == null ? Date.now() : now;
   const sjc = (call && call.serviceJourney && call.serviceJourney.estimatedCalls) || [];
   const norm = stopKey;   // was recipe C: the comma clause was missing
@@ -494,7 +494,9 @@ export function stopsAhead(call, fromName, now) {
   sjc.forEach(c => {
     const sp = c.quay && c.quay.stopPlace;
     const name = (sp && sp.name) || '';
-    if (!seen) { if (me && norm(name) === me) seen = true; return; }
+    // ID FØR NAVN (v1.218.68): «Mortensrud terminal» i kallet og «Mortensrud»
+    // på skjermen er samme stoppested; ID-en sier det, navnet bommer.
+    if (!seen) { if ((fraId && sp && sp.id === fraId) || (me && norm(name) === me)) seen = true; return; }
     const t = c.expectedArrivalTime || c.aimedArrivalTime;
     const ms = t ? new Date(t).getTime() : null;
     out.push({
@@ -2379,17 +2381,32 @@ export const EDDERKOPP_REST_OPASITET = 0.28;
 // v1.218.63: avgangen på lappen er den første du REKKER, med samme regel som
 // streken i lista (`catchable`). Rapportert: kartet sa «3 Kolsås 22:48» mens
 // lista strøk 22:48 og viste 23:03 — 12 min gange, 6 min igjen.
-export function edderkoppBein(dirs, stopName, now, foretrukket, walkMins = null, maks = EDDERKOPP_MAKS) {
+export function edderkoppBein(dirs, stopName, now, foretrukket, walkMins = null, maks = EDDERKOPP_MAKS, o = {}) {
+  // TELLEREN (v1.218.68): hvorfor en retning ikke ble et bein. Rapportert:
+  // lista hadde fire retninger, kartet ingen — og ingenting sa hvorfor.
+  const teller = o.teller || {};
+  const tell = k => { teller[k] = (teller[k] || 0) + 1; };
   const nøkkel = d => (d.frontText || '') + '\u0000' + ((d.lines && d.lines[0] && (d.lines[0].id || d.lines[0].code)) || '');
   const fFront = foretrukket ? String(foretrukket).trim().toLowerCase() : null;
   return (dirs || [])
     .filter(d => d && d.call && Number.isFinite(d.nextMs))
     .map(d => ({ d, rides: catchable(d, walkMins, now), først: !!fFront && (d.frontText || '').trim().toLowerCase() === fFront }))
-    .map(x => ({ ...x, ride: x.rides[0] }))
-    .filter(x => x.ride)
+    .filter(x => { if (!x.rides.length) tell('ingenAvgang'); return x.rides.length; })
+    .map(x => {
+      // NESTE AVGANG SOM HAR STOPPENE (v1.218.68): den første du rekker kan
+      // mangle koordinater; samme retning, samme strek, en senere tur.
+      let alle = [], fant = false;
+      for (const r of x.rides) {
+        const a = stopsAhead(r.call, stopName, now, o.stopId || null);
+        if (a.length) fant = true;
+        alle = a.filter(st => st.lat != null && st.lon != null);
+        if (alle.length >= 2) break;
+      }
+      if (alle.length < 2) tell(fant ? 'utenKoord' : 'ikkeFunnet');
+      return { ...x, ride: x.rides[0], alle };
+    })
     .sort((a, b) => (b.først - a.først) || (a.ride.ms - b.ride.ms))
-    .map(({ d, ride, rides }) => {
-      const alle = stopsAhead(ride.call, stopName, now).filter(s => s.lat != null && s.lon != null);
+    .map(({ d, ride, rides, alle }) => {
       const stopp = alle.slice(0, EDDERKOPP_STOPP);
       // RESTEN AV LINJA (v1.218.64), fra sjette stopp til endestoppet: tegnes
       // dusere. Starter PÅ sjette stopp, så de to strekene henger sammen.
@@ -2616,6 +2633,25 @@ function _tegnModiKnapper(modi) {
     try { storage.set(SKJULT_NØKKEL, JSON.stringify([...s])); } catch (_) {}
     _modiNøkkel = ''; _aKey = ''; _renderMap();
   }));
+}
+
+/**
+ * SI DET (v1.218.68): lista har retninger, kartet ingen bein. Stillhet leses
+ * som «ingenting går herfra». Én stille linje under kartet, og grunnen i
+ * loggen — den er det eneste vitnet fra telefonen.
+ */
+let _sistBeinMelding = '';
+export function manglendeBeinTekst(antallRetninger, antallBein) {
+  return antallRetninger > 0 && antallBein === 0 ? 'linjene herfra kan ikke tegnes nå' : '';
+}
+function _meldManglendeBein(sentrert, bein, teller) {
+  const el = _el('auto-map-bein-mangler');
+  const tekst = sentrert ? manglendeBeinTekst((_dirs || []).length, bein.length) : '';
+  if (el) { el.hidden = !tekst; el.textContent = tekst; }
+  if (!tekst) { _sistBeinMelding = ''; return; }
+  const m = 'edderkopp: ' + (_dirs || []).length + ' retninger → 0 bein (ikke funnet ' + (teller.ikkeFunnet || 0)
+    + ', uten koord ' + (teller.utenKoord || 0) + ', ingen avgang ' + (teller.ingenAvgang || 0) + ')';
+  if (m !== _sistBeinMelding) { _sistBeinMelding = m; logMsg(m, 'warn'); }
 }
 
 /** Knappene og kreditteringen på kartet, i kartets egne koordinater. */
@@ -2965,8 +3001,10 @@ function _renderMap() {
   // Beina tegnes bare i utgangskartet: med en åpen retning eller et kort er
   // kartet om DEN reisen, og fem streker til ville stjele den.
   const _gang = _stop ? gangTil(_stop) : null;
+  const _beinTeller = {};
   let bein = sentrert && _stop ? edderkoppBein(_dirs, _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null,
-    beinMaks(box.width, box.height)) : [];
+    beinMaks(box.width, box.height), { teller: _beinTeller, stopId: _stop.id || null }) : [];
+  _meldManglendeBein(sentrert, bein, _beinTeller);
   // AV/PÅ PER TRANSPORTMIDDEL (v1.218.67), fra beina før filteret.
   const _modi = kartModi(bein);
   _tegnModiKnapper(_modi);

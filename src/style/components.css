@@ -371,3 +371,9 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
 .reiselop .rl-reserve{margin:.2rem 0 .5rem 1.4rem;padding:.35rem .6rem;border-left:2px solid rgba(var(--border-rgb),.45);background:rgba(var(--border-rgb),.06);border-radius:0 6px 6px 0}
 .reiselop .rl-reserve-ingen{border-left-color:var(--warn)}
 .reiselop .rl-ryker-ingen{color:var(--warn)}
+
+/* Plattformene på kartet (v1.218.56): koden i en lapp; den avgangen går fra uthevet. */
+.quay-pin span{display:inline-block;transform:translate(-50%,-50%);min-width:18px;padding:1px 5px;border-radius:5px;
+  background:var(--surface-2,#1e293b);border:1px solid rgba(var(--border-rgb),.6);color:var(--text);font:600 11px/16px system-ui,sans-serif;text-align:center;white-space:nowrap}
+.quay-pin.aktiv span{background:var(--accent);border-color:var(--accent);color:#fff}
+.quay-skjult .quay-pin{display:none}

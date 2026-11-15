@@ -2389,8 +2389,46 @@ export function edderkoppBein(dirs, stopName, now, foretrukket) {
         linjeId: l.id || null, tekst: l.tekst || null, front: d.frontText, ms: d.nextMs, stopp };
     })
     .filter(b => b.stopp.length >= 2)
+    .reduce((acc, b) => slåSammenBein(acc, b), [])
     .slice(0, EDDERKOPP_MAKS);
 }
+
+/**
+ * ETT BEIN PER LINJE OG KORRIDOR (v1.218.62). «3 Stortinget», «3 Kolsås» og
+ * «3 Avløs» fulgte samme strek og sa det samme tre ganger. Samme linje og
+ * samme to første stopp er samme bein: det lengste tegnes, retningene samles,
+ * og den tidligste avgangen står. Motsatt retning har andre første stopp og
+ * forblir sitt eget. Ren; rekkefølgen fra kalleren beholdes.
+ */
+export function slåSammenBein(acc, b) {
+  const korridor = x => (x.linjeId || x.kode || '') + '|' + x.stopp.slice(0, 2).map(s => s.id || s.name).join('>');
+  const k = korridor(b);
+  const før = acc.find(x => korridor(x) === k);
+  if (!før) { acc.push({ ...b, fronter: [b.front] }); return acc; }
+  if (!før.fronter.includes(b.front)) før.fronter.push(b.front);
+  if (b.stopp.length > før.stopp.length) før.stopp = b.stopp;
+  if (b.ms < før.ms) { før.ms = b.ms; før.dir = b.dir; }
+  return acc;
+}
+
+/** Retningene på lappen, avkortet: plakaten har plass til et blikk, ikke en setning. Ren. */
+export const LAPP_TEGN = 14;
+export function lappFronter(fronter) {
+  const t = (fronter || []).join(' · ');
+  return t.length > LAPP_TEGN ? t.slice(0, LAPP_TEGN - 1).replace(/[\s·]+$/, '') + '…' : t;
+}
+
+/**
+ * Hvor lappen står: UTOVER, bort fra stoppet — i skjermpiksler, så kartets
+ * rotasjon og breddegrad ikke lurer den. Et bein nedover fikk lappen tilbake
+ * oppå seg selv og «du er ved». Ren.
+ */
+export function lappRetning(fra, til) {
+  const dx = til.x - fra.x, dy = til.y - fra.y;
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'right' : 'left';
+  return dy > 0 ? 'bottom' : 'top';
+}
+const _LAPP_FORSKYV = { top: [0, -6], bottom: [0, 6], left: [-6, 0], right: [6, 0] };
 
 /**
  * Stoppene som får merkelapp på kartet: der du er, og de RELEVANT_ANDRE
@@ -2740,15 +2778,24 @@ function _renderMap() {
   }
 
   // ── EDDERKOPPBEINA (v1.218.61) ──────────────────────────────────────
+  // v1.218.62: lappen er linjemerket og klokka, retningen liten under; satt
+  // utover; den første avgangen full styrke, resten dempet.
+  const førsteMs = bein.length ? Math.min(...bein.map(b => b.ms)) : null;
   bein.forEach(b => {
-    drawStopLine(_aLayer, [{ lat: _stop.lat, lon: _stop.lon }, ...b.stopp], { color: b.farge, mode: normMode(b.modus), dots: false });
+    const først = b.ms === førsteMs;
+    const g = L.layerGroup().addTo(_aLayer);
+    drawStopLine(g, [{ lat: _stop.lat, lon: _stop.lon }, ...b.stopp], { color: b.farge, mode: normMode(b.modus), dots: false });
+    if (!først) g.eachLayer(l => l.setStyle && l.setStyle({ opacity: 0.55 }));
     const e = b.stopp[b.stopp.length - 1];
-    const lapp = linjemerke({ kode: b.kode, farge: b.farge.replace(/^#/, ''), tekst: b.tekst, linjeId: b.linjeId, modus: b.modus, logo: false })
-      + ' ' + esc(b.front) + ' · ' + clk(b.ms);
-    L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'edderkopp-ende', html: '', iconSize: [10, 10] }), keyboard: false })
-      .bindTooltip(lapp, { className: lappKlasse + ' edderkopp-lapp', direction: 'top', offset: [0, -4], permanent: true, interactive: true })
+    const retning = lappRetning(_aMap.latLngToContainerPoint([_stop.lat, _stop.lon]), _aMap.latLngToContainerPoint([e.lat, e.lon]));
+    const lapp = '<span class="edd-topp">'
+      + linjemerke({ kode: b.kode, farge: b.farge.replace(/^#/, ''), tekst: b.tekst, linjeId: b.linjeId, modus: b.modus, logo: false })
+      + '<b class="edd-tid">' + clk(b.ms) + '</b></span><span class="edd-mot">' + esc(lappFronter(b.fronter)) + '</span>';
+    L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'edderkopp-ende', html: '', iconSize: [8, 8] }), keyboard: false })
+      .bindTooltip(lapp, { className: lappKlasse + ' edderkopp-lapp' + (først ? ' først' : ''), direction: retning,
+        offset: _LAPP_FORSKYV[retning], permanent: true, interactive: true })
       .on('click', () => { _open = b.dir; _renderBody(); })
-      .addTo(_aLayer);
+      .addTo(g);
   });
 
   // ── The line ahead, when one is open ──────────────────────────────────

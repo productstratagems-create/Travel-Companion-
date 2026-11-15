@@ -22,6 +22,7 @@ const ALL_KEYS = [
   // Which order the auto-reise list is drawn in. A display choice, but one
   // the reader made, so it travels with the profile like the rest.
   't.autoSort',
+  't.autoKartSkjult',   // v1.218.67: skjulte transportmidler i auto-reise-kartet
   // Om kartet i auto-reise er skjult (v1.218.4).
   't.autoKart',
   't.autoKartForm',

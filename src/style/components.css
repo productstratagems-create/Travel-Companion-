@@ -397,3 +397,7 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
   text-shadow:0 0 3px var(--bg),0 0 3px var(--bg),0 0 2px var(--bg)}
 .edderkopp-lapp .edd-mot{font-size:10px;color:var(--muted,var(--text));
   text-shadow:0 0 3px var(--bg),0 0 3px var(--bg),0 0 2px var(--bg)}
+/* Av/på per transportmiddel i auto-reise-kartet (v1.218.67): loddrett i venstre kant. */
+.auto-map-modi{display:flex;flex-direction:column;gap:4px;margin:8px 0 0 8px!important}
+.auto-map-modi[hidden]{display:none}
+.auto-map-modi .mode-pill{min-height:28px;padding:.2rem .55rem;font-size:9px;text-align:left}

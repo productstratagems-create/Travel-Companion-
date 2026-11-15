@@ -58,6 +58,7 @@ import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
 import L from 'leaflet';
 import { createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap } from '../ui/map.js';
+import { uthevAvgang } from '../ui/stasjonslag.js';
 import { storage } from '../storage.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
@@ -2594,6 +2595,9 @@ function _renderMap() {
     ensureApproach(!_lås && gangGjelder(fartNå(), state.walkFromLL !== null) ? userPos : null, _stop);
   }
   const walkPts = approachPoints();
+  // DIN PLATTFORM (v1.218.60): åpen retning vinner, så kortet — samme
+  // prioritet som kartets tema under.
+  uthevAvgang(_aMap, (_open || _kortRute || {}).call, _stop && _stop.id);
 
   // WHEN A DIRECTION IS OPEN THE MAP IS ABOUT THE LINE, NOT THE NEIGHBOURHOOD.
   // The list has moved on to the stops ahead; the alternatives it was offering

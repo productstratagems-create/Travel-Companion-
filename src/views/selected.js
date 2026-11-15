@@ -12,6 +12,7 @@ import { belegg, beleggTekst } from '../api/belegg.js';
 import { ensureApproach, approachPoints } from '../api/approach.js';
 import { _headingDeg } from '../ui/path.js';
 import { fetchJourneyMeta, fetchArrBoard } from '../api/entur.js';
+import { uthevAvgang } from '../ui/stasjonslag.js';
 import { quayLatLon, legShape, journeyPoints, _rowDest, påstigningTs, gåTilTekst } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
@@ -538,6 +539,8 @@ function _renderSelMap(dep, fromName, toName, now) {
   destroySelMap();
   _selMapKey = key;
   _selMap = createMap(mapEl, { expandable: true });
+  // DIN PLATTFORM (v1.218.60): avgangen du valgte, uthevet blant alle.
+  uthevAvgang(_selMap, dep, dir && dir.stopId);
   // PADDING IN PROPORTION TO THE BAND, not a number chosen for a bigger map.
   //
   // Both fits below asked for 40px. On a 130px map that is 62% of the height

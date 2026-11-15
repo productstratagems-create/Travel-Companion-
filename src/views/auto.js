@@ -2548,7 +2548,9 @@ export function lappPlass(stopp, passer, naturlig) {
 /** Siden med færrest bein ut fra stoppet — der lappen dekker minst. Ren. */
 export function stoppLappSide(stopPt, endePts, passer = () => true) {
   const tell = { top: 0, bottom: 0, right: 0, left: 0 };
-  (endePts || []).forEach(p => { tell[lappRetning(stopPt, p)]++; });
+  // Vekt (v1.218.66): beinet til den viktigste avgangen teller mer — der skal
+  // linjelappen stå, og holdeplasslappen vike.
+  (endePts || []).forEach(p => { tell[lappRetning(stopPt, p)] += (p.vekt || 1); });
   const sider = ['top', 'bottom', 'right', 'left'];
   const kandidater = sider.filter(passer);
   return (kandidater.length ? kandidater : sider).reduce((best, r) => (tell[r] < tell[best] ? r : best));
@@ -2932,7 +2934,7 @@ function _renderMap() {
           // Bort fra beina og gangruta, og lenger ut når stasjonsdetaljene vises.
           const z = _aMap.getZoom();
           const sp = _aMap.latLngToContainerPoint([_stop.lat, _stop.lon]);
-          const ender = bein.map(b => { const e = b.stopp[0]; return _aMap.latLngToContainerPoint([e.lat, e.lon]); })
+          const ender = bein.map((b, i) => { const e = b.stopp[0]; const p = _aMap.latLngToContainerPoint([e.lat, e.lon]); return { x: p.x, y: p.y, vekt: i === 0 ? 3 : 1 }; })
             .concat(userPos ? [_aMap.latLngToContainerPoint([userPos.lat, userPos.lon])] : []);
           // Siden med færrest bein, men bare om lappen (anslått 150×20) får plass der.
           const bx = el.getBoundingClientRect(), hindre = _kartHindre(el, bx);

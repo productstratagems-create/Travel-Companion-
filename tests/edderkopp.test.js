@@ -212,3 +212,11 @@ describe('lappen prøver alle sider før den gir opp (v1.218.66)', () => {
     expect(stoppLappSide({ x: 200, y: 200 }, [{ x: 200, y: 50 }, { x: 200, y: 350 }, { x: 50, y: 200 }], r => r !== 'right')).toBe('top');
   });
 });
+
+describe('holdeplasslappen viker for den viktigste linja (v1.218.66)', () => {
+  it('beinet med vekt får siden for seg selv', () => {
+    const o = { x: 200, y: 200 };
+    expect(stoppLappSide(o, [{ x: 200, y: 50 }, { x: 200, y: 350, vekt: 3 }, { x: 50, y: 200 }], r => r !== 'right')).toBe('top');
+    expect(stoppLappSide(o, [{ x: 200, y: 50, vekt: 3 }, { x: 200, y: 350 }, { x: 50, y: 200 }], r => r !== 'right')).toBe('bottom');
+  });
+});

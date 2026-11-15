@@ -1,3 +1,4 @@
+import { erHelgLik } from '../dagtype.js';
 import { linjemerke } from '../ui/linjemerke.js';
 import config from '../config.js';
 import { erInnstilt } from '../innstilt.js';
@@ -3153,7 +3154,8 @@ export function renderBoard() {
       const _center = ['jernbanetorget', 'nationaltheatret', 'stortinget'];
       const _toCity = _center.some(s => dir.to.toLowerCase().includes(s));
       const _fromCity = _center.some(s => dir.from.toLowerCase().includes(s));
-      if (_dow >= 1 && _dow <= 5) {
+      // Rushtid bare på hverdager som er hverdager (ikke 17. mai) — dagtype.js.
+      if (_dow >= 1 && _dow <= 5 && !erHelgLik(_d.getTime())) {
         if (_h >= 7 && _h <= 9) {
           if (_toCity)   score += 2;   // AM peak toward city → packed
           if (_fromCity) score -= 1;   // AM away from city → light

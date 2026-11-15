@@ -14,6 +14,7 @@
  *
  * Ren: rangering og svar sendes inn, så regelen prøves uten lager og DOM.
  */
+import { erHelgLik } from './dagtype.js';
 import { VANE_MIN_TURER } from './api/smart.js';
 import { metresBetween } from './haversine.js';
 
@@ -64,7 +65,7 @@ export function nesteReise(o) {
     const at = nå + h * 3600_000;
     const d = new Date(at);
     const bucket = Math.floor(d.getHours() / 2);
-    const helg = d.getDay() === 0 || d.getDay() === 6;
+    const helg = erHelgLik(at);
     const kand = (rangering(at) || [])
       // Rett tidsbøtte og rett slags dag — et nabotidsrom er ikke «da».
       .filter(r => r && r.toName && r.diff === 0 && r.ukedag)

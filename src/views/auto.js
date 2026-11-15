@@ -52,7 +52,7 @@ import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
 import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
-import { stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
+import { kontekstNå, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
@@ -2057,7 +2057,7 @@ function _renderNeste(nå) {
   // PROFILEN FØRST (v1.218.29): hjem/jobb/sentrum for døgndelen du er i.
   // Uten noe der: vanen per mål, som før.
   const { p: prof, m: matr } = _profilNå();
-  const h = hypoteseNå(prof, matr, nå, _herSom()) || nesteReise({ nå, her: userLL(), rangering: at => destRanking(at), svar: nesteSvarFor });
+  const h = kontekstNå(nå, _herSom(), prof, matr).neste || nesteReise({ nå, her: userLL(), rangering: at => destRanking(at), svar: nesteSvarFor });
   const nøkkel = h ? h.toName + '|' + h.bucket + '|' + h.helg : null;
   // Samme gangtid som lista bruker til «rekker du den?».
   const w = _stop ? gangTil(_stop) : null;
@@ -4261,7 +4261,12 @@ export function destinations(live, freq, walkMins, now, fromName, trail, modell)
     // tid og dagtype blandet med det vanlige mønsteret. Bevegelsen går foran.
     .map((x, _, alle) => {
       if (!modell) return x;
-      if (!alle._r) alle._r = new Map(rangerMål(alle, { nå: now, her: modell.her, hist: modell.hist }).map(r => [r.kort.name, r]));
+      if (!alle._r) {
+        // Samme kontekst som «din vanlige reise» (v1.218.54).
+        const { p: pr, m: ma } = _profilNå();
+        const kx = kontekstNå(now, _herSom(), pr, ma);
+        alle._r = new Map(rangerMål(alle, { nå: now, her: modell.her, hist: modell.hist, profil: kx.profilMål }).map(r => [r.kort.name, r]));
+      }
       const r = alle._r.get(x.name);
       return { ...x, p: r ? r.p : 0, eget: r ? r.eget : 0, grunn: x.retning === 'mot' ? 'på vei dit' : (r ? r.grunn : '') };
     })

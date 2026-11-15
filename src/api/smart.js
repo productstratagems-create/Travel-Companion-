@@ -1,3 +1,4 @@
+import { erHelgLik } from '../dagtype.js';
 import { storage } from '../storage.js';
 import { MEMORY_DAYS, logEvent } from './eventLog.js';
 import { eldes } from '../vane.js';
@@ -37,7 +38,7 @@ export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon, fromSt
   if (testPosPå()) return;
   const now = new Date();
   const bucket = Math.floor(now.getHours() / 2); // 2-hour slots, 0-11
-  const isWeekend = now.getDay() === 0 || now.getDay() === 6;
+  const isWeekend = erHelgLik(now.getTime());
   const hist = _load();
   const key = toName.toLowerCase() + '|' + bucket + '|' + (isWeekend ? 'we' : 'wd');
   const idx = hist.findIndex(e => e.key === key);
@@ -229,7 +230,7 @@ export function loadSmartHist() {
 export function destRanking(at) {
   const now = at == null ? new Date() : new Date(at);
   const bucket = Math.floor(now.getHours() / 2);
-  const isWeekend = now.getDay() === 0 || now.getDay() === 6;
+  const isWeekend = erHelgLik(now.getTime());
   const best = new Map();
   /* TREFFTALLET, SOM BLE REGNET UT OG KASTET.
    *

@@ -3,6 +3,7 @@ import { corridorStyle } from './korridor.js';
 import { addCompass } from './mapCompass.js';
 import { onThemeChange, tokens } from './themeTokens.js';
 import { makeRouteStopIcon, makeJourneyPointIcon } from './mapIcons.js';
+import { festStasjonslag } from './stasjonslag.js';
 
 /**
  * One place that owns basemap tiles, map init options and the live-map
@@ -125,7 +126,8 @@ export function createMap(el, opts = {}) {
     maxZoom: 20,
   });
   const tiles = tileLayer().addTo(map);
-  if (opts.spor !== false) sporLag().addTo(map);
+  // Spor, plattformer og innganger på alle stasjoner, på alle kart (v1.218.59).
+  if (opts.spor !== false) { sporLag().addTo(map); festStasjonslag(map, SPOR_ZOOM); }
   // Bottom-right on every map: thumb reach on a phone, and out of the way of
   // the expand button and filter pills that live top-left/top-right.
   if (zoom) L.control.zoom({ position: 'bottomright' }).addTo(map);

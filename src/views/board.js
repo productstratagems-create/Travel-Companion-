@@ -99,6 +99,7 @@ export function ankomstHtml(arrT, now, o) {
 import { decodePolyline } from '../ui/polyline.js';
 import { ensureApproach, approachPoints, approachKey, resetApproach } from '../api/approach.js';
 import { innganger, hentInnganger, valgtInngang } from '../api/innganger.js';
+import { settStasjonAktiv } from '../ui/stasjonslag.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
 import { isExample } from '../firstRun.js';
@@ -371,8 +372,6 @@ export function filterByModes(list, activeModes) {
 let _bMap = null;
 const _bInfoBedt = new Set();  // id-er vi har spurt om linjer for; fetchStoppLinjer husker svaret
 let _bLayer = null;
-let _bQuayLayer = null;
-let _bQuayKey = null;
 /** Fra dette zoomnivået vises plattformene på kartet (v1.218.56). */
 export const PLATTFORM_ZOOM = SPOR_ZOOM;
 
@@ -385,31 +384,14 @@ export function plattformMarkører(liste, aktivKode) {
     aktiv: !!aktivKode && q.kode === String(aktivKode) }));
 }
 
+// PLATTFORMER OG INNGANGER tegnes nå av stasjonslaget, som alle kart har
+// (v1.218.59, src/ui/stasjonslag.js). Tavla sier bare hva som er DITT: stoppet,
+// plattformen den første avgangen går fra, og inngangen ruten går gjennom.
 function _tegnPlattformer(dir, aktivKode, inngang) {
-  if (!_bQuayLayer || !dir || !dir.stopId) return;
-  const liste = plattformer(dir.stopId);
-  if (liste === undefined) { hentPlattformer(dir.stopId).then(() => { _bQuayKey = null; }); return; }
-  const dører = innganger(dir.stopId) || [];
-  const key = dir.stopId + '|' + (aktivKode || '') + '|' + (liste ? liste.length : 0)
-    + '|' + dører.length + '|' + (inngang ? inngang.id : '');
-  if (key === _bQuayKey) return;
-  _bQuayKey = key;
-  _bQuayLayer.clearLayers();
-  plattformMarkører(liste, aktivKode).forEach(m => {
-    L.marker([m.lat, m.lon], { icon: L.divIcon({ className: 'quay-pin' + (m.aktiv ? ' aktiv' : ''),
-      html: '<span>' + esc(m.kode) + '</span>', iconSize: null }), zIndexOffset: m.aktiv ? 500 : 0 })
-      .bindTooltip(m.tekst + (m.aktiv ? ' · din avgang' : ''), { className: 'map-label', direction: 'top', offset: [0, -10] })
-      .addTo(_bQuayLayer);
-  });
-  // INNGANGENE (v1.218.57), fra OSM. Den gangruten går gjennom utheves.
-  dører.forEach(e => {
-    const aktiv = !!inngang && e.id === inngang.id;
-    const navn = 'Inngang' + (e.ref ? ' ' + e.ref : '') + (e.navn ? ' · ' + e.navn : '') + (e.trinnfri ? ' · trinnfri' : '');
-    L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'inngang-pin' + (aktiv ? ' aktiv' : ''),
-      html: '<span>' + (e.ref ? esc(e.ref) : '⇥') + '</span>', iconSize: null }), zIndexOffset: aktiv ? 400 : 0 })
-      .bindTooltip(navn + (aktiv ? ' · din vei inn' : ''), { className: 'map-label', direction: 'top', offset: [0, -10] })
-      .addTo(_bQuayLayer);
-  });
+  if (!_bMap || !dir || !dir.stopId) return;
+  const aktiv = { stopId: dir.stopId, kode: aktivKode || null, inngangId: inngang ? inngang.id : null };
+  if (plattformer(dir.stopId) === undefined) hentPlattformer(dir.stopId).then(() => settStasjonAktiv(_bMap, aktiv));
+  settStasjonAktiv(_bMap, aktiv);
 }
 let _bUserMoved = false;
 let _bFitted = false;
@@ -596,11 +578,8 @@ function _ensureMap(pos) {
   _bMap = createMap(mapEl, { expandable: true });
   _bMap.on('dragstart', () => { _bUserMoved = true; });
   _bLayer = L.layerGroup().addTo(_bMap);
-  // PLATTFORMENE (v1.218.56) i eget lag, synlige først når du har zoomet inn
-  // på stasjonen — på bydelsnivå er de støy.
-  _bQuayLayer = L.layerGroup().addTo(_bMap);
-  const vis = () => mapEl.classList.toggle('quay-skjult', _bMap.getZoom() < PLATTFORM_ZOOM);
-  _bMap.on('zoomend', vis); setTimeout(vis, 0);
+  // PLATTFORMENE (v1.218.56) synes først når du har zoomet inn — nå styrt av
+  // stasjonslaget fra createMap (v1.218.59), samme terskel på alle kart.
   // Oslo S only when the app knows nothing — geoFocus says what it does know.
   const c = pos || geoFocus();
   _bMap.setView([c.lat, c.lon], 14);
@@ -2905,7 +2884,7 @@ export function renderBoard() {
     const fraLL = isWalkActive(dir) ? (state.walkFromLL || state.homeLL) : null;
     // INNGANGEN (v1.218.57): har OSM innganger, går ruten til den som gir
     // kortest vei fra deg og videre til plattformen. Uten svar: som før.
-    if (dir.stopId && midt && innganger(dir.stopId) === undefined) hentInnganger(dir.stopId, midt).then(() => { _bQuayKey = null; });
+    if (dir.stopId && midt && innganger(dir.stopId) === undefined) hentInnganger(dir.stopId, midt).then(() => { if (_bMap) settStasjonAktiv(_bMap, _bMap._stasjonslag && _bMap._stasjonslag.aktiv); });
     const inngang = valgtInngang(dir.stopId ? innganger(dir.stopId) : null, fraLL, stopLL);
     _ensureApproach(fraLL, inngang ? { lat: inngang.lat, lon: inngang.lon } : stopLL);
     renderBoardMap(pos, modes);

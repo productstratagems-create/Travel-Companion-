@@ -55,3 +55,51 @@ export function plattformMedKode(liste, kode) {
 
 /** Bare for tester. */
 export function _nullstillPlattformer() { _cache.clear(); }
+
+/**
+ * ALLE STASJONER I UTSNITTET (v1.218.59). «Samme detaljnivå på alle stasjoner
+ * på alle kart»: ett oppslag per rute på ~1 km (RUTE_GRAD), uansett hvor
+ * mange stopp det er i den. Bærer quays på samme form som over.
+ * PROBE: `stopPlacesByBbox` kan ikke prøves mot Entur herfra.
+ */
+export const RUTE_GRAD = 0.01;
+const _ruter = new Map();   // rutenøkkel → Array | Promise | null
+
+/** Rutene (snappet til RUTE_GRAD) som dekker en boks. Ren. */
+export function ruterFor(b) {
+  const r = v => Math.floor(v / RUTE_GRAD);
+  const ut = [];
+  for (let la = r(b.sør); la <= r(b.nord); la++)
+    for (let lo = r(b.vest); lo <= r(b.øst); lo++) ut.push(la + ',' + lo);
+  return ut;
+}
+
+/** Svaret for en rute, gjort om til plattformer (med stopId). Ren. */
+export function plattformerFraBoksSvar(j) {
+  const sps = (j && j.data && j.data.stopPlacesByBbox) || [];
+  return sps.flatMap(sp => plattformerFraSvar({ data: { stopPlace: sp } }).map(q => ({ ...q, stopId: sp.id })));
+}
+
+export function plattformerIRute(nøkkel) {
+  const v = _ruter.get(nøkkel);
+  return Array.isArray(v) ? v : null;
+}
+
+export function hentRute(nøkkel) {
+  if (_ruter.has(nøkkel)) return Promise.resolve(_ruter.get(nøkkel));
+  const [la, lo] = nøkkel.split(',').map(Number);
+  const s = la * RUTE_GRAD, v = lo * RUTE_GRAD;
+  const q = '{stopPlacesByBbox(minimumLatitude:' + s.toFixed(4) + ',minimumLongitude:' + v.toFixed(4)
+    + ',maximumLatitude:' + (s + RUTE_GRAD).toFixed(4) + ',maximumLongitude:' + (v + RUTE_GRAD).toFixed(4)
+    + '){id quays{id publicCode latitude longitude lines{transportMode}}}}';
+  const p = enturFetch(config.api.journeyPlanner, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }),
+  })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(j => { const l = plattformerFraBoksSvar(j); _ruter.set(nøkkel, l); return l; })
+    .catch(() => { _ruter.set(nøkkel, null); return null; });
+  _ruter.set(nøkkel, p);
+  return p;
+}
+
+export function _nullstillRuter() { _ruter.clear(); }

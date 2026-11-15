@@ -2374,19 +2374,23 @@ export const EDDERKOPP_MAKS = 5;
 export const EDDERKOPP_STOPP = 6;
 
 /** Beina: én per retning, den foretrukne først, så etter neste avgang. Ren. */
-export function edderkoppBein(dirs, stopName, now, foretrukket) {
+// v1.218.63: avgangen på lappen er den første du REKKER, med samme regel som
+// streken i lista (`catchable`). Rapportert: kartet sa «3 Kolsås 22:48» mens
+// lista strøk 22:48 og viste 23:03 — 12 min gange, 6 min igjen.
+export function edderkoppBein(dirs, stopName, now, foretrukket, walkMins = null) {
   const nøkkel = d => (d.frontText || '') + '\u0000' + ((d.lines && d.lines[0] && (d.lines[0].id || d.lines[0].code)) || '');
   const fFront = foretrukket ? String(foretrukket).trim().toLowerCase() : null;
   return (dirs || [])
     .filter(d => d && d.call && Number.isFinite(d.nextMs))
-    .map(d => ({ d, først: !!fFront && (d.frontText || '').trim().toLowerCase() === fFront }))
-    .sort((a, b) => (b.først - a.først) || (a.d.nextMs - b.d.nextMs))
-    .map(({ d }) => {
-      const stopp = stopsAhead(d.call, stopName, now).filter(s => s.lat != null && s.lon != null).slice(0, EDDERKOPP_STOPP);
+    .map(d => ({ d, ride: catchable(d, walkMins, now)[0], først: !!fFront && (d.frontText || '').trim().toLowerCase() === fFront }))
+    .filter(x => x.ride)
+    .sort((a, b) => (b.først - a.først) || (a.ride.ms - b.ride.ms))
+    .map(({ d, ride }) => {
+      const stopp = stopsAhead(ride.call, stopName, now).filter(s => s.lat != null && s.lon != null).slice(0, EDDERKOPP_STOPP);
       const l = (d.lines && d.lines[0]) || {};
       const { color, mode } = openLine(d);
       return { key: nøkkel(d), dir: d, farge: color, modus: mode || l.mode || null, kode: l.code || null,
-        linjeId: l.id || null, tekst: l.tekst || null, front: d.frontText, ms: d.nextMs, stopp };
+        linjeId: l.id || null, tekst: l.tekst || null, front: d.frontText, ms: ride.ms, stopp };
     })
     .filter(b => b.stopp.length >= 2)
     .reduce((acc, b) => slåSammenBein(acc, b), [])
@@ -2702,7 +2706,9 @@ function _renderMap() {
     + '|k' + (kortLinje ? (_kortRute.id || _kortRute.navn) + ':' + kortLinje.length : '-')
     + '|z' + (_aMap.getZoom ? Math.round(_aMap.getZoom() * 2) / 2 : 0)
     // Beina endres når en avgang går, ikke hvert sekund (ro).
-    + '|e' + (!line && !kortLinje ? (_dirs || []).map(d => d.nextMs).join(',') : '-');
+    + '|e' + (!line && !kortLinje ? (_dirs || []).map(d => d.nextMs).join(',')
+      // og når en avgang glipper fra rekkevidde: minuttet, bare når nettet vises
+      + '|' + Math.floor(Date.now() / 60000) : '-');
   // Redraw when the content changed; re-fit when the content OR the frame
   // changed. Returning early on content alone is what let the bad first fit
   // survive for the life of the screen.
@@ -2753,7 +2759,8 @@ function _renderMap() {
   // (formFraGeometri) er koblet fra her; begge står igjen, foldet.
   // Beina tegnes bare i utgangskartet: med en åpen retning eller et kort er
   // kartet om DEN reisen, og fem streker til ville stjele den.
-  const bein = sentrert && _stop ? edderkoppBein(_dirs, _stop.name, Date.now(), _kortRute && _kortRute.navn) : [];
+  const _gang = _stop ? gangTil(_stop) : null;
+  const bein = sentrert && _stop ? edderkoppBein(_dirs, _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null) : [];
   const rammePts = sentrert
     ? [userPos, _stop, ...others].filter(s => s && s.lat != null).map(s => [s.lat, s.lon])
       .concat(bein.map(b => { const e = b.stopp[b.stopp.length - 1]; return [e.lat, e.lon]; }))

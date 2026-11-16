@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import L from 'leaflet';
-import { somRad, sorterKnapper, REKKEFØLGE, festVerktøy, leggTil, sett, leggTilLag } from '../src/ui/kartVerktoy.js';
+import { gruppeFor, somRad, sorterKnapper, REKKEFØLGE, festVerktøy, leggTil, sett, leggTilLag } from '../src/ui/kartVerktoy.js';
 
 const nyttKart = () => {
   const el = document.createElement('div');
@@ -89,5 +89,19 @@ describe('underveis: ✕ lukker kartet som stripen gjør (v1.218.74)', () => {
   it('lukking via knappen går gjennom samme bryter som stripen', async () => {
     const s = (await import('node:fs')).readFileSync('src/views/track.js', 'utf8');
     expect(s).toMatch(/if \(!open && _tMapOpen\) window\._toggleTrackMap\(\);/);
+  });
+});
+
+describe('L-en: raden ved siden av − (v1.218.76)', () => {
+  it('◎, hele og lag på rad; resten i søylen', () => {
+    ['fokus', 'hele', 'lag'].forEach(id => expect(gruppeFor(id)).toBe('rad'));
+    ['kompass', 'fullskjerm', 'inn', 'ut'].forEach(id => expect(gruppeFor(id)).toBe('søyle'));
+  });
+  it('knappene havner i hver sin gruppe', () => {
+    const map = nyttKart();
+    ['ut', 'inn', 'fullskjerm', 'lag', 'fokus'].forEach(id => leggTil(map, id, { ikon: id }));
+    const v = festVerktøy(map);
+    expect([...v.el.querySelectorAll('.kv-rad-gruppe .kv-knapp')].map(b => b.dataset.kv)).toEqual(['fokus', 'lag']);
+    expect([...v.el.querySelectorAll('.kv-søyle-gruppe .kv-knapp')].map(b => b.dataset.kv)).toEqual(['fullskjerm', 'inn', 'ut']);
   });
 });

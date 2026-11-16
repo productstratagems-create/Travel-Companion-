@@ -14,6 +14,14 @@ import { lastHånd, verktøyHjørne, skalaHjørne, HÅND_HENDELSE } from '../haa
 
 export const REKKEFØLGE = { fokus: 10, hele: 15, lag: 20, kompass: 30, fullskjerm: 40, inn: 50, ut: 60 };
 
+/**
+ * L-EN I HJØRNET (v1.218.76). Bestilt med skjermbilde: ◎ og lag flyttet ned
+ * på rad ved siden av −. Søylen helt ut (kompass, fullskjerm, +, −); raden
+ * nederst innenfor (utsnitt og filter). Venstrehendt speiler.
+ */
+export const GRUPPE = { fokus: 'rad', hele: 'rad', lag: 'rad', kompass: 'søyle', fullskjerm: 'søyle', inn: 'søyle', ut: 'søyle' };
+export function gruppeFor(id) { return GRUPPE[id] === 'rad' ? 'rad' : 'søyle'; }
+
 /** Knappene i rekkefølge. Ukjente id-er sist. Ren. */
 export function sorterKnapper(ider) {
   const r = id => (id in REKKEFØLGE ? REKKEFØLGE[id] : 99);
@@ -43,6 +51,8 @@ export function festVerktøy(map) {
   if (map._verktøy) return map._verktøy;
   const C = L.Control.extend({ onAdd() {
     const d = L.DomUtil.create('div', 'kart-verktøy');
+    L.DomUtil.create('div', 'kv-rad-gruppe', d);
+    L.DomUtil.create('div', 'kv-søyle-gruppe', d);
     L.DomEvent.disableClickPropagation(d);
     L.DomEvent.disableScrollPropagation(d);
     return d;
@@ -69,13 +79,15 @@ export function somRad(antallSynlige, kartHøyde) {
 export function tilpassForm(map) {
   const v = map && map._verktøy;
   if (!v || !map.getSize) return;
-  const n = [...v.knapper.values()].filter(b => !b.hidden).length;
+  // Høyden avgjøres av søylen; raden ligger ved siden av (v1.218.76).
+  const n = [...v.knapper.entries()].filter(([id, b]) => !b.hidden && gruppeFor(id) === 'søyle').length;
   v.el.classList.toggle('kv-rad', somRad(n, map.getSize().y));
   v.el.style.setProperty('--kv-kart-h', map.getSize().y + 'px');
 }
 
 function _ordne(v) {
-  sorterKnapper(v.knapper.keys()).forEach(id => v.el.appendChild(v.knapper.get(id)));
+  const rad = v.el.querySelector('.kv-rad-gruppe'), søyle = v.el.querySelector('.kv-søyle-gruppe');
+  sorterKnapper(v.knapper.keys()).forEach(id => (gruppeFor(id) === 'rad' ? rad : søyle).appendChild(v.knapper.get(id)));
   if (v.panel) v.el.appendChild(v.panel);
 }
 

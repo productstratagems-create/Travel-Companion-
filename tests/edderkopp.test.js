@@ -299,3 +299,23 @@ describe('utgangsrammen: den nære delen av linjene (v1.218.80)', () => {
     expect(s).not.toMatch(/bein\.map\(b => \{ const e = b\.stopp\[b\.stopp\.length - 1\]; return \[e\.lat, e\.lon\]; \}\)\)\n    : pts/);
   });
 });
+
+import { beinStart } from '../src/views/auto.js';
+describe('beina starter ved sitt spor (v1.218.81)', () => {
+  const stopp = { lat: 59.8493, lon: 10.8297 };
+  const pl = [{ kode: '1', lat: 59.8491, lon: 10.8294 }, { kode: '2', lat: 59.8495, lon: 10.8299 }, { kode: 'B', lat: 59.8487, lon: 10.8306 }];
+  it('ved plattformen avgangen går fra', () => {
+    expect(beinStart({ spor: '2' }, pl, stopp)).toEqual({ lat: 59.8495, lon: 10.8299 });
+    expect(beinStart({ spor: 'B' }, pl, stopp)).toEqual({ lat: 59.8487, lon: 10.8306 });
+  });
+  it('ukjent spor eller ingen plattformer: stoppets midtpunkt', () => {
+    expect(beinStart({ spor: 'Z' }, pl, stopp)).toEqual(stopp);
+    expect(beinStart({ spor: null }, pl, stopp)).toEqual(stopp);
+    expect(beinStart({ spor: '1' }, [], stopp)).toEqual(stopp);
+  });
+  it('edderkoppBein bærer sporet', () => {
+    const d = retning('Kolsås', '3', 4, 8);
+    d.calls[0].call.quay = { publicCode: '1' };
+    expect(edderkoppBein([d], 'Mortensrud', NÅ)[0].spor).toBe('1');
+  });
+});

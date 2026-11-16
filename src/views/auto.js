@@ -2462,6 +2462,8 @@ export function edderkoppBein(dirs, stopName, now, foretrukket, walkMins = null,
       const { color, mode } = openLine(d);
       return { key: nøkkel(d), dir: d, farge: color, modus: mode || l.mode || null, kode: l.code || null,
         linjeId: l.id || null, tekst: l.tekst || null, front: d.frontText, ms: ride.ms, stopp,
+        // Sporet avgangen går fra (v1.218.81): beinet starter der.
+        spor: (ride.call && ride.call.quay && ride.call.quay.publicCode) || null,
         // De neste du rekker, til lappens høyeste nivå (v1.218.65).
         tider: rides.slice(0, 3).map(r => r.ms),
         rester: rest.length >= 2 ? [rest] : [] };
@@ -2931,6 +2933,17 @@ export function kartFormValgt() { try { const v = storage.get(FORM_KEY); return 
  * Gatenavn og E6 for sammenheng. Rammen zoomer aldri nærmere; lenger ut bare
  * når stoppene ellers ikke får plass. Var 17: tett ved holdeplassene ble det
  * få gater og ingen sammenheng (Lysaker 16, Bislett og Nydalen 15). */
+/**
+ * HVOR BEINET STARTER (v1.218.81). Rapportert med skjermbilde: «Linjene må gå
+ * ut fra sine respektive plattformer og spor.» Alle beina startet i stoppets
+ * midtpunkt. Nå starter hvert ved plattformen avgangen går fra, når den er
+ * kjent; ellers i midtpunktet som før. Ren.
+ */
+export function beinStart(b, plattformListe, stopp) {
+  const p = b && b.spor ? (plattformListe || []).find(q => q.kode === String(b.spor)) : null;
+  return p ? { lat: p.lat, lon: p.lon } : { lat: stopp.lat, lon: stopp.lon };
+}
+
 /** Hvor mye av hver linje utgangsrammen tar med (v1.218.80). */
 export const UTGANG_BEIN_STOPP = 2;
 /** Punktene av beina utgangsrammen tar med: de første stoppene, ikke enden. Ren. */
@@ -3116,7 +3129,9 @@ function _renderMap() {
     // Beina endres når en avgang går, ikke hvert sekund (ro).
     + '|e' + (!line && !kortLinje ? (_dirs || []).map(d => d.nextMs).join(',')
       // og når en avgang glipper fra rekkevidde: minuttet, bare når nettet vises
-      + '|' + Math.floor(Date.now() / 60000) + '|s' + [..._skjulteModi()].join() : '-');
+      + '|' + Math.floor(Date.now() / 60000) + '|s' + [..._skjulteModi()].join()
+      // Når plattformene kommer, starter beina ved sporene sine (v1.218.81).
+      + '|p' + (_stop && Array.isArray(_plattformer(_stop.id)) ? _plattformer(_stop.id).length : '-') : '-');
   // Redraw when the content changed; re-fit when the content OR the frame
   // changed. Returning early on content alone is what let the bad first fit
   // survive for the life of the screen.
@@ -3242,7 +3257,8 @@ function _renderMap() {
   bein.forEach((b, bi) => {
     const først = b.ms === førsteMs;
     const g = L.layerGroup().addTo(_aLayer);
-    drawStopLine(g, [{ lat: _stop.lat, lon: _stop.lon }, ...b.stopp], { color: b.farge, mode: normMode(b.modus), dots: false });
+    const _pl = _plattformer(_stop.id);
+    drawStopLine(g, [beinStart(b, Array.isArray(_pl) ? _pl : [], _stop), ...b.stopp], { color: b.farge, mode: normMode(b.modus), dots: false });
     if (!først) g.eachLayer(l => l.setStyle && l.setStyle({ opacity: 0.55 }));
     // HELE LAPPEN INNENFOR, i piksler: lappen står på den siden beinet går,
     // og er så bred som nivået sier. En marg i prosent var smalere enn lappen.

@@ -4,6 +4,7 @@ import { addCompass } from './mapCompass.js';
 import { onThemeChange, tokens } from './themeTokens.js';
 import { makeRouteStopIcon, makeJourneyPointIcon } from './mapIcons.js';
 import { festStasjonslag } from './stasjonslag.js';
+import { leggTil } from './kartVerktoy.js';
 
 /**
  * One place that owns basemap tiles, map init options and the live-map
@@ -130,7 +131,12 @@ export function createMap(el, opts = {}) {
   if (opts.spor !== false) { sporLag().addTo(map); festStasjonslag(map, SPOR_ZOOM); }
   // Bottom-right on every map: thumb reach on a phone, and out of the way of
   // the expand button and filter pills that live top-left/top-right.
-  if (zoom) L.control.zoom({ position: 'bottomright' }).addTo(map);
+  // + OG − I VERKTØYSØYLEN (v1.218.72), ikke Leaflets egen søyle: samme
+  // firkanter som resten, i samme hjørne.
+  if (zoom) {
+    leggTil(map, 'inn', { ikon: '+', tekst: 'Zoom inn', påTrykk: () => map.zoomIn() });
+    leggTil(map, 'ut', { ikon: '\u2212', tekst: 'Zoom ut', påTrykk: () => map.zoomOut() });
+  }
   if (scale) L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(map);
   if (compass) addCompass(map, el);
   map.attributionControl.setPrefix('');
@@ -236,6 +242,8 @@ export function fitExpandedMap(el, open) {
 
 export function bindMapExpand(map, el, btn, opts = {}) {
   if (!el || !btn) return;
+  // Inn i verktøysøylen nede til høyre (v1.218.72); samme knapp, samme id.
+  if (map && map.getContainer) leggTil(map, 'fullskjerm', { element: btn });
   // `syklus` (v1.218.5): et kart kan ha flere former før fullskjerm, f.eks.
   // ['kvadrat','bred','full']. Uten den er det to steg som før. Fullskjerm er
   // fortsatt ÉN definisjon: `expanded` + `map-open`, her og ingen andre steder.

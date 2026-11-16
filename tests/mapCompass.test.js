@@ -1,78 +1,42 @@
 /**
  * Kompasset hører til kartet sitt.
  *
- * Rapportert med skjermbilde: på auto-reise lå kompasset oppe i
- * overskriften, oppå ⋮, langt utenfor kartet det gjelder.
- *
- * `.map-compass` er `position:absolute` og plasseres i forhold til sin
- * nærmeste POSISJONERTE forelder. De fleste kartomslag er `.map-wrap`, som
- * setter `position:relative`. auto-reises er en `.set-section`, som ikke
- * gjør det — så kompasset klatret forbi den til neste posisjonerte
- * forelder, `.screen-header-solo`, og havnet i overskriften.
- *
- * Å rette det ene omslaget ville latt neste kart finne feilen på nytt. Det
- * er `addCompass` som plasserer knappen, så det er `addCompass` som
- * garanterer forutsetningen den plasserer den under.
+ * Først (rapportert): kompasset klatret ut av et upositionert omslag og havnet
+ * i overskriften. Nå (v1.218.72) er det ingen absolutt posisjonering å klatre
+ * med: kompasset er en knapp i verktøysøylen inne i kartet, nede til høyre,
+ * vist bare når kartet er rotert. Testene er skrevet om med vilje.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('../src/ui/leafletGlobal.js', () => ({}));
 vi.mock('leaflet-rotate', () => ({}));
+const lagt = [], satt = [];
+vi.mock('../src/ui/kartVerktoy.js', () => ({
+  leggTil: (m, id, o) => { lagt.push(id); const b = document.createElement('button'); b.innerHTML = o.ikon || ''; b.onclick = o.påTrykk; return b; },
+  sett: (m, id, o) => { satt.push([id, o]); },
+}));
 
-const fakeMap = () => ({
-  getBearing: () => 0,
-  setBearing: vi.fn(),
-  on: vi.fn(),
-});
+const fakeMap = (bearing = 0) => ({ getBearing: () => bearing, setBearing: vi.fn(), on: vi.fn() });
 
 let addCompass;
 beforeEach(async () => {
-  document.body.innerHTML = '';
+  lagt.length = 0; satt.length = 0;
   ({ addCompass } = await import('../src/ui/mapCompass.js'));
 });
 
 describe('addCompass', () => {
-  const mount = (wrapStyle) => {
-    const wrap = document.createElement('div');
-    if (wrapStyle) wrap.setAttribute('style', wrapStyle);
-    const map = document.createElement('div');
-    wrap.appendChild(map);
-    document.body.appendChild(wrap);
-    return { wrap, map };
-  };
-
-  // THE BUG. A static wrapper is not a positioning context, so the
-  // absolutely positioned compass anchors to something further up the tree.
-  it('gjør omslaget til en posisjoneringskontekst når det ikke er en', () => {
-    const { wrap, map } = mount(null);
-    addCompass(fakeMap(), map);
-    expect(wrap.style.position).toBe('relative');
+  it('legger kompasset i verktøysøylen', () => {
+    addCompass(fakeMap(), document.createElement('div'));
+    expect(lagt).toEqual(['kompass']);
   });
-
-  it('rører ikke et omslag som allerede er posisjonert', () => {
-    const { wrap, map } = mount('position:absolute');
-    addCompass(fakeMap(), map);
-    expect(wrap.style.position).toBe('absolute');
+  it('skjult når nord er opp, vist når kartet er rotert', () => {
+    addCompass(fakeMap(0), document.createElement('div'));
+    expect(satt.at(-1)).toEqual(['kompass', { skjult: true }]);
+    addCompass(fakeMap(30), document.createElement('div'));
+    expect(satt.at(-1)).toEqual(['kompass', { skjult: false }]);
   });
-
-  it('legger knappen i omslaget, ved siden av kartet', () => {
-    const { wrap, map } = mount(null);
-    addCompass(fakeMap(), map);
-    const btn = wrap.querySelector('.map-compass');
-    expect(btn).toBeTruthy();
-    expect(btn.parentElement).toBe(wrap);
-  });
-
-  // Called again on a re-render, it must not stack a second needle.
-  it('lager bare én, uansett hvor mange ganger den kalles', () => {
-    const { wrap, map } = mount(null);
-    addCompass(fakeMap(), map);
-    addCompass(fakeMap(), map);
-    expect(wrap.querySelectorAll('.map-compass').length).toBe(1);
-  });
-
-  it('gjør ingenting uten et omslag', () => {
-    const orphan = document.createElement('div');
-    expect(() => addCompass(fakeMap(), orphan)).not.toThrow();
+  it('gjør ingenting uten kartelement', () => {
+    expect(() => addCompass(fakeMap(), null)).not.toThrow();
+    expect(lagt).toEqual([]);
   });
 });

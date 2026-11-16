@@ -13,6 +13,7 @@ import { ensureApproach, approachPoints } from '../api/approach.js';
 import { _headingDeg } from '../ui/path.js';
 import { fetchJourneyMeta, fetchArrBoard } from '../api/entur.js';
 import { uthevAvgang } from '../ui/stasjonslag.js';
+import { leggTil as leggTilVerktøy, sett as settVerktøy } from '../ui/kartVerktoy.js';
 import { quayLatLon, legShape, journeyPoints, _rowDest, påstigningTs, gåTilTekst } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
@@ -300,8 +301,7 @@ if (typeof document !== 'undefined') {
     // plass til dem ble begge klippet av kartets kant — sett i prøven.
     const pad = fitPadding(el ? el.clientHeight : 200) + ETIKETT_PX;
     _selMap.fitBounds(geo, { padding: [pad, pad], maxZoom: 18, animate: true });
-    const alt = document.getElementById('sel-map-alt');
-    if (alt) alt.hidden = false;
+    settVerktøy(_selMap, 'hele', { skjult: false });
     const wrap = document.getElementById('sel-map-wrap');
     if (wrap && wrap.scrollIntoView) wrap.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
@@ -554,23 +554,20 @@ function _renderSelMap(dep, fromName, toName, now) {
   _selLayer = L.layerGroup().addTo(_selMap);
   _selGeo = kartUtsnitt(dep._allLegs || dep._legs);
   // «Hele reisen»: tilbake fra et zoomet bytte. Skjult til en rad er trykket.
-  let alt = document.getElementById('sel-map-alt');
-  if (!alt) {
-    alt = document.createElement('button');
-    alt.id = 'sel-map-alt'; alt.type = 'button'; alt.className = 'sel-map-alt';
-    alt.textContent = 'hele reisen';
-    alt.addEventListener('click', () => {
-      // Hele reisen, og gangen dit når den er tegnet.
-      const hele = (_selGeo && _selGeo.alt.length ? _selGeo.alt : _selFrame).concat(_selGå);
-      if (_selMap && hele.length) {
-        const pad = fitPadding(mapEl.clientHeight);
-        _selMap.fitBounds(hele, { padding: [pad, pad], maxZoom: 15, animate: true });
-      }
-      alt.hidden = true;
-    });
-    wrap.appendChild(alt);
-  }
-  alt.hidden = true;
+  // I VERKTØYSØYLEN (v1.218.72): «hele reisen» var en tekstknapp oppe til
+  // venstre. Nå en firkant blant de andre, med samme tegn som «oversikt» i
+  // auto-reise; teksten står i title og aria-label.
+  const alt = leggTilVerktøy(_selMap, 'hele', { ikon: '\u25F1', tekst: 'Hele reisen', påTrykk: () => {
+    // Hele reisen, og gangen dit når den er tegnet.
+    const hele = (_selGeo && _selGeo.alt.length ? _selGeo.alt : _selFrame).concat(_selGå);
+    if (_selMap && hele.length) {
+      const pad = fitPadding(mapEl.clientHeight);
+      _selMap.fitBounds(hele, { padding: [pad, pad], maxZoom: 15, animate: true });
+    }
+    settVerktøy(_selMap, 'hele', { skjult: true });
+  } });
+  alt.id = 'sel-map-alt';
+  settVerktøy(_selMap, 'hele', { skjult: true });
 
   const destIsVenue = dir._toLat && dir._toLon && !dir.toStopId;
   const pts = [];
@@ -734,7 +731,7 @@ function _renderSelMap(dep, fromName, toName, now) {
   const fokus = startUtsnitt(gå && !avgått && userPos ? userPos : null, harPåstigning ? påstigning : null, gangrute);
   if (fokus) {
     _selMap.fitBounds(fokus, { padding: [pad, pad], maxZoom: 17, animate: false });
-    alt.hidden = false;
+    settVerktøy(_selMap, 'hele', { skjult: false });
   } else if (pts.length) {
     _selMap.fitBounds(pts, { padding: [pad, pad], maxZoom: 15, animate: false });
   }

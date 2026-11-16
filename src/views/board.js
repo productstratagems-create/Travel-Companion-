@@ -99,6 +99,7 @@ export function ankomstHtml(arrT, now, o) {
 import { decodePolyline } from '../ui/polyline.js';
 import { ensureApproach, approachPoints, approachKey, resetApproach } from '../api/approach.js';
 import { innganger, hentInnganger, valgtInngang } from '../api/innganger.js';
+import { leggTilLag, sett as settVerktøy } from '../ui/kartVerktoy.js';
 import { settStasjonAktiv, uthevAvgang } from '../ui/stasjonslag.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
@@ -574,6 +575,14 @@ function _ensureMap(pos) {
   if (!mapEl || _bMap) return _bMap;
 
   _bMap = createMap(mapEl, { expandable: true });
+  // FILTRENE BAK «LAG» I VERKTØYSØYLEN (v1.218.72): transportmidlene og
+  // linjene var to rader piller over og under kartet. Samme elementer, samme
+  // render-funksjoner; de flyttes inn i panelet ved søylen nede til høyre.
+  {
+    const panel = leggTilLag(_bMap, 'Vis og skjul transportmidler og linjer');
+    ['mode-filter', 'line-filter'].forEach(id => { const n = document.getElementById(id); if (n) panel.appendChild(n); });
+    _modeFilterKey = '';
+  }
   _bMap.on('dragstart', () => { _bUserMoved = true; });
   _bLayer = L.layerGroup().addTo(_bMap);
   // PLATTFORMENE (v1.218.56) synes først når du har zoomet inn — nå styrt av
@@ -851,6 +860,8 @@ function renderModeFilter() {
   const key = pills.map(p => p.key + ':' + (modes[p.key] ? 1 : 0)).join(',');
   if (key === _modeFilterKey) return;
   _modeFilterKey = key;
+  // Merket når filteret avviker fra standard, så et skjult transportmiddel synes.
+  if (_bMap) settVerktøy(_bMap, 'lag', { merket: pills.some(p => !!modes[p.key] !== !!DEFAULT_MODES[p.key]) });
 
   el.innerHTML = pills.map(p => '<button class="mode-pill' + (modes[p.key] ? ' active' : '') + '" data-mode="' + p.key + '">'
     + p.label + '</button>').join('');

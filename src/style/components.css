@@ -410,3 +410,27 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
 html.view-auto #onboard-chip{display:none!important}
 /* Kartknappen som sykler oversikt → vei → plattform (v1.218.71): nederst til høyre, tommelstor. */
 .leaflet-control.kart-fokus{min-height:44px;padding:.4rem .8rem;font-size:11px;margin-bottom:6px!important;white-space:nowrap}
+/* VERKTØYSØYLEN (v1.218.72): alle kartknapper, like firkanter, nede til høyre. */
+.leaflet-control.kart-verktøy{display:flex;flex-direction:column;gap:6px;align-items:flex-end;position:relative;
+  margin:0 10px 10px 0!important;border:0;background:none}
+.kart-verktøy .kv-knapp{position:static!important;width:40px;height:40px;min-height:40px;padding:0;margin:0;
+  display:flex;align-items:center;justify-content:center;border-radius:10px;
+  border:1px solid rgba(var(--border-rgb),.3);background:rgba(var(--bg-rgb),.82);color:var(--accent);
+  font:600 18px/1 system-ui,sans-serif;cursor:pointer;backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.kart-verktøy .kv-knapp[hidden]{display:none!important}
+.kart-verktøy .kv-knapp:active{background:rgba(var(--accent-rgb),.18)}
+.kart-verktøy .kv-knapp.kv-aktiv{background:rgba(var(--accent-rgb),.22);border-color:var(--accent)}
+.kart-verktøy .kv-knapp.kv-merket::after{content:'';position:absolute;transform:translate(13px,-13px);width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.kart-verktøy .kv-panel{position:absolute;right:48px;bottom:0;display:flex;flex-direction:column;gap:4px;padding:8px;
+  border-radius:12px;border:1px solid rgba(var(--border-rgb),.3);background:rgba(var(--bg-rgb),.94);min-width:120px;
+  box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.kart-verktøy .kv-panel[hidden]{display:none}
+.kart-verktøy .kv-panel .mode-pill,.kart-verktøy .kv-panel #mode-filter,.kart-verktøy .kv-panel #line-filter{position:static!important}
+.kart-verktøy .kv-panel #mode-filter,.kart-verktøy .kv-panel #line-filter{display:flex;flex-direction:column;gap:4px;padding:0!important}
+/* Lave kart (v1.218.72): knappene på rad nede til høyre; panelet åpnes over raden. */
+.leaflet-control.kart-verktøy.kv-rad{flex-direction:row;align-items:flex-end}
+.kart-verktøy.kv-rad .kv-panel{right:0;bottom:48px}
+/* Panelet holder seg innenfor kartet, med små piller (v1.218.72). */
+.kart-verktøy .kv-panel{max-height:calc(var(--kv-kart-h, 300px) - 20px);overflow:auto}
+.kart-verktøy .kv-panel .mode-pill{min-height:28px;padding:.15rem .5rem;font-size:9px;white-space:nowrap}
+.kart-verktøy .kv-panel #mode-filter{display:grid;grid-template-columns:1fr 1fr;gap:4px}

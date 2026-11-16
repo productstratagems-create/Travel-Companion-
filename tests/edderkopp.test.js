@@ -236,7 +236,7 @@ describe('av/på per transportmiddel i kartet (v1.218.67)', () => {
     expect(filtrerBein(bein, [])).toHaveLength(5);
   });
   it('lappene holder seg unna knappene', () => {
-    expect(fs.readFileSync('src/views/auto.js', 'utf8')).toMatch(/\[id\$="-map-expand"\], #auto-map-modi/);
+    expect(fs.readFileSync('src/views/auto.js', 'utf8')).toMatch(/'\.kart-verktøy, \.kart-verktøy \.kv-panel:not\(\[hidden\]\)/);
   });
 });
 

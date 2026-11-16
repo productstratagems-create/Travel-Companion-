@@ -21,6 +21,8 @@ vi.mock('leaflet', () => ({ default: {
 } }));
 vi.mock('../src/ui/mapCompass.js', () => ({ addCompass: vi.fn() }));
 vi.mock('../src/ui/stasjonslag.js', () => ({ festStasjonslag: vi.fn() }));
+// v1.218.72: + og − ligger i verktøysøylen, ikke i Leaflets egen kontroll.
+vi.mock('../src/ui/kartVerktoy.js', () => ({ leggTil: (m, id) => { drawn.push(id + '@søyle'); return document.createElement('button'); } }));
 vi.mock('../src/ui/themeTokens.js', () => ({ onThemeChange: vi.fn(), tokens: () => ({}) }));
 
 const { bindMapExpand } = await import('../src/ui/map.js');
@@ -128,7 +130,9 @@ describe('createMap and the controls rule', () => {
     L.map = () => ({ addLayer: () => {}, attributionControl: { setPrefix: () => {} },
       remove: () => {} });
     createMap(document.createElement('div'), { expandable: true });
-    expect(drawn).toContain('zoom@bottomright');
+    expect(drawn).toContain('inn@søyle');
+    expect(drawn).toContain('ut@søyle');
+    expect(drawn).not.toContain('zoom@bottomright');
     expect(drawn).toContain('scale@bottomleft');
   });
 
@@ -151,7 +155,7 @@ describe('createMap and the controls rule', () => {
   it('gives a band the zoom it can already do, but no scale bar', async () => {
     const { createMap } = await import('../src/ui/map.js');
     createMap(document.createElement('div'), {});
-    expect(drawn).toContain('zoom@bottomright');
+    expect(drawn).toContain('inn@søyle');
     expect(drawn).not.toContain('scale@bottomleft');
   });
 

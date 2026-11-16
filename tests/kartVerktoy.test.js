@@ -13,7 +13,7 @@ describe('verktøysøylen nede til høyre (v1.218.72)', () => {
   it('rekkefølgen er én tabell: fokus, lag, kompass, fullskjerm, +, −', () => {
     // v1.218.79: kompasset står øverst til høyre, ikke i søylen.
     expect(sorterKnapper(['ut', 'fullskjerm', 'inn', 'hele', 'fokus', 'lag']))
-      .toEqual(['fokus', 'hele', 'lag', 'fullskjerm', 'inn', 'ut']);
+      .toEqual(['hele', 'lag', 'fullskjerm', 'inn', 'ut', 'fokus']); // v1.218.82: ◎ nederst
     expect(sorterKnapper(['ukjent', 'inn'])).toEqual(['inn', 'ukjent']);
     expect(Object.keys(REKKEFØLGE)).toHaveLength(6);
   });
@@ -23,7 +23,7 @@ describe('verktøysøylen nede til høyre (v1.218.72)', () => {
     const v = festVerktøy(map);
     expect(v.el.parentElement.className).toContain('leaflet-bottom');
     expect(v.el.parentElement.className).toContain('leaflet-right');
-    expect([...v.el.querySelectorAll('.kv-knapp')].map(b => b.dataset.kv)).toEqual(['fokus', 'inn', 'ut']);
+    expect([...v.el.querySelectorAll('.kv-knapp')].map(b => b.dataset.kv)).toEqual(['inn', 'ut', 'fokus']); // v1.218.82: ◎ nederst
     expect(festVerktøy(map)).toBe(v);
   });
   it('sett skjuler, viser og gir teksten til aria og title', () => {
@@ -103,7 +103,7 @@ describe('I, ikke L (v1.218.78)', () => {
     ['ut', 'inn', 'fullskjerm', 'lag', 'fokus'].forEach(id => leggTil(map, id, { ikon: id }));
     const v = festVerktøy(map);
     expect(v.el.querySelectorAll('.kv-rad-gruppe .kv-knapp').length).toBe(0);
-    expect([...v.el.querySelectorAll('.kv-søyle-gruppe .kv-knapp')].map(b => b.dataset.kv)).toEqual(['fokus', 'lag', 'fullskjerm', 'inn', 'ut']);
+    expect([...v.el.querySelectorAll('.kv-søyle-gruppe .kv-knapp')].map(b => b.dataset.kv)).toEqual(['lag', 'fullskjerm', 'inn', 'ut', 'fokus']); // v1.218.82: ◎ nederst
   });
 });
 

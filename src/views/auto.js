@@ -50,6 +50,7 @@ import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
 import { byLine } from '../api/situations.js';
 import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
+import { lastHånd } from '../haand.js';
 import { ankomstMs } from '../ankomst.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
 import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
@@ -2706,6 +2707,28 @@ function _meldManglendeBein(sentrert, bein, teller) {
  * beste vei til stoppet; neste viser hvilken plattform eller hvilket spor du
  * skal til; samme knapp sykler. Nederst til høyre, der tommelen er.
  */
+/**
+ * AVGANGEN DIN (v1.218.73). Rapportert: kartet viste ikke hvilket spor første
+ * mulige avgang går fra — uten åpen retning eller kort ble ingen plattform
+ * uthevet, og gangruta gikk til midten av stoppet. Én regel for kartet,
+ * gangruta og plattformvisningen: åpen retning, så kortet, så den første
+ * avgangen du rekker (samme `catchable` som streken i lista). Ren.
+ */
+export function minAvgang(open, kortRute, dirs, walkMins, now) {
+  if (open && open.call) return open.call;
+  if (kortRute && kortRute.call) return kortRute.call;
+  let best = null;
+  (dirs || []).forEach(d => {
+    const r = catchable(d, walkMins, now)[0];
+    if (r && (!best || r.ms < best.ms)) best = r;
+  });
+  return best ? best.call : null;
+}
+function _minAvgang() {
+  const w = _stop ? gangTil(_stop) : null;
+  return minAvgang(_open, _kortRute, _dirs, w ? w.mins : null, Date.now());
+}
+
 export const KART_FOKUS = ['oversikt', 'vei', 'spor'];
 export function nesteFokus(f) {
   const i = KART_FOKUS.indexOf(f);
@@ -2731,7 +2754,7 @@ export function fokusRamme(f, { du, stopp, gang, inngang, plattform, plattformer
 let _kartFokus = 'oversikt', _fokusKontroll = null, _fokusStopp = null;
 function _fokusData() {
   const du = userLL();
-  const aktiv = _stop ? aktivFraAvgang((_open || _kortRute || {}).call, _stop.id) : null;
+  const aktiv = _stop ? aktivFraAvgang(_minAvgang(), _stop.id) : null;
   const pl = _stop ? _plattformer(_stop.id) : null;
   const plattform = aktiv ? _plattformMedKode(pl, aktiv.kode) : null;
   const inngang = _stop ? _valgtInngang(_innganger(_stop.id), du, plattform || _stop) : null;
@@ -2749,8 +2772,11 @@ function _brukFokus() {
     // ellers ligger plattformen du skal til under dem — sett i proben.
     // Ett hinder (v1.218.72): verktøysøylen nede til høyre.
     const vf = verktøyFlate(_aMap);
-    const høyre = vf && vf.r.width ? Math.round(vf.r.width + 24) : 40;
-    _aMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [40, 40], paddingBottomRight: [høyre, 40], maxZoom: r.maksZoom });
+    const side = vf && vf.r.width ? Math.round(vf.r.width + 24) : 40;
+    // Søylen står på den siden hånden din er (v1.218.73).
+    const venstre = lastHånd() === 'venstre';
+    _aMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [venstre ? side : 40, 40],
+      paddingBottomRight: [venstre ? 40 : side, 40], maxZoom: r.maksZoom });
   }
   _tegnFokusKnapp(r.ukjent);
 }
@@ -3031,12 +3057,16 @@ function _renderMap() {
   if (userPos && _stop) {
     // Og ikke om bord (v1.218.48): når toget står ved en stasjon er farten
     // null, og ganglinja kom tilbake. Låsen er det sikre tegnet.
-    ensureApproach(!_lås && gangGjelder(fartNå(), state.walkFromLL !== null) ? userPos : null, _stop);
+    // TIL SPORET (v1.218.73): gangruta ender ved plattformen avgangen din går
+    // fra når den er kjent — ikke midt i stoppet. Samme regel som tavla.
+    const _akt = aktivFraAvgang(_minAvgang(), _stop.id);
+    const _pl = _akt ? _plattformMedKode(_plattformer(_stop.id), _akt.kode) : null;
+    ensureApproach(!_lås && gangGjelder(fartNå(), state.walkFromLL !== null) ? userPos : null, _pl ? { lat: _pl.lat, lon: _pl.lon } : _stop);
   }
   const walkPts = approachPoints();
   // DIN PLATTFORM (v1.218.60): åpen retning vinner, så kortet — samme
   // prioritet som kartets tema under.
-  uthevAvgang(_aMap, (_open || _kortRute || {}).call, _stop && _stop.id);
+  uthevAvgang(_aMap, _minAvgang(), _stop && _stop.id);
   // Ny holdeplass: kartet går tilbake til oversikten (v1.218.71).
   if (_stop && _fokusStopp !== _stop.id) {
     _fokusStopp = _stop.id;

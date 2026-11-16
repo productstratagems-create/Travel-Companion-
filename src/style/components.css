@@ -434,3 +434,8 @@ html.view-auto #onboard-chip{display:none!important}
 .kart-verktøy .kv-panel{max-height:calc(var(--kv-kart-h, 300px) - 20px);overflow:auto}
 .kart-verktøy .kv-panel .mode-pill{min-height:28px;padding:.15rem .5rem;font-size:9px;white-space:nowrap}
 .kart-verktøy .kv-panel #mode-filter{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+/* Venstrehendt (v1.218.73): søylen nede til venstre; panelet åpnes til høyre for den. */
+.leaflet-control.kart-verktøy.kv-venstre{align-items:flex-start;margin:0 0 10px 10px!important}
+.kart-verktøy.kv-venstre .kv-panel{right:auto;left:48px}
+.kart-verktøy.kv-venstre.kv-rad .kv-panel{left:0}
+.leaflet-control.kart-verktøy.kv-venstre.kv-rad{flex-direction:row}

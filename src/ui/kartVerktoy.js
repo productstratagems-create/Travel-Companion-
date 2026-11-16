@@ -10,6 +10,7 @@
  * Rekkefølgen er ÉN tabell, ovenfra og ned.
  */
 import L from 'leaflet';
+import { lastHånd, verktøyHjørne, skalaHjørne, HÅND_HENDELSE } from '../haand.js';
 
 export const REKKEFØLGE = { fokus: 10, hele: 15, lag: 20, kompass: 30, fullskjerm: 40, inn: 50, ut: 60 };
 
@@ -17,6 +18,24 @@ export const REKKEFØLGE = { fokus: 10, hele: 15, lag: 20, kompass: 30, fullskje
 export function sorterKnapper(ider) {
   const r = id => (id in REKKEFØLGE ? REKKEFØLGE[id] : 99);
   return [...ider].sort((a, b) => r(a) - r(b));
+}
+
+/* Kartene med søyle, så et bytte av hånd flytter dem alle (v1.218.73). */
+const _levende = new Set();
+export function byttHjørne(map, hånd) {
+  const v = map && map._verktøy;
+  if (!v) return;
+  // Ikke Leaflets setPosition: den kaller onAdd på nytt og lager en tom søyle.
+  // Samme element flyttes til det andre hjørnet, med knappene i.
+  const hjørne = verktøyHjørne(hånd);
+  v.kontroll.options.position = hjørne;
+  const mål = map._controlCorners && map._controlCorners[hjørne];
+  if (mål) mål.insertBefore(v.el, mål.firstChild);
+  v.el.classList.toggle('kv-venstre', hånd === 'venstre');
+  if (map._skala) map._skala.setPosition(skalaHjørne(hånd));
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener(HÅND_HENDELSE, e => _levende.forEach(m => byttHjørne(m, e.detail)));
 }
 
 /** Søylen på et kart; lages første gang. */
@@ -28,9 +47,13 @@ export function festVerktøy(map) {
     L.DomEvent.disableScrollPropagation(d);
     return d;
   } });
-  const kontroll = new C({ position: 'bottomright' }).addTo(map);
-  map._verktøy = { el: kontroll.getContainer(), knapper: new Map(), panel: null };
+  const hånd = lastHånd();
+  const kontroll = new C({ position: verktøyHjørne(hånd) }).addTo(map);
+  map._verktøy = { el: kontroll.getContainer(), knapper: new Map(), panel: null, kontroll };
+  kontroll.getContainer().classList.toggle('kv-venstre', hånd === 'venstre');
   map.on('resize', () => tilpassForm(map));
+  _levende.add(map);
+  map.on('unload', () => _levende.delete(map));
   return map._verktøy;
 }
 

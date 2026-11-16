@@ -73,7 +73,7 @@ describe('kartet', () => {
    * rute; de ligger fortsatt i «Mortensrud 7 ▾». */
   it('og tegner ikke de andre stoppene når kortet har en rute', () => {
     const i = src().indexOf('function _renderMap');
-    expect(src().slice(i, i + 3000))
+    expect(src().slice(i, i + 6000))
       .toMatch(/const alle = \(!_open && _stop && !kortLinje\) \? nearbyAlternatives/);
   });
 

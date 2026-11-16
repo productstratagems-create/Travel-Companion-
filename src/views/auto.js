@@ -2474,6 +2474,21 @@ export function edderkoppBein(dirs, stopName, now, foretrukket, walkMins = null,
 }
 
 /**
+ * KUTTET (v1.218.83): så mange bein som kartet har plass til, men hvert
+ * transportmiddel får minst ett — det første av sitt slag. Ellers i den
+ * rekkefølgen beina har. Ren.
+ */
+export function velgBein(bein, maks) {
+  const liste = bein || [];
+  if (liste.length <= maks) return liste.slice();
+  const sett = new Set(), førsteAvSlag = new Set();
+  liste.forEach((b, i) => { const m = normMode(b.modus) || 'bus'; if (!sett.has(m)) { sett.add(m); førsteAvSlag.add(i); } });
+  const valgt = new Set([...førsteAvSlag].slice(0, maks));
+  for (let i = 0; i < liste.length && valgt.size < maks; i++) valgt.add(i);
+  return liste.filter((_, i) => valgt.has(i));
+}
+
+/**
  * ETT BEIN PER LINJE OG KORRIDOR (v1.218.62). «3 Stortinget», «3 Kolsås» og
  * «3 Avløs» fulgte samme strek og sa det samme tre ganger. Samme linje og
  * samme to første stopp er samme bein: det lengste tegnes, retningene samles,
@@ -2673,6 +2688,8 @@ function _tegnModiKnapper(modi) {
   if (nøkkel === _modiNøkkel) return;
   _modiNøkkel = nøkkel;
   el.hidden = !modi.length;
+  // Ingenting å velge: panelet lukkes, aldri åpent og tomt (v1.218.83).
+  if (!modi.length && el.parentElement) { el.parentElement.hidden = true; settVerktøy(_aMap, 'lag', { aktiv: false }); }
   settVerktøy(_aMap, 'lag', { skjult: !modi.length, merket: modi.some(m => skjult.has(m.modus)) });
   el.innerHTML = modi.map(m => '<button type="button" class="mode-pill' + (skjult.has(m.modus) ? '' : ' active')
     + '" data-modus="' + m.modus + '" aria-pressed="' + !skjult.has(m.modus) + '">'
@@ -3185,13 +3202,17 @@ function _renderMap() {
   // kartet om DEN reisen, og fem streker til ville stjele den.
   const _gang = _stop ? gangTil(_stop) : null;
   const _beinTeller = {};
+  // ALLE BEINA FØRST, SÅ FILTERET, SÅ KUTTET (v1.218.83). Rapportert: seks
+  // busser gikk før T-banen, kartet hadde plass til seks, og T-banen forsvant
+  // — og med den T-bane-valget i lag-panelet, som ble tomt.
+  const _beinMaks = beinMaks(box.width, box.height);
   let bein = sentrert && _stop ? edderkoppBein(_dirs, _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null,
-    beinMaks(box.width, box.height), { teller: _beinTeller, stopId: _stop.id || null }) : [];
+    Infinity, { teller: _beinTeller, stopId: _stop.id || null }) : [];
   _meldManglendeBein(sentrert, bein, _beinTeller);
-  // AV/PÅ PER TRANSPORTMIDDEL (v1.218.67), fra beina før filteret.
+  // AV/PÅ PER TRANSPORTMIDDEL (v1.218.67), fra alle beina før filteret.
   const _modi = kartModi(bein);
   _tegnModiKnapper(_modi);
-  bein = filtrerBein(bein, _skjulteModi());
+  bein = velgBein(filtrerBein(bein, _skjulteModi()), _beinMaks);
   // UTGANGSRAMMEN (v1.218.80). Bestilt med skjermbilde: «la dette bli
   // default zoom og kartdetaljnivå» — deg, stoppet, gangruta og den nære
   // delen av hver linje, ikke hele byen. Beinas ende (6. stopp) trakk kartet

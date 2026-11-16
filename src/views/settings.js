@@ -8,6 +8,7 @@ import { enturFetch } from '../api/http.js';
 import { recordSmartTrip } from '../api/smart.js';
 import { state } from '../state.js';
 import { storage, listProfiles, getActiveProfile, createProfile, switchProfile, deleteProfile } from '../storage.js';
+import { lastHånd, lagreHånd } from '../haand.js';
 import { loadFreq, trackPlace, glemAlleSteder } from '../api/usage.js';
 import { logEvent, recentEvents, describeEvent, clearEvents, MEMORY_DAYS } from '../api/eventLog.js';
 import { rangering, rangeringTekst, glemKnappebruk } from '../api/knappebruk.js';
@@ -195,6 +196,10 @@ function _highlightPrefs() {
   document.querySelectorAll('#pref-palette .pref-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.val === palette);
   });
+  const hånd = lastHånd();
+  document.querySelectorAll('#pref-hånd .pref-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === hånd);
+  });
   const landing = landingPref();
   document.querySelectorAll('#pref-landing .pref-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.val === landing);
@@ -226,6 +231,10 @@ function initPrefs() {
   });
   document.querySelectorAll('#pref-palette .pref-btn').forEach(btn => {
     btn.addEventListener('click', () => { setPalette(btn.dataset.val); _highlightPrefs(); });
+  });
+  // Høyre- eller venstrehendt (v1.218.73): kartknappenes hjørne, på alle kart.
+  document.querySelectorAll('#pref-hånd .pref-btn').forEach(btn => {
+    btn.addEventListener('click', () => { lagreHånd(btn.dataset.val); _highlightPrefs(); });
   });
   // The one place that decides which screen the app opens on. It used to be
   // written as a side effect of navigating, from two different buttons, and

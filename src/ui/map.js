@@ -5,6 +5,7 @@ import { onThemeChange, tokens } from './themeTokens.js';
 import { makeRouteStopIcon, makeJourneyPointIcon } from './mapIcons.js';
 import { festStasjonslag } from './stasjonslag.js';
 import { leggTil } from './kartVerktoy.js';
+import { lastHånd, skalaHjørne } from '../haand.js';
 
 /**
  * One place that owns basemap tiles, map init options and the live-map
@@ -137,7 +138,8 @@ export function createMap(el, opts = {}) {
     leggTil(map, 'inn', { ikon: '+', tekst: 'Zoom inn', påTrykk: () => map.zoomIn() });
     leggTil(map, 'ut', { ikon: '\u2212', tekst: 'Zoom ut', påTrykk: () => map.zoomOut() });
   }
-  if (scale) L.control.scale({ imperial: false, maxWidth: 100, position: 'bottomleft' }).addTo(map);
+  // I hjørnet knappene ikke står i (v1.218.73: høyre- eller venstrehendt).
+  if (scale) map._skala = L.control.scale({ imperial: false, maxWidth: 100, position: skalaHjørne(lastHånd()) }).addTo(map);
   if (compass) addCompass(map, el);
   map.attributionControl.setPrefix('');
 

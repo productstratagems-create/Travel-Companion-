@@ -42,7 +42,8 @@ describe('«du er ved» og dermed gangruten', () => {
   });
   it('gangruten går til «du er ved» — ett valg, ikke to', () => {
     const s = readFileSync('src/views/auto.js', 'utf8');
-    expect(s).toMatch(/ensureApproach\(.*, _stop\);/);
+    // v1.218.73: til plattformen ved «du er ved» når den er kjent, ellers stoppet.
+    expect(s).toMatch(/ensureApproach\(.*: _stop\);/);
   });
 });
 

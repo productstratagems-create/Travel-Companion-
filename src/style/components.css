@@ -401,3 +401,10 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
 .auto-map-modi{display:flex;flex-direction:column;gap:4px;margin:8px 0 0 8px!important}
 .auto-map-modi[hidden]{display:none}
 .auto-map-modi .mode-pill{min-height:28px;padding:.2rem .55rem;font-size:9px;text-align:left}
+/* Om bord (v1.218.69): linja og retningen øverst; stopphodet en liten linje under «neste stasjon». */
+.ved-linje{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.ved-linje .ved-mot{font-weight:600}
+.auto-stop.kompakt .auto-stop-label{font-family:inherit!important;font-size:.85rem!important;letter-spacing:.06em;
+  text-transform:none;opacity:.75;background:none!important;padding:0!important}
+.auto-stop.kompakt{margin-top:2px}
+html.view-auto #onboard-chip{display:none!important}

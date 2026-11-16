@@ -359,6 +359,8 @@ export function show(id) {
   // put and only the list scrolls. Scoped to a body class so every other
   // screen keeps scrolling as an ordinary page.
   document.documentElement.classList.toggle('view-board', id === 'v-board');
+  // Stripa «underveis» er for de andre fanene; auto-reise sier det selv (v1.218.69).
+  document.documentElement.classList.toggle('view-auto', id === 'v-auto');
   _renderNav();
   window.scrollTo(0, 0);
   // Move focus to the new screen so screen-reader users land at its top

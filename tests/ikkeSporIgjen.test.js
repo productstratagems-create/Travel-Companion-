@@ -22,11 +22,13 @@ describe('ikke spør om det appen alt vet', () => {
   it('en reise på en annen tur gjør ikke spørsmålet unødvendig', () => {
     expect(trengerSvar({ k, kilde: 'gjettet' }, { ...jny, legs: [{ journeyId: 'ANNEN' }] }, 'ANNEN')).toBe(true);
   });
-  it('«stemmer» vises ikke for reisens tur; kvitteringen er «din reise»', () => {
+  // ENDRET MED VILJE (v1.218.69): «din reise» sto både her og over kortet.
+  // Hodet sier nå linja og målet; her står bare «feil linje?».
+  it('«stemmer» vises ikke for reisens tur; ingen ekstra «din reise»', () => {
     state.jny = jny; state.lockedJourneyId = 'SJ3';
     const h = rettLinjeHtml({ k, kilde: 'gjettet' }, [], false, '');
     expect(h).not.toContain('rett-ja');
-    expect(h).toContain('din reise');
+    expect(h).not.toContain('din reise');
     expect(h).toContain('feil linje?');
     state.jny = null; state.lockedJourneyId = null;
   });

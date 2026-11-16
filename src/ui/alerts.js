@@ -405,7 +405,9 @@ export function renderAlertsInto(el, situations, onChange, ctx) {
   }
   // The other pile goes through the SAME put-away rules: a message set aside
   // as someone else's should still stay away once the reader dismisses it.
-  const otherVis = visibleAlerts(orphans, loadHidden());
+  // OM BORD (v1.218.69): meldinger om andre linjer er ikke din reise.
+  // Rapportert: «MELDINGER OM ANDRE LINJER · SKJUL» midt i underveis.
+  const otherVis = (ctx && ctx.utenAndre) ? { shown: [] } : visibleAlerts(orphans, loadHidden());
   // PER CONTAINER, not per module. One flag shared by the board, auto, both
   // underveis banners and the departure details meant opening one opened all
   // of them — and track.js renders several containers in one loop. That is
@@ -424,7 +426,7 @@ export function renderAlertsInto(el, situations, onChange, ctx) {
   // new kind of message to learn, invented to keep a single row, where the
   // rule the app already had says it plainly: ✕ puts away, «vis» brings back.
   const hid = loadHidden();
-  const awayCount = active.filter(s => s && s.id && s.id in hid).length;
+  const awayCount = (ctx && ctx.utenAndre) ? 0 : active.filter(s => s && s.id && s.id in hid).length;
   const otherItems = isOpen ? otherVis.shown.map(alertHtml).filter(Boolean) : [];
   const more = moreRowHtml(otherVis.shown.length, awayCount, isOpen,
     ctx && ctx.otherWord);

@@ -461,3 +461,6 @@ html.view-auto #onboard-chip{display:none!important}
 /* Panelet over raden får ikke gå ut over kartets topp etter løftet (v1.218.77): resten ruller. */
 .kart-verktøy .kv-panel{max-height:calc(var(--kv-kart-h, 300px) - var(--kv-løft) - 66px)!important}
 .kart-verktøy.kv-rad .kv-panel{max-height:calc(var(--kv-kart-h, 300px) - 76px)!important}
+/* I, ikke L (v1.218.78): panelet ved siden av søylen, på høyde med lag-knappen; ingen løft når søylen ellers ikke får plass. */
+.kart-verktøy .kv-panel{bottom:0!important}
+.leaflet-control.kart-verktøy.kv-uten-løft{margin-bottom:10px!important}

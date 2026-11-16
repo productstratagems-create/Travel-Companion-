@@ -60,6 +60,7 @@ import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userL
 import L from 'leaflet';
 import { SPOR_ZOOM as PLATTFORM_ZOOM_AUTO, createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap } from '../ui/map.js';
 import { uthevAvgang, aktivFraAvgang } from '../ui/stasjonslag.js';
+import { leggTil as leggTilVerktøy, sett as settVerktøy, leggTilLag, verktøyFlate } from '../ui/kartVerktoy.js';
 import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, plattformMedKode as _plattformMedKode } from '../api/quays.js';
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
@@ -2655,13 +2656,13 @@ function _skjulteModi() {
 let _modiKontroll = null, _modiNøkkel = '';
 function _tegnModiKnapper(modi) {
   if (!_aMap) return;
+  // BAK «LAG»-KNAPPEN I VERKTØYSØYLEN (v1.218.72): pillene var en egen søyle
+  // oppe til venstre. Samme piller, samme lagring; panelet åpnes ved søylen.
   if (!_modiKontroll) {
-    const C = L.Control.extend({ onAdd() {
-      const d = L.DomUtil.create('div', 'auto-map-modi'); d.id = 'auto-map-modi';
-      L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
-      return d;
-    } });
-    _modiKontroll = new C({ position: 'topleft' }).addTo(_aMap);
+    const panel = leggTilLag(_aMap, 'Vis og skjul transportmidler');
+    const d = document.createElement('div'); d.className = 'auto-map-modi'; d.id = 'auto-map-modi';
+    panel.appendChild(d);
+    _modiKontroll = { getContainer: () => d };
   }
   const el = _modiKontroll.getContainer();
   const skjult = _skjulteModi();
@@ -2669,6 +2670,7 @@ function _tegnModiKnapper(modi) {
   if (nøkkel === _modiNøkkel) return;
   _modiNøkkel = nøkkel;
   el.hidden = !modi.length;
+  settVerktøy(_aMap, 'lag', { skjult: !modi.length, merket: modi.some(m => skjult.has(m.modus)) });
   el.innerHTML = modi.map(m => '<button type="button" class="mode-pill' + (skjult.has(m.modus) ? '' : ' active')
     + '" data-modus="' + m.modus + '" aria-pressed="' + !skjult.has(m.modus) + '">'
     + esc(MODI_NAVN[m.modus] || m.modus) + ' ' + m.antall + '</button>').join('');
@@ -2745,43 +2747,40 @@ function _brukFokus() {
   else {
     // Rammen holder plass til knappene nede til høyre (fokusknappen og +/−),
     // ellers ligger plattformen du skal til under dem — sett i proben.
-    const kb = _fokusKontroll && _fokusKontroll.getContainer().getBoundingClientRect();
-    const høyre = kb && kb.width ? Math.round(kb.width + 24) : 40;
-    // …og til transportmiddel-knappene oppe til venstre.
-    const mk = _modiKontroll && !_modiKontroll.getContainer().hidden && _modiKontroll.getContainer().getBoundingClientRect();
-    const venstre = mk && mk.width ? Math.round(mk.width + 24) : 40;
-    _aMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [venstre, 40], paddingBottomRight: [høyre, 110], maxZoom: r.maksZoom });
+    // Ett hinder (v1.218.72): verktøysøylen nede til høyre.
+    const vf = verktøyFlate(_aMap);
+    const høyre = vf && vf.r.width ? Math.round(vf.r.width + 24) : 40;
+    _aMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [40, 40], paddingBottomRight: [høyre, 40], maxZoom: r.maksZoom });
   }
   _tegnFokusKnapp(r.ukjent);
 }
+const _FOKUS_IKON = { oversikt: '\u25CE', vei: '\u25A4', spor: '\u25F1' };
 function _tegnFokusKnapp(ukjent) {
   if (!_aMap) return;
+  // En firkant i verktøysøylen (v1.218.72), som de andre knappene. Ikonet
+  // viser neste steg; teksten står i title og aria-label.
   if (!_fokusKontroll) {
-    const C = L.Control.extend({ onAdd() {
-      const b = L.DomUtil.create('button', 'mode-pill active kart-fokus'); b.type = 'button'; b.id = 'auto-map-fokus';
-      L.DomEvent.disableClickPropagation(b);
-      b.addEventListener('click', () => {
-        _kartFokus = nesteFokus(_kartFokus);
-        // Spor: hent plattformene og inngangene om de mangler, og ramm inn når de kommer.
-        if (_kartFokus === 'spor' && _stop && _stop.id) {
-          const vent = [];
-          if (_plattformer(_stop.id) === undefined) vent.push(_hentPlattformer(_stop.id));
-          if (_innganger(_stop.id) === undefined && _stop.lat != null) vent.push(_hentInnganger(_stop.id, _stop));
-          if (vent.length) Promise.all(vent).then(() => { if (_kartFokus === 'spor') _brukFokus(); });
-        }
-        _brukFokus();
-      });
-      return b;
-    } });
-    _fokusKontroll = new C({ position: 'bottomright' }).addTo(_aMap);
+    leggTilVerktøy(_aMap, 'fokus', { påTrykk: () => {
+      _kartFokus = nesteFokus(_kartFokus);
+      // Spor: hent plattformene og inngangene om de mangler, og ramm inn når de kommer.
+      if (_kartFokus === 'spor' && _stop && _stop.id) {
+        const vent = [];
+        if (_plattformer(_stop.id) === undefined) vent.push(_hentPlattformer(_stop.id));
+        if (_innganger(_stop.id) === undefined && _stop.lat != null) vent.push(_hentInnganger(_stop.id, _stop));
+        if (vent.length) Promise.all(vent).then(() => { if (_kartFokus === 'spor') _brukFokus(); });
+      }
+      _brukFokus();
+    } }).id = 'auto-map-fokus';
+    _fokusKontroll = true;
   }
-  const b = _fokusKontroll.getContainer();
-  b.textContent = _FOKUS_TEKST[_kartFokus] + (ukjent ? ' · spor ukjent' : '');
+  settVerktøy(_aMap, 'fokus', { ikon: _FOKUS_IKON[_kartFokus],
+    tekst: _FOKUS_TEKST[_kartFokus].replace(/^\S+\s/, '') + (ukjent ? ' · spor ukjent' : ''),
+    merket: !!ukjent, aktiv: _kartFokus !== 'oversikt' });
 }
 
 /** Knappene og kreditteringen på kartet, i kartets egne koordinater. */
 function _kartHindre(el, box) {
-  return [...(el.parentElement || el).querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution, .map-expand-btn, [id$="-map-expand"], #auto-map-modi, #auto-map-fokus')]
+  return [...(el.parentElement || el).querySelectorAll('.kart-verktøy, .kart-verktøy .kv-panel:not([hidden]), .leaflet-control-attribution')]
     .map(n => n.getBoundingClientRect()).filter(r => r.width && r.height)
     .map(r => ({ venstre: r.left - box.left - 4, høyre: r.right - box.left + 4, topp: r.top - box.top - 4, bunn: r.bottom - box.top + 4 }));
 }

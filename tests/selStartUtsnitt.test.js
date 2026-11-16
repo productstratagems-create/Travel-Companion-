@@ -32,7 +32,8 @@ describe('koblingen i _renderSelMap', () => {
     expect(kart).toMatch(/startUtsnitt\(gå && !avgått && userPos \? userPos : null/);
   });
   it('rammer inn utsnittet og viser «hele reisen»', () => {
-    expect(kart).toMatch(/if \(fokus\) \{\s*_selMap\.fitBounds\(fokus,[^)]*\);\s*alt\.hidden = false;/);
+    // v1.218.72: «hele reisen» er en knapp i verktøysøylen, vist med `settVerktøy`.
+    expect(kart).toMatch(/if \(fokus\) \{\s*_selMap\.fitBounds\(fokus,[^)]*\);\s*settVerktøy\(_selMap, 'hele', \{ skjult: false \}\);/);
   });
   it('avgått er en del av nøkkelen, så kartet viser hele reisen etter avgang', () => {
     expect(kart).toMatch(/\+ \(avgått \? '\|avgått' : ''\)/);

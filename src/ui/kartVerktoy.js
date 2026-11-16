@@ -12,7 +12,8 @@
 import L from 'leaflet';
 import { lastHånd, verktøyHjørne, skalaHjørne, HÅND_HENDELSE } from '../haand.js';
 
-export const REKKEFØLGE = { fokus: 10, hele: 15, lag: 20, fullskjerm: 40, inn: 50, ut: 60 };
+// v1.218.82: ◎ nederst, under − (skjermbilde med pil ned).
+export const REKKEFØLGE = { hele: 15, lag: 20, fullskjerm: 40, inn: 50, ut: 60, fokus: 70 };
 /**
  * ØVERST TIL HØYRE (v1.218.79). Bestilt: «Kompasset hører hjemme øverst i
  * høyre hjørne.» Det er en indikator, ikke en tommelknapp — der kartapper har

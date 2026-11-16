@@ -24,10 +24,12 @@ describe('ikke spør om det appen alt vet', () => {
   });
   // ENDRET MED VILJE (v1.218.69): «din reise» sto både her og over kortet.
   // Hodet sier nå linja og målet; her står bare «feil linje?».
-  it('«stemmer» vises ikke for reisens tur; ingen ekstra «din reise»', () => {
+  // ENDRET MED VILJE IGJEN (v1.218.70): brukeren ba om å kunne si «riktig»
+  // også med en startet reise — en reise er ikke en bekreftelse av linja.
+  it('reisens tur, ikke bekreftet: «riktig» og «feil» står; ingen ekstra «din reise»', () => {
     state.jny = jny; state.lockedJourneyId = 'SJ3';
     const h = rettLinjeHtml({ k, kilde: 'gjettet' }, [], false, '');
-    expect(h).not.toContain('rett-ja');
+    expect(h).toContain('rett-ja');
     expect(h).not.toContain('din reise');
     expect(h).toContain('feil linje?');
     state.jny = null; state.lockedJourneyId = null;

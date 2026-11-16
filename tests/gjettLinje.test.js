@@ -93,7 +93,9 @@ describe('rette valget', async () => {
   it('sikker eller valgt: ikke «gjettet», men fortsatt mulig å rette', () => {
     const h = rettLinjeHtml({ k: T3, kilde: 'valgt' }, [B76, T3], false, '');
     expect(h).not.toContain('gjettet');
-    expect(h).toContain('feil linje?');
+    // Bekreftet (v1.218.70): «endre» åpner den samme lista som «feil linje?».
+    expect(h).toContain('rett-feil');
+    expect(h).toContain('endre');
   });
   it('ingen lås: ingenting', () => {
     expect(rettLinjeHtml(null, [B76, T3], true, '')).toBe('');

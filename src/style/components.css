@@ -441,3 +441,15 @@ html.view-auto #onboard-chip{display:none!important}
 .kart-verktøy.kv-venstre .kv-panel{right:auto;left:48px}
 .kart-verktøy.kv-venstre.kv-rad .kv-panel{left:0}
 .leaflet-control.kart-verktøy.kv-venstre.kv-rad{flex-direction:row}
+/* L-en (v1.218.76): raden (◎, hele, lag) nederst innenfor, søylen (kompass, ⤢, +, −) helt ut. */
+.leaflet-control.kart-verktøy{flex-direction:row!important;align-items:flex-end!important}
+.leaflet-control.kart-verktøy.kv-venstre{flex-direction:row-reverse!important}
+.kart-verktøy .kv-rad-gruppe{display:flex;flex-direction:row;gap:6px}
+.kart-verktøy.kv-venstre .kv-rad-gruppe{flex-direction:row-reverse}
+.kart-verktøy .kv-søyle-gruppe{display:flex;flex-direction:column;gap:6px}
+.kart-verktøy.kv-rad .kv-søyle-gruppe{flex-direction:row}
+.kart-verktøy.kv-venstre.kv-rad .kv-søyle-gruppe{flex-direction:row-reverse}
+.kart-verktøy .kv-rad-gruppe:empty{display:none}
+/* Panelet åpnes over raden. */
+.kart-verktøy .kv-panel{right:46px!important;left:auto!important;bottom:48px!important}
+.kart-verktøy.kv-venstre .kv-panel{left:46px!important;right:auto!important}

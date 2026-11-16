@@ -319,3 +319,24 @@ describe('beina starter ved sitt spor (v1.218.81)', () => {
     expect(edderkoppBein([d], 'Mortensrud', NÅ)[0].spor).toBe('1');
   });
 });
+
+import { velgBein } from '../src/views/auto.js';
+describe('T-banen kuttes ikke bort av bussene (v1.218.83)', () => {
+  // Rapportert 23:26 på Mortensrud: seks busser går før 3 kl. 23:48; kartet
+  // hadde plass til seks, og T-banen forsvant — filteret ble tomt.
+  const b = (kode, modus, ms) => ({ kode, modus, ms, stopp: [{}, {}] });
+  const alle = [b('73', 'bus', 1), b('73', 'bus', 2), b('72', 'bus', 3), b('71', 'bus', 4), b('76', 'bus', 5), b('74', 'bus', 6), b('3', 'metro', 7)];
+  it('hvert transportmiddel får minst ett bein innenfor maks', () => {
+    const v = velgBein(alle, 6);
+    expect(v).toHaveLength(6);
+    expect(v.map(x => x.kode)).toContain('3');
+  });
+  it('rekkefølgen ellers beholdes', () => {
+    expect(velgBein(alle, 6).map(x => x.ms)).toEqual([1, 2, 3, 4, 5, 7]);
+    expect(velgBein(alle, 20)).toHaveLength(7);
+  });
+  it('filteret leser alle beina, og kuttet skjer etter filteret', () => {
+    const s = fs.readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toMatch(/const _modi = kartModi\(bein\);[\s\S]{0,200}bein = velgBein\(filtrerBein\(bein, _skjulteModi\(\)\), _beinMaks\);/);
+  });
+});

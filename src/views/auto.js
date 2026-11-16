@@ -50,6 +50,7 @@ import { renderAlertsInto, situationTitle, situationBody, sevClass, sevRank,
 import { byLine } from '../api/situations.js';
 import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
+import { ankomstMs } from '../ankomst.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
 import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
 import { kontekstNå, kontekstLinje, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
@@ -1285,9 +1286,11 @@ export function stopHeadHtml(stop, count, open, extra) {
   // flyter til høyre for overskriften; navnet står ved siden av dem, og
   // faktaene inni navnet ble brutt i den smale spalten («5 min / gange»).
   // Som egen blokk med clear:right starter de under knappene, i full bredde.
-  const under = facts ? '<div class="auto-stop-under">' + facts + '</div>' : '';
-  if (!count) return '<div class="auto-stop">' + head + '</div>' + under;
-  return '<button class="auto-stop" type="button" id="auto-stop-toggle"'
+  // Kompakt om bord (v1.218.69): avstanden til fots er ikke spørsmålet.
+  const under = facts && !(extra && extra.kompakt) ? '<div class="auto-stop-under">' + facts + '</div>' : '';
+  const kl = 'auto-stop' + (extra && extra.kompakt ? ' kompakt' : '');
+  if (!count) return '<div class="' + kl + '">' + head + '</div>' + under;
+  return '<button class="' + kl + '" type="button" id="auto-stop-toggle"'
     + ' aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="auto-alts"'
     + ' aria-label="' + name + ', ' + count + ' holdeplasser i nærheten.'
     + ' Trykk for å ' + (open ? 'skjule' : 'vise') + '">'
@@ -1533,7 +1536,8 @@ export function rettLinjeHtml(lås, kandidater, åpen, grunn) {
   const topp = '<div class="rett-linje">'
     + (lås.kilde === 'gjettet' ? '<span class="rett-gjettet">gjettet' + (grunn ? ' · ' + esc(grunn) : '') + '</span>' : '')
     // Bekreft eller avkreft (v1.218.19). Besvart: en stille kvittering.
-    + (reiseAktiv(state.jny, lås, state.lockedJourneyId) ? '<span class="rett-bekreftet">din reise</span>'
+    // «din reise» står ikke her lenger (v1.218.69): hodet sier linja og målet.
+    + (reiseAktiv(state.jny, lås, state.lockedJourneyId) ? ''
       : lås.kilde === 'valgt' ? '<span class="rett-bekreftet">bekreftet av deg</span>'
       : '<button type="button" class="rett-ja">stemmer</button>')
     + '<button type="button" class="rett-feil" aria-expanded="' + (åpen ? 'true' : 'false') + '">feil linje?</button></div>';
@@ -1687,6 +1691,25 @@ export function fokusNavHtml(p, nå, dest) {
     + '</div>';
 }
 
+/**
+ * LINJE OG RETNING ØVERST (v1.218.69). Om bord svarer reiseappene først på
+ * «hvilket tog sitter jeg på» — linjemerket og retningen. Det sto bare i
+ * stripa nederst, avkortet. Ren.
+ */
+export function linjeHodeHtml(lås, jny) {
+  if (!lås || !lås.k) return '';
+  const k = lås.k;
+  const front = k.front || (jny && jny.frontText) || '';
+  return '<div class="ved-rad ved-linje">' + linjemerke({ kode: k.linje || (jny && jny.lineCode), farge: k.farge, linjeId: k.linjeId, modus: k.modus, logo: false })
+    + (front ? ' <span class="ved-mot">mot ' + esc(front) + '</span>' : '') + '</div>';
+}
+
+/** Retningene uten toget du sitter på: det er ikke en avgang du skal rekke. Ren. */
+export function utenEgetTog(dirs, egenId) {
+  if (!egenId) return dirs || [];
+  return (dirs || []).filter(d => !(d.calls || []).some(x => x && x.call && x.call.serviceJourney && x.call.serviceJourney.id === egenId));
+}
+
 /** Radene over stopphodet om bord. Tom uten én kjent tur. */
 export function vedNesteHtml(påLinja, nå) {
   if (!påLinja || !påLinja.k || !påLinja.stop) return '';
@@ -1696,11 +1719,14 @@ export function vedNesteHtml(påLinja, nå) {
       ? 'mellom <b>' + esc(påLinja.forrige.name) + '</b> og <b>' + esc((påLinja.neste || påLinja.stop).name) + '</b>'
       : 'på vei til <b>' + esc((påLinja.neste || påLinja.stop).name) + '</b>';
   const ns = påLinja.neste || påLinja.stop;
-  const min = Number.isFinite(ns.at) ? Math.max(0, Math.round((ns.at - nå) / 60000)) : null;
+  // KLOKKESLETT, OG «NÅ» BARE NÅR DET ER NÅ (v1.218.69). Rapportert: «neste
+  // stasjon Skøyenåsen · nå» over «toget er der 09:04» — samme ankomst, to
+  // svar. Én tid; stopphodet sier den ikke lenger om bord.
+  const nåNå = Number.isFinite(ns.at) && ns.at - nå <= 30000;
   return '<div class="ved-neste">'
     + '<div class="ved-rad">' + her + '</div>'
     + '<div class="ved-rad"><span class="ved-merke">neste stasjon</span> <b>' + esc(ns.name) + '</b>'
-    + (min == null ? '' : ' · ' + (min === 0 ? 'nå' : 'om ' + min + ' min')) + '</div>'
+    + (Number.isFinite(ns.at) ? ' · ' + (nåNå ? 'nå' : clk(ns.at)) : '') + '</div>'
     + '</div>';
 }
 
@@ -2184,14 +2210,17 @@ function _renderWhere() {
   const r = reiseAktiv(state.jny, _lås, state.lockedJourneyId);
   const fra = påLinja && (påLinja.base || påLinja.neste || påLinja.stop);
   _reiseInfo = r ? { r, igjen: fra ? stasjonerIgjen(r.k, fra.id, r.dest, nåW) : null } : null;
-  const vn = picked.linjer ? vedNesteHtml(påLinja, nåW) + (_reiseInfo ? avstigningHtml(r, _reiseInfo.igjen) : '')
+  const vn = picked.linjer ? (_lås ? linjeHodeHtml(_lås, state.jny) : '') + vedNesteHtml(påLinja, nåW) + (_reiseInfo ? avstigningHtml(r, _reiseInfo.igjen) : '')
     + fokusNavHtml(påLinja, nåW, r && r.dest) : '';
   el.innerHTML = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer)) + '</div>')
     + stopHeadHtml(_stop, others.length, open, {
       iFart: fart,
       // OM BORD (v1.218.48): avstanden til fots er ikke spørsmålet når toget
       // kjører dit. Stopphodet sier når toget er der.
-      ombordAt: _lås && påLinja && påLinja.stop && Number.isFinite(påLinja.stop.at) ? påLinja.stop.at : null,
+      // Når «neste stasjon» står over med klokkeslett, sier ikke stopphodet
+      // det igjen (v1.218.69); det blir en liten linje med «▾ N» for holdeplassene.
+      ombordAt: !(_lås && vn) && _lås && påLinja && påLinja.stop && Number.isFinite(påLinja.stop.at) ? påLinja.stop.at : null,
+      kompakt: !!(_lås && vn),
       // Toget står ved stasjonen som vises (v1.218.49).
       ombordHer: !!(_lås && påLinja && påLinja.ved && påLinja.stop && påLinja.ved.id === påLinja.stop.id),
       walkDist: w ? w.dist : null,
@@ -3482,7 +3511,7 @@ export function reiseAktiv(jny, lås, lockedId) {
   if (!jny || !jny.dest || !lås || !lås.k) return null;
   const id = lockedId || (jny.legs && jny.legs[0] && jny.legs[0].journeyId) || null;
   if (!id || lås.k.nøkkel !== id) return null;
-  return { dest: jny.dest, ank: jny.arrival && Number.isFinite(jny.arrival.time) ? jny.arrival.time : null,
+  return { dest: jny.dest, ank: ankomstMs(jny),
     linje: jny.lineCode || lås.k.linje || null, k: lås.k };
 }
 
@@ -3514,7 +3543,7 @@ export function avstigningHtml(r, igjen) {
   if (!r || !Number.isFinite(igjen)) return '';
   const tekst = igjen <= 0 ? 'gå av her'
     : igjen === 1 ? 'neste: gå av på ' + r.dest
-    : 'går av på ' + r.dest + (Number.isFinite(r.ank) ? ' ' + clk(r.ank) : '') + ' · ' + igjen + ' stasjoner igjen';
+    : 'går av på ' + r.dest + (Number.isFinite(r.ank) ? ' · ' + clk(r.ank) : '') + ' · ' + igjen + ' stasjoner igjen';
   return '<div class="ved-rad avstigning' + (igjen <= 1 ? ' avstigning-nå' : '') + '">' + esc(tekst) + '</div>';
 }
 
@@ -3980,7 +4009,9 @@ function _renderBody() {
   // choice any more. The screen counts down now (v1.71.0), so rows can age
   // past their own contents — and a row naming a direction with no time
   // beside it promises something the stop board is not saying.
-  const live = _liveRows(now);
+  // TOGET DU SITTER PÅ er ikke en avgang du skal rekke (v1.218.69).
+  // Rapportert: «3 mot Stortinget · nå» øverst i lista, om bord på den.
+  const live = _lås ? utenEgetTog(_liveRows(now), _lås.k && _lås.k.nøkkel) : _liveRows(now);
   if (!live.length) {
     _visListeDel(false);
     body.innerHTML = '<div class="dest-prev-empty">'
@@ -4090,7 +4121,9 @@ function _renderBody() {
     destBody.innerHTML = _reiseInfo
       // DIN REISE (v1.218.52): det valgte målet, ikke en gjetning; de andre
       // vanekortene foldet, ikke slettet.
-      ? reiseKortHtml(_reiseInfo.r, _reiseInfo.igjen)
+      // Kortet sa det hodet sier (v1.218.69): «går av på Jernbanetorget · 8
+      // stasjoner igjen» to ganger. Står avstigningen i hodet, står ikke kortet.
+      ? (Number.isFinite(_reiseInfo.igjen) ? '' : reiseKortHtml(_reiseInfo.r, _reiseInfo.igjen))
         + (() => {
           // Ikke reisens eget mål en gang til.
           const andre = dests.map((x, n) => ({ x, n })).filter(({ x }) => stopKey(x.name) !== stopKey(_reiseInfo.r.dest));
@@ -4844,6 +4877,7 @@ export function renderAuto() {
     journeyIds: [],
     delivered: rm.ids,
     otherWord: { one: 'melding om en annen linje', many: 'meldinger om andre linjer' },
+    utenAndre: !!_lås,
   });
   // Bare reiser du kan ta herfra, og ikke de kortene alt viser (v1.218.51).
   // «Velg rute» viser fortsatt den globale lista.

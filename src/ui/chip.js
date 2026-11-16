@@ -1,6 +1,8 @@
 import { linjemerke } from './linjemerke.js';
 import { state } from '../state.js';
 import { confirmTap } from './confirm.js';
+import { ankomstMs } from '../ankomst.js';
+import { clk } from './fmt.js';
 
 export function updateOnboardChip() {
   const chip = document.getElementById('onboard-chip');
@@ -12,8 +14,9 @@ export function updateOnboardChip() {
       '<button class="chip-main" aria-label="Vis reise underveis">'
       + linjemerke({ kode: state.jny.lineCode, farge: state.jny.lineBg, tekst: state.jny.legs && state.jny.legs[0] && state.jny.legs[0].lineFg, linjeId: state.jny.legs && state.jny.legs[0] && state.jny.legs[0].lineRef })
       + '<span class="chip-status">' + chipStatus(state.jny) + '</span>'
-      + (state.jny.arrival
-        ? '<span class="chip-arrival">ank ' + state.jny.arrival.clk + ' →</span>'
+      // Samme kilde som hodet i auto-reise (v1.218.69).
+      + (ankomstMs(state.jny) != null
+        ? '<span class="chip-arrival">ank ' + clk(ankomstMs(state.jny)) + ' →</span>'
         : '<span class="chip-arrival chip-arrival-plain">→ underveis</span>')
       + '</button>'
       + '<button id="chip-end-btn" aria-label="Avslutt reise">×</button>';

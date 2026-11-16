@@ -320,6 +320,9 @@ const _MODE_COLOUR = LINJE_FARGE;
  * @param {number} count how many modes this stop serves
  * @param {{primary?:boolean}} [opts] the stop you are departing from
  */
+/** Flere transportmidler (eller flere stopp slått sammen) her. Ren. */
+export function erKnutepunkt(count) { return Number(count) > 1; }
+
 export function makeStopIcon(mode, count, opts = {}) {
   const colour = _MODE_COLOUR[mode] || _MODE_COLOUR.rail;
   // Your own stop reads a step louder than the ones merely nearby.
@@ -328,20 +331,18 @@ export function makeStopIcon(mode, count, opts = {}) {
   const size = opts.primary ? 15 : (opts.viktig ? 13 : 11);
   const halo = _halo();
 
-  const badge = (count > 1)
-    ? '<span style="position:absolute;top:-5px;right:-7px;min-width:13px;height:13px;'
-      + 'padding:0 2px;background:' + halo + ';color:' + (halo === '#ffffff' ? '#1e293b' : '#f8fafc') + ';'
-      + 'border-radius:7px;font-size:9px;font-weight:700;line-height:13px;text-align:center;'
-      + 'font-family:\'JetBrains Mono\',ui-monospace,monospace;'
-      + 'box-sizing:border-box">' + count + '</span>'
-    : '';
-
+  // KNUTEPUNKT SOM RING, IKKE TALL (v1.218.84). Rapportert: «Hvorfor 2-tallet
+  // ved oransje sirkel?» — tallet var antall transportmidler (eller stopp slått
+  // sammen på tavla), og leste som et spor eller en plattform ved siden av
+  // «1» og «B». Informasjonen beholdes: et knutepunkt får en ytre ring.
+  // Rangeringen (viktigst, ditt eget) er størrelsen, som før.
+  const knutepunkt = erKnutepunkt(count);
   const dot = '<span style="display:block;width:' + size + 'px;height:' + size + 'px;'
     + 'background:' + colour + ';border-radius:50%;'
     + 'border:1.7px solid ' + halo + ';box-sizing:border-box;'
-    + 'box-shadow:0 1px 3px rgba(0,0,0,.35)"></span>';
+    + 'box-shadow:' + (knutepunkt ? '0 0 0 2px ' + colour + ',0 0 0 3.5px ' + halo + ',' : '') + '0 1px 3px rgba(0,0,0,.35)"></span>';
 
-  const html = '<div style="position:relative;display:block;line-height:0">' + dot + badge + '</div>';
+  const html = '<div style="position:relative;display:block;line-height:0" data-knutepunkt="' + (knutepunkt ? '1' : '0') + '">' + dot + '</div>';
   return L.divIcon({ className: '', html, iconSize: [size, size],
                      iconAnchor: [Math.round(size / 2), Math.round(size / 2)] });
 }

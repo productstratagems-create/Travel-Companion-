@@ -68,3 +68,26 @@ describe('en flyttet knapp går hjem når kartet fjernes (v1.218.72)', () => {
     expect(b.parentElement).toBe(hjem);
   });
 });
+
+import { bindMapExpand } from '../src/ui/map.js';
+describe('fullskjermknappen følger kartet (v1.218.74)', () => {
+  // Rapportert via probe: underveis åpner kartet i full høyde fra stripen,
+  // og knappen sto på ⤢ «utvid» — første trykk gjorde ingenting synlig.
+  it('kartet åpnes utenfra: knappen sier «minimer», og ett trykk lukker', async () => {
+    const el = document.createElement('div'); const b = document.createElement('button');
+    document.body.append(el, b);
+    bindMapExpand(null, el, b);
+    el.classList.add('expanded');
+    await new Promise(r => setTimeout(r, 0));
+    expect(b.getAttribute('aria-label')).toBe('Minimer kart');
+    b.click();
+    expect(el.classList.contains('expanded')).toBe(false);
+  });
+});
+
+describe('underveis: ✕ lukker kartet som stripen gjør (v1.218.74)', () => {
+  it('lukking via knappen går gjennom samme bryter som stripen', async () => {
+    const s = (await import('node:fs')).readFileSync('src/views/track.js', 'utf8');
+    expect(s).toMatch(/if \(!open && _tMapOpen\) window\._toggleTrackMap\(\);/);
+  });
+});

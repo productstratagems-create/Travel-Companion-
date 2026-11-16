@@ -33,7 +33,8 @@ describe('det faste nederst', () => {
 
 describe('begge skjermene bruker regelen', () => {
   it.each(['src/views/selected.js', 'src/views/track.js'])('%s', (f) => {
-    expect(readFileSync(f, 'utf8')).toMatch(/bindMapExpand\([^;]*\{ onToggle: \(open\) => fitExpandedMap\(mapEl, open\) \}\)/);
+    // v1.218.74: underveis gjør i tillegg lukkingen fra stripen; regelen er fortsatt fitExpandedMap.
+    expect(readFileSync(f, 'utf8')).toMatch(/bindMapExpand\([^;]*\{ onToggle: \(open\) => (fitExpandedMap\(mapEl, open\) \}\)|\{\s*fitExpandedMap\(mapEl, open\);)/);
   });
   it('map.js gir skjermen beskjed', () => {
     expect(readFileSync('src/ui/map.js', 'utf8')).toMatch(/if \(opts\.onToggle\) opts\.onToggle\(open, form\);/);

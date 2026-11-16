@@ -271,7 +271,23 @@ export function bindMapExpand(map, el, btn, opts = {}) {
     return { form, open };
   };
   if (opts.syklus) { sett(); merk(); }
+  // KNAPPEN FØLGER KARTET (v1.218.74). Underveis åpner kartet i full høyde
+  // fra stripen, utenom denne knappen; knappen sto da på ⤢ og første trykk
+  // gjorde ingenting synlig (sett i proben). Én sannhet: `expanded` på kartet.
+  const synk = () => {
+    const åpen = el.classList.contains('expanded');
+    const full = syklus.indexOf('full');
+    if (åpen && syklus[i] !== 'full' && full >= 0) { i = full; merk(); }
+    else if (!åpen && syklus[i] === 'full') { i = 0; merk(); }
+  };
+  // Den nyeste bindingen eier knappen: kart som bygges på nytt binder igjen.
+  el._fullskjermSynk = synk;
+  if (typeof MutationObserver !== 'undefined' && !el._fullskjermVakt) {
+    el._fullskjermVakt = new MutationObserver(() => el._fullskjermSynk && el._fullskjermSynk());
+    el._fullskjermVakt.observe(el, { attributes: true, attributeFilter: ['class'] });
+  }
   btn.onclick = () => {
+    synk();
     i = (i + 1) % syklus.length;
     const { form, open } = sett();
     // En skjerm som vet hvor mye plass kartet har, får si det her.

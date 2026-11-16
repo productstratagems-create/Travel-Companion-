@@ -80,7 +80,7 @@ describe('«stemmer»-knappen', () => {
     expect(rettLinjeHtml(lås('gjettet'), [], false, '')).toContain('class="rett-ja"');
     expect(rettLinjeHtml(lås('sikker'), [], false, '')).toContain('class="rett-ja"');
     expect(rettLinjeHtml(lås('valgt'), [], false, '')).not.toContain('class="rett-ja"');
-    expect(rettLinjeHtml(lås('valgt'), [], false, '')).toContain('bekreftet av deg');
+    expect(rettLinjeHtml(lås('valgt'), [], false, '')).toContain('riktig linje og avgang');
   });
 });
 

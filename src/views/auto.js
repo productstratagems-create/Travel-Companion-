@@ -1533,14 +1533,16 @@ export function _ingenLinje() {
 export function rettLinjeHtml(lås, kandidater, åpen, grunn) {
   if (!lås) return '';
   const andre = (kandidater || []).filter(k => k.nøkkel !== lås.k.nøkkel);
+  // SPØR TIL DET ER BEKREFTET (v1.218.70). Rapportert: med en startet reise
+  // sto bare «feil linje?» — ingen måte å si «riktig». Å starte en reise er
+  // ikke å bekrefte linja; bare ditt svar er det. Bekreftet: en kvittering.
   const topp = '<div class="rett-linje">'
     + (lås.kilde === 'gjettet' ? '<span class="rett-gjettet">gjettet' + (grunn ? ' · ' + esc(grunn) : '') + '</span>' : '')
-    // Bekreft eller avkreft (v1.218.19). Besvart: en stille kvittering.
-    // «din reise» står ikke her lenger (v1.218.69): hodet sier linja og målet.
-    + (reiseAktiv(state.jny, lås, state.lockedJourneyId) ? ''
-      : lås.kilde === 'valgt' ? '<span class="rett-bekreftet">bekreftet av deg</span>'
-      : '<button type="button" class="rett-ja">stemmer</button>')
-    + '<button type="button" class="rett-feil" aria-expanded="' + (åpen ? 'true' : 'false') + '">feil linje?</button></div>';
+    + (erBekreftet(lås)
+      ? '<span class="rett-bekreftet">✓ riktig linje og avgang</span>'
+        + '<button type="button" class="rett-feil rett-endre" aria-expanded="' + (åpen ? 'true' : 'false') + '">endre</button></div>'
+      : '<button type="button" class="rett-ja">✓ riktig linje</button>'
+        + '<button type="button" class="rett-feil" aria-expanded="' + (åpen ? 'true' : 'false') + '">feil linje?</button></div>');
   if (!åpen) return topp;
   const knapp = k => {
     return '<button type="button" class="rett-valg" data-jid="' + esc(k.nøkkel) + '">'
@@ -1736,8 +1738,13 @@ export function vedNesteHtml(påLinja, nå) {
  * øverst. Ingen spørsmål når låsen er satt av deg, eller reisen er låsens tur.
  * Ren.
  */
+/** Har du selv sagt at dette er linja og avgangen? Én definisjon (v1.218.70). Ren. */
+export function erBekreftet(lås) {
+  return !!(lås && lås.kilde === 'valgt');
+}
+
 export function trengerSvar(lås, jny, lockedId) {
-  if (lås && lås.kilde === 'valgt') return false;
+  if (erBekreftet(lås)) return false;
   if (reiseAktiv(jny, lås, lockedId)) return false;
   return true;
 }
@@ -2184,6 +2191,7 @@ function _renderWhere() {
   // the guard in renderAuto only refetches when _dirs is empty.
   if (picked.changed) { _dirs = []; _open = null; _asked = false; _nextMs = undefined; }
   if (!_stop) {
+    el._sistHtml = null;
     el.innerHTML = '<div class="set-label">du er ved</div>'
       + '<div class="dest-prev-empty">' + esc(noPosText(state.gpsError).where) + '</div>';
     return;
@@ -2212,7 +2220,7 @@ function _renderWhere() {
   _reiseInfo = r ? { r, igjen: fra ? stasjonerIgjen(r.k, fra.id, r.dest, nåW) : null } : null;
   const vn = picked.linjer ? (_lås ? linjeHodeHtml(_lås, state.jny) : '') + vedNesteHtml(påLinja, nåW) + (_reiseInfo ? avstigningHtml(r, _reiseInfo.igjen) : '')
     + fokusNavHtml(påLinja, nåW, r && r.dest) : '';
-  el.innerHTML = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer)) + '</div>')
+  const _html = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer)) + '</div>')
     + stopHeadHtml(_stop, others.length, open, {
       iFart: fart,
       // OM BORD (v1.218.48): avstanden til fots er ikke spørsmålet når toget
@@ -2255,6 +2263,12 @@ function _renderWhere() {
         + '</button>').join('')
       + '</div>').join('')
     + '</div>';
+  // BYGG BARE NÅR NOE ER ENDRET (v1.218.70). Hodet ble skrevet på nytt hvert
+  // sekund, så «✓ riktig linje» var en ny knapp hvert sekund — sett i proben:
+  // trykket nådde aldri fram. Samme vakt som tavlas modusknapper.
+  if (_html === el._sistHtml) return;
+  el._sistHtml = _html;
+  el.innerHTML = _html;
 
   tilpassNavn(el.querySelector('.auto-stop-label'));
   // Listeners are re-attached on every tick, which is fine and is how the

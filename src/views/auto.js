@@ -2747,7 +2747,10 @@ function _brukFokus() {
     // ellers ligger plattformen du skal til under dem — sett i proben.
     const kb = _fokusKontroll && _fokusKontroll.getContainer().getBoundingClientRect();
     const høyre = kb && kb.width ? Math.round(kb.width + 24) : 40;
-    _aMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [40, 40], paddingBottomRight: [høyre, 110], maxZoom: r.maksZoom });
+    // …og til transportmiddel-knappene oppe til venstre.
+    const mk = _modiKontroll && !_modiKontroll.getContainer().hidden && _modiKontroll.getContainer().getBoundingClientRect();
+    const venstre = mk && mk.width ? Math.round(mk.width + 24) : 40;
+    _aMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [venstre, 40], paddingBottomRight: [høyre, 110], maxZoom: r.maksZoom });
   }
   _tegnFokusKnapp(r.ukjent);
 }

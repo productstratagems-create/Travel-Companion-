@@ -374,7 +374,13 @@ function _renderTrackMap(now, cs, legs) {
     if (allPts.length) _tMap.fitBounds(allPts, { padding: [28, 28], maxZoom: 16, animate: false });
     setTimeout(() => _tMap && _tMap.invalidateSize(), 100);
 
-    bindMapExpand(_tMap, mapEl, document.getElementById('t-map-expand'), { onToggle: (open) => fitExpandedMap(mapEl, open) });
+    bindMapExpand(_tMap, mapEl, document.getElementById('t-map-expand'), { onToggle: (open) => {
+      fitExpandedMap(mapEl, open);
+      // Lukket med ✕ (v1.218.74): samme som å lukke fra stripen — kartet
+      // skjules, og stripen sier «⤢ kart» igjen. Ellers sto et halvt kart igjen
+      // og stripen sa fortsatt «✕ lukk» (sett i proben).
+      if (!open && _tMapOpen) window._toggleTrackMap();
+    } });
   }
 
   if (!_tMap) return;

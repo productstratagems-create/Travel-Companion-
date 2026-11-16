@@ -19,7 +19,9 @@ export const REKKEFØLGE = { fokus: 10, hele: 15, lag: 20, kompass: 30, fullskje
  * på rad ved siden av −. Søylen helt ut (kompass, fullskjerm, +, −); raden
  * nederst innenfor (utsnitt og filter). Venstrehendt speiler.
  */
-export const GRUPPE = { fokus: 'rad', hele: 'rad', lag: 'rad', kompass: 'søyle', fullskjerm: 'søyle', inn: 'søyle', ut: 'søyle' };
+// IKKE L — I (v1.218.78). Brukeren: «Ikke L. I». Alle i én søylerad, i
+// REKKEFØLGE. Tabellen står (raden er tom) så L-en kan komme tilbake ved ett ord.
+export const GRUPPE = { fokus: 'søyle', hele: 'søyle', lag: 'søyle', kompass: 'søyle', fullskjerm: 'søyle', inn: 'søyle', ut: 'søyle' };
 export function gruppeFor(id) { return GRUPPE[id] === 'rad' ? 'rad' : 'søyle'; }
 
 /** Knappene i rekkefølge. Ukjente id-er sist. Ren. */
@@ -72,7 +74,11 @@ export const KNAPP_STEG = 46;
 /** Løftet fra bunnen (v1.218.77: «litt opp»). Samme tall som --kv-løft i CSS. */
 export const KV_LØFT = 56;
 export function somRad(antallSynlige, kartHøyde) {
-  return antallSynlige * KNAPP_STEG + KV_LØFT > kartHøyde;
+  return antallSynlige * KNAPP_STEG + 10 > kartHøyde;
+}
+/** Får søylen plass MED løftet? Ellers står den nede (uten løft) før den blir rad. Ren. */
+export function medLøft(antallSynlige, kartHøyde) {
+  return antallSynlige * KNAPP_STEG + KV_LØFT <= kartHøyde;
 }
 /**
  * LAVE KART (v1.218.72): avgangsdetaljenes bånd er 130 px — tre knapper i
@@ -83,7 +89,9 @@ export function tilpassForm(map) {
   if (!v || !map.getSize) return;
   // Høyden avgjøres av søylen; raden ligger ved siden av (v1.218.76).
   const n = [...v.knapper.entries()].filter(([id, b]) => !b.hidden && gruppeFor(id) === 'søyle').length;
-  v.el.classList.toggle('kv-rad', somRad(n, map.getSize().y));
+  const h = map.getSize().y;
+  v.el.classList.toggle('kv-rad', somRad(n, h));
+  v.el.classList.toggle('kv-uten-løft', !medLøft(n, h));
   v.el.style.setProperty('--kv-kart-h', map.getSize().y + 'px');
 }
 

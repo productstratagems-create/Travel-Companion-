@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import L from 'leaflet';
-import { gruppeFor, somRad, sorterKnapper, REKKEFØLGE, festVerktøy, leggTil, sett, leggTilLag } from '../src/ui/kartVerktoy.js';
+import { medLøft, gruppeFor, somRad, sorterKnapper, REKKEFØLGE, festVerktøy, leggTil, sett, leggTilLag } from '../src/ui/kartVerktoy.js';
 
 const nyttKart = () => {
   const el = document.createElement('div');
@@ -92,27 +92,30 @@ describe('underveis: ✕ lukker kartet som stripen gjør (v1.218.74)', () => {
   });
 });
 
-describe('L-en: raden ved siden av − (v1.218.76)', () => {
-  it('◎, hele og lag på rad; resten i søylen', () => {
-    ['fokus', 'hele', 'lag'].forEach(id => expect(gruppeFor(id)).toBe('rad'));
-    ['kompass', 'fullskjerm', 'inn', 'ut'].forEach(id => expect(gruppeFor(id)).toBe('søyle'));
+// ENDRET MED VILJE (v1.218.78): «Ikke L. I» — alle knappene i én søyle igjen.
+describe('I, ikke L (v1.218.78)', () => {
+  it('alle knappene i søylen', () => {
+    ['fokus', 'hele', 'lag', 'kompass', 'fullskjerm', 'inn', 'ut'].forEach(id => expect(gruppeFor(id)).toBe('søyle'));
   });
-  it('knappene havner i hver sin gruppe', () => {
+  it('én søyle i rekkefølge: ◎, lag, ⤢, +, −', () => {
     const map = nyttKart();
     ['ut', 'inn', 'fullskjerm', 'lag', 'fokus'].forEach(id => leggTil(map, id, { ikon: id }));
     const v = festVerktøy(map);
-    expect([...v.el.querySelectorAll('.kv-rad-gruppe .kv-knapp')].map(b => b.dataset.kv)).toEqual(['fokus', 'lag']);
-    expect([...v.el.querySelectorAll('.kv-søyle-gruppe .kv-knapp')].map(b => b.dataset.kv)).toEqual(['fullskjerm', 'inn', 'ut']);
+    expect(v.el.querySelectorAll('.kv-rad-gruppe .kv-knapp').length).toBe(0);
+    expect([...v.el.querySelectorAll('.kv-søyle-gruppe .kv-knapp')].map(b => b.dataset.kv)).toEqual(['fokus', 'lag', 'fullskjerm', 'inn', 'ut']);
   });
 });
 
 import { KV_LØFT } from '../src/ui/kartVerktoy.js';
 import fsLøft from 'node:fs';
 describe('knappene litt opp (v1.218.77)', () => {
-  it('somRad regner med løftet', () => {
+  // v1.218.78: løftet droppes før søylen blir en rad (tavla: 4 knapper på 220 px).
+  it('løftet når det er plass; ellers nede; først så rad', () => {
     expect(KV_LØFT).toBe(56);
-    expect(somRad(3, 170)).toBe(true);   // 3·46 + 56 = 194 > 170
-    expect(somRad(3, 220)).toBe(false);
+    expect(medLøft(5, 382)).toBe(true);   // 5·46 + 56 = 286
+    expect(medLøft(4, 220)).toBe(false);  // 4·46 + 56 = 240 > 220
+    expect(somRad(4, 220)).toBe(false);   // 4·46 + 10 = 194 — søyle, uten løft
+    expect(somRad(3, 130)).toBe(true);
   });
   it('CSS og JS bruker samme tall, og lave kart løftes ikke', () => {
     const css = fsLøft.readFileSync('src/style/components.css', 'utf8');

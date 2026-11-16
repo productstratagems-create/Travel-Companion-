@@ -16,7 +16,7 @@ vi.mock('../src/views/spectate.js', () => ({
 const VIEWS = ['v-board', 'v-selected', 'v-walk', 'v-track', 'v-settings', 'v-prefs', 'v-saved', 'v-leisure', 'v-auto'];
 
 const { state } = await import('../src/state.js');
-const { show, toggleBoardMenu, navTo, NAV_ITEMS, navActive, navHidden } = await import('../src/ui/nav.js');
+const { show, toggleBoardMenu, navTo, NAV_ITEMS, NAV_UNDER_INNSTILLINGER, navActive, navHidden, tegnSkjermerIInnstillinger } = await import('../src/ui/nav.js');
 
 beforeEach(() => {
   document.body.innerHTML = VIEWS
@@ -94,15 +94,19 @@ describe('toggleBoardMenu', () => {
 // the screen the app opens on. These tests hold the two apart.
 describe('the fixed navigation menu', () => {
   it('offers the four main screens, board first', () => {
-    expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto', 'v-saved', 'v-leisure']);
+    // ENDRET MED VILJE (v1.218.75): bunnmenyen er tavla og auto-reise; lagret og
+    // utforsk ligger under innstillinger (NAV_UNDER_INNSTILLINGER).
+    expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto']);
+    expect(NAV_UNDER_INNSTILLINGER.map(i => i.view)).toEqual(['v-saved', 'v-leisure']);
     NAV_ITEMS.forEach(i => expect(i.label).toBeTruthy());
   });
 
   it('marks the screen you are on', () => {
     expect(navActive('board')).toBe('v-board');
     expect(navActive('auto')).toBe('v-auto');
-    expect(navActive('saved')).toBe('v-saved');
-    expect(navActive('leisure')).toBe('v-leisure');
+    // Lagret og utforsk er ikke i bunnmenyen lenger (v1.218.75): ingen knapp tent.
+    expect(navActive('saved')).toBe(null);
+    expect(navActive('leisure')).toBe(null);
   });
 
   // A screen that is not in the menu leaves every entry unmarked, rather than
@@ -307,5 +311,16 @@ describe('menyen under knappen som åpnet den', () => {
     const src = fs.readFileSync('src/main.js', 'utf8');
     expect(src).not.toMatch(/addEventListener\('click', toggleBoardMenu\)/);
     expect(src).toMatch(/toggleBoardMenu\(_profileChip\)/);
+  });
+});
+
+
+describe('lagret og utforsk under innstillinger (v1.218.75)', () => {
+  it('én knapp per skjerm i lista, i samme rekkefølge', () => {
+    const el = document.createElement('div');
+    tegnSkjermerIInnstillinger(el);
+    expect([...el.querySelectorAll('button')].map(b => b.dataset.view)).toEqual(NAV_UNDER_INNSTILLINGER.map(i => i.view));
+    expect(el.textContent).toContain('lagret');
+    expect(el.textContent).toContain('utforsk');
   });
 });

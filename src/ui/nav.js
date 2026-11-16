@@ -197,9 +197,27 @@ const _enter = {
 export const NAV_ITEMS = [
   { view: 'v-board',   icon: '🚉', label: 'tavla' },
   { view: 'v-auto',    icon: '⚡', label: 'auto-reise' },
+];
+
+/**
+ * UNDER INNSTILLINGER (v1.218.75). Bestilt: «Tavla og Auto-reise bør være
+ * sentrert, og legg Lagret og Utforsk inn under innstillinger.» De to står
+ * ikke lenger i bunnmenyen; de er ikke slettet, bare flyttet hit — og går
+ * gjennom samme `navTo` som bunnmenyen.
+ */
+export const NAV_UNDER_INNSTILLINGER = [
   { view: 'v-saved',   icon: '★',  label: 'lagret' },
   { view: 'v-leisure', icon: '🌟', label: 'utforsk' },
 ];
+
+/** Knappene i innstillinger, fra lista over. */
+export function tegnSkjermerIInnstillinger(el) {
+  if (!el || el._tegnet) return;
+  el._tegnet = true;
+  el.innerHTML = NAV_UNDER_INNSTILLINGER.map(i => '<button class="pref-btn" type="button" data-view="' + i.view + '">'
+    + i.icon + ' ' + i.label + '</button>').join('');
+  el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => navTo(b.dataset.view)));
+}
 
 /** Which entry is lit for a given `state.view`, or null when none of them. */
 export function navActive(view) {
@@ -265,6 +283,7 @@ function _buildNav() {
 }
 
 function _renderNav() {
+  tegnSkjermerIInnstillinger(document.getElementById('pref-skjermer'));
   const el = document.getElementById('app-nav');
   if (!el) return;
   _buildNav();

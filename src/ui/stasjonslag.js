@@ -110,7 +110,11 @@ export function aktivFraAvgang(call, stopId, inngangId) {
 /** Uthev avgangens plattform på kartet; henter stoppets plattformer om de mangler. */
 export function uthevAvgang(map, call, stopId, inngangId) {
   const aktiv = aktivFraAvgang(call, stopId, inngangId);
-  if (aktiv && plattformer(aktiv.stopId) === undefined) hentPlattformer(aktiv.stopId).then(() => settStasjonAktiv(map, aktiv));
-  settStasjonAktiv(map, aktiv);
+  // STOPPET DU ER VED tegnes alltid med sine plattformer (v1.218.71), også
+  // uten en avgang å utheve. Sett i proben: «▤ plattform» zoomet inn på et
+  // tomt stopp fordi ingen retning var åpen.
+  const vis = aktiv || (stopId ? { stopId, kode: null, inngangId: inngangId != null ? inngangId : null } : null);
+  if (vis && plattformer(vis.stopId) === undefined) hentPlattformer(vis.stopId).then(() => settStasjonAktiv(map, vis));
+  settStasjonAktiv(map, vis);
   return aktiv;
 }

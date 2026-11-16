@@ -59,7 +59,9 @@ import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
 import L from 'leaflet';
 import { SPOR_ZOOM as PLATTFORM_ZOOM_AUTO, createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap } from '../ui/map.js';
-import { uthevAvgang } from '../ui/stasjonslag.js';
+import { uthevAvgang, aktivFraAvgang } from '../ui/stasjonslag.js';
+import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, plattformMedKode as _plattformMedKode } from '../api/quays.js';
+import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
@@ -2325,7 +2327,7 @@ let _aOpenKey = null;
 /** Test seam: module state, and a test must be able to clear it. */
 export function _resetAutoMap() {
   if (_aMap) { try { _aMap.remove(); } catch (_) {} }
-  _aMap = null; _aLayer = null; _modiKontroll = null; _modiNøkkel = ''; _aKey = ''; _aFitKey = ''; _aUserMoved = false;
+  _aMap = null; _aLayer = null; _fokusKontroll = null; _kartFokus = 'oversikt'; _modiKontroll = null; _modiNøkkel = ''; _aKey = ''; _aFitKey = ''; _aUserMoved = false;
   _aOpenKey = null; _linePicked = null;
 }
 export function _autoMap() { return _aMap; }
@@ -2697,9 +2699,86 @@ function _meldManglendeBein(sentrert, bein, teller) {
   if (m !== _sistBeinMelding) { _sistBeinMelding = m; logMsg(m, 'warn'); }
 }
 
+/**
+ * ÉN KNAPP, TRE SPØRSMÅL (v1.218.71). Bestilt: første trykk rammer inn
+ * beste vei til stoppet; neste viser hvilken plattform eller hvilket spor du
+ * skal til; samme knapp sykler. Nederst til høyre, der tommelen er.
+ */
+export const KART_FOKUS = ['oversikt', 'vei', 'spor'];
+export function nesteFokus(f) {
+  const i = KART_FOKUS.indexOf(f);
+  return KART_FOKUS[(i + 1) % KART_FOKUS.length];
+}
+const _FOKUS_TEKST = { oversikt: '◎ vei til stoppet', vei: '▤ plattform', spor: '◱ oversikt' };
+
+/** Rammen for et fokus: punktene og hvor nær. null: den vanlige rammen. Ren. */
+export function fokusRamme(f, { du, stopp, gang, inngang, plattform, plattformer } = {}) {
+  const ll = p => [p.lat, p.lon];
+  if (f === 'vei') {
+    if (!du || !stopp) return stopp ? { pts: [ll(stopp)], maksZoom: 16 } : null;
+    return { pts: [ll(du), ...(gang || []), ...(inngang ? [ll(inngang)] : []), ll(stopp)], maksZoom: 17 };
+  }
+  if (f === 'spor') {
+    if (plattform) return { pts: [ll(plattform), ...(inngang ? [ll(inngang)] : [])], maksZoom: 18 };
+    if (plattformer && plattformer.length) return { pts: plattformer.map(ll), maksZoom: 18 };
+    return stopp ? { pts: [ll(stopp)], maksZoom: 17, ukjent: true } : null;
+  }
+  return null;
+}
+
+let _kartFokus = 'oversikt', _fokusKontroll = null, _fokusStopp = null;
+function _fokusData() {
+  const du = userLL();
+  const aktiv = _stop ? aktivFraAvgang((_open || _kortRute || {}).call, _stop.id) : null;
+  const pl = _stop ? _plattformer(_stop.id) : null;
+  const plattform = aktiv ? _plattformMedKode(pl, aktiv.kode) : null;
+  const inngang = _stop ? _valgtInngang(_innganger(_stop.id), du, plattform || _stop) : null;
+  return { du, stopp: _stop, gang: approachPoints(), inngang, plattform, plattformer: Array.isArray(pl) ? pl : [] };
+}
+function _brukFokus() {
+  if (!_aMap) return;
+  if (_kartFokus === 'oversikt') { _aUserMoved = false; _aFitKey = ''; _aKey = ''; _renderMap(); return; }
+  const r = fokusRamme(_kartFokus, _fokusData());
+  if (!r) return;
+  _aUserMoved = true;
+  if (r.pts.length === 1) _aMap.setView(r.pts[0], r.maksZoom);
+  else {
+    // Rammen holder plass til knappene nede til høyre (fokusknappen og +/−),
+    // ellers ligger plattformen du skal til under dem — sett i proben.
+    const kb = _fokusKontroll && _fokusKontroll.getContainer().getBoundingClientRect();
+    const høyre = kb && kb.width ? Math.round(kb.width + 24) : 40;
+    _aMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [40, 40], paddingBottomRight: [høyre, 110], maxZoom: r.maksZoom });
+  }
+  _tegnFokusKnapp(r.ukjent);
+}
+function _tegnFokusKnapp(ukjent) {
+  if (!_aMap) return;
+  if (!_fokusKontroll) {
+    const C = L.Control.extend({ onAdd() {
+      const b = L.DomUtil.create('button', 'mode-pill active kart-fokus'); b.type = 'button'; b.id = 'auto-map-fokus';
+      L.DomEvent.disableClickPropagation(b);
+      b.addEventListener('click', () => {
+        _kartFokus = nesteFokus(_kartFokus);
+        // Spor: hent plattformene og inngangene om de mangler, og ramm inn når de kommer.
+        if (_kartFokus === 'spor' && _stop && _stop.id) {
+          const vent = [];
+          if (_plattformer(_stop.id) === undefined) vent.push(_hentPlattformer(_stop.id));
+          if (_innganger(_stop.id) === undefined && _stop.lat != null) vent.push(_hentInnganger(_stop.id, _stop));
+          if (vent.length) Promise.all(vent).then(() => { if (_kartFokus === 'spor') _brukFokus(); });
+        }
+        _brukFokus();
+      });
+      return b;
+    } });
+    _fokusKontroll = new C({ position: 'bottomright' }).addTo(_aMap);
+  }
+  const b = _fokusKontroll.getContainer();
+  b.textContent = _FOKUS_TEKST[_kartFokus] + (ukjent ? ' · spor ukjent' : '');
+}
+
 /** Knappene og kreditteringen på kartet, i kartets egne koordinater. */
 function _kartHindre(el, box) {
-  return [...(el.parentElement || el).querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution, .map-expand-btn, [id$="-map-expand"], #auto-map-modi')]
+  return [...(el.parentElement || el).querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution, .map-expand-btn, [id$="-map-expand"], #auto-map-modi, #auto-map-fokus')]
     .map(n => n.getBoundingClientRect()).filter(r => r.width && r.height)
     .map(r => ({ venstre: r.left - box.left - 4, høyre: r.right - box.left + 4, topp: r.top - box.top - 4, bunn: r.bottom - box.top + 4 }));
 }
@@ -2956,6 +3035,12 @@ function _renderMap() {
   // DIN PLATTFORM (v1.218.60): åpen retning vinner, så kortet — samme
   // prioritet som kartets tema under.
   uthevAvgang(_aMap, (_open || _kortRute || {}).call, _stop && _stop.id);
+  // Ny holdeplass: kartet går tilbake til oversikten (v1.218.71).
+  if (_stop && _fokusStopp !== _stop.id) {
+    _fokusStopp = _stop.id;
+    if (_kartFokus !== 'oversikt') { _kartFokus = 'oversikt'; _aUserMoved = false; _aFitKey = ''; }
+  }
+  _tegnFokusKnapp();
 
   // WHEN A DIRECTION IS OPEN THE MAP IS ABOUT THE LINE, NOT THE NEIGHBOURHOOD.
   // The list has moved on to the stops ahead; the alternatives it was offering
@@ -3002,6 +3087,7 @@ function _renderMap() {
   if (_aOpenKey !== (openKey(_open, line) || {}).id) {
     _aOpenKey = (openKey(_open, line) || {}).id;
     _aUserMoved = false;
+    _kartFokus = 'oversikt';
     _linePicked = null;
   }
   const fitStale = !_aUserMoved && _aFitKey !== key + '|' + sizeKey;

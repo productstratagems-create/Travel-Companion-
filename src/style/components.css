@@ -408,3 +408,5 @@ html[data-theme="light"] .smart-toast strong{color:#b05800}
   text-transform:none;opacity:.75;background:none!important;padding:0!important}
 .auto-stop.kompakt{margin-top:2px}
 html.view-auto #onboard-chip{display:none!important}
+/* Kartknappen som sykler oversikt → vei → plattform (v1.218.71): nederst til høyre, tommelstor. */
+.leaflet-control.kart-fokus{min-height:44px;padding:.4rem .8rem;font-size:11px;margin-bottom:6px!important;white-space:nowrap}

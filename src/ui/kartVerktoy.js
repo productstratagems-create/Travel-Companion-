@@ -69,8 +69,10 @@ export function festVerktøy(map) {
 
 /** Søyle eller rad? En rad når kartet er for lavt til søylen. Ren. */
 export const KNAPP_STEG = 46;
+/** Løftet fra bunnen (v1.218.77: «litt opp»). Samme tall som --kv-løft i CSS. */
+export const KV_LØFT = 56;
 export function somRad(antallSynlige, kartHøyde) {
-  return antallSynlige * KNAPP_STEG + 10 > kartHøyde;
+  return antallSynlige * KNAPP_STEG + KV_LØFT > kartHøyde;
 }
 /**
  * LAVE KART (v1.218.72): avgangsdetaljenes bånd er 130 px — tre knapper i

@@ -11,10 +11,11 @@ const nyttKart = () => {
 
 describe('verktøysøylen nede til høyre (v1.218.72)', () => {
   it('rekkefølgen er én tabell: fokus, lag, kompass, fullskjerm, +, −', () => {
-    expect(sorterKnapper(['ut', 'fullskjerm', 'inn', 'hele', 'fokus', 'kompass', 'lag']))
-      .toEqual(['fokus', 'hele', 'lag', 'kompass', 'fullskjerm', 'inn', 'ut']);
+    // v1.218.79: kompasset står øverst til høyre, ikke i søylen.
+    expect(sorterKnapper(['ut', 'fullskjerm', 'inn', 'hele', 'fokus', 'lag']))
+      .toEqual(['fokus', 'hele', 'lag', 'fullskjerm', 'inn', 'ut']);
     expect(sorterKnapper(['ukjent', 'inn'])).toEqual(['inn', 'ukjent']);
-    expect(Object.keys(REKKEFØLGE)).toHaveLength(7);
+    expect(Object.keys(REKKEFØLGE)).toHaveLength(6);
   });
   it('én søyle per kart, nede til høyre, i rekkefølge uansett når knappene kom', () => {
     const map = nyttKart();
@@ -122,5 +123,18 @@ describe('knappene litt opp (v1.218.77)', () => {
     expect(css).toMatch(/--kv-løft: 56px/);
     expect(css).toMatch(/\.kart-verktøy\{margin-bottom:var\(--kv-løft\)!important\}/);
     expect(css).toMatch(/\.kart-verktøy\.kv-rad\{margin-bottom:10px!important\}/);
+  });
+});
+
+import { leggTilØverst, ØVERST } from '../src/ui/kartVerktoy.js';
+describe('kompasset øverst til høyre (v1.218.79)', () => {
+  it('i en egen kontroll øverst til høyre, ikke i søylen', () => {
+    expect(ØVERST).toEqual(['kompass']);
+    const map = nyttKart();
+    leggTil(map, 'inn', { ikon: '+' });
+    const b = leggTilØverst(map, 'kompass', { ikon: 'N', tekst: 'Nord opp' });
+    expect(b.closest('.leaflet-top.leaflet-right')).toBeTruthy();
+    expect(festVerktøy(map).el.contains(b)).toBe(false);
+    sett(map, 'kompass', { skjult: true }); expect(b.hidden).toBe(true);
   });
 });

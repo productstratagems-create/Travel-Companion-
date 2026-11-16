@@ -1,6 +1,6 @@
 import './leafletGlobal.js';
 import 'leaflet-rotate';
-import { leggTil, sett } from './kartVerktoy.js';
+import { leggTilØverst, sett } from './kartVerktoy.js';
 
 // Needle pointing "up" at bearing 0 — red tip = north, grey tail = south.
 const _NEEDLE_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg">'
@@ -18,7 +18,8 @@ export function addCompass(map, mapEl) {
   // høyre, posisjonert mot innpakningen (og klatret ut av den der den ikke var
   // posisjonert). Nå er det en knapp i søylen, vist bare når kartet er rotert.
   if (!mapEl) return;
-  const btn = leggTil(map, 'kompass', { ikon: _NEEDLE_SVG, tekst: 'Nord opp', påTrykk: () => map.setBearing(0) });
+  // Øverst til høyre (v1.218.79), ikke i søylen.
+  const btn = leggTilØverst(map, 'kompass', { ikon: _NEEDLE_SVG, tekst: 'Nord opp', påTrykk: () => map.setBearing(0) });
   const update = () => {
     const bearing = map.getBearing ? map.getBearing() : 0;
     sett(map, 'kompass', { skjult: Math.abs(bearing) < 0.5 });

@@ -2806,7 +2806,7 @@ function _tegnFokusKnapp(ukjent) {
 
 /** Knappene og kreditteringen på kartet, i kartets egne koordinater. */
 function _kartHindre(el, box) {
-  return [...(el.parentElement || el).querySelectorAll('.kart-verktøy, .kart-verktøy .kv-panel:not([hidden]), .leaflet-control-attribution')]
+  return [...(el.parentElement || el).querySelectorAll('.kart-verktøy, .kart-verktøy .kv-panel:not([hidden]), .kart-kompass, .leaflet-control-attribution')]
     .map(n => n.getBoundingClientRect()).filter(r => r.width && r.height)
     .map(r => ({ venstre: r.left - box.left - 4, høyre: r.right - box.left + 4, topp: r.top - box.top - 4, bunn: r.bottom - box.top + 4 }));
 }

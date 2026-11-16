@@ -12,7 +12,13 @@
 import L from 'leaflet';
 import { lastHånd, verktøyHjørne, skalaHjørne, HÅND_HENDELSE } from '../haand.js';
 
-export const REKKEFØLGE = { fokus: 10, hele: 15, lag: 20, kompass: 30, fullskjerm: 40, inn: 50, ut: 60 };
+export const REKKEFØLGE = { fokus: 10, hele: 15, lag: 20, fullskjerm: 40, inn: 50, ut: 60 };
+/**
+ * ØVERST TIL HØYRE (v1.218.79). Bestilt: «Kompasset hører hjemme øverst i
+ * høyre hjørne.» Det er en indikator, ikke en tommelknapp — der kartapper har
+ * det, også for venstrehendte. Én navngitt liste over hva som står der.
+ */
+export const ØVERST = ['kompass'];
 
 /**
  * L-EN I HJØRNET (v1.218.76). Bestilt med skjermbilde: ◎ og lag flyttet ned
@@ -126,10 +132,34 @@ export function leggTil(map, id, o = {}) {
   return b;
 }
 
+/** En knapp øverst til høyre (ØVERST), i samme firkantstil som søylen. */
+export function leggTilØverst(map, id, o = {}) {
+  const v = festVerktøy(map);
+  if (!v.øverst) {
+    const C = L.Control.extend({ onAdd() {
+      const d = L.DomUtil.create('div', 'kart-kompass');
+      L.DomEvent.disableClickPropagation(d);
+      return d;
+    } });
+    v.øverstKontroll = new C({ position: 'topright' }).addTo(map);
+    v.øverst = new Map();
+  }
+  let b = v.øverst.get(id);
+  if (!b) {
+    b = document.createElement('button');
+    b.type = 'button'; b.classList.add('kv-knapp'); b.dataset.kv = id;
+    v.øverst.set(id, b);
+    v.øverstKontroll.getContainer().appendChild(b);
+  }
+  if (o.påTrykk) b.onclick = o.påTrykk;
+  sett(map, id, o);
+  return b;
+}
+
 /** Endre en knapp: ikon, tekst (aria og title), aktiv, skjult, merket. */
 export function sett(map, id, o = {}) {
   const v = map && map._verktøy;
-  const b = v && v.knapper.get(id);
+  const b = v && (v.knapper.get(id) || (v.øverst && v.øverst.get(id)));
   if (!b) return;
   if (o.ikon != null) b.innerHTML = o.ikon;
   if (o.tekst != null) { b.title = o.tekst; b.setAttribute('aria-label', o.tekst); }

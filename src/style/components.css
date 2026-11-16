@@ -464,3 +464,8 @@ html.view-auto #onboard-chip{display:none!important}
 /* I, ikke L (v1.218.78): panelet ved siden av søylen, på høyde med lag-knappen; ingen løft når søylen ellers ikke får plass. */
 .kart-verktøy .kv-panel{bottom:0!important}
 .leaflet-control.kart-verktøy.kv-uten-løft{margin-bottom:10px!important}
+/* Kompasset øverst til høyre (v1.218.79), samme firkant som søylen. */
+.leaflet-control.kart-kompass{margin:10px 10px 0 0!important;border:0;background:none}
+.kart-kompass .kv-knapp{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:10px;
+  border:1px solid rgba(var(--border-rgb),.3);background:rgba(var(--bg-rgb),.82);cursor:pointer;backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.kart-kompass .kv-knapp[hidden]{display:none!important}

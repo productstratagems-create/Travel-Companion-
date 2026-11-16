@@ -12,7 +12,7 @@ vi.mock('../src/ui/leafletGlobal.js', () => ({}));
 vi.mock('leaflet-rotate', () => ({}));
 const lagt = [], satt = [];
 vi.mock('../src/ui/kartVerktoy.js', () => ({
-  leggTil: (m, id, o) => { lagt.push(id); const b = document.createElement('button'); b.innerHTML = o.ikon || ''; b.onclick = o.påTrykk; return b; },
+  leggTilØverst: (m, id, o) => { lagt.push(id); const b = document.createElement('button'); b.innerHTML = o.ikon || ''; b.onclick = o.påTrykk; return b; },
   sett: (m, id, o) => { satt.push([id, o]); },
 }));
 
@@ -25,7 +25,8 @@ beforeEach(async () => {
 });
 
 describe('addCompass', () => {
-  it('legger kompasset i verktøysøylen', () => {
+  // v1.218.79: øverst til høyre, ikke i søylen.
+  it('legger kompasset øverst til høyre', () => {
     addCompass(fakeMap(), document.createElement('div'));
     expect(lagt).toEqual(['kompass']);
   });

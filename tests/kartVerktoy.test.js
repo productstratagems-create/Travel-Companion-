@@ -105,3 +105,19 @@ describe('L-en: raden ved siden av − (v1.218.76)', () => {
     expect([...v.el.querySelectorAll('.kv-søyle-gruppe .kv-knapp')].map(b => b.dataset.kv)).toEqual(['fullskjerm', 'inn', 'ut']);
   });
 });
+
+import { KV_LØFT } from '../src/ui/kartVerktoy.js';
+import fsLøft from 'node:fs';
+describe('knappene litt opp (v1.218.77)', () => {
+  it('somRad regner med løftet', () => {
+    expect(KV_LØFT).toBe(56);
+    expect(somRad(3, 170)).toBe(true);   // 3·46 + 56 = 194 > 170
+    expect(somRad(3, 220)).toBe(false);
+  });
+  it('CSS og JS bruker samme tall, og lave kart løftes ikke', () => {
+    const css = fsLøft.readFileSync('src/style/components.css', 'utf8');
+    expect(css).toMatch(/--kv-løft: 56px/);
+    expect(css).toMatch(/\.kart-verktøy\{margin-bottom:var\(--kv-løft\)!important\}/);
+    expect(css).toMatch(/\.kart-verktøy\.kv-rad\{margin-bottom:10px!important\}/);
+  });
+});

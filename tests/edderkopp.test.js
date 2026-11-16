@@ -109,8 +109,11 @@ describe('hele linja, duset etter sjette stopp (v1.218.64)', () => {
       { kode: '3', linjeId: 'L3', front: 'Stortinget', ms: 5, stopp: st('A', 'B'), rester: [st('B', 'S')] }].reduce(slåSammenBein, []);
     expect(ut[0].rester.map(r => r[1].id)).toEqual(['K', 'S']);
   });
+  // v1.218.80: rammen følger nå de første stoppene (utgangBeinPunkter) — fortsatt ikke restene.
   it('rammen følger bare de klare beina, ikke restene', () => {
-    expect(fs.readFileSync('src/views/auto.js', 'utf8')).toMatch(/bein\.map\(b => \{ const e = b\.stopp\[b\.stopp\.length - 1\]/);
+    const s = fs.readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toMatch(/\.concat\(utgangBeinPunkter\(bein\)\)/);
+    expect(s).not.toMatch(/rammePts[^;]*rester/);
   });
 });
 
@@ -277,5 +280,22 @@ describe('si det når beina mangler (v1.218.68)', () => {
   it('retninger uten bein: en linje', () => { expect(manglendeBeinTekst(4, 0)).toMatch(/kan ikke tegnes/); });
   it('ingen retninger eller noen bein: ingenting', () => {
     expect(manglendeBeinTekst(0, 0)).toBe(''); expect(manglendeBeinTekst(4, 2)).toBe('');
+  });
+});
+
+import { utgangBeinPunkter, UTGANG_BEIN_STOPP } from '../src/views/auto.js';
+describe('utgangsrammen: den nære delen av linjene (v1.218.80)', () => {
+  const st = n => Array.from({ length: n }, (_, i) => ({ lat: 59.85 + i * 0.01, lon: 10.83 }));
+  it('andre stopp på hvert bein, ikke enden', () => {
+    expect(UTGANG_BEIN_STOPP).toBe(2);
+    expect(utgangBeinPunkter([{ stopp: st(6) }])).toEqual([[59.86, 10.83]]);
+  });
+  it('et bein med ett stopp gir det ene', () => {
+    expect(utgangBeinPunkter([{ stopp: st(1) }])).toEqual([[59.85, 10.83]]);
+  });
+  it('rammen bruker den, ikke beinas siste stopp', () => {
+    const s = fs.readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toMatch(/\.concat\(utgangBeinPunkter\(bein\)\)/);
+    expect(s).not.toMatch(/bein\.map\(b => \{ const e = b\.stopp\[b\.stopp\.length - 1\]; return \[e\.lat, e\.lon\]; \}\)\)\n    : pts/);
   });
 });

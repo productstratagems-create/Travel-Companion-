@@ -2931,6 +2931,13 @@ export function kartFormValgt() { try { const v = storage.get(FORM_KEY); return 
  * Gatenavn og E6 for sammenheng. Rammen zoomer aldri nærmere; lenger ut bare
  * når stoppene ellers ikke får plass. Var 17: tett ved holdeplassene ble det
  * få gater og ingen sammenheng (Lysaker 16, Bislett og Nydalen 15). */
+/** Hvor mye av hver linje utgangsrammen tar med (v1.218.80). */
+export const UTGANG_BEIN_STOPP = 2;
+/** Punktene av beina utgangsrammen tar med: de første stoppene, ikke enden. Ren. */
+export function utgangBeinPunkter(bein) {
+  return (bein || []).map(b => b.stopp[Math.min(UTGANG_BEIN_STOPP, b.stopp.length) - 1])
+    .filter(s => s && s.lat != null).map(s => [s.lat, s.lon]);
+}
 export const START_ZOOM = 15;  // v1.218.9: nytt skjermbilde, 2,03× det forrige → ett trinn inn.
 export const FIT_PAD = 26, FIT_MAKS_ZOOM = START_ZOOM, MARGIN = 0.15;
 const M_PER_GRAD = 111320;
@@ -3170,9 +3177,15 @@ function _renderMap() {
   const _modi = kartModi(bein);
   _tegnModiKnapper(_modi);
   bein = filtrerBein(bein, _skjulteModi());
+  // UTGANGSRAMMEN (v1.218.80). Bestilt med skjermbilde: «la dette bli
+  // default zoom og kartdetaljnivå» — deg, stoppet, gangruta og den nære
+  // delen av hver linje, ikke hele byen. Beinas ende (6. stopp) trakk kartet
+  // ut til Oslo sentrum; nå rammer de første UTGANG_BEIN_STOPP stoppene inn.
+  // Resten av linjene går ut av kartet, som på skjermbildet.
   const rammePts = sentrert
     ? [userPos, _stop, ...others].filter(s => s && s.lat != null).map(s => [s.lat, s.lon])
-      .concat(bein.map(b => { const e = b.stopp[b.stopp.length - 1]; return [e.lat, e.lon]; }))
+      .concat(utgangBeinPunkter(bein))
+      .concat(walkPts || [])
     : pts;
   if (rammePts.length && !_aUserMoved && _aFitKey !== key + '|' + sizeKey) {
     _aFitKey = key + '|' + sizeKey;

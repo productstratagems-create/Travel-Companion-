@@ -1790,7 +1790,24 @@ function _refreshInflight(dir) {
  * Everything to draw on the strip, as fractional stop indices on a shared
  * scale where the origin is 0 and the destination is legIndices.to - from.
  */
-export function _buildStrip(candidates, dir, lineOn, now, livePos) {
+/**
+ * Rekker du denne avgangen? ÉN definisjon for raden og stripa (v1.218.96).
+ * Stripa visste ikke hvor du var, mens raden under regnet det ut. Nå leser begge herfra,
+ * så en brikke aldri kan si «rekker» om en rad som sier «rekker ikke».
+ */
+export function rekkeFor(c, walkActive) {
+  if (!walkActive) return { mtl: null, rcls: null };
+  const mtl = mToLeave(påstigningTs(c));
+  return { mtl, rcls: reachCls(mtl) };
+}
+
+/** Hvor «du» står på stripas akse: gangtiden din, på samme skala som brikkene. */
+export function stripeDuPos(gangMin) {
+  if (!Number.isFinite(gangMin) || gangMin < 0) return null;
+  return -Math.min(1, gangMin / _STRIP_HORIZON_MINS);
+}
+
+export function _buildStrip(candidates, dir, lineOn, now, livePos, rekke) {
   // Accepts a predicate, a Set, or a single code — several lines can be on at
   // once now, and the strip must show every line the list shows.
   const on = typeof lineOn === 'function' ? lineOn
@@ -1831,6 +1848,8 @@ export function _buildStrip(candidates, dir, lineOn, now, livePos) {
       // same shape just because both are switched on.
       mode: ln.transportMode || 'metro',
       label: (c.destinationDisplay && c.destinationDisplay.frontText) || '',
+      // Samme dom som raden (`rekkeFor`), eller null når gangtid ikke gjelder.
+      rekke: rekke ? rekke(c) : null,
     });
   });
 
@@ -2090,7 +2109,7 @@ export function stripeKilde(trains) {
   return { kind: 'rutetid', ord: SRC_LABEL.rutetid };
 }
 
-export function _stripSummary(data) {
+export function _stripSummary(data, gangMin) {
   if (!data || !data.trains || !data.trains.length) return 'Ingen avganger på linja nå';
   // 'tog' is invariant in Norwegian — no plural branch to get wrong.
   const soonest = Math.min(...data.trains.map(t => t.mins));
@@ -2104,7 +2123,16 @@ export function _stripSummary(data) {
   const kilde = stripeKilde(data.trains);
   return data.trains.length + ' tog på vei til ' + (data.from || 'stoppet ditt')
     + ', neste om ' + fmtMins(soonest)
-    + (kilde.ord ? ' · ' + kilde.ord : '');
+    + (kilde.ord ? ' · ' + kilde.ord : '')
+    + _stripRekkeOrd(data.trains, gangMin);
+}
+
+/** «du rekker neste om N min» — det stripa viser med markøren, i ord. */
+export function _stripRekkeOrd(trains, gangMin) {
+  if (!Number.isFinite(gangMin)) return '';
+  const nåbare = (trains || []).filter(t => !t.departed && t.rekke && t.rekke !== 'missed');
+  if (!nåbare.length) return ' · du rekker ingen av dem til fots';
+  return ' · du rekker neste om ' + fmtMins(Math.min(...nåbare.map(t => t.mins)));
 }
 
 export const _stripPct = (p) => 100 * (p <= 0
@@ -2184,7 +2212,14 @@ function renderLineStrip(visibleDeps) {
   if (!dir) { blank(); return; }
   _refreshInflight(dir);
 
-  const data = _buildStrip(visibleDeps.map(d => d.c), dir, _lineOn, Date.now(), _livePos);
+  const walkActive = isWalkActive(dir);
+  const data = _buildStrip(visibleDeps.map(d => d.c), dir, _lineOn, Date.now(), _livePos,
+    c => rekkeFor(c, walkActive).rcls);
+  // DU PÅ AKSEN: gangtiden din, der brikkene til høyre er dem du ikke rekker.
+  // Uten gyldig gangtid (i fart, ukjent posisjon) tegnes ingen markør; teksten
+  // rett under stripa sier allerede hvorfor.
+  const gangMin = walkActive ? walkInfo().mins : null;
+  const duPos = walkActive ? stripeDuPos(gangMin) : null;
   if (!data.trains.length) { blank(); return; }
 
   // Displayed before measuring: a hidden element has no width, and the
@@ -2214,7 +2249,8 @@ function renderLineStrip(visibleDeps) {
       gone = ' ls-gone';
       if (!_departedSeen.has(lead.id)) { _departedSeen.add(lead.id); gone += ' ls-departing'; }
     }
-    const cls = 'ls-train ls-appr' + (lead.live ? ' ls-live' : '')
+    const ikkeRekk = !lead.departed && cl.items.every(t => t.rekke === 'missed');
+    const cls = 'ls-train ls-appr' + (lead.live ? ' ls-live' : '') + (ikkeRekk ? ' ls-missed' : '')
       + (n > 1 ? ' ls-cluster' : '') + depth + gone;
     // The strip must read the same as the row beneath it. Both call it "nå"
     // for the first minute past the scheduled time, and only then start
@@ -2235,7 +2271,7 @@ function renderLineStrip(visibleDeps) {
         })()
       : cl.group
         ? 'om ' + fmtMins(lead.mins) + ' · trykk for å lukke gruppen'
-        : esc(lead.label) + ' · trykk for å se raden';
+        : esc(lead.label) + (ikkeRekk ? ' · rekker ikke til fots' : '') + ' · trykk for å se raden';
     // The line colour is on the vehicle itself now, so the glyph carries no
     // background of its own — a coloured pill behind a coloured train would
     // say the same thing twice, in two shades.
@@ -2253,6 +2289,8 @@ function renderLineStrip(visibleDeps) {
     + '<span class="ls-zone ls-zone-appr" style="width:' + _stripPct(0).toFixed(2) + '%"></span>'
     + trains
     + '<span class="ls-you" style="left:' + _stripPct(0).toFixed(2) + '%"></span>'
+    + (duPos != null ? '<span class="ls-walk" style="left:' + _stripPct(duPos).toFixed(2) + '%"'
+      + ' title="du rekker avganger om ' + gangMin + ' min eller mer"><i>du · ' + gangMin + ' min</i></span>' : '')
     + '</div>'
     + '<div class="ls-ends"><span class="ls-end-from" style="left:' + _stripPct(0).toFixed(2) + '%">'
     + esc(data.from || '') + '</span></div>';
@@ -2262,7 +2300,7 @@ function renderLineStrip(visibleDeps) {
   });
 
   _bindStrip(el);
-  el.setAttribute('aria-label', _stripSummary(data));
+  el.setAttribute('aria-label', _stripSummary(data, gangMin));
 }
 
 /**
@@ -3138,8 +3176,7 @@ export function renderBoard() {
     const sjc = c.serviceJourney && c.serviceJourney.estimatedCalls;
     const arr = findArr(sjc, dir.to, { etter: dir.from });
     const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
-    const mtl = walkActive ? mToLeave(påstigningTs(c)) : null;
-    const rcls = walkActive ? reachCls(mtl) : null;
+    const { mtl, rcls } = rekkeFor(c, walkActive);
     const isRail = _depMode(c) === 'rail';
     // `erInnstilt`: kallet ELLER hele turen. `c.cancellation` alene overså
     // en tur som var innstilt i sin helhet.

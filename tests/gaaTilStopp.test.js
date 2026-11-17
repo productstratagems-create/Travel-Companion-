@@ -38,7 +38,7 @@ describe('Tavla', () => {
   const b = readFileSync('src/views/board.js', 'utf8');
   it('én definisjon av når du må gå', () => {
     expect(b).toContain('export { påstigningTs };');  // bor i api/adapt.js fra v1.218.17
-    expect(b).toContain('const mtl = walkActive ? mToLeave(påstigningTs(c)) : null;');
+    expect(b).toContain('const mtl = mToLeave(påstigningTs(c));');
   });
   it('raden sier «gå N min til X», og sporet sier hvor', () => {
     expect(b).toContain("(gåTilTekst(c) ? '<div class=\"dep-gaa\">' + esc(gåTilTekst(c)) + '</div>' : '')");

@@ -33,6 +33,8 @@ const ALL_KEYS = [
   't.turopptak',
   // Svarene dine på «neste reise» (v1.218.22). Nivå 1.
   't.nesteSvar',
+  // Når neste spørsmål om vanene dine tidligst kommer (v1.218.100). Nivå 1.
+  't.intervju',
   // Brukerprofilen (v1.218.29): hjem, jobb og vanene du har bekreftet. Nivå 1.
   't.profil',
   // Testposisjon i stedet for GPS (v1.218.46).

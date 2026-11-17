@@ -70,6 +70,7 @@ import { storage } from '../storage.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
 import { nesteSvarFor, lærNesteSvar } from '../api/nesteSvar.js';
+import { intervjuKlart, intervjuUtsett, målSpørsmål } from '../intervju.js';
 import { kandidatAv } from '../api/kandidat.js';
 import { taOpp, lagreTuropptak } from '../api/turopptak.js';
 import { kontekst, lærSvar, svarFor } from '../api/linjeSvar.js';
@@ -2066,8 +2067,9 @@ const _profilSenere = new Set();
 export function profilSpørsmålHtml(q) {
   if (!q) return '';
   return '<div class="profil-q">'
-    + '<div class="set-label">om deg</div>'
+    + '<div class="set-label">' + (q.art === 'mål' ? 'om reisene dine' : 'om deg') + '</div>'
     + '<div class="profil-q-tekst">' + esc(q.tekst) + '</div>'
+    + (q.grunn ? '<div class="neste-grunn">' + esc(q.grunn) + '</div>' : '')
     + '<div class="neste-svar"><button type="button" class="neste-ja profil-ja">ja</button>'
     + '<button type="button" class="neste-nei profil-nei">nei</button>'
     + '<button type="button" class="neste-nei profil-senere">senere</button></div>'
@@ -2080,15 +2082,20 @@ function _renderProfilQ(nå) {
   // andre spørsmål som gjelder.
   if (_lås || iFart(fartNå(nå)) || (_ombordDom(nå).kind || '').startsWith('ombord')) { el.style.display = 'none'; return; }
   const { p, m } = _profilNå();
-  const q = nesteSpørsmål(p, m, nå, _profilSenere);
+  // VED UJEVNE MELLOMROM (v1.218.100, src/intervju.js): profilen først, så
+  // reisene i innstillinger du ikke har svart på.
+  const q = intervjuKlart(nå)
+    ? (nesteSpørsmål(p, m, nå, _profilSenere) || målSpørsmål(loadSmartHist(), nå).find(x => !_profilSenere.has(x.nøkkel)) || null)
+    : null;
   const html = profilSpørsmålHtml(q);
   el.style.display = html ? '' : 'none';
   if (el.innerHTML === html) return;
   el.innerHTML = html;
   if (!q) return;
-  const ferdig = () => { _profilSenere.add(q.nøkkel); _renderProfilQ(Date.now()); };
+  const ferdig = () => { _profilSenere.add(q.nøkkel); intervjuUtsett(Date.now()); _renderProfilQ(Date.now()); };
   el.querySelector('.profil-ja').addEventListener('click', () => {
     if (q.art === 'reise') { svarReise(q.celle, q.type, true); ferdig(); return; }
+    if (q.art === 'mål') { lærNesteSvar(q.h, +1); ferdig(); return; }
     // Holdeplassene innen gangavstand følger med, så hjem er «hjem» fra alle.
     const s = q.sted;
     const lagre = nær => { settSted(q.rolle, s, nær); ferdig(); };
@@ -2096,7 +2103,9 @@ function _renderProfilQ(nå) {
     else lagre([]);
   });
   el.querySelector('.profil-nei').addEventListener('click', () => {
-    if (q.art === 'reise') svarReise(q.celle, q.type, false); else avvisSted(q.rolle, q.sted);
+    if (q.art === 'reise') svarReise(q.celle, q.type, false);
+    else if (q.art === 'mål') lærNesteSvar(q.h, -1);
+    else avvisSted(q.rolle, q.sted);
     ferdig();
   });
   el.querySelector('.profil-senere').addEventListener('click', ferdig);
@@ -5041,7 +5050,7 @@ export function destinations(live, freq, walkMins, now, fromName, trail, modell)
         // Samme kontekst som «din vanlige reise» (v1.218.54).
         const { p: pr, m: ma } = _profilNå();
         const kx = kontekstNå(now, _herSom(), pr, ma);
-        alle._r = new Map(rangerMål(alle, { nå: now, her: modell.her, hist: modell.hist, profil: kx.profilMål }).map(r => [r.kort.name, r]));
+        alle._r = new Map(rangerMål(alle, { nå: now, her: modell.her, hist: modell.hist, profil: kx.profilMål, svar: nesteSvarFor }).map(r => [r.kort.name, r]));
       }
       const r = alle._r.get(x.name);
       return { ...x, p: r ? r.p : 0, eget: r ? r.eget : 0, vane: !!(r && r.vane),

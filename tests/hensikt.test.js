@@ -87,3 +87,34 @@ describe('tilbakelagt strekning om bord (v1.218.88)', () => {
     expect(stoppBakover(call, 'Brynseng', 'Bøler')).toEqual([]);
   });
 });
+
+import { reiseKall } from '../src/hensikt.js';
+import { erReiseStartet, kortRuteStopp } from '../src/views/auto.js';
+describe('en startet reise er det sterkeste signalet (v1.218.90)', () => {
+  // Rapportert 15:24: reisen var startet og avgangen gått; auto-reise sa
+  // «rekker ikke» og foreslo buss 74.
+  const T = Date.parse('2026-11-17T15:24:30+01:00');
+  const j = { dest: 'Mortensrud', lineCode: '3', lineBg: '#EC700C', frontText: 'Mortensrud',
+    arrival: { time: new Date(T + 25 * 60000).toISOString() },
+    legs: [{ quay: '1', journeyId: 'SJ', depTime: { time: new Date(T - 30000).toISOString() },
+      stops: ['Jernbanetorget', 'Grønland', 'Tøyen', 'Mortensrud'].map((n, i) => ({ quay: { stopPlace: { name: n, latitude: 59.91 - i * 0.01, longitude: 10.75 + i * 0.01 } } })) }] };
+  it('avgangen har gått: underveis, aldri «rekker ikke»', () => {
+    const h = hensikt(j, null, T);
+    expect(h.fase).toBe('underveis');
+    expect(hensiktLinje(h, T, T - 120000)).toBe('din reise: 3 → Mortensrud ' + clk(T + 25 * 60000) + ' · underveis');
+  });
+  it('før avgang: som før', () => {
+    expect(hensikt(j, null, T - 5 * 60000).fase).toBe('før');
+  });
+  it('reisens eget kall gir linja til målet', () => {
+    const rk = reiseKall(j);
+    expect(kortRuteStopp(rk, 'Jernbanetorget', { name: 'Mortensrud' }).map(s => s.name)).toEqual(['Grønland', 'Tøyen', 'Mortensrud']);
+    expect(reiseKall({ legs: [{ stops: [] }] })).toBeNull();
+  });
+  it('med en startet reise foreslås ikke andre reiser', () => {
+    expect(erReiseStartet(j, null, T)).toBe(true);
+    expect(erReiseStartet(null, { to: 'X' }, T)).toBe(false);
+    const s = fs.readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toMatch(/const html = erReiseStartet\(state\.jny, state\.route, nå\) \? '' :/);
+  });
+});

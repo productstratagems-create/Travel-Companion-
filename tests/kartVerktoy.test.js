@@ -139,3 +139,13 @@ describe('kompasset øverst til høyre (v1.218.79)', () => {
     sett(map, 'kompass', { skjult: true }); expect(b.hidden).toBe(true);
   });
 });
+
+describe('en ny knapp erstatter en borte (v1.218.90)', () => {
+  it('formknappen laget på nytt havner i søylen', () => {
+    const map = nyttKart();
+    const gammel = document.createElement('button'); leggTil(map, 'fullskjerm', { element: gammel });
+    gammel.remove();
+    const ny = document.createElement('button'); leggTil(map, 'fullskjerm', { element: ny });
+    expect(festVerktøy(map).el.contains(ny)).toBe(true);
+  });
+});

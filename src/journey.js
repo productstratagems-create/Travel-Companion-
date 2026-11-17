@@ -165,7 +165,10 @@ export function legsFromTrip(c, dir) {
       lineRef:     (sj && sj.line && sj.line.id) || null,
       lineBg:      lbg ? '#' + lbg : '#7c2d12',
       lineFg:      (sj && sj.line && sj.line.presentation && sj.line.presentation.textColour) || null,
-      mode:        'metro',
+      // FRA AVGANGEN (v1.218.93). Rapportert: «Buss til Helsfyr ser ut til å
+      // bli til t-bane til Helsfyr.» Her sto 'metro' fast — en valgt buss
+      // ble T-bane underveis (ikon, «spor», farger). Ukjent sies ikke som T-bane.
+      mode:        (sj && sj.line && sj.line.transportMode) || c._mode || null,
       frontText:   (c.destinationDisplay && c.destinationDisplay.frontText) || dir.to,
       journeyId:   sj && sj.id,
       fromStation: dir.from,

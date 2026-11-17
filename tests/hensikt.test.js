@@ -73,3 +73,17 @@ describe('tavlekartet zoomer ikke inn i ingenting (v1.218.86)', () => {
     expect(gyldigRamme([[59.9, 10.8], [NaN, 1], [59.91, 10.81]])).toEqual([[59.9, 10.8], [59.91, 10.81]]);
   });
 });
+
+import { stoppBakover } from '../src/views/auto.js';
+describe('tilbakelagt strekning om bord (v1.218.88)', () => {
+  const k = (n, i) => ({ quay: { stopPlace: { name: n, latitude: 59.85 + i * 0.01, longitude: 10.83 } } });
+  const call = { serviceJourney: { estimatedCalls: ['Mortensrud', 'Skullerud', 'Bøler', 'Brynseng', 'Helsfyr', 'Jernbanetorget'].map(k) } };
+  it('fra påstigningen til der du er nå', () => {
+    expect(stoppBakover(call, 'Mortensrud', 'Brynseng').map(s => s.name)).toEqual(['Mortensrud', 'Skullerud', 'Bøler', 'Brynseng']);
+  });
+  it('ved påstigningen eller ukjent: ingenting', () => {
+    expect(stoppBakover(call, 'Mortensrud', 'Mortensrud')).toEqual([]);
+    expect(stoppBakover(call, 'Ukjent', 'Brynseng')).toEqual([]);
+    expect(stoppBakover(call, 'Brynseng', 'Bøler')).toEqual([]);
+  });
+});

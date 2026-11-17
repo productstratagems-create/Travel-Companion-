@@ -2971,6 +2971,24 @@ export function beinStart(b, plattformListe, stopp) {
   return p ? { lat: p.lat, lon: p.lon } : { lat: stopp.lat, lon: stopp.lon };
 }
 
+/**
+ * Stoppene du har kjørt: fra påstigningen (medregnet) til der du er nå
+ * (medregnet), langs turens egne kall. Tom når ett av dem ikke finnes, eller
+ * de står i feil rekkefølge. Ren.
+ */
+export function stoppBakover(call, fraNavn, tilNavn) {
+  const kall = (call && call.serviceJourney && call.serviceJourney.estimatedCalls) || [];
+  const navn = c => (c.quay && c.quay.stopPlace && c.quay.stopPlace.name) || '';
+  const i = kall.findIndex(c => stopKey(navn(c)) === stopKey(fraNavn));
+  const j = kall.findIndex((c, n) => n >= i && stopKey(navn(c)) === stopKey(tilNavn));
+  if (i < 0 || j <= i) return [];
+  return kall.slice(i, j + 1).map(c => {
+    const sp = c.quay && c.quay.stopPlace;
+    return { name: navn(c), lat: sp && sp.latitude != null ? sp.latitude : (c.quay && c.quay.latitude),
+      lon: sp && sp.longitude != null ? sp.longitude : (c.quay && c.quay.longitude) };
+  }).filter(s => s.lat != null && s.lon != null);
+}
+
 /** Mållappen: navnet og når du er der. Ren. */
 export function målLapp(mål) {
   return (mål && mål.name ? mål.name : '') + (mål && Number.isFinite(mål.at) ? ' · ' + clk(mål.at) : '');
@@ -3199,6 +3217,12 @@ function _renderMap() {
   if (_stop && _stop.lat != null) pts.push([_stop.lat, _stop.lon]);
   (line || []).forEach(st => { if (st.lat != null) pts.push([st.lat, st.lon]); });
   (kortLinje || []).forEach(st => { if (st.lat != null) pts.push([st.lat, st.lon]); });
+  // Hele reisen i rammen om bord, også det du har kjørt (v1.218.88).
+  // Toget du sitter på (låsens tur) har alle stoppene; ellers reisens avgang.
+  const _bakKall = (_lås && _lås.k && _lås.k.call) || (_kortRute && _kortRute.hensikt === 'reise' ? _kortRute.call : null);
+  const _bak = kortLinje && _bakKall && state.jny && state.jny.from && _stop
+    ? stoppBakover(_bakKall, state.jny.from, _stop.name) : [];
+  _bak.forEach(st => pts.push([st.lat, st.lon]));
   others.forEach(s => { if (s.lat != null) pts.push([s.lat, s.lon]); });
   (walkPts || []).forEach(p => pts.push(p));
   if (userPos) pts.push([userPos.lat, userPos.lon]);
@@ -3381,6 +3405,17 @@ function _renderMap() {
   // navn, så kartet sier det samme som kortet under det.
   if (kortLinje && kortLinje.length) {
     const { color, mode } = openLine(_kortRute.d);
+    // TILBAKELAGT STREKNING (v1.218.88). Rapportert om bord: ruta «forsvant»
+    // bak deg — bare strekningen foran ble tegnet. Fra der du gikk på til der
+    // du er nå, duset, under den klare delen.
+    {
+      const bak = _bak;
+      if (bak.length >= 2) {
+        const g = L.layerGroup().addTo(_aLayer);
+        drawStopLine(g, bak, { color, mode: normMode(mode), dots: false });
+        g.eachLayer(l => l.setStyle && l.setStyle({ opacity: EDDERKOPP_REST_OPASITET }));
+      }
+    }
     /* FRA STOPPET DU STÅR VED. `stopsAhead` gir stoppene ETTER det, så linja
      * manglet stykket fram til første stopp — og med bare ett stopp igjen
      * var det ingen linje i det hele tatt, bare to prikker. Sett i

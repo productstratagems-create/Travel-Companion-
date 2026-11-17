@@ -143,11 +143,14 @@ describe('lappene skalerer med zoom, kart og antall (v1.218.65)', () => {
     expect(nivåTak(12)).toBe(2);
     expect(nivåTak(15)).toBe(3);
   });
-  it('fullskjerm viser flere lapper enn et bånd', () => {
-    const synlig = v => v.filter(x => x > 0).length;
+  // ENDRET MED VILJE (v1.218.115): alle linjer har lapp (gulv 1); fullskjerm
+  // gir mer DETALJ, ikke flere lapper.
+  it('fullskjerm viser mer på lappene enn et bånd, og alle har lapp', () => {
+    const sum = v => v.reduce((a, x) => a + x, 0);
     const bånd = lappNivåer(n(6), { bredde: 382, høyde: 140, zoom: 15 });
     const full = lappNivåer(n(6), { bredde: 382, høyde: 700, zoom: 15 });
-    expect(synlig(full)).toBeGreaterThan(synlig(bånd));
+    expect(sum(full)).toBeGreaterThan(sum(bånd));
+    expect(bånd.every(x => x >= 1)).toBe(true);
   });
   it('antall bein vokser med kartflaten', () => {
     expect(beinMaks(382, 140)).toBe(4);

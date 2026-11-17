@@ -2627,7 +2627,8 @@ export function lappNivåer(bein, { bredde, høyde, zoom }) {
   if (n) nivå[0] = Math.max(tak, LAPP_GULV_FØRST);
   const budsjett = Math.max(0, bredde || 0) * Math.max(0, høyde || 0) * LAPP_ANDEL;
   const flate = () => nivå.reduce((s, v) => s + LAPP_NIVÅ[v].b * LAPP_NIVÅ[v].h, 0);
-  const gulv = i => (i === 0 ? LAPP_GULV_FØRST : 0);
+  // Gulv 1 for alle (v1.218.115): hver linje har minst merket sitt.
+  const gulv = i => (i === 0 ? LAPP_GULV_FØRST : 1);
   while (flate() > budsjett) {
     let i = n - 1;
     while (i >= 0 && nivå[i] <= gulv(i)) i--;
@@ -2654,12 +2655,59 @@ export function lappAnker(stopp, erSynlig) {
 }
 
 /** Får en lapp b×h plass i kartet W×H, satt utover fra stoppet? Ren. */
+/** Rektangelet en lapp b×h dekker, satt mot `side` fra punktet. Ren (v1.218.115). */
+export function lappRekt(pt, r, b, h) {
+  const m = 8;
+  return {
+    venstre: pt.x - (r === 'left' ? b + m : r === 'right' ? 0 : b / 2),
+    høyre: pt.x + (r === 'right' ? b + m : r === 'left' ? 0 : b / 2),
+    topp: pt.y - (r === 'top' ? h + m : r === 'bottom' ? 0 : h / 2),
+    bunn: pt.y + (r === 'bottom' ? h + m : r === 'top' ? 0 : h / 2),
+  };
+}
+const _kolliderer = (a, liste) => (liste || []).some(r => a.venstre < r.høyre && a.høyre > r.venstre && a.topp < r.bunn && a.bunn > r.topp);
+
+/**
+ * EN LAPP PER LINJE, SPREDT (v1.218.115). Bestilt: «Gi alle linjene en lapp
+ * på kartet, men spred de ut for å unngå overlapp.» Lappene plasseres én og
+ * én, viktigst først, og hver plassert lapp er et hinder for de neste.
+ * Ingen plass på nivået: et lavere nivå, ned til 1 (bare merket). Fortsatt
+ * ingen: lappen står ved sitt naturlige stopp, og kan da overlappe — hver
+ * linje skal ha sin lapp. Ren.
+ *
+ * @param {number} n antall bein
+ * @param {{nivå:(i)=>number, kandidater:(i)=>Array, rekt:(i,st,side,niv)=>object|null,
+ *   naturlig:(i,st)=>string, tvungen:(i)=>{stopp,side}, hindre:Array}} o
+ *   rekt gir null når lappen går utenfor kartet
+ * @returns {Array<{stopp, side, nivå, tvunget, rekt}>}
+ */
+/** Avstand fra kartkanten en lapp må holde (v1.218.115). */
+export const LAPP_KANT = 6;
+export function plasserLapper(n, o) {
+  const brukt = [];
+  const ut = [];
+  for (let i = 0; i < n; i++) {
+    let funnet = null;
+    for (let niv = Math.max(1, o.nivå(i)); niv >= 1 && !funnet; niv--) {
+      const p = lappPlass(o.kandidater(i), (st, side) => {
+        const r = o.rekt(i, st, side, niv);
+        return !!r && !_kolliderer(r, (o.hindre || []).concat(brukt));
+      }, st => o.naturlig(i, st));
+      if (p) funnet = { ...p, nivå: niv, tvunget: false, rekt: o.rekt(i, p.stopp, p.side, niv) };
+    }
+    if (!funnet) {
+      const t = o.tvungen(i);
+      funnet = { stopp: t.stopp, side: t.side, nivå: 1, tvunget: true, rekt: o.rekt(i, t.stopp, t.side, 1) };
+    }
+    if (funnet.rekt) brukt.push(funnet.rekt);
+    ut.push(funnet);
+  }
+  return ut;
+}
+
 export function lappPasser(pt, stopPt, b, h, W, H, hindre = [], side = null) {
-  const r = side || lappRetning(stopPt, pt), m = 8;
-  const venstre = pt.x - (r === 'left' ? b + m : r === 'right' ? 0 : b / 2);
-  const høyre = pt.x + (r === 'right' ? b + m : r === 'left' ? 0 : b / 2);
-  const topp = pt.y - (r === 'top' ? h + m : r === 'bottom' ? 0 : h / 2);
-  const bunn = pt.y + (r === 'bottom' ? h + m : r === 'top' ? 0 : h / 2);
+  const r = side || lappRetning(stopPt, pt);
+  const { venstre, høyre, topp, bunn } = lappRekt(pt, r, b, h);
   if (!(venstre >= 0 && høyre <= W && topp >= 0 && bunn <= H)) return false;
   // HINDRENE (v1.218.66): zoomknappene, fullskjermknappen og kreditteringen.
   // Bestilt: «Flytt lappene bort fra zoomknappene.»
@@ -3119,6 +3167,8 @@ export function settKartSkjult(på) { try { storage.set(KART_KEY, på ? 'skjult'
    huskes i `t.autoKartForm`; fullskjerm huskes ikke — den er et øyeblikk. */
 // v1.218.89: bare bredt og kvadratisk — knappen veksler mellom de to.
 const KART_FORMER = ['kvadrat', 'bred'];
+/** Formknappens syklus (v1.218.115): Auto-tavle får fullskjerm som tredje steg. Ren. */
+export function kartSyklus(tavle) { return tavle ? [...KART_FORMER, 'full'] : KART_FORMER; }
 const FORM_KEY = 't.autoKartForm';
 export function kartForm() { try { return storage.get(FORM_KEY) === 'bred' ? 'bred' : 'kvadrat'; } catch { return 'kvadrat'; } }
 export function settKartForm(f) { if (f === 'full') return; try { storage.set(FORM_KEY, f === 'bred' ? 'bred' : 'kvadrat'); } catch { /* */ } }
@@ -3191,11 +3241,18 @@ function _sikreFormknapp() {
     if (wrap) wrap.appendChild(fb);
   }
   const el = _el('auto-map');
-  _aForm = bindMapExpand(_aMap, el, fb, { syklus: KART_FORMER, start: kartForm(), onToggle: (open, form) => {
+  _bindForm(el, fb);
+}
+/** ÉN binding av formknappen, med syklusen for modusen du er i. */
+function _bindForm(el, fb) {
+  if (!_aMap || !el || !fb) return;
+  _formTavle = _autoTavle;
+  _aForm = bindMapExpand(_aMap, el, fb, { syklus: kartSyklus(_autoTavle), start: kartForm(), onToggle: (open, form) => {
     fitExpandedMap(el, open); settKartForm(form); _aKey = ''; _aFitKey = '';
     setTimeout(() => _renderMap(), 340);
   } });
 }
+let _formTavle = null;
 
 /** Er en reise startet (tavlas valgte avgang, ikke framme)? Da foreslås ikke andre. Ren. */
 export function erReiseStartet(jny, route, nå) {
@@ -3300,10 +3357,7 @@ function _renderMap() {
     // Fullskjerm som de andre kartene: plassen mellom statuslinja og
     // bunnmenyen. Utsnittet tegnes på nytt, så du står i midten av den nye
     // størrelsen.
-    _aForm = bindMapExpand(_aMap, el, _el('auto-map-expand'), { syklus: KART_FORMER, start: kartForm(), onToggle: (open, form) => {
-      fitExpandedMap(el, open); settKartForm(form); _aKey = ''; _aFitKey = '';
-      setTimeout(() => _renderMap(), 340);
-    } });
+    _bindForm(el, _el('auto-map-expand'));
     _aLayer = L.layerGroup().addTo(_aMap);
     // Once the reader has DRAGGED the map it is theirs. Same rule, and the
     // same single event, as the board (_bUserMoved): an auto-fit that keeps
@@ -3542,6 +3596,24 @@ function _renderMap() {
       shape: turForm(b.jid, r[0], r[r.length - 1], _renderBody) });
     if (!ruterModus) g.eachLayer(l => l.setStyle && l.setStyle({ opacity: EDDERKOPP_REST_OPASITET }));
   }));
+  // PLASSERINGEN FØRST, FOR ALLE (v1.218.115): én lapp per linje, spredt.
+  const W = box.width, H = box.height, grunnHindre = _kartHindre(el, box).concat(stoppHinder ? [stoppHinder] : []);
+  const stopPt = _aMap.latLngToContainerPoint([_stop.lat, _stop.lon]);
+  const tilPt = st => _aMap.latLngToContainerPoint([st.lat, st.lon]);
+  const kandidaterFor = b => [{ lat: (_stop.lat + b.stopp[0].lat) / 2, lon: (_stop.lon + b.stopp[0].lon) / 2 }, ...b.stopp,
+    ...(b.rester || []).flatMap(r => r.slice(1))].filter(st => st && st.lat != null);
+  const plasser = ruterModus ? [] : plasserLapper(bein.length, {
+    nivå: i => nivåer[i], kandidater: i => kandidaterFor(bein[i]), hindre: grunnHindre,
+    naturlig: (i, st) => lappRetning(stopPt, tilPt(st)),
+    rekt: (i, st, side, niv) => {
+      const { b: lw, h: lh } = LAPP_NIVÅ[niv];
+      // Bredden er et anslag; den faktiske lappen kan være litt bredere (sett i
+      // proben: «72 19:58» kuttet i kanten). Derfor en margin mot kanten og 15 %.
+      const r = lappRekt(tilPt(st), side, Math.round(lw * 1.15), lh);
+      return r.venstre >= LAPP_KANT && r.høyre <= W - LAPP_KANT && r.topp >= LAPP_KANT && r.bunn <= H - LAPP_KANT ? r : null;
+    },
+    tvungen: i => { const e = bein[i].stopp[bein[i].stopp.length - 1]; return { stopp: e, side: lappRetning(stopPt, tilPt(e)) }; },
+  });
   bein.forEach((b, bi) => {
     const først = b.ms === førsteMs;
     const g = L.layerGroup().addTo(_aLayer);
@@ -3552,21 +3624,14 @@ function _renderMap() {
     drawStopLine(g, [start, ...b.stopp], { color: b.farge, mode: normMode(b.modus), dots: false,
       shape: vei ? [[start.lat, start.lon], ...vei] : null });
     if (!først) g.eachLayer(l => l.setStyle && l.setStyle({ opacity: 0.55 }));
-    // HELE LAPPEN INNENFOR, i piksler: lappen står på den siden beinet går,
-    // og er så bred som nivået sier. En marg i prosent var smalere enn lappen.
-    const W = box.width, H = box.height, hindre = _kartHindre(el, box).concat(stoppHinder ? [stoppHinder] : []), stopPt = _aMap.latLngToContainerPoint([_stop.lat, _stop.lon]);
-    const { b: lw, h: lh } = LAPP_NIVÅ[nivåer[bi]];
-    const tilPt = st => _aMap.latLngToContainerPoint([st.lat, st.lon]);
-    // Kandidatene: stoppene, og midt mellom holdeplassen og første stopp —
-    // nærmest deg, der et bein som går rett i knappene fortsatt har plass.
-    const midt = { lat: (_stop.lat + b.stopp[0].lat) / 2, lon: (_stop.lon + b.stopp[0].lon) / 2 };
-    const plass = nivåer[bi] > 0 ? lappPlass([midt, ...b.stopp], (st, r) => lappPasser(tilPt(st), stopPt, lw, lh, W, H, hindre, r), st => lappRetning(stopPt, tilPt(st))) : null;
+    const plass = plasser[bi] || null;
     const e = plass ? plass.stopp : b.stopp[b.stopp.length - 1];
     const retning = plass ? plass.side : 'top';
-    const lapp = plass && !ruterModus ? _lappHtml(b, nivåer[bi]) : null;
+    const niv = plass ? plass.nivå : 0;
+    const lapp = plass && !ruterModus ? _lappHtml(b, niv) : null;
     const ende = L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'edderkopp-ende', html: '', iconSize: [8, 8] }), keyboard: false })
       .on('click', () => { _open = b.dir; _renderBody(); });
-    if (lapp) ende.bindTooltip(lapp, { className: lappKlasse + ' edderkopp-lapp nivå-' + nivåer[bi] + (først ? ' først' : ''), direction: retning,
+    if (lapp) ende.bindTooltip(lapp, { className: lappKlasse + ' edderkopp-lapp nivå-' + niv + (først ? ' først' : '') + (plass.tvunget ? ' tvunget' : ''), direction: retning,
       offset: _LAPP_FORSKYV[retning], permanent: true, interactive: true });
     ende.addTo(g);
   });
@@ -4414,6 +4479,12 @@ let _autoTavle = false;
 export function erAutoTavle() { return _autoTavle; }
 export function settAutoTavle(på) {
   _autoTavle = !!på;
+  // Formknappen får syklusen for modusen (v1.218.115); ut av fullskjerm først.
+  if (_aMap && _formTavle !== null && _formTavle !== _autoTavle) {
+    const el = _el('auto-map');
+    if (el && el.classList.contains('expanded')) { el.classList.remove('expanded'); document.documentElement.classList.remove('map-open'); }
+    _bindForm(el, _el('auto-map-expand'));
+  }
   const v = typeof document !== 'undefined' && document.getElementById('v-auto');
   if (v) {
     v.classList.toggle('auto-tavle', _autoTavle);

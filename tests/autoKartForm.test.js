@@ -24,7 +24,9 @@ describe('fullskjerm', () => {
   it('knappen finnes, og kartet bruker samme utvidelse som de andre', () => {
     expect(html).toContain('id="auto-map-expand"');
     expect(html).toMatch(/<div id="auto-map" class="map-expandable">/);
-    expect(src).toMatch(/bindMapExpand\(_aMap, el, _el\('auto-map-expand'\), \{ syklus: KART_FORMER, start: kartForm\(\), onToggle: \(open, form\) => \{\s*fitExpandedMap\(el, open\)/);
+    // v1.218.115: én binding (_bindForm), med syklusen for modusen.
+    expect(src).toMatch(/_bindForm\(el, _el\('auto-map-expand'\)\);/);
+    expect(src).toMatch(/bindMapExpand\(_aMap, el, fb, \{ syklus: kartSyklus\(_autoTavle\), start: kartForm\(\), onToggle: \(open, form\) => \{\s*fitExpandedMap\(el, open\)/);
   });
 });
 

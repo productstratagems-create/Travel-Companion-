@@ -66,7 +66,7 @@ describe('kartet', () => {
   it('leser kortet som listen tegnet', () => {
     expect(src()).toMatch(/_kortRute = /);
     const i = src().indexOf('function _renderMap');
-    expect(src().slice(i, i + 3000)).toMatch(/_kortRute/);
+    expect(src().slice(i, i + 6000)).toMatch(/_kortRute/);
   });
 
   /* LITE ANNET. De andre stoppene i nabolaget tegnes ikke når kortet har en
@@ -93,6 +93,6 @@ describe('kartet', () => {
   /* En åpen retning er det du nettopp trykket på. Den vinner. */
   it('og en åpen retning vinner over kortet', () => {
     const i = src().indexOf('function _renderMap');
-    expect(src().slice(i, i + 3000)).toMatch(/const kortLinje = \(!_open && _stop && _kortRute\)/);
+    expect(src().slice(i, i + 6000)).toMatch(/const kortLinje = \(!_open && _stop && _kortRute\)/);
   });
 });

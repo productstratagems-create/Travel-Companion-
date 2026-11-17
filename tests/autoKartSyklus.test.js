@@ -59,7 +59,8 @@ describe('husket form', () => {
   it('bred er 16:9, og auto.js bruker syklusen', () => {
     expect(readFileSync('src/style/settings.css', 'utf8')).toContain('#v-auto #auto-map.form-bred{aspect-ratio:16 / 9}');
     expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/syklus: KART_FORMER/);
-    expect(readFileSync('src/views/auto.js', 'utf8')).toContain("const KART_FORMER = ['kvadrat', 'bred', 'full'];");
+    // v1.218.89: bare bredt og kvadratisk på auto-reise.
+    expect(readFileSync('src/views/auto.js', 'utf8')).toContain("const KART_FORMER = ['kvadrat', 'bred'];");
   });
 });
 

@@ -65,3 +65,20 @@ export function målSpørsmål(hist, nå, svar = nesteSvarFor) {
       grunn: h.count + ' reiser registrert',
     }));
 }
+
+const _ukedag = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag'];
+const _klokke = ms => { const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+
+/**
+ * «Gikk du av på Helsfyr?» (v1.218.103): én per antatt avstigning
+ * (api/avstigningVent.js), nyeste først. Ren.
+ */
+export function avstigningSpørsmål(venter) {
+  return (venter || []).slice().sort((a, b) => b.at - a.at).map(o => ({
+    nøkkel: 'avstigning|' + o.id, art: 'avstigning', obs: o,
+    tekst: 'Gikk du av på ' + o.til + (o.linje ? ' (linje ' + o.linje + ')' : '') + ' '
+      + _ukedag[new Date(o.at).getDay()] + ' kl. ' + _klokke(o.at) + '?',
+    grunn: o.art === 'flytt' ? 'reisen din gikk til ' + o.planlagt + ', men GPS-en tyder på at du gikk av her'
+      : 'GPS-en tyder på at du gikk av her',
+  }));
+}

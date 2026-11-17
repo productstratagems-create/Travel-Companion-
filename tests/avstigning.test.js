@@ -35,14 +35,35 @@ describe('hvor du gikk av', () => {
 });
 
 describe('turen registreres', () => {
-  beforeEach(() => { storage.set('t.smartHist', ''); storage.set('t.vaneTelling', '2'); });
-  it('en tur appen så deg ta, teller én gang, til stoppet du gikk av', async () => {
+  beforeEach(() => { storage.set('t.smartHist', ''); storage.set('t.vaneTelling', '2'); storage.set('t.avstigningVent', ''); });
+  // v1.218.103: en ANTAGELSE til du har svart — ikke en reise.
+  it('en tur appen så deg ta, spørres om først; bare «ja» teller, én gang', async () => {
     const { lærAvstigning } = await import('../src/views/auto.js');
     const { tripCount } = await import('../src/api/smart.js');
+    const { venterAvstigning, svarAvstigning } = await import('../src/api/avstigningVent.js');
     expect(lærAvstigning(K, SPOR, 'sluppet:brudd').name).toBe('Bogerud');
-    expect(tripCount('Mortensrud', 'Bogerud')).toBe(1);
     lærAvstigning(K, SPOR, 'sluppet:brudd');
+    expect(tripCount('Mortensrud', 'Bogerud')).toBe(0);
+    const v = venterAvstigning(SPOR[SPOR.length - 1].at);
+    expect(v.length).toBe(1);
+    svarAvstigning(v[0].id, true);
     expect(tripCount('Mortensrud', 'Bogerud')).toBe(1);
+    expect(venterAvstigning(SPOR[SPOR.length - 1].at).length).toBe(0);
+  });
+  it('«nei» forkaster antagelsen, og ingenting læres', async () => {
+    const { lærAvstigning } = await import('../src/views/auto.js');
+    const { tripCount } = await import('../src/api/smart.js');
+    const { venterAvstigning, svarAvstigning } = await import('../src/api/avstigningVent.js');
+    const k2 = { ...K, nøkkel: 'SJ2' };
+    lærAvstigning(k2, SPOR, 'sluppet:brudd');
+    svarAvstigning(venterAvstigning(SPOR[SPOR.length - 1].at)[0].id, false);
+    expect(tripCount('Mortensrud', 'Bogerud')).toBe(0);
+  });
+  it('ubesvart i over 7 døgn: forkastet', async () => {
+    const { antaAvstigning, venterAvstigning } = await import('../src/api/avstigningVent.js');
+    antaAvstigning({ art: 'ny', fra: 'A', til: 'B', at: T0 });
+    expect(venterAvstigning(T0 + 6 * 86_400_000).length).toBe(1);
+    expect(venterAvstigning(T0 + 8 * 86_400_000).length).toBe(0);
   });
   it('en startet reise teller ikke en gang til', async () => {
     const { readFileSync } = await import('node:fs');

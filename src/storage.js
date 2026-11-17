@@ -35,6 +35,8 @@ const ALL_KEYS = [
   't.nesteSvar',
   // Når neste spørsmål om vanene dine tidligst kommer (v1.218.100). Nivå 1.
   't.intervju',
+  // Antatt avstigning til du har svart (v1.218.103). Nivå 1, høyst 7 døgn.
+  't.avstigningVent',
   // Brukerprofilen (v1.218.29): hjem, jobb og vanene du har bekreftet. Nivå 1.
   't.profil',
   // Testposisjon i stedet for GPS (v1.218.46).

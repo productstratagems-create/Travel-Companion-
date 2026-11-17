@@ -27,11 +27,27 @@ describe('reisesøket følger tavlas transportmidler', () => {
   });
   it('fetchTrip og sidevisningen sender tavlas valg', () => {
     const src = readFileSync('src/api/entur.js', 'utf8');
-    expect((src.match(/tavlaModuser\(\)\)/g) || []).length).toBeGreaterThanOrEqual(3);
+    expect(src).toContain('modusSøk(tavlaModuser())'); expect((src.match(/withIder, mod\)/g) || []).length).toBe(2); expect(src).toContain('..._tripFlagg(), mod)');
   });
   it('et trykk i filteret spør på nytt', () => {
     const src = readFileSync('src/views/board.js', 'utf8');
     const i = src.indexOf('saveModes(m);');
     expect(src.slice(i, i + 400)).toContain('refreshBoard()');
+  });
+});
+
+import { modusSøk, bareBane } from '../src/api/entur.js';
+describe('både buss og bane (v1.218.95)', () => {
+  const svar = (...modi) => ({ data: { trip: { tripPatterns: modi.map(m => ({ legs: [{ mode: 'foot' }, { mode: m }] })) } } });
+  it('bane med noe annet gir et tilleggssøk uten bane', () => {
+    expect(modusSøk(['metro', 'tram', 'bus', 'rail', 'water'])).toEqual([['metro', 'tram', 'bus', 'rail', 'water'], ['tram', 'bus', 'water']]);
+    expect(modusSøk(['bus'])).toEqual([['bus']]);
+    expect(modusSøk(['metro'])).toEqual([['metro']]);
+  });
+  it('tillegget trengs bare når bane fyller hele svaret', () => {
+    expect(bareBane(svar('metro', 'metro'))).toBe(true);
+    expect(bareBane(svar('metro', 'bus'))).toBe(false);
+    expect(bareBane(svar())).toBe(false);
+    expect(bareBane({ data: { trip: { tripPatterns: [{ duration: 1 }] } } })).toBe(false);
   });
 });

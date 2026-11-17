@@ -38,7 +38,7 @@ describe('via-halvdelen kan ikke ta tavla med seg', () => {
   });
   it('fetchTrip fanger en feil i via-halvdelen', () => {
     const s = require('node:fs').readFileSync('src/api/entur.js', 'utf8');
-    expect(s).toMatch(/vias\.map\(\(v, i\) => \(vias\.length > 1 && i === 0 \? tillegg\(v\) : spør\(v\)\)\)/);
+    expect(s).toMatch(/vias\.map\(\(v, i\) => \(vias\.length > 1 && i === 0 \? tillegg\(v\) : spørModi\(v\)\)\)/);
   });
 });
 

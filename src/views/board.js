@@ -12,6 +12,7 @@ import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { DEFAULT_MODES, loadModes, saveModes } from '../tavlaModuser.js';
 import { fartNå, walkInfo, walkMinsTo, mToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
+import { turForm } from '../ui/turForm.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest, påstigningTs, gåTilTekst } from '../api/adapt.js';
@@ -1368,7 +1369,10 @@ function renderLineRoute(visibleDeps, vehicles) {
       return;
     }
     const legStops = _legCorridorStops(leg, dir);
-    const legShapePts = legShape(leg);
+    // Uten form i etappen: turens form (v1.218.99, `turForm`).
+    const legShapePts = legShape(leg) || (legStops.length >= 2
+      ? turForm(leg.serviceJourney && leg.serviceJourney.id, legStops[0], legStops[legStops.length - 1], renderBoard)
+      : null);
     const lp = legShapePts || legStops.map(st => [st.lat, st.lon]);
     if (lp.length < 2) return;
     const ll = leg.serviceJourney && leg.serviceJourney.line;

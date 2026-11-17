@@ -40,7 +40,7 @@ import { plattformTekst } from '../bytte.js';
 import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, stoppFram, vedOgNeste, stoppEtterId, rangerKandidater } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
 import { journeyShapeCached, fetchJourneyShape } from '../api/entur.js';
-import { formMellom } from '../ui/path.js';
+import { turForm } from '../ui/turForm.js';
 import { joinJourney } from '../journey.js';
 import { logEvent, recentEvents } from '../api/eventLog.js';
 import { loadConsent } from '../api/consent.js';
@@ -2441,19 +2441,6 @@ export function openLine(dir) {
  * (`stopsAhead`); ingen nye oppslag. Rette streker mellom stopp — boardGQL
  * henter ikke pointsOnLink, som for den åpne linja.
  */
-/**
- * VEIFORMEN FOR EN TUR (v1.218.98), når den finnes. Kjent: formen (eller null
- * for et bom). Ukjent: hent den, og tegn kartet på nytt først når et TREFF
- * kommer — samme regel som tavla (board.js), så et bom aldri gir en løkke.
- */
-function _formFor(jid) {
-  if (!jid) return null;
-  const kjent = journeyShapeCached(jid);
-  if (kjent !== undefined) return kjent || null;
-  fetchJourneyShape(jid).then(pts => { if (pts && pts.length >= 2) _renderBody(); }).catch(() => {});
-  return null;
-}
-
 export const EDDERKOPP_MAKS = 5;
 export const EDDERKOPP_STOPP = 6;
 /** Hvor duset linja er fra sjette stopp til endestoppet (v1.218.64). */
@@ -3383,9 +3370,8 @@ function _renderMap() {
   // Restene først, så de klare beina ligger oppå dem.
   bein.forEach(b => (b.rester || []).forEach(r => {
     const g = L.layerGroup().addTo(_aLayer);
-    const form = _formFor(b.jid);
     drawStopLine(g, r, { color: b.farge, mode: normMode(b.modus), dots: false,
-      shape: form ? formMellom(form, r[0], r[r.length - 1]) : null });
+      shape: turForm(b.jid, r[0], r[r.length - 1], _renderBody) });
     g.eachLayer(l => l.setStyle && l.setStyle({ opacity: EDDERKOPP_REST_OPASITET }));
   }));
   bein.forEach((b, bi) => {
@@ -3394,8 +3380,7 @@ function _renderMap() {
     const _pl = _plattformer(_stop.id);
     const start = beinStart(b, Array.isArray(_pl) ? _pl : [], _stop);
     // Veien bussen kjører (v1.218.98), fra sporet ditt; rette streker uten form.
-    const form = _formFor(b.jid);
-    const vei = form ? formMellom(form, start, b.stopp[b.stopp.length - 1]) : null;
+    const vei = turForm(b.jid, start, b.stopp[b.stopp.length - 1], _renderBody);
     drawStopLine(g, [start, ...b.stopp], { color: b.farge, mode: normMode(b.modus), dots: false,
       shape: vei ? [[start.lat, start.lon], ...vei] : null });
     if (!først) g.eachLayer(l => l.setStyle && l.setStyle({ opacity: 0.55 }));
@@ -3425,15 +3410,14 @@ function _renderMap() {
   // stopsAhead returns them — so this costs no request at all.
   //
   // Straight segments between stops: boardGQL does not ask for pointsOnLink,
-  // so the alignment is fetched per journey (`_formFor`, v1.218.98); until it
+  // so the alignment is fetched per journey (`turForm`, v1.218.98); until it
   // arrives, or when Entur has none, the line cuts every curve.
   // Named in drawStopLine rather than hidden.
   if (line && line.length) {
     const { color, mode } = openLine(_open);
-    const lForm = _formFor(_open.call && _open.call.serviceJourney && _open.call.serviceJourney.id);
     drawStopLine(_aLayer, line, {
       color, mode: normMode(mode),
-      shape: lForm && _stop ? formMellom(lForm, _stop, line[line.length - 1]) : null,
+      shape: turForm(_open.call && _open.call.serviceJourney && _open.call.serviceJourney.id, _stop, line[line.length - 1], _renderBody),
       // Cull the beads when they would touch. The line still says where it
       // goes, and every stop is named in the list directly below it.
       project: (ll) => _aMap.latLngToContainerPoint(ll),

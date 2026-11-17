@@ -13,7 +13,7 @@ describe('verktøysøylen nede til høyre (v1.218.72)', () => {
   it('rekkefølgen er én tabell: fokus, lag, kompass, fullskjerm, +, −', () => {
     // v1.218.79: kompasset står øverst til høyre, ikke i søylen.
     expect(sorterKnapper(['ut', 'fullskjerm', 'inn', 'hele', 'fokus', 'lag']))
-      .toEqual(['hele', 'lag', 'fullskjerm', 'inn', 'ut', 'fokus']); // v1.218.82: ◎ nederst
+      .toEqual(['hele', 'lag', 'inn', 'ut', 'fullskjerm', 'fokus']); // v1.218.89: form mellom − og ◎
     expect(sorterKnapper(['ukjent', 'inn'])).toEqual(['inn', 'ukjent']);
     expect(Object.keys(REKKEFØLGE)).toHaveLength(6);
   });
@@ -103,7 +103,7 @@ describe('I, ikke L (v1.218.78)', () => {
     ['ut', 'inn', 'fullskjerm', 'lag', 'fokus'].forEach(id => leggTil(map, id, { ikon: id }));
     const v = festVerktøy(map);
     expect(v.el.querySelectorAll('.kv-rad-gruppe .kv-knapp').length).toBe(0);
-    expect([...v.el.querySelectorAll('.kv-søyle-gruppe .kv-knapp')].map(b => b.dataset.kv)).toEqual(['lag', 'fullskjerm', 'inn', 'ut', 'fokus']); // v1.218.82: ◎ nederst
+    expect([...v.el.querySelectorAll('.kv-søyle-gruppe .kv-knapp')].map(b => b.dataset.kv)).toEqual(['lag', 'inn', 'ut', 'fullskjerm', 'fokus']); // v1.218.89
   });
 });
 
@@ -112,15 +112,16 @@ import fsLøft from 'node:fs';
 describe('knappene litt opp (v1.218.77)', () => {
   // v1.218.78: løftet droppes før søylen blir en rad (tavla: 4 knapper på 220 px).
   it('løftet når det er plass; ellers nede; først så rad', () => {
-    expect(KV_LØFT).toBe(56);
-    expect(medLøft(5, 382)).toBe(true);   // 5·46 + 56 = 286
-    expect(medLøft(4, 220)).toBe(false);  // 4·46 + 56 = 240 > 220
+    // v1.218.89: bunnstilt — løftet er 10, samme som margen.
+    expect(KV_LØFT).toBe(10);
+    expect(medLøft(5, 382)).toBe(true);
+    expect(medLøft(4, 220)).toBe(true);
     expect(somRad(4, 220)).toBe(false);   // 4·46 + 10 = 194 — søyle, uten løft
     expect(somRad(3, 130)).toBe(true);
   });
   it('CSS og JS bruker samme tall, og lave kart løftes ikke', () => {
     const css = fsLøft.readFileSync('src/style/components.css', 'utf8');
-    expect(css).toMatch(/--kv-løft: 56px/);
+    expect(css).toMatch(/--kv-løft: 10px/);
     expect(css).toMatch(/\.kart-verktøy\{margin-bottom:var\(--kv-løft\)!important\}/);
     expect(css).toMatch(/\.kart-verktøy\.kv-rad\{margin-bottom:10px!important\}/);
   });

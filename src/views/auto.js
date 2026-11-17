@@ -2932,7 +2932,8 @@ export function kartSkjult() { try { return storage.get(KART_KEY) === 'skjult'; 
 export function settKartSkjult(på) { try { storage.set(KART_KEY, på ? 'skjult' : ''); } catch { /* */ } }
 /* FORMEN (v1.218.5): knappen sykler kvadrat → bred → fullskjerm. Kvadrat/bred
    huskes i `t.autoKartForm`; fullskjerm huskes ikke — den er et øyeblikk. */
-const KART_FORMER = ['kvadrat', 'bred', 'full'];
+// v1.218.89: bare bredt og kvadratisk — knappen veksler mellom de to.
+const KART_FORMER = ['kvadrat', 'bred'];
 const FORM_KEY = 't.autoKartForm';
 export function kartForm() { try { return storage.get(FORM_KEY) === 'bred' ? 'bred' : 'kvadrat'; } catch { return 'kvadrat'; } }
 export function settKartForm(f) { if (f === 'full') return; try { storage.set(FORM_KEY, f === 'bred' ? 'bred' : 'kvadrat'); } catch { /* */ } }
@@ -3141,6 +3142,10 @@ function _renderMap() {
   // DIN PLATTFORM (v1.218.60): åpen retning vinner, så kortet — samme
   // prioritet som kartets tema under.
   uthevAvgang(_aMap, _minAvgang(), _stop && _stop.id);
+  // Formknappen skal alltid stå i søylen (v1.218.89). Sett mangle på telefonen
+  // om bord; ikke gjenskapt i proben — så den settes inn igjen om den er borte.
+  { const fb = _el('auto-map-expand'); const v = _aMap._verktøy;
+    if (fb && v && !v.el.contains(fb)) leggTilVerktøy(_aMap, 'fullskjerm', { element: fb }); }
   // Ny holdeplass: kartet går tilbake til oversikten (v1.218.71).
   if (_stop && _fokusStopp !== _stop.id) {
     _fokusStopp = _stop.id;

@@ -455,7 +455,7 @@ html.view-auto #onboard-chip{display:none!important}
 .kart-verktøy.kv-venstre .kv-panel{left:46px!important;right:auto!important}
 /* LITT OPP (v1.218.77): hele L-en løftes en knappehøyde fra bunnen. Samme tall som KV_LØFT.
    Lave kart (på rad) står nede som før — der ville løftet skyve knappene ut. */
-:root{ --kv-løft: 56px; }
+:root{ --kv-løft: 10px; } /* v1.218.89: bunnstilt */
 .leaflet-control.kart-verktøy{margin-bottom:var(--kv-løft)!important}
 .leaflet-control.kart-verktøy.kv-rad{margin-bottom:10px!important}
 /* Panelet over raden får ikke gå ut over kartets topp etter løftet (v1.218.77): resten ruller. */

@@ -13,7 +13,8 @@ import L from 'leaflet';
 import { lastHånd, verktøyHjørne, skalaHjørne, HÅND_HENDELSE } from '../haand.js';
 
 // v1.218.82: ◎ nederst, under − (skjermbilde med pil ned).
-export const REKKEFØLGE = { hele: 15, lag: 20, fullskjerm: 40, inn: 50, ut: 60, fokus: 70 };
+// v1.218.89: kartformen (bredt/kvadratisk, ⤢ på andre kart) mellom − og ◎.
+export const REKKEFØLGE = { hele: 15, lag: 20, inn: 50, ut: 60, fullskjerm: 65, fokus: 70 };
 /**
  * ØVERST TIL HØYRE (v1.218.79). Bestilt: «Kompasset hører hjemme øverst i
  * høyre hjørne.» Det er en indikator, ikke en tommelknapp — der kartapper har
@@ -79,7 +80,8 @@ export function festVerktøy(map) {
 /** Søyle eller rad? En rad når kartet er for lavt til søylen. Ren. */
 export const KNAPP_STEG = 46;
 /** Løftet fra bunnen (v1.218.77: «litt opp»). Samme tall som --kv-løft i CSS. */
-export const KV_LØFT = 56;
+// v1.218.89: «Hele knapperekka bør være bunnstilt» — løftet er tatt bort.
+export const KV_LØFT = 10;
 export function somRad(antallSynlige, kartHøyde) {
   return antallSynlige * KNAPP_STEG + 10 > kartHøyde;
 }

@@ -2350,7 +2350,7 @@ let _aOpenKey = null;
 /** Test seam: module state, and a test must be able to clear it. */
 export function _resetAutoMap() {
   if (_aMap) { try { _aMap.remove(); } catch (_) {} }
-  _aMap = null; _aLayer = null; _fokusKontroll = null; _kartFokus = 'oversikt'; _modiKontroll = null; _modiNøkkel = ''; _aKey = ''; _aFitKey = ''; _aUserMoved = false;
+  _aMap = null; _aLayer = null; _fokusKontroll = null; _kartFokus = 'oversikt'; _modiKontroll = null; _modiNøkkel = null; _aKey = ''; _aFitKey = ''; _aUserMoved = false;
   _aOpenKey = null; _linePicked = null;
 }
 export function _autoMap() { return _aMap; }
@@ -2673,6 +2673,9 @@ export const MODI_REKKEFØLGE = ['metro', 'tram', 'rail', 'bus', 'water'];
 const MODI_NAVN = { metro: 'T-bane', tram: 'Trikk', rail: 'Tog', bus: 'Buss', water: 'Båt' };
 const SKJULT_NØKKEL = 't.autoKartSkjult';
 
+/** Står lag-knappen? Bare når det er noe å velge. Ren. */
+export function lagSynlig(modi) { return Array.isArray(modi) && modi.length > 0; }
+
 /** Transportmidlene på beina, med antall; tom under to (ingenting å velge). Ren. */
 export function kartModi(bein) {
   const tell = new Map();
@@ -2692,7 +2695,8 @@ function _skjulteModi() {
   try { return new Set(JSON.parse(storage.get(SKJULT_NØKKEL) || '[]')); } catch { return new Set(); }
 }
 
-let _modiKontroll = null, _modiNøkkel = '';
+// null, ikke '' (v1.218.92): en tom liste ga også '', og første tegning returnerte før knappen ble skjult.
+let _modiKontroll = null, _modiNøkkel = null;
 function _tegnModiKnapper(modi) {
   if (!_aMap) return;
   // BAK «LAG»-KNAPPEN I VERKTØYSØYLEN (v1.218.72): pillene var en egen søyle
@@ -2706,6 +2710,11 @@ function _tegnModiKnapper(modi) {
   const el = _modiKontroll.getContainer();
   const skjult = _skjulteModi();
   const nøkkel = modi.map(m => m.modus + m.antall + (skjult.has(m.modus) ? '-' : '+')).join(',');
+  // Ingenting å velge: knappen bort og panelet lukket, før vakten — alltid.
+  if (!lagSynlig(modi)) {
+    if (el.parentElement) el.parentElement.hidden = true;
+    settVerktøy(_aMap, 'lag', { skjult: true, aktiv: false });
+  }
   if (nøkkel === _modiNøkkel) return;
   _modiNøkkel = nøkkel;
   el.hidden = !modi.length;

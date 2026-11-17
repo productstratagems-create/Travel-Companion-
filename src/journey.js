@@ -80,7 +80,9 @@ export function joinJourney(meta, toIdx) {
   saveJny();
   // Du følger en reise: den teller. Her, og ikke i activateTracking, som
   // også kjører når en lagret reise gjenopprettes.
-  registrerReise({ fra: first.name, til: dest.name, tilLat: dest.lat, tilLon: dest.lon,
+  // STARTET, IKKE REIST (v1.218.105): telles som bekreftet først når GPS og
+  // intervjuet sier ja (clearJny → lærAvStartetReise).
+  registrerReise({ nivå: 'startet', fra: first.name, til: dest.name, tilLat: dest.lat, tilLon: dest.lon,
     linje: meta.lineCode }, _posForLogg());
   activateTracking();
 }
@@ -225,7 +227,7 @@ export function doBoard() {
   state.lockedJourneyId = (firstLeg && firstLeg.journeyId) || state.lockedJourneyId;
   saveJny();
   // Du trykket «på»: reisen teller. Målet er reisens, ikke første etappes.
-  registrerReise({ fra: dir.from, til: dir.to, tilStopId: dir.toStopId || null,
+  registrerReise({ nivå: 'startet', fra: dir.from, til: dir.to, tilStopId: dir.toStopId || null,
     fraStopId: dir.stopId || null, tilLat: _toLat, tilLon: _toLon,
     linje: firstLeg && firstLeg.lineCode }, _posForLogg());
   activateTracking();
@@ -342,7 +344,9 @@ export function lærAvStartetReise(jny, spor) {
   if (stopp.length < 2) return null;
   const av = avstigningFraStopp(stopp.slice(1), fikser, 'auto');
   const planlagt = jny.dest;
-  if (!av || !planlagt || normNavn(av.name) === normNavn(planlagt) || normNavn(av.name) === normNavn(jny.from)) return null;
+  // OGSÅ VED MÅLET (v1.218.105): en startet reise er ikke en reise før GPS
+  // og du har sagt det. Samme spørsmål, uansett hvor du gikk av.
+  if (!av || !planlagt || normNavn(av.name) === normNavn(jny.from)) return null;
   // En antagelse til du har svart (v1.218.103): intervjuet spør, «ja» flytter.
   antaAvstigning({ art: 'flytt', fra: jny.from, fraStopId: (jny.legs[0] && jny.legs[0].fromStopId) || null,
     planlagt, til: av.name, tilStopId: av.id, tilLat: av.lat, tilLon: av.lon,

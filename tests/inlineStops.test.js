@@ -114,8 +114,8 @@ describe('hvordan skjermen bruker dem nå', () => {
    * Påstanden er at blokka er BETINGET av at det finnes destinasjoner: uten
    * dem tegnes verken overskrift eller kort. */
   it('tegner ingen blokk uten destinasjoner', () => {
-    expect(src()).toMatch(/dests\.length\s*\n?\s*\? '<div class="set-label">[^<]+<\/div>'/);
-    expect(src()).toMatch(/dests\.length[\s\S]{0,120}:\s*'';/);
+    expect(src()).toMatch(/dests\.length\s*\n?[\s\S]{0,200}\? '<div class="set-label">'/);
+    expect(src()).toMatch(/dests\.length[\s\S]{0,400}:\s*'';/);
   });
 });
 

@@ -88,7 +88,7 @@ describe('bryteren ligger sammen med lista den styrer', () => {
 describe('de to listene skrives til hver sin container', () => {
   it('kortene til sin egen', () => {
     expect(src).toMatch(/auto-dest-body/);
-    expect(src).toMatch(/dit du ofte skal/);
+    expect(src).toMatch(/dit du pleier nå/);
   });
 
   /* Og overskriften for radene skrives IKKE lenger inn i kroppen — den står

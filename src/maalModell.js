@@ -28,6 +28,15 @@ import { stopKey } from './stopId.js';
 
 export const BLANDING_K = 5;
 
+/**
+ * Hvor mange reiser som må til før appen sier «du pleier» (v1.218.97).
+ * Rapportert tirsdag 18:56 på Mortensrud: «dit du ofte skal treffer svært
+ * dårlig». Én reise innenfor ±5 timer var nok til å si «du pleier hit
+ * tirsdager rundt nå», mens profilen over sa «ingen faste reiser i kveld».
+ * Nå kreves minst to reiser samme dagtype innenfor ±2 timer (nabobøttene).
+ */
+export const VANE_MIN = 2;
+
 /** Det vanlige mønsteret: hvilken vei, og hvor sterkt (0–1). */
 export function vanligMønster(nå) {
   const d = new Date(nå), h = d.getHours(), helg = erHelgLik(nå);
@@ -63,6 +72,7 @@ export function rangerMål(kort, o) {
   const d = new Date(c.nå), bøtte = Math.floor(d.getHours() / 2), helg = erHelgLik(c.nå);
   const herKey = c.her && stopKey(c.her.name);
   const poeng = new Map();
+  const nær = new Map();   // reiser til målet i samme eller nabobøtte, samme dagtype
   let n = 0;
   (c.hist || []).forEach(e => {
     const diff = Math.abs((e.bucket ?? 99) - bøtte);
@@ -72,6 +82,7 @@ export function rangerMål(kort, o) {
     const p = (e.count || 0) * (diff === 0 ? 3 : diff === 1 ? 2 : 1) * fraHer;
     const k = stopKey(e.toName);
     if (k) poeng.set(k, (poeng.get(k) || 0) + p);
+    if (k && diff <= 1) nær.set(k, (nær.get(k) || 0) + (e.count || 0));
   });
   const maks = Math.max(0, ...poeng.values());
   const vekt = n / (n + BLANDING_K);
@@ -87,11 +98,12 @@ export function rangerMål(kort, o) {
     const profilTreff = !!pr && pr.treff({ name: x.name, id: x.id, lat: x.lat, lon: x.lon });
     // Over alt det faste mønsteret kan gi (maks 1), så profilen alltid går foran.
     const p = profilTreff ? 2 + eget : vekt * eget + (1 - vekt) * vanlig;
+    const vane = (nær.get(stopKey(x.name)) || 0) >= VANE_MIN;
     const grunn = profilTreff ? (pr.tekst || 'din vanlige reise')
-      : eget > 0 && vekt * eget >= (1 - vekt) * Math.abs(vanlig - 0.5)
+      : vane
         ? 'du pleier hit ' + _dagNavn[d.getDay()] + ' rundt nå'
         : (vanlig > 0.5 ? m.tekst : '');
-    return { kort: x, p, eget, vanlig, grunn, profil: profilTreff };
+    return { kort: x, p, eget, vanlig, grunn, profil: profilTreff, vane: vane || profilTreff };
   }).sort((a, b) => b.p - a.p);
 }
 

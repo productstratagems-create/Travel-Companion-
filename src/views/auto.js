@@ -4454,7 +4454,10 @@ function _renderBody() {
         ? (dests.length ? '<details class="auto-andre-mål"><summary class="auto-side">andre mål · ' + dests.length + '</summary>'
           + dests.map(destHtml).join('') + '</details>' : '')
       : dests.length
-        ? '<div class="set-label">dit du ofte skal</div>' + dests.map(destHtml).join('')
+        // Overskriften sier hva kortene bygger på (v1.218.97): en vane nå,
+        // eller bare steder du har reist til før.
+        ? '<div class="set-label">' + (dests.some(x => x.vane || x.retning === 'mot') ? 'dit du pleier nå' : 'steder du har reist til') + '</div>'
+          + dests.map(destHtml).join('')
         : '';
   }
 
@@ -4944,7 +4947,8 @@ export function kortHtml(x, n) {
   return '<span class="auto-dest-rad" data-rad="' + esc(x.name) + '">'
     + '<button class="nearby-btn auto-dest" type="button" data-d="' + n + '"'
     + ' aria-label="' + esc('reis til ' + x.name + ', framme ' + clk(o.at) + ', ' + sagt
-      + (annet ? ' · ' + annet : '')) + '">'
+      + (annet ? ' · ' + annet : '')
+      + (x.også && x.også.length ? ' · også ' + x.også.map(y => y.name + ' ' + clk(y.at)).join(', ') : '')) + '">'
     + '<span class="auto-dest-top">'
     + '<span class="auto-dest-name">' + esc(x.name) + '</span>'
     + '<span class="auto-dest-at">' + esc('framme ' + clk(o.at)) + '</span>'
@@ -4952,7 +4956,8 @@ export function kortHtml(x, n) {
     // Hvorfor dette står her (src/maalModell.js), når det er noe å si.
     // Hvorfor kortet står her. Uten en grunn fra konteksten er det et vanemål
     // herfra — sagt, så det ikke leses som at du skal dit nå (v1.218.55).
-    + '<span class="auto-dest-grunn">' + esc(x.grunn || 'ofte herfra') + '</span>'
+    + '<span class="auto-dest-grunn">' + esc(x.grunn || grunnUtenVane(x.uses)) + '</span>'
+    + (x.også && x.også.length ? '<span class="auto-dest-ogsa">' + esc('også ' + x.også.map(y => y.name + ' ' + clk(y.at)).join(' · ')) + '</span>' : '')
     /* Tellingen INNE i samme avsnitt, ikke som et eget barn. Kommentaren i
      * settings.css:731 forklarer hvorfor: som høyrestilt flex-barn brøt
      * leserekkefølgen på 414 px, og som egen blokk-linje ble den et nytt
@@ -5029,11 +5034,32 @@ export function destinations(live, freq, walkMins, now, fromName, trail, modell)
         alle._r = new Map(rangerMål(alle, { nå: now, her: modell.her, hist: modell.hist, profil: kx.profilMål }).map(r => [r.kort.name, r]));
       }
       const r = alle._r.get(x.name);
-      return { ...x, p: r ? r.p : 0, eget: r ? r.eget : 0, grunn: x.retning === 'mot' ? 'på vei dit' : (r ? r.grunn : '') };
+      return { ...x, p: r ? r.p : 0, eget: r ? r.eget : 0, vane: !!(r && r.vane),
+        grunn: x.retning === 'mot' ? 'på vei dit' : (r ? r.grunn : '') };
     })
     .sort((a, b) => (RETNING_RANG[a.retning] - RETNING_RANG[b.retning])
       || ((b.p || 0) - (a.p || 0)) || b.uses - a.uses || a.name.localeCompare(b.name, 'nb'))
+    .reduce(slåSammenSammeAvgang, [])
     .slice(0, DEST_BLOCK);
+}
+
+/**
+ * ETT KORT PER AVGANG (v1.218.97). Rapportert: «Jernbanetorget» og «Helsfyr»
+ * som to kort med samme T-bane 3 kl. 19:09. Det er én beslutning, ikke to.
+ * Et mål som nås med samme første avgang som et kort over, blir en linje i
+ * det kortet («også Helsfyr 19:27») og ikke et eget kort. Foldet, ikke slettet.
+ */
+export function slåSammenSammeAvgang(acc, x) {
+  const o = x.options && x.options[0];
+  const vert = o && acc.find(a => a.options && a.options[0] && a.options[0].i === o.i);
+  if (!vert) { acc.push(x); return acc; }
+  vert.også = [...(vert.også || []), { name: x.name, at: o.at }].sort((a, b) => a.at - b.at);
+  return acc;
+}
+
+/** Grunnen når modellen ikke har noen: sagt med det appen faktisk vet. */
+export function grunnUtenVane(uses) {
+  return uses >= 3 ? 'ofte herfra' : 'reist dit før';
 }
 
 export function stopShortcuts(stops, arr, n) {

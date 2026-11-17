@@ -12,7 +12,7 @@ import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, walk
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon, legShape, journeyPoints } from '../api/adapt.js';
 import { visStopp } from '../stopId.js';
-import { ankomstTekst, bytteTekst, transferMargin, PLATFORM_CHANGE_MINS } from '../bytte.js';
+import { ankomstTekst, bytteTekst, transferMargin, PLATFORM_CHANGE_MINS, plattformTekst } from '../bytte.js';
 export { transferMargin, PLATFORM_CHANGE_MINS };
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters } from '../api/scooters.js';
@@ -2347,6 +2347,8 @@ export function buildTrackBar() {
   document.getElementById('t-train-bar').innerHTML =
     badges
     + '<span class="tb-dest">' + (state.jny.frontText || state.jny.dest) + '</span>'
+    // SPORET (v1.218.87): reisen vet det; toppraden sier det, samme ord som tavla.
+    + (legs[0] && legs[0].quay ? '<span class="tb-dep">' + plattformTekst(String(legs[0].quay), legs[0].mode) + '</span>' : '')
     + (firstDep ? '<span class="tb-dep">avg <span>' + firstDep.clk + '</span></span>' : '')
     + (state.jny.arrival ? '<span class="tb-dep">ank <span>' + state.jny.arrival.clk + '</span></span>' : '');
 

@@ -277,6 +277,20 @@ export { haver, metresBetween, EARTH_R_M } from './haversine.js';
  * the active route's one. Two places computing walking time is how they drift
  * apart, and this one decides when someone leaves.
  */
+/**
+ * «VED STOPPET» — én definisjon (v1.218.87; flyttet hit fra approach.js, som
+ * re-eksporterer den). Innenfor denne avstanden er gangruta ikke verdt å tegne,
+ * og gangtiden får ingen buffer: rapportert «rekker ikke» med brukeren 35 m
+ * unna, fordi 35 m ble 1 min + 2 min buffer = 3 min.
+ */
+export const AT_STOP_M = 120;
+
+/** Gangminutter for en avstand. Ved stoppet: uten buffer og uten minimum. Ren. */
+export function gangMinutter(d, spd, buf) {
+  if (d <= AT_STOP_M) return Math.ceil(d / spd);
+  return Math.max(1, Math.ceil(d / spd)) + buf;
+}
+
 export function walkMinsTo(stopLL, fromLL) {
   const pos = fromLL || state.walkFromLL || state.homeLL;
   if (!pos || !stopLL || stopLL.lat == null || stopLL.lon == null) return null;
@@ -288,7 +302,7 @@ export function walkMinsTo(stopLL, fromLL) {
   const measured = getWalkDist(pos, stopLL, crow);
   const d = measured != null ? measured : crow * 1.3;
   return {
-    mins: Math.max(1, Math.ceil(d / spd)) + buf,
+    mins: gangMinutter(d, spd, buf),
     dist: Math.round(d),
     src: measured != null ? 'gangrute' : (state.walkFromLL ? 'sted' : 'beregnet'),
   };

@@ -22,7 +22,8 @@
  * the cache it just filled.
  */
 import config from '../config.js';
-import { haver } from '../geo.js';
+import { haver, AT_STOP_M } from '../geo.js';
+export { AT_STOP_M };
 import { walkKey } from './walkDist.js';
 import { approachRoute } from './walkApproach.js';
 import { fetchFootRouteEntur } from './route.js';
@@ -43,7 +44,7 @@ import { logMsg } from '../ui/log.js';
  * screen that draws a route to a stop it has already decided you are standing
  * at.
  */
-export const AT_STOP_M = 120;
+// AT_STOP_M bor i geo.js (v1.218.87) og re-eksporteres over.
 
 let _key = null;
 let _pts = null;

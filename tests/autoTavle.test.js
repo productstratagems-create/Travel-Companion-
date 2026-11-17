@@ -54,3 +54,18 @@ describe('lenken og modusen', () => {
     expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/if \(_autoTavle && _dirs\.length\) \{ _visListeDel\(false\); _tegnAutoTavle\(body\); return; \}/);
   });
 });
+
+describe('kartets filter gjelder lista (v1.218.108)', () => {
+  it('samme regel for bein og retninger', async () => {
+    const { filtrerRetninger, filtrerBein } = await import('../src/views/auto.js');
+    const dirs = [dir('3', 'Kolsås', [2]), { ...dir('74', 'Jernbanetorget', [5]), lines: [{ code: '74', mode: 'bus' }] }, { ...dir('X', 'Y', [6]), lines: [{ code: 'X' }] }];
+    expect(filtrerRetninger(dirs, ['bus']).map(d => d.frontText)).toEqual(['Kolsås']);   // uten modus = buss, som beina
+    expect(filtrerRetninger(dirs, ['metro']).map(d => d.frontText)).toEqual(['Jernbanetorget', 'Y']);
+    expect(filtrerBein([{ modus: null }, { modus: 'metro' }], ['bus']).length).toBe(1);
+  });
+  it('lista leser filteret og tegnes på nytt ved et trykk', () => {
+    const src = readFileSync('src/views/auto.js', 'utf8');
+    expect(src).toMatch(/const synlige = filtrerRetninger\(_dirs, skjult\);/);
+    expect(src).toMatch(/if \(_autoTavle\) _renderBody\(\);/);
+  });
+});

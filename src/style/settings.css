@@ -1004,3 +1004,4 @@
 .at-spor small{font:600 .5rem "JetBrains Mono",monospace;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted)}
 .at-spor:empty{background:none}
 .at-rekker-ikke .at-min,.at-rekker-ikke .at-front,.at-rekker-ikke .at-klokke{text-decoration:line-through;opacity:.55}
+.at-filter{font-size:.75rem;color:var(--text-muted);margin:.1rem 0 .3rem}

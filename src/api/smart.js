@@ -103,6 +103,38 @@ export function registrerReise(r, pos) {
 }
 
 /**
+ * DU GIKK AV ET ANNET STED (v1.218.102). En startet reise ble talt ved «på»,
+ * til det planlagte målet. Viser GPS at du gikk av et annet sted, flyttes
+ * den ene tellingen: én fra `planlagt` i bøtta og dagtypen reisen ble talt i,
+ * én til `faktisk` i samme. Ingenting annet røres.
+ *
+ * @param {{fra, fraStopId?, planlagt, faktisk, tilStopId?, tilLat?, tilLon?, boardedAt:number, linje?}} r
+ */
+export function flyttReise(r, pos) {
+  if (!r || !r.fra || !r.planlagt || !r.faktisk || !Number.isFinite(r.boardedAt)) return false;
+  if (r.planlagt.toLowerCase() === r.faktisk.toLowerCase()) return false;
+  const d = new Date(r.boardedAt);
+  const bucket = Math.floor(d.getHours() / 2), isWeekend = erHelgLik(r.boardedAt);
+  const hist = _load();
+  const nøkkel = navn => navn.toLowerCase() + '|' + bucket + '|' + (isWeekend ? 'we' : 'wd');
+  const i = hist.findIndex(e => e.key === nøkkel(r.planlagt));
+  if (i !== -1) { hist[i].count--; if (hist[i].count <= 0) hist.splice(i, 1); }
+  const j = hist.findIndex(e => e.key === nøkkel(r.faktisk));
+  if (j !== -1) {
+    hist[j].count++; hist[j].lastUsed = Date.now();
+    if (r.tilStopId) hist[j].toStopId = r.tilStopId;
+  } else {
+    hist.push({ key: nøkkel(r.faktisk), fromName: r.fra, toName: r.faktisk, toStopId: r.tilStopId || null,
+      toLat: Number.isFinite(r.tilLat) ? r.tilLat : null, toLon: Number.isFinite(r.tilLon) ? r.tilLon : null,
+      fromStopId: r.fraStopId || null, bucket, isWeekend, count: 1, lastUsed: Date.now() });
+  }
+  hist.sort((a, b) => b.count - a.count || b.lastUsed - a.lastUsed);
+  storage.set(HIST_KEY, JSON.stringify(hist.slice(0, HIST_MAX)));
+  logEvent('avstigning', { fra: r.fra, planlagt: r.planlagt, faktisk: r.faktisk, linje: r.linje || null }, pos || null);
+  return true;
+}
+
+/**
  * Hvilken telling lagret historikk er skrevet med. '2' = reiser (v1.202.0).
  * Alt før talte trykk.
  */

@@ -52,7 +52,9 @@ describe('verktøysøylen nede til høyre (v1.218.72)', () => {
 
 describe('lave kart får knappene på rad (v1.218.72)', () => {
   it('130 px og tre knapper: rad; 382 px og fem knapper: søyle', () => {
-    expect(somRad(3, 130)).toBe(true);
+    // ENDRET MED VILJE (v1.218.110): tette knapper (38 px steg) og kildelinja
+    // trukket fra i tilpassForm. Båndet er 130 px minus kildelinja (~14 px).
+    expect(somRad(3, 116)).toBe(true);
     expect(somRad(5, 382)).toBe(false);
   });
 });
@@ -117,7 +119,7 @@ describe('knappene litt opp (v1.218.77)', () => {
     expect(medLøft(5, 382)).toBe(true);
     expect(medLøft(4, 220)).toBe(true);
     expect(somRad(4, 220)).toBe(false);   // 4·46 + 10 = 194 — søyle, uten løft
-    expect(somRad(3, 130)).toBe(true);
+    expect(somRad(3, 116)).toBe(true);   // v1.218.110: båndet minus kildelinja
   });
   it('CSS og JS bruker samme tall, og lave kart løftes ikke', () => {
     const css = fsLøft.readFileSync('src/style/components.css', 'utf8');
@@ -129,12 +131,14 @@ describe('knappene litt opp (v1.218.77)', () => {
 
 import { leggTilØverst, ØVERST } from '../src/ui/kartVerktoy.js';
 describe('kompasset øverst til høyre (v1.218.79)', () => {
-  it('i en egen kontroll øverst til høyre, ikke i søylen', () => {
+  // ENDRET MED VILJE (v1.218.110): kompasset står i hjørnet MOTSATT av søylen —
+  // øverst til venstre for høyrehendte (standard), øverst til høyre for venstrehendte.
+  it('i en egen kontroll i øvre hjørne motsatt av søylen, ikke i søylen', () => {
     expect(ØVERST).toEqual(['kompass']);
     const map = nyttKart();
     leggTil(map, 'inn', { ikon: '+' });
     const b = leggTilØverst(map, 'kompass', { ikon: 'N', tekst: 'Nord opp' });
-    expect(b.closest('.leaflet-top.leaflet-right')).toBeTruthy();
+    expect(b.closest('.leaflet-top.leaflet-left')).toBeTruthy();
     expect(festVerktøy(map).el.contains(b)).toBe(false);
     sett(map, 'kompass', { skjult: true }); expect(b.hidden).toBe(true);
   });

@@ -420,6 +420,9 @@ html.view-auto #onboard-chip{display:none!important}
   border:1px solid rgba(var(--border-rgb),.3);background:rgba(var(--bg-rgb),.82);color:var(--accent);
   font:600 18px/1 system-ui,sans-serif;cursor:pointer;backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .kart-verktøy .kv-knapp[hidden]{display:none!important}
+/* Tett søyle (v1.218.110): mindre knapper før søylen blir rad. */
+.kart-verktøy.kv-tett .kv-knapp{width:34px;height:34px;min-height:34px;font-size:16px;border-radius:9px}
+.kart-verktøy.kv-tett .kv-søyle-gruppe{gap:4px}
 .kart-verktøy .kv-knapp:active{background:rgba(var(--accent-rgb),.18)}
 .kart-verktøy .kv-knapp.kv-aktiv{background:rgba(var(--accent-rgb),.22);border-color:var(--accent)}
 .kart-verktøy .kv-knapp.kv-merket::after{content:'';position:absolute;transform:translate(13px,-13px);width:8px;height:8px;border-radius:50%;background:var(--accent)}
@@ -472,3 +475,9 @@ html.view-auto #onboard-chip{display:none!important}
 /* Din avgang (v1.218.86): raden for tavlas valg, uten å flytte den. */
 .auto-dir.auto-din{border-color:var(--accent)!important;box-shadow:inset 3px 0 0 var(--accent)}
 .auto-din-merke{margin-left:.5rem;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);white-space:nowrap}
+
+/* Linjefilteret i lag-panelet (v1.218.110): ett merke per linje, dempet når skjult. */
+.auto-map-linjer{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(var(--accent-rgb),.15)}
+.linje-pill{background:none;border:0;padding:2px;border-radius:6px;cursor:pointer;line-height:0}
+.linje-pill:not(.active){opacity:.35;filter:grayscale(1)}
+.linje-pill:focus-visible{outline:2px solid var(--accent)}

@@ -10,7 +10,7 @@
  * Rekkefølgen er ÉN tabell, ovenfra og ned.
  */
 import L from 'leaflet';
-import { lastHånd, verktøyHjørne, skalaHjørne, HÅND_HENDELSE } from '../haand.js';
+import { lastHånd, verktøyHjørne, skalaHjørne, kompassHjørne, HÅND_HENDELSE } from '../haand.js';
 
 // v1.218.82: ◎ nederst, under − (skjermbilde med pil ned).
 // v1.218.89: kartformen (bredt/kvadratisk, ⤢ på andre kart) mellom − og ◎.
@@ -51,6 +51,14 @@ export function byttHjørne(map, hånd) {
   if (mål) mål.insertBefore(v.el, mål.firstChild);
   v.el.classList.toggle('kv-venstre', hånd === 'venstre');
   if (map._skala) map._skala.setPosition(skalaHjørne(hånd));
+  // Kompasset i hjørnet over den andre siden (v1.218.110).
+  if (v.øverstKontroll) {
+    const kh = kompassHjørne(hånd);
+    v.øverstKontroll.options.position = kh;
+    const km = map._controlCorners && map._controlCorners[kh];
+    if (km) km.insertBefore(v.øverstKontroll.getContainer(), km.firstChild);
+  }
+  tilpassForm(map);
 }
 if (typeof window !== 'undefined') {
   window.addEventListener(HÅND_HENDELSE, e => _levende.forEach(m => byttHjørne(m, e.detail)));
@@ -89,8 +97,19 @@ export const KV_LØFT = 10;
  */
 export const KOMPASS_PLASS = 56;
 const _ledig = (h, øverst) => h - (øverst ? KOMPASS_PLASS : 0);
+/**
+ * TETT SØYLE (v1.218.110). Bestilt: knappepanelet vertikalt. Auto-reise har
+ * fem knapper (240 px) på et kart på om lag 215 px — da står de tettere
+ * (34 px knapper) før de legger seg på rad.
+ */
+export const KNAPP_STEG_TETT = 38;
+export function tett(antallSynlige, kartHøyde, øverst = false) {
+  const h = _ledig(kartHøyde, øverst);
+  return antallSynlige * KNAPP_STEG + 10 > h && antallSynlige * KNAPP_STEG_TETT + 10 < h;
+}
 export function somRad(antallSynlige, kartHøyde, øverst = false) {
-  return antallSynlige * KNAPP_STEG + 10 > _ledig(kartHøyde, øverst);
+  // «Akkurat» er for trangt: 130 px og tre knapper forblir rad (v1.218.72).
+  return antallSynlige * KNAPP_STEG_TETT + 10 >= _ledig(kartHøyde, øverst);
 }
 /** Får søylen plass MED løftet? Ellers står den nede (uten løft) før den blir rad. Ren. */
 export function medLøft(antallSynlige, kartHøyde, øverst = false) {
@@ -105,13 +124,25 @@ export function tilpassForm(map) {
   if (!v || !map.getSize) return;
   // Høyden avgjøres av søylen; raden ligger ved siden av (v1.218.76).
   const n = [...v.knapper.entries()].filter(([id, b]) => !b.hidden && gruppeFor(id) === 'søyle').length;
-  const h = map.getSize().y;
-  // Bare når kompasset VISES: det står skjult til kartet er rotert.
-  const øverst = !!(v.øverst && [...v.øverst.values()].some(b => !b.hidden));
+  // KILDELINJA tar også plass (v1.218.110): på et smalt kart går den over to
+  // linjer, og søylen ble kuttet øverst (sett i proben). Målt, ikke gjettet.
+  const attr = map.getContainer && map.getContainer().querySelector('.leaflet-control-attribution');
+  const h = map.getSize().y - (attr ? attr.offsetHeight : 0);
+  // Bare når kompasset VISES (det står skjult til kartet er rotert) OG står
+  // over søylen. Siden v1.218.110 står det i motsatt hjørne, så søylen beholder
+  // hele høyden; regelen står likevel, så de to ikke kan komme på kant igjen.
+  const kh = v.øverstKontroll && v.øverstKontroll.options.position;
+  const sammeSide = !!kh && (kh.endsWith('right') === (v.kontroll.options.position || '').endsWith('right'));
+  const øverst = sammeSide && !!(v.øverst && [...v.øverst.values()].some(b => !b.hidden));
   v.el.classList.toggle('kv-rad', somRad(n, h, øverst));
+  v.el.classList.toggle('kv-tett', tett(n, h, øverst));
   v.el.classList.toggle('kv-uten-løft', !medLøft(n, h, øverst));
   // Panelet (lag) får heller ikke gå opp i kompasset.
   v.el.style.setProperty('--kv-kart-h', _ledig(h, øverst) + 'px');
+  // Ingenting å regne på før kildelinja er tegnet: én gang til etter neste ramme.
+  if (attr && !attr.offsetHeight && typeof requestAnimationFrame !== 'undefined' && !v._attrVent) {
+    v._attrVent = true; requestAnimationFrame(() => { v._attrVent = false; tilpassForm(map); });
+  }
 }
 
 function _ordne(v) {
@@ -157,7 +188,7 @@ export function leggTilØverst(map, id, o = {}) {
       L.DomEvent.disableClickPropagation(d);
       return d;
     } });
-    v.øverstKontroll = new C({ position: 'topright' }).addTo(map);
+    v.øverstKontroll = new C({ position: kompassHjørne(lastHånd()) }).addTo(map);
     v.øverst = new Map();
   }
   let b = v.øverst.get(id);

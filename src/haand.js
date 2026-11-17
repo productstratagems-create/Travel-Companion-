@@ -21,6 +21,12 @@ export function lagreHånd(h) {
   return v;
 }
 /** Hjørnet knappene står i. Ren. */
+/**
+ * KOMPASSET I MOTSATT HJØRNE (v1.218.110). Bestilt: «Kan vi ha knappepanelet
+ * vertikalt dersom vi flytter kompasset til øvre venstre hjørnet — og bytte
+ * om dersom bruker velger venstrehendt.» Da står det aldri over søylen.
+ */
+export function kompassHjørne(h) { return h === 'venstre' ? 'topright' : 'topleft'; }
 export function verktøyHjørne(h) { return h === 'venstre' ? 'bottomleft' : 'bottomright'; }
 /** Hjørnet skalastreken står i: det andre. Ren. */
 export function skalaHjørne(h) { return h === 'venstre' ? 'bottomright' : 'bottomleft'; }

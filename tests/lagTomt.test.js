@@ -13,7 +13,9 @@ describe('lag-knappen står aldri med et tomt panel (v1.218.92)', () => {
     expect(s).toMatch(/let _modiKontroll = null, _modiNøkkel = null;/);
     const i = s.indexOf('function _tegnModiKnapper');
     const f = s.slice(i, i + 2500);
-    expect(f.indexOf('if (!lagSynlig(modi))')).toBeGreaterThan(-1);
-    expect(f.indexOf('if (!lagSynlig(modi))')).toBeLessThan(f.indexOf('if (nøkkel === _modiNøkkel) return;'));
+    // v1.218.110: «noe å velge» er transportmidler ELLER linjer.
+    expect(f.indexOf('const noe = lagSynlig(modi) || linjer.length > 0;')).toBeGreaterThan(-1);
+    expect(f.indexOf('if (!noe) {')).toBeGreaterThan(-1);
+    expect(f.indexOf('if (!noe) {')).toBeLessThan(f.indexOf('if (nøkkel === _modiNøkkel) return;'));
   });
 });

@@ -2746,13 +2746,38 @@ export function filtrerRetninger(dirs, skjult) {
   return (dirs || []).filter(d => !s.has(filterModus(d.lines && d.lines[0] && d.lines[0].mode)));
 }
 
+/**
+ * FILTER PER LINJE (v1.218.110). Bestilt: «Legg til filter per enkeltlinje i
+ * kartet.» Én nøkkel for en linje, for beina og for lista: linjens id, ellers
+ * nummeret. Ren.
+ */
+export const LINJE_SKJULT_NØKKEL = 't.autoKartSkjulteLinjer';
+export function linjeNøkkel(id, kode) { return id || (kode != null ? 'kode:' + kode : null); }
+export function kartLinjer(bein) {
+  const sett = new Map();
+  (bein || []).forEach(b => { const k = linjeNøkkel(b.linjeId, b.kode); if (k && !sett.has(k)) sett.set(k, { nøkkel: k, kode: b.kode, farge: b.farge, tekst: b.tekst, linjeId: b.linjeId, modus: b.modus }); });
+  const ut = [...sett.values()].sort((a, b) => String(a.kode).localeCompare(String(b.kode), 'nb', { numeric: true }));
+  return ut.length >= 2 ? ut : [];
+}
+export function utenSkjulteLinjerBein(bein, skjult) {
+  const s = skjult instanceof Set ? skjult : new Set(skjult || []);
+  return (bein || []).filter(b => !s.has(linjeNøkkel(b.linjeId, b.kode)));
+}
+export function utenSkjulteLinjerRetninger(dirs, skjult) {
+  const s = skjult instanceof Set ? skjult : new Set(skjult || []);
+  return (dirs || []).filter(d => { const l = (d.lines && d.lines[0]) || {}; return !s.has(linjeNøkkel(l.id, l.code)); });
+}
+function _skjulteLinjer() {
+  try { return new Set(JSON.parse(storage.get(LINJE_SKJULT_NØKKEL) || '[]')); } catch { return new Set(); }
+}
+
 function _skjulteModi() {
   try { return new Set(JSON.parse(storage.get(SKJULT_NØKKEL) || '[]')); } catch { return new Set(); }
 }
 
 // null, ikke '' (v1.218.92): en tom liste ga også '', og første tegning returnerte før knappen ble skjult.
 let _modiKontroll = null, _modiNøkkel = null;
-function _tegnModiKnapper(modi) {
+function _tegnModiKnapper(modi, linjer = []) {
   if (!_aMap) return;
   // BAK «LAG»-KNAPPEN I VERKTØYSØYLEN (v1.218.72): pillene var en egen søyle
   // oppe til venstre. Samme piller, samme lagring; panelet åpnes ved søylen.
@@ -2763,23 +2788,35 @@ function _tegnModiKnapper(modi) {
     _modiKontroll = { getContainer: () => d };
   }
   const el = _modiKontroll.getContainer();
-  const skjult = _skjulteModi();
-  const nøkkel = modi.map(m => m.modus + m.antall + (skjult.has(m.modus) ? '-' : '+')).join(',');
+  const skjult = _skjulteModi(), skjulteL = _skjulteLinjer();
+  const nøkkel = modi.map(m => m.modus + m.antall + (skjult.has(m.modus) ? '-' : '+')).join(',')
+    + '|' + linjer.map(l => l.nøkkel + (skjulteL.has(l.nøkkel) ? '-' : '+')).join(',');
+  const noe = lagSynlig(modi) || linjer.length > 0;
   // Ingenting å velge: knappen bort og panelet lukket, før vakten — alltid.
-  if (!lagSynlig(modi)) {
+  if (!noe) {
     if (el.parentElement) el.parentElement.hidden = true;
     settVerktøy(_aMap, 'lag', { skjult: true, aktiv: false });
   }
   if (nøkkel === _modiNøkkel) return;
   _modiNøkkel = nøkkel;
-  el.hidden = !modi.length;
+  el.hidden = !noe;
   // Ingenting å velge: panelet lukkes, aldri åpent og tomt (v1.218.83).
-  if (!modi.length && el.parentElement) { el.parentElement.hidden = true; settVerktøy(_aMap, 'lag', { aktiv: false }); }
-  settVerktøy(_aMap, 'lag', { skjult: !modi.length, merket: modi.some(m => skjult.has(m.modus)) });
+  if (!noe && el.parentElement) { el.parentElement.hidden = true; settVerktøy(_aMap, 'lag', { aktiv: false }); }
+  settVerktøy(_aMap, 'lag', { skjult: !noe, merket: modi.some(m => skjult.has(m.modus)) || linjer.some(l => skjulteL.has(l.nøkkel)) });
   el.innerHTML = modi.map(m => '<button type="button" class="mode-pill' + (skjult.has(m.modus) ? '' : ' active')
     + '" data-modus="' + m.modus + '" aria-pressed="' + !skjult.has(m.modus) + '">'
-    + esc(MODI_NAVN[m.modus] || m.modus) + ' ' + m.antall + '</button>').join('');
-  el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    + esc(MODI_NAVN[m.modus] || m.modus) + ' ' + m.antall + '</button>').join('')
+    + (linjer.length ? '<div class="auto-map-linjer" role="group" aria-label="Linjer">' + linjer.map(l => '<button type="button" class="linje-pill'
+      + (skjulteL.has(l.nøkkel) ? '' : ' active') + '" data-linje="' + esc(l.nøkkel) + '" aria-pressed="' + !skjulteL.has(l.nøkkel) + '"'
+      + ' aria-label="linje ' + esc(l.kode || '') + '">' + linjemerke({ kode: l.kode, farge: l.farge, tekst: l.tekst, linjeId: l.linjeId, modus: l.modus }) + '</button>').join('') + '</div>' : '');
+  el.querySelectorAll('.linje-pill').forEach(b => b.addEventListener('click', () => {
+    const sl = _skjulteLinjer();
+    if (sl.has(b.dataset.linje)) sl.delete(b.dataset.linje); else sl.add(b.dataset.linje);
+    try { storage.set(LINJE_SKJULT_NØKKEL, JSON.stringify([...sl])); } catch (_) {}
+    _modiNøkkel = ''; _aKey = ''; _renderMap();
+    if (_autoTavle) _renderBody();
+  }));
+  el.querySelectorAll('button.mode-pill').forEach(b => b.addEventListener('click', () => {
     const s = _skjulteModi();
     if (s.has(b.dataset.modus)) s.delete(b.dataset.modus); else s.add(b.dataset.modus);
     try { storage.set(SKJULT_NØKKEL, JSON.stringify([...s])); } catch (_) {}
@@ -3362,8 +3399,8 @@ function _renderMap() {
   _meldManglendeBein(sentrert, bein, _beinTeller);
   // AV/PÅ PER TRANSPORTMIDDEL (v1.218.67), fra alle beina før filteret.
   const _modi = kartModi(bein);
-  _tegnModiKnapper(_modi);
-  bein = velgBein(filtrerBein(bein, _skjulteModi()), _beinMaks);
+  _tegnModiKnapper(_modi, kartLinjer(bein));
+  bein = velgBein(utenSkjulteLinjerBein(filtrerBein(bein, _skjulteModi()), _skjulteLinjer()), _beinMaks);
   // UTGANGSRAMMEN (v1.218.80). Bestilt med skjermbilde: «la dette bli
   // default zoom og kartdetaljnivå» — deg, stoppet, gangruta og den nære
   // delen av hver linje, ikke hele byen. Beinas ende (6. stopp) trakk kartet
@@ -4304,9 +4341,13 @@ function _tegnAutoTavle(body) {
   // Kartets filter (lag-panelet) gjelder lista også, og den sier det.
   const skjult = _skjulteModi();
   const alleDirs = _atEkstra.length ? [..._dirs, ...groupDirections(_atEkstra, nå)] : _dirs;
-  const synlige = filtrerRetninger(alleDirs, skjult);
-  const skjulteNavn = [...new Set(alleDirs.filter(d => !synlige.includes(d)).map(d => filterModus(d.lines && d.lines[0] && d.lines[0].mode)))]
+  const synlige = utenSkjulteLinjerRetninger(filtrerRetninger(alleDirs, skjult), _skjulteLinjer());   // transportmiddel, så linje
+  const etterModus = filtrerRetninger(alleDirs, skjult);
+  const skjulteNavn = [...new Set(alleDirs.filter(d => !etterModus.includes(d)).map(d => filterModus(d.lines && d.lines[0] && d.lines[0].mode)))]
     .map(m => MODI_NAVN[m] || m);
+  const sl = _skjulteLinjer();
+  [...new Set(alleDirs.filter(d => !synlige.includes(d)).map(d => (d.lines && d.lines[0]) || {})
+    .filter(l => sl.has(linjeNøkkel(l.id, l.code))).map(l => 'linje ' + l.code))].forEach(t => skjulteNavn.push(t));
   const del = tavleDel(synlige, nå, ms => canCatch(ms, gang, nå), _atGrense);
   const rader = [...del.ikke, ...del.rekker];
   const merknad = skjulteNavn.length ? '<div class="at-filter">skjult i kartets filter: ' + esc(skjulteNavn.join(', ')) + '</div>' : '';

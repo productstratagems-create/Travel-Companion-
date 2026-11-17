@@ -65,7 +65,34 @@ describe('kartets filter gjelder lista (v1.218.108)', () => {
   });
   it('lista leser filteret og tegnes på nytt ved et trykk', () => {
     const src = readFileSync('src/views/auto.js', 'utf8');
-    expect(src).toMatch(/const synlige = filtrerRetninger\(_dirs, skjult\);/);
+    expect(src).toMatch(/const synlige = filtrerRetninger\(alleDirs, skjult\);/);
     expect(src).toMatch(/if \(_autoTavle\) _renderBody\(\);/);
+  });
+});
+
+import { tavleDel, TAVLE_SIDE } from '../src/ui/tavleRad.js';
+describe('rekker ikke for seg, og sider (v1.218.109)', () => {
+  const dirs = [dir('3', 'Kolsås', [1, 3, 9, 16, 23, 30]), dir('74', 'Jernbanetorget', [2, 35], 'E')];
+  const kan = ms => ms - NÅ >= 5 * 60_000;
+  it('de du ikke rekker er en egen gruppe; resten sortert på tid, uten tak per retning', () => {
+    const d = tavleDel(dirs, NÅ, kan, TAVLE_SIDE);
+    expect(d.ikke.map(x => Math.round((x.ms - NÅ) / 60_000))).toEqual([1, 2, 3]);
+    expect(d.rekker.map(x => Math.round((x.ms - NÅ) / 60_000))).toEqual([9, 16, 23, 30, 35]);
+  });
+  it('grensen kutter de du rekker, og sier når neste side må hentes', () => {
+    const d = tavleDel(dirs, NÅ, kan, 2);
+    expect(d.rekker.length).toBe(2);
+    expect(d.tomForLokale).toBe(false);
+    expect(tavleDel(dirs, NÅ, kan, 12).tomForLokale).toBe(true);
+  });
+  it('samme tur fra to sider er én avgang', () => {
+    const k = { ms: NÅ + 9 * 60_000, call: { serviceJourney: { id: 'SJ1' }, quay: {} } };
+    const a = { ...dir('3', 'Kolsås', []), calls: [k] }, b = { ...dir('3', 'Kolsås', []), calls: [k] };
+    expect(tavleDel([a, b], NÅ, () => true, 12).rekker.length).toBe(1);
+  });
+  it('gruppen er lukket til du åpner den, og husker det', () => {
+    const src = readFileSync('src/views/auto.js', 'utf8');
+    expect(src).toMatch(/'<details class="at-ikke"' \+ \(_atIkkeÅpen \? ' open' : ''\)/);
+    expect(src).toMatch(/new IntersectionObserver/);
   });
 });

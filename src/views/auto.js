@@ -25,7 +25,7 @@ import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import config from '../config.js';
 import { state } from '../state.js';
-import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra } from '../api/entur.js';
+import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra, fetchBoardPage } from '../api/entur.js';
 import { raskereHer } from '../raskere.js';
 import { rangerMål, foldetSide } from '../maalModell.js';
 import { overganger, arrBoardSpørsmål, ARR_BOARD_ASK } from '../overganger.js';
@@ -41,7 +41,7 @@ import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, sto
 import { oppdaterLås } from '../api/ombordLaas.js';
 import { journeyShapeCached, fetchJourneyShape } from '../api/entur.js';
 import { turForm } from '../ui/turForm.js';
-import { tavleUtvalg, tavleRadHtml } from '../ui/tavleRad.js';
+import { tavleUtvalg, tavleRadHtml, tavleDel, TAVLE_SIDE } from '../ui/tavleRad.js';
 import { joinJourney } from '../journey.js';
 import { logEvent, recentEvents } from '../api/eventLog.js';
 import { loadConsent } from '../api/consent.js';
@@ -4294,23 +4294,56 @@ export function settAutoTavle(på) {
     if (lab) lab.textContent = _autoTavle ? 'auto-tavle' : 'auto-reise';
   }
 }
+// Sidene du har rullet til, avgangene hentet utover første svar, og om
+// gruppen «rekker ikke» er åpen. Nullstilt når stoppet byttes.
+let _atGrense = TAVLE_SIDE, _atEkstra = [], _atStopp = null, _atHenter = false, _atSlutt = false, _atIkkeÅpen = false, _atObs = null;
 function _tegnAutoTavle(body) {
   const nå = Date.now();
+  if (!_stop || _atStopp !== _stop.id) { _atStopp = _stop && _stop.id; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false; _atIkkeÅpen = false; }
   const g = _stop ? gangTil(_stop) : null, gang = g ? g.mins : null;
   // Kartets filter (lag-panelet) gjelder lista også, og den sier det.
   const skjult = _skjulteModi();
-  const synlige = filtrerRetninger(_dirs, skjult);
-  const skjulteNavn = [...new Set(_dirs.filter(d => !synlige.includes(d)).map(d => filterModus(d.lines && d.lines[0] && d.lines[0].mode)))]
+  const alleDirs = _atEkstra.length ? [..._dirs, ...groupDirections(_atEkstra, nå)] : _dirs;
+  const synlige = filtrerRetninger(alleDirs, skjult);
+  const skjulteNavn = [...new Set(alleDirs.filter(d => !synlige.includes(d)).map(d => filterModus(d.lines && d.lines[0] && d.lines[0].mode)))]
     .map(m => MODI_NAVN[m] || m);
-  const rader = tavleUtvalg(synlige, nå, ms => canCatch(ms, gang, nå));
+  const del = tavleDel(synlige, nå, ms => canCatch(ms, gang, nå), _atGrense);
+  const rader = [...del.ikke, ...del.rekker];
   const merknad = skjulteNavn.length ? '<div class="at-filter">skjult i kartets filter: ' + esc(skjulteNavn.join(', ')) + '</div>' : '';
+  const ikkeHtml = del.ikke.length
+    ? '<details class="at-ikke"' + (_atIkkeÅpen ? ' open' : '') + '><summary>' + del.ikke.length
+      + (del.ikke.length === 1 ? ' avgang' : ' avganger') + ' du ikke rekker</summary><div class="at-liste">'
+      + del.ikke.map((x, i) => tavleRadHtml(x, nå, i)).join('') + '</div></details>'
+    : '';
+  const bunn = '<div class="at-bunn">' + (_atSlutt ? 'ikke flere avganger herfra' : _atHenter ? 'henter flere …' : '') + '</div>';
   body.innerHTML = rader.length
-    ? '<div class="set-label">neste avganger herfra</div>' + merknad + '<div class="at-liste">' + rader.map((x, i) => tavleRadHtml(x, nå, i)).join('') + '</div>'
+    ? '<div class="set-label">neste avganger herfra</div>' + merknad + ikkeHtml
+      + '<div class="at-liste">' + del.rekker.map((x, i) => tavleRadHtml(x, nå, del.ikke.length + i)).join('') + '</div>' + bunn
     : merknad + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : 'ingen avganger herfra den nærmeste timen') + '</div>';
+  const det = body.querySelector('.at-ikke');
+  if (det) det.addEventListener('toggle', () => { _atIkkeÅpen = det.open; });
   body.querySelectorAll('.at-rad').forEach(b => b.addEventListener('click', () => {
     const x = rader[Number(b.dataset.i)];
     if (x) { _open = x.d; _renderBody(); }
   }));
+  // UENDELIG RULLING: når bunnen synes, en side til; tomt lokalt → hent neste.
+  if (_atObs) { _atObs.disconnect(); _atObs = null; }
+  const vakt = body.querySelector('.at-bunn');
+  if (!vakt || _atSlutt || typeof IntersectionObserver === 'undefined') return;
+  _atObs = new IntersectionObserver(innslag => {
+    if (!innslag.some(e => e.isIntersecting) || _atHenter) return;
+    if (!del.tomForLokale) { _atGrense += TAVLE_SIDE; _renderBody(); return; }
+    _atHenter = true; _renderBody();
+    const fra = (del.sisteMs || Date.now()) + 1000, stopp = _stop;
+    fetchBoardPage({ key: 'custom-out', from: stopp.name, stopId: stopp.id, to: '', line: null, filter: null }, fra, 30, calls => {
+      _atHenter = false;
+      if (!_stop || _stop.id !== stopp.id) return;
+      const nye = (calls || []).filter(c => Date.parse(c.expectedDepartureTime || c.aimedDepartureTime) >= fra);
+      if (!nye.length) _atSlutt = true; else { _atEkstra.push(...nye); _atGrense += TAVLE_SIDE; }
+      _renderBody();
+    }, () => { _atHenter = false; _atSlutt = true; _renderBody(); });
+  }, { rootMargin: '200px' });
+  _atObs.observe(vakt);
 }
 if (typeof window !== 'undefined') { window._settAutoTavle = settAutoTavle; window._erAutoTavle = erAutoTavle; }
 

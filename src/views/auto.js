@@ -2801,6 +2801,12 @@ export function filtrerRetninger(dirs, skjult) {
  */
 export const LINJE_SKJULT_NØKKEL = 't.autoKartSkjulteLinjer';
 export function linjeNøkkel(id, kode) { return id || (kode != null ? 'kode:' + kode : null); }
+/** Retningene som «bein»-form for filteret: transportmiddel og linje. Ren. */
+export function filterValg(dirs) {
+  return (dirs || []).map(d => { const l = (d.lines && d.lines[0]) || {};
+    return { modus: l.mode || null, linjeId: l.id || null, kode: l.code || null, farge: l.colour ? '#' + String(l.colour).replace(/^#/, '') : null, tekst: l.tekst || null }; })
+    .filter(b => b.kode || b.linjeId);
+}
 export function kartLinjer(bein) {
   const sett = new Map();
   (bein || []).forEach(b => { const k = linjeNøkkel(b.linjeId, b.kode); if (k && !sett.has(k)) sett.set(k, { nøkkel: k, kode: b.kode, farge: b.farge, tekst: b.tekst, linjeId: b.linjeId, modus: b.modus }); });
@@ -3531,8 +3537,13 @@ function _renderMap() {
     Infinity, { teller: _beinTeller, stopId: _stop.id || null }) : [];
   _meldManglendeBein(sentrert, bein, _beinTeller);
   // AV/PÅ PER TRANSPORTMIDDEL (v1.218.67), fra alle beina før filteret.
-  const _modi = kartModi(bein);
-  _tegnModiKnapper(_modi, kartLinjer(bein));
+  // FILTERET FRA ALLE RETNINGENE, IKKE BARE DE TEGNEDE (v1.218.117).
+  // Rapportert fra Jernbanetorget: T-bane manglet i filteret, fordi ingen
+  // T-banestrek ble tegnet — mens lista hadde T-bane 1. Lista og panelet
+  // leser nå samme kilde.
+  const filterKilde = filterValg(_dirs);
+  const _modi = kartModi(filterKilde);
+  _tegnModiKnapper(_modi, kartLinjer(filterKilde));
   bein = utenSkjulteLinjerBein(filtrerBein(bein, _skjulteModi()), _skjulteLinjer());
   // UTGANGSRAMMEN (v1.218.80). Bestilt med skjermbilde: «la dette bli
   // default zoom og kartdetaljnivå» — deg, stoppet, gangruta og den nære

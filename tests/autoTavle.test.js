@@ -65,7 +65,7 @@ describe('kartets filter gjelder lista (v1.218.108)', () => {
   });
   it('lista leser filteret og tegnes på nytt ved et trykk', () => {
     const src = readFileSync('src/views/auto.js', 'utf8');
-    expect(src).toMatch(/const synlige = filtrerRetninger\(alleDirs, skjult\);/);
+    expect(src).toMatch(/const synlige = utenSkjulteLinjerRetninger\(filtrerRetninger\(alleDirs, skjult\), _skjulteLinjer\(\)\);/);
     expect(src).toMatch(/if \(_autoTavle\) _renderBody\(\);/);
   });
 });

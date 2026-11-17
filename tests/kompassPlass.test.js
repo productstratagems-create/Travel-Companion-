@@ -1,12 +1,15 @@
 // v1.218.106: «Knappene legger seg over kompasset.»
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { somRad, medLøft, KOMPASS_PLASS } from '../src/ui/kartVerktoy.js';
+import { somRad, medLøft, tett, KOMPASS_PLASS } from '../src/ui/kartVerktoy.js';
 
 describe('søylen regner med kompasset', () => {
   it('tavlekartet fra skjermbildet (235 px, 4 knapper): rad med kompass, søyle uten', () => {
     expect(KOMPASS_PLASS).toBe(56);
-    expect(somRad(4, 235, true)).toBe(true);
+    // v1.218.110: med kompasset på samme side får søylen 179 px — tett, ikke rad.
+    expect(somRad(4, 235, true)).toBe(false);
+    expect(tett(4, 235, true)).toBe(true);
+    expect(somRad(4, 200, true)).toBe(true);
     expect(somRad(4, 235, false)).toBe(false);
   });
   it('høyt kart: søyle også med kompass', () => {
@@ -17,7 +20,44 @@ describe('søylen regner med kompasset', () => {
     const src = readFileSync('src/ui/kartVerktoy.js', 'utf8');
     expect(src).toMatch(/somRad\(n, h, øverst\)/);
     // Bare et SYNLIG kompass tar plass: det står skjult til kartet er rotert.
-    expect(src).toMatch(/const øverst = !!\(v\.øverst && \[\.\.\.v\.øverst\.values\(\)\]\.some\(b => !b\.hidden\)\)/);
+    expect(src).toMatch(/const øverst = sammeSide && !!\(v\.øverst && \[\.\.\.v\.øverst\.values\(\)\]\.some\(b => !b\.hidden\)\)/);
     expect(src).toMatch(/øverstKontroll\.getContainer\(\)\.appendChild\(b\);\s*tilpassForm\(map\);/);
+  });
+});
+
+import { kompassHjørne, verktøyHjørne } from '../src/haand.js';
+describe('kompasset i motsatt hjørne (v1.218.110)', () => {
+  it('høyrehendt: knappene til høyre, kompasset øverst til venstre — og omvendt', () => {
+    expect(verktøyHjørne('høyre')).toBe('bottomright');
+    expect(kompassHjørne('høyre')).toBe('topleft');
+    expect(verktøyHjørne('venstre')).toBe('bottomleft');
+    expect(kompassHjørne('venstre')).toBe('topright');
+  });
+});
+
+describe('filter per linje (v1.218.110)', () => {
+  it('én nøkkel for beina og for lista', async () => {
+    const a = await import('../src/views/auto.js');
+    const bein = [{ linjeId: 'RUT:Line:3', kode: '3', modus: 'metro' }, { linjeId: 'RUT:Line:74', kode: '74', modus: 'bus' }];
+    expect(a.kartLinjer(bein).map(l => l.kode)).toEqual(['3', '74']);
+    expect(a.kartLinjer([bein[0]])).toEqual([]);   // én linje: ingenting å velge
+    const skjult = new Set([a.linjeNøkkel('RUT:Line:74', '74')]);
+    expect(a.utenSkjulteLinjerBein(bein, skjult).map(b => b.kode)).toEqual(['3']);
+    const dirs = [{ lines: [{ id: 'RUT:Line:3', code: '3' }] }, { lines: [{ id: 'RUT:Line:74', code: '74' }] }];
+    expect(a.utenSkjulteLinjerRetninger(dirs, skjult).length).toBe(1);
+  });
+});
+
+describe('tett søyle (v1.218.110)', () => {
+  it('auto-reise: fem knapper på et kart på 215 px står tett i søyle', () => {
+    expect(somRad(5, 215)).toBe(false);
+    expect(tett(5, 215)).toBe(true);
+    expect(tett(5, 382)).toBe(false);
+  });
+});
+describe('kildelinja tar plass (v1.218.110)', () => {
+  it('tilpassForm trekker fra kildelinjas målte høyde', () => {
+    const src = readFileSync('src/ui/kartVerktoy.js', 'utf8');
+    expect(src).toMatch(/const h = map\.getSize\(\)\.y - \(attr \? attr\.offsetHeight : 0\);/);
   });
 });

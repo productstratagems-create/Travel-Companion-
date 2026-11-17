@@ -4507,7 +4507,7 @@ function _renderBody() {
       : dests.length
         // Overskriften sier hva kortene bygger på (v1.218.97): en vane nå,
         // eller bare steder du har reist til før.
-        ? '<div class="set-label">' + (dests.some(x => x.vane || x.retning === 'mot') ? 'dit du pleier nå' : 'steder du har reist til') + '</div>'
+        ? '<div class="set-label">' + (dests.some(x => x.vane || x.retning === 'mot') ? 'dit du pleier nå' : 'steder du har valgt før') + '</div>'
           + dests.map(destHtml).join('')
         : '';
   }
@@ -5110,7 +5110,8 @@ export function slåSammenSammeAvgang(acc, x) {
 
 /** Grunnen når modellen ikke har noen: sagt med det appen faktisk vet. */
 export function grunnUtenVane(uses) {
-  return uses >= 3 ? 'ofte herfra' : 'reist dit før';
+  // `uses` er VALG (usage.js), ikke reiser (v1.218.105): ordene sier det.
+  return uses >= 3 ? 'ofte valgt herfra' : 'valgt før';
 }
 
 export function stopShortcuts(stops, arr, n) {

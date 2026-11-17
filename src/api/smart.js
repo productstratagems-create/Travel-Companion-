@@ -32,7 +32,18 @@ function _load() {
 }
 
 // Record a route with time context. Called when user applies a route.
-export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon, fromStopId, når) {
+/**
+ * TO TELLERE (v1.218.105). Rapportert: «At bruker har trykket på et kort i
+ * auto-reise eller lagt inn en reiserute i Tavla er ikke det samme som at
+ * bruker har reist den ruta.»
+ *   count    BEKREFTEDE reiser: GPS-en så deg reise, og du svarte ja i
+ *            intervjuet (api/avstigningVent.js). Alt som leser vanene —
+ *            rangering, profil, «du pleier» — leser bare denne.
+ *   startet  reiser du startet med «på», uten at noe har bekreftet at du
+ *            reiste. Leses bare av intervjuet, som spør om dem.
+ * Et valg (kort, rute i tavla) er ingen av delene: det bor i usage.js.
+ */
+export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon, fromStopId, når, nivå = 'bekreftet') {
   if (!fromName || !toName) return;
   // Testposisjon (v1.218.46): turer der teller ikke som vaner.
   if (testPosPå()) return;
@@ -43,18 +54,31 @@ export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon, fromSt
   const hist = _load();
   const key = toName.toLowerCase() + '|' + bucket + '|' + (isWeekend ? 'we' : 'wd');
   const idx = hist.findIndex(e => e.key === key);
+  const felt = nivå === 'startet' ? 'startet' : 'count';
   if (idx !== -1) {
-    hist[idx].count++;
+    hist[idx][felt] = (hist[idx][felt] || 0) + 1;
     hist[idx].lastUsed = Date.now();
     if (toStopId) hist[idx].toStopId = toStopId;
     if (toLat != null) { hist[idx].toLat = toLat; hist[idx].toLon = toLon; }
     if (fromStopId) hist[idx].fromStopId = fromStopId;
     if (fromName) hist[idx].fromName = fromName;
   } else {
-    hist.push({ key, fromName, toName, toStopId: toStopId || null, toLat: toLat || null, toLon: toLon || null, fromStopId: fromStopId || null, bucket, isWeekend, count: 1, lastUsed: Date.now() });
+    hist.push({ key, fromName, toName, toStopId: toStopId || null, toLat: toLat || null, toLon: toLon || null, fromStopId: fromStopId || null, bucket, isWeekend, count: felt === 'count' ? 1 : 0, startet: felt === 'startet' ? 1 : 0, lastUsed: Date.now() });
   }
-  hist.sort((a, b) => b.count - a.count || b.lastUsed - a.lastUsed);
+  hist.sort((a, b) => (b.count || 0) - (a.count || 0) || (b.startet || 0) - (a.startet || 0) || b.lastUsed - a.lastUsed);
   storage.set(HIST_KEY, JSON.stringify(hist.slice(0, HIST_MAX)));
+}
+
+/** Én startet reise er bekreftet (eller endte et annet sted): fra `startet` på det planlagte. */
+export function trekkFraStartet(til, når) {
+  if (!til || !Number.isFinite(når)) return;
+  const d = new Date(når);
+  const key = String(til).toLowerCase() + '|' + Math.floor(d.getHours() / 2) + '|' + (erHelgLik(når) ? 'we' : 'wd');
+  const hist = _load();
+  const e = hist.find(x => x.key === key);
+  if (!e || !(e.startet > 0)) return;
+  e.startet--;
+  storage.set(HIST_KEY, JSON.stringify(hist.filter(x => (x.count || 0) > 0 || (x.startet || 0) > 0)));
 }
 
 /**
@@ -98,9 +122,10 @@ export function registrerReise(r, pos) {
   if (!r || !r.fra || !r.til) return;
   recordSmartTrip(r.fra, r.til, r.tilStopId || null,
     Number.isFinite(r.tilLat) ? r.tilLat : null, Number.isFinite(r.tilLon) ? r.tilLon : null,
-    r.fraStopId || null, Number.isFinite(r.når) ? r.når : undefined);
-  // logEvent gjør ingenting uten samtykke; vakten bor inni den.
-  logEvent('reise', { fra: r.fra, til: r.til, linje: r.linje || null }, pos || null);
+    r.fraStopId || null, Number.isFinite(r.når) ? r.når : undefined, r.nivå === 'startet' ? 'startet' : 'bekreftet');
+  // logEvent gjør ingenting uten samtykke; vakten bor inni den. En startet
+  // reise er ikke en reise (v1.218.105): den har sitt eget navn i loggen.
+  logEvent(r.nivå === 'startet' ? 'startet' : 'reise', { fra: r.fra, til: r.til, linje: r.linje || null }, pos || null);
 }
 
 /**
@@ -113,25 +138,13 @@ export function registrerReise(r, pos) {
  */
 export function flyttReise(r, pos) {
   if (!r || !r.fra || !r.planlagt || !r.faktisk || !Number.isFinite(r.boardedAt)) return false;
-  if (r.planlagt.toLowerCase() === r.faktisk.toLowerCase()) return false;
-  const d = new Date(r.boardedAt);
-  const bucket = Math.floor(d.getHours() / 2), isWeekend = erHelgLik(r.boardedAt);
-  const hist = _load();
-  const nøkkel = navn => navn.toLowerCase() + '|' + bucket + '|' + (isWeekend ? 'we' : 'wd');
-  const i = hist.findIndex(e => e.key === nøkkel(r.planlagt));
-  if (i !== -1) { hist[i].count--; if (hist[i].count <= 0) hist.splice(i, 1); }
-  const j = hist.findIndex(e => e.key === nøkkel(r.faktisk));
-  if (j !== -1) {
-    hist[j].count++; hist[j].lastUsed = Date.now();
-    if (r.tilStopId) hist[j].toStopId = r.tilStopId;
-  } else {
-    hist.push({ key: nøkkel(r.faktisk), fromName: r.fra, toName: r.faktisk, toStopId: r.tilStopId || null,
-      toLat: Number.isFinite(r.tilLat) ? r.tilLat : null, toLon: Number.isFinite(r.tilLon) ? r.tilLon : null,
-      fromStopId: r.fraStopId || null, bucket, isWeekend, count: 1, lastUsed: Date.now() });
-  }
-  hist.sort((a, b) => b.count - a.count || b.lastUsed - a.lastUsed);
-  storage.set(HIST_KEY, JSON.stringify(hist.slice(0, HIST_MAX)));
-  logEvent('avstigning', { fra: r.fra, planlagt: r.planlagt, faktisk: r.faktisk, linje: r.linje || null }, pos || null);
+  // v1.218.105: den startede reisen er nå besvart — én fra `startet` på det
+  // planlagte målet, én bekreftet reise dit du faktisk gikk av.
+  trekkFraStartet(r.planlagt, r.boardedAt);
+  recordSmartTrip(r.fra, r.faktisk, r.tilStopId || null, Number.isFinite(r.tilLat) ? r.tilLat : null,
+    Number.isFinite(r.tilLon) ? r.tilLon : null, r.fraStopId || null, r.boardedAt, 'bekreftet');
+  logEvent(r.planlagt.toLowerCase() === r.faktisk.toLowerCase() ? 'reise' : 'avstigning',
+    { fra: r.fra, planlagt: r.planlagt, faktisk: r.faktisk, til: r.faktisk, linje: r.linje || null }, pos || null);
   return true;
 }
 
@@ -139,7 +152,7 @@ export function flyttReise(r, pos) {
  * Hvilken telling lagret historikk er skrevet med. '2' = reiser (v1.202.0).
  * Alt før talte trykk.
  */
-export const VANE_TELLING = '2';
+export const VANE_TELLING = '3';
 
 /**
  * Nullstill vanene ÉN gang, når tellingen bytter betydning.
@@ -153,7 +166,17 @@ export const VANE_TELLING = '2';
  */
 export function nullstillVaneTelling() {
   try {
-    if (storage.get('t.vaneTelling') === VANE_TELLING) return;
+    const før = storage.get('t.vaneTelling');
+    if (før === VANE_TELLING) return;
+    // '2' → '3' (v1.218.105): tellingen var «på»-trykk, ikke bekreftede
+    // reiser. Ingenting slettes: hver rad flyttes til `startet`, og
+    // intervjuet kan spørre om dem.
+    if (før === '2') {
+      const h = _load().map(e => ({ ...e, startet: (e.startet || 0) + (e.count || 0), count: 0 }));
+      storage.set(HIST_KEY, JSON.stringify(h));
+      storage.set('t.vaneTelling', VANE_TELLING);
+      return;
+    }
     storage.remove(HIST_KEY);
     const v = storage.get('t.events');
     const ev = v ? JSON.parse(v) : null;
@@ -183,7 +206,8 @@ export const VANE_FELT = {
   toName: 'til',
   bucket: 'rundt klokka',
   isWeekend: 'ukedag',
-  count: 'ganger',
+  count: 'ganger reist (bekreftet)',
+  startet: 'ganger startet',
   lastUsed: 'sist',
   toStopId: 'stoppested',
   fromStopId: 'stoppested fra',
@@ -224,6 +248,7 @@ export function vaneOversikt(nå) {
       return {
         tekst: deler.join(' · '),
         antall: e.count || 0,
+        startet: e.startet || 0,
         sist: _p2(d.getDate()) + '.' + _p2(d.getMonth() + 1),
       };
     })

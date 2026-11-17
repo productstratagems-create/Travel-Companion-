@@ -31,8 +31,8 @@ describe('ett kort per avgang', () => {
     expect(ut.map(x => x.name)).toEqual(['Helsfyr', 'Ski']);
     expect(ut[0].også).toEqual([{ name: 'Jernbanetorget', at: 2 }]);
   });
-  it('uten vane sier kortet hva appen vet', () => {
-    expect(auto.grunnUtenVane(1)).toBe('reist dit før');
-    expect(auto.grunnUtenVane(5)).toBe('ofte herfra');
+  it('uten vane sier kortet hva appen vet: et valg er ikke en reise (v1.218.105)', () => {
+    expect(auto.grunnUtenVane(1)).toBe('valgt før');
+    expect(auto.grunnUtenVane(5)).toBe('ofte valgt herfra');
   });
 });

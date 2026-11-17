@@ -208,6 +208,8 @@ export const NAV_ITEMS = [
 export const NAV_UNDER_INNSTILLINGER = [
   { view: 'v-saved',   icon: '★',  label: 'lagret' },
   { view: 'v-leisure', icon: '🌟', label: 'utforsk' },
+  // Testsiden (v1.218.107): auto-reise-skjermen i modusen «Auto-tavle».
+  { view: 'v-autotavle', icon: '🧪', label: 'Auto-tavle' },
 ];
 
 /** Knappene i innstillinger, fra lista over. */
@@ -262,6 +264,16 @@ export function navHidden(view) {
 
 /** Move to one of the four. Navigation only — no mode flag is written. */
 export function navTo(id) {
+  // AUTO-TAVLE ER EN MODUS AV AUTO-REISE (v1.218.107), ikke en egen skjerm.
+  if (id === 'v-autotavle' || id === 'v-auto') {
+    const på = id === 'v-autotavle';
+    id = 'v-auto';
+    if (window._settAutoTavle) {
+      const var_ = window._erAutoTavle && window._erAutoTavle();
+      window._settAutoTavle(på);
+      if ('v-' + state.view === id && var_ !== på) { window._renderAuto && window._renderAuto(); return; }
+    }
+  }
   if (!id || 'v-' + state.view === id) return;
   closeBoardMenu();
   show(id);

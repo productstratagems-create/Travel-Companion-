@@ -41,6 +41,7 @@ import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, sto
 import { oppdaterLås } from '../api/ombordLaas.js';
 import { journeyShapeCached, fetchJourneyShape } from '../api/entur.js';
 import { turForm } from '../ui/turForm.js';
+import { tavleUtvalg, tavleRadHtml } from '../ui/tavleRad.js';
 import { joinJourney } from '../journey.js';
 import { logEvent, recentEvents } from '../api/eventLog.js';
 import { loadConsent } from '../api/consent.js';
@@ -4267,6 +4268,35 @@ function _maybeJump() {
   return true;
 }
 
+/* ── AUTO-TAVLE (v1.218.107) ──────────────────────────────────────────────
+ * Testsiden «Auto-tavle»: auto-reise-skjermen i en modus, ikke en kopi, så
+ * stoppvalg, gangtid og henting har ett hjem. Det som ikke er proven (kort,
+ * intervju, «neste reise», ombord) skjules med klassen `auto-tavle`. */
+let _autoTavle = false;
+export function erAutoTavle() { return _autoTavle; }
+export function settAutoTavle(på) {
+  _autoTavle = !!på;
+  const v = typeof document !== 'undefined' && document.getElementById('v-auto');
+  if (v) {
+    v.classList.toggle('auto-tavle', _autoTavle);
+    const lab = v.querySelector('.screen-label');
+    if (lab) lab.textContent = _autoTavle ? 'auto-tavle' : 'auto-reise';
+  }
+}
+function _tegnAutoTavle(body) {
+  const nå = Date.now();
+  const g = _stop ? gangTil(_stop) : null, gang = g ? g.mins : null;
+  const rader = tavleUtvalg(_dirs, nå, ms => canCatch(ms, gang, nå));
+  body.innerHTML = rader.length
+    ? '<div class="set-label">neste avganger herfra</div><div class="at-liste">' + rader.map((x, i) => tavleRadHtml(x, nå, i)).join('') + '</div>'
+    : '<div class="dest-prev-empty">ingen avganger herfra den nærmeste timen</div>';
+  body.querySelectorAll('.at-rad').forEach(b => b.addEventListener('click', () => {
+    const x = rader[Number(b.dataset.i)];
+    if (x) { _open = x.d; _renderBody(); }
+  }));
+}
+if (typeof window !== 'undefined') { window._settAutoTavle = settAutoTavle; window._erAutoTavle = erAutoTavle; }
+
 function _renderBody() {
   // Nullstilt hvert tikk; settes igjen bare når lista faktisk har et kort.
   // Ellers ville et kort fra et stopp du har gått fra blitt stående på kartet.
@@ -4286,6 +4316,8 @@ function _renderBody() {
     return;
   }
   _setManual(MANUAL_CTA);
+  // AUTO-TAVLE (v1.218.107): samme stopp og samme data, tegnet som tavlerader.
+  if (_autoTavle && _dirs.length) { _visListeDel(false); _tegnAutoTavle(body); return; }
   if (!_dirs.length) {
     _visListeDel(false);
     body.innerHTML = '<div class="dest-prev-empty">'

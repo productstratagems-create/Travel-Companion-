@@ -39,3 +39,37 @@ describe('hensikten: tavlas valg i auto-reise (v1.218.85)', () => {
     expect(s).toMatch(/hensikt\(state\.jny, state\.route/);
   });
 });
+
+import { målLapp, erDinAvgang } from '../src/views/auto.js';
+describe('mållapp og din avgang (v1.218.86)', () => {
+  it('mållappen har ankomsttid', () => {
+    expect(målLapp({ name: 'Jernbanetorget', at: NÅ + 52 * 60000 })).toBe('Jernbanetorget · ' + clk(NÅ + 52 * 60000));
+    expect(målLapp({ name: 'Jernbanetorget' })).toBe('Jernbanetorget');
+  });
+  it('bare raden med tavlas valg er din avgang — ikke vanekortets', () => {
+    const d = {}, annen = {};
+    expect(erDinAvgang(d, { d, hensikt: 'reise' })).toBe(true);
+    expect(erDinAvgang(annen, { d, hensikt: 'reise' })).toBe(false);
+    expect(erDinAvgang(d, { d })).toBe(false);
+  });
+});
+
+describe('én ankomst i hodet og på kartet (v1.218.86)', () => {
+  it('hodet bruker turens sanntid når den finnes', () => {
+    const s = fs.readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toMatch(/ank: m && Number\.isFinite\(m\.at\) \? m\.at : null/);
+    expect(s).toMatch(/\{ \.\.\.h0, ank: _kortRute\.ank \}/);
+  });
+});
+
+import { gyldigRamme } from '../src/views/board.js';
+describe('tavlekartet zoomer ikke inn i ingenting (v1.218.86)', () => {
+  it('ugyldige eller like punkter gir ingen ramme', () => {
+    expect(gyldigRamme([[NaN, 10], [59.9, NaN]])).toBeNull();
+    expect(gyldigRamme([[59.9, 10.8], [59.9, 10.8]])).toBeNull();
+    expect(gyldigRamme(null)).toBeNull();
+  });
+  it('to ulike gyldige punkter gir en ramme', () => {
+    expect(gyldigRamme([[59.9, 10.8], [NaN, 1], [59.91, 10.81]])).toEqual([[59.9, 10.8], [59.91, 10.81]]);
+  });
+});

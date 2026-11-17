@@ -5,7 +5,8 @@ import { findArr } from './geo.js';
 import { storage } from './storage.js';
 import { callPlace } from './api/place.js';
 import { legEnds } from './api/adapt.js';
-import { registrerReise } from './api/smart.js';
+import { registrerReise, flyttReise } from './api/smart.js';
+import { avstigningFraStopp } from './api/avstigning.js';
 import { logMsg } from './ui/log.js';
 import { updateOnboardChip } from './ui/chip.js';
 import { show } from './ui/nav.js';
@@ -325,7 +326,31 @@ export function loadJny() {
   } catch { return null; }
 }
 
+/**
+ * Hvor du faktisk gikk av en startet reise (v1.218.102), og tellingen flyttet
+ * dit når det ikke var målet. Bare fikser etter påstigningen teller; uten
+ * dem (GPS av, eller appen lastet på nytt — sporet er bare i minnet) læres
+ * ingenting, og det planlagte står.
+ */
+export function lærAvStartetReise(jny, spor) {
+  if (!jny || !Array.isArray(jny.legs) || !Number.isFinite(jny.boardedAt)) return null;
+  const fikser = (spor || []).filter(f => f && Number.isFinite(f.at) && f.at >= jny.boardedAt);
+  if (!fikser.length) return null;
+  const stopp = jny.legs.flatMap(l => (l.stops || []).map(callPlace).filter(Boolean))
+    .map(p => ({ name: p.name, id: p.id || null, lat: p.lat, lon: p.lon }));
+  if (stopp.length < 2) return null;
+  const av = avstigningFraStopp(stopp.slice(1), fikser, 'auto');
+  const planlagt = jny.dest;
+  if (!av || !planlagt || normNavn(av.name) === normNavn(planlagt) || normNavn(av.name) === normNavn(jny.from)) return null;
+  const flyttet = flyttReise({ fra: jny.from, fraStopId: (jny.legs[0] && jny.legs[0].fromStopId) || null,
+    planlagt, faktisk: av.name, tilStopId: av.id, tilLat: av.lat, tilLon: av.lon,
+    boardedAt: jny.boardedAt, linje: jny.lineCode }, fikser[fikser.length - 1]);
+  return flyttet ? av : null;
+}
+const normNavn = s => String(s || '').trim().toLowerCase();
+
 export function clearJny() {
+  try { lærAvStartetReise(state.jny, state.posTrailLang); } catch { /* læringen skal aldri stoppe avslutningen */ }
   state.jny = null;
   state.lockedJourneyId   = null;
   state.lockedJourneyMeta = null;

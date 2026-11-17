@@ -36,6 +36,8 @@ export const BLANDING_K = 5;
  * Nå kreves minst to reiser samme dagtype innenfor ±2 timer (nabobøttene).
  */
 export const VANE_MIN = 2;
+/** Et avkreftet mål (du sa «nei») teller så mye av det det ellers ville (v1.218.100). */
+export const AVKREFTET_VEKT = 0.2;
 
 /** Det vanlige mønsteret: hvilken vei, og hvor sterkt (0–1). */
 export function vanligMønster(nå) {
@@ -97,9 +99,14 @@ export function rangerMål(kort, o) {
     const vanlig = passerMønster(x, c.her, m);
     const profilTreff = !!pr && pr.treff({ name: x.name, id: x.id, lat: x.lat, lon: x.lon });
     // Over alt det faste mønsteret kan gi (maks 1), så profilen alltid går foran.
-    const p = profilTreff ? 2 + eget : vekt * eget + (1 - vekt) * vanlig;
-    const vane = (nær.get(stopKey(x.name)) || 0) >= VANE_MIN;
+    // DET DU HAR SAGT (v1.218.100): et «ja» i intervjuet eller på «din vanlige
+    // reise» gjør målet til en vane nå; et «nei» tar den bort og senker kortet.
+    const sagt = typeof c.svar === 'function' ? (c.svar({ toName: x.name, helg, bucket: bøtte }) || 0) : 0;
+    const p0 = profilTreff ? 2 + eget : vekt * eget + (1 - vekt) * vanlig;
+    const p = sagt < 0 ? p0 * AVKREFTET_VEKT : sagt > 0 && !profilTreff ? Math.max(p0, 1) : p0;
+    const vane = sagt > 0 || (sagt === 0 && (nær.get(stopKey(x.name)) || 0) >= VANE_MIN);
     const grunn = profilTreff ? (pr.tekst || 'din vanlige reise')
+      : sagt > 0 ? 'du har sagt at du pleier hit ' + _dagNavn[d.getDay()] + ' rundt nå'
       : vane
         ? 'du pleier hit ' + _dagNavn[d.getDay()] + ' rundt nå'
         : (vanlig > 0.5 ? m.tekst : '');

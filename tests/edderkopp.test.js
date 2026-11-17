@@ -341,7 +341,8 @@ describe('T-banen kuttes ikke bort av bussene (v1.218.83)', () => {
   it('filteret leser alle beina, og kuttet skjer etter filteret', () => {
     const s = fs.readFileSync('src/views/auto.js', 'utf8');
     // ENDRET MED VILJE (v1.218.114): ingen kutt — filteret er brukerens valg.
-    expect(s).toMatch(/const _modi = kartModi\(bein\);[\s\S]{0,200}bein = utenSkjulteLinjerBein\(filtrerBein\(bein, _skjulteModi\(\)\), _skjulteLinjer\(\)\);/);
+    // v1.218.117: valgene i filteret leses fra alle retningene (filterKilde).
+    expect(s).toMatch(/const _modi = kartModi\(filterKilde\);[\s\S]{0,200}bein = utenSkjulteLinjerBein\(filtrerBein\(bein, _skjulteModi\(\)\), _skjulteLinjer\(\)\);/);
     expect(s).not.toMatch(/bein = velgBein\(/);
   });
 });

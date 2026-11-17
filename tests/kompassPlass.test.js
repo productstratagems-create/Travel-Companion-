@@ -80,3 +80,14 @@ describe('linjene følger transportmiddelet (v1.218.113)', () => {
     expect(a.trykkLinje('L3', linjer, new Set(), r.linjer).linjer.has('L3')).toBe(false);
   });
 });
+
+describe('filteret fra alle retningene (v1.218.117)', () => {
+  it('T-bane står i filteret selv om ingen T-banestrek er tegnet', async () => {
+    const a = await import('../src/views/auto.js');
+    const dirs = [{ lines: [{ code: '1', mode: 'metro', id: 'L1' }] }, { lines: [{ code: '12', mode: 'tram', id: 'L12' }] }, { lines: [{ code: '30', mode: 'bus', id: 'L30' }] }];
+    expect(a.kartModi(a.filterValg(dirs)).map(m => m.modus).sort()).toEqual(['bus', 'metro', 'tram']);
+    expect(a.kartLinjer(a.filterValg(dirs)).map(l => l.kode)).toEqual(['1', '12', '30']);
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/const _modi = kartModi\(filterKilde\);/);
+  });
+});

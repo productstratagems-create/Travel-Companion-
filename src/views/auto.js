@@ -3167,8 +3167,12 @@ export function settKartSkjult(på) { try { storage.set(KART_KEY, på ? 'skjult'
    huskes i `t.autoKartForm`; fullskjerm huskes ikke — den er et øyeblikk. */
 // v1.218.89: bare bredt og kvadratisk — knappen veksler mellom de to.
 const KART_FORMER = ['kvadrat', 'bred'];
-/** Formknappens syklus (v1.218.115): Auto-tavle får fullskjerm som tredje steg. Ren. */
-export function kartSyklus(tavle) { return tavle ? [...KART_FORMER, 'full'] : KART_FORMER; }
+/**
+ * Formknappens syklus: kvadrat → bred → fullskjerm. Auto-tavle fikk
+ * fullskjerm i v1.218.115; auto-reise også fra v1.218.116 («Legg fullskjerm
+ * i formknappen i auto-reise også»). Parameteren står for et senere skille. Ren.
+ */
+export function kartSyklus(tavle) { return [...KART_FORMER, 'full']; }
 const FORM_KEY = 't.autoKartForm';
 export function kartForm() { try { return storage.get(FORM_KEY) === 'bred' ? 'bred' : 'kvadrat'; } catch { return 'kvadrat'; } }
 export function settKartForm(f) { if (f === 'full') return; try { storage.set(FORM_KEY, f === 'bred' ? 'bred' : 'kvadrat'); } catch { /* */ } }

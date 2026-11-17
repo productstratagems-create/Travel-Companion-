@@ -3,9 +3,10 @@ import { describe, it, expect } from 'vitest';
 import { kartSyklus, plasserLapper, lappRekt, lappNivåer } from '../src/views/auto.js';
 
 describe('formknappen', () => {
-  it('Auto-tavle: kvadrat → bred → fullskjerm; auto-reise: to steg', () => {
+  // v1.218.116: auto-reise har også fullskjerm.
+  it('kvadrat → bred → fullskjerm, i både Auto-tavle og auto-reise', () => {
     expect(kartSyklus(true)).toEqual(['kvadrat', 'bred', 'full']);
-    expect(kartSyklus(false)).toEqual(['kvadrat', 'bred']);
+    expect(kartSyklus(false)).toEqual(['kvadrat', 'bred', 'full']);
   });
 });
 

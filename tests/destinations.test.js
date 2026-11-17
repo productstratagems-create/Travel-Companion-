@@ -137,15 +137,20 @@ describe('hvilke steder som blir overskrifter', () => {
       call('3', 'Kolsås', 18, [['Ryen', 4], ['Jernbanetorget', 25]]),
     ];
     const d = destinations(live(calls), [bruk('Jernbanetorget', 9), bruk('Ryen', 2)], GANGE, NÅ, 'Mortensrud');
-    // Ryen kommer først i tid, Jernbanetorget først i bruk.
-    expect(d.map(x => x.name)).toEqual(['Jernbanetorget', 'Ryen']);
+    // Ryen kommer først i tid, Jernbanetorget først i bruk. Samme avgang
+    // er ett kort (v1.218.97): Ryen står som «også» i Jernbanetorgets kort.
+    expect(d.map(x => x.name)).toEqual(['Jernbanetorget']);
+    expect(d[0].også.map(y => y.name)).toEqual(['Ryen']);
   });
 
   it('holder seg under taket uansett hvor mange treff', () => {
     const mange = [call('3', 'Kolsås', 18,
       [['A', 2], ['B', 4], ['C', 6], ['D', 8]])];
     const freq = ['A', 'B', 'C', 'D'].map((n, i) => bruk(n, 10 - i));
-    expect(destinations(live(mange), freq, GANGE, NÅ, 'Mortensrud').length).toBe(DEST_BLOCK);
+    // Fire mål på én avgang er ett kort med tre «også» (v1.218.97).
+    const d = destinations(live(mange), freq, GANGE, NÅ, 'Mortensrud');
+    expect(d.length).toBeLessThanOrEqual(DEST_BLOCK);
+    expect(d[0].også.length).toBe(3);
   });
 
   // Samme skjerm som i dag for en leser uten historikk — og det er også den

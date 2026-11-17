@@ -62,7 +62,7 @@ describe('kortene sier hva de er', () => {
    * lista under også. «Ofte» er det som skiller dem — og det er sant:
    * `destinations()` rangerer på bruk. */
   it('er de du ofte reiser til, ikke bare noen du kan reise til', () => {
-    expect(src()).toMatch(/set-label">dit du ofte skal</);
+    expect(src()).toMatch(/dit du pleier nå/);
   });
 
   it('og rangeringen bak dem er faktisk på bruk', () => {

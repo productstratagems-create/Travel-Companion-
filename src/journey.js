@@ -5,7 +5,8 @@ import { findArr } from './geo.js';
 import { storage } from './storage.js';
 import { callPlace } from './api/place.js';
 import { legEnds } from './api/adapt.js';
-import { registrerReise, flyttReise } from './api/smart.js';
+import { registrerReise } from './api/smart.js';
+import { antaAvstigning } from './api/avstigningVent.js';
 import { avstigningFraStopp } from './api/avstigning.js';
 import { logMsg } from './ui/log.js';
 import { updateOnboardChip } from './ui/chip.js';
@@ -342,10 +343,11 @@ export function lærAvStartetReise(jny, spor) {
   const av = avstigningFraStopp(stopp.slice(1), fikser, 'auto');
   const planlagt = jny.dest;
   if (!av || !planlagt || normNavn(av.name) === normNavn(planlagt) || normNavn(av.name) === normNavn(jny.from)) return null;
-  const flyttet = flyttReise({ fra: jny.from, fraStopId: (jny.legs[0] && jny.legs[0].fromStopId) || null,
-    planlagt, faktisk: av.name, tilStopId: av.id, tilLat: av.lat, tilLon: av.lon,
-    boardedAt: jny.boardedAt, linje: jny.lineCode }, fikser[fikser.length - 1]);
-  return flyttet ? av : null;
+  // En antagelse til du har svart (v1.218.103): intervjuet spør, «ja» flytter.
+  antaAvstigning({ art: 'flytt', fra: jny.from, fraStopId: (jny.legs[0] && jny.legs[0].fromStopId) || null,
+    planlagt, til: av.name, tilStopId: av.id, tilLat: av.lat, tilLon: av.lon,
+    påMs: jny.boardedAt, linje: jny.lineCode, at: fikser[fikser.length - 1].at });
+  return av;
 }
 const normNavn = s => String(s || '').trim().toLowerCase();
 

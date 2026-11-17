@@ -30,10 +30,16 @@ function påbegynt() {
 }
 
 describe('startet reise, gikk av et annet sted', () => {
-  beforeEach(() => { vi.useFakeTimers(); påbegynt(); });
-  it('tellingen flyttes fra planlagt mål til stoppet du gikk av ved', () => {
+  beforeEach(() => { vi.useFakeTimers(); påbegynt(); storage.set('t.avstigningVent', ''); });
+  it('spørres om først; «ja» flytter tellingen til stoppet du gikk av ved', async () => {
+    const { venterAvstigning, svarAvstigning } = await import('../src/api/avstigningVent.js');
+    const { avstigningSpørsmål } = await import('../src/intervju.js');
     state.jny = JNY(); state.posTrailLang = SPOR;
     clearJny();
+    expect(tripCount('Mortensrud', 'Jernbanetorget')).toBe(1);   // ennå ikke konkludert
+    const q = avstigningSpørsmål(venterAvstigning(T0 + 3_600_000));
+    expect(q[0].tekst).toBe('Gikk du av på Helsfyr (linje 3) tirsdag kl. 18:56?');
+    svarAvstigning(q[0].obs.id, true);
     expect(tripCount('Mortensrud', 'Helsfyr')).toBe(1);
     expect(tripCount('Mortensrud', 'Jernbanetorget')).toBe(0);
     expect(loadSmartHist().find(e => e.toName === 'Helsfyr').bucket).toBe(9);

@@ -32,11 +32,12 @@ function _load() {
 }
 
 // Record a route with time context. Called when user applies a route.
-export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon, fromStopId) {
+export function recordSmartTrip(fromName, toName, toStopId, toLat, toLon, fromStopId, når) {
   if (!fromName || !toName) return;
   // Testposisjon (v1.218.46): turer der teller ikke som vaner.
   if (testPosPå()) return;
-  const now = new Date();
+  // `når`: da reisen skjedde, når den bekreftes senere (v1.218.103).
+  const now = Number.isFinite(når) ? new Date(når) : new Date();
   const bucket = Math.floor(now.getHours() / 2); // 2-hour slots, 0-11
   const isWeekend = erHelgLik(now.getTime());
   const hist = _load();
@@ -97,7 +98,7 @@ export function registrerReise(r, pos) {
   if (!r || !r.fra || !r.til) return;
   recordSmartTrip(r.fra, r.til, r.tilStopId || null,
     Number.isFinite(r.tilLat) ? r.tilLat : null, Number.isFinite(r.tilLon) ? r.tilLon : null,
-    r.fraStopId || null);
+    r.fraStopId || null, Number.isFinite(r.når) ? r.når : undefined);
   // logEvent gjør ingenting uten samtykke; vakten bor inni den.
   logEvent('reise', { fra: r.fra, til: r.til, linje: r.linje || null }, pos || null);
 }

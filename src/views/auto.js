@@ -70,9 +70,9 @@ import { storage } from '../storage.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
 import { nesteSvarFor, lærNesteSvar } from '../api/nesteSvar.js';
-import { intervjuKlart, intervjuUtsett, målSpørsmål } from '../intervju.js';
+import { intervjuKlart, intervjuUtsett, målSpørsmål, avstigningSpørsmål } from '../intervju.js';
 import { avstigningsStopp, påstigningsStopp } from '../api/avstigning.js';
-import { registrerReise } from '../api/smart.js';
+import { antaAvstigning, venterAvstigning, svarAvstigning } from '../api/avstigningVent.js';
 import { kandidatAv } from '../api/kandidat.js';
 import { taOpp, lagreTuropptak } from '../api/turopptak.js';
 import { kontekst, lærSvar, svarFor } from '../api/linjeSvar.js';
@@ -1667,9 +1667,11 @@ export function lærAvstigning(k, spor, hendelse) {
   const på = påstigningsStopp(k);
   if (!av || !på || stopKey(av.name) === stopKey(på.name)) return null;
   _avstigningLært.add(k.nøkkel);
+  // EN ANTAGELSE, IKKE EN REISE (v1.218.103): spørres om i intervjuet.
   const siste = (spor || [])[(spor || []).length - 1] || null;
-  registrerReise({ fra: på.name, til: av.name, tilStopId: av.id, fraStopId: på.id,
-    tilLat: av.lat, tilLon: av.lon, linje: k.linje }, siste);
+  const påMs = (k.call && Date.parse(k.call.expectedDepartureTime || k.call.aimedDepartureTime)) || (siste && siste.at) || Date.now();
+  antaAvstigning({ art: 'ny', fra: på.name, fraStopId: på.id, til: av.name, tilStopId: av.id,
+    tilLat: av.lat, tilLon: av.lon, linje: k.linje, påMs, at: (siste && siste.at) || Date.now() });
   return av;
 }
 
@@ -2092,7 +2094,7 @@ const _profilSenere = new Set();
 export function profilSpørsmålHtml(q) {
   if (!q) return '';
   return '<div class="profil-q">'
-    + '<div class="set-label">' + (q.art === 'mål' ? 'om reisene dine' : 'om deg') + '</div>'
+    + '<div class="set-label">' + (q.art === 'mål' || q.art === 'avstigning' ? 'om reisene dine' : 'om deg') + '</div>'
     + '<div class="profil-q-tekst">' + esc(q.tekst) + '</div>'
     + (q.grunn ? '<div class="neste-grunn">' + esc(q.grunn) + '</div>' : '')
     + '<div class="neste-svar"><button type="button" class="neste-ja profil-ja">ja</button>'
@@ -2109,9 +2111,12 @@ function _renderProfilQ(nå) {
   const { p, m } = _profilNå();
   // VED UJEVNE MELLOMROM (v1.218.100, src/intervju.js): profilen først, så
   // reisene i innstillinger du ikke har svart på.
-  const q = intervjuKlart(nå)
+  // Antatt avstigning FØRST og uten å vente på intervjuets pause: den gjelder
+  // en bestemt tur, og svaret er ferskest nå (v1.218.103).
+  const qa = avstigningSpørsmål(venterAvstigning(nå)).find(x => !_profilSenere.has(x.nøkkel)) || null;
+  const q = qa || (intervjuKlart(nå)
     ? (nesteSpørsmål(p, m, nå, _profilSenere) || målSpørsmål(loadSmartHist(), nå).find(x => !_profilSenere.has(x.nøkkel)) || null)
-    : null;
+    : null);
   const html = profilSpørsmålHtml(q);
   el.style.display = html ? '' : 'none';
   if (el.innerHTML === html) return;
@@ -2121,6 +2126,7 @@ function _renderProfilQ(nå) {
   el.querySelector('.profil-ja').addEventListener('click', () => {
     if (q.art === 'reise') { svarReise(q.celle, q.type, true); ferdig(); return; }
     if (q.art === 'mål') { lærNesteSvar(q.h, +1); ferdig(); return; }
+    if (q.art === 'avstigning') { svarAvstigning(q.obs.id, true); ferdig(); return; }
     // Holdeplassene innen gangavstand følger med, så hjem er «hjem» fra alle.
     const s = q.sted;
     const lagre = nær => { settSted(q.rolle, s, nær); ferdig(); };
@@ -2130,6 +2136,7 @@ function _renderProfilQ(nå) {
   el.querySelector('.profil-nei').addEventListener('click', () => {
     if (q.art === 'reise') svarReise(q.celle, q.type, false);
     else if (q.art === 'mål') lærNesteSvar(q.h, -1);
+    else if (q.art === 'avstigning') svarAvstigning(q.obs.id, false);
     else avvisSted(q.rolle, q.sted);
     ferdig();
   });

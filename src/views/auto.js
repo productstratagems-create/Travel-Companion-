@@ -52,7 +52,7 @@ import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { lastHånd } from '../haand.js';
 import { ankomstMs } from '../ankomst.js';
-import { hensikt, hensiktLinje, sammeTur } from '../hensikt.js';
+import { hensikt, hensiktLinje, sammeTur, reiseKall } from '../hensikt.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
 import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
 import { kontekstNå, kontekstLinje, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
@@ -1578,6 +1578,14 @@ function _påLinjaMedLås(nå) {
     const id = state.lockedJourneyId || (state.jny.legs && state.jny.legs[0] && state.jny.legs[0].journeyId);
     const k = id && (dom.kandidater || []).find(x => x.nøkkel === id);
     if (k) _lås = { k, kilde: 'valgt', stilleFra: null };
+    // UTEN GPS-BEVIS (v1.218.90): reisen er startet og avgangen har gått —
+    // da er det den, også når posisjonen er gammel eller står ved perrongen.
+    if (!_lås) {
+      const h = hensikt(state.jny, state.route, nå);
+      const rk = h && h.fase === 'underveis' ? reiseKall(state.jny) : null;
+      const kr = rk ? ombordKandidater([rk], state.posTrail || [], null)[0] : null;
+      if (kr) _lås = { k: kr, kilde: 'valgt', stilleFra: null };
+    }
   }
   // Avvist med × slipper låsen også: du har sagt at du ikke er på den.
   if (_lås && _avvistOmbord.has(_lås.k.nøkkel)) _lås = null;
@@ -2103,7 +2111,8 @@ function _renderNeste(nå) {
   // Samme gangtid som lista bruker til «rekker du den?».
   const w = _stop ? gangTil(_stop) : null;
   const hit = h && _stop && tilstand(h, nå) === 'nær' ? vanligAvgang(_dirs, h, _stop.name, w ? w.mins : null, nå) : null;
-  const html = nøkkel && nøkkel === _nesteAvvist ? ''
+  // Med en startet reise foreslås ikke andre (v1.218.90).
+  const html = erReiseStartet(state.jny, state.route, nå) ? '' : nøkkel && nøkkel === _nesteAvvist ? ''
     : nesteReiseHtml(h, nøkkel && nøkkel === _nesteBesvart, { nå, hit, walkMins: w ? w.mins : null });
   el.style.display = html ? '' : 'none';
   if (el.innerHTML === html) return;
@@ -2990,6 +2999,34 @@ export function stoppBakover(call, fraNavn, tilNavn) {
   }).filter(s => s.lat != null && s.lon != null);
 }
 
+/**
+ * FORMKNAPPEN ALLTID I SØYLEN (v1.218.90). Rapportert to ganger uten knapp;
+ * sikringen i v1.218.89 gjorde ingenting når knappen var borte fra siden.
+ * Mangler den, lages den på nytt med samme id og bindes på nytt.
+ */
+function _sikreFormknapp() {
+  if (!_aMap || !_aMap._verktøy) return;
+  let fb = _el('auto-map-expand');
+  if (fb && _aMap._verktøy.el.contains(fb)) return;
+  if (!fb) {
+    fb = document.createElement('button');
+    fb.type = 'button'; fb.id = 'auto-map-expand'; fb.className = 'map-expand-btn';
+    const wrap = _el('auto-map') && _el('auto-map').parentElement;
+    if (wrap) wrap.appendChild(fb);
+  }
+  const el = _el('auto-map');
+  _aForm = bindMapExpand(_aMap, el, fb, { syklus: KART_FORMER, start: kartForm(), onToggle: (open, form) => {
+    fitExpandedMap(el, open); settKartForm(form); _aKey = ''; _aFitKey = '';
+    setTimeout(() => _renderMap(), 340);
+  } });
+}
+
+/** Er en reise startet (tavlas valgte avgang, ikke framme)? Da foreslås ikke andre. Ren. */
+export function erReiseStartet(jny, route, nå) {
+  const h = hensikt(jny, route, nå);
+  return !!(h && h.styrke === 'reise');
+}
+
 /** Mållappen: navnet og når du er der. Ren. */
 export function målLapp(mål) {
   return (mål && mål.name ? mål.name : '') + (mål && Number.isFinite(mål.at) ? ' · ' + clk(mål.at) : '');
@@ -3144,8 +3181,7 @@ function _renderMap() {
   uthevAvgang(_aMap, _minAvgang(), _stop && _stop.id);
   // Formknappen skal alltid stå i søylen (v1.218.89). Sett mangle på telefonen
   // om bord; ikke gjenskapt i proben — så den settes inn igjen om den er borte.
-  { const fb = _el('auto-map-expand'); const v = _aMap._verktøy;
-    if (fb && v && !v.el.contains(fb)) leggTilVerktøy(_aMap, 'fullskjerm', { element: fb }); }
+  _sikreFormknapp();
   // Ny holdeplass: kartet går tilbake til oversikten (v1.218.71).
   if (_stop && _fokusStopp !== _stop.id) {
     _fokusStopp = _stop.id;
@@ -4330,6 +4366,12 @@ function _renderBody() {
           : (catchable(d, walkMins, now).some(r => r.call === x.call)
             && stopsAhead(x.call, _stop && _stop.name, now).some(st => stopKey(st.name) === stopKey(h.mål)))) funnet = { d, call: x.call };
       }));
+      // Avgangen er gått og står ikke lenger på tavla: reisens eget kall (v1.218.90).
+      if (!funnet && h.styrke === 'reise') {
+        const rk = reiseKall(state.jny);
+        if (rk) funnet = { call: rk, d: { frontText: rk.destinationDisplay.frontText, call: rk, calls: [],
+          lines: [{ code: rk.serviceJourney.line.publicCode, colour: rk.serviceJourney.line.presentation.colour }] } };
+      }
       if (funnet) {
         const m = stopsAhead(funnet.call, _stop && _stop.name, now).find(st => stopKey(st.name) === stopKey(h.mål));
         _kortRute = { navn: h.mål, id: h.målId || (m && m.id) || null, d: funnet.d, call: funnet.call, hensikt: h.styrke,
@@ -4396,6 +4438,10 @@ function _renderBody() {
           return andre.length ? '<details class="auto-andre-mål"><summary class="auto-side">andre mål · ' + andre.length + '</summary>'
             + andre.map(({ x, n }) => destHtml(x, n)).join('') + '</details>' : '';
         })()
+      // Startet reise uten lås (v1.218.90): de andre målene foldet, ikke foreslått.
+      : erReiseStartet(state.jny, state.route, now)
+        ? (dests.length ? '<details class="auto-andre-mål"><summary class="auto-side">andre mål · ' + dests.length + '</summary>'
+          + dests.map(destHtml).join('') + '</details>' : '')
       : dests.length
         ? '<div class="set-label">dit du ofte skal</div>' + dests.map(destHtml).join('')
         : '';

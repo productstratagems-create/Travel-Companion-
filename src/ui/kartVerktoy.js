@@ -114,6 +114,9 @@ function _ordne(v) {
 export function leggTil(map, id, o = {}) {
   const v = festVerktøy(map);
   let b = v.knapper.get(id);
+  // En ny knapp for samme plass erstatter den gamle (v1.218.90): formknappen
+  // ble laget på nytt etter å ha forsvunnet, og ble stående utenfor søylen.
+  if (b && o.element && b !== o.element) { if (b.parentNode) b.remove(); v.knapper.delete(id); b = null; }
   if (!b) {
     // EN KNAPP SOM FINNES FRA FØR (⤢ i index.html) går tilbake dit den kom
     // fra når kartet fjernes. Avgangsdetaljene bygger kartet på nytt per

@@ -1,0 +1,41 @@
+import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import { hensikt, hensiktLinje, sammeTur } from '../src/hensikt.js';
+import { clk } from '../src/ui/fmt.js';
+
+const NÅ = Date.parse('2026-11-17T06:27:00+01:00');
+const iso = min => new Date(NÅ + min * 60000).toISOString();
+const jny = { dest: 'Jernbanetorget', lineCode: '3', arrival: { time: iso(52), clk: '07:19' },
+  legs: [{ lineCode: '3', quay: '1', depTime: { time: iso(26) }, journeyId: 'RUT:ServiceJourney:3-1' }] };
+const route = { from: 'Mortensrud', to: 'Jernbanetorget', toStopId: 'NSR:StopPlace:3990' };
+
+describe('hensikten: tavlas valg i auto-reise (v1.218.85)', () => {
+  it('valgt reise slår tavlas mål', () => {
+    const h = hensikt(jny, route, NÅ);
+    expect(h.styrke).toBe('reise');
+    expect(h.mål).toBe('Jernbanetorget');
+    expect(h.spor).toBe('1');
+    expect(h.avgang).toBe(NÅ + 26 * 60000);
+  });
+  it('uten reise: tavlas mål; uten noe: ingenting', () => {
+    expect(hensikt(null, route, NÅ)).toEqual({ styrke: 'rute', mål: 'Jernbanetorget', målId: 'NSR:StopPlace:3990' });
+    expect(hensikt(null, { from: 'Mortensrud' }, NÅ)).toBeNull();
+  });
+  it('en reise som er framme, gjelder ikke lenger', () => {
+    expect(hensikt({ ...jny, arrival: { time: iso(-1) } }, route, NÅ).styrke).toBe('rute');
+  });
+  it('linja sier avgang, spor, mål og når du må gå — samme regel som lista', () => {
+    const t = hensiktLinje(hensikt(jny, route, NÅ), NÅ, NÅ + 14 * 60000);
+    expect(t).toBe('din reise: 3 ' + clk(NÅ + 26 * 60000) + ' spor 1 → Jernbanetorget ' + clk(NÅ + 52 * 60000) + ' · gå om 14 min');
+    expect(hensiktLinje(hensikt(jny, route, NÅ), NÅ, NÅ - 60000)).toMatch(/rekker ikke$/);
+    expect(hensiktLinje(hensikt(null, route, NÅ), NÅ, null)).toBe('til Jernbanetorget fra tavla');
+  });
+  it('samme tur uansett store og små bokstaver i id-en', () => {
+    expect(sammeTur('rut:ServiceJourney:3-1', 'RUT:ServiceJourney:3-1')).toBe(true);
+    expect(sammeTur(null, 'x')).toBe(false);
+  });
+  it('rapportert: auto-reise leser hensikten (før: bare om bord)', () => {
+    const s = fs.readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toMatch(/hensikt\(state\.jny, state\.route/);
+  });
+});

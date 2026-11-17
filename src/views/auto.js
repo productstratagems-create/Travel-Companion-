@@ -52,6 +52,7 @@ import { collectStopSituations } from '../api/situations.js';
 import { logMsg } from '../ui/log.js';
 import { lastHånd } from '../haand.js';
 import { ankomstMs } from '../ankomst.js';
+import { hensikt, hensiktLinje, sammeTur } from '../hensikt.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
 import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
 import { kontekstNå, kontekstLinje, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
@@ -2247,6 +2248,14 @@ function _renderWhere() {
     // reise, sagt — ikke bare brukt. Bare til fots; om bord sier raden over det.
     + (() => {
       if (picked.linjer) return '';
+      // TAVLAS VALG FØRST (v1.218.85): en valgt reise eller tavlas mål sies
+      // her, med avgang, spor, mål og når du må gå — før vanen.
+      const h = hensikt(state.jny, state.route, nåW);
+      if (h) {
+        const w = _stop ? gangTil(_stop) : null;
+        const gåMs = h.avgang != null && w ? h.avgang - w.mins * 60000 : null;
+        return '<div class="auto-kontekst auto-hensikt">' + esc(hensiktLinje(h, nåW, gåMs)) + '</div>';
+      }
       const { p: pr, m: ma } = _profilNå();
       const linje = kontekstLinje(kontekstNå(nåW, _herSom(), pr, ma), nåW);
       return linje ? '<div class="auto-kontekst">' + esc(linje) + '</div>' : '';
@@ -4255,6 +4264,28 @@ function _renderBody() {
   const mål0 = o0 ? stopsAhead(o0.call, _stop && _stop.name, now).find(st => (k0.id && st.id === k0.id) || stopKey(st.name) === stopKey(k0.name)) : null;
   _kortRute = o0 ? { navn: k0.name, id: k0.id || null, d: o0.d, call: o0.call,
     lat: mål0 && Number.isFinite(mål0.lat) ? mål0.lat : null, lon: mål0 && Number.isFinite(mål0.lon) ? mål0.lon : null } : null;
+  // TAVLAS VALG ER KARTETS TEMA (v1.218.85), foran vanekortet: den valgte
+  // avgangen (samme tur) eller første du rekker til tavlas mål. Da tegner
+  // kartet linja til målet, uthever sporet og sender gangruta dit — samme vei
+  // som kortet allerede går.
+  {
+    const h = hensikt(state.jny, state.route, now);
+    if (h) {
+      let funnet = null;
+      (_dirs || []).forEach(d => (d.calls || []).forEach(x => {
+        if (funnet || !x || !x.call) return;
+        const sj = x.call.serviceJourney;
+        if (h.styrke === 'reise' ? sammeTur(sj && sj.id, h.journeyId)
+          : (catchable(d, walkMins, now).some(r => r.call === x.call)
+            && stopsAhead(x.call, _stop && _stop.name, now).some(st => stopKey(st.name) === stopKey(h.mål)))) funnet = { d, call: x.call };
+      }));
+      if (funnet) {
+        const m = stopsAhead(funnet.call, _stop && _stop.name, now).find(st => stopKey(st.name) === stopKey(h.mål));
+        _kortRute = { navn: h.mål, id: h.målId || (m && m.id) || null, d: funnet.d, call: funnet.call, hensikt: h.styrke,
+          lat: m && Number.isFinite(m.lat) ? m.lat : null, lon: m && Number.isFinite(m.lon) ? m.lon : null };
+      }
+    }
+  }
   // PARTITIONED, not a heading emitted whenever the value changes. The list
   // is already sorted by the reader's own choice (T-bane først / Lokalbuss
   // først), and a heading-on-change would interleave «mot sentrum» through

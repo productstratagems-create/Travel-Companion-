@@ -2731,9 +2731,19 @@ export function kartModi(bein) {
 }
 
 /** Beina uten de skjulte transportmidlene. Ren. */
+/** Transportmiddelet filteret i lag-panelet bruker. ÉN regel for kart og liste (v1.218.108). */
+export function filterModus(modus) { return normMode(modus) || 'bus'; }
 export function filtrerBein(bein, skjult) {
   const s = skjult instanceof Set ? skjult : new Set(skjult || []);
-  return (bein || []).filter(b => !s.has(normMode(b.modus) || 'bus'));
+  return (bein || []).filter(b => !s.has(filterModus(b.modus)));
+}
+/**
+ * Samme filter på retningene (v1.218.108). Bestilt: «La filterknappen for
+ * ruter og linjer i kartet også filtrere listen over avganger i Auto-tavla.»
+ */
+export function filtrerRetninger(dirs, skjult) {
+  const s = skjult instanceof Set ? skjult : new Set(skjult || []);
+  return (dirs || []).filter(d => !s.has(filterModus(d.lines && d.lines[0] && d.lines[0].mode)));
 }
 
 function _skjulteModi() {
@@ -2774,6 +2784,7 @@ function _tegnModiKnapper(modi) {
     if (s.has(b.dataset.modus)) s.delete(b.dataset.modus); else s.add(b.dataset.modus);
     try { storage.set(SKJULT_NØKKEL, JSON.stringify([...s])); } catch (_) {}
     _modiNøkkel = ''; _aKey = ''; _renderMap();
+    if (_autoTavle) _renderBody();   // lista følger kartets filter (v1.218.108)
   }));
 }
 
@@ -4286,10 +4297,16 @@ export function settAutoTavle(på) {
 function _tegnAutoTavle(body) {
   const nå = Date.now();
   const g = _stop ? gangTil(_stop) : null, gang = g ? g.mins : null;
-  const rader = tavleUtvalg(_dirs, nå, ms => canCatch(ms, gang, nå));
+  // Kartets filter (lag-panelet) gjelder lista også, og den sier det.
+  const skjult = _skjulteModi();
+  const synlige = filtrerRetninger(_dirs, skjult);
+  const skjulteNavn = [...new Set(_dirs.filter(d => !synlige.includes(d)).map(d => filterModus(d.lines && d.lines[0] && d.lines[0].mode)))]
+    .map(m => MODI_NAVN[m] || m);
+  const rader = tavleUtvalg(synlige, nå, ms => canCatch(ms, gang, nå));
+  const merknad = skjulteNavn.length ? '<div class="at-filter">skjult i kartets filter: ' + esc(skjulteNavn.join(', ')) + '</div>' : '';
   body.innerHTML = rader.length
-    ? '<div class="set-label">neste avganger herfra</div><div class="at-liste">' + rader.map((x, i) => tavleRadHtml(x, nå, i)).join('') + '</div>'
-    : '<div class="dest-prev-empty">ingen avganger herfra den nærmeste timen</div>';
+    ? '<div class="set-label">neste avganger herfra</div>' + merknad + '<div class="at-liste">' + rader.map((x, i) => tavleRadHtml(x, nå, i)).join('') + '</div>'
+    : merknad + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : 'ingen avganger herfra den nærmeste timen') + '</div>';
   body.querySelectorAll('.at-rad').forEach(b => b.addEventListener('click', () => {
     const x = rader[Number(b.dataset.i)];
     if (x) { _open = x.d; _renderBody(); }

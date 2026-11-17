@@ -71,6 +71,8 @@ import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
 import { nesteSvarFor, lærNesteSvar } from '../api/nesteSvar.js';
 import { intervjuKlart, intervjuUtsett, målSpørsmål } from '../intervju.js';
+import { avstigningsStopp, påstigningsStopp } from '../api/avstigning.js';
+import { registrerReise } from '../api/smart.js';
 import { kandidatAv } from '../api/kandidat.js';
 import { taOpp, lagreTuropptak } from '../api/turopptak.js';
 import { kontekst, lærSvar, svarFor } from '../api/linjeSvar.js';
@@ -1618,6 +1620,12 @@ function _påLinjaMedLås(nå) {
     const k = (r.lås && r.lås.k) || (_lås && _lås.k);
     logEvent('ombord', { svarte: r.hendelse, linje: k ? k.linje : '', handling: r.lås ? 'låst' : 'sluppet' }, null);
   }
+  // HVOR DU GIKK AV, MÅLT (v1.218.101, api/avstigning.js): en tur appen så
+  // deg ta, teller som en reise til stoppet du forlot den ved. Ikke for en
+  // startet reise (`kilde 'reise'`): den ble talt da du trykket «på».
+  if (!r.lås && _lås && _lås.kilde !== 'reise' && String(r.hendelse || '').startsWith('sluppet')) {
+    lærAvstigning(_lås.k, state.posTrailLang && state.posTrailLang.length ? state.posTrailLang : (state.posTrail || []), r.hendelse);
+  }
   _lås = r.lås;
   // Lagret når den endres — tur eller kilde — ikke hvert sekund.
   const låsNøkkel = _lås ? _lås.k.nøkkel + '|' + _lås.kilde : '';
@@ -1646,6 +1654,23 @@ function _påLinjaMedLås(nå) {
   const r2 = medVedOgNeste(grunn, nå, fiks, _fokusN);
   if (r2) _fokusN = r2.fokusN || 0;
   return r2;
+}
+
+/**
+ * Registrer turen låsen fulgte, til stoppet du gikk av (v1.218.101).
+ * Én gang per tur, og bare når stoppet er kjent og ikke er der du gikk på.
+ */
+const _avstigningLært = new Set();
+export function lærAvstigning(k, spor, hendelse) {
+  if (!k || !k.nøkkel || _avstigningLært.has(k.nøkkel)) return null;
+  const av = avstigningsStopp(k, spor, hendelse);
+  const på = påstigningsStopp(k);
+  if (!av || !på || stopKey(av.name) === stopKey(på.name)) return null;
+  _avstigningLært.add(k.nøkkel);
+  const siste = (spor || [])[(spor || []).length - 1] || null;
+  registrerReise({ fra: på.name, til: av.name, tilStopId: av.id, fraStopId: på.id,
+    tilLat: av.lat, tilLon: av.lon, linje: k.linje }, siste);
+  return av;
 }
 
 /** Toget passerte en stasjon: stasjonen i fokus er én nærmere. Ren. */

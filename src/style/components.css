@@ -481,3 +481,7 @@ html.view-auto #onboard-chip{display:none!important}
 .linje-pill{background:none;border:0;padding:2px;border-radius:6px;cursor:pointer;line-height:0}
 .linje-pill:not(.active){opacity:.35;filter:grayscale(1)}
 .linje-pill:focus-visible{outline:2px solid var(--accent)}
+
+/* Endestasjonslappen i «hele ruter» (v1.218.112): navnet først, så linjene og første avgang du rekker. */
+.edd-ende-lapp .edd-ende-navn{display:block;font-weight:700;letter-spacing:.02em;margin-bottom:2px;white-space:nowrap}
+.edd-ende-lapp .edd-topp{display:flex;align-items:center;gap:4px}

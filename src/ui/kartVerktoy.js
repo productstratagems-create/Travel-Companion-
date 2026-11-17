@@ -82,12 +82,19 @@ export const KNAPP_STEG = 46;
 /** Løftet fra bunnen (v1.218.77: «litt opp»). Samme tall som --kv-løft i CSS. */
 // v1.218.89: «Hele knapperekka bør være bunnstilt» — løftet er tatt bort.
 export const KV_LØFT = 10;
-export function somRad(antallSynlige, kartHøyde) {
-  return antallSynlige * KNAPP_STEG + 10 > kartHøyde;
+/**
+ * PLASSEN KOMPASSET TAR (v1.218.106). Rapportert: «Knappene legger seg over
+ * kompasset». Søylen regnet med hele kartets høyde, mens kompasset øverst
+ * til høyre tok 56 px av den. Knapp 40 + toppmarg 10 + mellomrom 6.
+ */
+export const KOMPASS_PLASS = 56;
+const _ledig = (h, øverst) => h - (øverst ? KOMPASS_PLASS : 0);
+export function somRad(antallSynlige, kartHøyde, øverst = false) {
+  return antallSynlige * KNAPP_STEG + 10 > _ledig(kartHøyde, øverst);
 }
 /** Får søylen plass MED løftet? Ellers står den nede (uten løft) før den blir rad. Ren. */
-export function medLøft(antallSynlige, kartHøyde) {
-  return antallSynlige * KNAPP_STEG + KV_LØFT <= kartHøyde;
+export function medLøft(antallSynlige, kartHøyde, øverst = false) {
+  return antallSynlige * KNAPP_STEG + KV_LØFT <= _ledig(kartHøyde, øverst);
 }
 /**
  * LAVE KART (v1.218.72): avgangsdetaljenes bånd er 130 px — tre knapper i
@@ -99,9 +106,12 @@ export function tilpassForm(map) {
   // Høyden avgjøres av søylen; raden ligger ved siden av (v1.218.76).
   const n = [...v.knapper.entries()].filter(([id, b]) => !b.hidden && gruppeFor(id) === 'søyle').length;
   const h = map.getSize().y;
-  v.el.classList.toggle('kv-rad', somRad(n, h));
-  v.el.classList.toggle('kv-uten-løft', !medLøft(n, h));
-  v.el.style.setProperty('--kv-kart-h', map.getSize().y + 'px');
+  // Bare når kompasset VISES: det står skjult til kartet er rotert.
+  const øverst = !!(v.øverst && [...v.øverst.values()].some(b => !b.hidden));
+  v.el.classList.toggle('kv-rad', somRad(n, h, øverst));
+  v.el.classList.toggle('kv-uten-løft', !medLøft(n, h, øverst));
+  // Panelet (lag) får heller ikke gå opp i kompasset.
+  v.el.style.setProperty('--kv-kart-h', _ledig(h, øverst) + 'px');
 }
 
 function _ordne(v) {
@@ -156,6 +166,7 @@ export function leggTilØverst(map, id, o = {}) {
     b.type = 'button'; b.classList.add('kv-knapp'); b.dataset.kv = id;
     v.øverst.set(id, b);
     v.øverstKontroll.getContainer().appendChild(b);
+    tilpassForm(map);   // søylen har nå mindre plass (v1.218.106)
   }
   if (o.påTrykk) b.onclick = o.påTrykk;
   sett(map, id, o);

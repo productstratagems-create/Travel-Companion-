@@ -22,7 +22,7 @@ import { collectStopSituations } from '../api/situations.js';
 import { pruneHidden } from '../ui/alerts.js';
 import { loadFavs } from '../ui/favs.js';
 import { pickUsual, usualState, finnFavAvgang } from '../api/usual.js';
-import { fmtMins, esc, clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
+import { fmtMins, esc, clk, clkDay, dayPrefix, countdownText, NEDTELLING_MAKS_MIN } from '../ui/fmt.js';
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
@@ -3325,7 +3325,7 @@ export function renderBoard() {
       : lc + destPhrase + ', avgang om ' + minsLabel + (quay !== '?' ? ', spor ' + quay : '');
     const a11yLabel = a11yLabel0 + bruddA11y;
 
-    const isClock = mins >= 60;
+    const isClock = mins >= NEDTELLING_MAKS_MIN;
     html += '<div class="' + rowCls + '"'
       // Lets the strip find this row: tapping a cluster jumps to the first
       // departure inside it.
@@ -3343,7 +3343,7 @@ export function renderBoard() {
           if (departed) return '-' + agoMins + '<span class="unit">min</span>';
           if (isNow) return 'NÅ';
           if (diffSec < 60) return secs + '<span class="unit">sek</span>';
-          if (mins < 60)    return mins + '<span class="unit">min</span>';
+          if (mins < NEDTELLING_MAKS_MIN) return mins + '<span class="unit">min</span>';
           // The clock only, no day. This column is narrow and uppercased, and
           // "i morgen 07:21" wrapped to two lines with the "i" rendering as a
           // hairline — seen on a 414px screen, not in any assertion. The day

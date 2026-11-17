@@ -8,7 +8,7 @@
  * og «rekker du den» med auto-reisens egen regel (`kanRekke`), så de to
  * aldri sier hvert sitt. Ren.
  */
-import { esc, clk } from './fmt.js';
+import { esc, clk, NEDTELLING_MAKS_MIN } from './fmt.js';
 import { linjemerke } from './linjemerke.js';
 
 export const TAVLE_PER_RETNING = 3;
@@ -38,12 +38,16 @@ export function tavleRadHtml(x, nå, i) {
   const spor = x.call && x.call.quay && x.call.quay.publicCode;
   const merke = linjemerke({ kode: l.code, farge: l.colour, tekst: l.tekst, linjeId: l.id, modus: l.mode });
   return '<button type="button" class="at-rad' + (x.rekker ? '' : ' at-rekker-ikke') + '" data-i="' + i + '"'
-    + ' aria-label="' + esc((l.code || '') + ' mot ' + (x.d.frontText || '') + ', ' + (min < 1 ? 'nå' : 'om ' + min + ' min')
+    + ' aria-label="' + esc((l.code || '') + ' mot ' + (x.d.frontText || '') + ', ' + (min < 1 ? 'nå' : min >= NEDTELLING_MAKS_MIN ? 'kl. ' + clk(x.ms) : 'om ' + min + ' min')
       + (spor ? ', spor ' + spor : '') + (x.rekker ? '' : ', rekker ikke')) + '">'
-    + '<span class="at-min">' + (min < 1 ? 'nå' : min) + (min < 1 ? '' : '<small>min</small>') + '</span>'
+    // Klokkeslett fra NEDTELLING_MAKS_MIN, som tavla (v1.218.111).
+    + (min >= NEDTELLING_MAKS_MIN
+      ? '<span class="at-min at-min-klokke">' + esc(clk(x.ms)) + '</span>'
+      : '<span class="at-min">' + (min < 1 ? 'nå' : min) + (min < 1 ? '' : '<small>min</small>') + '</span>')
     + '<span class="at-midt">' + merke + '<span class="at-front">' + esc(x.d.frontText || '') + '</span>'
     + (x.rekker ? '' : '<span class="at-merk">rekker ikke</span>') + '</span>'
-    + '<span class="at-klokke">' + esc(clk(x.ms)) + '</span>'
+    // Ikke samme klokkeslett to ganger: står det til venstre, er høyre tom.
+    + '<span class="at-klokke">' + (min >= NEDTELLING_MAKS_MIN ? '' : esc(clk(x.ms))) + '</span>'
     + '<span class="at-spor">' + (spor ? '<small>spor</small>' + esc(spor) : '') + '</span>'
     + '</button>';
 }

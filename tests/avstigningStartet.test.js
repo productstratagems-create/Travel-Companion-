@@ -26,7 +26,7 @@ const SPOR = [...[0, 1, 2].map(i => ({ lat: STOPP[i][1], lon: STOPP[i][2], acc: 
 function påbegynt() {
   storage.set('t.smartHist', ''); storage.set('t.vaneTelling', '2');
   vi.setSystemTime(T0);
-  recordSmartTrip('Mortensrud', 'Jernbanetorget', null, null, null, null);   // som doBoard
+  recordSmartTrip('Mortensrud', 'Jernbanetorget', null, null, null, null, undefined, 'startet');   // som doBoard (v1.218.105)
 }
 
 describe('startet reise, gikk av et annet sted', () => {
@@ -36,21 +36,31 @@ describe('startet reise, gikk av et annet sted', () => {
     const { avstigningSpørsmål } = await import('../src/intervju.js');
     state.jny = JNY(); state.posTrailLang = SPOR;
     clearJny();
-    expect(tripCount('Mortensrud', 'Jernbanetorget')).toBe(1);   // ennå ikke konkludert
+    // STARTET ER IKKE REIST (v1.218.105): ingen reise før du har svart.
+    expect(tripCount('Mortensrud', 'Jernbanetorget')).toBe(0);
+    expect(loadSmartHist().find(e => e.toName === 'Jernbanetorget').startet).toBe(1);
     const q = avstigningSpørsmål(venterAvstigning(T0 + 3_600_000));
     expect(q[0].tekst).toBe('Gikk du av på Helsfyr (linje 3) tirsdag kl. 18:56?');
     svarAvstigning(q[0].obs.id, true);
     expect(tripCount('Mortensrud', 'Helsfyr')).toBe(1);
     expect(tripCount('Mortensrud', 'Jernbanetorget')).toBe(0);
+    expect(loadSmartHist().find(e => e.toName === 'Jernbanetorget')).toBe(undefined);   // startet trukket fra
     expect(loadSmartHist().find(e => e.toName === 'Helsfyr').bucket).toBe(9);
   });
-  it('uten spor etter påstigningen: det planlagte står', () => {
+  it('uten spor etter påstigningen: bare startet, aldri reist', () => {
     expect(lærAvStartetReise(JNY(), SPOR.map(f => ({ ...f, at: T0 - 60_000 })))).toBe(null);
-    expect(tripCount('Mortensrud', 'Jernbanetorget')).toBe(1);
+    expect(tripCount('Mortensrud', 'Jernbanetorget')).toBe(0);
   });
-  it('av ved planlagt mål: ingen endring', () => {
+  it('av ved planlagt mål: spørres også, og «ja» gjør den til en reise', async () => {
+    const { venterAvstigning, svarAvstigning } = await import('../src/api/avstigningVent.js');
+    const { avstigningSpørsmål } = await import('../src/intervju.js');
     const fram = [...SPOR.slice(0, 3), ...[3, 4].map(i => ({ lat: STOPP[i][1], lon: STOPP[i][2], acc: 10, at: T0 + 1_200_000 + i * 60_000 }))];
-    expect(lærAvStartetReise(JNY(), fram)).toBe(null);
+    expect(lærAvStartetReise(JNY(), fram).name).toBe('Jernbanetorget');
+    expect(tripCount('Mortensrud', 'Jernbanetorget')).toBe(0);
+    const q = avstigningSpørsmål(venterAvstigning(T0 + 3_600_000))[0];
+    expect(q.grunn).toBe('du startet reisen hit, og GPS-en tyder på at du kom fram');
+    svarAvstigning(q.obs.id, true);
     expect(tripCount('Mortensrud', 'Jernbanetorget')).toBe(1);
+    expect(loadSmartHist().find(e => e.toName === 'Jernbanetorget').startet).toBe(0);
   });
 });

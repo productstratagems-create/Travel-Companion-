@@ -53,8 +53,11 @@ const _tid = b => 'rundt ' + String(b * 2).padStart(2, '0') + '–' + String(b *
 export function målSpørsmål(hist, nå, svar = nesteSvarFor) {
   const bøtte = Math.floor(new Date(nå).getHours() / 2), helg = erHelgLik(nå);
   return (hist || [])
-    .filter(e => e && e.toName && (e.count || 0) >= INTERVJU_MIN_TURER)
-    .map(e => ({ toName: e.toName, fromName: e.fromName || null, helg: !!e.isWeekend, bucket: e.bucket, count: e.count }))
+    // Startede og bekreftede sammen (v1.218.105): å spørre er nettopp måten
+    // en startet reise blir noe mer enn et trykk på.
+    .filter(e => e && e.toName && ((e.count || 0) + (e.startet || 0)) >= INTERVJU_MIN_TURER)
+    .map(e => ({ toName: e.toName, fromName: e.fromName || null, helg: !!e.isWeekend, bucket: e.bucket,
+      count: (e.count || 0) + (e.startet || 0), reist: e.count || 0, startet: e.startet || 0 }))
     .filter(h => !svar(h))
     .sort((a, b) => ((b.helg === helg && b.bucket === bøtte) - (a.helg === helg && a.bucket === bøtte)) || b.count - a.count)
     .map(h => ({
@@ -62,7 +65,7 @@ export function målSpørsmål(hist, nå, svar = nesteSvarFor) {
       art: 'mål', h,
       tekst: 'Reiser du ofte ' + (h.fromName ? 'fra ' + h.fromName + ' ' : '') + 'til ' + h.toName + ' '
         + _dag(h.helg) + ' ' + _tid(h.bucket) + '?',
-      grunn: h.count + ' reiser registrert',
+      grunn: [h.reist ? h.reist + ' reist' : '', h.startet ? h.startet + ' startet' : ''].filter(Boolean).join(' · '),
     }));
 }
 
@@ -78,7 +81,9 @@ export function avstigningSpørsmål(venter) {
     nøkkel: 'avstigning|' + o.id, art: 'avstigning', obs: o,
     tekst: 'Gikk du av på ' + o.til + (o.linje ? ' (linje ' + o.linje + ')' : '') + ' '
       + _ukedag[new Date(o.at).getDay()] + ' kl. ' + _klokke(o.at) + '?',
-    grunn: o.art === 'flytt' ? 'reisen din gikk til ' + o.planlagt + ', men GPS-en tyder på at du gikk av her'
+    grunn: o.art === 'flytt' && o.planlagt && o.planlagt.toLowerCase() !== o.til.toLowerCase()
+      ? 'reisen din gikk til ' + o.planlagt + ', men GPS-en tyder på at du gikk av her'
+      : o.art === 'flytt' ? 'du startet reisen hit, og GPS-en tyder på at du kom fram'
       : 'GPS-en tyder på at du gikk av her',
   }));
 }

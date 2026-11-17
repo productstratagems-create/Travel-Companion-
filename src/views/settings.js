@@ -995,11 +995,12 @@ function _renderVaner() {
   el.innerHTML = rader.length
     ? rader.map(r => '<div class="mem-row">'
         + '<span class="mem-when">' + esc(r.sist) + '</span>'
-        + '<span class="mem-kind">' + esc(String(r.antall)) + '×</span>'
+        // Bekreftet og startet hver for seg (v1.218.105): «på» er ikke å reise.
+        + '<span class="mem-kind">' + esc(r.antall ? r.antall + '× reist' : '') + (r.startet ? esc((r.antall ? ' · ' : '') + r.startet + '× startet') : '') + '</span>'
         + '<span class="mem-text">' + esc(r.tekst) + '</span>'
         + '</div>').join('')
-    : '<div class="mem-empty">Ingen vaner ennå. De bygges opp av reisene du '
-      + 'velger.</div>';
+    : '<div class="mem-empty">Ingen vaner ennå. En reise teller når GPS-en '
+      + 'har sett den og du har bekreftet den.</div>';
 }
 
 export function renderMemory() {

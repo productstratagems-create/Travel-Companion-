@@ -97,7 +97,8 @@ describe('the fixed navigation menu', () => {
     // ENDRET MED VILJE (v1.218.75): bunnmenyen er tavla og auto-reise; lagret og
     // utforsk ligger under innstillinger (NAV_UNDER_INNSTILLINGER).
     expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto']);
-    expect(NAV_UNDER_INNSTILLINGER.map(i => i.view)).toEqual(['v-saved', 'v-leisure']);
+    // v1.218.107: testsiden Auto-tavle står her også.
+    expect(NAV_UNDER_INNSTILLINGER.map(i => i.view)).toEqual(['v-saved', 'v-leisure', 'v-autotavle']);
     NAV_ITEMS.forEach(i => expect(i.label).toBeTruthy());
   });
 

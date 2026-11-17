@@ -1,0 +1,56 @@
+// v1.218.107: «Auto-tavle» — det proven fra tavla og auto-reise.
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { tavleUtvalg, tavleRadHtml, TAVLE_MAKS } from '../src/ui/tavleRad.js';
+import { NAV_UNDER_INNSTILLINGER } from '../src/ui/nav.js';
+import { clk } from '../src/ui/fmt.js';
+
+const NÅ = Date.parse('2026-11-17T18:00:00+01:00');
+const kall = (min, spor) => ({ ms: NÅ + min * 60_000, call: { quay: { publicCode: spor } } });
+const dir = (kode, front, mins, spor = '1') => ({ frontText: front, lines: [{ code: kode, colour: 'EC700C', mode: 'metro' }], calls: mins.map(m => kall(m, spor)) });
+
+describe('utvalget', () => {
+  const dirs = [dir('3', 'Kolsås', [2, 9, 16, 23]), dir('74', 'Jernbanetorget', [5, 35], 'E')];
+  it('tre per retning, sortert på tid', () => {
+    const u = tavleUtvalg(dirs, NÅ);
+    expect(u.map(x => Math.round((x.ms - NÅ) / 60_000))).toEqual([2, 5, 9, 16, 35]);
+  });
+  it('tak på tolv', () => {
+    const mange = Array.from({ length: 6 }, (_, i) => dir(String(i), 'X' + i, [i, i + 10, i + 20]));
+    expect(tavleUtvalg(mange, NÅ).length).toBe(TAVLE_MAKS);
+  });
+  it('«rekker du den» med regelen som sendes inn', () => {
+    const u = tavleUtvalg(dirs, NÅ, ms => ms - NÅ >= 6 * 60_000);
+    expect(u.filter(x => !x.rekker).length).toBe(2);
+  });
+});
+
+describe('raden', () => {
+  it('nedtelling, linjemerke, retning, klokke og spor', () => {
+    const [x] = tavleUtvalg([dir('3', 'Kolsås', [9], '2')], NÅ);
+    const h = tavleRadHtml(x, NÅ, 0);
+    expect(h).toContain('<span class="at-min">9<small>min</small>');
+    expect(h).toContain('Kolsås');
+    expect(h).toContain(clk(NÅ + 9 * 60_000));
+    expect(h).toContain('<small>spor</small>2');
+    expect(h).toMatch(/class="[^"]*lm/);
+  });
+  it('«nå» under ett minutt, og «rekker ikke» sagt i klartekst', () => {
+    const [x] = tavleUtvalg([dir('3', 'Kolsås', [0.5])], NÅ, () => false);
+    const h = tavleRadHtml(x, NÅ, 0);
+    expect(h).toContain('<span class="at-min">nå</span>');
+    expect(h).toContain('at-rekker-ikke');
+    expect(h).toContain('rekker ikke');
+  });
+});
+
+describe('lenken og modusen', () => {
+  it('står i innstillinger', () => {
+    expect(NAV_UNDER_INNSTILLINGER.find(i => i.view === 'v-autotavle').label).toBe('Auto-tavle');
+  });
+  it('er auto-reise-skjermen i en modus, og skjuler det som ikke er proven', () => {
+    const css = readFileSync('src/style/settings.css', 'utf8');
+    ['#auto-neste', '#auto-profil', '#auto-dest-body', '#auto-ombord'].forEach(id => expect(css).toContain('#v-auto.auto-tavle ' + id));
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/if \(_autoTavle && _dirs\.length\) \{ _visListeDel\(false\); _tegnAutoTavle\(body\); return; \}/);
+  });
+});

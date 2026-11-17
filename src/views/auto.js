@@ -1584,7 +1584,7 @@ function _påLinjaMedLås(nå) {
       const h = hensikt(state.jny, state.route, nå);
       const rk = h && h.fase === 'underveis' ? reiseKall(state.jny) : null;
       const kr = rk ? ombordKandidater([rk], state.posTrail || [], null)[0] : null;
-      if (kr) _lås = { k: kr, kilde: 'valgt', stilleFra: null };
+      if (kr) _lås = { k: kr, kilde: 'reise', stilleFra: null };
     }
   }
   // Avvist med × slipper låsen også: du har sagt at du ikke er på den.
@@ -1630,7 +1630,9 @@ function _påLinjaMedLås(nå) {
       vinner, vinnerKilde, lås: _lås, hendelse: r.hendelse, form: n => journeyShapeCached(n) });
   }
   const grunn = _lås ? { linjer: [_lås.k.linje], k: _lås.k } : fri;
-  const fiks = (state.posTrail || [])[(state.posTrail || []).length - 1];
+  // Låsen fra en startet reise leser rutetiden, ikke GPS-fiksen (v1.218.91):
+  // en gammel fiks ved perrongen ville sagt «du er ved» stedet du dro fra.
+  const fiks = _lås && _lås.kilde === 'reise' ? null : (state.posTrail || [])[(state.posTrail || []).length - 1];
   if (!grunn || !grunn.k) { _fokusN = 0; _fokusNesteId = null; return medVedOgNeste(grunn, nå, fiks); }
   // FOKUSET FØLGER TOGET (v1.218.47): passerer toget en stasjon, er stasjonen
   // du ser på én nærmere. Når den du så på er passert, er fokuset neste igjen.

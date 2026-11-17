@@ -133,6 +133,11 @@ export function oppdaterLås(lås, o) {
       return { lås: { k: vinner, kilde: 'sikker', stilleFra: null }, hendelse: 'byttet' };
     }
     if (!nesteStopp(k, nå)) return { lås: null, hendelse: 'sluppet:ende' };
+    // EN STARTET REISE (v1.218.91): låsen kommer fra reisen du valgte, ikke
+    // fra GPS — da slipper ikke GPS den heller. Bestilt: «Få visningen om
+    // bord til å ta over uten GPS.» Den slippes ved endestasjonen over, eller
+    // når du avslutter reisen.
+    if (lås.kilde === 'reise') return { lås: { k, kilde: 'reise', stilleFra: null }, hendelse: null };
     // SAMMENHENGENDE, ikke summert. Funnet av funksjonsrutene (v1.216.2):
     // regelen telte alle avvikende fikser i sporet. To korte opphold ved
     // stopp som ligger tett ble til sammen «over 60 s og 3 fikser bort», og

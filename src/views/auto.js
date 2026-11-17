@@ -2872,18 +2872,64 @@ function _minAvgang() {
 }
 
 export const KART_FOKUS = ['oversikt', 'vei', 'spor'];
-export function nesteFokus(f) {
-  const i = KART_FOKUS.indexOf(f);
-  return KART_FOKUS[(i + 1) % KART_FOKUS.length];
+/**
+ * HELE RUTER (v1.218.112), bare i Auto-tavle. Spurt: «utforske et nytt fast
+ * zoom-nivå for den syklende zoomknappen som viser hele ruter og med
+ * endstasjon navngitt». Auto-reise beholder sine tre.
+ */
+export const KART_FOKUS_TAVLE = ['oversikt', 'vei', 'spor', 'ruter'];
+/** Så bred en endestasjonslapp om lag er, til marginen i «hele ruter». */
+export const HELE_RUTER_LAPP_PX = 25;
+export function nesteFokus(f, liste = KART_FOKUS) {
+  const i = liste.indexOf(f);
+  return liste[(i + 1) % liste.length];
 }
-const _FOKUS_TEKST = { oversikt: '◎ vei til stoppet', vei: '▤ plattform', spor: '◱ oversikt' };
+const _FOKUS_TEKST = { oversikt: '◎ vei til stoppet', vei: '▤ plattform', spor: '◱ oversikt', ruter: '◱ oversikt' };
+/** Teksten for NESTE steg (knappen sier hva et trykk gjør). */
+export function fokusTekst(f, tavle) {
+  return tavle && f === 'spor' ? '⤧ hele ruter' : _FOKUS_TEKST[f];
+}
+
+/**
+ * Lappene ved endestasjonene (v1.218.112): én per endestasjon, med linjene
+ * som ender der og FØRSTE AVGANG DU REKKER (`b.ms`, fra `catchable` — samme
+ * tid som første ustrøkne rad i lista). Endestasjonen er linjens siste stopp,
+ * stedet kartet viser, ikke `frontText`. Ren.
+ */
+export function endeLapper(bein) {
+  const ut = new Map();
+  (bein || []).forEach(b => {
+    // Et sammenslått bein (slåSammenBein) har én rest per retning: hver ende
+    // er en endestasjon, og hver får sitt navn.
+    const ender = (b.rester || []).length ? b.rester.map(r => r[r.length - 1]) : [(b.stopp || [])[(b.stopp || []).length - 1]];
+    ender.forEach(e => {
+      if (!e || e.lat == null) return;
+      const k = e.id || stopKey(e.name);
+      const g = ut.get(k) || { ende: { name: e.name, lat: e.lat, lon: e.lon }, linjer: [] };
+      if (!g.linjer.some(l => l.kode === b.kode)) g.linjer.push({ kode: b.kode, farge: b.farge, tekst: b.tekst, linjeId: b.linjeId, modus: b.modus, ms: b.ms });
+      ut.set(k, g);
+    });
+  });
+  return [...ut.values()].map(g => ({ ...g, linjer: g.linjer.sort((a, b) => a.ms - b.ms) }));
+}
+export function endeLappHtml(g) {
+  return '<span class="edd-ende-navn">' + esc(g.ende.name) + '</span>'
+    + g.linjer.map(l => '<span class="edd-topp">' + linjemerke({ kode: l.kode, farge: String(l.farge || '').replace(/^#/, ''), tekst: l.tekst, linjeId: l.linjeId, modus: l.modus, logo: false })
+      + '<b class="edd-tid">' + (Number.isFinite(l.ms) ? clk(l.ms) : 'rekker ingen nå') + '</b></span>').join('');
+}
 
 /** Rammen for et fokus: punktene og hvor nær. null: den vanlige rammen. Ren. */
-export function fokusRamme(f, { du, stopp, gang, inngang, plattform, plattformer } = {}) {
+export function fokusRamme(f, { du, stopp, gang, inngang, plattform, plattformer, bein } = {}) {
   const ll = p => [p.lat, p.lon];
   if (f === 'vei') {
     if (!du || !stopp) return stopp ? { pts: [ll(stopp)], maksZoom: 16 } : null;
     return { pts: [ll(du), ...(gang || []), ...(inngang ? [ll(inngang)] : []), ll(stopp)], maksZoom: 17 };
+  }
+  if (f === 'ruter') {
+    const pts = (bein || []).flatMap(b => [...(b.stopp || []), ...(b.rester || []).flat()]).filter(p => p && p.lat != null).map(ll);
+    if (stopp) pts.push(ll(stopp));
+    if (du) pts.push(ll(du));
+    return pts.length ? { pts, maksZoom: 14 } : null;
   }
   if (f === 'spor') {
     if (plattform) return { pts: [ll(plattform), ...(inngang ? [ll(inngang)] : [])], maksZoom: 18 };
@@ -2893,14 +2939,14 @@ export function fokusRamme(f, { du, stopp, gang, inngang, plattform, plattformer
   return null;
 }
 
-let _kartFokus = 'oversikt', _fokusKontroll = null, _fokusStopp = null;
+let _kartFokus = 'oversikt', _fokusKontroll = null, _fokusStopp = null, _sisteBein = [];
 function _fokusData() {
   const du = userLL();
   const aktiv = _stop ? aktivFraAvgang(_minAvgang(), _stop.id) : null;
   const pl = _stop ? _plattformer(_stop.id) : null;
   const plattform = aktiv ? _plattformMedKode(pl, aktiv.kode) : null;
   const inngang = _stop ? _valgtInngang(_innganger(_stop.id), du, plattform || _stop) : null;
-  return { du, stopp: _stop, gang: approachPoints(), inngang, plattform, plattformer: Array.isArray(pl) ? pl : [] };
+  return { du, stopp: _stop, gang: approachPoints(), inngang, plattform, plattformer: Array.isArray(pl) ? pl : [], bein: _sisteBein };
 }
 function _brukFokus() {
   if (!_aMap) return;
@@ -2917,19 +2963,21 @@ function _brukFokus() {
     const side = vf && vf.r.width ? Math.round(vf.r.width + 24) : 40;
     // Søylen står på den siden hånden din er (v1.218.73).
     const venstre = lastHånd() === 'venstre';
-    _aMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [venstre ? side : 40, 40],
-      paddingBottomRight: [venstre ? 40 : side, 40], maxZoom: r.maksZoom });
+    // «Hele ruter»: lappene stikker ut fra endestasjonene; plass til dem også.
+    const lappB = _kartFokus === 'ruter' ? HELE_RUTER_LAPP_PX : 0;
+    _aMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [(venstre ? side : 40) + lappB, 40 + (lappB ? 30 : 0)],
+      paddingBottomRight: [(venstre ? 40 : side) + lappB, 40 + (lappB ? 30 : 0)], maxZoom: r.maksZoom });
   }
   _tegnFokusKnapp(r.ukjent);
 }
-const _FOKUS_IKON = { oversikt: '\u25CE', vei: '\u25A4', spor: '\u25F1' };
+const _FOKUS_IKON = { oversikt: '\u25CE', vei: '\u25A4', spor: '\u25F1', ruter: '\u2927' };
 function _tegnFokusKnapp(ukjent) {
   if (!_aMap) return;
   // En firkant i verktøysøylen (v1.218.72), som de andre knappene. Ikonet
   // viser neste steg; teksten står i title og aria-label.
   if (!_fokusKontroll) {
     leggTilVerktøy(_aMap, 'fokus', { påTrykk: () => {
-      _kartFokus = nesteFokus(_kartFokus);
+      _kartFokus = nesteFokus(_kartFokus, _autoTavle ? KART_FOKUS_TAVLE : KART_FOKUS);
       // Spor: hent plattformene og inngangene om de mangler, og ramm inn når de kommer.
       if (_kartFokus === 'spor' && _stop && _stop.id) {
         const vent = [];
@@ -2942,7 +2990,7 @@ function _tegnFokusKnapp(ukjent) {
     _fokusKontroll = true;
   }
   settVerktøy(_aMap, 'fokus', { ikon: _FOKUS_IKON[_kartFokus],
-    tekst: _FOKUS_TEKST[_kartFokus].replace(/^\S+\s/, '') + (ukjent ? ' · spor ukjent' : ''),
+    tekst: fokusTekst(_kartFokus, _autoTavle).replace(/^\S+\s/, '') + (ukjent ? ' · spor ukjent' : ''),
     merket: !!ukjent, aktiv: _kartFokus !== 'oversikt' });
 }
 
@@ -3456,13 +3504,16 @@ function _renderMap() {
   // v1.218.62: lappen er linjemerket og klokka, retningen liten under; satt
   // utover; den første avgangen full styrke, resten dempet.
   const førsteMs = bein.length ? Math.min(...bein.map(b => b.ms)) : null;
+  _sisteBein = bein;
+  // HELE RUTER (v1.218.112): hele linja i full styrke, lappen ved endestasjonen.
+  const ruterModus = _autoTavle && _kartFokus === 'ruter';
   const nivåer = lappNivåer(bein, { bredde: box.width, høyde: box.height, zoom: _aMap.getZoom() });
   // Restene først, så de klare beina ligger oppå dem.
   bein.forEach(b => (b.rester || []).forEach(r => {
     const g = L.layerGroup().addTo(_aLayer);
     drawStopLine(g, r, { color: b.farge, mode: normMode(b.modus), dots: false,
       shape: turForm(b.jid, r[0], r[r.length - 1], _renderBody) });
-    g.eachLayer(l => l.setStyle && l.setStyle({ opacity: EDDERKOPP_REST_OPASITET }));
+    if (!ruterModus) g.eachLayer(l => l.setStyle && l.setStyle({ opacity: EDDERKOPP_REST_OPASITET }));
   }));
   bein.forEach((b, bi) => {
     const først = b.ms === førsteMs;
@@ -3485,13 +3536,25 @@ function _renderMap() {
     const plass = nivåer[bi] > 0 ? lappPlass([midt, ...b.stopp], (st, r) => lappPasser(tilPt(st), stopPt, lw, lh, W, H, hindre, r), st => lappRetning(stopPt, tilPt(st))) : null;
     const e = plass ? plass.stopp : b.stopp[b.stopp.length - 1];
     const retning = plass ? plass.side : 'top';
-    const lapp = plass ? _lappHtml(b, nivåer[bi]) : null;
+    const lapp = plass && !ruterModus ? _lappHtml(b, nivåer[bi]) : null;
     const ende = L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'edderkopp-ende', html: '', iconSize: [8, 8] }), keyboard: false })
       .on('click', () => { _open = b.dir; _renderBody(); });
     if (lapp) ende.bindTooltip(lapp, { className: lappKlasse + ' edderkopp-lapp nivå-' + nivåer[bi] + (først ? ' først' : ''), direction: retning,
       offset: _LAPP_FORSKYV[retning], permanent: true, interactive: true });
     ende.addTo(g);
   });
+  if (ruterModus) {
+    const sp = _aMap.latLngToContainerPoint([_stop.lat, _stop.lon]);
+    endeLapper(bein).forEach(gr => {
+      const ep = _aMap.latLngToContainerPoint([gr.ende.lat, gr.ende.lon]);
+      // Over eller under, sentrert: da stikker bare halve lappen ut til siden.
+      const retning = ep.y < sp.y ? 'top' : 'bottom';
+      L.marker([gr.ende.lat, gr.ende.lon], { icon: L.divIcon({ className: 'edderkopp-ende', html: '', iconSize: [8, 8] }), keyboard: false })
+        .bindTooltip(endeLappHtml(gr), { className: lappKlasse + ' edderkopp-lapp edd-ende-lapp', direction: retning,
+          offset: _LAPP_FORSKYV[retning], permanent: true })
+        .addTo(_aLayer);
+    });
+  }
 
   // ── The line ahead, when one is open ──────────────────────────────────
   //

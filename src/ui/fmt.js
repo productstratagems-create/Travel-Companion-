@@ -46,6 +46,14 @@ export function countdownText(rcls, mtl, depTs, now) {
 const _pad = (n) => String(n).padStart(2, '0');
 
 /** HH:MM, local. The one definition; board.js used to keep its own. */
+/**
+ * Fra så mange minutter viser en avgangsrad klokkeslett i stedet for
+ * nedtelling (v1.218.111). ÉN regel for tavla og Auto-tavle: «Lista i
+ * Auto-tavle skal vise klokkeslett for avganger som ligger mer enn 60
+ * minutter unna, sånn som for Tavla.»
+ */
+export const NEDTELLING_MAKS_MIN = 60;
+
 export function clk(v) {
   const d = new Date(v);
   return _pad(d.getHours()) + ':' + _pad(d.getMinutes());

@@ -1008,3 +1008,5 @@
 .at-ikke{margin:.2rem 0 .4rem}
 .at-ikke summary{cursor:pointer;font-size:.8rem;color:var(--text-muted);padding:.4rem 0;letter-spacing:.04em}
 .at-bunn{min-height:2rem;text-align:center;font-size:.75rem;color:var(--text-muted);padding:.6rem 0}
+.at-min-klokke{font-size:1.4rem;letter-spacing:.04em;color:#a89060}
+html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}

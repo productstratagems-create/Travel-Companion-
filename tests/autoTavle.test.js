@@ -96,3 +96,28 @@ describe('rekker ikke for seg, og sider (v1.218.109)', () => {
     expect(src).toMatch(/new IntersectionObserver/);
   });
 });
+
+describe('klokkeslett fra 60 minutter, som tavla (v1.218.111)', () => {
+  it('59 min er nedtelling; 60 og mer er klokkeslett', async () => {
+    const { NEDTELLING_MAKS_MIN } = await import('../src/ui/fmt.js');
+    expect(NEDTELLING_MAKS_MIN).toBe(60);
+    const [a] = tavleUtvalg([dir('3', 'Kolsås', [59])], NÅ);
+    expect(tavleRadHtml(a, NÅ, 0)).toContain('<span class="at-min">59<small>min</small>');
+    const [b] = tavleUtvalg([dir('3', 'Kolsås', [75])], NÅ);
+    const h = tavleRadHtml(b, NÅ, 0);
+    expect(h).toContain('<span class="at-min at-min-klokke">' + clk(NÅ + 75 * 60_000) + '</span>');
+    expect(h).toContain('kl. ' + clk(NÅ + 75 * 60_000));
+  });
+  it('tavla og Auto-tavle leser samme tall', () => {
+    expect(readFileSync('src/views/board.js', 'utf8')).toMatch(/const isClock = mins >= NEDTELLING_MAKS_MIN;/);
+    expect(readFileSync('src/ui/tavleRad.js', 'utf8')).toMatch(/min >= NEDTELLING_MAKS_MIN/);
+  });
+});
+describe('ikke samme klokkeslett to ganger (v1.218.111)', () => {
+  it('raden over 60 min har klokka bare til venstre', () => {
+    const [b] = tavleUtvalg([dir('3', 'Kolsås', [75])], NÅ);
+    const h = tavleRadHtml(b, NÅ, 0);
+    expect(h.split(clk(NÅ + 75 * 60_000)).length - 1).toBe(2);   // venstre + aria-etiketten
+    expect(h).toContain('<span class="at-klokke"></span>');
+  });
+});

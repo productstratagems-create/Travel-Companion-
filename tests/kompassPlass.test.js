@@ -61,3 +61,22 @@ describe('kildelinja tar plass (v1.218.110)', () => {
     expect(src).toMatch(/const h = map\.getSize\(\)\.y - \(attr \? attr\.offsetHeight : 0\);/);
   });
 });
+
+describe('linjene følger transportmiddelet (v1.218.113)', () => {
+  it('buss av: bussens linjer vises som av; et trykk på én slår buss på med bare den', async () => {
+    const a = await import('../src/views/auto.js');
+    const linjer = [{ nøkkel: 'L3', modus: 'metro' }, { nøkkel: 'L71', modus: 'bus' }, { nøkkel: 'L74', modus: 'bus' }];
+    const modi = new Set(['bus']), sl = new Set();
+    expect(linjer.map(l => a.linjeSynlig(l, modi, sl))).toEqual([true, false, false]);
+    const r = a.trykkLinje('L74', linjer, modi, sl);
+    expect(r.modi.has('bus')).toBe(false);
+    expect(linjer.map(l => a.linjeSynlig(l, r.modi, r.linjer))).toEqual([true, false, true]);
+  });
+  it('transportmiddel på: et trykk slår linja av og på', async () => {
+    const a = await import('../src/views/auto.js');
+    const linjer = [{ nøkkel: 'L3', modus: 'metro' }];
+    const r = a.trykkLinje('L3', linjer, new Set(), new Set());
+    expect(r.linjer.has('L3')).toBe(true);
+    expect(a.trykkLinje('L3', linjer, new Set(), r.linjer).linjer.has('L3')).toBe(false);
+  });
+});

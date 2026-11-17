@@ -2767,6 +2767,31 @@ export function utenSkjulteLinjerRetninger(dirs, skjult) {
   const s = skjult instanceof Set ? skjult : new Set(skjult || []);
   return (dirs || []).filter(d => { const l = (d.lines && d.lines[0]) || {}; return !s.has(linjeNøkkel(l.id, l.code)); });
 }
+/**
+ * LINJENE FØLGER TRANSPORTMIDDELET (v1.218.113). Rapportert: «Velges bort
+ * tbane bør også de tbane linjene filtreres bort, samme for andre
+ * transportmodi.» En linje er synlig bare når både transportmiddelet og
+ * linja er på. Ren.
+ */
+export function linjeSynlig(l, skjulteModi, skjulteLinjer) {
+  return !skjulteModi.has(filterModus(l.modus)) && !skjulteLinjer.has(l.nøkkel);
+}
+/**
+ * Et trykk på en linje. Er transportmiddelet av, slås det på med BARE denne
+ * linja synlig — det er det et trykk på én linje betyr. Ellers av/på. Ren.
+ */
+export function trykkLinje(nøkkel, linjer, skjulteModi, skjulteLinjer) {
+  const modi = new Set(skjulteModi), sl = new Set(skjulteLinjer);
+  const l = (linjer || []).find(x => x.nøkkel === nøkkel);
+  const m = l ? filterModus(l.modus) : null;
+  if (m && modi.has(m)) {
+    modi.delete(m);
+    linjer.filter(x => filterModus(x.modus) === m).forEach(x => (x.nøkkel === nøkkel ? sl.delete(x.nøkkel) : sl.add(x.nøkkel)));
+  } else if (sl.has(nøkkel)) sl.delete(nøkkel);
+  else sl.add(nøkkel);
+  return { modi, linjer: sl };
+}
+
 function _skjulteLinjer() {
   try { return new Set(JSON.parse(storage.get(LINJE_SKJULT_NØKKEL) || '[]')); } catch { return new Set(); }
 }
@@ -2807,12 +2832,11 @@ function _tegnModiKnapper(modi, linjer = []) {
     + '" data-modus="' + m.modus + '" aria-pressed="' + !skjult.has(m.modus) + '">'
     + esc(MODI_NAVN[m.modus] || m.modus) + ' ' + m.antall + '</button>').join('')
     + (linjer.length ? '<div class="auto-map-linjer" role="group" aria-label="Linjer">' + linjer.map(l => '<button type="button" class="linje-pill'
-      + (skjulteL.has(l.nøkkel) ? '' : ' active') + '" data-linje="' + esc(l.nøkkel) + '" aria-pressed="' + !skjulteL.has(l.nøkkel) + '"'
+      + (linjeSynlig(l, skjult, skjulteL) ? ' active' : '') + '" data-linje="' + esc(l.nøkkel) + '" aria-pressed="' + linjeSynlig(l, skjult, skjulteL) + '"'
       + ' aria-label="linje ' + esc(l.kode || '') + '">' + linjemerke({ kode: l.kode, farge: l.farge, tekst: l.tekst, linjeId: l.linjeId, modus: l.modus }) + '</button>').join('') + '</div>' : '');
   el.querySelectorAll('.linje-pill').forEach(b => b.addEventListener('click', () => {
-    const sl = _skjulteLinjer();
-    if (sl.has(b.dataset.linje)) sl.delete(b.dataset.linje); else sl.add(b.dataset.linje);
-    try { storage.set(LINJE_SKJULT_NØKKEL, JSON.stringify([...sl])); } catch (_) {}
+    const { modi: m2, linjer: l2 } = trykkLinje(b.dataset.linje, linjer, _skjulteModi(), _skjulteLinjer());
+    try { storage.set(SKJULT_NØKKEL, JSON.stringify([...m2])); storage.set(LINJE_SKJULT_NØKKEL, JSON.stringify([...l2])); } catch (_) {}
     _modiNøkkel = ''; _aKey = ''; _renderMap();
     if (_autoTavle) _renderBody();
   }));

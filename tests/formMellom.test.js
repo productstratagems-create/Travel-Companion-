@@ -25,9 +25,12 @@ describe('formMellom', () => {
     expect(v).not.toBe(null);
     expect(v[v.length - 2]).toEqual([59.91, 10.80]);
   });
-  it('auto-reise sender formen til beina og den åpne linja', () => {
-    const src = readFileSync('src/views/auto.js', 'utf8');
-    expect((src.match(/formMellom\(/g) || []).length).toBeGreaterThanOrEqual(3);
-    expect(src).toMatch(/fetchJourneyShape\(jid\)\.then\(pts => \{ if \(pts && pts\.length >= 2\) _renderBody\(\);/);
+  it('auto-reise, underveis og tavla spør samme definisjon (v1.218.99)', () => {
+    const les = f => readFileSync(f, 'utf8');
+    expect((les('src/views/auto.js').match(/turForm\(/g) || []).length).toBe(3);
+    expect(les('src/views/track.js')).toMatch(/turForm\(leg\.journeyId/);
+    expect(les('src/views/board.js')).toMatch(/legShape\(leg\) \|\| \(legStops\.length >= 2\s*\? turForm\(/);
+    // Bare et treff tegner på nytt.
+    expect(les('src/ui/turForm.js')).toMatch(/if \(pts && pts\.length >= 2 && påTreff\) påTreff\(\)/);
   });
 });

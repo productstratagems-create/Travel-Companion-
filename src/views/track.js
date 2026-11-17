@@ -11,6 +11,7 @@ import { posState } from '../position.js';
 import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, walkMinsTo, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL, posNå } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
 import { quayLatLon, legShape, journeyPoints } from '../api/adapt.js';
+import { turForm } from '../ui/turForm.js';
 import { visStopp } from '../stopId.js';
 import { ankomstTekst, bytteTekst, transferMargin, PLATFORM_CHANGE_MINS, plattformTekst } from '../bytte.js';
 export { transferMargin, PLATFORM_CHANGE_MINS };
@@ -185,7 +186,13 @@ function _legRoutePts(leg) {
     pts.push([ll.lat, ll.lon]);
     if (sp && sp.name) stops.push({ lat: ll.lat, lon: ll.lon, name: sp.name });
   });
-  return { pts: shape || pts, stops };
+  // Uten form i etappen: turens form (v1.218.99), som på tavla og i auto-reise.
+  // Til den kommer, eller om den ikke finnes, rette streker som før.
+  const hentet = !shape && pts.length >= 2 && leg.journeyId
+    ? turForm(leg.journeyId, { lat: pts[0][0], lon: pts[0][1] },
+      { lat: pts[pts.length - 1][0], lon: pts[pts.length - 1][1] }, renderTrack)
+    : null;
+  return { pts: shape || hentet || pts, stops };
 }
 
 function _trackMapStructKey(legs, fromIdx) {

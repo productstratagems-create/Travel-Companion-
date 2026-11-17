@@ -2250,7 +2250,8 @@ function _renderWhere() {
       if (picked.linjer) return '';
       // TAVLAS VALG FØRST (v1.218.85): en valgt reise eller tavlas mål sies
       // her, med avgang, spor, mål og når du må gå — før vanen.
-      const h = hensikt(state.jny, state.route, nåW);
+      const h0 = hensikt(state.jny, state.route, nåW);
+      const h = h0 && _kortRute && _kortRute.hensikt && Number.isFinite(_kortRute.ank) ? { ...h0, ank: _kortRute.ank } : h0;
       if (h) {
         const w = _stop ? gangTil(_stop) : null;
         const gåMs = h.avgang != null && w ? h.avgang - w.mins * 60000 : null;
@@ -2970,6 +2971,15 @@ export function beinStart(b, plattformListe, stopp) {
   return p ? { lat: p.lat, lon: p.lon } : { lat: stopp.lat, lon: stopp.lon };
 }
 
+/** Mållappen: navnet og når du er der. Ren. */
+export function målLapp(mål) {
+  return (mål && mål.name ? mål.name : '') + (mål && Number.isFinite(mål.at) ? ' · ' + clk(mål.at) : '');
+}
+/** Er dette retningen med tavlas valg (reise eller rute)? Ren. */
+export function erDinAvgang(d, kortRute) {
+  return !!(d && kortRute && kortRute.hensikt && kortRute.d === d);
+}
+
 /** Hvor mye av hver linje utgangsrammen tar med (v1.218.80). */
 export const UTGANG_BEIN_STOPP = 2;
 /** Punktene av beina utgangsrammen tar med: de første stoppene, ikke enden. Ren. */
@@ -3386,7 +3396,8 @@ function _renderMap() {
         icon: makeStopIcon(normMode(mode), 0, { primary: true }),
         keyboard: false, zIndexOffset: 500,
       })
-        .bindTooltip(mål.name, { className: 'map-label', direction: 'top', offset: [0, -8], permanent: true })
+        // Med ankomsttid (v1.218.86): «Jernbanetorget · 07:19» — når du er der.
+        .bindTooltip(målLapp(mål), { className: 'map-label', direction: 'top', offset: [0, -8], permanent: true })
         .addTo(_aLayer);
     }
   }
@@ -4282,6 +4293,8 @@ function _renderBody() {
       if (funnet) {
         const m = stopsAhead(funnet.call, _stop && _stop.name, now).find(st => stopKey(st.name) === stopKey(h.mål));
         _kortRute = { navn: h.mål, id: h.målId || (m && m.id) || null, d: funnet.d, call: funnet.call, hensikt: h.styrke,
+          // Sanntid fra turen: hodet og mållappen sier samme ankomst (v1.218.86).
+          ank: m && Number.isFinite(m.at) ? m.at : null,
           lat: m && Number.isFinite(m.lat) ? m.lat : null, lon: m && Number.isFinite(m.lon) ? m.lon : null };
       }
     }
@@ -4430,14 +4443,17 @@ function _renderBody() {
           iFold = !!(k && k === foldet);
         }
       }
+      const din = erDinAvgang(d, _kortRute);
       return head + '<button class="nearby-btn auto-dir'
-        + (hint ? ' auto-usual auto-usual-' + vane.kind : '') + '"'
+        + (hint ? ' auto-usual auto-usual-' + vane.kind : '') + (din ? ' auto-din' : '') + '"'
         + ' type="button" data-i="' + i + '"'
         + ' title="' + esc(full) + '" aria-label="' + esc(full) + '">'
         + '<span class="auto-badges">' + d.lines.map(badgeHtml).join('')
         + msg.mark
         + '</span>'
         + '<span class="nearby-name">mot ' + esc(d.frontText) + '</span>'
+        // DIN AVGANG (v1.218.86): raden for tavlas valg merkes; den flyttes ikke.
+        + (din ? '<span class="auto-din-merke">din avgang</span>' : '')
         // Its own element, not part of the name: a long destination and the
         // platform on one line wrapped the row to two on a 414px screen —
         // measured. The name is the flexible one and gives way first; the

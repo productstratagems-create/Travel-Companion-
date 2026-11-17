@@ -827,6 +827,14 @@ export function _ensureApproach(fromLL, stopLL) { return ensureApproach(fromLL, 
  * 6 km corridor is a few pixels. So the frame follows the walk until you are
  * at the stop, and then the journey gets it back.
  */
+/** Punktene en ramme kan bygges av: gyldige koordinater, minst to ulike. Ellers null. Ren. */
+export function gyldigRamme(pts) {
+  const ok = (pts || []).map(p => Array.isArray(p) ? p : (p && [p.lat, p.lon]))
+    .filter(p => p && Number.isFinite(p[0]) && Number.isFinite(p[1]));
+  const ulike = new Set(ok.map(p => p[0].toFixed(5) + ',' + p[1].toFixed(5)));
+  return ulike.size >= 2 ? ok : null;
+}
+
 function _renderApproach() {
   if (!_bMap) return;
   if (!_approachLayer) _approachLayer = L.layerGroup().addTo(_bMap);
@@ -836,7 +844,12 @@ function _renderApproach() {
   drawWalk(_approachLayer, pts);
   if (_approachFitKey !== approachKey() && !_bUserMoved) {
     _approachFitKey = approachKey();
-    _bMap.fitBounds(pts, { padding: [40, 40], maxZoom: 17 });
+    // VAKT (v1.218.86). Rapportert: tavlekartet tomt med «50 m» — fullt
+    // innzoomet i ingenting. En ramme av ugyldige eller bare ett punkt gjør
+    // akkurat det. Da rammes ikke gangen inn, og det sies i loggen.
+    const ok = gyldigRamme(pts);
+    if (ok) _bMap.fitBounds(ok, { padding: [40, 40], maxZoom: 17 });
+    else logMsg('tavlekart: gangruta ga ingen gyldig ramme (' + (pts ? pts.length : 0) + ' punkter)', 'warn');
   }
 }
 let _approachFitKey = null;

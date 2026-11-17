@@ -469,3 +469,6 @@ html.view-auto #onboard-chip{display:none!important}
 .kart-kompass .kv-knapp{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:10px;
   border:1px solid rgba(var(--border-rgb),.3);background:rgba(var(--bg-rgb),.82);cursor:pointer;backdrop-filter:blur(4px);box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .kart-kompass .kv-knapp[hidden]{display:none!important}
+/* Din avgang (v1.218.86): raden for tavlas valg, uten å flytte den. */
+.auto-dir.auto-din{border-color:var(--accent)!important;box-shadow:inset 3px 0 0 var(--accent)}
+.auto-din-merke{margin-left:.5rem;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);white-space:nowrap}

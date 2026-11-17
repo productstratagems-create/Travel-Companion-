@@ -875,16 +875,20 @@ html.view-board.map-open #dep-list{
    rise, and they rise together. */
 .board-header-slim > div:last-child{align-self:flex-start}
 
-/* Du på aksen (v1.218.96): gangtiden din. Brikker til høyre for den rekker du ikke. */
+/* Du på aksen (v1.218.96, ryddet v1.218.104): et hakk OVER skinna, under
+   brikkene i stablingen, så det aldri dekker et tall. Teksten står i
+   .ls-ends, venstre ende — stoppnavnet står i høyre. */
 .ls-walk{
-  position:absolute;top:-2px;width:0;height:26px;margin-left:-1px;
-  border-left:2px dashed var(--text-muted);pointer-events:none;
+  position:absolute;top:1px;width:0;height:20px;margin-left:-1px;
+  border-left:2px dashed var(--text-muted);pointer-events:none;z-index:0;
 }
-.ls-walk i{
-  /* Over skinna, til høyre for streken: under ligger stoppnavnet, og til
-     venstre overskriften. Målt i proben, der begge kolliderte. */
-  position:absolute;top:-13px;left:4px;white-space:nowrap;
-  font:700 9px/1 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.06em;
-  color:var(--text-muted);font-style:normal;text-transform:uppercase;
+/* Brikkene over alle markører, også stoppets (.ls-you): et tall dekkes aldri. */
+.ls-train{z-index:2}
+.ls-you{z-index:1}
+.ls-walk-tekst{left:0;color:var(--text-muted)}
+/* Rekker ikke: gråtonet merke og en skråstrek, men tallet leses fortsatt. */
+.ls-missed,.ls-gone.ls-missed{opacity:.9;filter:grayscale(1) brightness(.62)}
+.ls-missed::after{
+  content:"";position:absolute;left:8%;right:8%;top:50%;height:2px;
+  background:currentColor;transform:rotate(-12deg);opacity:.8;pointer-events:none;
 }
-.ls-missed{opacity:.35;filter:grayscale(.7)}

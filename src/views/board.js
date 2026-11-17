@@ -2293,10 +2293,14 @@ function renderLineStrip(visibleDeps) {
     + '<span class="ls-zone ls-zone-appr" style="width:' + _stripPct(0).toFixed(2) + '%"></span>'
     + trains
     + '<span class="ls-you" style="left:' + _stripPct(0).toFixed(2) + '%"></span>'
+    // INGEN TEKST PÅ SKINNA (v1.218.104): et hakk over den, under brikkene.
+    // Teksten står i sin egen linje under, i motsatt ende av stoppnavnet.
     + (duPos != null ? '<span class="ls-walk" style="left:' + _stripPct(duPos).toFixed(2) + '%"'
-      + ' title="du rekker avganger om ' + gangMin + ' min eller mer"><i>du · ' + gangMin + ' min</i></span>' : '')
+      + ' title="du rekker avganger om ' + gangMin + ' min eller mer"></span>' : '')
     + '</div>'
-    + '<div class="ls-ends"><span class="ls-end-from" style="left:' + _stripPct(0).toFixed(2) + '%">'
+    + '<div class="ls-ends">'
+    + (duPos != null ? '<span class="ls-walk-tekst">┆ du · ' + gangMin + ' min gange</span>' : '')
+    + '<span class="ls-end-from" style="left:' + _stripPct(0).toFixed(2) + '%">'
     + esc(data.from || '') + '</span></div>';
 
   el.querySelectorAll('.ls-cap').forEach(cap => {

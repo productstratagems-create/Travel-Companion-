@@ -3465,14 +3465,17 @@ function _renderMap() {
   // ALLE BEINA FØRST, SÅ FILTERET, SÅ KUTTET (v1.218.83). Rapportert: seks
   // busser gikk før T-banen, kartet hadde plass til seks, og T-banen forsvant
   // — og med den T-bane-valget i lag-panelet, som ble tomt.
-  const _beinMaks = beinMaks(box.width, box.height);
+  // INGEN TAK (v1.218.114). Bestilt: «Ikke begrens antall linjer som vises på
+  // kartet, la bruker heller filtrere bort etter behov.» `velgBein`/`beinMaks`
+  // kuttet til 4–8 og var et andre, usynlig filter ved siden av lag-panelet.
+  // De står igjen som rene funksjoner (foldet, ikke slettet), men kalles ikke.
   let bein = sentrert && _stop ? edderkoppBein(_dirs, _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null,
     Infinity, { teller: _beinTeller, stopId: _stop.id || null }) : [];
   _meldManglendeBein(sentrert, bein, _beinTeller);
   // AV/PÅ PER TRANSPORTMIDDEL (v1.218.67), fra alle beina før filteret.
   const _modi = kartModi(bein);
   _tegnModiKnapper(_modi, kartLinjer(bein));
-  bein = velgBein(utenSkjulteLinjerBein(filtrerBein(bein, _skjulteModi()), _skjulteLinjer()), _beinMaks);
+  bein = utenSkjulteLinjerBein(filtrerBein(bein, _skjulteModi()), _skjulteLinjer());
   // UTGANGSRAMMEN (v1.218.80). Bestilt med skjermbilde: «la dette bli
   // default zoom og kartdetaljnivå» — deg, stoppet, gangruta og den nære
   // delen av hver linje, ikke hele byen. Beinas ende (6. stopp) trakk kartet

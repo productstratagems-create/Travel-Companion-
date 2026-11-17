@@ -874,3 +874,17 @@ html.view-board.map-open #dep-list{
    three pixels came from. The name keeps its centring; only the buttons
    rise, and they rise together. */
 .board-header-slim > div:last-child{align-self:flex-start}
+
+/* Du på aksen (v1.218.96): gangtiden din. Brikker til høyre for den rekker du ikke. */
+.ls-walk{
+  position:absolute;top:-2px;width:0;height:26px;margin-left:-1px;
+  border-left:2px dashed var(--text-muted);pointer-events:none;
+}
+.ls-walk i{
+  /* Over skinna, til høyre for streken: under ligger stoppnavnet, og til
+     venstre overskriften. Målt i proben, der begge kolliderte. */
+  position:absolute;top:-13px;left:4px;white-space:nowrap;
+  font:700 9px/1 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.06em;
+  color:var(--text-muted);font-style:normal;text-transform:uppercase;
+}
+.ls-missed{opacity:.35;filter:grayscale(.7)}

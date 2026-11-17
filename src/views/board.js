@@ -10,6 +10,7 @@ import { enturFetch } from '../api/http.js';
 import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
+import { DEFAULT_MODES, loadModes, saveModes } from '../tavlaModuser.js';
 import { fartNå, walkInfo, walkMinsTo, mToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
@@ -136,13 +137,7 @@ const _depMap = new Map();
 export function boardRows() { return Array.from(_depMap.values()); }
 
 // ── Mode filter ──────────────────────────────────────────────────────────────
-const MODES_KEY = 't.modes';
-const DEFAULT_MODES = { metro: true, tram: true, bus: true, rail: true, water: true, sykkel: false };
-function loadModes() {
-  try { const v = storage.get(MODES_KEY); return v ? { ...DEFAULT_MODES, ...JSON.parse(v) } : { ...DEFAULT_MODES }; }
-  catch { return { ...DEFAULT_MODES }; }
-}
-function saveModes(m) { storage.set(MODES_KEY, JSON.stringify(m)); }
+// Valget bor i src/tavlaModuser.js, så reisesøket leser det samme.
 /**
  * Departures the stop has and the trip planner did not offer.
  *
@@ -884,7 +879,9 @@ function renderModeFilter() {
       m[btn.dataset.mode] = !m[btn.dataset.mode];
       saveModes(m);
       _modeFilterKey = '';
-      renderBoard();
+      // Valget styrer også reisesøket (v1.218.94): spør på nytt, ikke bare
+      // filtrer svaret vi har. Uten det fantes ingen buss når T-banen fylte alle tolv.
+      refreshBoard();
     });
   });
 }

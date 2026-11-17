@@ -95,7 +95,27 @@ export function sitsGQL(basic, withAffects) {
  */
 export const TRIP_SEARCH_WINDOW = 1440;
 
-export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTime, coach, window, affects, innstilte, bytte, ider) {
+/**
+ * `transportModes` for reisesøket. `moduser` er tavlas valg (src/tavlaModuser.js);
+ * tom eller manglende gir alle, som før v1.218.94.
+ *
+ * Express coaches. `coach` cannot be checked against the live schema from
+ * here, and this one query carries EVERY journey — so it is opt-in and
+ * fetchTrip drops it for the session if Entur turns it down. The cost of
+ * a wrong enum name here is the whole board, not one feature.
+ * Bussekspresser hører til buss: er buss av, spørres det ikke om dem.
+ */
+export function transportModesGql(moduser, coach) {
+  // Fast rekkefølge: med alt på er spørringen tegn for tegn den samme som før,
+  // så opptakene i tests/testruter.test.js fortsatt gjelder.
+  const alle = ['metro', 'bus', 'tram', 'rail', 'water'];
+  const valgt = Array.isArray(moduser) ? alle.filter(m => moduser.includes(m)) : [];
+  const liste = valgt.length ? valgt : alle;
+  const medCoach = coach && liste.includes('bus') ? [...liste, 'coach'] : liste;
+  return '[' + medCoach.map(m => '{transportMode:' + m + '}').join(',') + ']';
+}
+
+export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTime, coach, window, affects, innstilte, bytte, ider, moduser) {
   /* STOPPESTEDETS ID PÅ ETAPPENS ENDER, når `ider` får lov. Uten den
    * matches etappens ender mot kallene på NAVN, og to svar kan skrive
    * samme sted ulikt. Kan ikke prøves herfra; eget trinn i `fetchTrip`. */
@@ -147,15 +167,7 @@ export function tripGQL(fromId, toId, viaId, n, walkSpeed, now, minimal, keepTim
     // right one, which is worse than an error.
     + ((minimal && !keepTime) ? '' : 'dateTime:"' + lookbackISO(now) + '" ')
     + 'walkSpeed:' + (walkSpeed || 1.3) + ' '
-    + 'modes:{accessMode:foot,egressMode:foot,transportModes:[{transportMode:metro},'
-    + '{transportMode:bus},{transportMode:tram},{transportMode:rail}'
-    + ',{transportMode:water}'
-    // Express coaches. `coach` cannot be checked against the live schema from
-    // here, and this one query carries EVERY journey — so it is opt-in and
-    // fetchTrip drops it for the session if Entur turns it down. The cost of
-    // a wrong enum name here is the whole board, not one feature.
-    + (coach ? ',{transportMode:coach}' : '')
-    + ']}'
+    + 'modes:{accessMode:foot,egressMode:foot,transportModes:' + transportModesGql(moduser, coach) + '}'
     + ') { tripPatterns { duration legs {'
     + ' fromPlace{' + plass + '}'
     + ' toPlace{' + plass + '}'

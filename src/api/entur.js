@@ -340,6 +340,41 @@ export function slåSammenSvar(js, vias, viaNavn) {
  * svarte Entur bare med 00:33 én gang til. Lista sa da «det er alt Entur har
  * herfra», mens 03:59 og 04:29 fantes.
  */
+/**
+ * BÅDE BUSS OG BANE. Med alle transportmidler på fyller T-banen (og toget) alle
+ * tolv svar mellom Mortensrud og Helsfyr, og bussen er huket av uten å vises.
+ * Er bane valgt sammen med noe annet, spørres det i tillegg uten bane, og
+ * svarene slås sammen. Feiler tillegget, vises hovedsvaret.
+ *
+ * `spørMed(moduser)` gir et løfte om et GraphQL-svar.
+ */
+export const BANE_MODI = ['metro', 'rail'];
+export function modusSøk(valgt) {
+  const uten = valgt.filter(m => !BANE_MODI.includes(m));
+  return (uten.length && uten.length < valgt.length) ? [valgt, uten] : [valgt];
+}
+/** Svaret er fylt opp av bane alene: minst ett mønster, og alle reiser med bane. */
+export function bareBane(j) {
+  const tps = (j && j.data && j.data.trip && j.data.trip.tripPatterns) || [];
+  return tps.length > 0 && tps.every(tp => {
+    const kjør = (tp.legs || []).filter(l => l.mode && l.mode !== 'foot');
+    return kjør.length > 0 && kjør.every(l => BANE_MODI.includes(l.mode));
+  });
+}
+export function medModusSøk(spørMed, logg) {
+  const [hoved, ...ekstra] = modusSøk(tavlaModuser());
+  // Tillegget spørres bare når hovedsvaret er bane alene. Har det allerede
+  // en buss med, er det ingenting å hente fram.
+  return spørMed(hoved).then(j => {
+    if (!ekstra.length || !bareBane(j)) return j;
+    return Promise.all(ekstra.map(m => spørMed(m).catch(e => {
+      if (e && e.name === 'AbortError') throw e;
+      if (logg) logg('uten bane: tilleggsspørringen feilet — ' + (e && e.message), 'err');
+      return null;
+    }))).then(js => slåSammenSvar([j, ...js.map(x => x || {})], [j, ...js].map(() => null), null));
+  });
+}
+
 export function _tripFlagg() {
   return [!_coachRejected, !_windowRejected, !_affectsRejected, !_innstilteRejected,
     !_bytteRejected, !_iderRejected];
@@ -369,21 +404,21 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
       // Rekkefølgen på argumentene er rekkefølgen trinnene ble lagt til i,
       // ikke rekkefølgen de droppes i. Den står i `if`-ene under.
       // Én trapp per via-stopp (null = uten). Med `viaOgså` kjøres to.
-      const spør = (v) => {
+      const spør = (v, mod) => {
       const ask = (withLookback, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: withLookback
             ? tripGQL(fromId, toId, v || null, 12, walkSpeedMs, atMs == null ? undefined : atMs,
-              false, false, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder, tavlaModuser())
+              false, false, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder, mod)
             // The retry deliberately drops dateTime: it is the argument that
             // could never be verified against the live API, so it is the one
             // the fallback exists to shed. The cost is real — this poll loses
             // the two-minute lookback, and with it a train standing at the
             // platform a minute late — so the diagnostic records that it
             // happened rather than trading a silent loss for a silent outage.
-            : tripGQL(fromId, toId, v || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder, tavlaModuser()),
+            : tripGQL(fromId, toId, v || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder, mod),
         }),
         signal,
       })
@@ -468,17 +503,18 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
        * → 2 → Tveita → 69 kom aldri fram, fordi Entur foretrekker reisen med
        * færre bytter når ankomsten er lik. Spurt via Hellerud finnes den.
        * Med `dir.viaOgså` spørres begge, og svarene slås sammen. */
+      const spørModi = (v) => medModusSøk(m => spør(v, m), logMsg);
       const vias = (dir.viaOgså && viaId) ? [viaId, null] : [viaId];
       /* VIA-HALVDELEN ER ET TILLEGG, og den kan ikke ta tavla med seg.
        * Målt i nettleseren kl. 23: Entur svarte 422 på via-spørringen (for
        * tungt søk), og hele tavla sa «Ruta kunne ikke hentes» enda
        * spørringen uten via hadde svart. Feiler via-halvdelen, vises resten. */
-      const tillegg = (v) => spør(v).catch(e => {
+      const tillegg = (v) => spørModi(v).catch(e => {
         if (e && e.name === 'AbortError') throw e;
         logMsg('også via: via-spørringen feilet, viser reisene uten via — ' + (e && e.message), 'err');
         return null;
       });
-      return Promise.all(vias.map((v, i) => (vias.length > 1 && i === 0 ? tillegg(v) : spør(v))))
+      return Promise.all(vias.map((v, i) => (vias.length > 1 && i === 0 ? tillegg(v) : spørModi(v))))
         .then(js => slåSammenSvar(js, vias, dir.via || null));
     })
     .then(j => {
@@ -562,11 +598,12 @@ export function fetchTripPage(dir, atMs, n, onSuccess, onError) {
       const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
       // Samme felt som første henting (`_tripFlagg`), og med «også via» begge
       // spørsmålene, så side to ikke mister den ene halvdelen.
-      const side = (v) => enturFetch(config.api.journeyPlanner, {
+      const side = (v) => medModusSøk(mod => sideEn(v, mod), logMsg);
+      const sideEn = (v, mod) => enturFetch(config.api.journeyPlanner, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: tripGQL(fromId, toId, v || null, n || 12, walkSpeedMs, atMs,
-          false, true, ..._tripFlagg(), tavlaModuser()) }),
+          false, true, ..._tripFlagg(), mod) }),
         signal,
       }).then(r => {
         if (!r || signal.aborted) return null;

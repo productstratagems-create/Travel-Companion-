@@ -50,3 +50,16 @@ describe('stripa vet om du rekker avgangen', () => {
     expect(src).toMatch(/t\.rekke === 'missed'[\s\S]{0,120}ls-missed/);
   });
 });
+
+describe('ryddig og lesbar (v1.218.104)', () => {
+  const js = readFileSync('src/views/board.js', 'utf8');
+  const css = readFileSync('src/style/board.css', 'utf8');
+  it('ingen tekst på skinna; teksten står i sin egen linje', () => {
+    expect(js).not.toMatch(/class="ls-walk"[^\n]*<i>/);
+    expect(js).toMatch(/<div class="ls-ends">'\s*\+ \(duPos != null \? '<span class="ls-walk-tekst">/);
+  });
+  it('dempet brikke er fortsatt lesbar', () => {
+    const o = Number((css.match(/\.ls-missed\{opacity:([.\d]+)/) || [])[1]);
+    expect(o).toBeGreaterThanOrEqual(0.6);
+  });
+});

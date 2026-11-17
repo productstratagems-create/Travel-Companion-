@@ -151,3 +151,36 @@ export function _headingDeg(fromLat, fromLon, toLat, toLon) {
   const deg = Math.atan2(dLon, dLat) * 180 / Math.PI;
   return (deg + 360) % 360;
 }
+
+/**
+ * Hvor langt fra formen et stopp kan ligge før formen ikke regnes som dens
+ * (v1.218.98). En holdeplass står ved veien, ikke midt på den; 150 m tåler
+ * en stor terminal, men ikke en annen tur eller en annen gate.
+ */
+export const FORM_MAKS_AVVIK_M = 150;
+
+/**
+ * Den delen av en linjeform som går fra `fra` til `til` (v1.218.98).
+ *
+ * Rapportert med skjermbilde fra Stenbråten: buss 73 tegnet som rette
+ * streker tvers over terreng. Formen fantes (`fetchJourneyShape`), men
+ * kartet i auto-reise tegnet stoppene, ikke veien.
+ *
+ * `til` søkes fra `fra`s segment, så en sløyfelinje ikke går baklengs. Ligger
+ * ett av punktene lenger enn FORM_MAKS_AVVIK_M fra formen, er det feil form,
+ * og svaret er null: da står stoppstrekene, som før.
+ *
+ * @param {Array<[number,number]>} shape
+ * @param {{lat,lon}} fra
+ * @param {{lat,lon}} til
+ * @returns {Array<[number,number]>|null}
+ */
+export function formMellom(shape, fra, til) {
+  if (!Array.isArray(shape) || shape.length < 2 || !fra || !til) return null;
+  const a = projectOnPath(fra, shape);
+  if (!a || a.dist > FORM_MAKS_AVVIK_M) return null;
+  const b = projectOnPath(til, shape, a.segIdx);
+  if (!b || b.dist > FORM_MAKS_AVVIK_M || b.along < a.along) return null;
+  const midt = shape.slice(a.segIdx + 1, b.segIdx + 1);
+  return [[a.lat, a.lon], ...midt, [b.lat, b.lon]];
+}

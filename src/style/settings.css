@@ -1005,3 +1005,6 @@
 .at-spor:empty{background:none}
 .at-rekker-ikke .at-min,.at-rekker-ikke .at-front,.at-rekker-ikke .at-klokke{text-decoration:line-through;opacity:.55}
 .at-filter{font-size:.75rem;color:var(--text-muted);margin:.1rem 0 .3rem}
+.at-ikke{margin:.2rem 0 .4rem}
+.at-ikke summary{cursor:pointer;font-size:.8rem;color:var(--text-muted);padding:.4rem 0;letter-spacing:.04em}
+.at-bunn{min-height:2rem;text-align:center;font-size:.75rem;color:var(--text-muted);padding:.6rem 0}

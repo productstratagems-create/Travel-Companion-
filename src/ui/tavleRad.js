@@ -20,7 +20,10 @@ export const TAVLE_MAKS = 12;
  * @param {(ms:number)=>boolean} kanRekke
  */
 export function tavleUtvalg(dirs, nå, kanRekke = () => true, perRetning = TAVLE_PER_RETNING, maks = TAVLE_MAKS) {
+  const sett = new Set();   // samme tur fra to sider er én avgang (v1.218.109)
   return (dirs || []).flatMap(d => (d.calls || [])
+    .filter(x => { const id = x && x.call && x.call.serviceJourney && x.call.serviceJourney.id;
+      if (!id) return true; if (sett.has(id)) return false; sett.add(id); return true; })
     .filter(x => x && Number.isFinite(x.ms) && x.ms >= nå - 60_000 && !x.innstilt)
     .sort((a, b) => a.ms - b.ms)
     .slice(0, perRetning)
@@ -43,4 +46,21 @@ export function tavleRadHtml(x, nå, i) {
     + '<span class="at-klokke">' + esc(clk(x.ms)) + '</span>'
     + '<span class="at-spor">' + (spor ? '<small>spor</small>' + esc(spor) : '') + '</span>'
     + '</button>';
+}
+
+/** Så mange rader til per side når du ruller (v1.218.109). */
+export const TAVLE_SIDE = 12;
+
+/**
+ * DE DU IKKE REKKER, FOR SEG (v1.218.109). Bestilt: «Legg de avganger bruker
+ * ikke ser ut til å rekke i en egen kollapset gruppering, som bruker kan
+ * velge om denne vil se.» Og: «Infinite scroll på lista.» Alle avganger,
+ * sortert på tid som tavla (ingen grense per retning); de du rekker kuttes
+ * ved `grense`, og `tomForLokale` sier at neste side må hentes. Ren.
+ */
+export function tavleDel(dirs, nå, kanRekke, grense) {
+  const alle = tavleUtvalg(dirs, nå, kanRekke, Infinity, Infinity);
+  const rekker = alle.filter(x => x.rekker);
+  return { ikke: alle.filter(x => !x.rekker), rekker: rekker.slice(0, grense),
+    tomForLokale: rekker.length <= grense, sisteMs: alle.length ? alle[alle.length - 1].ms : null };
 }

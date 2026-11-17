@@ -7,6 +7,7 @@ import { addSituation, collectStopSituations } from './situations.js';
 import { logMsg, setDot } from '../ui/log.js';
 import { noteLookbackLost } from './diagnose.js';
 import { loadWalkSpeed, focusParam } from '../geo.js';
+import { tavlaModuser } from '../tavlaModuser.js';
 import { SPEED_MPN } from '../walkSpeed.js';
 /* AVLEDET, IKKE SKREVET OM IGJEN.
  *
@@ -375,14 +376,14 @@ export function fetchTrip(dir, onSuccess, onError, atMs) {
         body: JSON.stringify({
           query: withLookback
             ? tripGQL(fromId, toId, v || null, 12, walkSpeedMs, atMs == null ? undefined : atMs,
-              false, false, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder)
+              false, false, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder, tavlaModuser())
             // The retry deliberately drops dateTime: it is the argument that
             // could never be verified against the live API, so it is the one
             // the fallback exists to shed. The cost is real — this poll loses
             // the two-minute lookback, and with it a train standing at the
             // platform a minute late — so the diagnostic records that it
             // happened rather than trading a silent loss for a silent outage.
-            : tripGQL(fromId, toId, v || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder),
+            : tripGQL(fromId, toId, v || null, 12, walkSpeedMs, atMs == null ? null : atMs, true, atMs != null, withCoach, withWindow, withAffects, withInnstilte, withBytte, withIder, tavlaModuser()),
         }),
         signal,
       })
@@ -565,7 +566,7 @@ export function fetchTripPage(dir, atMs, n, onSuccess, onError) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: tripGQL(fromId, toId, v || null, n || 12, walkSpeedMs, atMs,
-          false, true, ..._tripFlagg()) }),
+          false, true, ..._tripFlagg(), tavlaModuser()) }),
         signal,
       }).then(r => {
         if (!r || signal.aborted) return null;

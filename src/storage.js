@@ -37,6 +37,8 @@ const ALL_KEYS = [
   't.intervju',
   // Auto-tavle i menylinjen (v1.218.123). Nivå 1.
   't.autoTavleIMeny',
+  // Auto-reise valgt bort fra menylinjen (v1.218.125). Nivå 1.
+  't.autoReiseIMeny',
   // Linjene du har skjult i kartets lag-panel (v1.218.110). Nivå 1.
   't.autoKartSkjulteLinjer',
   // Antatt avstigning til du har svart (v1.218.103). Nivå 1, høyst 7 døgn.

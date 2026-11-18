@@ -50,7 +50,9 @@ describe('lenken og modusen', () => {
   });
   it('er auto-reise-skjermen i en modus, og skjuler det som ikke er proven', () => {
     const css = readFileSync('src/style/settings.css', 'utf8');
-    ['#auto-neste', '#auto-profil', '#auto-dest-body', '#auto-ombord'].forEach(id => expect(css).toContain('#v-auto.auto-tavle ' + id));
+    // v1.218.126: om bord, intervjuet og «din vanlige reise» vises nå; kortene og «ofte brukt» skjules fortsatt.
+    ['#auto-dest-body', '#auto-fav-routes'].forEach(id => expect(css).toContain('#v-auto.auto-tavle ' + id));
+    ['#auto-neste', '#auto-profil', '#auto-ombord'].forEach(id => expect(css).not.toContain('#v-auto.auto-tavle ' + id));
     expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/if \(_autoTavle && _dirs\.length\) \{ _visListeDel\(false\); _tegnAutoTavle\(body\); return; \}/);
   });
 });
@@ -119,5 +121,34 @@ describe('ikke samme klokkeslett to ganger (v1.218.111)', () => {
     const h = tavleRadHtml(b, NÅ, 0);
     expect(h.split(clk(NÅ + 75 * 60_000)).length - 1).toBe(2);   // venstre + aria-etiketten
     expect(h).toContain('<span class="at-klokke"></span>');
+  });
+});
+
+
+describe('raden: innstilt, avvik, rutetid (v1.218.126)', () => {
+  const kall = (min, o = {}) => ({ ms: NÅ + min * 60_000, innstilt: !!o.innstilt, call: { realtime: o.rt !== false, quay: { publicCode: '1' } } });
+  const d = (calls) => ({ frontText: 'Kolsås', lines: [{ code: '3', colour: 'EC700C', mode: 'metro', id: 'L3' }], calls });
+  it('innstilt står overstrøket og sies', () => {
+    const u = tavleUtvalg([d([kall(5, { innstilt: true }), kall(9)])], NÅ);
+    expect(u.length).toBe(2);
+    const h = tavleRadHtml(u[0], NÅ, 0);
+    expect(h).toContain('at-innstilt');
+    expect(h).toContain('>innstilt<');
+    expect(h).not.toContain('rekker ikke');
+  });
+  it('avviksmerket følger meldingene for linja', () => {
+    const [x] = tavleUtvalg([d([kall(9)])], NÅ);
+    expect(tavleRadHtml(x, NÅ, 0, id => (id === 'L3' ? [{ summary: [{ value: 'Signalfeil' }] }] : []))).toMatch(/at-avvik[\s\S]*title="Signalfeil"|title="Signalfeil"[\s\S]*at-avvik/);
+    expect(tavleRadHtml(x, NÅ, 0, () => [])).not.toContain('at-avvik');
+  });
+  it('uten sanntid: «rutetid»', () => {
+    const [x] = tavleUtvalg([d([kall(9, { rt: false })])], NÅ);
+    expect(tavleRadHtml(x, NÅ, 0)).toContain('at-rutetid');
+    const [y] = tavleUtvalg([d([kall(9)])], NÅ);
+    expect(tavleRadHtml(y, NÅ, 0)).not.toContain('at-rutetid');
+  });
+  it('intervjuet flyttes over lista i Auto-tavle', () => {
+    const src = readFileSync('src/views/auto.js', 'utf8');
+    expect(src).toMatch(/_autoTavle = !!på;[\s\S]{0,250}_flyttProfil\(_autoTavle\);/);
   });
 });

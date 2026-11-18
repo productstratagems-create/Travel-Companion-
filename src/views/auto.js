@@ -4569,6 +4569,20 @@ function _maybeJump() {
  * intervju, «neste reise», ombord) skjules med klassen `auto-tavle`. */
 let _autoTavle = false;
 export function erAutoTavle() { return _autoTavle; }
+let _profilHjem = null;
+function _flyttProfil(tavle) {
+  if (typeof document === 'undefined') return;
+  const p = document.getElementById('auto-profil'), body = document.getElementById('auto-body');
+  if (!p || !body) return;
+  if (tavle) {
+    if (!_profilHjem) _profilHjem = { forelder: p.parentNode, etter: p.nextSibling };
+    body.parentNode.insertBefore(p, body);
+  } else if (_profilHjem) {
+    _profilHjem.forelder.insertBefore(p, _profilHjem.etter && _profilHjem.etter.parentNode === _profilHjem.forelder ? _profilHjem.etter : null);
+    _profilHjem = null;
+  }
+}
+
 /**
  * + OG − BARE I AUTO-REISE (v1.218.124). Bestilt: «På auto-tavle kutter vi
  * ut + og − for zoom. Da kan vi opprettholde et vertikalt knappepanel
@@ -4586,6 +4600,9 @@ function _zoomKnapper() {
 export function settAutoTavle(på) {
   _autoTavle = !!på;
   _zoomKnapper();
+  // INTERVJUET OVER LISTA I AUTO-TAVLE (v1.218.126): nederst ville det aldri
+  // bli sett under en liste med uendelig rulling. Tilbake når modusen slås av.
+  _flyttProfil(_autoTavle);
   // Formknappen får syklusen for modusen (v1.218.115); ut av fullskjerm først.
   if (_aMap && _formTavle !== null && _formTavle !== _autoTavle) {
     const el = _el('auto-map');
@@ -4617,17 +4634,20 @@ function _tegnAutoTavle(body) {
   [...new Set(alleDirs.filter(d => !synlige.includes(d)).map(d => (d.lines && d.lines[0]) || {})
     .filter(l => sl.has(linjeNøkkel(l.id, l.code))).map(l => 'linje ' + l.code))].forEach(t => skjulteNavn.push(t));
   const del = tavleDel(synlige, nå, ms => canCatch(ms, gang, nå), _atGrense);
+  // Avvikene per linje, samme kilde som retningskortene (v1.218.126).
+  const perLinje = byLine(_alerts);
+  const meld = id => perLinje.get(id) || [];
   const rader = [...del.ikke, ...del.rekker];
   const merknad = skjulteNavn.length ? '<div class="at-filter">skjult i kartets filter: ' + esc(skjulteNavn.join(', ')) + '</div>' : '';
   const ikkeHtml = del.ikke.length
     ? '<details class="at-ikke"' + (_atIkkeÅpen ? ' open' : '') + '><summary>' + del.ikke.length
       + (del.ikke.length === 1 ? ' avgang' : ' avganger') + ' du ikke rekker</summary><div class="at-liste">'
-      + del.ikke.map((x, i) => tavleRadHtml(x, nå, i)).join('') + '</div></details>'
+      + del.ikke.map((x, i) => tavleRadHtml(x, nå, i, meld)).join('') + '</div></details>'
     : '';
   const bunn = '<div class="at-bunn">' + (_atSlutt ? 'ikke flere avganger herfra' : _atHenter ? 'henter flere …' : '') + '</div>';
   body.innerHTML = rader.length
     ? '<div class="set-label">neste avganger herfra</div>' + merknad + ikkeHtml
-      + '<div class="at-liste">' + del.rekker.map((x, i) => tavleRadHtml(x, nå, del.ikke.length + i)).join('') + '</div>' + bunn
+      + '<div class="at-liste">' + del.rekker.map((x, i) => tavleRadHtml(x, nå, del.ikke.length + i, meld)).join('') + '</div>' + bunn
     : merknad + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : 'ingen avganger herfra den nærmeste timen') + '</div>';
   const det = body.querySelector('.at-ikke');
   if (det) det.addEventListener('toggle', () => { _atIkkeÅpen = det.open; });

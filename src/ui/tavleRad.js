@@ -24,32 +24,46 @@ export function tavleUtvalg(dirs, nå, kanRekke = () => true, perRetning = TAVLE
   return (dirs || []).flatMap(d => (d.calls || [])
     .filter(x => { const id = x && x.call && x.call.serviceJourney && x.call.serviceJourney.id;
       if (!id) return true; if (sett.has(id)) return false; sett.add(id); return true; })
-    .filter(x => x && Number.isFinite(x.ms) && x.ms >= nå - 60_000 && !x.innstilt)
+    // INNSTILTE STÅR (v1.218.126), overstrøket — som tavla. De ble filtrert
+    // bort, og en som ventet på den så bare at den manglet.
+    .filter(x => x && Number.isFinite(x.ms) && x.ms >= nå - 60_000)
     .sort((a, b) => a.ms - b.ms)
     .slice(0, perRetning)
-    .map(x => ({ d, ms: x.ms, call: x.call, rekker: !!kanRekke(x.ms) })))
+    .map(x => ({ d, ms: x.ms, call: x.call, innstilt: !!x.innstilt, rekker: !!kanRekke(x.ms) })))
     .sort((a, b) => a.ms - b.ms)
     .slice(0, maks);
 }
 
-export function tavleRadHtml(x, nå, i) {
+/**
+ * @param {(linjeId)=>Array} [meldinger] avvikene for en linje (byLine), så
+ *   raden kan merke dem uten å lese global tilstand (v1.218.126)
+ */
+export function tavleRadHtml(x, nå, i, meldinger = () => []) {
   const l = (x.d.lines && x.d.lines[0]) || {};
+  const avvik = (l.id && meldinger(l.id)) || [];
+  const tittel = avvik.length ? avvik.map(m => (m && m.summary && m.summary[0] && m.summary[0].value) || 'melding').join(' · ') : '';
+  const rutetid = x.call && x.call.realtime === false;
   const min = Math.floor((x.ms - nå) / 60_000);
   const spor = x.call && x.call.quay && x.call.quay.publicCode;
   const merke = linjemerke({ kode: l.code, farge: l.colour, tekst: l.tekst, linjeId: l.id, modus: l.mode });
-  return '<button type="button" class="at-rad' + (x.rekker ? '' : ' at-rekker-ikke') + '" data-i="' + i + '"'
+  return '<button type="button" class="at-rad' + (x.rekker ? '' : ' at-rekker-ikke') + (x.innstilt ? ' at-innstilt' : '') + '" data-i="' + i + '"'
     + ' aria-label="' + esc((l.code || '') + ' mot ' + (x.d.frontText || '') + ', ' + (min < 1 ? 'nå' : min >= NEDTELLING_MAKS_MIN ? 'kl. ' + clk(x.ms) : 'om ' + min + ' min')
-      + (spor ? ', spor ' + spor : '') + (x.rekker ? '' : ', rekker ikke')) + '">'
+      + (spor ? ', spor ' + spor : '') + (x.innstilt ? ', innstilt' : x.rekker ? '' : ', rekker ikke')
+      + (rutetid ? ', etter rutetid' : '') + (tittel ? ', avvik: ' + tittel : '')) + '"'
+    + (tittel ? ' title="' + esc(tittel) + '"' : '') + '>'
     // Klokkeslett fra NEDTELLING_MAKS_MIN, som tavla (v1.218.111).
     + (min >= NEDTELLING_MAKS_MIN
       ? '<span class="at-min at-min-klokke">' + esc(clk(x.ms)) + '</span>'
       : '<span class="at-min">' + (min < 1 ? 'nå' : min) + (min < 1 ? '' : '<small>min</small>') + '</span>')
-    + '<span class="at-midt">' + merke + '<span class="at-front">' + esc(x.d.frontText || '') + '</span>'
+    + '<span class="at-midt">' + merke + (avvik.length ? '<span class="at-avvik" aria-hidden="true">!</span>' : '')
+    + '<span class="at-front">' + esc(x.d.frontText || '') + '</span>'
+    + (x.innstilt ? '<span class="at-merk">innstilt</span>' : '')
     // Fra et nabostopp i knutepunktet (v1.218.119): hvor du går om bord.
     + (x.call && x.call._fra && x.call._fra.name ? '<span class="at-fra">fra ' + esc(x.call._fra.name) + '</span>' : '')
-    + (x.rekker ? '' : '<span class="at-merk">rekker ikke</span>') + '</span>'
+    + (x.rekker || x.innstilt ? '' : '<span class="at-merk">rekker ikke</span>') + '</span>'
     // Ikke samme klokkeslett to ganger: står det til venstre, er høyre tom.
-    + '<span class="at-klokke">' + (min >= NEDTELLING_MAKS_MIN ? '' : esc(clk(x.ms))) + '</span>'
+    + '<span class="at-klokke">' + (min >= NEDTELLING_MAKS_MIN ? '' : esc(clk(x.ms)))
+    + (rutetid ? '<small class="at-rutetid">rutetid</small>' : '') + '</span>'
     + '<span class="at-spor">' + (spor ? '<small>spor</small>' + esc(spor) : '') + '</span>'
     + '</button>';
 }

@@ -97,7 +97,8 @@ describe('the fixed navigation menu', () => {
     // ENDRET MED VILJE (v1.218.75): bunnmenyen er tavla og auto-reise; lagret og
     // utforsk ligger under innstillinger (NAV_UNDER_INNSTILLINGER).
     // v1.218.118: underveis til høyre for auto-reise, bare med en reise.
-    expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto', 'v-track']);
+    // v1.218.123: + auto-tavle helt til høyre, bare når valgt.
+    expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto', 'v-track', 'v-autotavle']);
     // v1.218.107: testsiden Auto-tavle står her også.
     expect(NAV_UNDER_INNSTILLINGER.map(i => i.view)).toEqual(['v-saved', 'v-leisure', 'v-autotavle']);
     NAV_ITEMS.forEach(i => expect(i.label).toBeTruthy());
@@ -129,6 +130,18 @@ describe('the fixed navigation menu', () => {
     expect(navSynlig('v-track')).toBe(true);
     expect(navSynlig('v-auto')).toBe(true);
     state.jny = null;
+  });
+  it('«auto-tavle» står bare når valgt i innstillinger (v1.218.123)', async () => {
+    const { navSynlig, settAutoTavleIMeny } = await import('../src/ui/nav.js');
+    settAutoTavleIMeny(false);
+    expect(navSynlig('v-autotavle')).toBe(false);
+    settAutoTavleIMeny(true);
+    expect(navSynlig('v-autotavle')).toBe(true);
+    window._erAutoTavle = () => true;
+    expect(navActive('auto')).toBe('v-autotavle');
+    window._erAutoTavle = () => false;
+    expect(navActive('auto')).toBe('v-auto');
+    settAutoTavleIMeny(false); delete window._erAutoTavle;
   });
 
   // "Underveis" and the walking route are screens you FOLLOW, not screens you

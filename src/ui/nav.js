@@ -199,14 +199,21 @@ export const NAV_ITEMS = [
   { view: 'v-auto',    icon: '⚡', label: 'auto-reise' },
   // Bare mens en reise er underveis (v1.218.118, `navSynlig`).
   { view: 'v-track',   icon: '🚆', label: 'underveis' },
+  // Helt til høyre, bare når valgt i innstillinger (v1.218.123).
+  { view: 'v-autotavle', icon: '🧪', label: 'auto-tavle' },
 ];
+
+/** Valget i innstillinger: Auto-tavle i menylinjen (v1.218.123). */
+const AUTOTAVLE_MENY_KEY = 't.autoTavleIMeny';
+export function autoTavleIMeny() { try { return storage.get(AUTOTAVLE_MENY_KEY) === 'på'; } catch { return false; } }
+export function settAutoTavleIMeny(på) { try { if (på) storage.set(AUTOTAVLE_MENY_KEY, 'på'); else storage.remove(AUTOTAVLE_MENY_KEY); } catch { /* */ } }
 
 /**
  * Står menypunktet? Samme regel som om skjermen finnes (`_reachable`), så
  * de to ikke kan si hvert sitt. Bestilt: «Dersom det ikke er en reise som
  * er underveis, vises heller ikke menypunktet.» (v1.218.118)
  */
-export function navSynlig(id) { return _reachable(id); }
+export function navSynlig(id) { return id === 'v-autotavle' ? autoTavleIMeny() : _reachable(id); }
 
 /**
  * UNDER INNSTILLINGER (v1.218.75). Bestilt: «Tavla og Auto-reise bør være
@@ -228,10 +235,18 @@ export function tegnSkjermerIInnstillinger(el) {
   el.innerHTML = NAV_UNDER_INNSTILLINGER.map(i => '<button class="pref-btn" type="button" data-view="' + i.view + '">'
     + i.icon + ' ' + i.label + '</button>').join('');
   el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => navTo(b.dataset.view)));
+  // Valget: Auto-tavle i menylinjen (v1.218.123).
+  const lab = document.createElement('label');
+  lab.className = 'pref-check';
+  lab.innerHTML = '<input type="checkbox" id="pref-autotavle-meny"' + (autoTavleIMeny() ? ' checked' : '') + '> vis Auto-tavle i menylinjen';
+  el.appendChild(lab);
+  lab.querySelector('input').addEventListener('change', e => { settAutoTavleIMeny(e.target.checked); _renderNav(); });
 }
 
 /** Which entry is lit for a given `state.view`, or null when none of them. */
 export function navActive(view) {
+  // Auto-tavle er en modus av auto-reise: da lyser den, ikke auto-reise (v1.218.123).
+  if (view === 'auto' && typeof window !== 'undefined' && window._erAutoTavle && window._erAutoTavle() && autoTavleIMeny()) return 'v-autotavle';
   const id = 'v-' + String(view || '');
   return NAV_ITEMS.some(i => i.view === id) ? id : null;
 }
@@ -280,7 +295,7 @@ export function navTo(id) {
     if (window._settAutoTavle) {
       const var_ = window._erAutoTavle && window._erAutoTavle();
       window._settAutoTavle(på);
-      if ('v-' + state.view === id && var_ !== på) { window._renderAuto && window._renderAuto(); return; }
+      if ('v-' + state.view === id && var_ !== på) { window._renderAuto && window._renderAuto(); _renderNav(); return; }
     }
   }
   if (!id || 'v-' + state.view === id) return;

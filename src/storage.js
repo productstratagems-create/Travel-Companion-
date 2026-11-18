@@ -35,6 +35,8 @@ const ALL_KEYS = [
   't.nesteSvar',
   // Når neste spørsmål om vanene dine tidligst kommer (v1.218.100). Nivå 1.
   't.intervju',
+  // Auto-tavle i menylinjen (v1.218.123). Nivå 1.
+  't.autoTavleIMeny',
   // Linjene du har skjult i kartets lag-panel (v1.218.110). Nivå 1.
   't.autoKartSkjulteLinjer',
   // Antatt avstigning til du har svart (v1.218.103). Nivå 1, høyst 7 døgn.

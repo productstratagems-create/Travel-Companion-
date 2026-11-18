@@ -68,7 +68,7 @@ import { leggTil as leggTilVerktøy, sett as settVerktøy, leggTilLag, verktøyF
 import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, plattformMedKode as _plattformMedKode } from '../api/quays.js';
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
-import { fraTider } from '../fraTider.js';
+import { fraTider, settFraTid } from '../fraTider.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
 import { nesteSvarFor, lærNesteSvar } from '../api/nesteSvar.js';
@@ -3884,10 +3884,16 @@ function _tegnFraValg() {
   if (!el) {
     el = document.createElement('div'); el.id = 'auto-fra'; el.className = 'auto-fra'; el.setAttribute('role', 'group'); el.setAttribute('aria-label', 'Avganger fra');
     body.parentNode.insertBefore(el, body);
-    el.addEventListener('click', e => { const b = e.target.closest('[data-fra]'); if (b) settFraValg(b.dataset.fra === 'nå' ? null : b.dataset.fra); });
+    el.addEventListener('click', e => {
+      const b = e.target.closest('[data-fra]');
+      if (!b) return;
+      if (_fraHold.brukt) { _fraHold.brukt = false; e.preventDefault(); return; }   // langt trykk er ikke et valg
+      settFraValg(b.dataset.fra === 'nå' ? null : b.dataset.fra);
+    });
+    _fraLangtTrykk(el);
   }
   const nå = Date.now();
-  const knapp = (v, tekst) => '<button type="button" class="auto-fra-knapp' + ((_fraValg || 'nå') === v ? ' valgt' : '') + '" data-fra="' + v + '" aria-pressed="' + ((_fraValg || 'nå') === v) + '">' + esc(tekst) + '</button>';
+  const knapp = (v, tekst) => '<button type="button" class="auto-fra-knapp' + ((_fraValg || 'nå') === v ? ' valgt' : '') + (_fraHold.klar && _fraHold.v === v ? ' holder' : '') + '" data-fra="' + v + '" aria-pressed="' + ((_fraValg || 'nå') === v) + '"' + (FRA_VALG[v] != null ? ' title="hold for å justere tiden"' : '') + '>' + esc(tekst) + '</button>';
   el.hidden = !_stop;
   // Fast rekkefølge: «15» er en tallnøkkel og ville ellers stått foran «06».
   el.innerHTML = knapp('nå', 'nå') + FRA_REKKEFØLGE.map(v => knapp(v, fraTidTekst(fraTid(v, nå), nå))).join('');
@@ -3935,6 +3941,62 @@ function _load() {
       if (body) body.innerHTML = '<div class="dest-prev-empty">Fikk ikke avganger herfra.</div>';
     },
     AUTO_BOARD_DEPARTURES, AUTO_PER_LINE);
+}
+
+/**
+ * LANGT TRYKK JUSTERER TIDEN (v1.218.133). Bestilt: «holde på knappen lenge
+ * nok til at rullehjulene dukker opp? Og klikk utenfor lagrer til
+ * innstillinger?» Telefonens egen tidsvelger (rullehjul på iPhone) åpnes på
+ * et skjult tidsfelt; endringen lagres med settFraTid — samme sted som
+ * innstillingene — og lista hentes fra den nye tiden.
+ *
+ * Velgeren åpnes når fingeren SLIPPES etter holdet: et trykk som fortsatt
+ * holdes gir ikke nettleseren lov til å åpne den.
+ */
+export const FRA_HOLD_MS = 550;
+const _fraHold = { tid: null, v: null, klar: false, brukt: false };
+function _fraLangtTrykk(el) {
+  const avbryt = () => { clearTimeout(_fraHold.tid); _fraHold.tid = null; _fraHold.klar = false; _fraHold.v = null;
+    el.querySelectorAll('.holder').forEach(b => b.classList.remove('holder')); };
+  el.addEventListener('pointerdown', e => {
+    const b = e.target.closest('[data-fra]');
+    if (!b || FRA_VALG[b.dataset.fra] == null) return;
+    avbryt(); _fraHold.v = b.dataset.fra;
+    _fraHold.tid = setTimeout(() => {
+      _fraHold.klar = true;
+      const nå = el.querySelector('[data-fra="' + _fraHold.v + '"]');
+      if (nå) nå.classList.add('holder');
+      try { navigator.vibrate && navigator.vibrate(10); } catch { /* */ }
+    }, FRA_HOLD_MS);
+  });
+  el.addEventListener('pointerup', () => {
+    if (!_fraHold.klar) { avbryt(); return; }
+    const v = _fraHold.v; avbryt(); _fraHold.brukt = true;
+    _åpneFraVelger(el, v);
+  });
+  el.addEventListener('pointercancel', avbryt);
+  el.addEventListener('pointerleave', () => { if (!_fraHold.klar) avbryt(); });
+  el.addEventListener('contextmenu', e => { if (e.target.closest('[data-fra]')) e.preventDefault(); });
+}
+function _åpneFraVelger(el, v) {
+  const i = FRA_VALG[v];
+  let inp = document.getElementById('auto-fra-velger');
+  if (!inp) {
+    inp = document.createElement('input');
+    inp.type = 'time'; inp.id = 'auto-fra-velger'; inp.className = 'auto-fra-velger'; inp.setAttribute('aria-label', 'Juster tiden');
+    el.parentNode.insertBefore(inp, el.nextSibling);
+    // Lagres når velgeren lukkes med en ny verdi — «klikk utenfor lagrer».
+    inp.addEventListener('change', () => {
+      const plass = inp.dataset.plass;
+      if (!inp.value || plass == null) return;
+      settFraTid(FRA_VALG[plass], inp.value);
+      settFraValg(plass);
+    });
+  }
+  inp.dataset.plass = v;
+  inp.value = fraTider()[i];
+  try { if (inp.showPicker) { inp.showPicker(); return; } } catch { /* faller til fokus */ }
+  inp.focus(); inp.click();
 }
 const KNUTEPUNKT_VENT_MS = 2500;
 function _lastAvganger(stop, kall, naboSvar) {

@@ -22,4 +22,7 @@ export function settFraTid(i, hhmm) {
   if (!GYLDIG.test(hhmm) || (i !== 0 && i !== 1)) return;
   const t = fraTider(); t[i] = hhmm;
   try { storage.set(FRA_TIDER_KEY, JSON.stringify(t)); } catch { /* privat modus */ }
+  // Innstillingsfeltet står allerede tegnet; hold det i takt (v1.218.133).
+  const felt = typeof document !== 'undefined' && document.getElementById('pref-fra-' + i);
+  if (felt) felt.value = hhmm;
 }

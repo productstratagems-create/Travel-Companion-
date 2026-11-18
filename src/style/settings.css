@@ -1037,3 +1037,6 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .auto-fra-knapp{font:inherit;font-size:.8rem;padding:.35rem .7rem;border-radius:999px;border:1px solid rgba(var(--accent-rgb),.3);
   background:none;color:var(--text-muted);cursor:pointer}
 .auto-fra-knapp.valgt{background:rgba(var(--accent-rgb),.18);border-color:var(--accent);color:var(--accent)}
+.auto-fra-knapp.holder{transform:scale(1.06);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.35)}
+.auto-fra-knapp{-webkit-touch-callout:none;user-select:none;touch-action:manipulation}
+.auto-fra-velger{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}

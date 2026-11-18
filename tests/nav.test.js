@@ -96,7 +96,8 @@ describe('the fixed navigation menu', () => {
   it('offers the four main screens, board first', () => {
     // ENDRET MED VILJE (v1.218.75): bunnmenyen er tavla og auto-reise; lagret og
     // utforsk ligger under innstillinger (NAV_UNDER_INNSTILLINGER).
-    expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto']);
+    // v1.218.118: underveis til høyre for auto-reise, bare med en reise.
+    expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto', 'v-track']);
     // v1.218.107: testsiden Auto-tavle står her også.
     expect(NAV_UNDER_INNSTILLINGER.map(i => i.view)).toEqual(['v-saved', 'v-leisure', 'v-autotavle']);
     NAV_ITEMS.forEach(i => expect(i.label).toBeTruthy());
@@ -113,9 +114,21 @@ describe('the fixed navigation menu', () => {
   // A screen that is not in the menu leaves every entry unmarked, rather than
   // lighting up the first one and claiming you are on the board.
   it('marks nothing on a screen that is not in it', () => {
-    ['settings', 'prefs', 'selected', 'track', 'walk'].forEach(v => {
+    // v1.218.118: «track» er et menypunkt nå, og lyser.
+    ['settings', 'prefs', 'selected', 'walk'].forEach(v => {
       expect(navActive(v)).toBe(null);
     });
+    expect(navActive('track')).toBe('v-track');
+  });
+  it('«underveis» står bare når en reise er underveis', async () => {
+    const { navSynlig } = await import('../src/ui/nav.js');
+    const { state } = await import('../src/state.js');
+    state.jny = null;
+    expect(navSynlig('v-track')).toBe(false);
+    state.jny = { dest: 'Hellerud', legs: [] };
+    expect(navSynlig('v-track')).toBe(true);
+    expect(navSynlig('v-auto')).toBe(true);
+    state.jny = null;
   });
 
   // "Underveis" and the walking route are screens you FOLLOW, not screens you

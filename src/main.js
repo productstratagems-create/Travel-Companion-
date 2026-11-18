@@ -26,6 +26,7 @@ import { landingChoice, exampleDir, isExample, upgradeToNearest, exampleFallback
 import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode, autoModePref, saveAutoMode, posState, posNå } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
+import { renderTrack } from './views/track.js';
 import { startBoard, refreshBoard } from './views/board.js';
 import config from './config.js';
 import { initSettings, showSettings, showPrefs, applyRoute, applyRouteFromState, loadDest, saveDep, saveDest, setActiveRoute, loadActiveRoute } from './views/settings.js';
@@ -102,6 +103,7 @@ void renderLeisure;
 // What used to live here guessed your destination from history and refused to
 // do anything without it, so the feature was unusable on day one.
 window._renderAuto = renderAuto;
+window._renderTrack = renderTrack;   // menypunktet «underveis» (v1.218.118)
 window._refreshBoard = refreshBoard;
 window._resetAuto = resetAuto;
 

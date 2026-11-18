@@ -68,8 +68,8 @@ describe('fiksturen selv', () => {
   // grønn uten å ha prøvd noe.
   it('har en meny å vise eller skjule', () => {
     expect(document.getElementById('app-nav')).toBeTruthy();
-    // v1.218.75: to knapper, tavla og auto-reise.
-    expect(NAV_ITEMS.length).toBe(2);
+    // v1.218.75: tavla og auto-reise; v1.218.118: + underveis (bare med reise).
+    expect(NAV_ITEMS.length).toBe(3);
   });
 });
 

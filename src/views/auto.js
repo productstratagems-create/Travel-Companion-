@@ -3972,19 +3972,35 @@ function _lastAvganger(stop, kall, naboSvar) {
  *
  * @returns {string|null}
  */
+/**
+ * Sporet i et plattformnavn som «Mortensrud E» (v1.218.122). Bare når siste
+ * ord SER UT som et spor — kort, med tall eller én bokstav — og ikke er en
+ * del av stoppets navn. «Stenbråten» ga «plattform Stenbråten» (rapportert:
+ * «Formatering feiler»). Ren.
+ */
+export function sporFraNavn(navn, stoppNavn) {
+  const ord = String(navn || '').trim().split(/\s+/);
+  if (ord.length < 2 && !/^[A-Z0-9]{1,3}$/i.test(ord[0] || '')) return null;
+  const siste = ord[ord.length - 1];
+  if (!/^(\d{1,3}[A-Z]?|[A-Z]{1,2})$/.test(siste)) return null;
+  if (stoppNavn && String(stoppNavn).trim().split(/\s+/).includes(siste)) return null;
+  return siste;
+}
+
 export function quayLabel(call) {
   const q = call && call.quay;
   const code = (q && q.publicCode)
     // Some quays carry only a name like "Mortensrud E" — the trailing token
     // is the bay. Same fallback _rowQuay uses on the departure board.
-    || (q && q.name ? String(q.name).trim().split(/\s+/).pop() : null);
-  if (!code || code === '?') return null;
+    || (q && q.name ? sporFraNavn(q.name, call._fra && call._fra.name) : null);
+  if (!code || code === '?') return call && call._fra && call._fra.name ? call._fra.name : null;
   const mode = call.serviceJourney && call.serviceJourney.line
     && call.serviceJourney.line.transportMode;
   // Ordvalget — spor, plattform, kai — bor i `bytte.js`, delt med
   // avgangsdetaljene (v1.208.0).
-  // Fra et nabostopp i knutepunktet (v1.218.119): stedet står foran sporet.
-  return (call._fra && call._fra.name ? call._fra.name + ' · ' : '') + plattformTekst(code, mode);
+  // Fra et nabostopp i knutepunktet (v1.218.119): sporet FØRST, så stedet —
+  // et langt stedsnavn forkortes (…), sporet aldri (v1.218.122).
+  return plattformTekst(code, mode) + (call._fra && call._fra.name ? ' · ' + call._fra.name : '');
 }
 
 export function _minsUntil(ms, now) {

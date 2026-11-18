@@ -1011,3 +1011,11 @@
 .at-min-klokke{font-size:1.4rem;letter-spacing:.04em;color:#a89060}
 html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .at-fra{flex-basis:100%;font-size:.75rem;color:var(--text-muted)}
+
+/* KORTET SPRENGER IKKE BREDDEN (v1.218.122). Rapportert: «Formatering
+   feiler» — «Stenbråten · plattform Stenbråten» og tre tider på én linje uten
+   linjeskift gjorde kortet bredere enn skjermen, og hele siden gled sidelengs.
+   Sporet/stedet gir seg (…) før tidene; tidene beholder sin plass. */
+#v-auto .auto-dir{max-width:100%;box-sizing:border-box;min-width:0}
+#v-auto .auto-dir .nearby-dist{overflow:hidden;min-width:0}
+#v-auto .auto-dir .nearby-dist .auto-quay{max-width:48%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

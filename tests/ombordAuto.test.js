@@ -132,7 +132,8 @@ describe('skjermen', () => {
    * er ved» ved hvert stopp; da ville tilbudet blinket av og på. */
   it('og mister ikke kandidatene når «du er ved» bytter stopp', () => {
     const s = src();
-    expect(s).toMatch(/_rå = stop\.estimatedCalls \|\| \[\];/);
+    // v1.218.119: kallene fra hele knutepunktet, ikke bare stoppet.
+    expect(s).toMatch(/_rå = kall;/);
     // Deklarasjonen `let _rå = [];` er ikke en nullstilling. Første utgave
     // av denne regexen traff nettopp den.
     expect(s).not.toMatch(/(?<!let )_rå = \[\];/);

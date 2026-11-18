@@ -45,6 +45,8 @@ export function tavleRadHtml(x, nå, i) {
       ? '<span class="at-min at-min-klokke">' + esc(clk(x.ms)) + '</span>'
       : '<span class="at-min">' + (min < 1 ? 'nå' : min) + (min < 1 ? '' : '<small>min</small>') + '</span>')
     + '<span class="at-midt">' + merke + '<span class="at-front">' + esc(x.d.frontText || '') + '</span>'
+    // Fra et nabostopp i knutepunktet (v1.218.119): hvor du går om bord.
+    + (x.call && x.call._fra && x.call._fra.name ? '<span class="at-fra">fra ' + esc(x.call._fra.name) + '</span>' : '')
     + (x.rekker ? '' : '<span class="at-merk">rekker ikke</span>') + '</span>'
     // Ikke samme klokkeslett to ganger: står det til venstre, er høyre tom.
     + '<span class="at-klokke">' + (min >= NEDTELLING_MAKS_MIN ? '' : esc(clk(x.ms))) + '</span>'

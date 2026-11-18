@@ -69,7 +69,7 @@ describe('fiksturen selv', () => {
   it('har en meny å vise eller skjule', () => {
     expect(document.getElementById('app-nav')).toBeTruthy();
     // v1.218.75: tavla og auto-reise; v1.218.118: + underveis (bare med reise).
-    expect(NAV_ITEMS.length).toBe(3);
+    expect(NAV_ITEMS.length).toBe(4);   // v1.218.123: + auto-tavle (valgfri)
   });
 });
 

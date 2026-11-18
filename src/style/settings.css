@@ -1010,3 +1010,4 @@
 .at-bunn{min-height:2rem;text-align:center;font-size:.75rem;color:var(--text-muted);padding:.6rem 0}
 .at-min-klokke{font-size:1.4rem;letter-spacing:.04em;color:#a89060}
 html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
+.at-fra{flex-basis:100%;font-size:.75rem;color:var(--text-muted)}

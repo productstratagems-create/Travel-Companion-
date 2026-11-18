@@ -25,7 +25,7 @@ import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import config from '../config.js';
 import { state } from '../state.js';
-import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra, fetchBoardPage } from '../api/entur.js';
+import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra, fetchBoardPage, hentStoppAvganger } from '../api/entur.js';
 import { raskereHer } from '../raskere.js';
 import { rangerMål, foldetSide } from '../maalModell.js';
 import { overganger, arrBoardSpørsmål, ARR_BOARD_ASK } from '../overganger.js';
@@ -496,6 +496,9 @@ export function dirRows(dirs, desc, keep, local) {
  * position, because the board's own stop is the anchor we have.
  */
 export function stopsAhead(call, fromName, now, fraId = null) {
+  // FRA NABOSTOPPET (v1.218.119): et kall fra et annet stoppested i
+  // knutepunktet har det stedet i stopplista, ikke stoppet ditt.
+  if (call && call._fra) { fromName = call._fra.name || fromName; fraId = call._fra.id || fraId; }
   const t0 = now == null ? Date.now() : now;
   const sjc = (call && call.serviceJourney && call.serviceJourney.estimatedCalls) || [];
   const norm = stopKey;   // was recipe C: the comma clause was missing
@@ -3837,6 +3840,42 @@ export function pinStop(id) {
  * their lines, the stops along each one and their arrival times) is read out
  * of this single response.
  */
+/**
+ * KNUTEPUNKTET (v1.218.119). Rapportert fra Tveita: «kun t-baner og ingen
+ * busser». T-banestasjonen og bussholdeplassen er to stoppesteder i Enturs
+ * data, og auto-reise hentet bare det ene. Stoppet ditt pluss nabostopp innen
+ * KNUTEPUNKT_M, høyst KNUTEPUNKT_MAKS; nye transportmidler foran, så nærmest.
+ * Avstanden måles fra stoppet, ikke fra deg. Ren.
+ */
+export const KNUTEPUNKT_M = 250;
+export const KNUTEPUNKT_MAKS = 3;
+export function knutepunkt(stopp, nære, maksM = KNUTEPUNKT_M) {
+  if (!stopp) return [];
+  const har = new Set((stopp.modes || []).map(normMode));
+  const naboer = (nære || [])
+    .filter(s => s && s.id && s.id !== stopp.id && Number.isFinite(s.lat) && Number.isFinite(stopp.lat))
+    .map(s => ({ s, d: metresBetween(stopp, s), ny: (s.modes || []).some(m => !har.has(normMode(m))) }))
+    .filter(x => x.d <= maksM)
+    .sort((a, b) => (b.ny - a.ny) || (a.d - b.d))
+    .slice(0, KNUTEPUNKT_MAKS)
+    .map(x => x.s);
+  return [stopp, ...naboer];
+}
+
+/** Kallene fra flere stoppesteder som ett: hver tur én gang, merket med stedet. Ren. */
+export function slåSammenKall(svar) {
+  const sett = new Set();
+  const ut = [];
+  (svar || []).forEach(({ stopp, kall }) => (kall || []).forEach(c => {
+    const id = c && c.serviceJourney && c.serviceJourney.id;
+    const k = id ? id + '|' + (c.expectedDepartureTime || c.aimedDepartureTime) : null;
+    if (k && sett.has(k)) return;
+    if (k) sett.add(k);
+    ut.push(stopp ? { ...c, _fra: { id: stopp.id, name: stopp.name } } : c);
+  }));
+  return ut.sort((a, b) => Date.parse(a.expectedDepartureTime || a.aimedDepartureTime) - Date.parse(b.expectedDepartureTime || b.aimedDepartureTime));
+}
+
 function _load() {
   if (!_stop) return;
   const body = _el('auto-body');
@@ -3847,8 +3886,31 @@ function _load() {
   // 5 of 5 at 30.
   fetchBoard({ key: 'custom-out', from: _stop.name, stopId: _stop.id, to: '', line: null, filter: null },
     (stop) => {
-      _dirs = groupDirections(stop.estimatedCalls || []);
-      _rå = stop.estimatedCalls || [];
+      // NABOSTOPPENE I KNUTEPUNKTET (v1.218.119), hentet ved siden av; lista
+      // tegnes når de har svart, men senest etter KNUTEPUNKT_VENT_MS.
+      const her = _stop;
+      const naboer = knutepunkt(her, _stops()).slice(1);
+      const vent = ms => new Promise(r => setTimeout(() => r(null), ms));
+      Promise.all(naboer.map(n => Promise.race([hentStoppAvganger(n.id, 20), vent(KNUTEPUNKT_VENT_MS)])
+        .then(sp => ({ stopp: n, sp }))))
+        .then(svar => {
+          if (!_stop || !her || _stop.id !== her.id) return;
+          const kall = slåSammenKall([{ stopp: null, kall: stop.estimatedCalls || [] },
+            ...svar.filter(x => x.sp).map(x => ({ stopp: x.stopp, kall: x.sp.estimatedCalls || [] }))]);
+          _lastAvganger(stop, kall, svar.filter(x => x.sp).map(x => x.sp));
+        });
+    },
+    (err) => {
+      logMsg('auto-reise: ' + err, 'err');
+      if (body) body.innerHTML = '<div class="dest-prev-empty">Fikk ikke avganger herfra.</div>';
+    },
+    AUTO_BOARD_DEPARTURES, AUTO_PER_LINE);
+}
+const KNUTEPUNKT_VENT_MS = 2500;
+function _lastAvganger(stop, kall, naboSvar) {
+    {
+      _dirs = groupDirections(kall);
+      _rå = kall;
       _hentetMs = Date.now();
       _spørNatt(_stop && _stop.id, _hentetMs);
       // Keep WHERE each message hung. This screen has done it right since
@@ -3856,6 +3918,8 @@ function _load() {
       // one loop, and two of the four had lost the origin entirely; the
       // collection has a name now, and every path reads it.
       _alerts = collectStopSituations(stop, _stop && _stop.id);
+      // Og nabostoppenes meldinger (v1.218.119), merket med sitt eget sted.
+      (naboSvar || []).forEach(sp => { _alerts = _alerts.concat(collectStopSituations(sp, sp.id)); });
       // WHAT THE LIST DOES NOT SHOW. At a hub the answer is cut by the query's
       // own cap, and drawing it as though it were complete is the failure this
       // release exists for — «hvorfor er ikke linje 3 Mortensrud på lista?»
@@ -3879,12 +3943,7 @@ function _load() {
         _nextMs = null;
       }
       _renderBody();
-    },
-    (err) => {
-      logMsg('auto-reise: ' + err, 'err');
-      if (body) body.innerHTML = '<div class="dest-prev-empty">Fikk ikke avganger herfra.</div>';
-    },
-    AUTO_BOARD_DEPARTURES, AUTO_PER_LINE);
+    }
 }
 
 /**
@@ -3924,7 +3983,8 @@ export function quayLabel(call) {
     && call.serviceJourney.line.transportMode;
   // Ordvalget — spor, plattform, kai — bor i `bytte.js`, delt med
   // avgangsdetaljene (v1.208.0).
-  return plattformTekst(code, mode);
+  // Fra et nabostopp i knutepunktet (v1.218.119): stedet står foran sporet.
+  return (call._fra && call._fra.name ? call._fra.name + ' · ' : '') + plattformTekst(code, mode);
 }
 
 export function _minsUntil(ms, now) {

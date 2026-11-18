@@ -821,6 +821,24 @@ export function fetchNextDeparture(dir, horizonMins) {
     .catch(() => null);
 }
 
+/**
+ * Avgangene ved ett stoppested, uten egen avbryter (v1.218.119): for
+ * nabostoppene i et knutepunkt, som hentes ved siden av hovedstoppet.
+ * `fetchBoard` avbryter forrige kall og kan ikke kjøres i parallell.
+ * Ett forsøk med innstilte-trinnet, ellers enkel tekst. Gir stopPlace eller null.
+ */
+export function hentStoppAvganger(stopId, n = 20) {
+  if (!stopId) return Promise.resolve(null);
+  const spør = basic => _medInnstilte(innstilte => enturFetch(config.api.journeyPlanner, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: boardGQL(stopId, n, null, basic, null, null, undefined, innstilte) }),
+  }).then(r => (r && r.ok ? r.json() : null)));
+  return spør(false)
+    .then(j => (j && !j.data && j.errors ? spør(true) : j))
+    .then(j => (j && j.data && j.data.stopPlace) || null)
+    .catch(() => null);
+}
+
 export function fetchBoard(dir, onSuccess, onError, want, perLine) {
   if (boardController) boardController.abort();
   if (tripController) tripController.abort();

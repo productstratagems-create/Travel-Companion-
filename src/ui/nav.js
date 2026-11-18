@@ -166,7 +166,7 @@ function _reachable(id) {
 const _enter = {
   'v-board':    () => window._startBoard && window._startBoard(),
   'v-selected': () => window._renderSelected && window._renderSelected(),
-  'v-track':    () => {},
+  'v-track':    () => window._renderTrack && window._renderTrack(),
   'v-settings': () => window._showSettings && window._showSettings(),
   'v-prefs':    () => window._showPrefs && window._showPrefs(),
   'v-saved':    () => window._renderSaved && window._renderSaved(),
@@ -197,7 +197,16 @@ const _enter = {
 export const NAV_ITEMS = [
   { view: 'v-board',   icon: '🚉', label: 'tavla' },
   { view: 'v-auto',    icon: '⚡', label: 'auto-reise' },
+  // Bare mens en reise er underveis (v1.218.118, `navSynlig`).
+  { view: 'v-track',   icon: '🚆', label: 'underveis' },
 ];
+
+/**
+ * Står menypunktet? Samme regel som om skjermen finnes (`_reachable`), så
+ * de to ikke kan si hvert sitt. Bestilt: «Dersom det ikke er en reise som
+ * er underveis, vises heller ikke menypunktet.» (v1.218.118)
+ */
+export function navSynlig(id) { return _reachable(id); }
 
 /**
  * UNDER INNSTILLINGER (v1.218.75). Bestilt: «Tavla og Auto-reise bør være
@@ -294,6 +303,8 @@ function _buildNav() {
   });
 }
 
+/** Tegn menyen på nytt, f.eks. når en reise starter eller slutter (v1.218.118). */
+export function oppdaterNav() { _renderNav(); }
 function _renderNav() {
   tegnSkjermerIInnstillinger(document.getElementById('pref-skjermer'));
   const el = document.getElementById('app-nav');
@@ -302,6 +313,7 @@ function _renderNav() {
   el.hidden = navHidden(state.view);
   const active = navActive(state.view);
   el.querySelectorAll('.app-nav-btn').forEach(b => {
+    b.hidden = !navSynlig(b.dataset.view);
     const on = b.dataset.view === active;
     b.classList.toggle('is-active', on);
     // aria-current, not aria-selected: these are links between pages, not

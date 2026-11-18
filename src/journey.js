@@ -10,7 +10,7 @@ import { antaAvstigning } from './api/avstigningVent.js';
 import { avstigningFraStopp } from './api/avstigning.js';
 import { logMsg } from './ui/log.js';
 import { updateOnboardChip } from './ui/chip.js';
-import { show } from './ui/nav.js';
+import { show, oppdaterNav } from './ui/nav.js';
 import { startBoard, stopBoard } from './views/board.js';
 import { renderSelected, startSelRefresh, stopSelRefresh } from './views/selected.js';
 import { buildTrackBar, startTracking, stopTracking } from './views/track.js';
@@ -234,6 +234,7 @@ export function doBoard() {
 }
 
 export function activateTracking() {
+  oppdaterNav();   // «underveis» i menyen kommer (v1.218.118)
   stopSelRefresh();
   // When restoring from localStorage the lock must be re-established
   if (!state.lockedJourneyId && state.jny && state.jny.legs[0]) {
@@ -365,6 +366,7 @@ export function clearJny() {
   // journey never outlives itself regardless of which path ended it
   stopTracking();
   updateOnboardChip();
+  oppdaterNav();   // «underveis» i menyen forsvinner (v1.218.118)
 }
 
 // Window bridges used by HTML inline handlers and nav.js

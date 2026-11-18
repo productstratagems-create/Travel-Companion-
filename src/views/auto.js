@@ -68,6 +68,7 @@ import { leggTil as leggTilVerktøy, sett as settVerktøy, leggTilLag, verktøyF
 import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, plattformMedKode as _plattformMedKode } from '../api/quays.js';
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
+import { fraTider } from '../fraTider.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
 import { nesteSvarFor, lærNesteSvar } from '../api/nesteSvar.js';
@@ -3846,13 +3847,15 @@ export function slåSammenKall(svar) {
  * hurtigvalg: etter 06:00 og etter 15:00». Neste gang klokkeslettet
  * inntreffer: passert i dag betyr i morgen. Ren; null for «nå».
  */
-export const FRA_VALG = { '06': 6, '15': 15 };
-export const FRA_REKKEFØLGE = ['06', '15'];
+// v1.218.132: tidene justeres i innstillinger (src/fraTider.js); brikkene er plasser.
+export const FRA_VALG = { a: 0, b: 1 };
+export const FRA_REKKEFØLGE = ['a', 'b'];
 export const FRA_UTLØP_MS = 30 * 60_000;
-export function fraTid(valg, nå) {
-  const t = FRA_VALG[valg];
-  if (t == null) return null;
-  const d = new Date(nå); d.setHours(t, 0, 0, 0);
+export function fraTid(valg, nå, tider = fraTider()) {
+  const i = FRA_VALG[valg];
+  if (i == null) return null;
+  const [h, m] = tider[i].split(':').map(Number);
+  const d = new Date(nå); d.setHours(h, m, 0, 0);
   if (d.getTime() <= nå) d.setDate(d.getDate() + 1);
   return d.getTime();
 }
@@ -3864,10 +3867,11 @@ export function fraTidTekst(ms, nå) {
 }
 /** Utløpt: tidspunktet er passert med FRA_UTLØP_MS. Ren. */
 export function fraUtløpt(ms, nå) { return Number.isFinite(ms) && nå > ms + FRA_UTLØP_MS; }
-let _fraValg = null, _fraMs = null;
+let _fraValg = null, _fraMs = null, _fraTidVed = null;   // tiden valget ble regnet fra
 export function settFraValg(valg) {
   _fraValg = FRA_VALG[valg] != null ? valg : null;
   _fraMs = _fraValg ? fraTid(_fraValg, Date.now()) : null;
+  _fraTidVed = _fraValg ? fraTider()[FRA_VALG[_fraValg]] : null;
   _dirs = []; _asked = false; _open = null; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false;
   _tegnFraValg();
   if (_stop) _load();
@@ -4740,6 +4744,8 @@ function _renderBody() {
   // Ellers ville et kort fra et stopp du har gått fra blitt stående på kartet.
   // Et passert tidspunkt slipper av seg selv (v1.218.130).
   if (fraUtløpt(_fraMs, Date.now())) { settFraValg(null); return; }
+  // Tiden endret i innstillinger mens den var valgt: regn og hent på nytt (v1.218.132).
+  if (_fraValg && fraTider()[FRA_VALG[_fraValg]] !== _fraTidVed) { settFraValg(_fraValg); return; }
   _tegnFraValg();
   const body = _el('auto-body');
   if (!body) return;

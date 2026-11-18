@@ -37,6 +37,8 @@ const ALL_KEYS = [
   't.intervju',
   // Auto-tavle i menylinjen (v1.218.123). Nivå 1.
   't.autoTavleIMeny',
+  // Klokkeslettene for «avganger etter …» (v1.218.132). Nivå 1.
+  't.autoFraTider',
   // Rute-kartets form (v1.218.129). Nivå 1.
   't.ruteKartForm',
   // Auto-reise valgt bort fra menylinjen (v1.218.125). Nivå 1.

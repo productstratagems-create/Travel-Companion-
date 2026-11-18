@@ -1024,6 +1024,7 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .pref-meny{border:1px solid rgba(var(--accent-rgb),.2);border-radius:10px;padding:.4rem .8rem .6rem;margin:.6rem 0 0}
 .pref-meny legend{font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);padding:0 .3rem}
 .pref-meny-merk{font-size:.75rem;color:var(--text-muted);margin-top:.3rem}
+.pref-fra .pref-check{display:flex;align-items:center;justify-content:space-between;gap:.6rem;white-space:nowrap}
 
 /* Tavleraden (v1.218.126): innstilt, avvik og rutetid, som tavla. */
 .at-innstilt .at-min,.at-innstilt .at-klokke{text-decoration:line-through;opacity:.55}

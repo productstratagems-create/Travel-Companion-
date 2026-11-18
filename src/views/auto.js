@@ -3367,6 +3367,7 @@ function _renderMap() {
     // `zoom: false` sto her. Kommentaren rett under sier at kartet er DITT
     // når du har dratt det — da skal knappene også si at du kan. Issue #397.
     _aMap = createMap(el);
+    _zoomKnapper();
     // Fullskjerm som de andre kartene: plassen mellom statuslinja og
     // bunnmenyen. Utsnittet tegnes på nytt, så du står i midten av den nye
     // størrelsen.
@@ -4568,8 +4569,23 @@ function _maybeJump() {
  * intervju, «neste reise», ombord) skjules med klassen `auto-tavle`. */
 let _autoTavle = false;
 export function erAutoTavle() { return _autoTavle; }
+/**
+ * + OG − BARE I AUTO-REISE (v1.218.124). Bestilt: «På auto-tavle kutter vi
+ * ut + og − for zoom. Da kan vi opprettholde et vertikalt knappepanel
+ * uavhengig av kartstørrelse.» Skjult, ikke slettet; to fingre og
+ * zoomknappen (fokus) zoomer fortsatt. Ren.
+ */
+export function zoomKnapperSynlige(tavle) { return !tavle; }
+function _zoomKnapper() {
+  if (!_aMap) return;
+  const vis = zoomKnapperSynlige(_autoTavle);
+  settVerktøy(_aMap, 'inn', { skjult: !vis });
+  settVerktøy(_aMap, 'ut', { skjult: !vis });
+}
+
 export function settAutoTavle(på) {
   _autoTavle = !!på;
+  _zoomKnapper();
   // Formknappen får syklusen for modusen (v1.218.115); ut av fullskjerm først.
   if (_aMap && _formTavle !== null && _formTavle !== _autoTavle) {
     const el = _el('auto-map');

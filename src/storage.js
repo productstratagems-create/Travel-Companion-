@@ -37,6 +37,8 @@ const ALL_KEYS = [
   't.intervju',
   // Auto-tavle i menylinjen (v1.218.123). Nivå 1.
   't.autoTavleIMeny',
+  // Rute-kartets form (v1.218.129). Nivå 1.
+  't.ruteKartForm',
   // Auto-reise valgt bort fra menylinjen (v1.218.125). Nivå 1.
   't.autoReiseIMeny',
   // Linjene du har skjult i kartets lag-panel (v1.218.110). Nivå 1.

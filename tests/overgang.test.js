@@ -66,3 +66,20 @@ describe('raden kan trykkes', () => {
     state.jny = null;
   });
 });
+
+const { ankomstOppslag } = await import('../src/views/track.js');
+const { readFileSync } = await import('node:fs');
+describe('ankomsttavla gjelder der du går av (funnet med proben)', () => {
+  const tavlerute = { to: 'Nationaltheatret', toGeo: 'Nationaltheatret', toStopId: null };
+  it('tavlas rute brukes bare når den ender der reisen ender', () => {
+    expect(ankomstOppslag(tavlerute, { toStation: 'Hellerud' })).toEqual({ toGeo: 'Hellerud' });
+    expect(ankomstOppslag({ to: 'Hellerud', toStopId: 'H' }, { toStation: 'Hellerud' })).toEqual({ dir: { to: 'Hellerud', toStopId: 'H' } });
+    expect(ankomstOppslag(tavlerute, { toStation: 'Furuset', toStopId: 'F' })).toEqual({ stopId: 'F' });
+    expect(ankomstOppslag(tavlerute, null)).toEqual({ dir: tavlerute });
+  });
+  it('tavla legges inn igjen når «Fremme ved» tegnes på nytt, og feil sies', () => {
+    const s = readFileSync('src/views/track.js', 'utf8');
+    expect(s).toMatch(/if \(_arrBoardStopId \|\| _arrBoard\) _addArrBoardSection\(arrStation\);/);
+    expect(s).toMatch(/_arrBoard = \{ _err: true \};\s*_addArrBoardSection\(navn\);/);
+  });
+});

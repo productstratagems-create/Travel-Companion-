@@ -114,7 +114,9 @@ describe('the coordinate, and the label', () => {
 describe('to grupper: mot sentrum og andre retninger (v1.218.33)', () => {
   const src = readFileSync('src/views/auto.js', 'utf8');
   it('«fra sentrum» står under «andre retninger»', () => {
-    expect(src).toMatch(/const gruppe = i => \(side\.get\(i\) === 'mot' \? 'mot' : null\);/);
+    // v1.218.131: regelen bor i retningGruppe, delt med Auto-tavlas filter.
+    expect(src).toMatch(/const gruppe = i => side\.get\(i\);/);
+    expect(src).toMatch(/centreward\(here, stopsAhead\([^)]*\)[^)]*\)\) === 'mot' \? 'mot' : null;/);
     expect(src).toMatch(/groups\[gruppe\(row\.i\) === 'mot' \? 0 : 1\]/);
     expect(src).not.toMatch(/\['fra', \[\]\]/);
   });

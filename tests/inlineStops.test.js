@@ -84,7 +84,10 @@ describe('hvordan skjermen bruker dem nå', () => {
   it('regner stoppene per rad bare én gang', () => {
     const loop = src().slice(src().indexOf('const side = new Map();'),
       src().indexOf('// WHERE YOU ARE GOING'));
-    expect((loop.match(/stopsAhead\(/g) || []).length).toBe(1);
+    // v1.218.131: én gang via retningGruppe, som selv kaller stopsAhead én gang.
+    expect((loop.match(/retningGruppe\(|stopsAhead\(/g) || []).length).toBe(1);
+    const i = src().indexOf('export function retningGruppe');
+    expect((src().slice(i, src().indexOf('\n}', i)).match(/stopsAhead\(/g) || []).length).toBe(1);
   });
 
   // Én vei videre for alle tre inngangene: blokka, nedtrekket og «ofte brukt».

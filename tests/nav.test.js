@@ -351,3 +351,28 @@ describe('lagret og utforsk under innstillinger (v1.218.75)', () => {
     expect(el.textContent).toContain('utforsk');
   });
 });
+
+
+describe('menylinjen i innstillinger (v1.218.125)', () => {
+  it('standard: auto-reise står, auto-tavle ikke; begge kan velges bort', async () => {
+    const n = await import('../src/ui/nav.js');
+    n.settAutoReiseIMeny(true); n.settAutoTavleIMeny(false);
+    expect(n.navSynlig('v-auto')).toBe(true);
+    expect(n.navSynlig('v-autotavle')).toBe(false);
+    n.settAutoReiseIMeny(false);
+    expect(n.navSynlig('v-auto')).toBe(false);
+    expect(n.navSynlig('v-board')).toBe(true);
+    expect(n.bareAutoTavle()).toBe(false);
+    n.settAutoTavleIMeny(true);
+    expect(n.bareAutoTavle()).toBe(true);
+    n.settAutoReiseIMeny(true); n.settAutoTavleIMeny(false);
+  });
+  it('rekkefølgen er fast', () => {
+    expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto', 'v-track', 'v-autotavle']);
+  });
+  it('bare Auto-tavle: auto-skjermen åpner som Auto-tavle', () => {
+    const src = fs.readFileSync('src/ui/nav.js', 'utf8');
+    expect(src).toMatch(/const på = id === 'v-autotavle' \|\| bareAutoTavle\(\);/);
+    expect(src).toMatch(/if \(id === 'v-auto' && bareAutoTavle\(\) && window\._settAutoTavle/);
+  });
+});

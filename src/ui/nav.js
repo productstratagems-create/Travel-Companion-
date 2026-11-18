@@ -205,6 +205,16 @@ export const NAV_ITEMS = [
 
 /** Valget i innstillinger: Auto-tavle i menylinjen (v1.218.123). */
 const AUTOTAVLE_MENY_KEY = 't.autoTavleIMeny';
+/** Valget i innstillinger: Auto-reise i menylinjen (v1.218.125). Fravær = på. */
+const AUTOREISE_MENY_KEY = 't.autoReiseIMeny';
+export function autoReiseIMeny() { try { return storage.get(AUTOREISE_MENY_KEY) !== 'av'; } catch { return true; } }
+export function settAutoReiseIMeny(på) { try { if (på) storage.remove(AUTOREISE_MENY_KEY); else storage.set(AUTOREISE_MENY_KEY, 'av'); } catch { /* */ } }
+/**
+ * BARE AUTO-TAVLE I MENYEN (v1.218.125): da ER auto-skjermen Auto-tavle —
+ * oppstart i auto-modus og lenker til v-auto skal ikke føre til en skjerm
+ * menyen ikke har. Ren gitt valgene.
+ */
+export function bareAutoTavle() { return !autoReiseIMeny() && autoTavleIMeny(); }
 export function autoTavleIMeny() { try { return storage.get(AUTOTAVLE_MENY_KEY) === 'på'; } catch { return false; } }
 export function settAutoTavleIMeny(på) { try { if (på) storage.set(AUTOTAVLE_MENY_KEY, 'på'); else storage.remove(AUTOTAVLE_MENY_KEY); } catch { /* */ } }
 
@@ -213,7 +223,11 @@ export function settAutoTavleIMeny(på) { try { if (på) storage.set(AUTOTAVLE_M
  * de to ikke kan si hvert sitt. Bestilt: «Dersom det ikke er en reise som
  * er underveis, vises heller ikke menypunktet.» (v1.218.118)
  */
-export function navSynlig(id) { return id === 'v-autotavle' ? autoTavleIMeny() : _reachable(id); }
+export function navSynlig(id) {
+  if (id === 'v-autotavle') return autoTavleIMeny();
+  if (id === 'v-auto') return autoReiseIMeny();
+  return _reachable(id);
+}
 
 /**
  * UNDER INNSTILLINGER (v1.218.75). Bestilt: «Tavla og Auto-reise bør være
@@ -235,12 +249,16 @@ export function tegnSkjermerIInnstillinger(el) {
   el.innerHTML = NAV_UNDER_INNSTILLINGER.map(i => '<button class="pref-btn" type="button" data-view="' + i.view + '">'
     + i.icon + ' ' + i.label + '</button>').join('');
   el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => navTo(b.dataset.view)));
-  // Valget: Auto-tavle i menylinjen (v1.218.123).
-  const lab = document.createElement('label');
-  lab.className = 'pref-check';
-  lab.innerHTML = '<input type="checkbox" id="pref-autotavle-meny"' + (autoTavleIMeny() ? ' checked' : '') + '> vis Auto-tavle i menylinjen';
-  el.appendChild(lab);
-  lab.querySelector('input').addEventListener('change', e => { settAutoTavleIMeny(e.target.checked); _renderNav(); });
+  // MENYLINJEN (v1.218.125): Auto-reise og Auto-tavle valgt på ett sted.
+  const gr = document.createElement('fieldset');
+  gr.className = 'pref-meny';
+  gr.innerHTML = '<legend>menylinjen</legend>'
+    + '<label class="pref-check"><input type="checkbox" id="pref-autoreise-meny"' + (autoReiseIMeny() ? ' checked' : '') + '> ⚡ Auto-reise</label>'
+    + '<label class="pref-check"><input type="checkbox" id="pref-autotavle-meny"' + (autoTavleIMeny() ? ' checked' : '') + '> 🧪 Auto-tavle</label>'
+    + '<div class="pref-meny-merk">Tavla står alltid. Underveis kommer når en reise er i gang.</div>';
+  el.appendChild(gr);
+  gr.querySelector('#pref-autoreise-meny').addEventListener('change', e => { settAutoReiseIMeny(e.target.checked); _renderNav(); });
+  gr.querySelector('#pref-autotavle-meny').addEventListener('change', e => { settAutoTavleIMeny(e.target.checked); _renderNav(); });
 }
 
 /** Which entry is lit for a given `state.view`, or null when none of them. */
@@ -290,7 +308,7 @@ export function navHidden(view) {
 export function navTo(id) {
   // AUTO-TAVLE ER EN MODUS AV AUTO-REISE (v1.218.107), ikke en egen skjerm.
   if (id === 'v-autotavle' || id === 'v-auto') {
-    const på = id === 'v-autotavle';
+    const på = id === 'v-autotavle' || bareAutoTavle();
     id = 'v-auto';
     if (window._settAutoTavle) {
       const var_ = window._erAutoTavle && window._erAutoTavle();
@@ -390,6 +408,8 @@ export function initHistory() {
 }
 
 export function show(id) {
+  // Bare Auto-tavle i menyen: auto-skjermen åpner som Auto-tavle (v1.218.125).
+  if (id === 'v-auto' && bareAutoTavle() && window._settAutoTavle && !(window._erAutoTavle && window._erAutoTavle())) window._settAutoTavle(true);
   // Ett skjermbesøk for knappebruken: neste bilde, når skjermen er tegnet.
   // Bunnmenyen også: den ligger utenfor skjermene, og proben viste den med
   // trykk men aldri vist.

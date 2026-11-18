@@ -827,11 +827,12 @@ export function fetchNextDeparture(dir, horizonMins) {
  * `fetchBoard` avbryter forrige kall og kan ikke kjøres i parallell.
  * Ett forsøk med innstilte-trinnet, ellers enkel tekst. Gir stopPlace eller null.
  */
-export function hentStoppAvganger(stopId, n = 20) {
+export function hentStoppAvganger(stopId, n = 20, fraMs = null, fwdMins = null) {
   if (!stopId) return Promise.resolve(null);
+  // `fraMs` (v1.218.130): avgangene etter et valgt tidspunkt, ikke fra nå.
   const spør = basic => _medInnstilte(innstilte => enturFetch(config.api.journeyPlanner, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: boardGQL(stopId, n, null, basic, null, null, undefined, innstilte) }),
+    body: JSON.stringify({ query: boardGQL(stopId, n, Number.isFinite(fraMs) ? fraMs : null, basic, fwdMins, null, undefined, innstilte) }),
   }).then(r => (r && r.ok ? r.json() : null)));
   return spør(false)
     .then(j => (j && !j.data && j.errors ? spør(true) : j))

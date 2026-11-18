@@ -4589,7 +4589,9 @@ function _flyttProfil(tavle) {
  * uavhengig av kartstørrelse.» Skjult, ikke slettet; to fingre og
  * zoomknappen (fokus) zoomer fortsatt. Ren.
  */
-export function zoomKnapperSynlige(tavle) { return !tavle; }
+// v1.218.128: også i auto-reise («ta bort + og − … slik at knappepanelet kan
+// være vertikalt i alle kartstørrelser»). Parameteren står for et senere skille.
+export function zoomKnapperSynlige(tavle) { return false; }
 function _zoomKnapper() {
   if (!_aMap) return;
   const vis = zoomKnapperSynlige(_autoTavle);

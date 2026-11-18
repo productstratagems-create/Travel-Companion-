@@ -5,9 +5,10 @@ import { zoomKnapperSynlige } from '../src/views/auto.js';
 import { somRad, tett } from '../src/ui/kartVerktoy.js';
 
 describe('+ og − i Auto-tavle', () => {
-  it('skjult i Auto-tavle, synlig i auto-reise', () => {
+  // ENDRET MED VILJE (v1.218.128): skjult i auto-reise også.
+  it('skjult i både Auto-tavle og auto-reise', () => {
     expect(zoomKnapperSynlige(true)).toBe(false);
-    expect(zoomKnapperSynlige(false)).toBe(true);
+    expect(zoomKnapperSynlige(false)).toBe(false);
   });
   it('tre knapper står rett og loddrett også på et lavt kart', () => {
     expect(somRad(3, 160)).toBe(false);

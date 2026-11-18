@@ -195,7 +195,7 @@ const _enter = {
  * belong: ⚡ on the auto-reise screen turns that mode off.
  */
 export const NAV_ITEMS = [
-  { view: 'v-board',   icon: '🚉', label: 'tavla' },
+  { view: 'v-board',   icon: '🚉', label: 'rute' },   // «Tavla endres til Rute» (v1.218.127): ruten du har valgt, A → B
   { view: 'v-auto',    icon: '⚡', label: 'auto-reise' },
   // Bare mens en reise er underveis (v1.218.118, `navSynlig`).
   { view: 'v-track',   icon: '🚆', label: 'underveis' },
@@ -255,7 +255,7 @@ export function tegnSkjermerIInnstillinger(el) {
   gr.innerHTML = '<legend>menylinjen</legend>'
     + '<label class="pref-check"><input type="checkbox" id="pref-autoreise-meny"' + (autoReiseIMeny() ? ' checked' : '') + '> ⚡ Auto-reise</label>'
     + '<label class="pref-check"><input type="checkbox" id="pref-autotavle-meny"' + (autoTavleIMeny() ? ' checked' : '') + '> 🧪 Auto-tavle</label>'
-    + '<div class="pref-meny-merk">Tavla står alltid. Underveis kommer når en reise er i gang.</div>';
+    + '<div class="pref-meny-merk">Rute står alltid. Underveis kommer når en reise er i gang.</div>';
   el.appendChild(gr);
   gr.querySelector('#pref-autoreise-meny').addEventListener('change', e => { settAutoReiseIMeny(e.target.checked); _renderNav(); });
   gr.querySelector('#pref-autotavle-meny').addEventListener('change', e => { settAutoTavleIMeny(e.target.checked); _renderNav(); });

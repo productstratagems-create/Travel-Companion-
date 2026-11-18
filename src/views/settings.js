@@ -669,7 +669,7 @@ function renderReturnSection() {
   }
   if (noteEl) {
     noteEl.textContent = stored
-      ? 'Tavla viser hjemreisen fra 45 min før, og til halvannen time etter. Velger du en annen rute i mellomtiden, står den ut dagen.'
+      ? 'Rute viser hjemreisen fra 45 min før, og til halvannen time etter. Velger du en annen rute i mellomtiden, står den ut dagen.'
       : 'Settes nå, så står den klar i ettermiddag.';
   }
   if (clearBtn) clearBtn.style.display = stored ? 'inline-block' : 'none';

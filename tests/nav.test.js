@@ -376,3 +376,10 @@ describe('menylinjen i innstillinger (v1.218.125)', () => {
     expect(src).toMatch(/if \(id === 'v-auto' && bareAutoTavle\(\) && window\._settAutoTavle/);
   });
 });
+
+describe('«Tavla endres til Rute» (v1.218.127)', () => {
+  it('menypunktet heter rute; den lagrede verdien er uendret', () => {
+    expect(NAV_ITEMS.find(i => i.view === 'v-board').label).toBe('rute');
+    expect(fs.readFileSync('index.html', 'utf8')).toContain('<button class="pref-btn" data-val="tavla">Rute</button>');
+  });
+});

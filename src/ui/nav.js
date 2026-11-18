@@ -3,6 +3,7 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { addFav } from './favs.js';
 import { storage } from '../storage.js';
+import { fraTider, settFraTid } from '../fraTider.js';
 import { renderBoardProfileSwitcher, setActiveRoute, syncRouteFields } from '../views/settings.js';
 import { loadAutoMode, saveAutoMode } from '../geo.js';
 import { loadReturn, returnDir, returnWindow, shouldSwitch, skipToday, loadSkip } from '../api/returnTrip.js';
@@ -259,6 +260,15 @@ export function tegnSkjermerIInnstillinger(el) {
   el.appendChild(gr);
   gr.querySelector('#pref-autoreise-meny').addEventListener('change', e => { settAutoReiseIMeny(e.target.checked); _renderNav(); });
   gr.querySelector('#pref-autotavle-meny').addEventListener('change', e => { settAutoTavleIMeny(e.target.checked); _renderNav(); });
+  // AVGANGER ETTER (v1.218.132): de to hurtigvalgene, justerbare.
+  const ft = document.createElement('fieldset');
+  ft.className = 'pref-meny pref-fra';
+  const t = fraTider();
+  ft.innerHTML = '<legend>avganger etter</legend>'
+    + [0, 1].map(i => '<label class="pref-check">hurtigvalg ' + (i + 1) + ' <input type="time" id="pref-fra-' + i + '" value="' + t[i] + '"></label>').join('')
+    + '<div class="pref-meny-merk">Knappene over lista i Auto-reise og Auto-tavle.</div>';
+  el.appendChild(ft);
+  [0, 1].forEach(i => ft.querySelector('#pref-fra-' + i).addEventListener('change', e => settFraTid(i, e.target.value)));
 }
 
 /** Which entry is lit for a given `state.view`, or null when none of them. */

@@ -3841,10 +3841,71 @@ export function slåSammenKall(svar) {
   return ut.sort((a, b) => Date.parse(a.expectedDepartureTime || a.aimedDepartureTime) - Date.parse(b.expectedDepartureTime || b.aimedDepartureTime));
 }
 
+/**
+ * AVGANGER ETTER ET TIDSPUNKT (v1.218.130). Bestilt som første forsøk: «to
+ * hurtigvalg: etter 06:00 og etter 15:00». Neste gang klokkeslettet
+ * inntreffer: passert i dag betyr i morgen. Ren; null for «nå».
+ */
+export const FRA_VALG = { '06': 6, '15': 15 };
+export const FRA_REKKEFØLGE = ['06', '15'];
+export const FRA_UTLØP_MS = 30 * 60_000;
+export function fraTid(valg, nå) {
+  const t = FRA_VALG[valg];
+  if (t == null) return null;
+  const d = new Date(nå); d.setHours(t, 0, 0, 0);
+  if (d.getTime() <= nå) d.setDate(d.getDate() + 1);
+  return d.getTime();
+}
+export function fraTidTekst(ms, nå) {
+  if (!Number.isFinite(ms)) return 'nå';
+  const d = new Date(ms), n = new Date(nå);
+  const iMorgen = d.toDateString() !== n.toDateString();
+  return 'etter ' + clk(ms) + (iMorgen ? ' i morgen' : '');
+}
+/** Utløpt: tidspunktet er passert med FRA_UTLØP_MS. Ren. */
+export function fraUtløpt(ms, nå) { return Number.isFinite(ms) && nå > ms + FRA_UTLØP_MS; }
+let _fraValg = null, _fraMs = null;
+export function settFraValg(valg) {
+  _fraValg = FRA_VALG[valg] != null ? valg : null;
+  _fraMs = _fraValg ? fraTid(_fraValg, Date.now()) : null;
+  _dirs = []; _asked = false; _open = null; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false;
+  _tegnFraValg();
+  if (_stop) _load();
+}
+function _tegnFraValg() {
+  if (typeof document === 'undefined') return;
+  const body = _el('auto-body');
+  if (!body || !body.parentNode) return;
+  let el = _el('auto-fra');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'auto-fra'; el.className = 'auto-fra'; el.setAttribute('role', 'group'); el.setAttribute('aria-label', 'Avganger fra');
+    body.parentNode.insertBefore(el, body);
+    el.addEventListener('click', e => { const b = e.target.closest('[data-fra]'); if (b) settFraValg(b.dataset.fra === 'nå' ? null : b.dataset.fra); });
+  }
+  const nå = Date.now();
+  const knapp = (v, tekst) => '<button type="button" class="auto-fra-knapp' + ((_fraValg || 'nå') === v ? ' valgt' : '') + '" data-fra="' + v + '" aria-pressed="' + ((_fraValg || 'nå') === v) + '">' + esc(tekst) + '</button>';
+  el.hidden = !_stop;
+  // Fast rekkefølge: «15» er en tallnøkkel og ville ellers stått foran «06».
+  el.innerHTML = knapp('nå', 'nå') + FRA_REKKEFØLGE.map(v => knapp(v, fraTidTekst(fraTid(v, nå), nå))).join('');
+}
+
 function _load() {
   if (!_stop) return;
   const body = _el('auto-body');
   if (body) body.innerHTML = '<div class="dest-prev-loading">henter avganger…</div>';
+  // ETTER ET TIDSPUNKT (v1.218.130): hele knutepunktet hentes fra det.
+  if (Number.isFinite(_fraMs)) {
+    const her = _stop, fra = _fraMs;
+    const steder = knutepunkt(her, _stops());
+    Promise.all(steder.map(s => hentStoppAvganger(s.id, 30, fra, 180).then(sp => ({ stopp: s, sp }))))
+      .then(svar => {
+        if (!_stop || _stop.id !== her.id || _fraMs !== fra) return;
+        const hoved = (svar[0] && svar[0].sp) || { estimatedCalls: [], situations: [] };
+        const kall = slåSammenKall(svar.filter(x => x.sp).map((x, i) => ({ stopp: x.stopp.id === her.id ? null : x.stopp, kall: x.sp.estimatedCalls || [] })));
+        _lastAvganger(hoved, kall, svar.slice(1).filter(x => x.sp).map(x => x.sp));
+      });
+    return;
+  }
   // 30 rather than the default 12. numberOfDepartures caps the WHOLE board,
   // so three per direction at a stop with five of them simply is not in a
   // twelve-departure answer — measured: 3 of 5 rows could show three at 12,
@@ -4612,7 +4673,7 @@ function _tegnAutoTavle(body) {
     : '';
   const bunn = '<div class="at-bunn">' + (_atSlutt ? 'ikke flere avganger herfra' : _atHenter ? 'henter flere …' : '') + '</div>';
   body.innerHTML = rader.length
-    ? '<div class="set-label">neste avganger herfra</div>' + merknad + ikkeHtml
+    ? '<div class="set-label">' + (Number.isFinite(_fraMs) ? 'avganger ' + esc(fraTidTekst(_fraMs, nå)) : 'neste avganger herfra') + '</div>' + merknad + ikkeHtml
       + '<div class="at-liste">' + del.rekker.map((x, i) => tavleRadHtml(x, nå, del.ikke.length + i, meld)).join('') + '</div>' + bunn
     : merknad + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : 'ingen avganger herfra den nærmeste timen') + '</div>';
   const det = body.querySelector('.at-ikke');
@@ -4643,9 +4704,12 @@ function _tegnAutoTavle(body) {
 if (typeof window !== 'undefined') { window._settAutoTavle = settAutoTavle; window._erAutoTavle = erAutoTavle; }
 
 function _renderBody() {
-  // Nullstilt hvert tikk; settes igjen bare når lista faktisk har et kort.
-  // Ellers ville et kort fra et stopp du har gått fra blitt stående på kartet.
   _kortRute = null;
+  // ↑ Nullstilt hvert tikk; settes igjen bare når lista faktisk har et kort.
+  // Ellers ville et kort fra et stopp du har gått fra blitt stående på kartet.
+  // Et passert tidspunkt slipper av seg selv (v1.218.130).
+  if (fraUtløpt(_fraMs, Date.now())) { settFraValg(null); return; }
+  _tegnFraValg();
   const body = _el('auto-body');
   if (!body) return;
   if (_open) { _visListeDel(false); _renderStops(body); return; }

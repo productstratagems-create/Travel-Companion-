@@ -452,6 +452,61 @@ function _renderTrackMap(now, cs, legs) {
 export { ARR_BOARD_LOOKBACK_MINS, ARR_BOARD_ASK, ARR_BOARD_PER_LINE, ARR_BOARD_HORIZON_MINS, arrBoardSpørsmål } from '../overganger.js';
 import { ARR_BOARD_ASK, ARR_BOARD_HORIZON_MINS, arrBoardSpørsmål } from '../overganger.js';
 
+/**
+ * HVILKET STOPP «VIDERE MED KOLLEKTIVT» GJELDER (v1.218.120). Det sto
+ * `config.dirs[state.dIdx]` her først — tavlas valgte rute — og reisens
+ * avstigning bare når tavla ikke hadde noen. Funnet da proben ikke fikk
+ * tavla til å laste: en reise startet fra auto-reise, eller med en overgang
+ * lagt til, viste avgangene fra TAVLAS mål, ikke der du går av. Nå:
+ * etappens egen stopp-id; tavlas rute bare når den ender der reisen ender;
+ * ellers et søk på avstigningens navn. Ren.
+ *
+ * @returns {{stopId?:string, dir?:object, toGeo?:string}|null}
+ */
+export function ankomstOppslag(dir, sisteEtappe) {
+  const av = sisteEtappe && sisteEtappe.toStation;
+  if (sisteEtappe && sisteEtappe.toStopId) return { stopId: sisteEtappe.toStopId };
+  if (dir && (dir.toStopId || dir.toGeo) && (!av || normStn(dir.to || dir.toGeo || '') === normStn(av))) return { dir };
+  if (av) return { toGeo: av };
+  return null;
+}
+
+/** Slå opp ankomststoppet og start tavla; feiler det, SIES det (delen legges inn uansett). */
+function _startAnkomsttavle() {
+  const legs = (state.jny && state.jny.legs) || [];
+  const siste = legs[legs.length - 1];
+  const navn = siste ? siste.toStation : '';
+  const o = ankomstOppslag(config.dirs[state.dIdx], siste);
+  const løfte = !o ? Promise.reject(new Error('no arrival stop'))
+    : o.stopId ? Promise.resolve(o.stopId)
+    : o.dir ? resolveToStop(o.dir)
+    : resolveToStop({ toGeo: o.toGeo });
+  _arrBoardStopFor = navn;
+  løfte.then(id => {
+    if (_arrBoardStopFor !== navn) return;   // målet ble byttet imens
+    _arrBoardStopId = id;
+    _addArrBoardSection(navn);
+    _fetchArrBoardData();
+  }).catch(() => {
+    if (_arrBoardStopFor !== navn) return;
+    // DELEN LEGGES INN FØRST: uten den hadde feilen ingen plass å stå, og
+    // seksjonen var bare borte — den stillheten kommentaren over sa var rettet.
+    _arrBoard = { _err: true };
+    _addArrBoardSection(navn);
+    _updateArrBoardSection();
+  });
+}
+let _arrBoardStopFor = null;
+/** Målet er byttet (overgang lagt til eller fjernet): ny tavle for det nye stoppet. */
+export function byttAnkomsttavle() {
+  _arrBoard = null; _arrBoardStopId = null; _arrÅpen = null;
+  // «Fremme ved» skal si det nye målet; tavla legges inn igjen av panelet.
+  document.getElementById('hn-arr-board') && document.getElementById('hn-arr-board').closest('.hn-section') && document.getElementById('hn-arr-board').closest('.hn-section').remove();
+  renderNextPanel();
+  _startAnkomsttavle();
+  _updateArrBoardSection();
+}
+
 function _fetchArrBoardData() {
   if (!_arrBoardStopId) return;
   fetchArrBoard(_arrBoardStopId, ARR_BOARD_ASK, arrBoardSpørsmål(_arrivalDate().getTime())).then(res => {
@@ -730,8 +785,9 @@ export function _renderArrBoardHtml() {
     feil: !!(_arrBoard && _arrBoard._err),
     data: Array.isArray(_arrBoard) ? _arrBoard : null,
   });
-  if (sA.label) return '<div class="hn-' + sA.kind + '">' + esc(sA.label) + '</div>';
-  if (!_arrBoard.length) return '<div class="hn-loading">ingen avganger</div>';
+  // «Fjern overgangen» står også mens tavla henter eller er tom (v1.218.120).
+  if (sA.label) return '<div class="hn-' + sA.kind + '">' + esc(sA.label) + '</div>' + _fjernOvergangHtml();
+  if (!_arrBoard.length) return '<div class="hn-loading">ingen avganger</div>' + _fjernOvergangHtml();
   // WHEN YOU GET THERE, not now. _arrivalDate is kept live by every fetchTrack
   // poll and already feeds the weather and the places on this same screen.
   return arrRows(_arrBoard, _arrivalDate().getTime(), loadWalkBuffer(),
@@ -809,13 +865,13 @@ function _bindArrBoard(el) {
     if (stopp) {
       const m = _arrMeta.get(stopp.dataset.jid);
       if (m && m.calls && leggTilOvergang(state.jny, m, Number(stopp.dataset.fra), Number(stopp.dataset.til))) {
-        _arrÅpen = null; saveJny(); renderTrack();
+        _arrÅpen = null; saveJny(); renderTrack(); byttAnkomsttavle();
       }
       return;
     }
     if (e.target.closest('.hn-overgang-flere')) { _overgangAlle = true; _updateArrBoardSection(); return; }
     if (e.target.closest('.hn-overgang-fjern')) {
-      if (fjernOvergang(state.jny)) { saveJny(); renderTrack(); }
+      if (fjernOvergang(state.jny)) { saveJny(); renderTrack(); byttAnkomsttavle(); }
       return;
     }
     const rad = e.target.closest('.hn-arr-trykk');
@@ -1701,6 +1757,11 @@ function renderNextPanel() {
     }
     show('v-settings');
   });
+  // VIDERE MED KOLLEKTIVT LEGGES INN IGJEN (v1.218.120). Panelet bygges på nytt
+  // hver gang «Fremme ved» åpnes eller lukkes — også når det åpner seg selv
+  // når du nærmer deg — og tavla, lagt inn én gang ved start, forsvant med.
+  // Funnet da proben åpnet panelet og tavla var borte.
+  if (_arrBoardStopId || _arrBoard) _addArrBoardSection(arrStation);
 }
 
 // Returns { phase: 'riding'|'platform'|'arrived', i, next? }
@@ -2462,25 +2523,7 @@ export function startTracking() {
   // When the destination is a venue there is no toStopId/toGeo, and the board
   // used to be skipped entirely — exactly when "how do I carry on from here?"
   // matters most. Fall back to the stop the journey actually alights at.
-  const _dir = config.dirs[state.dIdx];
-  const _lastLeg = state.jny && state.jny.legs && state.jny.legs[state.jny.legs.length - 1];
-  const _alightName = _lastLeg ? _lastLeg.toStation : '';
-  const _arrStopPromise = (_dir.toStopId || _dir.toGeo)
-    ? resolveToStop(_dir)
-    : (_alightName
-        ? resolveToStop({ toGeo: _alightName })
-        : Promise.reject(new Error('no arrival stop')));
-  _arrStopPromise
-    .then(id => {
-      _arrBoardStopId = id;
-      _addArrBoardSection(_alightName);
-      _fetchArrBoardData();
-    }).catch(() => {
-      // Sto tom. Da ble «henter avganger …» stående for alltid når
-      // ankomststoppet ikke lot seg slå opp — samme stillhet som de to andre.
-      _arrBoard = { _err: true };
-      _updateArrBoardSection();
-    });
+  _startAnkomsttavle();
   _arrBoardInterval = setInterval(_fetchArrBoardData, 30000);
 
   /* DENNE KJEDEN HADDE INGEN `.catch`, OG DET KOSTET BEGGE SEKSJONENE.

@@ -33,15 +33,20 @@ export function tap(i) {
  * Start tracking a journey found via "finn reise" (journey-ID lookup),
  * riding it to the chosen stop without going through the normal board/tap flow.
  */
-export function joinJourney(meta, toIdx) {
-  if (!meta || !meta.calls || !meta.calls[toIdx]) return;
-  const first = meta.calls[0];
-  const dest  = meta.calls[toIdx];
+/**
+ * ÉN ETAPPE AV EN TUR (v1.218.120), fra `fraIdx` til `tilIdx` i turens
+ * stoppliste (`fetchJourneyMeta`). Felles for «finn reise» (joinJourney) og
+ * en overgang lagt til i Underveis (leggTilOvergang). Ren.
+ */
+export function legFraMeta(meta, fraIdx, tilIdx) {
+  if (!meta || !meta.calls || !meta.calls[fraIdx] || !meta.calls[tilIdx] || tilIdx <= fraIdx) return null;
+  const first = meta.calls[fraIdx];
+  const dest  = meta.calls[tilIdx];
   const toTime = (c) => {
     const t = c.expected || c.aimed;
     return t ? { time: t, clk: clk(t) } : null;
   };
-  const leg = {
+  return {
     lineCode:    meta.lineCode || '?',
     lineBg:      meta.lineBg || '#7c2d12',
     mode:        meta.mode || 'metro',
@@ -52,7 +57,7 @@ export function joinJourney(meta, toIdx) {
     depTime:     toTime(first),
     arrTime:     toTime(dest),
     quay:        first.quay,
-    stops: meta.calls.map(c => ({
+    stops: meta.calls.slice(fraIdx).map(c => ({
       quay: { stopPlace: { name: c.name, latitude: c.lat, longitude: c.lon } },
       expectedArrivalTime:   c.expected,
       aimedArrivalTime:      c.aimed,
@@ -60,6 +65,43 @@ export function joinJourney(meta, toIdx) {
       aimedDepartureTime:    c.aimed,
     })),
   };
+}
+
+/**
+ * EN OVERGANG LAGT TIL UNDERVEIS (v1.218.120). Bestilt: «Her ønsker jeg
+ * mulighet til å legge til en overgang ved å klikke på en gitt avgang.»
+ * Etappen legges sist i reisen, og målet flyttes dit; det forrige målet
+ * huskes på etappen, så «fjern overgang» kan sette det tilbake. Telles ikke
+ * som reise (v1.218.105: bare GPS og et ja teller).
+ */
+export function leggTilOvergang(jny, meta, fraIdx, tilIdx) {
+  const leg = legFraMeta(meta, fraIdx, tilIdx);
+  if (!jny || !Array.isArray(jny.legs) || !leg) return false;
+  const dest = meta.calls[tilIdx];
+  leg._forrige = { dest: jny.dest, arrival: jny.arrival, _toLat: jny._toLat, _toLon: jny._toLon, arrQuay: jny.arrQuay || null };
+  jny.legs.push(leg);
+  jny.dest = dest.name;
+  jny.arrival = leg.arrTime;
+  jny._toLat = dest.lat; jny._toLon = dest.lon;
+  jny.arrQuay = dest.quay || null;
+  return true;
+}
+/** Angre siste overgang lagt til underveis. Bare den, aldri reisens egne etapper. */
+export function fjernOvergang(jny) {
+  if (!jny || !Array.isArray(jny.legs) || jny.legs.length < 2) return false;
+  const leg = jny.legs[jny.legs.length - 1];
+  if (!leg._forrige) return false;
+  jny.legs.pop();
+  Object.assign(jny, leg._forrige);
+  return true;
+}
+
+export function joinJourney(meta, toIdx) {
+  if (!meta || !meta.calls || !meta.calls[toIdx]) return;
+  const first = meta.calls[0];
+  const dest  = meta.calls[toIdx];
+  const leg = legFraMeta(meta, 0, toIdx);
+  if (!leg) return;
   state.jny = {
     dest:              dest.name,
     from:              first.name,
@@ -291,6 +333,8 @@ export function saveJny() {
          * fikk null etter hver reload: nøyaktig det kommentaren sa den
          * forhindret. Funnet i v1.194.0 mens denne lista likevel ble endret. */
         shape:       leg.shape || null,
+        // Overgang lagt til underveis (v1.218.120): det forrige målet, for «fjern».
+        _forrige:    leg._forrige || null,
         depTime:     leg.depTime,
         arrTime:     leg.arrTime,
         quay:        leg.quay,

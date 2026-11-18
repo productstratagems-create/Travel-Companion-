@@ -9,7 +9,8 @@ import { callPlace, placeLL } from '../api/place.js';
 import { logEvent, skalLogges } from '../api/eventLog.js';
 import { posState } from '../position.js';
 import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, walkMinsTo, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL, posNå } from '../geo.js';
-import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop } from '../api/entur.js';
+import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop, fetchJourneyMeta } from '../api/entur.js';
+import { leggTilOvergang, fjernOvergang, saveJny } from '../journey.js';
 import { quayLatLon, legShape, journeyPoints } from '../api/adapt.js';
 import { turForm } from '../ui/turForm.js';
 import { visStopp } from '../stopId.js';
@@ -737,7 +738,12 @@ export function _renderArrBoardHtml() {
     (state.jny && state.jny.arrQuay) || null).map(({ c, mins, rcls }) => {
     const lc = (c.ln && c.ln.publicCode) || '?';
     const minsHtml = mins <= 0 ? 'NÅ' : mins + '<span>min</span>';
-    return '<div class="hn-arr-row ' + rcls + (c.cancelled ? ' cancelled' : '') + '">'
+    // TRYKK FOR Å LEGGE TIL EN OVERGANG (v1.218.120). Innstilt: ikke trykkbar.
+    const kan = !c.cancelled && !!c.journeyId;
+    const åpen = kan && _arrÅpen === c.journeyId;
+    return '<div class="hn-arr-row ' + rcls + (c.cancelled ? ' cancelled' : '') + (kan ? ' hn-arr-trykk' : '') + '"'
+      + (kan ? ' role="button" tabindex="0" data-jid="' + esc(c.journeyId) + '" aria-expanded="' + åpen + '"'
+        + ' aria-label="' + esc(lc + ' mot ' + c.dest + ' — legg til som overgang') + '"' : '') + '>'
       + '<div class="hn-arr-mins">' + minsHtml + '</div>'
       + '<div class="hn-arr-mid">'
       + linjemerke({ kode: lc, farge: c.ln && c.ln.presentation && c.ln.presentation.colour, tekst: c.ln && c.ln.presentation && c.ln.presentation.textColour, linjeId: c.ln && c.ln.id, modus: c.ln && c.ln.transportMode })
@@ -748,8 +754,77 @@ export function _renderArrBoardHtml() {
         ? '<span class="hn-arr-late">går før du er framme</span>' : '')
       + '</div>'
       + (c.quay && c.quay !== '?' ? '<div class="hn-arr-spor">spor ' + c.quay + '</div>' : '<div></div>')
-      + '</div>';
-  }).join('');
+      + '</div>'
+      + (åpen ? _overgangStoppHtml(c.journeyId) : '');
+  }).join('') + _fjernOvergangHtml();
+}
+
+/* ── OVERGANG LAGT TIL UNDERVEIS (v1.218.120) ─────────────────────────── */
+let _arrÅpen = null;            // turen som er foldet ut
+const _arrMeta = new Map();     // journeyId → meta | 'henter' | 'feil'
+export const OVERGANG_STOPP_VIS = 8;
+let _overgangAlle = false;
+
+/** Hvor ankomststoppet ditt står i turens stoppliste. Ren. */
+export function overgangFra(calls, ankomstNavn) {
+  const k = normStn(ankomstNavn || '');
+  return (calls || []).findIndex(c => normStn(c.name || '') === k);
+}
+
+function _overgangStoppHtml(jid) {
+  const m = _arrMeta.get(jid);
+  if (m === undefined || m === 'henter') return '<div class="hn-overgang">henter stopp …</div>';
+  if (m === 'feil' || !m) return '<div class="hn-overgang">fikk ikke stoppene</div>';
+  const fra = overgangFra(m.calls, state.jny && state.jny.dest);
+  if (fra < 0) return '<div class="hn-overgang">fant ikke ' + esc((state.jny && state.jny.dest) || 'stoppet') + ' på denne turen</div>';
+  const videre = m.calls.map((c, i) => ({ c, i })).slice(fra + 1);
+  const vis = _overgangAlle ? videre : videre.slice(0, OVERGANG_STOPP_VIS);
+  return '<div class="hn-overgang"><div class="hn-section-label">gå av ved …</div>'
+    + vis.map(({ c, i }) => '<button type="button" class="hn-overgang-stopp" data-jid="' + esc(jid) + '" data-fra="' + fra + '" data-til="' + i + '">'
+      + '<span>' + esc(c.name) + '</span><span>' + (c.expected || c.aimed ? clk(c.expected || c.aimed) : '') + '</span></button>').join('')
+    + (videre.length > vis.length ? '<button type="button" class="hn-overgang-flere">flere stopp · ' + (videre.length - vis.length) + '</button>' : '')
+    + '</div>';
+}
+function _fjernOvergangHtml() {
+  const legs = (state.jny && state.jny.legs) || [];
+  const siste = legs[legs.length - 1];
+  return siste && siste._forrige
+    ? '<button type="button" class="hn-overgang-fjern">fjern overgangen til ' + esc(siste.toStation) + '</button>' : '';
+}
+function _bindArrBoard(el) {
+  if (!el || el._bundet) return;
+  el._bundet = true;
+  const åpne = jid => {
+    _arrÅpen = _arrÅpen === jid ? null : jid;
+    _overgangAlle = false;
+    if (_arrÅpen && !_arrMeta.has(jid)) {
+      _arrMeta.set(jid, 'henter');
+      fetchJourneyMeta(jid).then(m => { _arrMeta.set(jid, m || 'feil'); _updateArrBoardSection(); },
+        () => { _arrMeta.set(jid, 'feil'); _updateArrBoardSection(); });
+    }
+    _updateArrBoardSection();
+  };
+  el.addEventListener('click', e => {
+    const stopp = e.target.closest('.hn-overgang-stopp');
+    if (stopp) {
+      const m = _arrMeta.get(stopp.dataset.jid);
+      if (m && m.calls && leggTilOvergang(state.jny, m, Number(stopp.dataset.fra), Number(stopp.dataset.til))) {
+        _arrÅpen = null; saveJny(); renderTrack();
+      }
+      return;
+    }
+    if (e.target.closest('.hn-overgang-flere')) { _overgangAlle = true; _updateArrBoardSection(); return; }
+    if (e.target.closest('.hn-overgang-fjern')) {
+      if (fjernOvergang(state.jny)) { saveJny(); renderTrack(); }
+      return;
+    }
+    const rad = e.target.closest('.hn-arr-trykk');
+    if (rad) åpne(rad.dataset.jid);
+  });
+  el.addEventListener('keydown', e => {
+    const rad = e.target.closest && e.target.closest('.hn-arr-trykk');
+    if (rad && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); åpne(rad.dataset.jid); }
+  });
 }
 
 function _updateArrBoardSection() {
@@ -766,6 +841,7 @@ function _addArrBoardSection(arrStation) {
   div.innerHTML = '<div class="hn-section-label">videre med kollektivt</div>'
     + '<div id="hn-arr-board">' + _renderArrBoardHtml() + '</div>';
   nb.parentNode.insertBefore(div, nb);
+  _bindArrBoard(document.getElementById('hn-arr-board'));
 }
 
 function _updateUserMarker() {

@@ -55,3 +55,18 @@ describe('justerbare tider (v1.218.132)', () => {
     settFraTid(0, '06:00');
   });
 });
+
+describe('langt trykk justerer tiden (v1.218.133)', () => {
+  const s = readFileSync('src/views/auto.js', 'utf8');
+  it('holdet åpner telefonens tidsvelger når fingeren slippes', () => {
+    expect(s).toMatch(/export const FRA_HOLD_MS = 550;/);
+    expect(s).toMatch(/addEventListener\('pointerup'[\s\S]{0,200}_åpneFraVelger\(el, v\)/);
+    expect(s).toMatch(/inp\.type = 'time'/);
+  });
+  it('lukking med ny verdi lagrer på samme sted som innstillingene, og velger tiden', () => {
+    expect(s).toMatch(/addEventListener\('change', \(\) => \{[\s\S]{0,200}settFraTid\(FRA_VALG\[plass\], inp\.value\);\s*settFraValg\(plass\);/);
+  });
+  it('et langt trykk er ikke et valg', () => {
+    expect(s).toMatch(/if \(_fraHold\.brukt\) \{ _fraHold\.brukt = false; e\.preventDefault\(\); return; \}/);
+  });
+});

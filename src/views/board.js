@@ -34,7 +34,7 @@ import { fetchInflight } from '../api/entur.js';
 import { belegg, beleggTekst, fraEntur } from '../api/belegg.js';
 import { SRC_LABEL } from '../api/posSource.js';
 import { hentStoppested, stoppestedKjent } from '../api/stoppested.js';
-import { SPOR_ZOOM, createMap, bindMapExpand, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby, drawLeg, drawJourneyPoints } from '../ui/map.js';
+import { SPOR_ZOOM, createMap, bindMapExpand, fitExpandedMap, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby, drawLeg, drawJourneyPoints } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _headingDeg, projectOnPath, pointAtDistance } from '../ui/path.js';
 import { _callTime, _callPoints, _interpolateVehiclePos, _interpolateOnPath } from '../api/forventetPos.js';
@@ -101,7 +101,10 @@ export function ankomstHtml(arrT, now, o) {
 import { decodePolyline } from '../ui/polyline.js';
 import { ensureApproach, approachPoints, approachKey, resetApproach } from '../api/approach.js';
 import { innganger, hentInnganger, valgtInngang } from '../api/innganger.js';
-import { leggTilLag, sett as settVerktøy } from '../ui/kartVerktoy.js';
+import { leggTilLag, sett as settVerktøy, leggTil as leggTilVerktøy, verktøyFlate } from '../ui/kartVerktoy.js';
+import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS } from '../ui/kartFokus.js';
+import { lastHånd } from '../haand.js';
+import { userLL } from '../geo.js';
 import { settStasjonAktiv, uthevAvgang } from '../ui/stasjonslag.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
@@ -587,8 +590,55 @@ function _ensureMap(pos) {
   const c = pos || geoFocus();
   _bMap.setView([c.lat, c.lon], 14);
   setTimeout(() => _bMap && _bMap.invalidateSize(), 100);
-  bindMapExpand(_bMap, mapEl, document.getElementById('board-map-expand'));
+  // SAMME KNAPPER SOM AUTO-REISE (v1.218.129). Bestilt: «La Rute kartet få
+  // samme zoom og kartstørrelsesknapper som Auto-reise. Og ta bort + og −.»
+  bindMapExpand(_bMap, mapEl, document.getElementById('board-map-expand'), {
+    syklus: RUTE_KART_FORMER, start: ruteKartForm(),
+    onToggle: (open, form) => {
+      fitExpandedMap(mapEl, open); settRuteKartForm(form);
+      setTimeout(() => { if (!_bMap) return; _bMap.invalidateSize(); _bFitted = false; if (_bKartFokus === 'oversikt') _bUserMoved = false; renderBoard(); }, 340);
+    },
+  });
+  settVerktøy(_bMap, 'inn', { skjult: true });
+  settVerktøy(_bMap, 'ut', { skjult: true });
+  _bKartFokus = 'oversikt';
+  leggTilVerktøy(_bMap, 'fokus', { påTrykk: () => { _bKartFokus = nesteFokus(_bKartFokus, KART_FOKUS); _brukRuteFokus(); } });
+  _tegnRuteFokus();
   return _bMap;
+}
+
+/* ── RUTE-KARTETS FORM OG ZOOMKNAPP (v1.218.129) ─────────────────────── */
+export const RUTE_KART_FORMER = ['kvadrat', 'bred', 'full'];
+const RUTE_FORM_KEY = 't.ruteKartForm';
+/** Bred som standard: nærmest det Rute-kartet var før. Fullskjerm huskes aldri. */
+export function ruteKartForm() { try { return storage.get(RUTE_FORM_KEY) === 'kvadrat' ? 'kvadrat' : 'bred'; } catch { return 'bred'; } }
+export function settRuteKartForm(f) { if (f === 'full') return; try { storage.set(RUTE_FORM_KEY, f === 'kvadrat' ? 'kvadrat' : 'bred'); } catch { /* */ } }
+let _bKartFokus = 'oversikt';
+/** Det Rute vet om utsnittene: deg, stoppet, og plattformen til første avgang. */
+export function ruteFokusData(dir, du, førsteAvgang) {
+  const stopp = dir && Number.isFinite(dir._fromLat) ? { lat: dir._fromLat, lon: dir._fromLon } : null;
+  const fp = førsteAvgang && førsteAvgang._legs && førsteAvgang._legs[0] && førsteAvgang._legs[0].fromPlace;
+  const plattform = fp && Number.isFinite(fp.latitude) ? { lat: fp.latitude, lon: fp.longitude } : null;
+  return { du: du || null, stopp, gang: [], inngang: null, plattform, plattformer: [] };
+}
+function _brukRuteFokus() {
+  if (!_bMap) return;
+  if (_bKartFokus === 'oversikt') { _bUserMoved = false; _bFitted = false; _tegnRuteFokus(); renderBoard(); return; }
+  const dir = config.dirs[state.dIdx];
+  const r = fokusRamme(_bKartFokus, ruteFokusData(dir, userLL(), (state.deps || [])[0]));
+  _tegnRuteFokus(r && r.ukjent);
+  if (!r) return;
+  _bUserMoved = true;
+  if (r.pts.length === 1) { _bMap.setView(r.pts[0], r.maksZoom); return; }
+  const vf = verktøyFlate(_bMap);
+  const side = vf && vf.r.width ? Math.round(vf.r.width + 24) : 40;
+  const venstre = lastHånd() === 'venstre';
+  _bMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [venstre ? side : 40, 40], paddingBottomRight: [venstre ? 40 : side, 40], maxZoom: r.maksZoom });
+}
+function _tegnRuteFokus(ukjent) {
+  if (!_bMap) return;
+  settVerktøy(_bMap, 'fokus', { ikon: FOKUS_IKON[_bKartFokus], tekst: fokusTekst(_bKartFokus, false).replace(/^\S+\s/, '') + (ukjent ? ' · spor ukjent' : ''),
+    merket: !!ukjent, aktiv: _bKartFokus !== 'oversikt' });
 }
 
 function renderBoardMap(pos, modes) {

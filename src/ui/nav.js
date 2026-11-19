@@ -3,7 +3,7 @@ import config from '../config.js';
 import { state } from '../state.js';
 import { addFav } from './favs.js';
 import { storage } from '../storage.js';
-import { fraTider, settFraTid } from '../fraTider.js';
+import { fraTider, settFraTid, KLOKKESLETT_VALG } from '../fraTider.js';
 import { renderBoardProfileSwitcher, setActiveRoute, syncRouteFields } from '../views/settings.js';
 import { loadAutoMode, saveAutoMode } from '../geo.js';
 import { loadReturn, returnDir, returnWindow, shouldSwitch, skipToday, loadSkip } from '../api/returnTrip.js';
@@ -261,6 +261,8 @@ export function tegnSkjermerIInnstillinger(el) {
   gr.querySelector('#pref-autoreise-meny').addEventListener('change', e => { settAutoReiseIMeny(e.target.checked); _renderNav(); });
   gr.querySelector('#pref-autotavle-meny').addEventListener('change', e => { settAutoTavleIMeny(e.target.checked); _renderNav(); });
   // AVGANGER ETTER (v1.218.132): de to hurtigvalgene, justerbare.
+  // Tatt bort med bryteren (v1.218.145).
+  if (!KLOKKESLETT_VALG) return;
   const ft = document.createElement('fieldset');
   ft.className = 'pref-meny pref-fra';
   const t = fraTider();

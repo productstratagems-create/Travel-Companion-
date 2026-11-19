@@ -69,7 +69,7 @@ import { leggTil as leggTilVerktøy, sett as settVerktøy, leggTilLag, verktøyF
 import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, plattformMedKode as _plattformMedKode } from '../api/quays.js';
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
-import { fraTider, settFraTid, fraDatoer, settFraDatoTid } from '../fraTider.js';
+import { fraTider, settFraTid, fraDatoer, settFraDatoTid, KLOKKESLETT_VALG } from '../fraTider.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
 import { nesteSvarFor, lærNesteSvar } from '../api/nesteSvar.js';
@@ -4058,6 +4058,7 @@ export function settFraModus(modus) {
   settFraValg(_fraModus === 'nå' ? null : _fraValg);
 }
 export function settFraValg(valg) {
+  if (!KLOKKESLETT_VALG) { valg = null; _fraModus = 'nå'; }   // v1.218.145: tatt bort
   _fraValg = FRA_VALG[valg] != null ? valg : null;
   if (_fraValg && _fraModus === 'nå') _fraModus = 'avgang';
   if (!_fraValg && _fraModus === 'ankomst') { /* ankomst uten tid: venter på tid */ }
@@ -4069,6 +4070,7 @@ export function settFraValg(valg) {
 }
 function _tegnFraValg() {
   if (typeof document === 'undefined') return;
+  if (!KLOKKESLETT_VALG) { const gml = _el('auto-fra'); if (gml) gml.remove(); return; }   // v1.218.145
   const body = _el('auto-body');
   if (!body || !body.parentNode) return;
   let el = _el('auto-fra');

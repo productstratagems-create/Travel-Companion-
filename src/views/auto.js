@@ -3128,6 +3128,26 @@ export function speiletOm(her, pts) {
 }
 
 /** Merkelappen: navn og gangtid, eller meter når gangtiden er ukjent. */
+/**
+ * Punktet halvveis langs en linje, målt i lengde langs linja — ikke midt
+ * mellom endene, for gangruta svinger (v1.218.135). Ren; [lat, lon].
+ */
+export function halvveis(pts) {
+  const p = (pts || []).map(x => Array.isArray(x) ? x : [x.lat, x.lon]).filter(x => x && Number.isFinite(x[0]));
+  if (!p.length) return null;
+  if (p.length === 1) return p[0];
+  const k = Math.cos(p[0][0] * Math.PI / 180);
+  const d = (a, b) => Math.hypot(a[0] - b[0], (a[1] - b[1]) * k);
+  let total = 0; for (let i = 1; i < p.length; i++) total += d(p[i - 1], p[i]);
+  let igjen = total / 2;
+  for (let i = 1; i < p.length; i++) {
+    const s = d(p[i - 1], p[i]);
+    if (s >= igjen && s > 0) { const t = igjen / s; return [p[i - 1][0] + (p[i][0] - p[i - 1][0]) * t, p[i - 1][1] + (p[i][1] - p[i - 1][1]) * t]; }
+    igjen -= s;
+  }
+  return p[p.length - 1];
+}
+
 export function gangLapp(s) {
   const w = walkMinsTo(s);
   return s.name + (w ? ' · ' + w.mins + ' min' : (s.distM != null ? ' · ' + s.distM + ' m' : ''));
@@ -3550,6 +3570,16 @@ function _renderMap() {
           const bx = el.getBoundingClientRect(), hindre = _kartHindre(el, bx);
           const av = z >= PLATTFORM_ZOOM_AUTO ? STOPP_LAPP_AVSTAND_NÆR : 8;
           const passer = r => { const [dx, dy] = lappForskyv(r, av); return lappPasser({ x: sp.x + dx, y: sp.y + dy }, sp, 150, 20, bx.width, bx.height, hindre, r); };
+          // HALVVEIS PÅ GANGRUTA (v1.218.135). Bestilt med skjermbilde: «Lappen
+          // # Mortensrud 12 min kan kanskje forankres til halvveien mellom brukers
+          // posisjon og stedet?» Lappen sier gangtiden, så den står på gangen.
+          const midt = sentrert && walkPts && walkPts.length >= 2 ? halvveis(walkPts) : null;
+          if (midt) {
+            const mp = _aMap.latLngToContainerPoint(midt);
+            const dx = Math.round(mp.x - sp.x), dy = Math.round(mp.y - sp.y), w = 150, h = 20;
+            if (z >= STOPP_LAPP_ZOOM) stoppHinder = { venstre: mp.x - w / 2, høyre: mp.x + w / 2, topp: mp.y - h / 2, bunn: mp.y + h / 2 };
+            return { className: lappKlasse, direction: 'center', offset: [dx, dy], permanent: z >= STOPP_LAPP_ZOOM };
+          }
           const side = stoppLappSide(sp, ender, passer);
           // Linjelappene skal ikke legge seg oppå denne (v1.218.66).
           if (sentrert && z >= STOPP_LAPP_ZOOM) {

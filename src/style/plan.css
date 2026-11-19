@@ -334,3 +334,12 @@
 .plan-gjenta-panel .auto-fra-knapp{font:inherit;font-size:.8rem;padding:.35rem .7rem;border-radius:999px;border:1px solid rgba(var(--accent-rgb),.3);background:none;color:var(--text-muted);cursor:pointer}
 .plan-gjenta-panel .auto-fra-knapp.valgt{background:rgba(var(--accent-rgb),.18);border-color:var(--accent);color:var(--accent)}
 .pctx-gjentak{color:var(--accent)}
+/* KNAPPENE I KORTETS HJØRNE MED LUFT (v1.218.168). Rapportert med skjermbilde:
+   «Recurring knappen er for tett på den andre knappen» — ↻ sto inntil 🔔 og
+   oppå «stenbråten». Tre knapper på rad med 2,8rem mellom, hver med et
+   trykkfelt på 44 px, og kortets innhold starter under raden. */
+.plan-leg-card { padding-top: 2.2rem; }
+.plan-leg-del { top: .35rem; right: .4rem; }
+.plan-leg-cal { top: .4rem; right: 3.2rem; }
+.plan-leg-gjenta { top: .3rem; right: 6rem; }
+.plan-leg-gjenta::after { content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }

@@ -595,20 +595,33 @@ export function userDot(layer, ll, opts = {}) {
   // DEN KJENTE PRIKKEN (v1.218.137): blå med hvit kant, ring for nøyaktigheten,
   // grå når posisjonen er gammel — som Google og Apple, så den leses uten
   // forklaring. Et sted du satte selv er ingen måling: ingen ring, aldri grå.
-  const manuell = opts.manuell != null ? opts.manuell : !!state.walkFromLL;
-  const st = prikkStil(manuell ? null : posState(posNå()), manuell);
   const grp = L.layerGroup();
-  if (st.ringM) {
-    L.circle([ll.lat, ll.lon], { radius: st.ringM, stroke: true, weight: 1, color: st.fyll, opacity: 0.35,
-      fillColor: st.fyll, fillOpacity: 0.12, interactive: false }).addTo(grp);
-  }
-  const m = L.circleMarker([ll.lat, ll.lon], {
-    radius, color: BRUKER_KANT, fillColor: st.fyll, fillOpacity: 1, weight: 2.5,
-    className: 'bruker-prikk' + (st.grå ? ' bruker-prikk-gammel' : ''),
-  }).addTo(grp);
-  const tekst = [tooltip, st.merk].filter(Boolean).join(' · ');
-  if (tekst) m.bindTooltip(tekst, { className: 'map-label', direction: 'bottom', offset: [0, 6] });
-  grp.setLatLng = (p) => { grp.eachLayer(l => l.setLatLng && l.setLatLng(p)); return grp; };
+  // Ringen finnes alltid, tom når den ikke skal vises, så en oppdatering kan
+  // slå den av og på uten å bygge prikken på nytt.
+  const ring = L.circle([ll.lat, ll.lon], { radius: 0, stroke: true, weight: 1, opacity: 0,
+    fillOpacity: 0, interactive: false }).addTo(grp);
+  const m = L.circleMarker([ll.lat, ll.lon], { radius, color: BRUKER_KANT, fillOpacity: 1, weight: 2.5 }).addTo(grp);
+  /** Stilen fra tilstanden NÅ. Kalles ved tegning og ved hver flytting
+   * (v1.218.138): Utforsk og Underveis flytter prikken i stedet for å tegne
+   * den på nytt, og da hang fargen og ringen igjen. */
+  const restil = () => {
+    const manuell = opts.manuell != null ? opts.manuell : !!state.walkFromLL;
+    const st = prikkStil(manuell ? null : posState(posNå()), manuell);
+    m.setStyle && m.setStyle({ fillColor: st.fyll, className: 'bruker-prikk' + (st.grå ? ' bruker-prikk-gammel' : '') });
+    if (ring.setRadius) ring.setRadius(st.ringM || 0);
+    if (ring.setStyle) ring.setStyle(st.ringM ? { color: st.fyll, opacity: 0.35, fillColor: st.fyll, fillOpacity: 0.12 } : { opacity: 0, fillOpacity: 0 });
+    const tekst = [tooltip, st.merk].filter(Boolean).join(' · ');
+    if (tekst) { if (m.setTooltipContent && m.getTooltip && m.getTooltip()) m.setTooltipContent(tekst); else m.bindTooltip(tekst, { className: 'map-label', direction: 'bottom', offset: [0, 6] }); }
+    grp._stil = st;
+  };
+  restil();
+  grp.setLatLng = (p) => { ring.setLatLng && ring.setLatLng(p); m.setLatLng && m.setLatLng(p); restil(); return grp; };
+  grp.restil = restil;
+  // OGSÅ NÅR INGENTING FLYTTER SEG: en GPS som har tiet kaller aldri
+  // setLatLng, og det er nettopp da prikken skal bli grå.
+  let tikk = null;
+  grp.on && grp.on('add', () => { clearInterval(tikk); tikk = setInterval(restil, PRIKK_TIKK_MS); });
+  grp.on && grp.on('remove', () => { clearInterval(tikk); tikk = null; });
   return grp.addTo(layer);
 }
 
@@ -618,6 +631,8 @@ export const BRUKER_GRÅ = '#9aa0a6';
 export const BRUKER_KANT = '#ffffff';
 /** Ringen tegnes ikke over dette: en ring større enn kartet sier ingenting. */
 export const RING_MAKS_M = 2000;
+/** Hvor ofte prikken ser på posisjonens alder selv. */
+export const PRIKK_TIKK_MS = 15_000;
 const GAMMEL = new Set(['gammel', 'borte', 'ukjent-alder', 'avslatt', 'utilgjengelig', 'tidsavbrudd']);
 
 /**

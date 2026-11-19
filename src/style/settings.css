@@ -1076,3 +1076,7 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
    var én rad uten bryting, så «menylinjen» ble 121 px og «hjemover» 53 px. */
 #pref-skjermer{flex-wrap:wrap}
 #pref-skjermer>fieldset{flex:1 1 100%;min-width:0;box-sizing:border-box}
+/* «Beste holdeplass?» under målkortet (v1.218.149). */
+#v-auto .auto-dest-rad{flex-wrap:wrap}
+#v-auto .auto-dest-gaa{flex:1 1 100%;order:3;font:inherit;font-size:.8rem;text-align:right;background:none;border:0;
+  color:var(--accent);padding:.3rem .2rem .5rem;cursor:pointer}

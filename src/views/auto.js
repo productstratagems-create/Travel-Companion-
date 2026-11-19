@@ -2036,9 +2036,20 @@ let _gåHitVis = null;       // målet hvis gangrute står på kartet
 let _gåHitSist = null;      // posisjonen ved forrige tegning
 /** Et sprang lenger enn dette mellom to tegninger er et hopp, ikke en gåtur. */
 export const GÅHIT_HOPP_M = 1000;
+/**
+ * BARE NÅR DU BER OM DET (v1.218.149). Rapportert: «Gå hit for å komme dit
+ * gir ingen mening. Gir ikke relevant råd» — søket gikk av seg selv til de
+ * to mest brukte målene, også Bergen sentrum fra Oslo. Valgt: rådet kommer
+ * bare når du trykker «beste holdeplass?» på et kort.
+ */
+export const GÅHIT_AUTO = false;
+const _gåHitBedt = new Map();   // målets stopId → navn
+export function gåHitMålNå(freq, bedt) {
+  return GÅHIT_AUTO ? gåHitMål(freq) : [...bedt.entries()].map(([stopId, name]) => ({ stopId, name }));
+}
 function _gåHitOppdater(pos, nå) {
   if (!pos) return;
-  gåHitMål(loadFreq('arr')).forEach(m => {
+  gåHitMålNå(loadFreq('arr'), _gåHitBedt).forEach(m => {
     const f = _gåHit.get(m.stopId);
     if (f && f.henter) return;
     if (!trengerNyttSøk(f, pos, nå, metresBetween)) return;
@@ -5335,16 +5346,21 @@ function _renderBody() {
   // GÅ HIT (v1.218.143): søk fra der du står, kort der rådet er et annet stopp.
   const _her = userLL();
   // Et hopp (testposisjonen byttet) tømmer alt: ingen råd fra forrige sted.
-  if (_her && _gåHitSist && metresBetween(_gåHitSist, _her) > GÅHIT_HOPP_M) { _gåHit.clear(); _gåHitVis = null; }
+  if (_her && _gåHitSist && metresBetween(_gåHitSist, _her) > GÅHIT_HOPP_M) { _gåHit.clear(); _gåHitVis = null; _gåHitBedt.clear(); }
   if (_her) _gåHitSist = { lat: _her.lat, lon: _her.lon };
   if (!_reiseInfo && !_lås && _her) _gåHitOppdater(_her, now);
   const nærIds = _stop ? knutepunkt(_stop, _stops()).map(s => s.id) : [];
   const gåKort = (_reiseInfo || _lås) ? [] : [..._gåHit.entries()]
-    .filter(([, v]) => rådGjelder(v, _her, _stop, metresBetween) && annetStopp(v.råd, nærIds)).map(([id, v]) => ({ id, navn: v.navn, råd: v.råd }));
+    .filter(([id, v]) => (GÅHIT_AUTO || _gåHitBedt.has(id)) && rådGjelder(v, _her, _stop, metresBetween)
+      && (!GÅHIT_AUTO || annetStopp(v.råd, nærIds))).map(([id, v]) => ({ id, navn: v.navn, råd: v.råd }));
   const gåNavn = new Set(gåKort.map(k => stopKey(k.navn)));
   // Målene gå-hit-kortene alt svarer for, står ikke to ganger.
-  const destsHer = dests.filter(x => !gåNavn.has(stopKey(x.name)));
-  if (_gåHitVis && !gåKort.some(k => k.id === _gåHitVis)) _gåHitVis = null;
+  // Bedt om (v1.218.149): kortet står, med knappen som skjuler rådet igjen.
+  const destsHer = GÅHIT_AUTO ? dests.filter(x => !gåNavn.has(stopKey(x.name))) : dests;
+  // Si hva du ikke vet: et råd du har bedt om, som ikke er her ennå.
+  const gåVenter = GÅHIT_AUTO ? [] : [..._gåHitBedt.entries()].filter(([id]) => !gåKort.some(k => k.id === id))
+    .map(([id, navn]) => { const v = _gåHit.get(id); return navn + ': ' + (v && v.feil ? 'fant ikke noe råd' : v && !v.henter && v.pos ? 'ingen reise funnet herfra' : 'leter etter beste holdeplass …'); });
+  if (_gåHitVis && !gåKort.some(k => k.id === _gåHitVis) && !_gåHitBedt.has(_gåHitVis)) _gåHitVis = null;   // venter på svaret
   const destBody = _el('auto-dest-body');
   if (destBody) {
     destBody.innerHTML = _reiseInfo
@@ -5363,7 +5379,8 @@ function _renderBody() {
       : erReiseStartet(state.jny, state.route, now)
         ? (dests.length ? '<details class="auto-andre-mål"><summary class="auto-side">andre mål · ' + dests.length + '</summary>'
           + dests.map(destHtml).join('') + '</details>' : '')
-      : (gåKort.length ? '<div class="set-label">gå hit for å komme dit</div>' + gåHitKortHtml(gåKort, now) : '')
+      : ((gåKort.length || gåVenter.length) ? '<div class="set-label">beste holdeplass</div>' + gåHitKortHtml(gåKort, now)
+        + gåVenter.map(t => '<div class="dest-prev-empty">' + esc(t) + '</div>').join('') : '')
       + (destsHer.length
         // Overskriften sier hva kortene bygger på (v1.218.97): en vane nå,
         // eller bare steder du har reist til før. Bare over kort som står der.
@@ -5552,6 +5569,13 @@ function _renderBody() {
    * fallback som aldri kan hjelpe er bare støy som ser ut som forsiktighet. */
   _gjenopprettSlett(destBody);
   _bindKort(destBody, dests);
+  if (destBody) destBody.querySelectorAll('[data-gaa-be]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const id = b.dataset.gaaBe;
+    if (_gåHitBedt.has(id)) { _gåHitBedt.delete(id); _gåHit.delete(id); if (_gåHitVis === id) _gåHitVis = null; }
+    else { _gåHitBedt.set(id, b.dataset.gaaNavn); _gåHitVis = id; _aUserMoved = false; }
+    _aKey = ''; _renderBody();
+  }));
   if (destBody) destBody.querySelectorAll('.auto-gaa').forEach(b => b.addEventListener('click', () => {
     // Et nytt valg er en ny ramme, også om du har dratt i kartet før.
     _gåHitVis = _gåHitVis === b.dataset.gaa ? null : b.dataset.gaa; _aKey = ''; _aUserMoved = false; _renderBody();
@@ -5905,6 +5929,9 @@ export function kortHtml(x, n) {
     + '<button class="auto-dest-del" type="button" data-glem="' + esc(x.name) + '"'
     + (x.id ? ' data-glem-id="' + esc(x.id) + '"' : '')
     + ' aria-label="' + esc('Glem ' + x.name) + '">\u00d7</button>'
+    // GÅ HIT NÅR DU BER OM DET (v1.218.149): ett søk for dette målet.
+    + (x.id ? '<button class="auto-dest-gaa" type="button" data-gaa-be="' + esc(x.id) + '" data-gaa-navn="' + esc(x.name) + '"'
+      + ' aria-pressed="' + _gåHitBedt.has(x.id) + '">' + (_gåHitBedt.has(x.id) ? 'skjul holdeplassråd' : '\u{1F6B6} beste holdeplass?') + '</button>' : '')
     + '</span>';
 }
 

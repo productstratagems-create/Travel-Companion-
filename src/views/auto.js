@@ -6041,10 +6041,12 @@ export function kortHtml(x, n) {
     + '<button class="auto-dest-del" type="button" data-glem="' + esc(x.name) + '"'
     + (x.id ? ' data-glem-id="' + esc(x.id) + '"' : '')
     + ' aria-label="' + esc('Glem ' + x.name) + '">\u00d7</button>'
+    + '</span>'
     // GÅ HIT NÅR DU BER OM DET (v1.218.149): ett søk for dette målet.
+    // UTENFOR raden (v1.218.157): inni den brøt raden til to linjer, og
+    // den skjulte ×-en sto synlig alene på den andre.
     + (x.id ? '<button class="auto-dest-gaa" type="button" data-gaa-be="' + esc(x.id) + '" data-gaa-navn="' + esc(x.name) + '"'
-      + ' aria-pressed="' + _gåHitBedt.has(x.id) + '">' + (_gåHitBedt.has(x.id) ? 'skjul holdeplassråd' : '\u{1F6B6} beste holdeplass?') + '</button>' : '')
-    + '</span>';
+      + ' aria-pressed="' + _gåHitBedt.has(x.id) + '">' + (_gåHitBedt.has(x.id) ? 'skjul holdeplassråd' : '\u{1F6B6} beste holdeplass?') + '</button>' : '');
 }
 
 /**

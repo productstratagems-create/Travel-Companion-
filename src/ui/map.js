@@ -602,17 +602,23 @@ export function userDot(layer, ll, opts = {}) {
   const pane = brukerLag(layer);
   // Ringen finnes alltid, tom når den ikke skal vises, så en oppdatering kan
   // slå den av og på uten å bygge prikken på nytt.
-  const iLag = pane ? { pane } : {};
+  // FAST I KARTET (v1.218.166). Rapportert: «Gps pos markøren er ikke festet til
+  // kartet så posisjonen endres når man panorerer kartet.» En SVG-prikk i et
+  // lag rett i mapPane fulgte ikke leaflet-rotate sin panorering. Prikken er
+  // nå en DOM-markør i brukerlaget inne i norotatePane, som stoppikonene;
+  // ringen (meter) blir i overlayPane, som følger kartet.
   const ring = L.circle([ll.lat, ll.lon], { radius: 0, stroke: true, weight: 1, opacity: 0,
-    fillOpacity: 0, interactive: false, ...iLag }).addTo(grp);
-  const m = L.circleMarker([ll.lat, ll.lon], { radius, color: BRUKER_KANT, fillOpacity: 1, weight: 2.5, ...iLag }).addTo(grp);
+    fillOpacity: 0, interactive: false }).addTo(grp);
+  const m = L.marker([ll.lat, ll.lon], { icon: prikkIkon(BRUKER_BLÅ, false, radius), keyboard: false, ...(pane ? { pane } : {}) }).addTo(grp);
+  let sistIkon = BRUKER_BLÅ + '|false';
   /** Stilen fra tilstanden NÅ. Kalles ved tegning og ved hver flytting
    * (v1.218.138): Utforsk og Underveis flytter prikken i stedet for å tegne
    * den på nytt, og da hang fargen og ringen igjen. */
   const restil = () => {
     const manuell = opts.manuell != null ? opts.manuell : !!state.walkFromLL;
     const st = prikkStil(manuell ? null : posState(posNå()), manuell);
-    m.setStyle && m.setStyle({ fillColor: st.fyll, className: 'bruker-prikk' + (st.grå ? ' bruker-prikk-gammel' : '') });
+    const nøkkel = st.fyll + '|' + st.grå;
+    if (nøkkel !== sistIkon && m.setIcon) { sistIkon = nøkkel; m.setIcon(prikkIkon(st.fyll, st.grå, radius)); }
     if (ring.setRadius) ring.setRadius(st.ringM || 0);
     if (ring.setStyle) ring.setStyle(st.ringM ? { color: st.fyll, opacity: 0.35, fillColor: st.fyll, fillOpacity: 0.12 } : { opacity: 0, fillOpacity: 0 });
     const tekst = [tooltip, st.merk].filter(Boolean).join(' · ');
@@ -630,6 +636,13 @@ export function userDot(layer, ll, opts = {}) {
   return grp.addTo(layer);
 }
 
+/** Prikken som DOM-ikon: fylt sirkel med hvit kant, diameter 2·radius. */
+export function prikkIkon(fyll, grå, radius = 7) {
+  const d = radius * 2;
+  return L.divIcon({ className: 'bruker-prikk' + (grå ? ' bruker-prikk-gammel' : ''), iconSize: [d, d], iconAnchor: [radius, radius],
+    html: '<span style="display:block;width:' + d + 'px;height:' + d + 'px;border-radius:50%;box-sizing:border-box;background:' + fyll
+      + ';border:2.5px solid ' + BRUKER_KANT + ';box-shadow:0 0 3px rgba(0,0,0,.45)"></span>', fyll });
+}
 /** Laget prikken ligger i: over markører (600) og lapper (650), under popups (700). */
 export const BRUKER_LAG = 'bruker';
 export const BRUKER_LAG_Z = 660;
@@ -638,7 +651,9 @@ export function brukerLag(layer) {
   const kart = layer && (typeof layer.createPane === 'function' ? layer : layer._map);
   if (!kart || typeof kart.getPane !== 'function') return null;
   if (!kart.getPane(BRUKER_LAG)) {
-    const p = kart.createPane(BRUKER_LAG);
+    // INNE I norotatePane (v1.218.166), der markørene er, så laget følger
+    // panorering og rotasjon. Uten leaflet-rotate: kartets vanlige plass.
+    const p = kart.createPane(BRUKER_LAG, kart._norotatePane || undefined);
     p.style.zIndex = String(BRUKER_LAG_Z);
     p.style.pointerEvents = 'none';   // trykk går gjennom laget; prikken selv tar dem
   }

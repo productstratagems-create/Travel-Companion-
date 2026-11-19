@@ -28,7 +28,7 @@ import { stoppestedKjent, hentStoppested } from '../api/stoppested.js';
 import { show } from '../ui/nav.js';
 import { startBoard, boardRows, RUTE_KART_FORMER, ruteFokusData } from './board.js';
 import { kartForm, settKartForm } from '../ui/kartVerktoy.js';
-import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS } from '../ui/kartFokus.js';
+import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS, detaljFokusData } from '../ui/kartFokus.js';
 /** Avgangsdetalj-kartets form (v1.218.163), samme regel som Rute og Underveis. */
 export const DETALJ_FORM_KEY = 't.detaljKartForm';
 let _selFokus = 'oversikt';
@@ -769,7 +769,9 @@ function _renderSelMap(dep, fromName, toName, now) {
       const hele = (_selGeo && _selGeo.alt.length ? _selGeo.alt : _selFrame).concat(_selGå);
       if (hele.length) _selMap.fitBounds(hele, { padding: [pad, pad], maxZoom: 15 });
     } else {
-      const r = fokusRamme(_selFokus, ruteFokusData(dir, userLL(), dep));
+      // FRA AVGANGEN SELV (v1.218.165): ruta på Rute er ikke nødvendigvis denne
+      // avgangens, og uten stoppets koordinat gjorde «vei» ingenting.
+      const r = fokusRamme(_selFokus, detaljFokusData(dep, userLL(), _selGå));
       if (r) { if (r.pts.length === 1) _selMap.setView(r.pts[0], r.maksZoom); else _selMap.fitBounds(L.latLngBounds(r.pts), { padding: [pad, pad], maxZoom: r.maksZoom }); }
     }
     _tegnSelFokus();

@@ -26,7 +26,12 @@ import { reiselop, kartPunkter, kartUtsnitt } from '../ui/reiselop.js';
 import { visStopp } from '../stopId.js';
 import { stoppestedKjent, hentStoppested } from '../api/stoppested.js';
 import { show } from '../ui/nav.js';
-import { startBoard, boardRows } from './board.js';
+import { startBoard, boardRows, RUTE_KART_FORMER, ruteFokusData } from './board.js';
+import { kartForm, settKartForm } from '../ui/kartVerktoy.js';
+import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS } from '../ui/kartFokus.js';
+/** Avgangsdetalj-kartets form (v1.218.163), samme regel som Rute og Underveis. */
+export const DETALJ_FORM_KEY = 't.detaljKartForm';
+let _selFokus = 'oversikt';
 import { renderAlertsInto } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
@@ -737,7 +742,27 @@ function _renderSelMap(dep, fromName, toName, now) {
   }
   setTimeout(() => _selMap && _selMap.invalidateSize(), 100);
 
-  bindMapExpand(_selMap, mapEl, document.getElementById('sel-map-expand'), { onToggle: (open) => fitExpandedMap(mapEl, open) });
+  // SAMME KNAPPER SOM RUTE (v1.218.163): kvadrat · bred · full, uten + og −,
+  // og fokusknappen (oversikt · vei · spor).
+  bindMapExpand(_selMap, mapEl, document.getElementById('sel-map-expand'), {
+    syklus: RUTE_KART_FORMER, start: kartForm(DETALJ_FORM_KEY),
+    onToggle: (open, form) => { fitExpandedMap(mapEl, open); settKartForm(DETALJ_FORM_KEY, form); setTimeout(() => _selMap && _selMap.invalidateSize(), 340); },
+  });
+  settVerktøy(_selMap, 'inn', { skjult: true });
+  settVerktøy(_selMap, 'ut', { skjult: true });
+  _selFokus = 'oversikt';
+  leggTilVerktøy(_selMap, 'fokus', { påTrykk: () => {
+    _selFokus = nesteFokus(_selFokus, KART_FOKUS);
+    if (_selFokus === 'oversikt') {
+      const hele = (_selGeo && _selGeo.alt.length ? _selGeo.alt : _selFrame).concat(_selGå);
+      if (hele.length) _selMap.fitBounds(hele, { padding: [pad, pad], maxZoom: 15 });
+    } else {
+      const r = fokusRamme(_selFokus, ruteFokusData(dir, userLL(), dep));
+      if (r) { if (r.pts.length === 1) _selMap.setView(r.pts[0], r.maksZoom); else _selMap.fitBounds(L.latLngBounds(r.pts), { padding: [pad, pad], maxZoom: r.maksZoom }); }
+    }
+    settVerktøy(_selMap, 'fokus', { ikon: FOKUS_IKON[_selFokus], tekst: fokusTekst(_selFokus, false).replace(/^\S+\s/, ''), aktiv: _selFokus !== 'oversikt' });
+  } });
+  settVerktøy(_selMap, 'fokus', { ikon: FOKUS_IKON[_selFokus], tekst: fokusTekst(_selFokus, false).replace(/^\S+\s/, ''), aktiv: false });
   _selVehicle(dep, legs, now);
 }
 

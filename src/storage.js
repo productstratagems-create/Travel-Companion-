@@ -47,6 +47,8 @@ const ALL_KEYS = [
   't.ruteKartForm',
   // Underveis-kartets form (v1.218.154). Nivå 1.
   't.underveisKartForm',
+  // Avgangsdetalj-kartets form (v1.218.163). Nivå 1.
+  't.detaljKartForm',
   // Auto-reise valgt bort fra menylinjen (v1.218.125). Nivå 1.
   't.autoReiseIMeny',
   // Linjene du har skjult i kartets lag-panel (v1.218.110). Nivå 1.

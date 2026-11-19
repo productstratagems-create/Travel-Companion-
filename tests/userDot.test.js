@@ -25,6 +25,8 @@ const made = [];
 vi.mock('leaflet', () => ({
   default: {
     map: vi.fn(), tileLayer: vi.fn(), control: {},
+    layerGroup: () => { const g = { lag: [], addTo() { return g; }, eachLayer(f) { g.lag.forEach(f); } }; return g; },
+    circle: (ll, opts) => { const c = { ll, opts, ring: true, addTo() { return c; } }; made.push(c); return c; },
     circleMarker: (ll, opts) => {
       const m = {
         ll, opts, tooltip: null,
@@ -42,7 +44,10 @@ vi.mock('../src/ui/themeTokens.js', () => ({
   tokens: () => ({ mapInk: '#05070d', mapYou: '#facc15', accent: '#f59e0b' }),
 }));
 
-import { userDot } from '../src/ui/map.js';
+vi.mock('../src/geo.js', () => ({ posNå: () => globalThis.__pos }));
+globalThis.__pos = { asked: true, homeLL: { lat: 59.9, lon: 10.8 }, posAt: Date.now(), acc: null };
+import { userDot, prikkStil, BRUKER_BLÅ, BRUKER_GRÅ, RING_MAKS_M } from '../src/ui/map.js';
+const prikk = () => made.find(m => !m.ring);
 
 /** The blue that meant both "you" and "your destination". */
 const DEST_BLUE = '#60a5fa';
@@ -51,35 +56,35 @@ describe('userDot', () => {
   it('fills with the colour reserved for you', () => {
     made.length = 0;
     userDot({}, { lat: 59.9, lon: 10.8 });
-    expect(made[0].opts.fillColor).toBe('#facc15');
+    expect(prikk().opts.fillColor).toBe(BRUKER_BLÅ);
   });
 
   // The assertion this function exists for.
   it('is not the destination-pin blue', () => {
     made.length = 0;
     userDot({}, { lat: 59.9, lon: 10.8 });
-    expect(made[0].opts.fillColor).not.toBe(DEST_BLUE);
-    expect(made[0].opts.color).not.toBe(DEST_BLUE);
+    expect(prikk().opts.fillColor).not.toBe(DEST_BLUE);
+    expect(prikk().opts.color).not.toBe(DEST_BLUE);
   });
 
   it('says what it is', () => {
     made.length = 0;
     userDot({}, { lat: 59.9, lon: 10.8 });
-    expect(made[0].tooltip).toBe('Din posisjon');
+    expect(prikk().tooltip).toBe('Din posisjon');
   });
 
   it('takes the position it was given', () => {
     made.length = 0;
     userDot({}, { lat: 59.91, lon: 10.75 });
-    expect(made[0].ll).toEqual([59.91, 10.75]);
+    expect(prikk().ll).toEqual([59.91, 10.75]);
   });
 
   // track.js and selected.js draw a smaller dot where the map is denser.
   it('allows a smaller radius without changing the colour', () => {
     made.length = 0;
     userDot({}, { lat: 59.9, lon: 10.8 }, { radius: 6 });
-    expect(made[0].opts.radius).toBe(6);
-    expect(made[0].opts.fillColor).toBe('#facc15');
+    expect(prikk().opts.radius).toBe(6);
+    expect(prikk().opts.fillColor).toBe(BRUKER_BLÅ);
   });
 });
 
@@ -106,5 +111,35 @@ describe('no view hardcodes the user dot', () => {
   it('the one place that says it is the shared helper', () => {
     const map = fs.readFileSync(path.resolve(__dirname, '../src/ui/map.js'), 'utf8');
     expect(map).toContain('Din posisjon');
+  });
+});
+
+// ── v1.218.137: den kjente prikken ───────────────────────────────────────
+describe('blå prikk, usikkerhetsring, grå når gammel', () => {
+  it('blå med hvit kant', () => {
+    made.length = 0; globalThis.__pos = { asked: true, homeLL: { lat: 59.9, lon: 10.8 }, posAt: Date.now(), acc: null };
+    userDot({}, { lat: 59.9, lon: 10.8 });
+    expect(prikk().opts.fillColor).toBe('#4285f4');
+    expect(prikk().opts.color).toBe('#ffffff');
+  });
+  it('ringen er nøyaktigheten i meter', () => {
+    made.length = 0; globalThis.__pos = { asked: true, homeLL: { lat: 59.9, lon: 10.8 }, posAt: Date.now(), acc: 35 };
+    userDot({}, { lat: 59.9, lon: 10.8 });
+    expect(made.find(m => m.ring).opts.radius).toBe(35);
+    expect(prikk().tooltip).toBe('Din posisjon · ±35 m');
+  });
+  it('gammel posisjon: grå, ingen ring, og lappen sier hvor gammel', () => {
+    made.length = 0; globalThis.__pos = { asked: true, homeLL: { lat: 59.9, lon: 10.8 }, posAt: Date.now() - 3 * 60_000, acc: 35 };
+    userDot({}, { lat: 59.9, lon: 10.8 });
+    expect(prikk().opts.fillColor).toBe(BRUKER_GRÅ);
+    expect(made.some(m => m.ring)).toBe(false);
+    expect(prikk().tooltip).toMatch(/3 min gammel/);
+  });
+  it('et sted du satte selv: blå, ingen ring, aldri grå', () => {
+    expect(prikkStil({ kind: 'gammel', acc: 30, label: 'x' }, true)).toEqual({ fyll: BRUKER_BLÅ, grå: false, ringM: null, merk: 'satt av deg' });
+  });
+  it('en ring større enn RING_MAKS_M tegnes ikke', () => {
+    expect(prikkStil({ kind: 'ok', acc: RING_MAKS_M + 1, label: '' }).ringM).toBe(null);
+    expect(prikkStil({ kind: 'framskrevet', acc: null, label: 'anslått posisjon (±80 m)' }).ringM).toBe(80);
   });
 });

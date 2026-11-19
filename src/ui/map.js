@@ -6,6 +6,9 @@ import { makeRouteStopIcon, makeJourneyPointIcon } from './mapIcons.js';
 import { festStasjonslag } from './stasjonslag.js';
 import { leggTil } from './kartVerktoy.js';
 import { lastHånd, skalaHjørne } from '../haand.js';
+import { state } from '../state.js';
+import { posNå } from '../geo.js';
+import { posState } from '../position.js';
 
 /**
  * One place that owns basemap tiles, map init options and the live-map
@@ -589,14 +592,44 @@ export function drawStopLine(layer, stops, opts = {}) {
  */
 export function userDot(layer, ll, opts = {}) {
   const { radius = 7, tooltip = 'Din posisjon' } = opts;
-  const m = L.circleMarker([ll.lat, ll.lon], {
-    radius, color: tokens().mapInk, fillColor: tokens().mapYou,
-    fillOpacity: 1, weight: 2.5,
-  });
-  if (tooltip) {
-    m.bindTooltip(tooltip, { className: 'map-label', direction: 'bottom', offset: [0, 6] });
+  // DEN KJENTE PRIKKEN (v1.218.137): blå med hvit kant, ring for nøyaktigheten,
+  // grå når posisjonen er gammel — som Google og Apple, så den leses uten
+  // forklaring. Et sted du satte selv er ingen måling: ingen ring, aldri grå.
+  const manuell = opts.manuell != null ? opts.manuell : !!state.walkFromLL;
+  const st = prikkStil(manuell ? null : posState(posNå()), manuell);
+  const grp = L.layerGroup();
+  if (st.ringM) {
+    L.circle([ll.lat, ll.lon], { radius: st.ringM, stroke: true, weight: 1, color: st.fyll, opacity: 0.35,
+      fillColor: st.fyll, fillOpacity: 0.12, interactive: false }).addTo(grp);
   }
-  return m.addTo(layer);
+  const m = L.circleMarker([ll.lat, ll.lon], {
+    radius, color: BRUKER_KANT, fillColor: st.fyll, fillOpacity: 1, weight: 2.5,
+    className: 'bruker-prikk' + (st.grå ? ' bruker-prikk-gammel' : ''),
+  }).addTo(grp);
+  const tekst = [tooltip, st.merk].filter(Boolean).join(' · ');
+  if (tekst) m.bindTooltip(tekst, { className: 'map-label', direction: 'bottom', offset: [0, 6] });
+  grp.setLatLng = (p) => { grp.eachLayer(l => l.setLatLng && l.setLatLng(p)); return grp; };
+  return grp.addTo(layer);
+}
+
+/** Fargene for «deg», faste på tvers av tema: konvensjonen er det som leses. */
+export const BRUKER_BLÅ = '#4285f4';
+export const BRUKER_GRÅ = '#9aa0a6';
+export const BRUKER_KANT = '#ffffff';
+/** Ringen tegnes ikke over dette: en ring større enn kartet sier ingenting. */
+export const RING_MAKS_M = 2000;
+const GAMMEL = new Set(['gammel', 'borte', 'ukjent-alder', 'avslatt', 'utilgjengelig', 'tidsavbrudd']);
+
+/**
+ * Hvordan prikken tegnes for en posisjonstilstand (posState). Ren.
+ * → { fyll, grå, ringM (meter eller null), merk (tekst til lappen) }
+ */
+export function prikkStil(ps, manuell = false) {
+  if (manuell || !ps) return { fyll: BRUKER_BLÅ, grå: false, ringM: null, merk: manuell ? 'satt av deg' : '' };
+  const grå = GAMMEL.has(ps.kind);
+  const sigma = ps.kind === 'framskrevet' ? Number((ps.label.match(/±(\d+)/) || [])[1]) : ps.acc;
+  const ringM = !grå && Number.isFinite(sigma) && sigma > 0 && sigma <= RING_MAKS_M ? sigma : null;
+  return { fyll: grå ? BRUKER_GRÅ : BRUKER_BLÅ, grå, ringM, merk: grå ? ps.label : (ringM ? '±' + Math.round(ringM) + ' m' : '') };
 }
 
 /** Swap every live map onto the tile set matching the current theme. */

@@ -1040,3 +1040,17 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .auto-fra-knapp.holder{transform:scale(1.06);box-shadow:0 0 0 3px rgba(var(--accent-rgb),.35)}
 .auto-fra-knapp{-webkit-touch-callout:none;user-select:none;touch-action:manipulation}
 .auto-fra-velger{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
+/* TROMMELEN (v1.218.139): tidene på et retningskort rulles mot venstre.
+   Tre i vinduet, kantene tonet ut som en trommel som bøyer seg bort. */
+#v-auto .auto-trommel{display:inline-flex;align-items:baseline;white-space:nowrap;max-width:22ch;
+  overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;scrollbar-width:none;
+  touch-action:pan-x;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;}
+#v-auto .auto-trommel.mer-hoyre{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 2.4ch),transparent 100%);mask-image:linear-gradient(to right,#000 calc(100% - 2.4ch),transparent 100%)}
+#v-auto .auto-trommel.mer-venstre{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 2ch);mask-image:linear-gradient(to right,transparent 0,#000 2ch)}
+#v-auto .auto-trommel.mer-venstre.mer-hoyre{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 2ch,#000 calc(100% - 2.4ch),transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 2ch,#000 calc(100% - 2.4ch),transparent 100%)}
+#v-auto .auto-trommel::-webkit-scrollbar{display:none}
+#v-auto .auto-trommel>span:not(.auto-t-sep){scroll-snap-align:start}
+@supports (animation-timeline: view(inline)){
+  #v-auto .auto-trommel>span:not(.auto-t-sep){animation:trommel-kant linear both;animation-timeline:view(inline)}
+  @keyframes trommel-kant{0%{transform:scaleX(.55);opacity:.35}12%,88%{transform:none;opacity:1}100%{transform:scaleX(.55);opacity:.35}}
+}

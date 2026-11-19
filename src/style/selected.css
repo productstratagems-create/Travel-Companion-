@@ -243,7 +243,12 @@
 /* A BAND, and 130px is a measurement: v1.103.1 shrank it so «reis» clears
    the bottom menu without moving anything. It is not the full height minus a
    bit — it is what was left. */
-#sel-map{--map-h:130px}
+/* Som Rute (v1.218.163): kvadrat, bred, fullskjerm. Båndet på 130 px var
+   målt for å la «reis» ligge over menyen; raden er sticky nå, og kartet står
+   over svaret. Foldet: #sel-map{--map-h:130px} */
+#sel-map{height:auto;aspect-ratio:1 / 1}
+#sel-map.form-bred{aspect-ratio:16 / 9}
+#sel-map.expanded{aspect-ratio:auto;height:var(--map-h-open)}
 .sel-stop-label{font-size:10px;background:var(--surface-2);border:1px solid rgba(var(--border-rgb),.25);color:var(--accent);padding:1px 4px;border-radius:3px;white-space:nowrap}
 
 /* ── Forrige · reis · neste ───────────────────────────────────────────

@@ -34,7 +34,7 @@ describe('det faste nederst', () => {
 describe('begge skjermene bruker regelen', () => {
   it.each(['src/views/selected.js', 'src/views/track.js'])('%s', (f) => {
     // v1.218.154: underveis har formsyklusen som Rute; regelen er fortsatt fitExpandedMap.
-    if (f.endsWith('track.js')) { expect(readFileSync(f, 'utf8')).toMatch(/onToggle: \(open, form\) => \{\s*fitExpandedMap\(mapEl, open\);/); return; }
+    if (f.endsWith('track.js') || f.endsWith('selected.js')) { expect(readFileSync(f, 'utf8')).toMatch(/onToggle: \(open, form\) => \{\s*fitExpandedMap\(mapEl, open\);/); return; }
     // v1.218.74: underveis gjør i tillegg lukkingen fra stripen; regelen er fortsatt fitExpandedMap.
     expect(readFileSync(f, 'utf8')).toMatch(/bindMapExpand\([^;]*\{ onToggle: \(open\) => (fitExpandedMap\(mapEl, open\) \}\)|\{\s*fitExpandedMap\(mapEl, open\);)/);
   });

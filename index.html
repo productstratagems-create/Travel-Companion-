@@ -160,11 +160,14 @@
     <button class="nav-plan-btn" id="s-plan-btn" aria-label="Reiseplan" hidden>📋</button>
       <button class="hdr-more-btn" data-more type="button" aria-haspopup="true" aria-expanded="false" aria-label="Mer">⋮</button>
   </div>
-  <div id="s-content"></div>
+  <!-- KARTET ØVERST, SOM PÅ RUTE (v1.218.163): under knapperaden ble det
+       borte bak den. Rapportert: «Kartet i avgangsdetaljer forsvinner bak
+       knapperaden. Og kartet bør være likt som for Rute-siden.» -->
   <div class="map-wrap" id="sel-map-wrap" style="display:none">
     <div id="sel-map" class="map-expandable"></div>
     <button class="map-expand-btn" id="sel-map-expand" aria-label="Utvid kart" title="Utvid kart">⤢</button>
   </div>
+  <div id="s-content"></div>
   <!-- Meldingene om DENNE avgangen (v1.218.35): under svaret og kartet, ikke over
        dem — og ikke mellom svaret og REIS.
        Fortsatt filtrert til linja, turen og stoppene (renderAlertsInto). -->

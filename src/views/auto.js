@@ -251,6 +251,8 @@ export function groupDirections(calls, now) {
         alleInnstilt: går.length === 0,
         mins: Math.round((første.ms - t0) / MIN),
         times: calls.slice(0, 3).map(x => x.ms),
+        // TROMMELEN (v1.218.139): alle tidene, så raden kan rulles videre.
+        alleTider: calls.slice(0, TROMMEL_MAKS).map(x => x.ms),
         // Hvilke av tidene over som er innstilt, slått opp på VERDI. Et
         // parallelt array av sannhetsverdier ville vært to lister som måtte
         // holdes i takt — og en sortering av den ene uten den andre ville
@@ -4353,8 +4355,23 @@ if (typeof document !== 'undefined') {
 /** Fra så mange minutter står klokkeslettet i stedet for minuttene (v1.218.36). */
 export const KLOKKE_FRA_MIN = 15;
 
-export function _timesHtml(d, now, walkMins) {
-  const raw = (d.times && d.times.length) ? d.times : null;
+/**
+ * TROMMELEN (v1.218.139). Bestilt med skjermbilde: «avgangstidene på hvert
+ * kort kan roteres som om de gikk på en trommel som kan roteres mot venstre».
+ * Tre tider står i vinduet som før; sveip mot venstre ruller de neste inn.
+ */
+export const TROMMEL_SYNLIG = 3;
+export const TROMMEL_SVEIP_MS = 350;
+const _trommelPos = new Map();
+let _trommelStopp = null, _trommelSveip = 0;
+/** Radens nøkkel for rulleposisjonen: linje og retning, ikke plass i lista. */
+export function trommelNøkkel(d) {
+  return ((d.lines || []).map(l => l.code || l.id).join('+')) + '>' + (d.frontText || '');
+}
+export const TROMMEL_MAKS = 12;
+export function _timesHtml(d, now, walkMins, opt = {}) {
+  const kilde = opt.trommel && d.alleTider && d.alleTider.length ? d.alleTider : d.times;
+  const raw = (kilde && kilde.length) ? kilde : null;
   const mins = raw ? raw.map(ms => _minsUntil(ms, now)) : [d.mins];
   // A departure that went while you were looking at the screen is not a
   // choice either — the same rule groupDirections applies when it builds the
@@ -5240,7 +5257,7 @@ function _renderBody() {
         + '<span class="nearby-dist">' + vaneHtml
         + (q ? '<span class="auto-quay" aria-hidden="true">' + esc(q) + '</span>' : '')
         + radBeleggHtml(d.call)
-        + _timesHtml(d, now, walkMins) + '</span>'
+        + '<span class="auto-trommel" data-trommel="' + esc(trommelNøkkel(d)) + '">' + _timesHtml(d, now, walkMins, { trommel: true }) + '</span></span>'
         + nattRadHtml(d, _natt)
         + '</button>'
         + msg.block;
@@ -5258,8 +5275,24 @@ function _renderBody() {
   // lenger. Foldet til én linje — ett trykk unna om du ombestemmer deg.
   if (_reiseInfo) body.innerHTML = '<details class="auto-avg-fold"' + (_avgÅpen ? ' open' : '') + '><summary class="auto-side">avganger fra '
     + esc((_stop && _stop.name) || 'stoppet') + ' · ' + ordered.length + '</summary>' + body.innerHTML + '</details>';
+  // TROMMELEN BLIR STÅENDE (v1.218.139): lista tegnes hvert sekund, og en
+  // trommel som hoppet tilbake til start hver gang ville vært uro.
+  if (_trommelStopp !== (_stop && _stop.id)) { _trommelStopp = _stop && _stop.id; _trommelPos.clear(); }
+  body.querySelectorAll('.auto-trommel').forEach(t => {
+    const k = t.dataset.trommel;
+    if (_trommelPos.has(k)) t.scrollLeft = _trommelPos.get(k);
+    // Kanten tones bare der det finnes mer å rulle til — ellers kuttes en tid
+    // som står der i sin helhet.
+    const kanter = () => { t.classList.toggle('mer-venstre', t.scrollLeft > 2);
+      t.classList.toggle('mer-hoyre', t.scrollLeft + t.clientWidth < t.scrollWidth - 2); };
+    kanter();
+    t.addEventListener('scroll', () => { _trommelPos.set(k, t.scrollLeft); _trommelSveip = Date.now(); kanter(); }, { passive: true });
+  });
   body.querySelectorAll('.auto-dir').forEach(b => {
-    b.addEventListener('click', () => { _open = _dirs[Number(b.dataset.i)]; _renderBody(); });
+    b.addEventListener('click', () => {
+      if (Date.now() - _trommelSveip < TROMMEL_SVEIP_MS) return;   // en sveip er ikke et trykk
+      _open = _dirs[Number(b.dataset.i)]; _renderBody();
+    });
   });
   // THE SAME DOOR the stop in the drill-down goes through, so the two cannot
   // drift apart: autoRoute, then the one route-setter every caller uses.

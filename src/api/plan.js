@@ -186,6 +186,7 @@ export function planKjede(c) {
 /** Kjeden for en lagret etappe — eldre etapper uten kjede er én linje. Ren. */
 export function etappeKjede(leg) {
   if (leg && Array.isArray(leg.kjede) && leg.kjede.length) return leg.kjede;
+  if (leg && leg.avgang) { const k = planKjede(leg.avgang); if (k.length) return k; }
   return leg ? [{ line: leg.line, lineId: leg.lineId || null, mode: leg.mode, lineColour: leg.lineColour, lineFg: leg.lineFg, fra: null, til: null }] : [];
 }
 /** Byttene i hele planen: kollektivetappene minus én. Ren. */
@@ -205,4 +206,26 @@ export function avgangKopi(c) {
       return v;
     }));
   } catch { return null; }
+}
+
+/**
+ * OPPGRADER EN ETAPPE SOM BLE LAGRET FØR HELE REISEN FULGTE MED (v1.218.161).
+ * Rapportert: kortet sa «72 · direkte» om 72 → L2. Etappen var lagret før
+ * v1.218.159, og knappen sa «i reiseplan», så den kunne ikke legges inn igjen.
+ * Når den samme avgangen vises, fylles kjeden og avgangen inn. Ren mot lageret:
+ * true når noe ble endret.
+ */
+export function oppgraderPlanEtappe(c) {
+  if (!c) return false;
+  const sj = c.serviceJourney && c.serviceJourney.id;
+  const legs = loadPlan();
+  const leg = legs.find(l => (sj && l.serviceJourneyId === sj) || l.depIso === c.expectedDepartureTime);
+  if (!leg) return false;
+  const k = planKjede(c);
+  if (leg.avgang && Array.isArray(leg.kjede) && leg.kjede.length >= k.length) return false;
+  leg.kjede = k;
+  leg.avgang = avgangKopi(c);
+  if (c._finalArrival) leg.arrIso = c._finalArrival;
+  savePlan(legs);
+  return true;
 }

@@ -17,7 +17,7 @@ import { leggTil as leggTilVerktøy, sett as settVerktøy } from '../ui/kartVerk
 import { quayLatLon, legShape, journeyPoints, _rowDest, påstigningTs, gåTilTekst } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
-import { addLegToPlan, isLegInPlan } from '../api/plan.js';
+import { addLegToPlan, isLegInPlan , oppgraderPlanEtappe } from '../api/plan.js';
 import { shareLegCalendar, canOfferCalendar } from '../api/calShare.js';
 import { updatePlanCtx } from './plan.js';
 import { logMsg } from '../ui/log.js';
@@ -1044,6 +1044,8 @@ export function renderSelected() {
 
     const planBtn = document.createElement('button');
     const alreadyInPlan = isLegInPlan(c.expectedDepartureTime, c.serviceJourney && c.serviceJourney.id);
+    // Lagret før hele reisen fulgte med? Fyll inn nå (v1.218.161).
+    if (alreadyInPlan && oppgraderPlanEtappe(c)) updatePlanCtx();
     planBtn.className = 'cta-btn secondary';
     planBtn.textContent = alreadyInPlan ? '📋 i reiseplan' : '📋 legg til i reiseplan';
     if (!alreadyInPlan) {

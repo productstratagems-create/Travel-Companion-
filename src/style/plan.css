@@ -322,3 +322,15 @@
 .pctx-bytte { color: var(--text-soft); }
 .pctx-l2 #pctx-status { margin-left: auto; }
 .plan-leg-bytte{font-size:.75rem;color:var(--text-soft);margin-top:.1rem}
+/* Gjenta (v1.218.167). */
+.plan-leg-gjenta{position:absolute;top:.3rem;right:3.6rem;padding:0;line-height:1;background:none;border:0;color:var(--text-muted);font-size:1rem;cursor:pointer}
+.plan-leg-gjenta.aktiv{color:var(--accent)}
+.plan-leg-gjentak{font-size:.75rem;color:var(--accent);margin-top:.1rem}
+.plan-gjenta-panel{margin-top:.5rem;padding:.5rem;border:1px solid rgba(var(--accent-rgb),.3);border-radius:10px;display:flex;flex-direction:column;gap:.4rem}
+.plan-gjenta-panel .pgp-rad{display:flex;flex-wrap:wrap;gap:.35rem}
+.plan-gjenta-panel .pgp-dag{width:2.1rem;height:2.1rem;border-radius:50%;border:1px solid rgba(var(--accent-rgb),.35);background:none;color:var(--text);font:inherit;cursor:pointer}
+.plan-gjenta-panel .pgp-dag.valgt{background:var(--accent);color:var(--bg,#000);border-color:var(--accent)}
+.plan-gjenta-panel .pgp-ok{margin-left:auto;border-color:var(--accent);color:var(--accent)}
+.plan-gjenta-panel .auto-fra-knapp{font:inherit;font-size:.8rem;padding:.35rem .7rem;border-radius:999px;border:1px solid rgba(var(--accent-rgb),.3);background:none;color:var(--text-muted);cursor:pointer}
+.plan-gjenta-panel .auto-fra-knapp.valgt{background:rgba(var(--accent-rgb),.18);border-color:var(--accent);color:var(--accent)}
+.pctx-gjentak{color:var(--accent)}

@@ -16,7 +16,7 @@ import { turForm } from '../ui/turForm.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest, påstigningTs, gåTilTekst } from '../api/adapt.js';
-import { loadPlan, legStatus } from '../api/plan.js';
+import { loadPlan, legStatus , loadPlanNå } from '../api/plan.js';
 import { samePlace } from '../api/place.js';
 import { collectStopSituations } from '../api/situations.js';
 import { pruneHidden } from '../ui/alerts.js';
@@ -3151,7 +3151,7 @@ export function renderBoard() {
   // departures that leave before that leg is due to arrive — they're unlikely
   // to be catchable, but boarding is the user's call, so don't hide them.
   let planMinDepTs = null;
-  const planLegs = loadPlan();
+  const planLegs = loadPlanNå();
   if (planLegs.length) {
     const lastLeg = planLegs[planLegs.length - 1];
     if (lastLeg.arrIso && legStatus(lastLeg, now) !== 'done') {

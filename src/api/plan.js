@@ -1,6 +1,7 @@
 import { storage } from '../storage.js';
 import { stopKey } from '../stopId.js';
 import { placeOf, placeLL, samePlace, stopsOf } from './place.js';
+import { gjeldende } from './gjentak.js';
 
 const PLAN_KEY = 't.plan';
 
@@ -245,6 +246,20 @@ export function oppgraderPlanEtappe(c) {
   leg.kjede = k;
   leg.avgang = avgangKopi(c);
   if (c._finalArrival) leg.arrIso = c._finalArrival;
+  savePlan(legs);
+  return true;
+}
+
+/** Planen slik den gjelder nå: gjentakende etapper på neste forekomst (v1.218.167). */
+export function loadPlanNå(nå = Date.now()) {
+  return loadPlan().map(l => gjeldende(l, nå));
+}
+/** Sett eller fjern gjentakelse på en etappe. dager: [] eller null fjerner. */
+export function settGjentak(id, dager) {
+  const legs = loadPlan();
+  const leg = legs.find(l => l.id === id);
+  if (!leg) return false;
+  if (dager && dager.length) leg.gjentak = { dager: [...new Set(dager)].sort() }; else delete leg.gjentak;
   savePlan(legs);
   return true;
 }

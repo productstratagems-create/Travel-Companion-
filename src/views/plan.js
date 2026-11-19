@@ -1,5 +1,6 @@
 import { linjemerke } from '../ui/linjemerke.js';
-import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent, legFarge, etappeKjede, planBytter, avgangGyldig } from '../api/plan.js';
+import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent, legFarge, etappeKjede, planBytter, avgangGyldig, loadPlanNå, settGjentak } from '../api/plan.js';
+import { gjentakTekst, FORHÅNDSVALG, UKE, UKEDAG_BOKSTAV, UKEDAG_KORT, nesteGjentak } from '../api/gjentak.js';
 import { LINJE_FARGE, LINJE_NØYTRAL } from '../ui/linjemerke.js';
 import { shareLegCalendar } from '../api/calShare.js';
 import { placeName, placeLL, samePlace } from '../api/place.js';
@@ -188,7 +189,7 @@ let _planCtxKey = '';
 export function updatePlanCtx() {
   const el = document.getElementById('plan-ctx');
   if (!el) return;
-  const legs = loadPlan();
+  const legs = loadPlanNå();
   if (!legs.length) { el.style.display = 'none'; _planCtxKey = ''; return; }
 
   const last = legs[legs.length - 1];
@@ -215,7 +216,7 @@ export function updatePlanCtx() {
   }
 
   // Key: everything that controls the chip's structure
-  const structKey = n + '|' + last.id + '|' + st + '|' + last.lineColour;
+  const structKey = n + '|' + last.id + '|' + st + '|' + last.lineColour + '|' + JSON.stringify(legs[0].gjentak || null) + '|' + legs[0].depIso;   // gjentakelsen tegner kortet på nytt (v1.218.167)
 
   if (structKey === _planCtxKey) {
     // Only update the status text in-place — no DOM rebuild
@@ -237,7 +238,7 @@ export function updatePlanCtx() {
   el.innerHTML =
     '<button class="pctx-main" aria-label="' + esc('Åpne planlagt reise: ' + placeName(first.from) + ' til ' + placeName(last.to)
       + (by.antall ? ', ' + by.antall + (by.antall === 1 ? ' bytte' : ' bytter') : '')) + '">'
-    + '<span class="pctx-l1">' + esc(clkDay(firstDep) + ' ' + placeName(first.from) + ' → ' + (arrTs ? (new Date(arrTs).toDateString() === new Date(firstDep).toDateString() ? clk(arrTs) : clkDay(arrTs)) + ' ' : '') + placeName(last.to)) + '</span>'
+    + '<span class="pctx-l1">' + (first.gjentak ? '<span class="pctx-gjentak" title="' + esc('gjentas ' + gjentakTekst(first.gjentak.dager)) + '">↻ </span>' : '') + esc(clkDay(firstDep) + ' ' + placeName(first.from) + ' → ' + (arrTs ? (new Date(arrTs).toDateString() === new Date(firstDep).toDateString() ? clk(arrTs) : clkDay(arrTs)) + ' ' : '') + placeName(last.to)) + '</span>'
     + '<span class="pctx-l2">' + kjede.map(k => linjemerke({ kode: k.line, farge: k.lineColour, tekst: k.lineFg, linjeId: k.lineId, modus: k.mode, klasse: 'pctx-badge' }))
       .join('<span class="pctx-pil" aria-hidden="true">›</span>')
     + '<span class="pctx-bytte">' + esc(by.antall ? by.antall + (by.antall === 1 ? ' bytte' : ' bytter') + (by.steder.length ? ' · ' + by.steder.join(', ') : '') : 'direkte') + '</span>'
@@ -259,7 +260,7 @@ export function åpnePlan() {
   if (state.jny) { window.jnyGoTracking && window.jnyGoTracking(); return 'underveis'; }
   // AVGANGSDETALJENE (v1.218.160). Bestilt: «kortet som legges øverst på
   // Rute-siden ved trykk skal lede bruker til avgangsdetaljer.»
-  const første = loadPlan()[0];
+  const første = loadPlanNå()[0];
   if (første && window._tapPlanLeg) { window._tapPlanLeg(første.id); return 'detaljer'; }
   navTo('v-saved');
   window._renderSaved && window._renderSaved('plan');
@@ -318,7 +319,7 @@ export function renderPlan() {
   if (!el) return;
 
   const now = Date.now();
-  const legs = loadPlan();
+  const legs = loadPlanNå();
 
   if (!legs.length) {
     _planStructKey = '';
@@ -383,6 +384,9 @@ export function renderPlan() {
       // VARSELET, og bare på en etappe som ikke har begynt: en alarm for en
       // reise du alt sitter på er støy. event.stopPropagation() av samme grunn
       // som slettknappen over — kortet under åpner etappen.
+      // GJENTA (v1.218.167): ↻ åpner valget; teksten sier regelen og neste gang.
+      + '<button class="plan-leg-gjenta' + (leg.gjentak ? ' aktiv' : '') + '" onclick="event.stopPropagation();window._planGjenta(\'' + leg.id + '\')"'
+        + ' aria-label="' + (leg.gjentak ? 'Gjentas ' + esc(gjentakTekst(leg.gjentak.dager)) + ' — endre' : 'Gjenta reisen') + '">↻</button>'
       + (st === 'future'
         ? '<button class="plan-leg-cal" onclick="event.stopPropagation();window._planCalLeg(\'' + leg.id + '\')"'
           + ' aria-label="Legg etappen i kalenderen med alarm når du må gå">🔔</button>'
@@ -394,6 +398,7 @@ export function renderPlan() {
       + '<div class="plan-leg-route">'
       + '<div class="plan-leg-from">' + placeName(leg.from).toLowerCase() + '</div>'
       + '<div class="plan-leg-to">' + placeName(leg.to).toLowerCase() + '</div>'
+      + (leg.gjentak ? '<div class="plan-leg-gjentak">↻ ' + esc(gjentakTekst(leg.gjentak.dager)) + ' · neste ' + esc(clkDay(new Date(leg.depIso).getTime())) + '</div>' : '')
       + (planBytter([leg]).antall ? '<div class="plan-leg-bytte">' + esc(planBytter([leg]).antall + (planBytter([leg]).antall === 1 ? ' bytte' : ' bytter') + (planBytter([leg]).steder.length ? ' · ' + planBytter([leg]).steder.join(', ') : '')) + '</div>' : '')
       + '</div>'
       + '</div>'
@@ -452,7 +457,7 @@ function _startPlanInterval() {
     const planView = document.getElementById('v-saved');
     const planPane = document.getElementById('saved-plan');
     if (planView && planView.style.display !== 'none' && planPane && planPane.style.display !== 'none') {
-      const legs = loadPlan();
+      const legs = loadPlanNå();
       if (legs.length) {
         const sk = _planStructuralKey(legs, now);
         if (sk !== _planStructKey) {
@@ -498,6 +503,16 @@ window._planCalLeg = async (id) => {
 window._tapPlanLeg = (id) => {
   const leg = loadPlan().find(l => l.id === id);
   if (!leg) return;
+  // GJENTAKENDE (v1.218.167): neste forekomst er en ANNEN tur enn den lagrede.
+  // Samme dør som tidfestede favoritter: tavla åpner avgangen nærmest
+  // klokkeslettet den dagen (board.js `_åpneBestiltFav`).
+  const n = nesteGjentak(leg, Date.now());
+  if (n && new Date(n.dep).toISOString() !== leg.depIso && window._useRouteDir) {
+    const d0 = new Date(leg.depIso), p2 = x => String(x).padStart(2, '0');
+    window._åpneFavAvgang = { fav: { line: leg.line, departureHHMM: p2(d0.getHours()) + ':' + p2(d0.getMinutes()), from: placeName(leg.from), to: placeName(leg.to) }, målMs: n.dep };
+    window._useRouteDir({ ...legDir(leg), atMs: n.dep - 2 * 60_000 });
+    return;
+  }
 
   // Capture the FROM station that state.deps was fetched for BEFORE updating dIdx.
   // After the update, state.deps is stale for the new direction.
@@ -568,3 +583,33 @@ export function legKall(leg) {
 
 window._renderPlan = renderPlan;
 window._updatePlanCtx = updatePlanCtx;
+
+/* ── GJENTA (v1.218.167): forhåndsvalg og ukedager, som Kalender og Påminnelser. */
+window._planGjenta = (id) => {
+  const leg = loadPlan().find(l => l.id === id);
+  const kort = document.querySelector('.plan-leg-card [onclick*="_planGjenta(\'' + id + '\')"]');
+  const host = kort && kort.closest('.plan-leg-card');
+  if (!leg || !host) return;
+  const åpen = host.querySelector('.plan-gjenta-panel');
+  if (åpen) { åpen.remove(); return; }
+  let valgt = new Set((leg.gjentak && leg.gjentak.dager) || []);
+  const panel = document.createElement('div');
+  panel.className = 'plan-gjenta-panel';
+  panel.addEventListener('click', e => e.stopPropagation());
+  const tegn = () => {
+    panel.innerHTML = '<div class="pgp-rad">' + Object.keys(FORHÅNDSVALG).map(n =>
+      '<button type="button" class="auto-fra-knapp' + (gjentakTekst([...valgt]) === n && valgt.size ? ' valgt' : '') + '" data-forh="' + n + '">' + n + '</button>').join('') + '</div>'
+      + '<div class="pgp-rad pgp-dager">' + UKE.map(d => '<button type="button" class="pgp-dag' + (valgt.has(d) ? ' valgt' : '') + '" data-dag="' + d + '" aria-pressed="' + valgt.has(d) + '" aria-label="' + UKEDAG_KORT[d] + '">' + UKEDAG_BOKSTAV[d] + '</button>').join('') + '</div>'
+      + '<div class="pgp-rad"><button type="button" class="auto-fra-knapp" data-av="1">ikke gjenta</button><button type="button" class="auto-fra-knapp pgp-ok" data-ok="1">ferdig</button></div>';
+  };
+  panel.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.forh) valgt = new Set(FORHÅNDSVALG[b.dataset.forh]);
+    else if (b.dataset.dag) { const d = Number(b.dataset.dag); valgt.has(d) ? valgt.delete(d) : valgt.add(d); }
+    else if (b.dataset.av) { valgt = new Set(); settGjentak(id, null); renderPlan(); return; }
+    else if (b.dataset.ok) { settGjentak(id, [...valgt]); renderPlan(); updatePlanCtx(); return; }
+    tegn();
+  });
+  tegn();
+  host.appendChild(panel);
+};

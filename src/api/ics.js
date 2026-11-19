@@ -34,6 +34,7 @@
 import { LEG_FALLBACK_MINS } from './plan.js';
 import { storage } from '../storage.js';
 import { placeName } from './place.js';
+import { gjentakByday } from './gjentak.js';
 
 /** Part of the UID, so a re-export REPLACES rather than adds. */
 export const ICS_DOMAIN = 'travel-companion.local';
@@ -188,6 +189,8 @@ export function legIcs(leg, lead, seq) {
     'DTSTAMP:' + stamp(Date.now()),
     'DTSTART:' + stamp(dep),
     'DTEND:' + stamp(arr),
+    // GJENTAKENDE (v1.218.167): én hendelse med regel, ikke én fil per dag.
+    ...(leg.gjentak && leg.gjentak.dager && leg.gjentak.dager.length ? ['RRULE:FREQ=WEEKLY;BYDAY=' + gjentakByday(leg.gjentak.dager)] : []),
     'SUMMARY:' + icsEscape('Linje ' + leg.line + ' → ' + placeName(leg.to)),
     'LOCATION:' + icsEscape(placeName(leg.from)),
     'DESCRIPTION:' + icsEscape(desc),

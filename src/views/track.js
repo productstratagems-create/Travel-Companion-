@@ -1096,7 +1096,7 @@ function _updateArrMapWalkPin(arrLL) {
   if (!_arrMap || !_walkDestLL) return;
   if (_arrWalkMarker) _arrWalkMarker.remove();
   if (_arrRouteLine) { _arrRouteLine.remove(); _arrRouteLine = null; }
-  _arrWalkMarker = L.circleMarker([_walkDestLL.lat, _walkDestLL.lon], { radius: 7, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.85, weight: 2 }).addTo(_arrMap);
+  _arrWalkMarker = L.circleMarker([_walkDestLL.lat, _walkDestLL.lon], { radius: 7, color: tokens().mapInk, fillColor: tokens().accent, fillOpacity: 0.9, weight: 2 }).addTo(_arrMap);
   if (arrLL) _fitArrMap(arrLL);
   // Fetch routed walking path from arrival station to typed destination
   fetchWalkRoute(arrLL, _walkDestLL).then(pts => {

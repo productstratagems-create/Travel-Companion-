@@ -4060,32 +4060,55 @@ function _fraLangtTrykk(el) {
   el.addEventListener('pointerleave', () => { if (!_fraHold.klar) avbryt(); });
   el.addEventListener('contextmenu', e => { if (e.target.closest('[data-fra]')) e.preventDefault(); });
 }
+/**
+ * TIDEN ER DET SENTRALE, DAGEN ER I DAG ELLER I MORGEN (v1.218.141).
+ * Rapportert med skjermbilde: kalendervelgeren lot deg ikke velge dagens dato
+ * (iOS sperret dagen fordi starttiden lå før `min`), og en hel måned var mer
+ * enn spørsmålet. Nå: et lite panel under knappene med «i dag · i morgen» og
+ * telefonens egen tidsvelger (rullehjul). Ferdig eller trykk utenfor lagrer.
+ */
+export function fraPanelMs(dag, hhmm, nå) {
+  const [h, m] = String(hhmm || '').split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  const d = new Date(nå); d.setDate(d.getDate() + (dag ? 1 : 0)); d.setHours(h, m, 0, 0);
+  // «I dag» med en tid som er passert er i morgen — et tidspunkt bak deg gir ingen avganger.
+  if (d.getTime() <= nå) d.setDate(d.getDate() + 1);
+  return d.getTime();
+}
 function _åpneFraVelger(el, v) {
   const i = FRA_VALG[v];
-  let inp = document.getElementById('auto-fra-velger');
-  if (!inp) {
-    inp = document.createElement('input');
-    inp.type = 'datetime-local'; inp.id = 'auto-fra-velger'; inp.className = 'auto-fra-velger'; inp.setAttribute('aria-label', 'Juster tiden');
-    el.parentNode.insertBefore(inp, el.nextSibling);
-    // Lagres når velgeren lukkes med en ny verdi — «klikk utenfor lagrer».
-    inp.addEventListener('change', () => {
-      const plass = inp.dataset.plass;
-      if (!inp.value || plass == null) return;
-      // «2026-11-21T15:00» er lokal tid; Date leser den slik.
-      const ms = new Date(inp.value).getTime();
-      if (!Number.isFinite(ms)) return;
-      settFraDatoTid(FRA_VALG[plass], ms);
-      settFraValg(plass);
-    });
-  }
-  inp.dataset.plass = v;
-  // Dato OG tid i rullehjulene (v1.218.140), fra der knappen står nå.
-  const lokal = ms => { const d = new Date(ms), p = n => String(n).padStart(2, '0');
-    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); };
-  inp.value = lokal(fraTid(v, Date.now()));
-  inp.min = lokal(Date.now());
-  try { if (inp.showPicker) { inp.showPicker(); return; } } catch { /* faller til fokus */ }
-  inp.focus(); inp.click();
+  _el('auto-fra-panel') && _el('auto-fra-panel').remove();
+  const nå = Date.now(), nå0 = fraTid(v, nå);
+  const iMorgen = new Date(nå0).toDateString() !== new Date(nå).toDateString();
+  const p2 = n => String(n).padStart(2, '0');
+  const panel = document.createElement('div');
+  panel.id = 'auto-fra-panel'; panel.className = 'auto-fra-panel'; panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', 'Velg tidspunkt');
+  panel.innerHTML = '<input type="time" class="auto-fra-tid" aria-label="Klokkeslett" value="' + p2(new Date(nå0).getHours()) + ':' + p2(new Date(nå0).getMinutes()) + '">'
+    + '<div class="auto-fra-dag" role="group" aria-label="Dag">'
+    + ['i dag', 'i morgen'].map((t, d) => '<button type="button" class="auto-fra-knapp' + ((d === 1) === iMorgen ? ' valgt' : '') + '" data-dag="' + d + '" aria-pressed="' + ((d === 1) === iMorgen) + '">' + t + '</button>').join('')
+    + '</div><button type="button" class="auto-fra-knapp auto-fra-ok">ferdig</button>';
+  el.parentNode.insertBefore(panel, el.nextSibling);
+  let dag = iMorgen ? 1 : 0, lukket = false;
+  const tid = panel.querySelector('.auto-fra-tid');
+  const lagre = () => {
+    if (lukket) return; lukket = true;
+    document.removeEventListener('pointerdown', utenfor, true);
+    const ms = fraPanelMs(dag, tid.value, Date.now());
+    panel.remove();
+    if (!Number.isFinite(ms)) return;
+    settFraDatoTid(i, ms);
+    settFraValg(v);
+  };
+  const utenfor = e => { if (!panel.contains(e.target)) lagre(); };
+  panel.querySelectorAll('[data-dag]').forEach(b => b.addEventListener('click', () => {
+    dag = Number(b.dataset.dag);
+    panel.querySelectorAll('[data-dag]').forEach(x => { x.classList.toggle('valgt', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+  }));
+  panel.querySelector('.auto-fra-ok').addEventListener('click', lagre);
+  // Neste tikk: trykket som åpnet panelet skal ikke lukke det.
+  setTimeout(() => document.addEventListener('pointerdown', utenfor, true), 0);
+  try { if (tid.showPicker) { tid.showPicker(); return; } } catch { /* fokus under */ }
+  tid.focus();
 }
 const KNUTEPUNKT_VENT_MS = 2500;
 function _lastAvganger(stop, kall, naboSvar) {

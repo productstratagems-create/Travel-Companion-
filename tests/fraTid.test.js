@@ -61,11 +61,11 @@ describe('langt trykk justerer tiden (v1.218.133)', () => {
   it('holdet åpner telefonens tidsvelger når fingeren slippes', () => {
     expect(s).toMatch(/export const FRA_HOLD_MS = 550;/);
     expect(s).toMatch(/addEventListener\('pointerup'[\s\S]{0,200}_åpneFraVelger\(el, v\)/);
-    expect(s).toMatch(/inp\.type = 'datetime-local'/);
+    expect(s).toMatch(/<input type="time" class="auto-fra-tid"/);   // v1.218.141
   });
   it('lukking med ny verdi lagrer på samme sted som innstillingene, og velger tiden', () => {
     // v1.218.140: dato og tid; lagres med settFraDatoTid (som også setter tiden i innstillingene).
-    expect(s).toMatch(/addEventListener\('change', \(\) => \{[\s\S]{0,400}settFraDatoTid\(FRA_VALG\[plass\], ms\);\s*settFraValg\(plass\);/);
+    expect(s).toMatch(/settFraDatoTid\(i, ms\);\s*settFraValg\(v\);/);   // v1.218.141: panelet lagrer
   });
   it('et langt trykk er ikke et valg', () => {
     expect(s).toMatch(/if \(_fraHold\.brukt\) \{ _fraHold\.brukt = false; e\.preventDefault\(\); return; \}/);
@@ -130,4 +130,12 @@ describe('dato i rullehjulene (v1.218.140)', () => {
     expect(fraDatoer()[1]).toBe(null);
     settFraDato(1, null);
   });
+});
+
+import { fraPanelMs } from '../src/views/auto.js';
+describe('panelet: tid og i dag / i morgen (v1.218.141)', () => {
+  it('i dag med en tid foran deg er i dag', () => { expect(fraPanelMs(0, '08:30', kl(19, 7, 38))).toBe(kl(19, 8, 30)); });
+  it('i morgen er i morgen', () => { expect(fraPanelMs(1, '08:30', kl(19, 7, 38))).toBe(kl(20, 8, 30)); });
+  it('i dag med en passert tid blir i morgen', () => { expect(fraPanelMs(0, '06:12', kl(19, 7, 38))).toBe(kl(20, 6, 12)); });
+  it('tom tid lagrer ingenting', () => { expect(fraPanelMs(0, '', kl(19, 7))).toBe(null); });
 });

@@ -321,3 +321,4 @@
 .pctx-pil { color: var(--text-muted); }
 .pctx-bytte { color: var(--text-soft); }
 .pctx-l2 #pctx-status { margin-left: auto; }
+.plan-leg-bytte{font-size:.75rem;color:var(--text-soft);margin-top:.1rem}

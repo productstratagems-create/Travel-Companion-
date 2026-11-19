@@ -1080,3 +1080,6 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 #v-auto .auto-dest-rad{flex-wrap:wrap}
 #v-auto .auto-dest-gaa{flex:1 1 100%;order:3;font:inherit;font-size:.8rem;text-align:right;background:none;border:0;
   color:var(--accent);padding:.3rem .2rem .5rem;cursor:pointer}
+/* «Raskest hjem» fra et annet stopp (v1.218.153). */
+#v-auto .at-raskest{display:block;width:100%;text-align:left;font:inherit;font-weight:600;color:var(--accent);
+  background:rgba(var(--accent-rgb),.08);border:1px solid rgba(var(--accent-rgb),.35);border-radius:10px;padding:.55rem .7rem;margin:.3rem 0 .5rem;cursor:pointer}

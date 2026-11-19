@@ -34,7 +34,7 @@ describe('kortet', () => {
     expect(s).toMatch(/if \(første && window\._tapPlanLeg\) \{ window\._tapPlanLeg\(første\.id\); return 'detaljer'; \}/);
   });
   it('avgangsdetaljene får hele avgangen, med overgangen', () => {
-    expect(s).toMatch(/if \(leg\.avgang\) \{ window\.tap\(\{ \.\.\.leg\.avgang, _dir: legDir\(leg\) \}\); return; \}/);
+    expect(s).toMatch(/if \(avgangGyldig\(leg\.avgang\)\) \{ window\.tap\(\{ \.\.\.leg\.avgang, _dir: legDir\(leg\) \}\); return; \}/);
   });
 });
 
@@ -65,5 +65,30 @@ describe('etapper lagret før hele reisen fulgte med (v1.218.161)', () => {
   });
   it('avgangsdetaljene kaller oppgraderingen', () => {
     expect(readFileSync('src/views/selected.js', 'utf8')).toMatch(/if \(alreadyInPlan && oppgraderPlanEtappe\(c\)\) updatePlanCtx\(\);/);
+  });
+});
+
+import { avgangGyldig } from '../src/api/plan.js';
+describe('delte etapper, ikke hull (v1.218.162)', () => {
+  // FØR-BILDET: _legs og _allLegs deler etappeobjektene, som fra adapteren.
+  const gå = { mode: 'foot' };
+  const a = leg('bus', '72', 'Stenbråten', 'Hauketo'), b = leg('rail', 'L2', 'Hauketo', 'Oslo S');
+  const c = { _legs: [a, b], _allLegs: [gå, a, b], _isTransfer: true };
+  it('kopien har alle etappene i begge listene', () => {
+    const k = avgangKopi(c);
+    expect(k._allLegs.map(x => x && x.mode)).toEqual(['foot', 'bus', 'rail']);
+    expect(k._legs.map(x => x.mode)).toEqual(['bus', 'rail']);
+    expect(avgangGyldig(k)).toBe(true);
+  });
+  it('en ekte sykel droppes fortsatt', () => {
+    const s = { a: 1 }; s.selv = s;
+    expect(avgangKopi(s)).toEqual({ a: 1 });
+  });
+  it('en lagret avgang med hull åpnes ikke, og repareres', () => {
+    expect(avgangGyldig({ _legs: [a], _allLegs: [gå, null] })).toBe(false);
+    savePlan([{ id: 'l1', line: '72', serviceJourneyId: 'sjX', depIso: 'T', kjede: planKjede(C), avgang: { _legs: [a], _allLegs: [null] } }]);
+    expect(oppgraderPlanEtappe({ ...c, serviceJourney: { id: 'sjX' }, expectedDepartureTime: 'T' })).toBe(true);
+    expect(avgangGyldig(loadPlan()[0].avgang)).toBe(true);
+    clearPlan();
   });
 });

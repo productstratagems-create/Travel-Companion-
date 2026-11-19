@@ -1,5 +1,5 @@
 import { linjemerke } from '../ui/linjemerke.js';
-import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent, legFarge, etappeKjede, planBytter } from '../api/plan.js';
+import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent, legFarge, etappeKjede, planBytter, avgangGyldig } from '../api/plan.js';
 import { LINJE_FARGE, LINJE_NØYTRAL } from '../ui/linjemerke.js';
 import { shareLegCalendar } from '../api/calShare.js';
 import { placeName, placeLL, samePlace } from '../api/place.js';
@@ -526,7 +526,7 @@ window._tapPlanLeg = (id) => {
   const d = legDir(leg);
   if (state.statLL && !state.statLL[d.key] && placeLL(leg.from)) state.statLL[d.key] = placeLL(leg.from);
   // HELE REISEN (v1.218.160): lagret med overgangen, åpnes den med overgangen.
-  if (leg.avgang) { window.tap({ ...leg.avgang, _dir: legDir(leg) }); return; }
+  if (avgangGyldig(leg.avgang)) { window.tap({ ...leg.avgang, _dir: legDir(leg) }); return; }
   window.tap({
     serviceJourney: {
       id: leg.serviceJourneyId || null,

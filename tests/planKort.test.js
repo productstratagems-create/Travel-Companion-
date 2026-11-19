@@ -49,3 +49,21 @@ describe('hele avgangen lagres (v1.218.160)', () => {
     expect(k.selv).toBe(undefined);
   });
 });
+
+import { oppgraderPlanEtappe, savePlan, loadPlan, clearPlan } from '../src/api/plan.js';
+describe('etapper lagret før hele reisen fulgte med (v1.218.161)', () => {
+  it('«direkte» om 72 → L2 blir «72 › L2 · 1 bytte» når avgangen vises', () => {
+    // FØR-BILDET: lagret med bare 72, uten kjede og avgang.
+    savePlan([{ id: 'l1', line: '72', serviceJourneyId: 'sj72', depIso: '2026-11-20T07:47:00Z' }]);
+    expect(planBytter(loadPlan()).antall).toBe(0);
+    const c = { ...C, serviceJourney: { id: 'sj72' }, expectedDepartureTime: '2026-11-20T07:47:00Z', _finalArrival: '2026-11-20T08:14:00Z' };
+    expect(oppgraderPlanEtappe(c)).toBe(true);
+    expect(planBytter(loadPlan())).toEqual({ antall: 1, steder: ['Kantarellen'] });
+    expect(loadPlan()[0].avgang._legs.length).toBe(2);
+    expect(oppgraderPlanEtappe(c)).toBe(false);   // én gang
+    clearPlan();
+  });
+  it('avgangsdetaljene kaller oppgraderingen', () => {
+    expect(readFileSync('src/views/selected.js', 'utf8')).toMatch(/if \(alreadyInPlan && oppgraderPlanEtappe\(c\)\) updatePlanCtx\(\);/);
+  });
+});

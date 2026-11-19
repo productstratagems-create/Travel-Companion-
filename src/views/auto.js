@@ -1418,6 +1418,50 @@ export function ombordKandidater(kall, spor, avvist) {
 }
 
 /**
+ * KANDIDATBASSENGET (v1.218.142). Analysen «Auto-reise i tette områder»:
+ * kandidatene kom bare fra tavla til stoppet som står på skjermen. Gikk du
+ * om bord på et annet stopp, eller kuttet en travel tavle linja di bort,
+ * var turen din aldri kandidat. Bassenget holder turene fra stoppene du har
+ * vært ved i BASSENG_MS, og dommen leser tavla OG bassenget.
+ *
+ * Rent: et Map fra turens id til { call, sett }.
+ */
+export const BASSENG_MS = 15 * 60_000;
+/** Ruteformer hentet i tvil: de beste to, ikke fem (v1.218.142, hentebudsjett). */
+export const TVIL_FORMER = 2;
+export const BASSENG_MAKS = 400;
+const _sisteAnkomst = c => {
+  const ec = (c && c.serviceJourney && c.serviceJourney.estimatedCalls) || [];
+  const t = ec.length ? ec[ec.length - 1] : c;
+  return Date.parse((t && (t.expectedArrivalTime || t.aimedArrivalTime || t.expectedDepartureTime || t.aimedDepartureTime)) || '');
+};
+export function bassengInn(basseng, kall, nå) {
+  (kall || []).forEach(c => {
+    const id = c && c.serviceJourney && c.serviceJourney.id;
+    if (id) basseng.set(id, { call: c, sett: nå });
+  });
+  return bassengUt(basseng, nå);
+}
+/** Beskjær: sett for lenge siden, eller turen er helt ferdig. Og et tak. */
+export function bassengUt(basseng, nå) {
+  for (const [id, v] of basseng) {
+    const slutt = _sisteAnkomst(v.call);
+    if (nå - v.sett > BASSENG_MS || (Number.isFinite(slutt) && slutt < nå)) basseng.delete(id);
+  }
+  if (basseng.size > BASSENG_MAKS) [...basseng.entries()].sort((a, b) => a[1].sett - b[1].sett)
+    .slice(0, basseng.size - BASSENG_MAKS).forEach(([id]) => basseng.delete(id));
+  return basseng;
+}
+/** Tavla først (den er ferskest), så bassengets turer som ikke står der. */
+export function kandidatKall(rå, basseng, nå) {
+  if (basseng) bassengUt(basseng, nå);
+  const sett = new Set((rå || []).map(c => c && c.serviceJourney && c.serviceJourney.id));
+  return [...(rå || []), ...[...((basseng && basseng.values()) || [])].map(v => v.call)
+    .filter(c => !sett.has(c.serviceJourney.id))];
+}
+const _kandidatBasseng = new Map();
+
+/**
  * Tilbudet, som HTML. Tomt for `vet-ikke` — da er skjermen nøyaktig som før.
  *
  * Et TILBUD: én knapp, «følg reisen», og en ×. Ved tvil én knapp per
@@ -1451,7 +1495,7 @@ export function ombordKortHtml(dom, nå) {
  */
 function _ombordDom(nå) {
   const spor = state.posTrail || [];
-  return ombord({ spor, fartMS: fartNå(nå), kandidater: ombordKandidater(_rå, spor, _avvistOmbord) });
+  return ombord({ spor, fartMS: fartNå(nå), kandidater: ombordKandidater(kandidatKall(_rå, _kandidatBasseng, nå), spor, _avvistOmbord) });
 }
 
 /**
@@ -1618,7 +1662,7 @@ function _påLinjaMedLås(nå) {
   // TRASÉEN for låsen og for kandidatene i tvil (v1.218.21): uten den måles
   // «utenfor ruta» mot rette streker, og på T-bane 3 ga det bytte til buss.
   // Hentet én gang per tur; ved neste vurdering ligger den i hurtiglageret.
-  [_lås && _lås.k, ...(dom.kind === 'ombord-tvil' ? dom.kandidater.slice(0, 5) : [])]
+  [_lås && _lås.k, ...(dom.kind === 'ombord-tvil' ? (_sisteRang || []).map(r => r.k).concat(dom.kandidater).slice(0, TVIL_FORMER) : [])]
     .filter(k => k && k.nøkkel && journeyShapeCached(k.nøkkel) === undefined)
     .forEach(k => { fetchJourneyShape(k.nøkkel).catch(() => {}); });
   const r = oppdaterLås(_lås, { låstK, vinner, vinnerKilde, fartMS: fartNå(nå), spor: state.posTrail || [],
@@ -1968,6 +2012,20 @@ export function målForan(k, mål, nå, neste, etter) {
   return metresBetween(etter, mål) < metresBetween(neste, mål);
 }
 
+/**
+ * HENTEBUDSJETT (v1.218.142). En rask tur gjennom sentrum passerer et stopp
+ * i minuttet, og hvert stopp kostet opptil 9 forespørsler uten tak. Det
+ * dyreste og minst presserende — reisesøkene for «raskere å gå av» — venter
+ * når budsjettet er brukt, og prøves igjen ved neste tikk. Rent.
+ */
+export const HENT_BUDSJETT_PR_MIN = 6;
+export function budsjettTillater(logg, nå, n = 1) {
+  while (logg.length && nå - logg[0] > 60_000) logg.shift();
+  if (logg.length + n > HENT_BUDSJETT_PR_MIN) return false;
+  for (let i = 0; i < n; i++) logg.push(nå);
+  return true;
+}
+const _søkLogg = [];
 function _raskereData(nå) {
   const mål = _kortRute && _kortRute.id;
   const neste = _lås && stoppFram(_lås.k, nå, 0);
@@ -1975,6 +2033,7 @@ function _raskereData(nå) {
     || !målForan(_lås.k, _kortRute, nå, neste, stoppFram(_lås.k, nå, 1))) { _rask = { key: null, svar: null }; return null; }
   const key = neste.id + '|' + _lås.k.nøkkel + '|' + mål;
   if (_rask.key !== key) {
+    if (!budsjettTillater(_søkLogg, nå, 2)) return null;   // neste tikk
     _rask = { key, svar: null };
     const etter = stoppFram(_lås.k, nå, 1);
     const bliMs = _bliSittendeMs(_lås.k, mål, nå);
@@ -4115,6 +4174,7 @@ function _lastAvganger(stop, kall, naboSvar) {
     {
       _dirs = groupDirections(kall);
       _rå = kall;
+      bassengInn(_kandidatBasseng, kall, Date.now());   // v1.218.142
       _hentetMs = Date.now();
       _spørNatt(_stop && _stop.id, _hentetMs);
       // Keep WHERE each message hung. This screen has done it right since

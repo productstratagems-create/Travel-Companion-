@@ -110,7 +110,7 @@ describe('skjermen', () => {
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
   it('spør dommen med farten fra filteret og de rå kallene', () => {
-    expect(src()).toMatch(/ombord\(\{ spor, fartMS: fartNå\(nå\), kandidater: ombordKandidater\(_rå, spor, _avvistOmbord\) \}\)/);
+    expect(src()).toMatch(/ombord\(\{ spor, fartMS: fartNå\(nå\), kandidater: ombordKandidater\(kandidatKall\(_rå, _kandidatBasseng, nå\), spor, _avvistOmbord\) \}\)/);
   });
 
   it('før «du er ved»', () => {

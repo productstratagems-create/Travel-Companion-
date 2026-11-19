@@ -45,7 +45,8 @@ describe('T-bane 3 ved Brynseng', () => {
   it('kandidaten bærer traséen, og auto-reise henter den for låsen', () => {
     expect(metro([], F.form).form).toBe(F.form);
     const a = readFileSync('src/views/auto.js', 'utf8');
-    expect(a).toContain("[_lås && _lås.k, ...(dom.kind === 'ombord-tvil' ? dom.kandidater.slice(0, 5) : [])]");
+    // v1.218.142: de beste TVIL_FORMER i tvil (rangert først), ikke fem.
+    expect(a).toContain("[_lås && _lås.k, ...(dom.kind === 'ombord-tvil' ? (_sisteRang || []).map(r => r.k).concat(dom.kandidater).slice(0, TVIL_FORMER) : [])]");
     expect(a).toContain('.forEach(k => { fetchJourneyShape(k.nøkkel).catch(() => {}); });');
   });
 });

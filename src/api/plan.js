@@ -186,7 +186,7 @@ export function planKjede(c) {
 /** Kjeden for en lagret etappe — eldre etapper uten kjede er én linje. Ren. */
 export function etappeKjede(leg) {
   if (leg && Array.isArray(leg.kjede) && leg.kjede.length) return leg.kjede;
-  if (leg && leg.avgang) { const k = planKjede(leg.avgang); if (k.length) return k; }
+  if (leg && avgangGyldig(leg.avgang)) { const k = planKjede(leg.avgang); if (k.length) return k; }
   return leg ? [{ line: leg.line, lineId: leg.lineId || null, mode: leg.mode, lineColour: leg.lineColour, lineFg: leg.lineFg, fra: null, til: null }] : [];
 }
 /** Byttene i hele planen: kollektivetappene minus én. Ren. */
@@ -195,17 +195,36 @@ export function planBytter(legs) {
   return { antall: Math.max(0, k.length - 1), steder: k.slice(0, -1).map(x => x.til).filter(Boolean) };
 }
 
-/** En lagringsbar kopi av avgangen: bare data, ingen funksjoner eller sykler. */
+/**
+ * En lagringsbar kopi av avgangen: bare data, ingen funksjoner og ingen sykler.
+ *
+ * DELTE OBJEKTER KOPIERES (v1.218.162). Første utgave droppet ALLE gjentatte
+ * objekter, ikke bare sykler. `_legs` og `_allLegs` deler etappene, så
+ * `_allLegs` fikk null-hull, og avgangsdetaljene kastet på `l.mode` og sto
+ * tomme. Nå droppes bare et objekt som alt er på veien ned (en ekte sykel).
+ */
 export function avgangKopi(c) {
   if (!c) return null;
-  const sett = new WeakSet();
-  try {
-    return JSON.parse(JSON.stringify(c, (k, v) => {
-      if (typeof v === 'function') return undefined;
-      if (v && typeof v === 'object') { if (sett.has(v)) return undefined; sett.add(v); }
-      return v;
-    }));
-  } catch { return null; }
+  const vei = new Set();
+  const kopi = v => {
+    if (typeof v === 'function') return undefined;
+    if (v instanceof Date) return v.toISOString();
+    if (!v || typeof v !== 'object') return v;
+    if (vei.has(v)) return undefined;
+    vei.add(v);
+    try {
+      if (Array.isArray(v)) return v.map(x => { const y = kopi(x); return y === undefined ? null : y; });
+      const ut = {};
+      for (const k of Object.keys(v)) { const y = kopi(v[k]); if (y !== undefined) ut[k] = y; }
+      return ut;
+    } finally { vei.delete(v); }
+  };
+  try { return kopi(c); } catch { return null; }
+}
+/** Kan den lagrede avgangen åpnes? Etappelistene uten hull. Ren. */
+export function avgangGyldig(a) {
+  if (!a || typeof a !== 'object') return false;
+  return ['_legs', '_allLegs'].every(k => a[k] == null || (Array.isArray(a[k]) && a[k].every(x => x && typeof x === 'object')));
 }
 
 /**
@@ -222,7 +241,7 @@ export function oppgraderPlanEtappe(c) {
   const leg = legs.find(l => (sj && l.serviceJourneyId === sj) || l.depIso === c.expectedDepartureTime);
   if (!leg) return false;
   const k = planKjede(c);
-  if (leg.avgang && Array.isArray(leg.kjede) && leg.kjede.length >= k.length) return false;
+  if (avgangGyldig(leg.avgang) && Array.isArray(leg.kjede) && leg.kjede.length >= k.length) return false;
   leg.kjede = k;
   leg.avgang = avgangKopi(c);
   if (c._finalArrival) leg.arrIso = c._finalArrival;

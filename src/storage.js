@@ -39,6 +39,8 @@ const ALL_KEYS = [
   't.autoTavleIMeny',
   // Klokkeslettene for «avganger etter …» (v1.218.132). Nivå 1.
   't.autoFraTider',
+  // Fast dato for «avganger etter …» fra rullehjulene (v1.218.140). Nivå 1.
+  't.autoFraDato',
   // Rute-kartets form (v1.218.129). Nivå 1.
   't.ruteKartForm',
   // Auto-reise valgt bort fra menylinjen (v1.218.125). Nivå 1.

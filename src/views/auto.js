@@ -68,7 +68,7 @@ import { leggTil as leggTilVerktøy, sett as settVerktøy, leggTilLag, verktøyF
 import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, plattformMedKode as _plattformMedKode } from '../api/quays.js';
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
-import { fraTider, settFraTid } from '../fraTider.js';
+import { fraTider, settFraTid, fraDatoer, settFraDatoTid } from '../fraTider.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
 import { nesteSvarFor, lærNesteSvar } from '../api/nesteSvar.js';
@@ -3885,9 +3885,12 @@ export function slåSammenKall(svar) {
 export const FRA_VALG = { a: 0, b: 1 };
 export const FRA_REKKEFØLGE = ['a', 'b'];
 export const FRA_UTLØP_MS = 30 * 60_000;
-export function fraTid(valg, nå, tider = fraTider()) {
+export function fraTid(valg, nå, tider = fraTider(), datoer = fraDatoer()) {
   const i = FRA_VALG[valg];
   if (i == null) return null;
+  // En fast dato fra rullehjulene gjelder til den er passert (v1.218.140).
+  const fast = datoer && datoer[i];
+  if (Number.isFinite(fast) && !fraUtløpt(fast, nå)) return fast;
   const [h, m] = tider[i].split(':').map(Number);
   const d = new Date(nå); d.setHours(h, m, 0, 0);
   if (d.getTime() <= nå) d.setDate(d.getDate() + 1);
@@ -3895,12 +3898,21 @@ export function fraTid(valg, nå, tider = fraTider()) {
 }
 export function fraTidTekst(ms, nå) {
   if (!Number.isFinite(ms)) return 'nå';
+  return 'etter ' + clk(ms) + fraDagTekst(ms, nå);
+}
+const UKEDAG = ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'];
+/** Dagen, bare når det ikke er i dag: '' · ' i morgen' · ' fre 21.11'. Ren. */
+export function fraDagTekst(ms, nå) {
   const d = new Date(ms), n = new Date(nå);
-  const iMorgen = d.toDateString() !== n.toDateString();
-  return 'etter ' + clk(ms) + (iMorgen ? ' i morgen' : '');
+  if (d.toDateString() === n.toDateString()) return '';
+  const m = new Date(n); m.setDate(m.getDate() + 1);
+  if (d.toDateString() === m.toDateString()) return ' i morgen';
+  return ' ' + UKEDAG[d.getDay()] + ' ' + d.getDate() + '.' + (d.getMonth() + 1);
 }
 /** Utløpt: tidspunktet er passert med FRA_UTLØP_MS. Ren. */
 export function fraUtløpt(ms, nå) { return Number.isFinite(ms) && nå > ms + FRA_UTLØP_MS; }
+/** Tid og fast dato for en plass: endres en av dem, hentes lista på nytt. */
+function _fraSignatur(v) { const i = FRA_VALG[v]; return fraTider()[i] + '|' + fraDatoer()[i]; }
 let _fraValg = null, _fraMs = null, _fraTidVed = null;   // tiden valget ble regnet fra
 /**
  * NÅ · AVGANG · ANKOMST (v1.218.136). Bestilt: «"nå" knappen sykler mellom
@@ -3935,7 +3947,7 @@ export function settFraValg(valg) {
   if (_fraValg && _fraModus === 'nå') _fraModus = 'avgang';
   if (!_fraValg && _fraModus === 'ankomst') { /* ankomst uten tid: venter på tid */ }
   _fraMs = _fraValg ? fraTid(_fraValg, Date.now()) : null;
-  _fraTidVed = _fraValg ? fraTider()[FRA_VALG[_fraValg]] : null;
+  _fraTidVed = _fraValg ? _fraSignatur(_fraValg) : null;
   _dirs = []; _asked = false; _open = null; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false;
   _tegnFraValg();
   if (_stop) _load();
@@ -4053,18 +4065,25 @@ function _åpneFraVelger(el, v) {
   let inp = document.getElementById('auto-fra-velger');
   if (!inp) {
     inp = document.createElement('input');
-    inp.type = 'time'; inp.id = 'auto-fra-velger'; inp.className = 'auto-fra-velger'; inp.setAttribute('aria-label', 'Juster tiden');
+    inp.type = 'datetime-local'; inp.id = 'auto-fra-velger'; inp.className = 'auto-fra-velger'; inp.setAttribute('aria-label', 'Juster tiden');
     el.parentNode.insertBefore(inp, el.nextSibling);
     // Lagres når velgeren lukkes med en ny verdi — «klikk utenfor lagrer».
     inp.addEventListener('change', () => {
       const plass = inp.dataset.plass;
       if (!inp.value || plass == null) return;
-      settFraTid(FRA_VALG[plass], inp.value);
+      // «2026-11-21T15:00» er lokal tid; Date leser den slik.
+      const ms = new Date(inp.value).getTime();
+      if (!Number.isFinite(ms)) return;
+      settFraDatoTid(FRA_VALG[plass], ms);
       settFraValg(plass);
     });
   }
   inp.dataset.plass = v;
-  inp.value = fraTider()[i];
+  // Dato OG tid i rullehjulene (v1.218.140), fra der knappen står nå.
+  const lokal = ms => { const d = new Date(ms), p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); };
+  inp.value = lokal(fraTid(v, Date.now()));
+  inp.min = lokal(Date.now());
   try { if (inp.showPicker) { inp.showPicker(); return; } } catch { /* faller til fokus */ }
   inp.focus(); inp.click();
 }
@@ -4902,7 +4921,7 @@ function _renderBody() {
   // Et passert tidspunkt slipper av seg selv (v1.218.130).
   if (fraUtløpt(_fraMs, Date.now())) { settFraValg(null); return; }
   // Tiden endret i innstillinger mens den var valgt: regn og hent på nytt (v1.218.132).
-  if (_fraValg && fraTider()[FRA_VALG[_fraValg]] !== _fraTidVed) { settFraValg(_fraValg); return; }
+  if (_fraValg && _fraSignatur(_fraValg) !== _fraTidVed) { settFraValg(_fraValg); return; }
   _tegnFraValg();
   const body = _el('auto-body');
   if (!body) return;

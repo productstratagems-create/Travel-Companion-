@@ -61,10 +61,11 @@ describe('langt trykk justerer tiden (v1.218.133)', () => {
   it('holdet åpner telefonens tidsvelger når fingeren slippes', () => {
     expect(s).toMatch(/export const FRA_HOLD_MS = 550;/);
     expect(s).toMatch(/addEventListener\('pointerup'[\s\S]{0,200}_åpneFraVelger\(el, v\)/);
-    expect(s).toMatch(/inp\.type = 'time'/);
+    expect(s).toMatch(/inp\.type = 'datetime-local'/);
   });
   it('lukking med ny verdi lagrer på samme sted som innstillingene, og velger tiden', () => {
-    expect(s).toMatch(/addEventListener\('change', \(\) => \{[\s\S]{0,200}settFraTid\(FRA_VALG\[plass\], inp\.value\);\s*settFraValg\(plass\);/);
+    // v1.218.140: dato og tid; lagres med settFraDatoTid (som også setter tiden i innstillingene).
+    expect(s).toMatch(/addEventListener\('change', \(\) => \{[\s\S]{0,400}settFraDatoTid\(FRA_VALG\[plass\], ms\);\s*settFraValg\(plass\);/);
   });
   it('et langt trykk er ikke et valg', () => {
     expect(s).toMatch(/if \(_fraHold\.brukt\) \{ _fraHold\.brukt = false; e\.preventDefault\(\); return; \}/);
@@ -105,5 +106,28 @@ describe('nå · avgang · ankomst (v1.218.136)', () => {
 describe('kartet følger kortets tur (v1.218.136)', () => {
   it('kartnøkkelen tar med turens id, ikke bare antall stopp', () => {
     expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/kortLinje\.length \+ ':' \+ \(\(_kortRute\.call && _kortRute\.call\.serviceJourney && _kortRute\.call\.serviceJourney\.id\) \|\| ''\)/);
+  });
+});
+
+import { fraDagTekst } from '../src/views/auto.js';
+import { fraDatoer, settFraDatoTid, settFraDato } from '../src/fraTider.js';
+describe('dato i rullehjulene (v1.218.140)', () => {
+  it('knappen sier bare klokkeslett i dag, «i morgen» i morgen, ellers ukedag og dato', () => {
+    expect(fraTidTekst(kl(18, 15), kl(18, 10))).toBe('etter 15:00');
+    expect(fraTidTekst(kl(19, 15), kl(18, 10))).toBe('etter 15:00 i morgen');
+    expect(fraTidTekst(kl(21, 15), kl(18, 10))).toBe('etter 15:00 lør 21.11');
+    expect(fraDagTekst(kl(18, 23), kl(18, 10))).toBe('');
+  });
+  it('en fast dato gjelder til den er passert, så klokkeslettet som før', () => {
+    expect(fraTid('b', kl(18, 10), ['06:00', '15:00'], [null, kl(21, 15)])).toBe(kl(21, 15));
+    expect(fraTid('b', kl(22, 10), ['06:00', '15:00'], [null, kl(21, 15)])).toBe(kl(22, 15));
+  });
+  it('rullehjulene lagrer dato og tid; innstillingene sletter datoen', () => {
+    settFraDatoTid(1, kl(21, 16, 45));
+    expect(fraTider()[1]).toBe('16:45');
+    expect(fraDatoer()[1]).toBe(kl(21, 16, 45));
+    settFraTid(1, '15:00');
+    expect(fraDatoer()[1]).toBe(null);
+    settFraDato(1, null);
   });
 });

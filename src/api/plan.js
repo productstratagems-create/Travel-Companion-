@@ -69,6 +69,9 @@ export function addLegToPlan(c, dir) {
     quay: (c.quay && c.quay.publicCode && c.quay.publicCode !== '?') ? c.quay.publicCode : null,
     // Gange til et annet stopp først (v1.218.16), så planen ikke later som.
     gåTil: c._gåTil || null,
+    // HELE KJEDEN (v1.218.159): «72 › L2». Uten den sa planen «etappe 1» om en
+    // reise med bytte, fordi bare første linje ble tatt vare på.
+    kjede: planKjede(c),
     addedAt: Date.now(),
   };
   legs.push(leg);
@@ -166,4 +169,24 @@ export const GAMMEL_PLASSHOLDER = '7c2d12';
 export function legFarge(leg) {
   const f = leg && leg.lineColour;
   return f && String(f).replace('#', '').toLowerCase() !== GAMMEL_PLASSHOLDER ? f : null;
+}
+
+/** Kollektivetappene i et reiseforslag, som linjemerket trenger dem. Ren. */
+export function planKjede(c) {
+  return ((c && c._legs) || []).filter(l => l && l.mode && l.mode !== 'foot').map(l => {
+    const ln = (l.serviceJourney && l.serviceJourney.line) || l.line || {};
+    return { line: ln.publicCode || '?', lineId: ln.id || null, mode: l.mode,
+      lineColour: (ln.presentation && ln.presentation.colour) || null, lineFg: (ln.presentation && ln.presentation.textColour) || null,
+      fra: (l.fromPlace && l.fromPlace.name) || null, til: (l.toPlace && l.toPlace.name) || null };
+  });
+}
+/** Kjeden for en lagret etappe — eldre etapper uten kjede er én linje. Ren. */
+export function etappeKjede(leg) {
+  if (leg && Array.isArray(leg.kjede) && leg.kjede.length) return leg.kjede;
+  return leg ? [{ line: leg.line, lineId: leg.lineId || null, mode: leg.mode, lineColour: leg.lineColour, lineFg: leg.lineFg, fra: null, til: null }] : [];
+}
+/** Byttene i hele planen: kollektivetappene minus én. Ren. */
+export function planBytter(legs) {
+  const k = (legs || []).flatMap(etappeKjede);
+  return { antall: Math.max(0, k.length - 1), steder: k.slice(0, -1).map(x => x.til).filter(Boolean) };
 }

@@ -70,7 +70,7 @@ import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, platt
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
 import { fraTider, settFraTid, fraDatoer, settFraDatoTid, KLOKKESLETT_VALG } from '../fraTider.js';
-import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest } from '../hjemover.js';
+import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest, annetHjemStopp } from '../hjemover.js';
 import { navTo } from '../ui/nav.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
@@ -5039,17 +5039,23 @@ export function retningHjemDom(d, walkMins, now, liste) {
 /* REISESØKET HJEM (v1.218.151): én gang per stopp, fornyet etter HJEM_SØK_MS. */
 export const HJEM_SØK_MS = 10 * 60_000;
 export const HJEM_SØK_MÅL = 2;
+/** Gangtiden kan endre seg så mye før søket gjentas. */
+export const HJEM_GANG_SLAKK_MIN = 3;
 const _hjemSøk = new Map();   // stoppets id → { at, etapper, henter, feil }
 function _hjemSøkOppdater(nå) {
   const liste = hjemStopp();
   if (!_stop || !_stop.id || !liste.length) return;
+  // FRA NÅR DU ER VED STOPPET (v1.218.155): gangtiden med, så søket ikke
+  // gir avganger lista sier du ikke rekker.
+  const g = gangTil(_stop), gangMin = g && Number.isFinite(g.mins) ? Math.ceil(g.mins) : 0;
   const f = _hjemSøk.get(_stop.id);
-  if (f && (f.henter || nå - f.at < HJEM_SØK_MS)) return;
+  if (f && (f.henter || (nå - f.at < HJEM_SØK_MS && Math.abs((f.gangMin || 0) - gangMin) <= HJEM_GANG_SLAKK_MIN))) return;
   const mål = liste.slice(0, HJEM_SØK_MÅL).filter(m => m.id !== _stop.id);
   if (!mål.length || !budsjettTillater(_søkLogg, nå, mål.length)) return;
-  const post = { at: nå, etapper: f ? f.etapper : [], henter: true, feil: false };
+  const post = { at: nå, gangMin, etapper: f ? f.etapper : [], henter: true, feil: false };
   _hjemSøk.set(_stop.id, post);
-  Promise.all(mål.map(m => fetchTripFra(_stop.id, m.id, nå, 5).catch(() => null)))
+  const fra = nå + gangMin * 60_000;
+  Promise.all(mål.map(m => fetchTripFra(_stop.id, m.id, fra, 5).catch(() => null)))
     .then(svar => {
       post.henter = false;
       if (svar.every(x => x == null)) { post.feil = true; return; }
@@ -5140,8 +5146,9 @@ function _tegnAutoTavle(body) {
   // fra et stopp tavla ikke viser (Majorstuen T fra trikkestoppet), sies det,
   // og et trykk gjør det stoppet til ditt.
   const rk = hs && hs.raskest;
-  const nærHjem = _stop ? knutepunkt(_stop, _stops()).map(s => s.id) : [];
-  const raskestHtml = _atRetning === 'hjem' && rk && rk.fraId && !nærHjem.includes(rk.fraId)
+  const nærHjem = _stop ? knutepunkt(_stop, _stops()) : [];
+  const linjerHer = new Set(synlige.flatMap(d => (d.lines || []).map(l => l.id)).filter(Boolean));
+  const raskestHtml = _atRetning === 'hjem' && annetHjemStopp(rk, nærHjem, linjerHer)
     ? '<button type="button" class="at-raskest" data-pin="' + esc(rk.fraId) + '">raskest hjem: '
       + esc((rk.gangMin > 0 ? 'gå ' + rk.gangMin + ' min til ' : 'fra ') + rk.fraNavn + ' · linje ' + rk.kode + (Number.isFinite(rk.går) ? ' · går ' + clk(rk.går) : '')) + ' →</button>'
     : '';

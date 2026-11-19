@@ -35,7 +35,7 @@ describe('edderkoppkartet i auto-reise (v1.218.61)', () => {
 
   it('tegnes bare i utgangskartet', () => {
     const s = fs.readFileSync('src/views/auto.js', 'utf8');
-    expect(s).toMatch(/let bein = sentrert && _stop \? edderkoppBein\(/);
+    expect(s).toMatch(/let bein = sentrert && _stop (&& !_gåHitVis )?\? edderkoppBein\(/);
   });
 });
 

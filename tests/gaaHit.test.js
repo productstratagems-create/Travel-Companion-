@@ -54,3 +54,17 @@ describe('søket gjentas med måte', () => {
       .map(m => m.name)).toEqual(['B', 'D']);
   });
 });
+
+import { gåHitRamme } from '../src/views/auto.js';
+describe('kartutsnittet følger gangruta (v1.218.144)', () => {
+  it('rammer inn deg, gangruta og stoppet', () => {
+    const r = gåHitRamme({ lat: 59.85, lon: 10.82 }, { lat: 59.852, lon: 10.833, gangPunkter: [[59.851, 10.828]] });
+    expect(r).toEqual([[59.85, 10.82], [59.852, 10.833], [59.851, 10.828]]);
+    expect(gåHitRamme({ lat: 1, lon: 2 }, null)).toBe(null);
+  });
+  it('kartet bruker rammen, og et nytt valg nullstiller «du har dratt i kartet»', () => {
+    const s = readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toMatch(/const rammePts = gåRamme \? gåRamme : sentrert/);
+    expect(s).toMatch(/_gåHitVis = _gåHitVis === b\.dataset\.gaa \? null : b\.dataset\.gaa; _aKey = ''; _aUserMoved = false;/);
+  });
+});

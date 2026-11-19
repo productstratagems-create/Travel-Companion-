@@ -2045,6 +2045,12 @@ function _gåHitOppdater(pos, nå) {
       .catch(() => { post.henter = false; post.feil = true; });
   });
 }
+/** Punktene kartet rammer inn for et valgt «gå hit»-kort. Ren; null uten råd. */
+export function gåHitRamme(userPos, råd) {
+  if (!råd || !Number.isFinite(råd.lat)) return null;
+  return [userPos && Number.isFinite(userPos.lat) ? [userPos.lat, userPos.lon] : null, [råd.lat, råd.lon],
+    ...(råd.gangPunkter || [])].filter(Boolean);
+}
 /** Kortene: bare der rådet er et annet stopp enn de du ser. */
 export function gåHitKortHtml(liste, nå) {
   return liste.map(({ id, navn, råd }) => {
@@ -3621,9 +3627,10 @@ function _renderMap() {
   // kartet, la bruker heller filtrere bort etter behov.» `velgBein`/`beinMaks`
   // kuttet til 4–8 og var et andre, usynlig filter ved siden av lag-panelet.
   // De står igjen som rene funksjoner (foldet, ikke slettet), men kalles ikke.
-  let bein = sentrert && _stop ? edderkoppBein(_iRetning(_dirs), _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null,
+  // Gå hit alene på kartet (v1.218.144): beina rundt stoppet tegnes ikke da.
+  let bein = sentrert && _stop && !_gåHitVis ? edderkoppBein(_iRetning(_dirs), _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null,
     Infinity, { teller: _beinTeller, stopId: _stop.id || null }) : [];
-  _meldManglendeBein(sentrert, bein, _beinTeller);
+  _meldManglendeBein(sentrert && !_gåHitVis, bein, _beinTeller);   // skjult med vilje er ikke «kan ikke tegnes»
   // AV/PÅ PER TRANSPORTMIDDEL (v1.218.67), fra alle beina før filteret.
   // FILTERET FRA ALLE RETNINGENE, IKKE BARE DE TEGNEDE (v1.218.117).
   // Rapportert fra Jernbanetorget: T-bane manglet i filteret, fordi ingen
@@ -3638,7 +3645,11 @@ function _renderMap() {
   // delen av hver linje, ikke hele byen. Beinas ende (6. stopp) trakk kartet
   // ut til Oslo sentrum; nå rammer de første UTGANG_BEIN_STOPP stoppene inn.
   // Resten av linjene går ut av kartet, som på skjermbildet.
-  const rammePts = sentrert
+  // GÅ HIT (v1.218.144): et valgt «gå hit»-kort rammer inn deg, gangruta og
+  // stoppet den ender ved — ikke stoppet du står ved og beina rundt det.
+  const _gvR = _gåHitVis && _gåHit.get(_gåHitVis);
+  const gåRamme = gåHitRamme(userPos, _gvR && _gvR.råd);
+  const rammePts = gåRamme ? gåRamme : sentrert
     ? [userPos, _stop, ...others].filter(s => s && s.lat != null).map(s => [s.lat, s.lon])
       .concat(utgangBeinPunkter(bein))
       .concat(walkPts || [])
@@ -3677,7 +3688,7 @@ function _renderMap() {
             const mp = _aMap.latLngToContainerPoint(midt);
             const dx = Math.round(mp.x - sp.x), dy = Math.round(mp.y - sp.y), w = 150, h = 20;
             if (z >= STOPP_LAPP_ZOOM) stoppHinder = { venstre: mp.x - w / 2, høyre: mp.x + w / 2, topp: mp.y - h / 2, bunn: mp.y + h / 2 };
-            return { className: lappKlasse, direction: 'center', offset: [dx, dy], permanent: z >= STOPP_LAPP_ZOOM };
+            return { className: lappKlasse, direction: 'center', offset: [dx, dy], permanent: z >= STOPP_LAPP_ZOOM && !_gåHitVis };
           }
           const side = stoppLappSide(sp, ender, passer);
           // Linjelappene skal ikke legge seg oppå denne (v1.218.66).
@@ -3689,7 +3700,7 @@ function _renderMap() {
           }
           return { className: sentrert ? lappKlasse : 'map-label', direction: side,
             offset: lappForskyv(side, av),
-            permanent: sentrert && z >= STOPP_LAPP_ZOOM };
+            permanent: sentrert && z >= STOPP_LAPP_ZOOM && !_gåHitVis };   // gå-hit-lappen alene (v1.218.144)
         })())
       .addTo(_aLayer);
   }
@@ -5485,7 +5496,8 @@ function _renderBody() {
   _gjenopprettSlett(destBody);
   _bindKort(destBody, dests);
   if (destBody) destBody.querySelectorAll('.auto-gaa').forEach(b => b.addEventListener('click', () => {
-    _gåHitVis = _gåHitVis === b.dataset.gaa ? null : b.dataset.gaa; _aKey = ''; _renderBody();
+    // Et nytt valg er en ny ramme, også om du har dratt i kartet før.
+    _gåHitVis = _gåHitVis === b.dataset.gaa ? null : b.dataset.gaa; _aKey = ''; _aUserMoved = false; _renderBody();
   }));
 }
 

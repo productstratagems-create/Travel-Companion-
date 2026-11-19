@@ -32,6 +32,17 @@ import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS } from '../u
 /** Avgangsdetalj-kartets form (v1.218.163), samme regel som Rute og Underveis. */
 export const DETALJ_FORM_KEY = 't.detaljKartForm';
 let _selFokus = 'oversikt';
+/**
+ * Fokusknappen, ett sted (v1.218.164). «utsnitt» er et zoomet bytte eller
+ * gangen dit — ikke et steg i syklusen, så neste trykk er «oversikt»: hele
+ * reisen. Det var jobben til «◱ hele reisen», som nå er foldet.
+ */
+function _tegnSelFokus() {
+  if (!_selMap) return;
+  const utsnitt = _selFokus === 'utsnitt';
+  settVerktøy(_selMap, 'fokus', { ikon: utsnitt ? FOKUS_IKON.spor : FOKUS_IKON[_selFokus],
+    tekst: utsnitt ? 'hele reisen' : fokusTekst(_selFokus, false).replace(/^\S+\s/, ''), aktiv: _selFokus !== 'oversikt' });
+}
 import { renderAlertsInto } from '../ui/alerts.js';
 import { fmtMins } from '../ui/fmt.js';
 import L from 'leaflet';
@@ -306,7 +317,8 @@ if (typeof document !== 'undefined') {
     // plass til dem ble begge klippet av kartets kant — sett i prøven.
     const pad = fitPadding(el ? el.clientHeight : 200) + ETIKETT_PX;
     _selMap.fitBounds(geo, { padding: [pad, pad], maxZoom: 18, animate: true });
-    settVerktøy(_selMap, 'hele', { skjult: false });
+    // ÉN KNAPP (v1.218.164): fokusknappen sier «hele reisen»; «hele» er foldet.
+    _selFokus = 'utsnitt'; _tegnSelFokus();
     const wrap = document.getElementById('sel-map-wrap');
     if (wrap && wrap.scrollIntoView) wrap.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
@@ -544,6 +556,7 @@ function _renderSelMap(dep, fromName, toName, now) {
   destroySelMap();
   _selMapKey = key;
   _selMap = createMap(mapEl, { expandable: true });
+  _selFokus = 'oversikt';
   // DIN PLATTFORM (v1.218.60): avgangen du valgte, uthevet blant alle.
   uthevAvgang(_selMap, dep, dir && dir.stopId);
   // PADDING IN PROPORTION TO THE BAND, not a number chosen for a bigger map.
@@ -736,7 +749,7 @@ function _renderSelMap(dep, fromName, toName, now) {
   const fokus = startUtsnitt(gå && !avgått && userPos ? userPos : null, harPåstigning ? påstigning : null, gangrute);
   if (fokus) {
     _selMap.fitBounds(fokus, { padding: [pad, pad], maxZoom: 17, animate: false });
-    settVerktøy(_selMap, 'hele', { skjult: false });
+    _selFokus = 'utsnitt';   // fokusknappen tegnes under, når den finnes
   } else if (pts.length) {
     _selMap.fitBounds(pts, { padding: [pad, pad], maxZoom: 15, animate: false });
   }
@@ -750,7 +763,6 @@ function _renderSelMap(dep, fromName, toName, now) {
   });
   settVerktøy(_selMap, 'inn', { skjult: true });
   settVerktøy(_selMap, 'ut', { skjult: true });
-  _selFokus = 'oversikt';
   leggTilVerktøy(_selMap, 'fokus', { påTrykk: () => {
     _selFokus = nesteFokus(_selFokus, KART_FOKUS);
     if (_selFokus === 'oversikt') {
@@ -760,9 +772,9 @@ function _renderSelMap(dep, fromName, toName, now) {
       const r = fokusRamme(_selFokus, ruteFokusData(dir, userLL(), dep));
       if (r) { if (r.pts.length === 1) _selMap.setView(r.pts[0], r.maksZoom); else _selMap.fitBounds(L.latLngBounds(r.pts), { padding: [pad, pad], maxZoom: r.maksZoom }); }
     }
-    settVerktøy(_selMap, 'fokus', { ikon: FOKUS_IKON[_selFokus], tekst: fokusTekst(_selFokus, false).replace(/^\S+\s/, ''), aktiv: _selFokus !== 'oversikt' });
+    _tegnSelFokus();
   } });
-  settVerktøy(_selMap, 'fokus', { ikon: FOKUS_IKON[_selFokus], tekst: fokusTekst(_selFokus, false).replace(/^\S+\s/, ''), aktiv: false });
+  _tegnSelFokus();
   _selVehicle(dep, legs, now);
 }
 

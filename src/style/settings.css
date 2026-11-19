@@ -1061,3 +1061,6 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
   background:var(--surface,transparent);color:var(--text)}
 #v-auto .auto-fra-dag{display:flex;gap:.4rem}
 #v-auto .auto-fra-ok{margin-left:auto;border-color:var(--accent);color:var(--accent)}
+/* «Gå hit for å komme dit» (v1.218.143): gangen først, så linja. */
+#v-auto .auto-gaa .auto-gaa-hit{display:block;font-weight:600;color:var(--accent);margin:.15rem 0}
+#v-auto .auto-gaa.valgt{border-color:var(--accent)}

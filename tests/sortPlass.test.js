@@ -101,7 +101,7 @@ describe('de to listene skrives til hver sin container', () => {
   /* Trykkene på kortene må følge med dit kortene flyttet. Det er fjerde
    * gang i dette repoet at kallestedet er det som bærer. */
   it('og trykkene bindes der kortene nå står', () => {
-    expect(src).toMatch(/destBody\.querySelectorAll\('\.auto-dest'\)/);
+    expect(src).toMatch(/destBody\.querySelectorAll\('\.auto-dest(:not\(\.auto-gaa\))?'\)/);   // v1.218.143
   });
 });
 

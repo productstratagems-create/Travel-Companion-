@@ -90,7 +90,7 @@ describe('og renderen setter den faktisk', () => {
     const i = s.indexOf('destBody.innerHTML');
     expect(i).toBeGreaterThan(-1);
     // v1.218.52: blokka fikk «din reise», så vinduet er større.
-    expect(s.slice(i, i + 1200)).toMatch(/listeOverskrift\(dests\.length/);
+    expect(s.slice(i, i + 1800)).toMatch(/listeOverskrift\(dests\.length/);   // v1.218.143: gå-hit-kortene
   });
 
   it('og index.html har et sted å sette den', () => {

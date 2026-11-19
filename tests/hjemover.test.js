@@ -33,8 +33,9 @@ describe('filteret', () => {
   it('knappen heter «hjemover», ved siden av «mot sentrum»', () => {
     expect(AT_RETNINGER.map(k => AT_RETNING_TEKST[k])).toEqual(['alle', 'mot sentrum', 'hjemover', 'andre retninger']);
   });
-  it('knappen vises bare når du har valgt stopp', () => {
-    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/const knappValg = AT_RETNINGER\.filter\(k => k !== 'hjem' \|\| hjemListe\.length\);/);
+  // v1.218.147: knappen står alltid; uten stopp tar et trykk deg til innstillingen.
+  it('uten stopp valgt sender et trykk på hjemover deg til innstillingen', () => {
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/if \(b\.dataset\.retning === 'hjem' && !hjemStopp\(\)\.length\) \{ tilHjemoverInnstilling\(\); return; \}/);
   });
 });
 
@@ -51,5 +52,19 @@ describe('innstillingen', () => {
   });
   it('innstillinger tegner søket', () => {
     expect(readFileSync('src/ui/nav.js', 'utf8')).toMatch(/tegnHjemover\(el\);/);
+  });
+});
+
+describe('langt trykk på hjemover (v1.218.147)', () => {
+  const a = readFileSync('src/views/auto.js', 'utf8');
+  it('holdet sender deg til innstillingen', () => {
+    expect(a).toMatch(/export const HJEM_HOLD_MS = 550;/);
+    expect(a).toMatch(/_hjemHold\.tid = setTimeout\(\(\) => \{ _hjemHold\.tid = null; _hjemHold\.brukt = true; tilHjemoverInnstilling\(\); \}, HJEM_HOLD_MS\);/);
+  });
+  it('og velger ikke filteret', () => {
+    expect(a).toMatch(/if \(_hjemHold\.brukt\) \{ _hjemHold\.brukt = false; return; \}/);
+  });
+  it('innstillingen åpnes og søkefeltet får fokus', () => {
+    expect(a).toMatch(/navTo\('v-prefs'\);[\s\S]{0,250}\.pref-hjem-sok/);
   });
 });

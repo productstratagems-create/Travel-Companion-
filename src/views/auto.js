@@ -71,6 +71,7 @@ import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang 
 import { storage } from '../storage.js';
 import { fraTider, settFraTid, fraDatoer, settFraDatoTid, KLOKKESLETT_VALG } from '../fraTider.js';
 import { hjemStopp, gårHjemover } from '../hjemover.js';
+import { navTo } from '../ui/nav.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
 import { nesteSvarFor, lærNesteSvar } from '../api/nesteSvar.js';
@@ -4985,6 +4986,35 @@ export function retningHjem(d, walkMins, now, liste) {
 }
 let _atRetning = 'alle';
 /**
+ * LANGT TRYKK PÅ «HJEMOVER» (v1.218.147). Bestilt: «Når bruker trykker og
+ * holder på knappen lenge nok så sendes bruker til innstillinger for å legge
+ * inn/redigere stedene.» Bundet én gang på lista (den tegnes hvert sekund).
+ */
+export const HJEM_HOLD_MS = 550;
+const _hjemHold = { tid: null, brukt: false };
+export function tilHjemoverInnstilling() {
+  navTo('v-prefs');
+  setTimeout(() => {
+    const f = document.querySelector('.pref-hjem');
+    if (!f) return;
+    f.scrollIntoView({ block: 'center' });
+    const s = f.querySelector('.pref-hjem-sok');
+    if (s) s.focus({ preventScroll: true });
+  }, 60);
+}
+function _hjemLangtTrykk(body) {
+  if (body._hjemBundet) return;
+  body._hjemBundet = true;
+  const avbryt = () => { clearTimeout(_hjemHold.tid); _hjemHold.tid = null; };
+  body.addEventListener('pointerdown', e => {
+    if (!e.target.closest('.at-retning [data-retning="hjem"]')) return;
+    avbryt();
+    _hjemHold.tid = setTimeout(() => { _hjemHold.tid = null; _hjemHold.brukt = true; tilHjemoverInnstilling(); }, HJEM_HOLD_MS);
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => body.addEventListener(t, avbryt));
+  body.addEventListener('contextmenu', e => { if (e.target.closest('.at-retning [data-retning="hjem"]')) e.preventDefault(); });
+}
+/**
  * Retningene filteret slipper gjennom, for lista OG kartet (v1.218.134).
  * Bestilt: «La kartet følge retningsfilteret også.» Bare i Auto-tavle.
  */
@@ -5016,13 +5046,14 @@ function _tegnAutoTavle(body) {
   const hjemListe = hjemStopp();
   const harBegge = ([...grp.values()].some(v => v === 'mot') && [...grp.values()].some(v => v !== 'mot')) || hjemListe.length > 0;
   if (!harBegge) _atRetning = 'alle';
-  const knappValg = AT_RETNINGER.filter(k => k !== 'hjem' || hjemListe.length);
+  // «Hjemover» står alltid (v1.218.147): uten stopp tar et trykk deg dit du velger dem.
+  const knappValg = AT_RETNINGER;
   if (!knappValg.includes(_atRetning)) _atRetning = 'alle';
   const iRetning = _iRetning(synlige, nå);
   const del = tavleDel(iRetning, nå, ms => canCatch(ms, gang, nå), _atGrense);
   const retningKnapper = harBegge ? '<div class="auto-fra at-retning" role="group" aria-label="retning">'
     + knappValg.map(k => '<button type="button" class="auto-fra-knapp' + (k === _atRetning ? ' valgt' : '')
-      + '" data-retning="' + k + '" aria-pressed="' + (k === _atRetning) + '">' + AT_RETNING_TEKST[k] + '</button>').join('') + '</div>' : '';
+      + '" data-retning="' + k + '" aria-pressed="' + (k === _atRetning) + '"' + (k === 'hjem' ? ' title="hold for å velge stoppene"' : '') + '>' + AT_RETNING_TEKST[k] + '</button>').join('') + '</div>' : '';
   // Avvikene per linje, samme kilde som retningskortene (v1.218.126).
   const perLinje = byLine(_alerts);
   const meld = id => perLinje.get(id) || [];
@@ -5039,8 +5070,12 @@ function _tegnAutoTavle(body) {
       + '<div class="at-liste">' + del.rekker.map((x, i) => tavleRadHtml(x, nå, del.ikke.length + i, meld)).join('') + '</div>' + bunn
     : merknad + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : (_atRetning !== 'alle' ? 'ingen avganger ' + AT_RETNING_TEKST[_atRetning] + ' herfra nå' : 'ingen avganger herfra den nærmeste timen')) + '</div>');
   body.querySelectorAll('.at-retning [data-retning]').forEach(b => b.addEventListener('click', () => {
+    if (_hjemHold.brukt) { _hjemHold.brukt = false; return; }   // langt trykk er ikke et valg
+    // Uten stopp valgt er hjemover et spørsmål: hva er hjem? Svaret står i innstillinger.
+    if (b.dataset.retning === 'hjem' && !hjemStopp().length) { tilHjemoverInnstilling(); return; }
     _atRetning = b.dataset.retning; _atGrense = TAVLE_SIDE; _renderBody();
   }));
+  _hjemLangtTrykk(body);
   const det = body.querySelector('.at-ikke');
   if (det) det.addEventListener('toggle', () => { _atIkkeÅpen = det.open; });
   body.querySelectorAll('.at-rad').forEach(b => b.addEventListener('click', () => {

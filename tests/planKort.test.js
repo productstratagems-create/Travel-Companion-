@@ -28,8 +28,24 @@ describe('kortet', () => {
     expect(kort).toMatch(/' bytte' : ' bytter'/);
     expect(kort).toMatch(/kjede\.map\(k => linjemerke/);
   });
-  it('ett trykk åpner reisen: Underveis når den følges, ellers planen i Lagret', () => {
+  // v1.218.160: «skal lede bruker til avgangsdetaljer».
+  it('ett trykk åpner reisen: Underveis når den følges, ellers avgangsdetaljene', () => {
     expect(s).toMatch(/addEventListener\('click', \(\) => åpnePlan\(\)\)/);
-    expect(s).toMatch(/if \(state\.jny\) \{ window\.jnyGoTracking && window\.jnyGoTracking\(\); return 'underveis'; \}\s*navTo\('v-saved'\);\s*window\._renderSaved && window\._renderSaved\('plan'\);/);
+    expect(s).toMatch(/if \(første && window\._tapPlanLeg\) \{ window\._tapPlanLeg\(første\.id\); return 'detaljer'; \}/);
+  });
+  it('avgangsdetaljene får hele avgangen, med overgangen', () => {
+    expect(s).toMatch(/if \(leg\.avgang\) \{ window\.tap\(\{ \.\.\.leg\.avgang, _dir: legDir\(leg\) \}\); return; \}/);
+  });
+});
+
+import { avgangKopi } from '../src/api/plan.js';
+describe('hele avgangen lagres (v1.218.160)', () => {
+  it('en kopi med overgangen, uten funksjoner og sykler', () => {
+    const c = { ...C, _isTransfer: true, f: () => 1 }; c.selv = c;
+    const k = avgangKopi(c);
+    expect(k._legs.length).toBe(2);
+    expect(k._isTransfer).toBe(true);
+    expect(k.f).toBe(undefined);
+    expect(k.selv).toBe(undefined);
   });
 });

@@ -257,6 +257,10 @@ export function updatePlanCtx() {
  */
 export function åpnePlan() {
   if (state.jny) { window.jnyGoTracking && window.jnyGoTracking(); return 'underveis'; }
+  // AVGANGSDETALJENE (v1.218.160). Bestilt: «kortet som legges øverst på
+  // Rute-siden ved trykk skal lede bruker til avgangsdetaljer.»
+  const første = loadPlan()[0];
+  if (første && window._tapPlanLeg) { window._tapPlanLeg(første.id); return 'detaljer'; }
   navTo('v-saved');
   window._renderSaved && window._renderSaved('plan');
   return 'plan';
@@ -384,10 +388,13 @@ export function renderPlan() {
           + ' aria-label="Legg etappen i kalenderen med alarm når du må gå">🔔</button>'
         : '')
       + '<div class="plan-leg-top">'
-      + linjemerke({ kode: leg.line, farge: legFarge(leg), tekst: leg.lineFg, linjeId: leg.lineId, modus: leg.mode })
+      // Hele kjeden, «72 › L2» (v1.218.160), ikke bare første linje.
+      + etappeKjede(leg).map(k => linjemerke({ kode: k.line, farge: k.lineColour || legFarge(leg), tekst: k.lineFg, linjeId: k.lineId, modus: k.mode }))
+        .join('<span class="pctx-pil" aria-hidden="true">›</span>')
       + '<div class="plan-leg-route">'
       + '<div class="plan-leg-from">' + placeName(leg.from).toLowerCase() + '</div>'
       + '<div class="plan-leg-to">' + placeName(leg.to).toLowerCase() + '</div>'
+      + (planBytter([leg]).antall ? '<div class="plan-leg-bytte">' + esc(planBytter([leg]).antall + (planBytter([leg]).antall === 1 ? ' bytte' : ' bytter') + (planBytter([leg]).steder.length ? ' · ' + planBytter([leg]).steder.join(', ') : '')) + '</div>' : '')
       + '</div>'
       + '</div>'
       + '<div class="plan-leg-times">'
@@ -518,6 +525,8 @@ window._tapPlanLeg = (id) => {
   // (`_dir`, lest av `_selDir()` i selected.js), sine stopp og sitt spor.
   const d = legDir(leg);
   if (state.statLL && !state.statLL[d.key] && placeLL(leg.from)) state.statLL[d.key] = placeLL(leg.from);
+  // HELE REISEN (v1.218.160): lagret med overgangen, åpnes den med overgangen.
+  if (leg.avgang) { window.tap({ ...leg.avgang, _dir: legDir(leg) }); return; }
   window.tap({
     serviceJourney: {
       id: leg.serviceJourneyId || null,

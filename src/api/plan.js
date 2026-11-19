@@ -72,6 +72,9 @@ export function addLegToPlan(c, dir) {
     // HELE KJEDEN (v1.218.159): «72 › L2». Uten den sa planen «etappe 1» om en
     // reise med bytte, fordi bare første linje ble tatt vare på.
     kjede: planKjede(c),
+    // HELE AVGANGEN (v1.218.160). Bestilt: «Jeg vil ha hele reise» — som
+    // favorittene. Avgangsdetaljene åpner den med overgangen, ikke bare 72.
+    avgang: avgangKopi(c),
     addedAt: Date.now(),
   };
   legs.push(leg);
@@ -189,4 +192,17 @@ export function etappeKjede(leg) {
 export function planBytter(legs) {
   const k = (legs || []).flatMap(etappeKjede);
   return { antall: Math.max(0, k.length - 1), steder: k.slice(0, -1).map(x => x.til).filter(Boolean) };
+}
+
+/** En lagringsbar kopi av avgangen: bare data, ingen funksjoner eller sykler. */
+export function avgangKopi(c) {
+  if (!c) return null;
+  const sett = new WeakSet();
+  try {
+    return JSON.parse(JSON.stringify(c, (k, v) => {
+      if (typeof v === 'function') return undefined;
+      if (v && typeof v === 'object') { if (sett.has(v)) return undefined; sett.add(v); }
+      return v;
+    }));
+  } catch { return null; }
 }

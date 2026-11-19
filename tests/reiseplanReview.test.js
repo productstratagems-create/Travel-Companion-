@@ -33,7 +33,8 @@ describe('3: etappen tar vare på det linjemerket og raden trenger', () => {
   });
   it('kortet og kartet sender id, transportmiddel og tekstfarge', () => {
     const p = readFileSync('src/views/plan.js', 'utf8');
-    expect(p).toContain('linjemerke({ kode: leg.line, farge: legFarge(leg), tekst: leg.lineFg, linjeId: leg.lineId, modus: leg.mode })');
+    // v1.218.160: hele kjeden; hvert ledd bærer id, transportmiddel og tekstfarge.
+    expect(p).toContain('linjemerke({ kode: k.line, farge: k.lineColour || legFarge(leg), tekst: k.lineFg, linjeId: k.lineId, modus: k.mode })');
   });
 });
 

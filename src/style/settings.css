@@ -1054,3 +1054,10 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
   #v-auto .auto-trommel>span:not(.auto-t-sep){animation:trommel-kant linear both;animation-timeline:view(inline)}
   @keyframes trommel-kant{0%{transform:scaleX(.55);opacity:.35}12%,88%{transform:none;opacity:1}100%{transform:scaleX(.55);opacity:.35}}
 }
+/* Tidspanelet (v1.218.141): tiden først og stor, dagen som to knapper. */
+#v-auto .auto-fra-panel{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.2rem 0 .6rem;padding:.6rem .7rem;
+  border:1px solid rgba(var(--accent-rgb),.35);border-radius:12px;background:rgba(var(--accent-rgb),.06)}
+#v-auto .auto-fra-tid{font:inherit;font-size:1.4rem;padding:.2rem .4rem;border-radius:8px;border:1px solid rgba(var(--accent-rgb),.3);
+  background:var(--surface,transparent);color:var(--text)}
+#v-auto .auto-fra-dag{display:flex;gap:.4rem}
+#v-auto .auto-fra-ok{margin-left:auto;border-color:var(--accent);color:var(--accent)}

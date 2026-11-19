@@ -15,7 +15,7 @@ describe('retningsfilteret', () => {
     expect(filtrerRetning([A, B, C], 'alle', g)).toEqual([A, B, C]);
   });
   it('knappene i rekkefølge med tekst', () => {
-    expect(AT_RETNINGER.map(k => AT_RETNING_TEKST[k])).toEqual(['alle', 'mot sentrum', 'andre retninger']);
+    expect(AT_RETNINGER.map(k => AT_RETNING_TEKST[k])).toEqual(['alle', 'mot sentrum', 'hjemover', 'andre retninger']);   // v1.218.146
   });
   it('Auto-reise og Auto-tavle bruker samme definisjon', () => {
     const src = readFileSync('src/views/auto.js', 'utf8');

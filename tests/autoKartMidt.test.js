@@ -8,7 +8,7 @@ vi.mock('leaflet', () => ({ default: {} })); vi.mock('../src/ui/mapCompass.js', 
 vi.mock('../src/ui/log.js', () => ({ logMsg: () => {}, setDot: () => {} }));
 const mod = await import('../src/views/auto.js');
 const src = readFileSync('src/views/auto.js', 'utf8');
-const ramme = src.slice(src.indexOf('const rammePts = sentrert'), src.indexOf('if (_stop && _stop.lat != null) {\n    L.marker'));
+const ramme = src.slice(src.indexOf('const rammePts = '), src.indexOf('if (_stop && _stop.lat != null) {\n    L.marker'));
 
 describe('utgangskartet', () => {
   it('zoom 15', () => { expect(mod.START_ZOOM).toBe(15); expect(mod.FIT_MAKS_ZOOM).toBe(15); });

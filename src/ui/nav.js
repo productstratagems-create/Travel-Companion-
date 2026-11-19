@@ -4,6 +4,8 @@ import { state } from '../state.js';
 import { addFav } from './favs.js';
 import { storage } from '../storage.js';
 import { fraTider, settFraTid, KLOKKESLETT_VALG } from '../fraTider.js';
+import { hjemStopp, leggTilHjem, fjernHjem, søkHjemStopp } from '../hjemover.js';
+import { esc } from './fmt.js';
 import { renderBoardProfileSwitcher, setActiveRoute, syncRouteFields } from '../views/settings.js';
 import { loadAutoMode, saveAutoMode } from '../geo.js';
 import { loadReturn, returnDir, returnWindow, shouldSwitch, skipToday, loadSkip } from '../api/returnTrip.js';
@@ -260,6 +262,9 @@ export function tegnSkjermerIInnstillinger(el) {
   el.appendChild(gr);
   gr.querySelector('#pref-autoreise-meny').addEventListener('change', e => { settAutoReiseIMeny(e.target.checked); _renderNav(); });
   gr.querySelector('#pref-autotavle-meny').addEventListener('change', e => { settAutoTavleIMeny(e.target.checked); _renderNav(); });
+  // HJEMOVER (v1.218.146): stoppene som betyr «hjemover» i Auto-tavle,
+  // valgt med Entur-geokoderens forslag.
+  tegnHjemover(el);
   // AVGANGER ETTER (v1.218.132): de to hurtigvalgene, justerbare.
   // Tatt bort med bryteren (v1.218.145).
   if (!KLOKKESLETT_VALG) return;
@@ -271,6 +276,47 @@ export function tegnSkjermerIInnstillinger(el) {
     + '<div class="pref-meny-merk">Knappene over lista i Auto-reise og Auto-tavle.</div>';
   el.appendChild(ft);
   [0, 1].forEach(i => ft.querySelector('#pref-fra-' + i).addEventListener('change', e => settFraTid(i, e.target.value)));
+}
+
+/** Innstillingen «hjemover»: valgte stopp som brikker med ×, og et søkefelt. */
+export function tegnHjemover(el) {
+  const fs = document.createElement('fieldset');
+  fs.className = 'pref-meny pref-hjem';
+  fs.innerHTML = '<legend>hjemover</legend>'
+    + '<div class="pref-hjem-valgt"></div>'
+    + '<input type="search" class="pref-hjem-sok" placeholder="søk etter stoppested …" autocomplete="off" aria-label="Søk etter stoppested for hjemover">'
+    + '<div class="pref-hjem-forslag" role="listbox"></div>'
+    + '<div class="pref-meny-merk">Avganger som kjører videre til et av disse stoppene, står under «hjemover» i Auto-tavle.</div>';
+  el.appendChild(fs);
+  const valgt = fs.querySelector('.pref-hjem-valgt'), sok = fs.querySelector('.pref-hjem-sok'), forslag = fs.querySelector('.pref-hjem-forslag');
+  const tegnValgt = () => {
+    const l = hjemStopp();
+    valgt.innerHTML = l.length ? l.map(s => '<span class="pref-hjem-brikke">' + esc(s.name)
+      + ' <button type="button" data-fjern="' + esc(s.id) + '" aria-label="Fjern ' + esc(s.name) + '">×</button></span>').join('')
+      : '<span class="pref-meny-merk">ingen stopp valgt ennå</span>';
+  };
+  tegnValgt();
+  valgt.addEventListener('click', e => { const b = e.target.closest('[data-fjern]'); if (b) { fjernHjem(b.dataset.fjern); tegnValgt(); } });
+  let ab = null, t = null, sist = [];
+  sok.addEventListener('input', () => {
+    clearTimeout(t);
+    const q = sok.value.trim();
+    if (q.length < 2) { forslag.innerHTML = ''; return; }
+    t = setTimeout(() => {
+      if (ab) ab.abort(); ab = new AbortController();
+      forslag.innerHTML = '<div class="pref-meny-merk">søker …</div>';
+      søkHjemStopp(q, ab.signal).then(r => {
+        sist = r;
+        forslag.innerHTML = r.length ? r.map((s, i) => '<button type="button" class="pref-hjem-valg" role="option" data-i="' + i + '">'
+          + esc(s.name) + (s.sted ? ' <span class="pref-meny-merk">' + esc(s.sted) + '</span>' : '') + '</button>').join('')
+          : '<div class="pref-meny-merk">fant ingen stoppesteder</div>';
+      }).catch(e => { if (!e || e.name !== 'AbortError') forslag.innerHTML = '<div class="pref-meny-merk">søket feilet — prøv igjen</div>'; });
+    }, 250);
+  });
+  forslag.addEventListener('click', e => {
+    const b = e.target.closest('[data-i]'); if (!b) return;
+    leggTilHjem(sist[Number(b.dataset.i)]); sok.value = ''; forslag.innerHTML = ''; tegnValgt();
+  });
 }
 
 /** Which entry is lit for a given `state.view`, or null when none of them. */

@@ -70,6 +70,7 @@ import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, platt
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
 import { fraTider, settFraTid, fraDatoer, settFraDatoTid, KLOKKESLETT_VALG } from '../fraTider.js';
+import { hjemStopp, gårHjemover } from '../hjemover.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
 import { nesteSvarFor, lærNesteSvar } from '../api/nesteSvar.js';
@@ -4967,13 +4968,20 @@ export function retningGruppe(d, here, walkMins, now) {
   return centreward(here, stopsAhead((ride && ride.call) || d.call, _stop && _stop.name, now)) === 'mot' ? 'mot' : null;
 }
 /** Retningsfilteret i Auto-tavle: knappene i rekkefølge, med tekst. */
-export const AT_RETNINGER = ['alle', 'mot', 'andre'];
-export const AT_RETNING_TEKST = { alle: 'alle', mot: 'mot sentrum', andre: 'andre retninger' };
-/** Retningene filteret slipper gjennom. */
-export function filtrerRetning(dirs, valg, gruppe) {
+export const AT_RETNINGER = ['alle', 'mot', 'hjem', 'andre'];
+export const AT_RETNING_TEKST = { alle: 'alle', mot: 'mot sentrum', hjem: 'hjemover', andre: 'andre retninger' };
+/** Retningene filteret slipper gjennom. «Andre» er verken mot sentrum eller hjemover. */
+export function filtrerRetning(dirs, valg, gruppe, hjem = () => false) {
   if (valg === 'mot') return dirs.filter(d => gruppe(d) === 'mot');
-  if (valg === 'andre') return dirs.filter(d => gruppe(d) !== 'mot');
+  if (valg === 'hjem') return dirs.filter(d => hjem(d));
+  if (valg === 'andre') return dirs.filter(d => gruppe(d) !== 'mot' && !hjem(d));
   return dirs;
+}
+/** Går retningen hjemover (src/hjemover.js)? Lest fra avgangen du rekker, som sentrum. */
+export function retningHjem(d, walkMins, now, liste) {
+  if (!liste || !liste.length) return false;
+  const ride = catchable(d, walkMins, now)[0];
+  return gårHjemover(stopsAhead((ride && ride.call) || d.call, _stop && _stop.name, now), liste);
 }
 let _atRetning = 'alle';
 /**
@@ -4984,7 +4992,8 @@ function _iRetning(dirs, nå = Date.now()) {
   if (!_autoTavle || _atRetning === 'alle' || !dirs) return dirs;
   const here = (_stop && _stop.lat != null) ? { lat: _stop.lat, lon: _stop.lon } : null;
   const g = _stop ? gangTil(_stop) : null, gang = g ? g.mins : null;
-  return filtrerRetning(dirs, _atRetning, d => retningGruppe(d, here, gang, nå));
+  const liste = hjemStopp();
+  return filtrerRetning(dirs, _atRetning, d => retningGruppe(d, here, gang, nå), d => retningHjem(d, gang, nå, liste));
 }
 function _tegnAutoTavle(body) {
   const nå = Date.now();
@@ -5002,13 +5011,17 @@ function _tegnAutoTavle(body) {
     .filter(l => sl.has(linjeNøkkel(l.id, l.code))).map(l => 'linje ' + l.code))].forEach(t => skjulteNavn.push(t));
   const here = (_stop && _stop.lat != null) ? { lat: _stop.lat, lon: _stop.lon } : null;
   const grp = new Map(synlige.map(d => [d, retningGruppe(d, here, gang, nå)]));
-  // Knappene bare når valget betyr noe: noe går mot sentrum, og noe annet.
-  const harBegge = [...grp.values()].some(v => v === 'mot') && [...grp.values()].some(v => v !== 'mot');
+  // Knappene bare når valget betyr noe: noe går mot sentrum, og noe annet —
+  // eller du har sagt hva hjemover er (v1.218.146).
+  const hjemListe = hjemStopp();
+  const harBegge = ([...grp.values()].some(v => v === 'mot') && [...grp.values()].some(v => v !== 'mot')) || hjemListe.length > 0;
   if (!harBegge) _atRetning = 'alle';
+  const knappValg = AT_RETNINGER.filter(k => k !== 'hjem' || hjemListe.length);
+  if (!knappValg.includes(_atRetning)) _atRetning = 'alle';
   const iRetning = _iRetning(synlige, nå);
   const del = tavleDel(iRetning, nå, ms => canCatch(ms, gang, nå), _atGrense);
   const retningKnapper = harBegge ? '<div class="auto-fra at-retning" role="group" aria-label="retning">'
-    + AT_RETNINGER.map(k => '<button type="button" class="auto-fra-knapp' + (k === _atRetning ? ' valgt' : '')
+    + knappValg.map(k => '<button type="button" class="auto-fra-knapp' + (k === _atRetning ? ' valgt' : '')
       + '" data-retning="' + k + '" aria-pressed="' + (k === _atRetning) + '">' + AT_RETNING_TEKST[k] + '</button>').join('') + '</div>' : '';
   // Avvikene per linje, samme kilde som retningskortene (v1.218.126).
   const perLinje = byLine(_alerts);

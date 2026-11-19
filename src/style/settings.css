@@ -1064,3 +1064,15 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 /* «Gå hit for å komme dit» (v1.218.143): gangen først, så linja. */
 #v-auto .auto-gaa .auto-gaa-hit{display:block;font-weight:600;color:var(--accent);margin:.15rem 0}
 #v-auto .auto-gaa.valgt{border-color:var(--accent)}
+/* Hjemover i innstillinger (v1.218.146). */
+.pref-hjem .pref-hjem-valgt{display:flex;flex-wrap:wrap;gap:.35rem;margin:.3rem 0}
+.pref-hjem .pref-hjem-brikke{display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .3rem .2rem .6rem;border-radius:999px;
+  border:1px solid var(--accent);color:var(--accent);font-size:.85rem}
+.pref-hjem .pref-hjem-brikke button{font:inherit;background:none;border:0;color:inherit;cursor:pointer;padding:0 .3rem;font-size:1rem}
+.pref-hjem .pref-hjem-sok{width:100%;font:inherit;padding:.45rem .6rem;border-radius:8px;border:1px solid rgba(var(--accent-rgb),.35);background:transparent;color:var(--text)}
+.pref-hjem .pref-hjem-forslag{display:flex;flex-direction:column;margin-top:.25rem}
+.pref-hjem .pref-hjem-valg{font:inherit;text-align:left;background:none;border:0;border-bottom:1px solid rgba(var(--accent-rgb),.15);color:var(--text);padding:.5rem .3rem;cursor:pointer}
+/* Feltgruppene under skjermknappene får hele bredden (v1.218.146). Gruppen
+   var én rad uten bryting, så «menylinjen» ble 121 px og «hjemover» 53 px. */
+#pref-skjermer{flex-wrap:wrap}
+#pref-skjermer>fieldset{flex:1 1 100%;min-width:0;box-sizing:border-box}

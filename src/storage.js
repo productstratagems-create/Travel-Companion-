@@ -41,6 +41,8 @@ const ALL_KEYS = [
   't.autoFraTider',
   // Fast dato for «avganger etter …» fra rullehjulene (v1.218.140). Nivå 1.
   't.autoFraDato',
+  // Dine hjemover-stopp for Auto-tavle (v1.218.146). Nivå 1.
+  't.hjemoverStopp',
   // Rute-kartets form (v1.218.129). Nivå 1.
   't.ruteKartForm',
   // Auto-reise valgt bort fra menylinjen (v1.218.125). Nivå 1.

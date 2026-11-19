@@ -55,3 +55,12 @@ describe('status og planen', () => {
     expect(readFileSync('src/views/plan.js', 'utf8')).toMatch(/window\._åpneFavAvgang = \{ fav: \{ line: leg\.line, departureHHMM:/);
   });
 });
+
+describe('knappene i hjørnet har luft (v1.218.168)', () => {
+  it('↻, 🔔 og × med 2,8rem mellom, og innholdet under raden', () => {
+    const c = readFileSync('src/style/plan.css', 'utf8');
+    expect(c).toMatch(/\.plan-leg-cal \{ top: \.4rem; right: 3\.2rem; \}/);
+    expect(c).toMatch(/\.plan-leg-gjenta \{ top: \.3rem; right: 6rem; \}/);
+    expect(c).toMatch(/\.plan-leg-card \{ padding-top: 2\.2rem; \}/);
+  });
+});

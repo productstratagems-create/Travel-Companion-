@@ -1084,3 +1084,6 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
   background:rgba(var(--accent-rgb),.08);border:1px solid rgba(var(--accent-rgb),.35);border-radius:10px;padding:.55rem .7rem;margin:.3rem 0 .5rem;cursor:pointer}
 /* «Bytt på X» under retningen i Auto-reise (v1.218.156). */
 #v-auto .auto-dir .auto-bytte{display:block;font-size:.78rem;font-weight:400;color:var(--text-muted);white-space:normal;margin-top:.1rem}
+/* «Gå hjem» når det er raskest (v1.218.158). */
+#v-auto .at-gaa-hjem{font-weight:600;color:var(--accent);background:rgba(var(--accent-rgb),.08);border:1px solid rgba(var(--accent-rgb),.35);
+  border-radius:10px;padding:.55rem .7rem;margin:.3rem 0 .5rem}

@@ -70,7 +70,7 @@ import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, platt
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
 import { fraTider, settFraTid, fraDatoer, settFraDatoTid, KLOKKESLETT_VALG } from '../fraTider.js';
-import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest, annetHjemStopp } from '../hjemover.js';
+import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest, annetHjemStopp, hjemGange } from '../hjemover.js';
 import { navTo } from '../ui/nav.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
@@ -5034,7 +5034,14 @@ export function retningHjemDom(d, walkMins, now, liste) {
   const fram = stopsAhead((ride && ride.call) || d.call, _stop && _stop.name, now);
   const s = _stop && _hjemSøk.get(_stop.id);
   const l = (d.lines && d.lines[0]) || {};
-  return hjemDom(l.id, fram, liste, s && s.etapper);
+  return hjemDom(l.id, fram, liste, s && s.etapper, s && s.gange);
+}
+/** «Gå hjem» når det er raskest (v1.218.158) — tavla og Auto-reise. */
+export function gåHjemHtml(hs, gangTilStopp) {
+  const g = hs && hs.gange;
+  if (!g) return '';
+  const hjem = (hjemStopp()[0] || {}).name || 'hjem';
+  return '<div class="at-gaa-hjem">\u{1F6B6} gå hjem: ca. ' + esc(String((gangTilStopp || 0) + g.gangMin)) + ' min til ' + esc(hjem) + ' — raskere enn å vente på en avgang</div>';
 }
 /** «Raskest hjem» fra et annet stopp — én definisjon, tavla og Auto-reise (v1.218.156). */
 function raskestHjemHtml(hs, nær, linjerHer) {
@@ -5078,6 +5085,7 @@ function _hjemSøkOppdater(nå) {
       const alle = svar.flatMap(x => x || []);
       post.etapper = hjemFørsteEtapper(alle);
       post.raskest = hjemRaskest(alle);
+      post.gange = hjemGange(alle);
     });
 }
 let _atRetning = 'alle';
@@ -5168,7 +5176,7 @@ function _tegnAutoTavle(body) {
   const linjerHer = new Set(synlige.flatMap(d => (d.lines || []).map(l => l.id)).filter(Boolean));
   const raskestHtml = _atRetning === 'hjem' ? raskestHjemHtml(hs, nærHjem, linjerHer) : '';
   const hjemMerk = _atRetning !== 'hjem' || !hs ? '' : hs.henter ? '<div class="at-filter">leter etter reiser hjem med bytte …</div>'
-    : hs.feil ? '<div class="at-filter">fant ikke reiser hjem med bytte herfra — viser bare direkte</div>' : raskestHtml;
+    : hs.feil ? '<div class="at-filter">fant ikke reiser hjem med bytte herfra — viser bare direkte</div>' : (gåHjemHtml(hs, gang) || raskestHtml);
   const merknad = skjulteNavn.length ? '<div class="at-filter">skjult i kartets filter: ' + esc(skjulteNavn.join(', ')) + '</div>' : '';
   const ikkeHtml = del.ikke.length
     ? '<details class="at-ikke"' + (_atIkkeÅpen ? ' open' : '') + '><summary>' + del.ikke.length
@@ -5520,6 +5528,8 @@ function _renderBody() {
   const fartNotis = gangGjelder(fartNå(now), state.walkFromLL !== null) ? ''
     : '<div class="i-fart-notis">' + esc(I_FART_NOTIS) + '</div>';
   body.innerHTML = fartNotis + oppdatertHtml(_hentetMs, now, typeof navigator !== 'undefined' ? navigator.onLine !== false : true)
+    // NÆR HJEM (v1.218.158): «gå hjem» øverst; avgangene er da ikke hjemover.
+    + (hjemListeAR.length ? gåHjemHtml(_stop && _hjemSøk.get(_stop.id), Number.isFinite(walkMins) ? Math.ceil(walkMins) : 0) : '')
     + ordered.map(({ d, i }) => {
       /* Merket bare når det finnes noe å si om STYRKEN. `gjetning` er
        * `t.freqArr`-fallbacken, som ikke vet noe om tid på døgnet —

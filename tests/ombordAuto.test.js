@@ -242,7 +242,7 @@ describe('gangtid i fart', () => {
     // og fant det i `import { … I_FART_NOTIS }` — mutanten som fjernet
     // notisen fra skjermen overlevde.
     // v1.218.36: «oppdatert» står mellom notisen og radene.
-    expect(strip('src/views/auto.js')).toMatch(/body\.innerHTML = fartNotis \+ oppdatertHtml\([^\n]*\n\s*\+ ordered\.map/);
+    expect(strip('src/views/auto.js')).toMatch(/body\.innerHTML = fartNotis \+ oppdatertHtml\([^\n]*[\s\S]{0,250}\+ ordered\.map/);   // v1.218.158: «gå hjem» mellom
     expect(strip('src/views/auto.js')).toMatch(/esc\(I_FART_NOTIS\)/);
     expect(strip('src/views/board.js')).toMatch(/let html = gangGjelder\(fartNå\(\), state\.walkFromLL !== null\) \? ''\s*: '<div class="i-fart-notis">' \+ esc\(I_FART_NOTIS\)/);
   });

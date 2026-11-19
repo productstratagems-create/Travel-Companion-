@@ -170,7 +170,8 @@ describe('hvor skjermen leser regelen', () => {
   // uten en gren. Det som ble bundet her, bindes av destinations.test.js.
   it('lar blokka lese den gjennom catchable', () => {
     const s = src();
-    expect(s).toMatch(/const ride = catchable\(d, walkMins, now\)\[0\];\s*\n\s*if \(!ride\) return;/);
+    // v1.218.136: «fremme før» leser alle avgangene du rekker, ellers den første.
+    expect(s).toMatch(/const rides = før \? catchable\(d, walkMins, now\) : catchable\(d, walkMins, now\)\.slice\(0, 1\);/);
   });
 
   it('lar nedtrekkslista lese den samme regelen', () => {

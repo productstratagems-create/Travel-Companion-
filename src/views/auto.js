@@ -3433,7 +3433,7 @@ function _renderMap() {
     // Beina endres når en avgang går, ikke hvert sekund (ro).
     + '|e' + (!line && !kortLinje ? (_dirs || []).map(d => d.nextMs).join(',')
       // og når en avgang glipper fra rekkevidde: minuttet, bare når nettet vises
-      + '|' + Math.floor(Date.now() / 60000) + '|s' + [..._skjulteModi()].join()
+      + '|' + Math.floor(Date.now() / 60000) + '|s' + [..._skjulteModi()].join() + '|r' + (_autoTavle ? _atRetning : '-')
       // Når plattformene kommer, starter beina ved sporene sine (v1.218.81).
       + '|p' + (_stop && Array.isArray(_plattformer(_stop.id)) ? _plattformer(_stop.id).length : '-') : '-');
   // Redraw when the content changed; re-fit when the content OR the frame
@@ -3502,7 +3502,7 @@ function _renderMap() {
   // kartet, la bruker heller filtrere bort etter behov.» `velgBein`/`beinMaks`
   // kuttet til 4–8 og var et andre, usynlig filter ved siden av lag-panelet.
   // De står igjen som rene funksjoner (foldet, ikke slettet), men kalles ikke.
-  let bein = sentrert && _stop ? edderkoppBein(_dirs, _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null,
+  let bein = sentrert && _stop ? edderkoppBein(_iRetning(_dirs), _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null,
     Infinity, { teller: _beinTeller, stopId: _stop.id || null }) : [];
   _meldManglendeBein(sentrert, bein, _beinTeller);
   // AV/PÅ PER TRANSPORTMIDDEL (v1.218.67), fra alle beina før filteret.
@@ -4731,6 +4731,16 @@ export function filtrerRetning(dirs, valg, gruppe) {
   return dirs;
 }
 let _atRetning = 'alle';
+/**
+ * Retningene filteret slipper gjennom, for lista OG kartet (v1.218.134).
+ * Bestilt: «La kartet følge retningsfilteret også.» Bare i Auto-tavle.
+ */
+function _iRetning(dirs, nå = Date.now()) {
+  if (!_autoTavle || _atRetning === 'alle' || !dirs) return dirs;
+  const here = (_stop && _stop.lat != null) ? { lat: _stop.lat, lon: _stop.lon } : null;
+  const g = _stop ? gangTil(_stop) : null, gang = g ? g.mins : null;
+  return filtrerRetning(dirs, _atRetning, d => retningGruppe(d, here, gang, nå));
+}
 function _tegnAutoTavle(body) {
   const nå = Date.now();
   if (!_stop || _atStopp !== _stop.id) { _atStopp = _stop && _stop.id; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false; _atIkkeÅpen = false; _atRetning = 'alle'; }
@@ -4750,7 +4760,7 @@ function _tegnAutoTavle(body) {
   // Knappene bare når valget betyr noe: noe går mot sentrum, og noe annet.
   const harBegge = [...grp.values()].some(v => v === 'mot') && [...grp.values()].some(v => v !== 'mot');
   if (!harBegge) _atRetning = 'alle';
-  const iRetning = filtrerRetning(synlige, _atRetning, d => grp.get(d));
+  const iRetning = _iRetning(synlige, nå);
   const del = tavleDel(iRetning, nå, ms => canCatch(ms, gang, nå), _atGrense);
   const retningKnapper = harBegge ? '<div class="auto-fra at-retning" role="group" aria-label="retning">'
     + AT_RETNINGER.map(k => '<button type="button" class="auto-fra-knapp' + (k === _atRetning ? ' valgt' : '')

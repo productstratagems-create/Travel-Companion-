@@ -167,3 +167,20 @@ describe('prikken oppdateres der den flyttes (v1.218.138)', () => {
     expect(s).toMatch(/tikk = setInterval\(restil, PRIKK_TIKK_MS\)/);
   });
 });
+
+import { BRUKER_LAG, BRUKER_LAG_Z } from '../src/ui/map.js';
+describe('prikken ligger øverst (v1.218.152)', () => {
+  it('eget lag over markører og lapper, under popups', () => {
+    expect(BRUKER_LAG_Z).toBeGreaterThan(650);
+    expect(BRUKER_LAG_Z).toBeLessThan(700);
+  });
+  it('prikk og ring legges i laget når kartet er kjent', () => {
+    made.length = 0;
+    const panes = {};
+    const kart = { createPane: n => (panes[n] = { style: {} }), getPane: n => panes[n] };
+    userDot({ _map: kart }, { lat: 59.9, lon: 10.8 });
+    expect(panes[BRUKER_LAG].style.zIndex).toBe(String(BRUKER_LAG_Z));
+    expect(prikk().opts.pane).toBe(BRUKER_LAG);
+    expect(made.find(m => m.ring).opts.pane).toBe(BRUKER_LAG);
+  });
+});

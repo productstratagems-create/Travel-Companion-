@@ -596,11 +596,16 @@ export function userDot(layer, ll, opts = {}) {
   // grå når posisjonen er gammel — som Google og Apple, så den leses uten
   // forklaring. Et sted du satte selv er ingen måling: ingen ring, aldri grå.
   const grp = L.layerGroup();
+  // ØVERST (v1.218.152). Spurt: «Bør ikke brukers gps pos være øverst slik at
+  // den ikke maskeres av annen symbolikk?» Prikken lå i overlayPane (400),
+  // under stoppikonene (600) og lappene (650). Nå i eget lag over begge.
+  const pane = brukerLag(layer);
   // Ringen finnes alltid, tom når den ikke skal vises, så en oppdatering kan
   // slå den av og på uten å bygge prikken på nytt.
+  const iLag = pane ? { pane } : {};
   const ring = L.circle([ll.lat, ll.lon], { radius: 0, stroke: true, weight: 1, opacity: 0,
-    fillOpacity: 0, interactive: false }).addTo(grp);
-  const m = L.circleMarker([ll.lat, ll.lon], { radius, color: BRUKER_KANT, fillOpacity: 1, weight: 2.5 }).addTo(grp);
+    fillOpacity: 0, interactive: false, ...iLag }).addTo(grp);
+  const m = L.circleMarker([ll.lat, ll.lon], { radius, color: BRUKER_KANT, fillOpacity: 1, weight: 2.5, ...iLag }).addTo(grp);
   /** Stilen fra tilstanden NÅ. Kalles ved tegning og ved hver flytting
    * (v1.218.138): Utforsk og Underveis flytter prikken i stedet for å tegne
    * den på nytt, og da hang fargen og ringen igjen. */
@@ -623,6 +628,21 @@ export function userDot(layer, ll, opts = {}) {
   grp.on && grp.on('add', () => { clearInterval(tikk); tikk = setInterval(restil, PRIKK_TIKK_MS); });
   grp.on && grp.on('remove', () => { clearInterval(tikk); tikk = null; });
   return grp.addTo(layer);
+}
+
+/** Laget prikken ligger i: over markører (600) og lapper (650), under popups (700). */
+export const BRUKER_LAG = 'bruker';
+export const BRUKER_LAG_Z = 660;
+/** Kartets brukerlag, laget én gang. Null når laget ikke er på et kart ennå. */
+export function brukerLag(layer) {
+  const kart = layer && (typeof layer.createPane === 'function' ? layer : layer._map);
+  if (!kart || typeof kart.getPane !== 'function') return null;
+  if (!kart.getPane(BRUKER_LAG)) {
+    const p = kart.createPane(BRUKER_LAG);
+    p.style.zIndex = String(BRUKER_LAG_Z);
+    p.style.pointerEvents = 'none';   // trykk går gjennom laget; prikken selv tar dem
+  }
+  return BRUKER_LAG;
 }
 
 /** Fargene for «deg», faste på tvers av tema: konvensjonen er det som leses. */

@@ -113,6 +113,18 @@ export function hjemFørsteEtapper(mønstre) {
   });
   return [...sett.values()];
 }
+/**
+ * ER DET ET ANNET STOPP? (v1.218.155). Skjermbilde fra Mortensrud: «raskest
+ * hjem: fra Mortensrud T · linje 71» — men 71 sto alt på tavla du så.
+ * Navnet kan ikke avgjøre det: Majorstuen T og trikkestoppet heter trolig
+ * begge «Majorstuen». Linja kan: et annet stopp er bare verdt å nevne når
+ * linja ikke går fra noe du ser. Rent.
+ */
+export function annetHjemStopp(rk, nær, linjerHer) {
+  if (!rk || !rk.fraId) return false;
+  if ((nær || []).some(s => s && s.id === rk.fraId)) return false;
+  return !(linjerHer && linjerHer.has(rk.linjeId));
+}
 /** Første etappe av det raskeste forslaget, eller null. */
 export function hjemRaskest(mønstre) {
   const g = _gode(mønstre);

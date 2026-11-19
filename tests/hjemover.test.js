@@ -126,7 +126,22 @@ describe('bare gode forslag, og raskest hjem fra et annet stopp (v1.218.153)', (
   });
   it('skjermen viser linjen og bytter stopp ved trykk', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');
-    expect(a).toMatch(/rk\.fraId && !nærHjem\.includes\(rk\.fraId\)/);
+    expect(a).toMatch(/_atRetning === 'hjem' && annetHjemStopp\(rk, nærHjem, linjerHer\)/);
     expect(a).toMatch(/\.at-raskest\[data-pin\]'\)\.forEach\(b => b\.addEventListener\('click', \(\) => \{ if \(pinStop\(b\.dataset\.pin\)\)/);
+  });
+});
+
+import { annetHjemStopp } from '../src/hjemover.js';
+describe('raskest hjem: samme sted, og bare avganger du rekker (v1.218.155)', () => {
+  // FØR-BILDET: Mortensrud T fra Mortensrud.
+  it('71 fra Mortensrud T, når 71 alt står på tavla: ingen «raskest hjem»', () => {
+    expect(annetHjemStopp({ fraId: 'T', fraNavn: 'Mortensrud', linjeId: 'RUT:Line:71' }, [{ id: 'B', name: 'Mortensrud' }], new Set(['RUT:Line:71']))).toBe(false);
+  });
+  it('linje 1 fra Majorstuen T, ikke på trikketavla: «raskest hjem» står, også med likt navn', () => {
+    expect(annetHjemStopp({ fraId: 'T', fraNavn: 'Majorstuen', linjeId: 'RUT:Line:1' }, [{ id: 'TR', name: 'Majorstuen' }], new Set(['RUT:Line:12', 'RUT:Line:19']))).toBe(true);
+  });
+  it('søket starter når du er ved stoppet', () => {
+    const a = readFileSync('src/views/auto.js', 'utf8');
+    expect(a).toMatch(/const fra = nå \+ gangMin \* 60_000;\s*Promise\.all\(mål\.map\(m => fetchTripFra\(_stop\.id, m\.id, fra, 5\)/);
   });
 });

@@ -37,7 +37,7 @@ describe('hentingen', () => {
   });
   it('auto-skjermen henter fra tidspunktet når et valg er gjort', () => {
     const s = readFileSync('src/views/auto.js', 'utf8');
-    expect(s).toMatch(/if \(Number\.isFinite\(_fraMs\)\) \{[\s\S]{0,200}hentStoppAvganger\(s\.id, 30, fra, 180\)/);
+    expect(s).toMatch(/if \(Number\.isFinite\(_fraMs\)\) \{[\s\S]{0,800}hentStoppAvganger\(s\.id, modus === .ankomst. \? 60 : 30, start, vindu\)/);
     expect(readFileSync('src/api/entur.js', 'utf8')).toMatch(/boardGQL\(stopId, n, Number\.isFinite\(fraMs\) \? fraMs : null/);
   });
 });
@@ -68,5 +68,42 @@ describe('langt trykk justerer tiden (v1.218.133)', () => {
   });
   it('et langt trykk er ikke et valg', () => {
     expect(s).toMatch(/if \(_fraHold\.brukt\) \{ _fraHold\.brukt = false; e\.preventDefault\(\); return; \}/);
+  });
+});
+
+import { nesteModus, fraKnappTekst, hentFraMs, ANKOMST_VINDU_MIN, destinations } from '../src/views/auto.js';
+describe('nå · avgang · ankomst (v1.218.136)', () => {
+  it('Auto-reise sykler tre, Auto-tavle to', () => {
+    expect(['nå', 'avgang', 'ankomst'].map(m => nesteModus(m, false))).toEqual(['avgang', 'ankomst', 'nå']);
+    expect(['nå', 'avgang'].map(m => nesteModus(m, true))).toEqual(['avgang', 'nå']);
+  });
+  it('tidsknappene følger modusen', () => {
+    expect(fraKnappTekst('avgang', kl(18, 15), kl(18, 10))).toBe('etter 15:00');
+    expect(fraKnappTekst('ankomst', kl(19, 6), kl(18, 10))).toBe('fremme før 06:00 i morgen');
+  });
+  it('ankomst henter vinduet før fristen', () => {
+    expect(hentFraMs('ankomst', kl(18, 15))).toBe(kl(18, 15) - ANKOMST_VINDU_MIN * 60_000);
+    expect(hentFraMs('avgang', kl(18, 15))).toBe(kl(18, 15));
+  });
+  it('fremme før: den SISTE avgangen som er framme innen fristen', () => {
+    const t = kl(18, 6);
+    const call = (dep, arr) => ({ expectedDepartureTime: new Date(dep).toISOString(), serviceJourney: { id: 'sj' + dep, estimatedCalls: [
+      { quay: { stopPlace: { id: 'A', name: 'Her' } }, expectedDepartureTime: new Date(dep).toISOString(), expectedArrivalTime: new Date(dep).toISOString() },
+      { quay: { stopPlace: { id: 'M', name: 'Målet', latitude: 59.9, longitude: 10.7 } }, expectedArrivalTime: new Date(arr).toISOString() }] } });
+    const m = 60_000, frist = t + 50 * m;
+    const d = { frontText: 'X', lines: [{}], call: call(t + 10 * m, t + 30 * m),
+      calls: [t + 10 * m, t + 25 * m, t + 40 * m].map(ms => ({ ms, call: call(ms, ms + 20 * m) })) };
+    const live = [{ d, i: 0 }];
+    const freq = [{ name: 'Målet', stopId: 'M', count: 5 }];
+    const før = destinations(live, freq, 0, t, 'Her', null, null, frist);
+    expect(før[0].options[0].at).toBe(t + 45 * m);          // 06:25 → 06:45; 06:40 → 07:00 er for sent
+    const vanlig = destinations(live, freq, 0, t, 'Her', null, null);
+    expect(vanlig[0].options[0].at).toBe(t + 30 * m);
+  });
+});
+
+describe('kartet følger kortets tur (v1.218.136)', () => {
+  it('kartnøkkelen tar med turens id, ikke bare antall stopp', () => {
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/kortLinje\.length \+ ':' \+ \(\(_kortRute\.call && _kortRute\.call\.serviceJourney && _kortRute\.call\.serviceJourney\.id\) \|\| ''\)/);
   });
 });

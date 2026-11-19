@@ -69,6 +69,6 @@ describe('kortene etter hvor du mest sannsynlig skal nå', () => {
     expect(d[0].grunn).toBe('hverdagsmorgen: mot sentrum');
   });
   it('og koblingen sender stoppet du er ved og historikken', () => {
-    expect(require('node:fs').readFileSync('src/views/auto.js', 'utf8')).toContain('{ her: _stop, hist: loadSmartHist() });');
+    expect(require('node:fs').readFileSync('src/views/auto.js', 'utf8')).toContain('{ her: _stop, hist: loadSmartHist() }, _fraModus === \'ankomst\' ? _fraMs : null);');
   });
 });

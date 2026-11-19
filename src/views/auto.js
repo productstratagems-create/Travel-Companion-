@@ -3448,7 +3448,9 @@ function _renderMap() {
   // come back when the reader pinches in — without this the map answers for
   // the zoom it was drawn at for the rest of the screen's life.
   const key = mapKey(_stop, userPos, others, walkPts, openKey(_open, line))
-    + '|k' + (kortLinje ? (_kortRute.id || _kortRute.navn) + ':' + kortLinje.length : '-')
+    // Turen også (v1.218.136): et nytt kort med like mange stopp (en annen
+    // avgang, «fremme før») sto ellers med den gamle tiden på kartet.
+    + '|k' + (kortLinje ? (_kortRute.id || _kortRute.navn) + ':' + kortLinje.length + ':' + ((_kortRute.call && _kortRute.call.serviceJourney && _kortRute.call.serviceJourney.id) || '') : '-')
     + '|z' + (_aMap.getZoom ? Math.round(_aMap.getZoom() * 2) / 2 : 0)
     // Beina endres når en avgang går, ikke hvert sekund (ro).
     + '|e' + (!line && !kortLinje ? (_dirs || []).map(d => d.nextMs).join(',')
@@ -3898,8 +3900,38 @@ export function fraTidTekst(ms, nå) {
 /** Utløpt: tidspunktet er passert med FRA_UTLØP_MS. Ren. */
 export function fraUtløpt(ms, nå) { return Number.isFinite(ms) && nå > ms + FRA_UTLØP_MS; }
 let _fraValg = null, _fraMs = null, _fraTidVed = null;   // tiden valget ble regnet fra
+/**
+ * NÅ · AVGANG · ANKOMST (v1.218.136). Bestilt: «"nå" knappen sykler mellom
+ * "nå", "avgang" og "ankomst" og de to siste er koblet "etter klokkeslett"
+ * knappene.» Ankomst er «fremme før» (valgt), og krever et mål — derfor bare
+ * i Auto-reise; Auto-tavle sykler nå ↔ avgang.
+ */
+export const FRA_MODI = ['nå', 'avgang', 'ankomst'];
+// 90 min før fristen, og 60 avganger: et travelt knutepunkt skal nå helt fram til fristen.
+export const ANKOMST_VINDU_MIN = 90;
+let _fraModus = 'nå';
+export function nesteModus(modus, tavle) {
+  const modi = tavle ? FRA_MODI.slice(0, 2) : FRA_MODI;
+  return modi[(modi.indexOf(modus) + 1) % modi.length];
+}
+/** Brikketeksten for et tidspunkt i en modus. Ren. */
+export function fraKnappTekst(modus, ms, nå) {
+  const t = fraTidTekst(ms, nå);
+  return modus === 'ankomst' ? t.replace(/^etter /, 'fremme før ') : t;
+}
+/** Hvor hentingen starter: tidspunktet, eller vinduet før det ved ankomst. Ren. */
+export function hentFraMs(modus, ms) {
+  return Number.isFinite(ms) ? (modus === 'ankomst' ? ms - ANKOMST_VINDU_MIN * 60_000 : ms) : null;
+}
+export function settFraModus(modus) {
+  _fraModus = FRA_MODI.includes(modus) ? modus : 'nå';
+  if (_fraModus === 'ankomst' && _autoTavle) _fraModus = 'nå';
+  settFraValg(_fraModus === 'nå' ? null : _fraValg);
+}
 export function settFraValg(valg) {
   _fraValg = FRA_VALG[valg] != null ? valg : null;
+  if (_fraValg && _fraModus === 'nå') _fraModus = 'avgang';
+  if (!_fraValg && _fraModus === 'ankomst') { /* ankomst uten tid: venter på tid */ }
   _fraMs = _fraValg ? fraTid(_fraValg, Date.now()) : null;
   _fraTidVed = _fraValg ? fraTider()[FRA_VALG[_fraValg]] : null;
   _dirs = []; _asked = false; _open = null; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false;
@@ -3918,15 +3950,18 @@ function _tegnFraValg() {
       const b = e.target.closest('[data-fra]');
       if (!b) return;
       if (_fraHold.brukt) { _fraHold.brukt = false; e.preventDefault(); return; }   // langt trykk er ikke et valg
-      settFraValg(b.dataset.fra === 'nå' ? null : b.dataset.fra);
+      if (b.dataset.fra === 'nå') { settFraModus(nesteModus(_fraModus, _autoTavle)); return; }
+      settFraValg(b.dataset.fra);
     });
     _fraLangtTrykk(el);
   }
   const nå = Date.now();
-  const knapp = (v, tekst) => '<button type="button" class="auto-fra-knapp' + ((_fraValg || 'nå') === v ? ' valgt' : '') + (_fraHold.klar && _fraHold.v === v ? ' holder' : '') + '" data-fra="' + v + '" aria-pressed="' + ((_fraValg || 'nå') === v) + '"' + (FRA_VALG[v] != null ? ' title="hold for å justere tiden"' : '') + '>' + esc(tekst) + '</button>';
+  if (_autoTavle && _fraModus === 'ankomst') _fraModus = 'nå';
+  const valgt = v => v === 'nå' ? _fraModus !== 'nå' || !_fraValg : _fraValg === v;
+  const knapp = (v, tekst) => '<button type="button" class="auto-fra-knapp' + (valgt(v) ? ' valgt' : '') + (v === 'nå' ? ' auto-fra-modus' : '') + (_fraHold.klar && _fraHold.v === v ? ' holder' : '') + '" data-fra="' + v + '" aria-pressed="' + valgt(v) + '"' + (FRA_VALG[v] != null ? ' title="hold for å justere tiden"' : ' title="trykk for å bytte: ' + (_autoTavle ? 'nå · avgang' : 'nå · avgang · ankomst') + '"') + '>' + esc(tekst) + '</button>';
   el.hidden = !_stop;
   // Fast rekkefølge: «15» er en tallnøkkel og ville ellers stått foran «06».
-  el.innerHTML = knapp('nå', 'nå') + FRA_REKKEFØLGE.map(v => knapp(v, fraTidTekst(fraTid(v, nå), nå))).join('');
+  el.innerHTML = knapp('nå', _fraModus) + FRA_REKKEFØLGE.map(v => knapp(v, fraKnappTekst(_fraModus, fraTid(v, nå), nå))).join('');
 }
 
 function _load() {
@@ -3935,13 +3970,16 @@ function _load() {
   if (body) body.innerHTML = '<div class="dest-prev-loading">henter avganger…</div>';
   // ETTER ET TIDSPUNKT (v1.218.130): hele knutepunktet hentes fra det.
   if (Number.isFinite(_fraMs)) {
-    const her = _stop, fra = _fraMs;
+    const her = _stop, fra = _fraMs, modus = _fraModus;
     const steder = knutepunkt(her, _stops());
-    Promise.all(steder.map(s => hentStoppAvganger(s.id, 30, fra, 180).then(sp => ({ stopp: s, sp }))))
+    // ANKOMST: vinduet før fristen, og bare avganger som går innen den.
+    const start = hentFraMs(modus, fra), vindu = modus === 'ankomst' ? ANKOMST_VINDU_MIN : 180;
+    const innen = c => modus !== 'ankomst' || Date.parse(c.expectedDepartureTime || c.aimedDepartureTime) <= fra;
+    Promise.all(steder.map(s => hentStoppAvganger(s.id, modus === 'ankomst' ? 60 : 30, start, vindu).then(sp => ({ stopp: s, sp }))))
       .then(svar => {
-        if (!_stop || _stop.id !== her.id || _fraMs !== fra) return;
+        if (!_stop || _stop.id !== her.id || _fraMs !== fra || _fraModus !== modus) return;
         const hoved = (svar[0] && svar[0].sp) || { estimatedCalls: [], situations: [] };
-        const kall = slåSammenKall(svar.filter(x => x.sp).map((x, i) => ({ stopp: x.stopp.id === her.id ? null : x.stopp, kall: x.sp.estimatedCalls || [] })));
+        const kall = slåSammenKall(svar.filter(x => x.sp).map((x, i) => ({ stopp: x.stopp.id === her.id ? null : x.stopp, kall: (x.sp.estimatedCalls || []).filter(innen) })));
         _lastAvganger(hoved, kall, svar.slice(1).filter(x => x.sp).map(x => x.sp));
       });
     return;
@@ -4982,7 +5020,7 @@ function _renderBody() {
   // Med det lange sporet når det finnes: retningen over minutter, ikke sekunder.
   const dests = destinations(live, freq, walkMins, now, _stop && _stop.name,
     (state.posTrailLang && state.posTrailLang.length >= 2) ? state.posTrailLang : state.posTrail,
-    { her: _stop, hist: loadSmartHist() });
+    { her: _stop, hist: loadSmartHist() }, _fraModus === 'ankomst' ? _fraMs : null);
   _kortNavnFra(dests);
   // Samme kort og samme alternativ som kortets overskrift: kartet og kortet
   // skal vise samme reise.
@@ -5549,7 +5587,8 @@ export function kortHtml(x, n) {
   const q = quayLabel(o.call);
   const ln = (o.d.lines && o.d.lines[0]) || {};
   // «gå om N min» — det kortet manglet: det sa når toget går, ikke når DU går.
-  const gå = Number.isFinite(o.gåMin) ? (o.gåMin <= 0 ? ' · gå nå' : ' · gå om ' + o.gåMin + ' min') : '';
+  // Over en time fram (et valgt tidspunkt): klokkeslett, ikke «gå om 1068 min» (v1.218.136).
+  const gå = Number.isFinite(o.gåMin) ? (o.gåMin <= 0 ? ' · gå nå' : o.gåMin > 60 ? ' · gå ' + clk(Date.now() + o.gåMin * 60_000) : ' · gå om ' + o.gåMin + ' min') : '';
   const how = 'mot ' + o.d.frontText + (q ? ' · ' + q : '') + ' · går ' + clk(o.ms) + gå;
   // Ordene for en skjermleser. Et merke er en farge, og en forskjell som bare
   // er en farge er en forskjell halve lesergruppa ikke har.
@@ -5615,7 +5654,8 @@ export function kortHtml(x, n) {
  */
 export const RETNING_RANG = { mot: 0, staar: 1, 'vet-ikke': 1, fra: 2 };
 
-export function destinations(live, freq, walkMins, now, fromName, trail, modell) {
+export function destinations(live, freq, walkMins, now, fromName, trail, modell, frist = null) {
+  const før = Number.isFinite(frist);   // «fremme før» (v1.218.136)
   const hist = (freq || []).filter(p => p && p.name);
   if (!hist.length) return [];
   // The index is built the way stopShortcuts builds it, from the same fields,
@@ -5630,9 +5670,11 @@ export function destinations(live, freq, walkMins, now, fromName, trail, modell)
 
   const out = new Map();
   (live || []).forEach(({ d, i }) => {
-    const ride = catchable(d, walkMins, now)[0];
-    if (!ride) return;
-    stopsAhead(ride.call, fromName, now).forEach(st => {
+    // FREMME FØR (v1.218.136): alle avgangene du rekker, ikke bare den første;
+    // per sted beholdes den SISTE som er framme innen fristen.
+    const rides = før ? catchable(d, walkMins, now) : catchable(d, walkMins, now).slice(0, 1);
+    rides.forEach(ride => stopsAhead(ride.call, fromName, now).forEach(st => {
+      if (før && !(st.at <= frist)) return;
       const n = usesOf(st, { byId, byName });
       if (!n) return;
       const key = stopKey(st.name);
@@ -5642,15 +5684,15 @@ export function destinations(live, freq, walkMins, now, fromName, trail, modell)
       // The same row twice keeps only its own earliest arrival: one row is
       // one way there, whatever it is called on the way.
       const seen = prev.options.find(o => o.i === i);
-      if (seen) { if (st.at < seen.at) { seen.at = st.at; seen.call = ride.call; } }
+      if (seen) { if (før ? st.at > seen.at : st.at < seen.at) { seen.at = st.at; seen.call = ride.call; seen.ms = ride.ms; } }
       else prev.options.push({ i, d, call: ride.call, ms: ride.ms, at: st.at });
       prev.uses = Math.max(prev.uses, n);
       out.set(key, prev);
-    });
+    }));
   });
 
   return [...out.values()]
-    .map(x => ({ ...x, options: x.options.slice().sort((a, b) => a.at - b.at) }))
+    .map(x => ({ ...x, options: x.options.slice().sort((a, b) => før ? b.at - a.at : a.at - b.at) }))
     .map(x => ({ ...x, retning: (trail && trail.length && Number.isFinite(x.lat))
       ? approach(trail, { lat: x.lat, lon: x.lon }).kind : 'vet-ikke' }))
     // HVOR DU MEST SANNSYNLIG SKAL NÅ (src/maalModell.js): ditt mønster for

@@ -30,7 +30,11 @@ import { makeVehicleIcon, VEHICLE_MARKER_OPTS, makeRouteStopIcon, mobilityCluste
 import { snapToCorridor } from '../ui/corridor.js';
 import { _trainPosition, SRC_LABEL } from './trainPosition.js';
 import { VEHICLE_NOUN, VEHICLE_WORD, MODE_PIN } from '../api/posSource.js';
-import { renderJourneyStrip } from './journeyStrip.js';
+import { renderJourneyStrip, UNDERVEIS_KART_ALLTID } from './journeyStrip.js';
+import { sett as settVerktøy, leggTil as leggTilVerktøy, verktøyFlate, kartForm, settKartForm } from '../ui/kartVerktoy.js';
+import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS } from '../ui/kartFokus.js';
+import { lastHånd } from '../haand.js';
+import { RUTE_KART_FORMER } from './board.js';
 import { renderAlertsInto } from '../ui/alerts.js';
 import { liveness, legCancelled } from '../api/liveness.js';
 import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
@@ -92,7 +96,16 @@ let _tUserMarker = null;
 let _tRoutePts = null;
 let _tSnapDist = null;
 let _tMapKey = null;
-let _tMapOpen = false;
+/* ALLTID SYNLIG, SOM RUTE (v1.218.154). Bestilt: «Underveis-siden kartet må
+ * gjøres likt som kartet for Rute-siden.» Valgt: alltid synlig. Grenen som
+ * holdt kartet lukket står igjen, foldet bak UNDERVEIS_KART_ALLTID. */
+let _tMapOpen = UNDERVEIS_KART_ALLTID;
+let _tUserMoved = false, _tSisteInput = 0, _tProg = false, _tKartFokus = 'oversikt';
+export const UNDERVEIS_FORM_KEY = 't.underveisKartForm';
+/** Det Underveis vet om utsnittene: deg, og stoppet du går av på. Ren. */
+export function underveisFokusData(du, avStopp) {
+  return { du: du || null, stopp: avStopp || null, gang: [], inngang: null, plattform: null, plattformer: [] };
+}
 
 /**
  * Når «nærmer deg framme» begynner.
@@ -282,6 +295,8 @@ function _renderTrackMap(now, cs, legs) {
   const key = _trackMapStructKey(legs, cs.i);
   if (key !== _tMapKey || !_tMap) {
     _tMapKey = key;
+    // Har du flyttet kartet, står utsnittet ditt når kartet bygges på nytt.
+    const holdt = (_tMap && _tUserMoved) ? { c: _tMap.getCenter(), z: _tMap.getZoom() } : null;
     _destroyTrackMap();
     _tMapKey = key;
     _tMap = createMap(mapEl, { expandable: true });
@@ -312,7 +327,10 @@ function _renderTrackMap(now, cs, legs) {
       const nx = _legRoutePts(legs[j]).pts;
       if (nx.length >= 2) frame.push(...nx);
     }
-    if (frame.length) _tMap.fitBounds(frame, { padding: [28, 28], maxZoom: 16, animate: false });
+    _tProg = true;
+    if (holdt) { _tMap.setView(holdt.c, holdt.z, { animate: false }); _tUserMoved = true; }
+    else if (frame.length) _tMap.fitBounds(frame, { padding: [28, 28], maxZoom: 16, animate: false });
+    _tProg = false;
     // THROUGH drawLeg, so a bus looks like a bus here too. This drew every
     // mode as one solid weight-4 stroke and never asked corridorStyle, which
     // has known the answer since v1.96 — so the same bus was dotted on the
@@ -379,16 +397,26 @@ function _renderTrackMap(now, cs, legs) {
 
     // The frame was set before anything was drawn; `allPts` is the same set of
     // points, so this only re-seats it after the markers have been placed.
-    if (allPts.length) _tMap.fitBounds(allPts, { padding: [28, 28], maxZoom: 16, animate: false });
+    if (allPts.length && !holdt) { _tProg = true; _tMap.fitBounds(allPts, { padding: [28, 28], maxZoom: 16, animate: false }); _tProg = false; }
     setTimeout(() => _tMap && _tMap.invalidateSize(), 100);
 
-    bindMapExpand(_tMap, mapEl, document.getElementById('t-map-expand'), { onToggle: (open) => {
-      fitExpandedMap(mapEl, open);
-      // Lukket med ✕ (v1.218.74): samme som å lukke fra stripen — kartet
-      // skjules, og stripen sier «⤢ kart» igjen. Ellers sto et halvt kart igjen
-      // og stripen sa fortsatt «✕ lukk» (sett i proben).
-      if (!open && _tMapOpen) window._toggleTrackMap();
-    } });
+    // SAMME KNAPPER SOM RUTE (v1.218.154): kvadrat · bred · full, uten + og −,
+    // og fokusknappen. Formen huskes, fullskjerm aldri.
+    bindMapExpand(_tMap, mapEl, document.getElementById('t-map-expand'), {
+      syklus: RUTE_KART_FORMER, start: kartForm(UNDERVEIS_FORM_KEY),
+      onToggle: (open, form) => {
+        fitExpandedMap(mapEl, open); settKartForm(UNDERVEIS_FORM_KEY, form);
+        setTimeout(() => { if (_tMap) _tMap.invalidateSize(); }, 340);
+      },
+    });
+    settVerktøy(_tMap, 'inn', { skjult: true });
+    settVerktøy(_tMap, 'ut', { skjult: true });
+    leggTilVerktøy(_tMap, 'fokus', { påTrykk: () => { _tKartFokus = nesteFokus(_tKartFokus, KART_FOKUS); _brukUnderveisFokus(allPts); } });
+    _tegnUnderveisFokus();
+    // Ro: dra, knipe-zoom og hjul er dine (samme regel som Auto, v1.218.150).
+    _tMap.on('dragstart', () => { _tUserMoved = true; });
+    ['touchstart', 'pointerdown', 'wheel', 'keydown', 'dblclick'].forEach(t => mapEl.addEventListener(t, () => { _tSisteInput = Date.now(); }, { passive: true, capture: true }));
+    _tMap.on('zoomstart movestart', () => { if (!_tProg && Date.now() - _tSisteInput < 800) _tUserMoved = true; });
   }
 
   if (!_tMap) return;
@@ -2756,7 +2784,37 @@ window._simEtterBytt = function() {
  * linja» på 61 px. Trenger du terrenget, skal du få det stort — ikke som en
  * 220 px stripe grå flate som verken orienterer eller lar seg lese.
  */
+function _brukUnderveisFokus(allPts) {
+  if (!_tMap) return;
+  _tProg = true;
+  try {
+    if (_tKartFokus === 'oversikt') {
+      _tUserMoved = false;
+      if (allPts && allPts.length) _tMap.fitBounds(allPts, { padding: [28, 28], maxZoom: 16 });
+      _tegnUnderveisFokus(); return;
+    }
+    const legs = (state.jny && state.jny.legs) || [];
+    const leg = legs.find(l => l && l.stops && l.stops.length) || null;
+    const st = leg ? _legRouteStops(leg) : [];
+    const sp = st.length ? placeLL(callPlace(st[st.length - 1])) || quayLatLon(st[st.length - 1].quay) : null;
+    const r = fokusRamme(_tKartFokus, underveisFokusData(userLL(), sp));
+    _tegnUnderveisFokus(r && r.ukjent);
+    if (!r) return;
+    _tUserMoved = true;
+    if (r.pts.length === 1) { _tMap.setView(r.pts[0], r.maksZoom); return; }
+    const vf = verktøyFlate(_tMap);
+    const side = vf && vf.r.width ? Math.round(vf.r.width + 24) : 40;
+    const venstre = lastHånd() === 'venstre';
+    _tMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [venstre ? side : 40, 40], paddingBottomRight: [venstre ? 40 : side, 40], maxZoom: r.maksZoom });
+  } finally { _tProg = false; }
+}
+function _tegnUnderveisFokus(ukjent) {
+  if (!_tMap) return;
+  settVerktøy(_tMap, 'fokus', { ikon: FOKUS_IKON[_tKartFokus], tekst: fokusTekst(_tKartFokus, false).replace(/^\S+\s/, '') + (ukjent ? ' · spor ukjent' : ''),
+    merket: !!ukjent, aktiv: _tKartFokus !== 'oversikt' });
+}
 window._toggleTrackMap = () => {
+  if (UNDERVEIS_KART_ALLTID) return;   // alltid synlig (v1.218.154)
   _tMapOpen = !_tMapOpen;
   // Q4 fra v1.156.0: er stripen nok, eller åpner du kartet likevel? Ett
   // trykk, ett svar — og det er leseren som svarer, ikke jeg.

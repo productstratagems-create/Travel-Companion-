@@ -897,3 +897,7 @@ html.view-board.map-open #dep-list{
 #board-map{height:auto;aspect-ratio:1 / 1}
 #board-map.form-bred{aspect-ratio:16 / 9}
 #board-map.expanded{aspect-ratio:auto;height:var(--map-h-open)}
+/* Underveis som Rute (v1.218.154): kvadrat, bred, fullskjerm. */
+#t-map{height:auto;aspect-ratio:1 / 1;margin-bottom:.5rem}
+#t-map.form-bred{aspect-ratio:16 / 9}
+#t-map.expanded{aspect-ratio:auto;height:var(--map-h-open)}

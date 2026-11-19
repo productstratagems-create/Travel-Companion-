@@ -255,3 +255,9 @@ export function verktøyFlate(map) {
   const p = v.panel && !v.panel.hidden ? v.panel.getBoundingClientRect() : null;
   return { el: v.el, r, p };
 }
+
+/* KARTETS FORM, ÉN REGEL (v1.218.154). Rute og Underveis husker hver sin:
+ * bred som standard, kvadrat om du valgte det, fullskjerm aldri. */
+import { storage as _formLager } from '../storage.js';
+export function kartForm(nøkkel) { try { return _formLager.get(nøkkel) === 'kvadrat' ? 'kvadrat' : 'bred'; } catch { return 'bred'; } }
+export function settKartForm(nøkkel, f) { if (f === 'full') return; try { _formLager.set(nøkkel, f === 'kvadrat' ? 'kvadrat' : 'bred'); } catch { /* */ } }

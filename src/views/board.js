@@ -101,7 +101,7 @@ export function ankomstHtml(arrT, now, o) {
 import { decodePolyline } from '../ui/polyline.js';
 import { ensureApproach, approachPoints, approachKey, resetApproach } from '../api/approach.js';
 import { innganger, hentInnganger, valgtInngang } from '../api/innganger.js';
-import { leggTilLag, sett as settVerktøy, leggTil as leggTilVerktøy, verktøyFlate } from '../ui/kartVerktoy.js';
+import { leggTilLag, sett as settVerktøy, leggTil as leggTilVerktøy, verktøyFlate, kartForm, settKartForm } from '../ui/kartVerktoy.js';
 import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS } from '../ui/kartFokus.js';
 import { lastHånd } from '../haand.js';
 import { userLL } from '../geo.js';
@@ -611,8 +611,9 @@ function _ensureMap(pos) {
 export const RUTE_KART_FORMER = ['kvadrat', 'bred', 'full'];
 const RUTE_FORM_KEY = 't.ruteKartForm';
 /** Bred som standard: nærmest det Rute-kartet var før. Fullskjerm huskes aldri. */
-export function ruteKartForm() { try { return storage.get(RUTE_FORM_KEY) === 'kvadrat' ? 'kvadrat' : 'bred'; } catch { return 'bred'; } }
-export function settRuteKartForm(f) { if (f === 'full') return; try { storage.set(RUTE_FORM_KEY, f === 'kvadrat' ? 'kvadrat' : 'bred'); } catch { /* */ } }
+// Regelen bor i kartVerktoy.js (v1.218.154), delt med Underveis.
+export function ruteKartForm() { return kartForm(RUTE_FORM_KEY); }
+export function settRuteKartForm(f) { settKartForm(RUTE_FORM_KEY, f); }
 let _bKartFokus = 'oversikt';
 /** Det Rute vet om utsnittene: deg, stoppet, og plattformen til første avgang. */
 export function ruteFokusData(dir, du, førsteAvgang) {

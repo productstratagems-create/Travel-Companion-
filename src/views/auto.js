@@ -2511,6 +2511,22 @@ let _aLayer = null;
 let _aKey = '';
 let _aFitKey = '';
 let _aUserMoved = false;
+/* ROLIG KART (v1.218.150). Bestilt: «Kartets zoom, senterpunkt og innhold er
+ * for ustabilt nå. Dersom bruker har justert noe må ikke systemet endre på
+ * det av seg selv.» Knipe-zoom og hjul talte ikke som en justering (bare
+ * dra gjorde), og rammen fulgte innholdsnøkkelen, som skifter hvert minutt.
+ * En zoom eller flytting innen BRUKER_INPUT_MS etter en berøring, et hjul
+ * eller en tast er din; appens egne setView/fitBounds er det aldri. */
+export const BRUKER_INPUT_MS = 800;
+let _aSisteInput = 0, _aProgrammatisk = false;
+function _rammer(fn) { _aProgrammatisk = true; try { fn(); } finally { _aProgrammatisk = false; } }
+/**
+ * Hva som får kartet til å ramme inn på nytt — det du har bedt om, og
+ * stoppet. IKKE minuttet, avgangene eller GPS-støy. Ren.
+ */
+export function rammeNøkkel({ stoppId, åpen, kort, gåHit, fokus, størrelse }) {
+  return [stoppId || '-', åpen || '-', kort || '-', gåHit || '-', fokus || '-', størrelse || '-'].join('|');
+}
 let _aOpenKey = null;
 
 /** Test seam: module state, and a test must be able to clear it. */
@@ -3119,7 +3135,7 @@ function _brukFokus() {
   const r = fokusRamme(_kartFokus, _fokusData());
   if (!r) return;
   _aUserMoved = true;
-  if (r.pts.length === 1) _aMap.setView(r.pts[0], r.maksZoom);
+  if (r.pts.length === 1) _rammer(() => _aMap.setView(r.pts[0], r.maksZoom));
   else {
     // Rammen holder plass til knappene nede til høyre (fokusknappen og +/−),
     // ellers ligger plattformen du skal til under dem — sett i proben.
@@ -3130,8 +3146,8 @@ function _brukFokus() {
     const venstre = lastHånd() === 'venstre';
     // «Hele ruter»: lappene stikker ut fra endestasjonene; plass til dem også.
     const lappB = _kartFokus === 'ruter' ? HELE_RUTER_LAPP_PX : 0;
-    _aMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [(venstre ? side : 40) + lappB, 40 + (lappB ? 30 : 0)],
-      paddingBottomRight: [(venstre ? 40 : side) + lappB, 40 + (lappB ? 30 : 0)], maxZoom: r.maksZoom });
+    _rammer(() => _aMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [(venstre ? side : 40) + lappB, 40 + (lappB ? 30 : 0)],
+      paddingBottomRight: [(venstre ? 40 : side) + lappB, 40 + (lappB ? 30 : 0)], maxZoom: r.maksZoom }));
   }
   _tegnFokusKnapp(r.ukjent);
 }
@@ -3486,6 +3502,12 @@ function _renderMap() {
     // moved the map in the act of framing it, and every later fit was
     // blocked. Measured: the stop marker sat 40px above a 140px band.
     _aMap.on('dragstart', () => { _aUserMoved = true; });
+    // Knipe-zoom, hjul, dobbelttrykk og taster (v1.218.150): input rett før.
+    const _inp = () => { _aSisteInput = Date.now(); };
+    ['touchstart', 'pointerdown', 'wheel', 'keydown', 'dblclick'].forEach(t => el.addEventListener(t, _inp, { passive: true, capture: true }));
+    _aMap.on('zoomstart movestart', () => {
+      if (!_aProgrammatisk && Date.now() - _aSisteInput < BRUKER_INPUT_MS) _aUserMoved = true;
+    });
     // Only a redraw, never a refit: zoomend fires for fitBounds too, and
     // treating that as «the reader moved the map» is the trap that made
     // zoomstart self-defeating in v1.101.0.
@@ -3533,7 +3555,9 @@ function _renderMap() {
   // Ny holdeplass: kartet går tilbake til oversikten (v1.218.71).
   if (_stop && _fokusStopp !== _stop.id) {
     _fokusStopp = _stop.id;
-    if (_kartFokus !== 'oversikt') { _kartFokus = 'oversikt'; _aUserMoved = false; _aFitKey = ''; }
+    // Ikke om du har justert kartet: et stopp appen byttet av seg selv er
+    // ingen grunn til å ta det tilbake (v1.218.150).
+    if (_kartFokus !== 'oversikt' && !_aUserMoved) { _kartFokus = 'oversikt'; _aFitKey = ''; }
   }
   _tegnFokusKnapp();
 
@@ -3590,7 +3614,13 @@ function _renderMap() {
     _kartFokus = 'oversikt';
     _linePicked = null;
   }
-  const fitStale = !_aUserMoved && _aFitKey !== key + '|' + sizeKey;
+  // Rammen følger det du har bedt om, ikke klokka (v1.218.150).
+  const _gvF = _gåHitVis && _gåHit.get(_gåHitVis);
+  const rKey = rammeNøkkel({ stoppId: _stop && _stop.id, åpen: (openKey(_open, line) || {}).id, kort: kortLinje ? (_kortRute.id || _kortRute.navn) : null,
+    gåHit: _gvF && _gvF.råd ? _gåHitVis + ':' + _gvF.at : null, fokus: _kartFokus, størrelse: sizeKey });
+  // Ute av rammen: går du ut av utsnittet (og ikke har rørt kartet), rammes det inn igjen.
+  const ute = !!(userPos && _aFitKey && !_aMap.getBounds().pad(-0.05).contains([userPos.lat, userPos.lon]));
+  const fitStale = !_aUserMoved && (_aFitKey !== rKey || ute);
   if (key === _aKey && !fitStale) return;
   _aKey = key;
 
@@ -3671,14 +3701,14 @@ function _renderMap() {
       .concat(utgangBeinPunkter(bein))
       .concat(walkPts || [])
     : pts;
-  if (rammePts.length && !_aUserMoved && _aFitKey !== key + '|' + sizeKey) {
-    _aFitKey = key + '|' + sizeKey;
+  if (rammePts.length && fitStale) {
+    _aFitKey = rKey;
     // animate:false so the projection is TRUE the moment this returns. With
     // the default animation latLngToContainerPoint still answers for the view
     // being left, so the readability check below measured the old zoom and
     // kept every bead — 12px median where the threshold is 21.
     const pass = _aMap.getBoundsZoom(L.latLngBounds(rammePts), false, L.point(2 * FIT_PAD, 2 * FIT_PAD));
-    _aMap.setView(midtpunkt(rammePts), Math.min(FIT_MAKS_ZOOM, pass), { animate: false });
+    _rammer(() => _aMap.setView(midtpunkt(rammePts), Math.min(FIT_MAKS_ZOOM, pass), { animate: false }));
   }
 
   let stoppHinder = null;

@@ -93,6 +93,6 @@ describe('kartet', () => {
   /* En åpen retning er det du nettopp trykket på. Den vinner. */
   it('og en åpen retning vinner over kortet', () => {
     const i = src().indexOf('function _renderMap');
-    expect(src().slice(i, i + 6000)).toMatch(/const kortLinje = \(!_open && _stop && _kortRute\)/);
+    expect(src().slice(i, i + 6000)).toMatch(/const kortLinje = \(!_open (&& !_gåHitVis )?&& _stop && _kortRute\)/);
   });
 });

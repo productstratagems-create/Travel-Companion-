@@ -25,7 +25,8 @@ import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import config from '../config.js';
 import { state } from '../state.js';
-import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra, fetchBoardPage, hentStoppAvganger } from '../api/entur.js';
+import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra, fetchTripFraPos, fetchBoardPage, hentStoppAvganger } from '../api/entur.js';
+import { gåHitFor, annetStopp, trengerNyttSøk, gåHitMål } from '../gaaHit.js';
 import { raskereHer } from '../raskere.js';
 import { rangerMål, foldetSide } from '../maalModell.js';
 import { overganger, arrBoardSpørsmål, ARR_BOARD_ASK } from '../overganger.js';
@@ -2026,6 +2027,40 @@ export function budsjettTillater(logg, nå, n = 1) {
   return true;
 }
 const _søkLogg = [];
+
+/* ── GÅ HIT FOR Å KOMME DIT (v1.218.143, src/gaaHit.js) ─────────────── */
+const _gåHit = new Map();   // målets stopId → { pos, at, råd, henter, feil }
+let _gåHitVis = null;       // målet hvis gangrute står på kartet
+function _gåHitOppdater(pos, nå) {
+  if (!pos) return;
+  gåHitMål(loadFreq('arr')).forEach(m => {
+    const f = _gåHit.get(m.stopId);
+    if (f && f.henter) return;
+    if (!trengerNyttSøk(f, pos, nå, metresBetween)) return;
+    if (!budsjettTillater(_søkLogg, nå, 1)) return;
+    const post = { pos: { lat: pos.lat, lon: pos.lon }, at: nå, råd: f ? f.råd : undefined, henter: true, navn: m.name };
+    _gåHit.set(m.stopId, post);
+    fetchTripFraPos(pos, m.stopId, nå, 3)
+      .then(mønstre => { post.råd = gåHitFor(mønstre, Date.now()); post.henter = false; })
+      .catch(() => { post.henter = false; post.feil = true; });
+  });
+}
+/** Kortene: bare der rådet er et annet stopp enn de du ser. */
+export function gåHitKortHtml(liste, nå) {
+  return liste.map(({ id, navn, råd }) => {
+    const gå = råd.gangMin <= 0 ? 'gå til ' : 'gå ' + råd.gangMin + ' min til ';
+    const how = gå + råd.stoppNavn + (råd.spor ? ' · spor ' + råd.spor : '');
+    const ta = (råd.linje ? råd.linje + ' ' : '') + 'mot ' + råd.mot + ' · går ' + clk(råd.går) + (råd.bytter > 0 ? ' · ' + råd.bytter + ' bytte' : '');
+    return '<button class="nearby-btn auto-dest auto-gaa' + (_gåHitVis === id ? ' valgt' : '') + '" type="button" data-gaa="' + esc(id) + '"'
+      + ' aria-label="' + esc(navn + ': ' + how + ', ' + ta + ', framme ' + clk(råd.framme)) + '">'
+      + '<span class="auto-dest-top"><span class="auto-dest-name">' + esc(navn) + '</span>'
+      + (Number.isFinite(råd.framme) ? '<span class="auto-dest-at">' + esc('framme ' + clk(råd.framme)) + '</span>' : '') + '</span>'
+      + '<span class="auto-gaa-hit">\u{1F6B6} ' + esc(how) + '</span>'
+      + '<span class="auto-dest-how">' + esc(ta) + '</span>'
+      + '</button>';
+  }).join('');
+}
+
 function _raskereData(nå) {
   const mål = _kortRute && _kortRute.id;
   const neste = _lås && stoppFram(_lås.k, nå, 0);
@@ -3487,7 +3522,7 @@ function _renderMap() {
    * retning er åpen. En åpen retning er det du nettopp trykket på, og den
    * vinner. Rapportert: kortet sa «Jernbanetorget», kartet viste sju stopp
    * i nabolaget og ingen rute. */
-  const kortLinje = (!_open && _stop && _kortRute)
+  const kortLinje = (!_open && !_gåHitVis && _stop && _kortRute)
     ? kortRuteStopp(_kortRute.call, _stop.name, { name: _kortRute.navn, id: _kortRute.id })
     : null;
   // LITE ANNET: med en kortrute tegnes ikke de andre stoppene. De ligger
@@ -3509,6 +3544,7 @@ function _renderMap() {
   // come back when the reader pinches in — without this the map answers for
   // the zoom it was drawn at for the rest of the screen's life.
   const key = mapKey(_stop, userPos, others, walkPts, openKey(_open, line))
+    + '|g' + (_gåHitVis || '-') + ((_gåHitVis && _gåHit.get(_gåHitVis) && _gåHit.get(_gåHitVis).at) || '')
     // Turen også (v1.218.136): et nytt kort med like mange stopp (en annen
     // avgang, «fremme før») sto ellers med den gamle tiden på kartet.
     + '|k' + (kortLinje ? (_kortRute.id || _kortRute.navn) + ':' + kortLinje.length + ':' + ((_kortRute.call && _kortRute.call.serviceJourney && _kortRute.call.serviceJourney.id) || '') : '-')
@@ -3822,6 +3858,15 @@ function _renderMap() {
   }
 
   if (walkPts && walkPts.length) drawWalk(_aLayer, walkPts);
+  // GÅ HIT (v1.218.143): gangruta til stoppet kortet peker på.
+  const _gv = _gåHitVis && _gåHit.get(_gåHitVis), _gr = _gv && _gv.råd;
+  if (_gr && Number.isFinite(_gr.lat)) {
+    const pts = (_gr.gangPunkter && _gr.gangPunkter.length) ? _gr.gangPunkter : (userPos ? [[userPos.lat, userPos.lon], [_gr.lat, _gr.lon]] : []);
+    if (pts.length) drawWalk(_aLayer, pts);
+    L.marker([_gr.lat, _gr.lon], { icon: makeStopIcon(normMode(_gr.modus), 1, { primary: true }) })
+      .bindTooltip(esc(_gr.stoppNavn + (_gr.spor ? ' · spor ' + _gr.spor : '') + ' · ' + _gr.gangMin + ' min'), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })
+      .addTo(_aLayer);
+  }
   if (userPos) userDot(_aLayer, userPos);
   // MERKELAPPER SOM KRASJER: den som kommer sist (lavere prioritet), blir et
   // vanlig verktøytips. Stoppet du er ved tegnes først og beholdes. Målt i
@@ -5222,6 +5267,16 @@ function _renderBody() {
    * dem — som er hele grunnen til at den havnet over begge. «Hvor skal du?»
    * er flyttet til index.html, rett over bryteren, så overskriften og
    * kontrollen hører sammen uten at noen av dem tegnes på nytt hvert sekund. */
+  // GÅ HIT (v1.218.143): søk fra der du står, kort der rådet er et annet stopp.
+  const _her = userLL();
+  if (!_reiseInfo && !_lås && _her) _gåHitOppdater(_her, now);
+  const nærIds = _stop ? knutepunkt(_stop, _stops()).map(s => s.id) : [];
+  const gåKort = (_reiseInfo || _lås) ? [] : [..._gåHit.entries()]
+    .filter(([, v]) => annetStopp(v.råd, nærIds)).map(([id, v]) => ({ id, navn: v.navn, råd: v.råd }));
+  const gåNavn = new Set(gåKort.map(k => stopKey(k.navn)));
+  // Målene gå-hit-kortene alt svarer for, står ikke to ganger.
+  const destsHer = dests.filter(x => !gåNavn.has(stopKey(x.name)));
+  if (_gåHitVis && !gåKort.some(k => k.id === _gåHitVis)) _gåHitVis = null;
   const destBody = _el('auto-dest-body');
   if (destBody) {
     destBody.innerHTML = _reiseInfo
@@ -5240,12 +5295,13 @@ function _renderBody() {
       : erReiseStartet(state.jny, state.route, now)
         ? (dests.length ? '<details class="auto-andre-mål"><summary class="auto-side">andre mål · ' + dests.length + '</summary>'
           + dests.map(destHtml).join('') + '</details>' : '')
-      : dests.length
+      : (gåKort.length ? '<div class="set-label">gå hit for å komme dit</div>' + gåHitKortHtml(gåKort, now) : '')
+      + (destsHer.length
         // Overskriften sier hva kortene bygger på (v1.218.97): en vane nå,
-        // eller bare steder du har reist til før.
-        ? '<div class="set-label">' + (dests.some(x => x.vane || x.retning === 'mot') ? 'dit du pleier nå' : 'steder du har valgt før') + '</div>'
-          + dests.map(destHtml).join('')
-        : '';
+        // eller bare steder du har reist til før. Bare over kort som står der.
+        ? '<div class="set-label">' + (destsHer.some(x => x.vane || x.retning === 'mot') ? 'dit du pleier nå' : 'steder du har valgt før') + '</div>'
+          + destsHer.map(x => destHtml(x, dests.indexOf(x))).join('')
+        : '');
   }
 
   /* OVERSKRIFTEN UNDER, FRA DET ENE STEDET SOM VET OM DET BLE KORT.
@@ -5428,6 +5484,9 @@ function _renderBody() {
    * fallback som aldri kan hjelpe er bare støy som ser ut som forsiktighet. */
   _gjenopprettSlett(destBody);
   _bindKort(destBody, dests);
+  if (destBody) destBody.querySelectorAll('.auto-gaa').forEach(b => b.addEventListener('click', () => {
+    _gåHitVis = _gåHitVis === b.dataset.gaa ? null : b.dataset.gaa; _aKey = ''; _renderBody();
+  }));
 }
 
 // Which line's stops the register has already been asked about. The screen
@@ -5649,7 +5708,7 @@ export function _bindKort(destBody, dests) {
       .forEach(r => r.classList.remove('vis-slett'));
   };
 
-  destBody.querySelectorAll('.auto-dest').forEach(b => {
+  destBody.querySelectorAll('.auto-dest:not(.auto-gaa)').forEach(b => {   // gå-hit-kortene har sin egen (v1.218.143)
     /* LANGTRYKK: hold et halvt sekund for å avsløre ×-en.
      *
      * `pointer`-hendelser og ikke `touch`: de dekker finger, mus og penn med

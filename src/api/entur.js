@@ -588,6 +588,11 @@ export function fetchTripFra(fraId, tilId, atMs, n) {
     .then(j => (j && j.data && j.data.trip && j.data.trip.tripPatterns) || []);
 }
 
+/** Samme søk fra der du står (v1.218.143, «gå hit for å komme dit»). */
+export function fetchTripFraPos(pos, tilId, atMs, n) {
+  return fetchTripFra({ lat: pos.lat, lon: pos.lon }, tilId, atMs, n);
+}
+
 export function fetchTripPage(dir, atMs, n, onSuccess, onError) {
   if (pageController) pageController.abort();
   pageController = new AbortController();

@@ -108,3 +108,11 @@ describe('bare når du ber om det (v1.218.149)', () => {
     expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/class="auto-dest-gaa" type="button" data-gaa-be=/);
   });
 });
+
+describe('×-en står skjult (v1.218.157)', () => {
+  it('«beste holdeplass?» står etter kortraden, ikke i den, og raden brytes ikke', () => {
+    const a = readFileSync('src/views/auto.js', 'utf8');
+    expect(a).toMatch(/\+ '<\/span>'\s*\n\s*\/\/ GÅ HIT NÅR DU BER OM DET[\s\S]{0,300}\(x\.id \? '<button class="auto-dest-gaa"/);
+    expect(readFileSync('src/style/settings.css', 'utf8')).not.toMatch(/\.auto-dest-rad\{flex-wrap:wrap\}/);
+  });
+});

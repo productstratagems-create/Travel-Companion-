@@ -162,3 +162,30 @@ describe('hjemover som seksjon i Auto-reise (v1.218.156)', () => {
     expect(a).toMatch(/HJEM_HOLD_SEL = '\.at-retning \[data-retning="hjem"\], \[data-hjem-side\]'/);
   });
 });
+
+import { hjemGange, GÅ_HJEM_FORSPRANG_MIN } from '../src/hjemover.js';
+describe('nær hjem: gå hjem, og buss bare om den er raskere (v1.218.158)', () => {
+  const T = Date.UTC(2026, 10, 19, 21, 0), iso = m => new Date(T + m * 60_000).toISOString();
+  const gå = (a, b) => ({ mode: 'foot', expectedStartTime: iso(a), expectedEndTime: iso(b) });
+  const buss = (linje, a, b, til) => ({ mode: 'bus', expectedStartTime: iso(a), expectedEndTime: iso(b), serviceJourney: { line: { id: 'RUT:Line:' + linje, publicCode: linje } },
+    fromPlace: { name: 'Mortensrud', quay: { stopPlace: { id: 'M' } } }, toPlace: { name: til }, fromEstimatedCall: { destinationDisplay: { frontText: til } } });
+  const HJEM = [{ id: 'H', name: 'Hjemmestua' }];
+  // FØR-BILDET: gange hjem 9 min; 76 via Helsfyr er framme mye senere.
+  const M = [{ legs: [gå(0, 9)] }, { legs: [buss('76', 5, 15, 'Helsfyr'), buss('9', 20, 30, 'Hjemmestua')] }];
+  it('gange som raskest: { gangMin, ende }', () => {
+    expect(hjemGange(M)).toEqual({ ende: T + 9 * 60_000, gangMin: 9 });
+    expect(GÅ_HJEM_FORSPRANG_MIN).toBe(3);
+  });
+  it('76 er ikke hjemover når du er framme til fots før', () => {
+    const et = hjemFørsteEtapper(M);
+    expect(hjemDom('RUT:Line:76', [{ name: 'Helsfyr' }], HJEM, et, null).hjem).toBe(true);    // som før, uten gange
+    expect(hjemDom('RUT:Line:76', [{ name: 'Helsfyr' }], HJEM, et, hjemGange(M)).hjem).toBe(false);
+  });
+  it('en direkte buss framme minst 3 min før du går, er hjemover', () => {
+    expect(hjemDom('X', [{ id: 'H', name: 'Hjemmestua', at: T + 5 * 60_000 }], HJEM, [], hjemGange(M)).hjem).toBe(true);
+    expect(hjemDom('X', [{ id: 'H', name: 'Hjemmestua', at: T + 7 * 60_000 }], HJEM, [], hjemGange(M)).hjem).toBe(false);
+  });
+  it('og ingen «raskest hjem» når gange vinner', () => {
+    expect(hjemRaskest(M)).toBe(null);
+  });
+});

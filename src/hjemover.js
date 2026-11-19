@@ -125,17 +125,44 @@ export function annetHjemStopp(rk, nær, linjerHer) {
   if ((nær || []).some(s => s && s.id === rk.fraId)) return false;
   return !(linjerHer && linjerHer.has(rk.linjeId));
 }
+/**
+ * GÅ HJEM (v1.218.158). Spurt med skjermbilde fra Mortensrud: «Hvordan skal
+ * Hjemover håndteres når bruker er innen gåavstand til hjem?» Valgt: «gå hjem»
+ * og buss bare om den er framme minst GÅ_HJEM_FORSPRANG_MIN før. Rent:
+ * forslaget som bare er gange → { gangMin, ende }, ellers null.
+ */
+export const GÅ_HJEM_FORSPRANG_MIN = 3;
+export function hjemGange(mønstre) {
+  const g = (mønstre || []).filter(p => p && (p.legs || []).length && p.legs.every(l => l && l.mode === 'foot'));
+  if (!g.length) return null;
+  const best = g.map(p => ({ ende: _ende(p), start: _t(p.legs[0], 'StartTime') })).filter(x => Number.isFinite(x.ende))
+    .sort((a, b) => a.ende - b.ende)[0];
+  return best ? { ende: best.ende, gangMin: Math.max(1, Math.round((best.ende - best.start) / 60_000)) } : null;
+}
 /** Første etappe av det raskeste forslaget, eller null. */
 export function hjemRaskest(mønstre) {
   const g = _gode(mønstre);
-  return g.length ? _etappe(g[0]) : null;
+  const e = g.length ? _etappe(g[0]) : null;
+  // Går du like fort, er ingen holdeplass «raskest» (v1.218.158).
+  const gå = hjemGange(mønstre);
+  return e && gå && !(e.framme <= gå.ende - GÅ_HJEM_FORSPRANG_MIN * 60_000) ? null : e;
 }
 
 /**
  * Dommen for én retning: direkte (et stopp videre er ditt), eller første
  * etappe hjem — samme linje, og den kjører til stedet du bytter på. Rent.
  */
-export function hjemDom(linjeId, fram, liste, etapper) {
+export function hjemDom(linjeId, fram, liste, etapper, gange = null) {
+  // NÆR HJEM (v1.218.158): går du like fort, er ingen avgang «hjemover».
+  if (gange) {
+    const frist = gange.ende - GÅ_HJEM_FORSPRANG_MIN * 60_000;
+    const ider = new Set((liste || []).map(s => s.id)), navn = new Set((liste || []).map(s => stopKey(s.name)).filter(Boolean));
+    const hjem = (fram || []).find(st => (st.id && ider.has(st.id)) || navn.has(stopKey(st.name)));
+    if (hjem && Number.isFinite(hjem.at) && hjem.at <= frist) return { hjem: true, bytte: null };
+    const e = (etapper || []).find(x => x.linjeId === linjeId && x.bytte && Number.isFinite(x.framme) && x.framme <= frist
+      && (fram || []).some(st => stopKey(st.name) === stopKey(x.bytte)));
+    return e ? { hjem: true, bytte: e.bytte } : { hjem: false, bytte: null };
+  }
   if (gårHjemover(fram, liste)) return { hjem: true, bytte: null };
   const navn = new Set((fram || []).map(st => stopKey(st.name)).filter(Boolean));
   const e = (etapper || []).find(x => x.linjeId === linjeId && (x.bytte ? navn.has(stopKey(x.bytte)) : false));

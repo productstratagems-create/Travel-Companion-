@@ -29,3 +29,18 @@ describe('én knapp for hele reisen (v1.218.164)', () => {
     expect(nesteFokus('utsnitt')).toBe('oversikt');
   });
 });
+
+import { vi } from 'vitest';
+describe('fokus fra avgangen selv (v1.218.165)', () => {
+  it('stopp og spor kommer fra avgangens første etappe, ikke fra Rute-ruta', async () => {
+    const { detaljFokusData } = await import('../src/ui/kartFokus.js');
+    const dep = { _legs: [{ fromPlace: { latitude: 59.85, longitude: 10.83, quay: { stopPlace: { latitude: 59.851, longitude: 10.831 } } } }] };
+    const d = detaljFokusData(dep, { lat: 59.84, lon: 10.82 }, [[59.845, 10.825]]);
+    expect(d.stopp).toEqual({ lat: 59.851, lon: 10.831 });
+    expect(d.plattform).toEqual({ lat: 59.85, lon: 10.83 });
+    const { fokusRamme } = await import('../src/ui/kartFokus.js');
+    // FØR-BILDET: uten stopp ga «vei» null — knappen gjorde ingenting.
+    expect(fokusRamme('vei', { du: { lat: 1, lon: 1 }, stopp: null })).toBe(null);
+    expect(fokusRamme('vei', d)).not.toBe(null);
+  });
+});

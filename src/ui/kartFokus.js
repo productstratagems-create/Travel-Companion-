@@ -47,3 +47,20 @@ export function fokusRamme(f, { du, stopp, gang, inngang, plattform, plattformer
   return null;
 }
 
+
+/**
+ * Det avgangsdetaljene vet om utsnittene, fra avgangen (v1.218.165): stoppet
+ * og sporet der du går på, og gangen dit. Rapportert: «Den knappen ser ikke ut
+ * til å endre noe» — ruteFokusData leste stoppet fra Rute-ruta. Ren.
+ */
+export function detaljFokusData(dep, du, gang) {
+  const l0 = dep && ((dep._legs && dep._legs[0]) || null);
+  const fp = l0 && l0.fromPlace;
+  const c0 = dep && dep.serviceJourney && (dep.serviceJourney.estimatedCalls || [])[0];
+  const q = c0 && c0.quay;
+  const ll = (la, lo) => (Number.isFinite(la) && Number.isFinite(lo) ? { lat: la, lon: lo } : null);
+  const plattform = (fp && ll(fp.latitude, fp.longitude)) || (q && ll(q.latitude, q.longitude));
+  const sp = (fp && fp.quay && fp.quay.stopPlace) || (q && q.stopPlace) || null;
+  const stopp = (sp && ll(sp.latitude, sp.longitude)) || plattform;
+  return { du: du || null, stopp, gang: (gang || []).map(p => Array.isArray(p) ? p : [p.lat, p.lon]), inngang: null, plattform, plattformer: [] };
+}

@@ -88,7 +88,23 @@ describe('rådet gjelder bare her (v1.218.148)', () => {
   it('et nytt søk arver aldri det gamle rådet, og et hopp tømmer alt', () => {
     const s = readFileSync('src/views/auto.js', 'utf8');
     expect(s).toMatch(/const post = \{ pos: \{ lat: pos\.lat, lon: pos\.lon \}, at: nå, råd: undefined,/);
-    expect(s).toMatch(/metresBetween\(_gåHitSist, _her\) > GÅHIT_HOPP_M\) \{ _gåHit\.clear\(\); _gåHitVis = null; \}/);
-    expect(s).toMatch(/\.filter\(\(\[, v\]\) => rådGjelder\(v, _her, _stop, metresBetween\) && annetStopp/);
+    expect(s).toMatch(/metresBetween\(_gåHitSist, _her\) > GÅHIT_HOPP_M\) \{ _gåHit\.clear\(\); _gåHitVis = null; _gåHitBedt\.clear\(\); \}/);
+    expect(s).toMatch(/\.filter\(\(\[id, v\]\) => \(GÅHIT_AUTO \|\| _gåHitBedt\.has\(id\)\) && rådGjelder\(v, _her, _stop, metresBetween\)/);
+  });
+});
+
+import { GÅHIT_AUTO, gåHitMålNå } from '../src/views/auto.js';
+describe('bare når du ber om det (v1.218.149)', () => {
+  const freq = [{ name: 'Bergen sentrum', stopId: 'B', count: 9 }, { name: 'Bjørvika', stopId: 'J', count: 5 }];
+  // FØR-BILDET: av seg selv søkte appen mot de to mest brukte målene, også Bergen fra Oslo.
+  it('ingen søk av seg selv', () => {
+    expect(GÅHIT_AUTO).toBe(false);
+    expect(gåHitMålNå(freq, new Map())).toEqual([]);
+  });
+  it('bare målet du har bedt om', () => {
+    expect(gåHitMålNå(freq, new Map([['J', 'Bjørvika']]))).toEqual([{ stopId: 'J', name: 'Bjørvika' }]);
+  });
+  it('knappen står på kortet', () => {
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/class="auto-dest-gaa" type="button" data-gaa-be=/);
   });
 });

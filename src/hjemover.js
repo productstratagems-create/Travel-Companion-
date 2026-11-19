@@ -62,3 +62,36 @@ export function søkHjemStopp(tekst, signal) {
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(j => hjemForslag(j && j.features));
 }
+
+/**
+ * HJEMOVER MED BYTTER (v1.218.151). Spurt: «Hva skjer dersom avstanden krever
+ * en overgang eller flere?» — da ga hjemover ingenting, for ingen avgang
+ * herfra kjører helt hjem. Valgt: direkte treff som før, pluss første etappe
+ * av reisesøkene hjem. Rent: forslagene → [{ linjeId, kode, mot, bytte }].
+ */
+export function hjemFørsteEtapper(mønstre) {
+  const sett = new Map();
+  (mønstre || []).forEach(p => {
+    const kol = (p && p.legs || []).filter(l => l && l.mode && l.mode !== 'foot');
+    if (!kol.length) return;
+    const l = kol[0];
+    const linje = l.serviceJourney && l.serviceJourney.line;
+    if (!linje || !linje.id) return;
+    const bytte = kol.length > 1 ? ((l.toPlace && l.toPlace.name) || null) : null;
+    const mot = (l.fromEstimatedCall && l.fromEstimatedCall.destinationDisplay && l.fromEstimatedCall.destinationDisplay.frontText) || '';
+    const k = linje.id + '>' + (bytte || '');
+    if (!sett.has(k)) sett.set(k, { linjeId: linje.id, kode: linje.publicCode || '', mot, bytte });
+  });
+  return [...sett.values()];
+}
+
+/**
+ * Dommen for én retning: direkte (et stopp videre er ditt), eller første
+ * etappe hjem — samme linje, og den kjører til stedet du bytter på. Rent.
+ */
+export function hjemDom(linjeId, fram, liste, etapper) {
+  if (gårHjemover(fram, liste)) return { hjem: true, bytte: null };
+  const navn = new Set((fram || []).map(st => stopKey(st.name)).filter(Boolean));
+  const e = (etapper || []).find(x => x.linjeId === linjeId && (x.bytte ? navn.has(stopKey(x.bytte)) : false));
+  return e ? { hjem: true, bytte: e.bytte } : { hjem: false, bytte: null };
+}

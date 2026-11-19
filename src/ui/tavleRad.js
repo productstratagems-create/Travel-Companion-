@@ -60,6 +60,8 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     + (x.innstilt ? '<span class="at-merk">innstilt</span>' : '')
     // Fra et nabostopp i knutepunktet (v1.218.119): hvor du går om bord.
     + (x.call && x.call._fra && x.call._fra.name ? '<span class="at-fra">fra ' + esc(x.call._fra.name) + '</span>' : '')
+    // Hjemover med bytte (v1.218.151): hvor du bytter.
+    + (x.bytte ? '<span class="at-fra">bytt på ' + esc(x.bytte) + '</span>' : '')
     + (x.rekker || x.innstilt ? '' : '<span class="at-merk">rekker ikke</span>') + '</span>'
     // Ikke samme klokkeslett to ganger: står det til venstre, er høyre tom.
     + '<span class="at-klokke">' + (min >= NEDTELLING_MAKS_MIN ? '' : esc(clk(x.ms)))

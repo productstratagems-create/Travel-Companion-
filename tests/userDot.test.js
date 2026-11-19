@@ -25,12 +25,15 @@ const made = [];
 vi.mock('leaflet', () => ({
   default: {
     map: vi.fn(), tileLayer: vi.fn(), control: {},
-    layerGroup: () => { const g = { lag: [], addTo() { return g; }, eachLayer(f) { g.lag.forEach(f); } }; return g; },
-    circle: (ll, opts) => { const c = { ll, opts, ring: true, addTo() { return c; } }; made.push(c); return c; },
+    layerGroup: () => { const g = { addTo() { return g; }, on() { return g; } }; return g; },
+    circle: (ll, opts) => { const c = { ll, opts: { ...opts }, ring: true, addTo() { return c; },
+      setRadius(r) { c.opts.radius = r; }, setStyle(o) { Object.assign(c.opts, o); }, setLatLng(p) { c.ll = p; } }; made.push(c); return c; },
     circleMarker: (ll, opts) => {
       const m = {
-        ll, opts, tooltip: null,
+        ll, opts: { ...opts }, tooltip: null,
         bindTooltip(t) { m.tooltip = t; return m; },
+        getTooltip() { return m.tooltip; }, setTooltipContent(t) { m.tooltip = t; },
+        setStyle(o) { Object.assign(m.opts, o); }, setLatLng(p) { m.ll = p; },
         addTo() { return m; },
       };
       made.push(m);
@@ -132,7 +135,7 @@ describe('blå prikk, usikkerhetsring, grå når gammel', () => {
     made.length = 0; globalThis.__pos = { asked: true, homeLL: { lat: 59.9, lon: 10.8 }, posAt: Date.now() - 3 * 60_000, acc: 35 };
     userDot({}, { lat: 59.9, lon: 10.8 });
     expect(prikk().opts.fillColor).toBe(BRUKER_GRÅ);
-    expect(made.some(m => m.ring)).toBe(false);
+    expect(made.find(m => m.ring).opts.radius).toBe(0);
     expect(prikk().tooltip).toMatch(/3 min gammel/);
   });
   it('et sted du satte selv: blå, ingen ring, aldri grå', () => {
@@ -141,5 +144,26 @@ describe('blå prikk, usikkerhetsring, grå når gammel', () => {
   it('en ring større enn RING_MAKS_M tegnes ikke', () => {
     expect(prikkStil({ kind: 'ok', acc: RING_MAKS_M + 1, label: '' }).ringM).toBe(null);
     expect(prikkStil({ kind: 'framskrevet', acc: null, label: 'anslått posisjon (±80 m)' }).ringM).toBe(80);
+  });
+});
+
+describe('prikken oppdateres der den flyttes (v1.218.138)', () => {
+  it('blir grå ved flytting når posisjonen er blitt gammel, og blå igjen når den er fersk', () => {
+    made.length = 0; globalThis.__pos = { asked: true, homeLL: { lat: 59.9, lon: 10.8 }, posAt: Date.now(), acc: 30 };
+    const g = userDot({}, { lat: 59.9, lon: 10.8 });
+    expect(prikk().opts.fillColor).toBe(BRUKER_BLÅ);
+    globalThis.__pos = { ...globalThis.__pos, posAt: Date.now() - 5 * 60_000 };
+    g.setLatLng([59.91, 10.81]);
+    expect(prikk().opts.fillColor).toBe(BRUKER_GRÅ);
+    expect(made.find(m => m.ring).opts.radius).toBe(0);
+    expect(prikk().ll).toEqual([59.91, 10.81]);
+    globalThis.__pos = { ...globalThis.__pos, posAt: Date.now(), acc: 20 };
+    g.restil();
+    expect(prikk().opts.fillColor).toBe(BRUKER_BLÅ);
+    expect(made.find(m => m.ring).opts.radius).toBe(20);
+  });
+  it('ser på alderen selv også når ingenting flytter seg', () => {
+    const s = fs.readFileSync(path.resolve(__dirname, '../src/ui/map.js'), 'utf8');
+    expect(s).toMatch(/tikk = setInterval\(restil, PRIKK_TIKK_MS\)/);
   });
 });

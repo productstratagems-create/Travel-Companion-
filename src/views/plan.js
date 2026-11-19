@@ -1,12 +1,12 @@
 import { linjemerke } from '../ui/linjemerke.js';
-import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent, legFarge } from '../api/plan.js';
+import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent, legFarge, etappeKjede, planBytter } from '../api/plan.js';
 import { LINJE_FARGE, LINJE_NØYTRAL } from '../ui/linjemerke.js';
 import { shareLegCalendar } from '../api/calShare.js';
 import { placeName, placeLL, samePlace } from '../api/place.js';
 import { logMsg } from '../ui/log.js';
 import { clk, clkDay } from '../ui/fmt.js';
 import { state } from '../state.js';
-import { show, updateHeader } from '../ui/nav.js';
+import { show, updateHeader, navTo } from '../ui/nav.js';
 import { confirmTap } from '../ui/confirm.js';
 import config from '../config.js';
 import L from 'leaflet';
@@ -209,7 +209,8 @@ export function updatePlanCtx() {
     statusText = rem > 0 ? fmtCountdown(rem) + ' igjen' : 'ankommer nå';
     statusClass = 'pctx-active';
   } else {
-    statusText = 'avgang ' + clkDay(depTs);
+    // Dagen og klokka står alt på linje 1 (v1.218.159); her: hvor lenge til.
+    statusText = 'om ' + fmtCountdown(depTs - now);
     statusClass = 'pctx-future';
   }
 
@@ -225,22 +226,40 @@ export function updatePlanCtx() {
   _planCtxKey = structKey;
 
   el.style.display = 'flex';
+  // ETT KORT, TO LINJER (v1.218.159). Bestilt: «Den planlagte reisen bør
+  // kunne nås med et klikk. Kortet bør reflektere at det er et bytte underveis
+  // istedet for å si "etappe 1".» Som en kommende reise i Google Maps,
+  // Citymapper og Ruter: når og hvor øverst, linjekjeden og byttene under.
+  const first = legs[0];
+  const firstDep = new Date(first.depIso).getTime();
+  const kjede = legs.flatMap(etappeKjede);
+  const by = planBytter(legs);
   el.innerHTML =
-    '<button class="pctx-main" aria-label="Se reise underveis">'
-    + '<span class="pctx-label">etappe ' + n + '</span>'
-    + linjemerke({ kode: last.line, farge: legFarge(last), tekst: last.lineFg, linjeId: last.lineId, modus: last.mode, klasse: 'pctx-badge' })
-    + '<span class="pctx-dest">' + placeName(last.to).toLowerCase() + '</span>'
-    + (arrTs ? '<span class="pctx-arr">ank. ' + clkDay(arrTs) + '</span>' : '')
-    + '<span id="pctx-status" class="' + statusClass + '">' + statusText + '</span>'
+    '<button class="pctx-main" aria-label="' + esc('Åpne planlagt reise: ' + placeName(first.from) + ' til ' + placeName(last.to)
+      + (by.antall ? ', ' + by.antall + (by.antall === 1 ? ' bytte' : ' bytter') : '')) + '">'
+    + '<span class="pctx-l1">' + esc(clkDay(firstDep) + ' ' + placeName(first.from) + ' → ' + (arrTs ? (new Date(arrTs).toDateString() === new Date(firstDep).toDateString() ? clk(arrTs) : clkDay(arrTs)) + ' ' : '') + placeName(last.to)) + '</span>'
+    + '<span class="pctx-l2">' + kjede.map(k => linjemerke({ kode: k.line, farge: k.lineColour, tekst: k.lineFg, linjeId: k.lineId, modus: k.mode, klasse: 'pctx-badge' }))
+      .join('<span class="pctx-pil" aria-hidden="true">›</span>')
+    + '<span class="pctx-bytte">' + esc(by.antall ? by.antall + (by.antall === 1 ? ' bytte' : ' bytter') + (by.steder.length ? ' · ' + by.steder.join(', ') : '') : 'direkte') + '</span>'
+    + '<span id="pctx-status" class="' + statusClass + '">' + statusText + '</span></span>'
     + '</button>'
-    + '<button class="pctx-close" aria-label="Lukk kontekst">×</button>';
+    + '<button class="pctx-close" aria-label="Skjul kortet">×</button>';
 
-  el.querySelector('.pctx-main').addEventListener('click', () => {
-    if (state.jny) window.jnyGoTracking && window.jnyGoTracking();
-  });
+  el.querySelector('.pctx-main').addEventListener('click', () => åpnePlan());
   el.querySelector('.pctx-close').addEventListener('click', () => {
     el.style.display = 'none';
   });
+}
+
+/**
+ * ETT TRYKK TIL REISEN (v1.218.159). Følges den, Underveis; ellers planen
+ * i Lagret. Før virket trykket bare når reisen alt ble fulgt.
+ */
+export function åpnePlan() {
+  if (state.jny) { window.jnyGoTracking && window.jnyGoTracking(); return 'underveis'; }
+  navTo('v-saved');
+  window._renderSaved && window._renderSaved('plan');
+  return 'plan';
 }
 
 // ── Plan screen ────────────────────────

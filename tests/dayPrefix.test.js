@@ -109,8 +109,10 @@ describe('the rule reaches the screens a departure opens onto', () => {
   });
 
   it('the active plan names it on departure and arrival', async () => {
-    expect(await has('src/views/plan.js', "'avgang ' + clkDay(")).toBe(true);
-    expect(await has('src/views/plan.js', "ank. ' + clkDay(")).toBe(true);
+    // v1.218.159: avgangen med dag står på kortets første linje; status er nedtelling.
+    expect(await has('src/views/plan.js', "clkDay(firstDep) + ' ' + placeName(first.from)")).toBe(true);
+    // v1.218.159: kortet sier dagen på avgangen, og på ankomsten når den er en annen dag.
+    expect(await has('src/views/plan.js', "? clk(arrTs) : clkDay(arrTs))")).toBe(true);
   });
 
   // Deliberately NOT changed: the per-stop columns in the tracking view and

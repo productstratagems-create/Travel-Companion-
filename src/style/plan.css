@@ -8,9 +8,8 @@
   background: rgba(var(--accent-rgb),.04);
   border: 1px solid rgba(var(--border-rgb),.12);
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   flex-wrap: nowrap;
-  overflow: hidden;
 }
 
 .pctx-label {
@@ -45,7 +44,8 @@
 
 .pctx-main {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: .4rem;
   flex: 1;
   min-width: 0;
@@ -314,3 +314,10 @@
 }
 .prc-label{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
 .prc-route{font-size:.95rem;color:var(--text)}
+
+/* To linjer, aldri klippet (v1.218.159). */
+.pctx-l1 { color: var(--text); white-space: normal; line-height: 1.35; }
+.pctx-l2 { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem; }
+.pctx-pil { color: var(--text-muted); }
+.pctx-bytte { color: var(--text-soft); }
+.pctx-l2 #pctx-status { margin-left: auto; }

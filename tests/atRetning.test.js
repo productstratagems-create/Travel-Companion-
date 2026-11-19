@@ -21,6 +21,17 @@ describe('retningsfilteret', () => {
     const src = readFileSync('src/views/auto.js', 'utf8');
     expect(src).toMatch(/side\.set\(i, retningGruppe\(d, here, walkMins, now\)\)/);
     expect(src).toMatch(/retningGruppe\(d, here, gang, nå\)/);
-    expect(src).toMatch(/filtrerRetning\(synlige, _atRetning/);
+    expect(src).toMatch(/filtrerRetning\(dirs, _atRetning/);   // via _iRetning (v1.218.134)
+  });
+});
+
+describe('kartet følger filteret (v1.218.134)', () => {
+  const src = readFileSync('src/views/auto.js', 'utf8');
+  it('lista og kartet leser samme filter', () => {
+    expect(src).toMatch(/const iRetning = _iRetning\(synlige, nå\);/);
+    expect(src).toMatch(/edderkoppBein\(_iRetning\(_dirs\), _stop\.name,/);
+  });
+  it('kartet tegnes på nytt når retningen byttes', () => {
+    expect(src).toMatch(/'\|r' \+ \(_autoTavle \? _atRetning : '-'\)/);
   });
 });

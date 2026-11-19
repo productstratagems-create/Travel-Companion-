@@ -193,4 +193,5 @@ body::before{
   *{animation-duration:.001ms!important;transition-duration:.001ms!important}
 }
 /* Prikken i brukerlaget tar trykk selv om laget slipper dem gjennom (v1.218.152). */
-.leaflet-bruker-pane .leaflet-interactive{pointer-events:auto}
+.leaflet-bruker-pane .leaflet-interactive,.leaflet-bruker-pane .leaflet-marker-icon{pointer-events:auto}
+.bruker-prikk{background:none;border:0}

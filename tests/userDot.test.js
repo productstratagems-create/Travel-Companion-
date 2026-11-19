@@ -28,6 +28,18 @@ vi.mock('leaflet', () => ({
     layerGroup: () => { const g = { addTo() { return g; }, on() { return g; } }; return g; },
     circle: (ll, opts) => { const c = { ll, opts: { ...opts }, ring: true, addTo() { return c; },
       setRadius(r) { c.opts.radius = r; }, setStyle(o) { Object.assign(c.opts, o); }, setLatLng(p) { c.ll = p; } }; made.push(c); return c; },
+    divIcon: (o) => o,
+    marker: (ll, opts) => {
+      const m = {
+        ll, opts: { ...opts, fillColor: opts.icon && opts.icon.fyll, color: '#ffffff', radius: opts.icon && opts.icon.iconSize[0] / 2 }, tooltip: null,
+        bindTooltip(t) { m.tooltip = t; return m; },
+        getTooltip() { return m.tooltip; }, setTooltipContent(t) { m.tooltip = t; },
+        setIcon(i) { m.opts.icon = i; m.opts.fillColor = i.fyll; }, setLatLng(p) { m.ll = p; },
+        addTo() { return m; },
+      };
+      made.push(m);
+      return m;
+    },
     circleMarker: (ll, opts) => {
       const m = {
         ll, opts: { ...opts }, tooltip: null,
@@ -177,10 +189,13 @@ describe('prikken ligger øverst (v1.218.152)', () => {
   it('prikk og ring legges i laget når kartet er kjent', () => {
     made.length = 0;
     const panes = {};
-    const kart = { createPane: n => (panes[n] = { style: {} }), getPane: n => panes[n] };
+    const norot = { id: 'norotatePane' };
+    const kart = { _norotatePane: norot, createPane: (n, c) => (panes[n] = { style: {}, forelder: c }), getPane: n => panes[n] };
     userDot({ _map: kart }, { lat: 59.9, lon: 10.8 });
     expect(panes[BRUKER_LAG].style.zIndex).toBe(String(BRUKER_LAG_Z));
     expect(prikk().opts.pane).toBe(BRUKER_LAG);
-    expect(made.find(m => m.ring).opts.pane).toBe(BRUKER_LAG);
+    // v1.218.166: ringen (meter) følger kartet i overlayPane; laget er i norotatePane.
+    expect(made.find(m => m.ring).opts.pane).toBe(undefined);
+    expect(panes[BRUKER_LAG].forelder).toBe(norot);
   });
 });

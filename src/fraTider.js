@@ -6,6 +6,13 @@
  */
 import { storage } from './storage.js';
 
+/**
+ * BRYTEREN (v1.218.145). Bestilt: «Funksjonene for klokkeslett i auto-sidene
+ * fungerer ikke som jeg hadde sett for meg. Ta de bort.» Av: ingen knapper,
+ * intet panel, ingen innstilling, henting fra nå. Funksjonene står igjen,
+ * foldet, så de kan slås på uten å skrives på nytt.
+ */
+export const KLOKKESLETT_VALG = false;
 export const FRA_TIDER_KEY = 't.autoFraTider';
 export const FRA_STANDARD = ['06:00', '15:00'];
 const GYLDIG = /^([01]\d|2[0-3]):[0-5]\d$/;

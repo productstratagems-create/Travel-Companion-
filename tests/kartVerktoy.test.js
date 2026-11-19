@@ -89,9 +89,11 @@ describe('fullskjermknappen følger kartet (v1.218.74)', () => {
 });
 
 describe('underveis: ✕ lukker kartet som stripen gjør (v1.218.74)', () => {
-  it('lukking via knappen går gjennom samme bryter som stripen', async () => {
+  // v1.218.154: kartet står alltid, som Rute; ✕ er fullskjermens lukking, ikke kartets.
+  it('kartet står alltid, og stripen åpner det ikke', async () => {
     const s = (await import('node:fs')).readFileSync('src/views/track.js', 'utf8');
-    expect(s).toMatch(/if \(!open && _tMapOpen\) window\._toggleTrackMap\(\);/);
+    expect(s).toMatch(/if \(UNDERVEIS_KART_ALLTID\) return;/);
+    expect(s).toMatch(/let _tMapOpen = UNDERVEIS_KART_ALLTID;/);
   });
 });
 

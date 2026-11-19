@@ -45,6 +45,8 @@ const ALL_KEYS = [
   't.hjemoverStopp',
   // Rute-kartets form (v1.218.129). Nivå 1.
   't.ruteKartForm',
+  // Underveis-kartets form (v1.218.154). Nivå 1.
+  't.underveisKartForm',
   // Auto-reise valgt bort fra menylinjen (v1.218.125). Nivå 1.
   't.autoReiseIMeny',
   // Linjene du har skjult i kartets lag-panel (v1.218.110). Nivå 1.

@@ -253,6 +253,7 @@ export function renderJourneyStrip(el, calls, now, pos) {
    *
    * Ordet er tilbake. Stripen er fortsatt hele trykkflaten; merkelappen er
    * det som forteller at den er det. */
+  if (UNDERVEIS_KART_ALLTID) { el.removeAttribute('tabindex'); el.onclick = null; el.onkeydown = null; } else {
   el.setAttribute('role', 'button');
   el.setAttribute('tabindex', '0');
   el.setAttribute('aria-label', 'Vis kartet over reisen');
@@ -263,6 +264,7 @@ export function renderJourneyStrip(el, calls, now, pos) {
       window._toggleTrackMap && window._toggleTrackMap();
     }
   };
+  }
 
   /* PILLEN HØRER TIL HELE STRIPEN, IKKE TIL CAPTION-RADEN.
    *
@@ -319,7 +321,7 @@ export function renderJourneyStrip(el, calls, now, pos) {
     + '<span class="js-end-to">' + esc(p.to || '') + '</span>'
     + '</div>'
     + '</div>'
-    + '<span class="js-map-hint" aria-hidden="true">⤢ kart</span>';
+    + (UNDERVEIS_KART_ALLTID ? '' : '<span class="js-map-hint" aria-hidden="true">⤢ kart</span>');
 
   el.setAttribute('aria-label', _journeySummary(p, src));
   return p;
@@ -337,3 +339,6 @@ export function _journeySummary(p, src) {
   if (p.next && p.to && p.next === p.to) return where + '. Siste stopp.' + how;
   return where + '. ' + p.left + ' stopp igjen til ' + (p.to || 'endestasjonen') + '.' + how;
 }
+
+/** Kartet på Underveis står alltid (v1.218.154); stripen åpner det ikke lenger. */
+export const UNDERVEIS_KART_ALLTID = true;

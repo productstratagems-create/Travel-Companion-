@@ -26,7 +26,7 @@ import { stopKey } from '../stopId.js';
 import config from '../config.js';
 import { state } from '../state.js';
 import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra, fetchTripFraPos, fetchBoardPage, hentStoppAvganger } from '../api/entur.js';
-import { gåHitFor, annetStopp, trengerNyttSøk, gåHitMål } from '../gaaHit.js';
+import { gåHitFor, annetStopp, trengerNyttSøk, gåHitMål, rådGjelder } from '../gaaHit.js';
 import { raskereHer } from '../raskere.js';
 import { rangerMål, foldetSide } from '../maalModell.js';
 import { overganger, arrBoardSpørsmål, ARR_BOARD_ASK } from '../overganger.js';
@@ -2033,6 +2033,9 @@ const _søkLogg = [];
 /* ── GÅ HIT FOR Å KOMME DIT (v1.218.143, src/gaaHit.js) ─────────────── */
 const _gåHit = new Map();   // målets stopId → { pos, at, råd, henter, feil }
 let _gåHitVis = null;       // målet hvis gangrute står på kartet
+let _gåHitSist = null;      // posisjonen ved forrige tegning
+/** Et sprang lenger enn dette mellom to tegninger er et hopp, ikke en gåtur. */
+export const GÅHIT_HOPP_M = 1000;
 function _gåHitOppdater(pos, nå) {
   if (!pos) return;
   gåHitMål(loadFreq('arr')).forEach(m => {
@@ -2040,7 +2043,8 @@ function _gåHitOppdater(pos, nå) {
     if (f && f.henter) return;
     if (!trengerNyttSøk(f, pos, nå, metresBetween)) return;
     if (!budsjettTillater(_søkLogg, nå, 1)) return;
-    const post = { pos: { lat: pos.lat, lon: pos.lon }, at: nå, råd: f ? f.råd : undefined, henter: true, navn: m.name };
+    // Et nytt søk arver aldri rådet fra et annet sted (v1.218.148).
+    const post = { pos: { lat: pos.lat, lon: pos.lon }, at: nå, råd: undefined, henter: true, navn: m.name };
     _gåHit.set(m.stopId, post);
     fetchTripFraPos(pos, m.stopId, nå, 3)
       .then(mønstre => { post.råd = gåHitFor(mønstre, Date.now()); post.henter = false; })
@@ -3649,7 +3653,7 @@ function _renderMap() {
   // Resten av linjene går ut av kartet, som på skjermbildet.
   // GÅ HIT (v1.218.144): et valgt «gå hit»-kort rammer inn deg, gangruta og
   // stoppet den ender ved — ikke stoppet du står ved og beina rundt det.
-  const _gvR = _gåHitVis && _gåHit.get(_gåHitVis);
+  const _gvR = _gåHitVis && rådGjelder(_gåHit.get(_gåHitVis), userPos, _stop, metresBetween) ? _gåHit.get(_gåHitVis) : null;
   const gåRamme = gåHitRamme(userPos, _gvR && _gvR.råd);
   const rammePts = gåRamme ? gåRamme : sentrert
     ? [userPos, _stop, ...others].filter(s => s && s.lat != null).map(s => [s.lat, s.lon])
@@ -3872,7 +3876,7 @@ function _renderMap() {
 
   if (walkPts && walkPts.length) drawWalk(_aLayer, walkPts);
   // GÅ HIT (v1.218.143): gangruta til stoppet kortet peker på.
-  const _gv = _gåHitVis && _gåHit.get(_gåHitVis), _gr = _gv && _gv.råd;
+  const _gv = _gåHitVis && rådGjelder(_gåHit.get(_gåHitVis), userPos, _stop, metresBetween) ? _gåHit.get(_gåHitVis) : null, _gr = _gv && _gv.råd;
   if (_gr && Number.isFinite(_gr.lat)) {
     const pts = (_gr.gangPunkter && _gr.gangPunkter.length) ? _gr.gangPunkter : (userPos ? [[userPos.lat, userPos.lon], [_gr.lat, _gr.lon]] : []);
     if (pts.length) drawWalk(_aLayer, pts);
@@ -5330,10 +5334,13 @@ function _renderBody() {
    * kontrollen hører sammen uten at noen av dem tegnes på nytt hvert sekund. */
   // GÅ HIT (v1.218.143): søk fra der du står, kort der rådet er et annet stopp.
   const _her = userLL();
+  // Et hopp (testposisjonen byttet) tømmer alt: ingen råd fra forrige sted.
+  if (_her && _gåHitSist && metresBetween(_gåHitSist, _her) > GÅHIT_HOPP_M) { _gåHit.clear(); _gåHitVis = null; }
+  if (_her) _gåHitSist = { lat: _her.lat, lon: _her.lon };
   if (!_reiseInfo && !_lås && _her) _gåHitOppdater(_her, now);
   const nærIds = _stop ? knutepunkt(_stop, _stops()).map(s => s.id) : [];
   const gåKort = (_reiseInfo || _lås) ? [] : [..._gåHit.entries()]
-    .filter(([, v]) => annetStopp(v.råd, nærIds)).map(([id, v]) => ({ id, navn: v.navn, råd: v.råd }));
+    .filter(([, v]) => rådGjelder(v, _her, _stop, metresBetween) && annetStopp(v.råd, nærIds)).map(([id, v]) => ({ id, navn: v.navn, råd: v.råd }));
   const gåNavn = new Set(gåKort.map(k => stopKey(k.navn)));
   // Målene gå-hit-kortene alt svarer for, står ikke to ganger.
   const destsHer = dests.filter(x => !gåNavn.has(stopKey(x.name)));

@@ -68,3 +68,27 @@ describe('kartutsnittet følger gangruta (v1.218.144)', () => {
     expect(s).toMatch(/_gåHitVis = _gåHitVis === b\.dataset\.gaa \? null : b\.dataset\.gaa; _aKey = ''; _aUserMoved = false;/);
   });
 });
+
+import { rådGjelder, GÅHIT_SKJERM_M } from '../src/gaaHit.js';
+import { metresBetween } from '../src/haversine.js';
+describe('rådet gjelder bare her (v1.218.148)', () => {
+  const OSLO = { lat: 59.853, lon: 10.84 }, BERGEN = { lat: 60.39, lon: 5.33 };
+  const råd = { stoppId: 'X', lat: 60.38, lon: 5.34 };
+  // FØR-BILDET: søket ble gjort i Bergen; testposisjonen står nå i Oslo.
+  it('et råd søkt i Bergen vises ikke når du er i Oslo', () => {
+    expect(rådGjelder({ pos: BERGEN, råd }, OSLO, OSLO, metresBetween)).toBe(false);
+  });
+  it('og ikke når skjermens stopp er et annet sted enn deg', () => {
+    expect(rådGjelder({ pos: BERGEN, råd }, BERGEN, OSLO, metresBetween)).toBe(false);
+    expect(GÅHIT_SKJERM_M).toBe(2000);
+  });
+  it('et råd søkt der du er, med stoppet nær, vises', () => {
+    expect(rådGjelder({ pos: OSLO, råd }, { lat: 59.8532, lon: 10.8402 }, OSLO, metresBetween)).toBe(true);
+  });
+  it('et nytt søk arver aldri det gamle rådet, og et hopp tømmer alt', () => {
+    const s = readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toMatch(/const post = \{ pos: \{ lat: pos\.lat, lon: pos\.lon \}, at: nå, råd: undefined,/);
+    expect(s).toMatch(/metresBetween\(_gåHitSist, _her\) > GÅHIT_HOPP_M\) \{ _gåHit\.clear\(\); _gåHitVis = null; \}/);
+    expect(s).toMatch(/\.filter\(\(\[, v\]\) => rådGjelder\(v, _her, _stop, metresBetween\) && annetStopp/);
+  });
+});

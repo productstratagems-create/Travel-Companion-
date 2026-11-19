@@ -66,6 +66,20 @@ export function trengerNyttSøk(forrige, pos, nå, avstand) {
   return avstand(forrige.pos, pos) > GÅHIT_FLYTT_M;
 }
 
+/**
+ * GJELDER RÅDET HER? (v1.218.148). Rapportert med testposisjonen: kortet
+ * viste et søk fra Bergen mens skjermen sto i Oslo. Et råd gjelder bare når
+ * søket ble gjort nær der du er nå, og når stoppet skjermen viser også er
+ * nær — ellers er skjermen og rådet om to forskjellige steder. Rent.
+ */
+export const GÅHIT_SKJERM_M = 2000;
+export function rådGjelder(post, pos, stopp, avstand) {
+  if (!post || !post.råd || !post.pos || !pos) return false;
+  if (avstand(post.pos, pos) > GÅHIT_FLYTT_M) return false;
+  if (stopp && Number.isFinite(stopp.lat) && avstand(pos, stopp) > GÅHIT_SKJERM_M) return false;
+  return true;
+}
+
 /** Hvilke mål det søkes for: de mest brukte med kjent stopp, maks to. */
 export function gåHitMål(freq) {
   return (freq || []).filter(p => p && p.stopId && p.name)

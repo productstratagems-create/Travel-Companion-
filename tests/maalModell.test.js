@@ -74,7 +74,8 @@ describe('retningsgruppen som foldes', () => {
   });
   it('auto-reise folder gruppen og lukker den', () => {
     const s = readFileSync('src/views/auto.js', 'utf8');
-    expect(s).toContain('const foldet = grouped ? foldetSide(now, _stop, egneSider, stedType(_herSom(), _profilNå().p)) : null;');
+    // v1.218.156: om morgenen foldes hjemover; ellers samme regel.
+    expect(s).toContain(': foldetSide(now, _stop, egneSider, stedType(_herSom(), _profilNå().p));');
     expect(s).toContain("}).join('') + (iFold ? '</details>' : '')");
   });
 });

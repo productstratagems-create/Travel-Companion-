@@ -126,7 +126,8 @@ describe('bare gode forslag, og raskest hjem fra et annet stopp (v1.218.153)', (
   });
   it('skjermen viser linjen og bytter stopp ved trykk', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');
-    expect(a).toMatch(/_atRetning === 'hjem' && annetHjemStopp\(rk, nærHjem, linjerHer\)/);
+    expect(a).toMatch(/const raskestHtml = _atRetning === 'hjem' \? raskestHjemHtml\(hs, nærHjem, linjerHer\) : '';/);
+    expect(a).toMatch(/if \(!annetHjemStopp\(rk, nær, linjerHer\)\) return '';/);
     expect(a).toMatch(/\.at-raskest\[data-pin\]'\)\.forEach\(b => b\.addEventListener\('click', \(\) => \{ if \(pinStop\(b\.dataset\.pin\)\)/);
   });
 });
@@ -143,5 +144,21 @@ describe('raskest hjem: samme sted, og bare avganger du rekker (v1.218.155)', ()
   it('søket starter når du er ved stoppet', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');
     expect(a).toMatch(/const fra = nå \+ gangMin \* 60_000;\s*Promise\.all\(mål\.map\(m => fetchTripFra\(_stop\.id, m\.id, fra, 5\)/);
+  });
+});
+
+import { seksjonRekkefølge } from '../src/views/auto.js';
+describe('hjemover som seksjon i Auto-reise (v1.218.156)', () => {
+  const kl = h => new Date(2026, 10, 19, h, 0).getTime();
+  it('fra kl. 14 og gjennom kvelden står hjemover først; om morgenen mot sentrum', () => {
+    expect(seksjonRekkefølge(kl(21))).toEqual(['hjem', 'mot', null]);
+    expect(seksjonRekkefølge(kl(15))).toEqual(['hjem', 'mot', null]);
+    expect(seksjonRekkefølge(kl(7))).toEqual(['mot', 'hjem', null]);
+  });
+  it('samme regel som tavla, «bytt på» på raden, og langt trykk på overskriften', () => {
+    const a = readFileSync('src/views/auto.js', 'utf8');
+    expect(a).toMatch(/retningHjemDom\(d, walkMins, now, hjemListeAR\)/);
+    expect(a).toMatch(/bytt på ' \+ esc\(hjemAR\.get\(i\)\.bytte\)/);
+    expect(a).toMatch(/HJEM_HOLD_SEL = '\.at-retning \[data-retning="hjem"\], \[data-hjem-side\]'/);
   });
 });

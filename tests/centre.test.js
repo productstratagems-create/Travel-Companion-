@@ -104,7 +104,8 @@ describe('the coordinate, and the label', () => {
   // partitioned instead, and the chosen order survives inside each group.
   it('the screen partitions rather than emitting on change', () => {
     const src = fs.readFileSync('src/views/auto.js', 'utf8');
-    expect(src).toMatch(/const groups = \[\['mot', \[\]\], \[null, \[\]\]\]/);
+    // v1.218.156: tre grupper (hjemover, mot sentrum, andre), rekkefølge etter tid.
+    expect(src).toMatch(/const groups = rekke\.map\(k => \[k, \[\]\]\);/);
     expect(src).toMatch(/const ordered = grouped \? groups\.flatMap/);
     // And with nothing judgeable, the screen is what it was.
     expect(src).toMatch(/: live;/);
@@ -117,7 +118,7 @@ describe('to grupper: mot sentrum og andre retninger (v1.218.33)', () => {
     // v1.218.131: regelen bor i retningGruppe, delt med Auto-tavlas filter.
     expect(src).toMatch(/const gruppe = i => side\.get\(i\);/);
     expect(src).toMatch(/centreward\(here, stopsAhead\([^)]*\)[^)]*\)\) === 'mot' \? 'mot' : null;/);
-    expect(src).toMatch(/groups\[gruppe\(row\.i\) === 'mot' \? 0 : 1\]/);
+    expect(src).toMatch(/groups\[rekke\.indexOf\(gruppeAR\(row\.i\)\)\]/);
     expect(src).not.toMatch(/\['fra', \[\]\]/);
   });
 });

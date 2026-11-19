@@ -5036,6 +5036,22 @@ export function retningHjemDom(d, walkMins, now, liste) {
   const l = (d.lines && d.lines[0]) || {};
   return hjemDom(l.id, fram, liste, s && s.etapper);
 }
+/** «Raskest hjem» fra et annet stopp — én definisjon, tavla og Auto-reise (v1.218.156). */
+function raskestHjemHtml(hs, nær, linjerHer) {
+  const rk = hs && hs.raskest;
+  if (!annetHjemStopp(rk, nær, linjerHer)) return '';
+  return '<button type="button" class="at-raskest" data-pin="' + esc(rk.fraId) + '">raskest hjem: '
+    + esc((rk.gangMin > 0 ? 'gå ' + rk.gangMin + ' min til ' : 'fra ') + rk.fraNavn + ' · linje ' + rk.kode + (Number.isFinite(rk.går) ? ' · går ' + clk(rk.går) : '')) + ' →</button>';
+}
+/**
+ * Seksjonenes rekkefølge i Auto-reise (v1.218.156): fra kl. 14 og gjennom
+ * kvelden og natta står hjemover først; om morgen og formiddag mot sentrum.
+ * «Andre retninger» alltid sist. Ren.
+ */
+export function seksjonRekkefølge(nå) {
+  const h = new Date(nå).getHours();
+  return (h >= 14 || h < 4) ? ['hjem', 'mot', null] : ['mot', 'hjem', null];
+}
 /* REISESØKET HJEM (v1.218.151): én gang per stopp, fornyet etter HJEM_SØK_MS. */
 export const HJEM_SØK_MS = 10 * 60_000;
 export const HJEM_SØK_MÅL = 2;
@@ -5071,6 +5087,8 @@ let _atRetning = 'alle';
  * inn/redigere stedene.» Bundet én gang på lista (den tegnes hvert sekund).
  */
 export const HJEM_HOLD_MS = 550;
+/** Hjemover-knappen på tavla og hjemover-overskriften i Auto-reise (v1.218.156). */
+export const HJEM_HOLD_SEL = '.at-retning [data-retning="hjem"], [data-hjem-side]';
 const _hjemHold = { tid: null, brukt: false };
 export function tilHjemoverInnstilling() {
   navTo('v-prefs');
@@ -5087,12 +5105,12 @@ function _hjemLangtTrykk(body) {
   body._hjemBundet = true;
   const avbryt = () => { clearTimeout(_hjemHold.tid); _hjemHold.tid = null; };
   body.addEventListener('pointerdown', e => {
-    if (!e.target.closest('.at-retning [data-retning="hjem"]')) return;
+    if (!e.target.closest(HJEM_HOLD_SEL)) return;
     avbryt();
     _hjemHold.tid = setTimeout(() => { _hjemHold.tid = null; _hjemHold.brukt = true; tilHjemoverInnstilling(); }, HJEM_HOLD_MS);
   });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => body.addEventListener(t, avbryt));
-  body.addEventListener('contextmenu', e => { if (e.target.closest('.at-retning [data-retning="hjem"]')) e.preventDefault(); });
+  body.addEventListener('contextmenu', e => { if (e.target.closest(HJEM_HOLD_SEL)) e.preventDefault(); });
 }
 /**
  * Retningene filteret slipper gjennom, for lista OG kartet (v1.218.134).
@@ -5148,10 +5166,7 @@ function _tegnAutoTavle(body) {
   const rk = hs && hs.raskest;
   const nærHjem = _stop ? knutepunkt(_stop, _stops()) : [];
   const linjerHer = new Set(synlige.flatMap(d => (d.lines || []).map(l => l.id)).filter(Boolean));
-  const raskestHtml = _atRetning === 'hjem' && annetHjemStopp(rk, nærHjem, linjerHer)
-    ? '<button type="button" class="at-raskest" data-pin="' + esc(rk.fraId) + '">raskest hjem: '
-      + esc((rk.gangMin > 0 ? 'gå ' + rk.gangMin + ' min til ' : 'fra ') + rk.fraNavn + ' · linje ' + rk.kode + (Number.isFinite(rk.går) ? ' · går ' + clk(rk.går) : '')) + ' →</button>'
-    : '';
+  const raskestHtml = _atRetning === 'hjem' ? raskestHjemHtml(hs, nærHjem, linjerHer) : '';
   const hjemMerk = _atRetning !== 'hjem' || !hs ? '' : hs.henter ? '<div class="at-filter">leter etter reiser hjem med bytte …</div>'
     : hs.feil ? '<div class="at-filter">fant ikke reiser hjem med bytte herfra — viser bare direkte</div>' : raskestHtml;
   const merknad = skjulteNavn.length ? '<div class="at-filter">skjult i kartets filter: ' + esc(skjulteNavn.join(', ')) + '</div>' : '';
@@ -5390,8 +5405,16 @@ function _renderBody() {
   // TO GRUPPER, IKKE TRE (v1.218.33). Bestilt: «kutt «Fra sentrum» og legg
   // alt som ikke er mot sentrum under «Andre retninger».» `centreward` svarer
   // fortsatt mot/fra/null; skjermen spør bare om raden går mot sentrum.
-  const groups = [['mot', []], [null, []]];
-  for (const row of live) groups[gruppe(row.i) === 'mot' ? 0 : 1][1].push(row);
+  // HJEMOVER SOM EGEN SEKSJON (v1.218.156). Valgt: «Seksjon, rekkefølge etter
+  // tid» — samme regel som tavlas hjemover-knapp (retningHjemDom), og
+  // gruppen som passer tiden på døgnet står øverst.
+  const hjemListeAR = hjemStopp();
+  if (hjemListeAR.length) _hjemSøkOppdater(now);
+  const hjemAR = new Map(live.map(({ d, i }) => [i, hjemListeAR.length ? retningHjemDom(d, walkMins, now, hjemListeAR) : { hjem: false, bytte: null }]));
+  const gruppeAR = i => (hjemAR.get(i) && hjemAR.get(i).hjem ? 'hjem' : gruppe(i));
+  const rekke = seksjonRekkefølge(now);
+  const groups = rekke.map(k => [k, []]);
+  for (const row of live) groups[rekke.indexOf(gruppeAR(row.i))][1].push(row);
   const grouped = groups.some(([k, rows]) => k && rows.length);
   const ordered = grouped ? groups.flatMap(([, rows]) => rows) : live;
 
@@ -5487,8 +5510,10 @@ function _renderBody() {
    * `foldetSide`). Unntatt når dine egne mål akkurat nå ligger i den. */
   const egneSider = new Set();
   dests.filter(x => x.eget > 0).forEach(x => x.options.forEach(o => { const k = gruppe(o.i); if (k) egneSider.add(k); }));
-  const foldet = grouped ? foldetSide(now, _stop, egneSider, stedType(_herSom(), _profilNå().p)) : null;
-  const antallI = k => ordered.filter(({ i }) => gruppe(i) === k).length;
+  // Om morgenen er hjemover foldet; ellers den gamle regelen (v1.218.156).
+  const foldet = !grouped ? null : (rekke[0] === 'mot' && groups.some(([k, r]) => k === 'hjem' && r.length)) ? 'hjem'
+    : foldetSide(now, _stop, egneSider, stedType(_herSom(), _profilNå().p));
+  const antallI = k => ordered.filter(({ i }) => gruppeAR(i) === k).length;
   let iFold = false;
   // SI DET: i fart strykes ingen rad på gangtid, og ustrøkne rader uten
   // forklaring leses som at alt kan nås.
@@ -5541,15 +5566,17 @@ function _renderBody() {
       // group order and cannot interleave.
       let head = '';
       if (grouped) {
-        const k = gruppe(i);
+        const k = gruppeAR(i);
         if (k !== shown) {
           shown = k;
-          const navn = k ? CENTRE_LABEL[k] : 'andre retninger';
+          const navn = k === 'hjem' ? 'hjemover' : k ? CENTRE_LABEL[k] : 'andre retninger';
           head = (iFold ? '</details>' : '')
             + (k && k === foldet
               ? '<details class="auto-side-fold"' + (_sideFoldÅpen ? ' open' : '') + '><summary class="auto-side">'
                 + esc(navn + ' · ' + antallI(k)) + '</summary>'
-              : '<div class="auto-side">' + esc(navn) + '</div>');
+              : '<div class="auto-side"' + (k === 'hjem' ? ' data-hjem-side="1" title="hold for å velge stoppene"' : '') + '>' + esc(navn) + '</div>')
+            + (k === 'hjem' ? raskestHjemHtml(_stop && _hjemSøk.get(_stop.id), _stop ? knutepunkt(_stop, _stops()) : [],
+              new Set(live.flatMap(({ d }) => (d.lines || []).map(l => l.id)).filter(Boolean))) : '');
           iFold = !!(k && k === foldet);
         }
       }
@@ -5561,7 +5588,8 @@ function _renderBody() {
         + '<span class="auto-badges">' + d.lines.map(badgeHtml).join('')
         + msg.mark
         + '</span>'
-        + '<span class="nearby-name">mot ' + esc(d.frontText) + '</span>'
+        + '<span class="nearby-name">mot ' + esc(d.frontText)
+        + (hjemAR.get(i) && hjemAR.get(i).bytte ? '<span class="auto-bytte">bytt på ' + esc(hjemAR.get(i).bytte) + '</span>' : '') + '</span>'
         // DIN AVGANG (v1.218.86): raden for tavlas valg merkes; den flyttes ikke.
         + (din ? '<span class="auto-din-merke">din avgang</span>' : '')
         // Its own element, not part of the name: a long destination and the
@@ -5613,6 +5641,8 @@ function _renderBody() {
     kanter();
     t.addEventListener('scroll', () => { _trommelPos.set(k, t.scrollLeft); _trommelSveip = Date.now(); kanter(); }, { passive: true });
   });
+  body.querySelectorAll('.at-raskest[data-pin]').forEach(b => b.addEventListener('click', () => { if (pinStop(b.dataset.pin)) _renderBody(); }));
+  _hjemLangtTrykk(body);
   body.querySelectorAll('.auto-dir').forEach(b => {
     b.addEventListener('click', () => {
       if (Date.now() - _trommelSveip < TROMMEL_SVEIP_MS) return;   // en sveip er ikke et trykk

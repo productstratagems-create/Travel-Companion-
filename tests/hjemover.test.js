@@ -80,7 +80,7 @@ describe('hjemover med bytter (v1.218.151)', () => {
     { legs: [leg('foot', null, 'Mortensrud')] },
   ];
   it('første etappe: linje, og hvor du bytter — direkte gir ingen bytte, gange ignoreres', () => {
-    expect(hjemFørsteEtapper(MØNSTRE)).toEqual([
+    expect(hjemFørsteEtapper(MØNSTRE)).toMatchObject([
       { linjeId: 'RUT:Line:74', kode: '74', mot: 'Jernbanetorget', bytte: 'Jernbanetorget' },
       { linjeId: 'RUT:Line:2', kode: '2', mot: 'Ellingsrudåsen', bytte: null },
     ]);
@@ -101,5 +101,32 @@ describe('hjemover med bytter (v1.218.151)', () => {
   it('raden sier hvor du bytter', () => {
     const h = tavleRadHtml({ d: { frontText: 'Jernbanetorget', lines: [{ code: '74', mode: 'bus' }] }, ms: Date.now() + 5 * 60_000, call: {}, rekker: true, bytte: 'Jernbanetorget' }, Date.now(), 0);
     expect(h).toContain('bytt på Jernbanetorget');
+  });
+});
+
+import { hjemRaskest, HJEM_SLAKK_MIN } from '../src/hjemover.js';
+describe('bare gode forslag, og raskest hjem fra et annet stopp (v1.218.153)', () => {
+  const T = Date.UTC(2026, 10, 19, 20, 0), iso = m => new Date(T + m * 60_000).toISOString();
+  const kol = (linje, fra, fraId, start, slutt, til) => ({ mode: linje === '1' ? 'metro' : 'tram', expectedStartTime: iso(start), expectedEndTime: iso(slutt),
+    serviceJourney: { line: { id: 'RUT:Line:' + linje, publicCode: linje } }, fromPlace: { name: fra, quay: { stopPlace: { id: fraId } } }, toPlace: { name: til },
+    fromEstimatedCall: { destinationDisplay: { frontText: til } } });
+  const gå = (a, b) => ({ mode: 'foot', expectedStartTime: iso(a), expectedEndTime: iso(b) });
+  // FØR-BILDET: Majorstuen (trikk) → Holmenkollen.
+  const M = [
+    { legs: [gå(0, 3), kol('1', 'Majorstuen', 'NSR:StopPlace:T', 6, 20, 'Holmenkollen')] },                                           // framme 20 min
+    { legs: [kol('19', 'Majorstuen', 'NSR:StopPlace:TR', 2, 9, 'Nationaltheatret'), kol('1', 'Nationaltheatret', 'X', 15, 41, 'Holmenkollen')] }, // 41
+    { legs: [kol('12', 'Majorstuen', 'NSR:StopPlace:TR', 1, 12, 'Stortinget'), kol('1', 'Stortinget', 'Y', 18, 45, 'Holmenkollen')] },          // 45
+  ];
+  it('omveiene teller ikke: bare linje 1', () => {
+    expect(HJEM_SLAKK_MIN).toBe(10);
+    expect(hjemFørsteEtapper(M).map(e => e.kode)).toEqual(['1']);
+  });
+  it('raskest hjem: gå 3 min til Majorstuen T, linje 1', () => {
+    expect(hjemRaskest(M)).toMatchObject({ kode: '1', fraId: 'NSR:StopPlace:T', fraNavn: 'Majorstuen', gangMin: 3, bytte: null });
+  });
+  it('skjermen viser linjen og bytter stopp ved trykk', () => {
+    const a = readFileSync('src/views/auto.js', 'utf8');
+    expect(a).toMatch(/rk\.fraId && !nærHjem\.includes\(rk\.fraId\)/);
+    expect(a).toMatch(/\.at-raskest\[data-pin\]'\)\.forEach\(b => b\.addEventListener\('click', \(\) => \{ if \(pinStop\(b\.dataset\.pin\)\)/);
   });
 });

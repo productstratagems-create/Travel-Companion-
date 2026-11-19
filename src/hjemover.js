@@ -69,20 +69,54 @@ export function søkHjemStopp(tekst, signal) {
  * herfra kjører helt hjem. Valgt: direkte treff som før, pluss første etappe
  * av reisesøkene hjem. Rent: forslagene → [{ linjeId, kode, mot, bytte }].
  */
+/**
+ * BARE GODE FORSLAG (v1.218.153). Rapportert fra Majorstuen med hjem på
+ * Holmenkollen: trikk 12 og 19 ble «hjemover» fordi ett av fem forslag var en
+ * omvei via Nationaltheatret. Et forslag teller bare når det er framme innen
+ * HJEM_SLAKK_MIN etter det raskeste.
+ */
+export const HJEM_SLAKK_MIN = 10;
+const _t = (o, f) => Date.parse((o && (o['expected' + f] || o['aimed' + f])) || '');
+const _ende = p => { const l = (p && p.legs) || []; return l.length ? _t(l[l.length - 1], 'EndTime') : NaN; };
+function _etappe(p) {
+  const legs = (p && p.legs) || [];
+  const kol = legs.filter(l => l && l.mode && l.mode !== 'foot');
+  if (!kol.length) return null;
+  const l = kol[0];
+  const linje = l.serviceJourney && l.serviceJourney.line;
+  if (!linje || !linje.id) return null;
+  const i = legs.indexOf(l);
+  const gangMs = legs.slice(0, i).reduce((s, x) => s + Math.max(0, (_t(x, 'EndTime') - _t(x, 'StartTime')) || 0), 0);
+  const fra = l.fromPlace || {};
+  return {
+    linjeId: linje.id, kode: linje.publicCode || '',
+    mot: (l.fromEstimatedCall && l.fromEstimatedCall.destinationDisplay && l.fromEstimatedCall.destinationDisplay.frontText) || '',
+    bytte: kol.length > 1 ? ((l.toPlace && l.toPlace.name) || null) : null,
+    fraId: (fra.quay && fra.quay.stopPlace && fra.quay.stopPlace.id) || null, fraNavn: fra.name || '',
+    går: _t(l, 'StartTime'), gangMin: Math.round(gangMs / 60_000), framme: _ende(p),
+  };
+}
+/** De gode forslagene, raskest først. */
+function _gode(mønstre) {
+  const m = (mønstre || []).filter(p => _etappe(p));
+  const ender = m.map(_ende).filter(Number.isFinite);
+  const best = ender.length ? Math.min(...ender) : NaN;
+  return m.filter(p => !Number.isFinite(best) || !Number.isFinite(_ende(p)) || _ende(p) <= best + HJEM_SLAKK_MIN * 60_000)
+    .sort((a, b) => (_ende(a) || 0) - (_ende(b) || 0));
+}
 export function hjemFørsteEtapper(mønstre) {
   const sett = new Map();
-  (mønstre || []).forEach(p => {
-    const kol = (p && p.legs || []).filter(l => l && l.mode && l.mode !== 'foot');
-    if (!kol.length) return;
-    const l = kol[0];
-    const linje = l.serviceJourney && l.serviceJourney.line;
-    if (!linje || !linje.id) return;
-    const bytte = kol.length > 1 ? ((l.toPlace && l.toPlace.name) || null) : null;
-    const mot = (l.fromEstimatedCall && l.fromEstimatedCall.destinationDisplay && l.fromEstimatedCall.destinationDisplay.frontText) || '';
-    const k = linje.id + '>' + (bytte || '');
-    if (!sett.has(k)) sett.set(k, { linjeId: linje.id, kode: linje.publicCode || '', mot, bytte });
+  _gode(mønstre).forEach(p => {
+    const e = _etappe(p);
+    const k = e.linjeId + '>' + (e.bytte || '');
+    if (!sett.has(k)) sett.set(k, e);
   });
   return [...sett.values()];
+}
+/** Første etappe av det raskeste forslaget, eller null. */
+export function hjemRaskest(mønstre) {
+  const g = _gode(mønstre);
+  return g.length ? _etappe(g[0]) : null;
 }
 
 /**

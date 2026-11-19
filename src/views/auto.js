@@ -70,7 +70,7 @@ import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, platt
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
 import { fraTider, settFraTid, fraDatoer, settFraDatoTid, KLOKKESLETT_VALG } from '../fraTider.js';
-import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper } from '../hjemover.js';
+import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest } from '../hjemover.js';
 import { navTo } from '../ui/nav.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
@@ -5053,7 +5053,9 @@ function _hjemSøkOppdater(nå) {
     .then(svar => {
       post.henter = false;
       if (svar.every(x => x == null)) { post.feil = true; return; }
-      post.etapper = hjemFørsteEtapper(svar.flatMap(x => x || []));
+      const alle = svar.flatMap(x => x || []);
+      post.etapper = hjemFørsteEtapper(alle);
+      post.raskest = hjemRaskest(alle);
     });
 }
 let _atRetning = 'alle';
@@ -5134,8 +5136,17 @@ function _tegnAutoTavle(body) {
   if (_atRetning === 'hjem') [...del.ikke, ...del.rekker].forEach(x => { x.bytte = retningHjemDom(x.d, gang, nå, hjemListe).bytte; });
   const rader = [...del.ikke, ...del.rekker];
   const hs = _stop && _hjemSøk.get(_stop.id);
+  // RASKEST HJEM FRA ET ANNET STOPP (v1.218.153): starter den beste veien
+  // fra et stopp tavla ikke viser (Majorstuen T fra trikkestoppet), sies det,
+  // og et trykk gjør det stoppet til ditt.
+  const rk = hs && hs.raskest;
+  const nærHjem = _stop ? knutepunkt(_stop, _stops()).map(s => s.id) : [];
+  const raskestHtml = _atRetning === 'hjem' && rk && rk.fraId && !nærHjem.includes(rk.fraId)
+    ? '<button type="button" class="at-raskest" data-pin="' + esc(rk.fraId) + '">raskest hjem: '
+      + esc((rk.gangMin > 0 ? 'gå ' + rk.gangMin + ' min til ' : 'fra ') + rk.fraNavn + ' · linje ' + rk.kode + (Number.isFinite(rk.går) ? ' · går ' + clk(rk.går) : '')) + ' →</button>'
+    : '';
   const hjemMerk = _atRetning !== 'hjem' || !hs ? '' : hs.henter ? '<div class="at-filter">leter etter reiser hjem med bytte …</div>'
-    : hs.feil ? '<div class="at-filter">fant ikke reiser hjem med bytte herfra — viser bare direkte</div>' : '';
+    : hs.feil ? '<div class="at-filter">fant ikke reiser hjem med bytte herfra — viser bare direkte</div>' : raskestHtml;
   const merknad = skjulteNavn.length ? '<div class="at-filter">skjult i kartets filter: ' + esc(skjulteNavn.join(', ')) + '</div>' : '';
   const ikkeHtml = del.ikke.length
     ? '<details class="at-ikke"' + (_atIkkeÅpen ? ' open' : '') + '><summary>' + del.ikke.length
@@ -5147,6 +5158,7 @@ function _tegnAutoTavle(body) {
     ? '<div class="set-label">' + (Number.isFinite(_fraMs) ? 'avganger ' + esc(fraTidTekst(_fraMs, nå)) : 'neste avganger herfra') + '</div>' + merknad + hjemMerk + ikkeHtml
       + '<div class="at-liste">' + del.rekker.map((x, i) => tavleRadHtml(x, nå, del.ikke.length + i, meld)).join('') + '</div>' + bunn
     : merknad + hjemMerk + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : (_atRetning !== 'alle' ? 'ingen avganger ' + AT_RETNING_TEKST[_atRetning] + ' herfra nå' : 'ingen avganger herfra den nærmeste timen')) + '</div>');
+  body.querySelectorAll('.at-raskest[data-pin]').forEach(b => b.addEventListener('click', () => { if (pinStop(b.dataset.pin)) _renderBody(); }));
   body.querySelectorAll('.at-retning [data-retning]').forEach(b => b.addEventListener('click', () => {
     if (_hjemHold.brukt) { _hjemHold.brukt = false; return; }   // langt trykk er ikke et valg
     // Uten stopp valgt er hjemover et spørsmål: hva er hjem? Svaret står i innstillinger.

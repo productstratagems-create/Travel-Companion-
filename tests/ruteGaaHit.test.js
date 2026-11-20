@@ -134,3 +134,11 @@ describe('reisen sies med målet, ikke skiltet (v1.218.178)', () => {
     expect(src.slice(i, src.indexOf("else if (dom === 'bedre')", i))).not.toMatch(/stoppNavn|ta \+/);
   });
 });
+
+describe('foldet inn (v1.218.184)', () => {
+  it('kortet vises ikke; koden står bak bryteren', () => {
+    const b = readFileSync('src/views/board.js', 'utf8');
+    expect(b).toMatch(/export const RUTE_GÅHIT_KORT = false;/);
+    expect(b).toMatch(/if \(!RUTE_GÅHIT_KORT\) \{ el\.style\.display = 'none'; _ruteGåVis = null; return; \}/);
+  });
+});

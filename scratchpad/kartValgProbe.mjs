@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import pw from '/opt/node22/lib/node_modules/playwright/index.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DIST = path.join(ROOT, 'dist'); const PORT = 4625;
+const DIST = path.join(ROOT, 'dist'); const PORT = 4629;
 const NOW = Date.parse('2026-09-08T07:41:00+02:00');
 const iso = ms => new Date(ms).toISOString();
 const HERE = { lat: 59.8300, lon: 10.8050 };
@@ -58,6 +58,14 @@ async function run(scheme) {
     localStorage.setItem('__activeProfile', 'default');
     localStorage.setItem('default::t.theme', scheme);
     localStorage.setItem('default::t.autoMode', '1');
+    // OMSTART MED SEN POSISJON: etter omlasting svarer GPS-en først etter 4 s,
+    // som på telefonen — kartet tegnes før posisjonen finnes.
+    if (sessionStorage.getItem('omstart')) {
+      const g = navigator.geolocation, w = g.watchPosition.bind(g), c = g.getCurrentPosition.bind(g);
+      g.watchPosition = (ok, ...r) => w(p => setTimeout(() => ok(p), 4000), ...r);
+      g.getCurrentPosition = (ok, ...r) => c(p => setTimeout(() => ok(p), 4000), ...r);
+
+    }
   }, { now: NOW, scheme });
   await page.route('**/geocoder/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ features: NEARBY }) }));
   await page.route('**/journey-planner/**', route => {
@@ -77,9 +85,17 @@ async function run(scheme) {
   console.log('\n══ ' + scheme + ' ══  før: ' + await fokus());
   await page.locator('#auto-map-fokus').click(); await page.waitForTimeout(600);
   console.log('  etter ett trykk: ' + await fokus() + ' · lagret: ' + await page.evaluate(() => localStorage.getItem('default::t.kartFokus')));
-  await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(1500);
+  await page.evaluate(() => sessionStorage.setItem('omstart', '1'));
+  await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(6500);
   await page.evaluate(() => window._settAutoTavle && window._settAutoTavle(true)); await page.waitForTimeout(2500);
-  console.log('  etter omlasting: ' + await fokus());
+  const inne = () => page.evaluate(() => {
+    const kart = document.querySelector('#auto-map') || document.querySelector('.leaflet-container');
+    const k = kart.getBoundingClientRect();
+    const inn = el => { if (!el) return 'mangler'; const r = el.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2; return x >= k.left && x <= k.right && y >= k.top && y <= k.bottom ? 'inne' : 'UTE'; };
+    const lapp = [...kart.querySelectorAll('.map-label')].find(e => /Hauketo/.test(e.textContent));
+    return 'deg ' + inn(kart.querySelector('.bruker-prikk')) + ' · stopp-lapp ' + inn(lapp);
+  });
+  console.log('  etter omlasting: ' + await fokus() + ' · ' + await inne());
   await page.screenshot({ path: 'scratchpad/kartvalg-' + scheme + '.png' });
   await ctx.close();
 }

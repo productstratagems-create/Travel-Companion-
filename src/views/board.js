@@ -2993,6 +2993,14 @@ function renderRuteGåHit() {
   const pos = state.homeLL;
   if (!mål || !pos || isExample(dir) || dir.key === 'in') { el.style.display = 'none'; _ruteGåVis = null; return; }
   el.style.display = '';
+  // I FART (v1.218.174): rapportert fra 74-bussen — et gangråd regnet fra et
+  // sete i fart er ikke et råd. Ingen knapp; bestilt råd sier hvorfor det venter.
+  if (!gangGjelder(fartNå(), false)) {
+    _ruteGåVis = null;
+    if (_ruteGåBedt !== mål.id) { el.style.display = 'none'; return; }
+    el.innerHTML = '<div class="rute-gaa"><span class="rute-gaa-tekst">i fart — beste holdeplass vises når du går</span></div>';
+    return;
+  }
   if (_ruteGåBedt !== mål.id) {
     _ruteGåVis = null;
     el.innerHTML = '<button type="button" class="rute-gaa-be">\u{1F6B6} beste holdeplass herfra?</button>';
@@ -3026,10 +3034,10 @@ function renderRuteGåHit() {
   el.querySelector('.rute-gaa-lukk').addEventListener('click', () => { _ruteGåBedt = null; _ruteGåVis = null; renderRuteGåHit(); refreshBoardMap(); });
   const bruk = el.querySelector('.rute-gaa-bruk');
   if (bruk) bruk.addEventListener('click', () => {
-    if (!window._setActiveRoute) return;
-    window._setActiveRoute(ruteMedStopp(dir, v.råd), { chosen: true });
+    if (!window._byttRute) return;
     _ruteGåBedt = null; _ruteGåVis = null;
-    if (window._refreshBoard) window._refreshBoard();
+    // Samme dør som skjemaet (v1.218.174): rute, overskrift, avganger, tavle.
+    window._byttRute(ruteMedStopp(dir, v.råd), { chosen: true });
   });
   if (kartEndret) refreshBoardMap();
 }

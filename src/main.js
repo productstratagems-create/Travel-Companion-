@@ -93,7 +93,6 @@ window._updateWalkDbg = updateWalkDbg;
 window._showSettings = showSettings;
 window._showPrefs = showPrefs;
 window._applyRoute = applyRoute;
-window._setActiveRoute = setActiveRoute;   // «bruk dette stoppet» i Rute (v1.218.173)
 // «Utforsk» means journey search now; the places browser is a section of
 // it, reached through renderPlaces. Both globals stay: the ⋯-menu door and
 // the saved landing preference both name this screen.

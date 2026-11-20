@@ -36,9 +36,9 @@ describe('ruta byttes bare ved trykk', () => {
   });
   it('board.js bytter ruta bare i klikket på «bruk dette stoppet»', () => {
     const src = readFileSync('src/views/board.js', 'utf8');
-    const kall = src.match(/_setActiveRoute\(ruteMedStopp/g) || [];
+    const kall = src.match(/_byttRute\(ruteMedStopp/g) || [];
     expect(kall.length).toBe(1);
-    expect(src).toMatch(/bruk\.addEventListener\('click', \(\) => \{\s*if \(!window\._setActiveRoute\) return;\s*window\._setActiveRoute\(ruteMedStopp\(dir, v\.råd\)/);
+    expect(src).toMatch(/bruk\.addEventListener\('click', \(\) => \{\s*if \(!window\._byttRute\) return;[\s\S]{0,200}window\._byttRute\(ruteMedStopp\(dir, v\.råd\)/);
   });
 });
 
@@ -65,5 +65,21 @@ describe('startGåHitSøk: én henting for begge skjermer', () => {
   it('Auto-reise og Rute bruker den samme', () => {
     expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/startGåHitSøk\(_gåHit,/);
     expect(readFileSync('src/views/board.js', 'utf8')).toMatch(/startGåHitSøk\(_ruteGåHit,/);
+  });
+});
+
+describe('ett bytte, én dør (v1.218.174)', () => {
+  it('byttRute gjør alle fire: rute, overskrift, avganger, tavle', () => {
+    const nav = readFileSync('src/ui/nav.js', 'utf8');
+    expect(nav).toMatch(/export function byttRute\(dir, opts\) \{\s*setActiveRoute\(dir, opts\);\s*updateHeader\(\);\s*state\.deps = \[\];\s*if \(window\._startBoard\) window\._startBoard\(\);/);
+  });
+});
+
+describe('ikke i fart (v1.218.174)', () => {
+  it('Rute-kortet spør gangGjelder før det viser knappen eller søker', () => {
+    const src = readFileSync('src/views/board.js', 'utf8');
+    const i = src.indexOf('function renderRuteGåHit');
+    const del = src.slice(i, src.indexOf('startGåHitSøk(_ruteGåHit', i));
+    expect(del).toMatch(/if \(!gangGjelder\(fartNå\(\), false\)\) \{/);
   });
 });

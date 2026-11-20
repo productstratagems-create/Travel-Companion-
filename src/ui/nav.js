@@ -513,6 +513,20 @@ export function show(id) {
   }
 }
 
+/**
+ * BYTT RUTE — én dør (v1.218.174). Rapportert: etter «bruk dette stoppet» sa
+ * overskriften Munkerudkleiva mens avgangene og kartet var Leirskallens.
+ * Skjemaet og hjemreise-byttet gjorde fire ting i rekkefølge; Rute-kortet
+ * gjorde to. Nå gjør alle det samme, herfra.
+ */
+export function byttRute(dir, opts) {
+  setActiveRoute(dir, opts);
+  updateHeader();
+  state.deps = [];
+  if (window._startBoard) window._startBoard();
+}
+if (typeof window !== 'undefined') window._byttRute = byttRute;
+
 export function updateHeader() {
   const dir = config.dirs[state.dIdx];
   document.getElementById('station-name').textContent = dir.from.toUpperCase();
@@ -593,11 +607,8 @@ export function maybeSwitchToReturn() {
     return false;
   }
   _preReturnDir = cur && cur.from && cur.to ? { ...cur } : null;
-  setActiveRoute(dir);
-  updateHeader();
-  state.deps = [];
+  byttRute(dir);
   renderReturnToast(r);
-  window._startBoard && window._startBoard();
   return true;
 }
 
@@ -654,11 +665,9 @@ export function renderReturnToast(r) {
         skipToday(Date.now());
         el.style.display = 'none';
         if (_preReturnDir) {
-          setActiveRoute(_preReturnDir);
+          const tilbake = _preReturnDir;
           _preReturnDir = null;
-          updateHeader();
-          state.deps = [];
-          window._startBoard && window._startBoard();
+          byttRute(tilbake);
         }
       });
     }

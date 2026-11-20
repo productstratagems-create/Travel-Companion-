@@ -56,6 +56,7 @@ async function run(scheme) {
   await page.route('**/geocoder/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ features: NEARBY }) }));
   await page.route('**/journey-planner/**', route => {
     const body = route.request().postData() || '';
+    const m = body.match(/(?:stopPlace\(id:|place:)\\?"([^"\\]+)/); if (m) globalThis.__sist = (globalThis.__sist || []).concat(m[1]).slice(-6);
     if (body.includes('trip(') && body.includes('from:{coordinates') && !body.includes('directMode')) {
       rådSøk++;
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { trip: RÅD } }) });
@@ -81,7 +82,11 @@ async function run(scheme) {
   console.log('  etter trykk:', JSON.stringify(await les()), 'rådsøk:', rådSøk);
   await page.screenshot({ path: 'scratchpad/rutegaa-' + scheme + '.png' });
   const bruk = page.locator('#rute-gaahit .rute-gaa-bruk');
-  if (await bruk.count()) { await bruk.click(); await page.waitForTimeout(1500); console.log('  etter «bruk»:', JSON.stringify(await les())); }
+  if (await bruk.count()) { await bruk.click(); await page.waitForTimeout(1500); console.log('  etter «bruk»:', JSON.stringify(await les()));
+    await page.waitForTimeout(2500);
+    console.log('  overskrift:', await page.evaluate(() => document.getElementById('station-name').textContent),
+      '· route:', await page.evaluate(() => localStorage.getItem('default::t.route')),
+      '· siste forespørsler:', JSON.stringify(globalThis.__sist)); }
   await ctx.close();
 }
 await run('light'); await run('dark');

@@ -20,7 +20,7 @@ export function clearPlan() {
   storage.remove(PLAN_KEY);
 }
 
-export function addLegToPlan(c, dir) {
+export function addLegToPlan(c, dir, reiseId) {
   const legs = loadPlan();
   const depIso = c.expectedDepartureTime;
   const serviceJourneyId = (c.serviceJourney && c.serviceJourney.id) || null;
@@ -73,6 +73,8 @@ export function addLegToPlan(c, dir) {
     // HELE KJEDEN (v1.218.159): «72 › L2». Uten den sa planen «etappe 1» om en
     // reise med bytte, fordi bare første linje ble tatt vare på.
     kjede: planKjede(c),
+    // HVILKEN REISE (v1.218.169): uten id er det en egen reise.
+    reise: reiseId || ('r_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)),
     // HELE AVGANGEN (v1.218.160). Bestilt: «Jeg vil ha hele reise» — som
     // favorittene. Avgangsdetaljene åpner den med overgangen, ikke bare 72.
     avgang: avgangKopi(c),
@@ -262,4 +264,35 @@ export function settGjentak(id, dager) {
   if (dager && dager.length) leg.gjentak = { dager: [...new Set(dager)].sort() }; else delete leg.gjentak;
   savePlan(legs);
   return true;
+}
+
+/* ── FLERE REISER (v1.218.169) ─────────────────────────────────────────
+ * Rapportert: Stenbråten → Oslo S 07:17 ble en etappe under reisen kl. 08:47.
+ * Valgt: «Automatisk, spør ved tvil» — en etappe bare når avgangen fortsetter
+ * der en reise endte, ellers en egen reise. Som Google Maps og Citymapper. */
+export const ETAPPE_MAKS_PAUSE_MIN = 180;
+/** Etappene gruppert i reiser, sortert etter første avgang. Uten id: én reise. Ren. */
+export function reiser(legs) {
+  const m = new Map();
+  (legs || []).forEach(l => { const k = l.reise || 'r0'; if (!m.has(k)) m.set(k, []); m.get(k).push(l); });
+  return [...m.entries()].map(([id, ls]) => ({ id, legs: ls.slice().sort((a, b) => Date.parse(a.depIso) - Date.parse(b.depIso)) }))
+    .sort((a, b) => Date.parse(a.legs[0].depIso) - Date.parse(b.legs[0].depIso));
+}
+/** Fortsetter avgangen der reisen endte, og innen pausen? Ren. */
+export function fortsetter(reise, c, dir) {
+  const last = reise && reise.legs[reise.legs.length - 1];
+  if (!last || !c) return false;
+  const fra = placeOf(dir, 'from') || placeOf(dir && dir.from);
+  if (!samePlace(last.to, fra)) return false;
+  const dep = Date.parse(c.expectedDepartureTime);
+  const ank = last.arrIso ? Date.parse(last.arrIso) : Date.parse(last.depIso) + LEG_FALLBACK_MINS * 60000;
+  return Number.isFinite(dep) && dep >= ank && dep - ank <= ETAPPE_MAKS_PAUSE_MIN * 60000;
+}
+/** Den første reisen avgangen kan være neste etappe i, eller null. */
+export function kandidatReise(legs, c, dir) {
+  return reiser(legs).find(r => fortsetter(r, c, dir)) || null;
+}
+/** Slett én reise; de andre står. */
+export function slettReise(id) {
+  savePlan(loadPlan().filter(l => (l.reise || 'r0') !== id));
 }

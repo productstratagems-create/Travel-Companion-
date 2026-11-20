@@ -1,5 +1,5 @@
 import { linjemerke } from '../ui/linjemerke.js';
-import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent, legFarge, etappeKjede, planBytter, avgangGyldig, loadPlanNå, settGjentak } from '../api/plan.js';
+import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent, legFarge, etappeKjede, planBytter, avgangGyldig, loadPlanNå, settGjentak, reiser, slettReise } from '../api/plan.js';
 import { gjentakTekst, FORHÅNDSVALG, UKE, UKEDAG_BOKSTAV, UKEDAG_KORT, nesteGjentak } from '../api/gjentak.js';
 import { LINJE_FARGE, LINJE_NØYTRAL } from '../ui/linjemerke.js';
 import { shareLegCalendar } from '../api/calShare.js';
@@ -189,8 +189,11 @@ let _planCtxKey = '';
 export function updatePlanCtx() {
   const el = document.getElementById('plan-ctx');
   if (!el) return;
-  const legs = loadPlanNå();
-  if (!legs.length) { el.style.display = 'none'; _planCtxKey = ''; return; }
+  const alle = loadPlanNå();
+  if (!alle.length) { el.style.display = 'none'; _planCtxKey = ''; return; }
+  // DEN NESTE REISEN (v1.218.169), ikke hele lista.
+  const gr = reiser(alle);
+  const legs = (gr.find(g => planStatus(g.legs, Date.now()) !== 'done') || gr[gr.length - 1]).legs;
 
   const last = legs[legs.length - 1];
   const now = Date.now();
@@ -314,30 +317,9 @@ function _returnCardHtml() {
     + '</div>';
 }
 
-export function renderPlan() {
-  const el = document.getElementById('plan-content');
-  if (!el) return;
 
-  const now = Date.now();
-  const legs = loadPlanNå();
-
-  if (!legs.length) {
-    _planStructKey = '';
-    el.innerHTML = _returnCardHtml()
-      + '<div class="plan-empty">'
-      + 'Ingen etapper planlagt ennå.<br>'
-      + 'Velg en avgang og trykk<br>'
-      + '«legg til i reiseplan» for å starte.'
-      + '</div>';
-    _stopPlanInterval();
-    updatePlanCtx();
-    _renderPlanMap([]);
-    return;
-  }
-
-  _renderPlanMap(legs);
-  _planStructKey = _planStructuralKey(legs, now);
-
+/** Én reise i planen: overskrift, tidslinje og egne knapper (v1.218.169). */
+function _reiseHtml(legs, reiseId, now) {
   const status = planStatus(legs, now);
   const firstDep = new Date(legs[0].depIso).getTime();
   const lastArr = legs[legs.length - 1].arrIso
@@ -351,7 +333,7 @@ export function renderPlan() {
     metaHtml = '<div class="plan-journey-meta">Reise startet ' + clk(firstDep)
       + (lastArr ? ' · planlagt ankomst ' + clk(lastArr) : '') + '</div>';
   } else {
-    metaHtml = '<div class="plan-journey-meta">Avreise ' + clk(firstDep) + '</div>';
+    metaHtml = '<div class="plan-journey-meta">Avreise ' + clkDay(firstDep) + '</div>';
   }
 
   let timelineHtml = '<div class="plan-timeline">';
@@ -414,36 +396,61 @@ export function renderPlan() {
   let actionsHtml = '<div class="plan-actions">';
   if (status !== 'done') {
     actionsHtml +=
-      '<button class="plan-add-btn" id="plan-add-leg-btn">+ legg til neste etappe →</button>';
+      '<button class="plan-add-btn" data-reise="' + esc(reiseId) + '">+ legg til neste etappe →</button>';
   }
   actionsHtml +=
-    '<button class="plan-clear-btn" id="plan-clear-btn">'
-    + (status === 'done' ? 'Ny reiseplan' : 'Slett reiseplan')
-    + '</button>';
+    '<button class="plan-clear-btn plan-slett-reise" data-reise="' + esc(reiseId) + '">slett reisen</button>';
   actionsHtml += '</div>';
 
-  el.innerHTML = metaHtml + timelineHtml + actionsHtml;
+  const første = legs[0], siste = legs[legs.length - 1];
+  const by = planBytter(legs);
+  const hode = '<div class="plan-reise-hode">' + esc(placeName(første.from) + ' → ' + placeName(siste.to))
+    + (by.antall ? ' · ' + by.antall + (by.antall === 1 ? ' bytte' : ' bytter') : '') + '</div>';
+  return '<section class="plan-reise">' + hode + metaHtml + timelineHtml + actionsHtml + '</section>';
+}
 
-  const addBtn = document.getElementById('plan-add-leg-btn');
-  if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      updatePlanCtx();
-      show('v-board');
-      window._startBoard && window._startBoard();
-    });
+export function renderPlan() {
+  const el = document.getElementById('plan-content');
+  if (!el) return;
+
+  const now = Date.now();
+  const legs = loadPlanNå();
+
+  if (!legs.length) {
+    _planStructKey = '';
+    el.innerHTML = _returnCardHtml()
+      + '<div class="plan-empty">'
+      + 'Ingen etapper planlagt ennå.<br>'
+      + 'Velg en avgang og trykk<br>'
+      + '«legg til i reiseplan» for å starte.'
+      + '</div>';
+    _stopPlanInterval();
+    updatePlanCtx();
+    _renderPlanMap([]);
+    return;
   }
 
+  // FLERE REISER (v1.218.169): hver reise for seg, kartet viser den neste.
+  const grupper = reiser(legs);
+  const neste = grupper.find(g => planStatus(g.legs, now) !== 'done') || grupper[0];
+  _renderPlanMap(neste.legs);
+  _planStructKey = _planStructuralKey(legs, now);
+  el.innerHTML = grupper.map(g => _reiseHtml(g.legs, g.id, now)).join('')
+    + (grupper.length > 1 ? '<div class="plan-actions"><button class="plan-clear-btn" id="plan-clear-btn">slett alle reiser</button></div>' : '');
+
+  el.querySelectorAll('.plan-add-btn[data-reise]').forEach(b => b.addEventListener('click', () => {
+    state.planReise = b.dataset.reise;   // neste «legg til» går inn i denne reisen
+    updatePlanCtx();
+    show('v-board');
+    window._startBoard && window._startBoard();
+  }));
+  el.querySelectorAll('.plan-slett-reise[data-reise]').forEach(b => b.addEventListener('click', (e) => {
+    confirmTap(e.currentTarget, 'sikker? trykk igjen for å slette', () => { slettReise(b.dataset.reise); updatePlanCtx(); renderPlan(); });
+  }));
   const clearBtn = document.getElementById('plan-clear-btn');
   if (clearBtn) {
     clearBtn.addEventListener('click', (e) => {
-      const run = () => {
-        clearPlan();
-        _destroyPlanMap();
-        updatePlanCtx();
-        renderPlan();
-      };
-      if (status === 'done') { run(); return; }
-      confirmTap(e.currentTarget, 'sikker? trykk igjen for å slette', run);
+      confirmTap(e.currentTarget, 'sikker? trykk igjen for å slette alle', () => { clearPlan(); _destroyPlanMap(); updatePlanCtx(); renderPlan(); });
     });
   }
 

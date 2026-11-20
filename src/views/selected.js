@@ -17,7 +17,8 @@ import { leggTil as leggTilVerktøy, sett as settVerktøy } from '../ui/kartVerk
 import { quayLatLon, legShape, journeyPoints, _rowDest, påstigningTs, gåTilTekst } from '../api/adapt.js';
 import { fetchWeather, forecastAt, weatherAdvice } from '../api/weather.js';
 import { loadFavs, addTimedFav, removeFav } from '../ui/favs.js';
-import { addLegToPlan, isLegInPlan , oppgraderPlanEtappe } from '../api/plan.js';
+import { placeName } from '../api/place.js';
+import { addLegToPlan, isLegInPlan , oppgraderPlanEtappe, reiser, kandidatReise, loadPlan } from '../api/plan.js';
 import { shareLegCalendar, canOfferCalendar } from '../api/calShare.js';
 import { updatePlanCtx } from './plan.js';
 import { logMsg } from '../ui/log.js';
@@ -1087,9 +1088,24 @@ export function renderSelected() {
     if (alreadyInPlan && oppgraderPlanEtappe(c)) updatePlanCtx();
     planBtn.className = 'cta-btn secondary';
     planBtn.textContent = alreadyInPlan ? '📋 i reiseplan' : '📋 legg til i reiseplan';
+    // ETAPPE ELLER EGEN REISE (v1.218.169). «+ legg til neste etappe» i planen
+    // sier hvilken reise; ellers spør vi bare når avgangen fortsetter der en
+    // reise endte.
+    const bedt = state.planReise && reiser(loadPlan()).find(r => r.id === state.planReise);
+    const kandidat = !alreadyInPlan && !bedt ? kandidatReise(loadPlan(), c, dir) : null;
+    if (kandidat) {
+      const til = placeName(kandidat.legs[kandidat.legs.length - 1].to);
+      const etappeBtn = document.createElement('button');
+      etappeBtn.className = 'cta-btn secondary';
+      etappeBtn.textContent = '➕ neste etappe i reisen til ' + til;
+      etappeBtn.onclick = () => { const leg = addLegToPlan(c, dir, kandidat.id); updatePlanCtx(); renderSelected(); if (leg && canOfferCalendar()) shareLegCalendar(leg); };
+      ctaDiv.appendChild(etappeBtn);
+      planBtn.textContent = '📋 egen reise';
+    }
     if (!alreadyInPlan) {
       planBtn.onclick = () => {
-        const leg = addLegToPlan(c, dir);
+        const leg = addLegToPlan(c, dir, bedt ? bedt.id : undefined);
+        state.planReise = null;
         updatePlanCtx();
         renderSelected();
         // THE SHEET OPENS HERE, while the tap is still fresh. `addLegToPlan`

@@ -343,3 +343,7 @@
 .plan-leg-cal { top: .4rem; right: 3.2rem; }
 .plan-leg-gjenta { top: .3rem; right: 6rem; }
 .plan-leg-gjenta::after { content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
+/* Hver reise for seg (v1.218.169). */
+.plan-reise{margin-top:1.4rem;padding-top:1rem;border-top:1px solid rgba(var(--border-rgb),.18)}
+.plan-reise:first-child{margin-top:.6rem;padding-top:0;border-top:0}
+.plan-reise-hode{font-size:1rem;font-weight:600;color:var(--accent);margin-bottom:.15rem}

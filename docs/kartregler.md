@@ -83,16 +83,20 @@ kartet hoppe for hver GPS-fiks.
   det fortsatt bare ved §4.
 - Prikken flytter seg; kartet gjør det ikke.
 
-## Avvik i koden i dag (2026-11-20)
+## Status (v1.218.188)
 
-| hvor | avvik fra reglene |
-|---|---|
-| `selected.js` 326/594/621/762/765/781 | `maxZoom` 18/15/15/17/15/15 skrevet inn for hånd; ikke fra trappen |
-| `board.js` 632/844/845/873 | `setView(…, 14/15)` og `padding: [36]`/`[44]`, `maxZoom` 16/17 |
-| `track.js` 332/400/1030/1134/2793 | `padding: [28]`/`[24]`; 1134 uten `maxZoom`; 2793 uten sjekk av egen justering |
-| `plan.js`, `leisure.js`, `settings.js` | egne faste marginer og zoomnivåer |
-| Rute, avgangsdetaljer, Underveis | ingen felles `_rammer`-innpakning: en programmatisk zoom kan telle som din |
-| Rute | innrammingen har ingen navngitt nøkkel; flere steder bestemmer selv |
+Gjennomført i `src/ui/kartRamme.js` (`ZOOM`, `marg`, `ramme`):
 
-Neste steg er én modul (`src/ui/kartRamme.js`): trappen, marginen,
-nøkkelen og innpakningen — og en test som binder hvert kart til den.
+- Rute, avgangsdetaljer, Underveis, ankomst, plan, utforsk og minnekartet
+  rammer inn gjennom `ramme()`; ingen skjerm har egne `maxZoom`-tall eller
+  faste px-marginer (test: `tests/kartRamme.test.js`).
+- Fokusknappens nivåer (`kartFokus.js`) og Auto-kartets startzoom leser trappen.
+- Ankomstkartet med ett punkt står på `REISE` med vilje («hvilket nabolag du
+  kommer til»), via `ettPunkt`.
+- Egen justering: Auto (`_rammer`, `BRUKER_INPUT_MS`) og Underveis (`_tProg`)
+  skiller appens zoom fra din; Rute og avgangsdetaljer teller bare `dragstart`,
+  som appens egne rammer aldri utløser.
+- Ankomstkartets gangrute rammes nå med tak (`NÆRHET`); før hadde den intet.
+
+Igjen: Auto-kartets egen nærhetszoom (`zoomFor`, `FIT_PAD`) — en egen,
+målt regel for «deg i midten» som ikke er en ren innramming; den står.

@@ -1,4 +1,5 @@
 import { linjemerke } from '../ui/linjemerke.js';
+import { ZOOM, ramme } from '../ui/kartRamme.js';
 import config from '../config.js';
 import { stopKey } from '../stopId.js';
 import { stopsUntil, alightEyebrow, visteMinutter, minutterIgjen, erFramme } from '../api/alight.js';
@@ -329,7 +330,7 @@ function _renderTrackMap(now, cs, legs) {
     }
     _tProg = true;
     if (holdt) { _tMap.setView(holdt.c, holdt.z, { animate: false }); _tUserMoved = true; }
-    else if (frame.length) _tMap.fitBounds(frame, { padding: [28, 28], maxZoom: 16, animate: false });
+    else if (frame.length) ramme(_tMap, frame, ZOOM.NÆRHET);
     _tProg = false;
     // THROUGH drawLeg, so a bus looks like a bus here too. This drew every
     // mode as one solid weight-4 stroke and never asked corridorStyle, which
@@ -397,7 +398,7 @@ function _renderTrackMap(now, cs, legs) {
 
     // The frame was set before anything was drawn; `allPts` is the same set of
     // points, so this only re-seats it after the markers have been placed.
-    if (allPts.length && !holdt) { _tProg = true; _tMap.fitBounds(allPts, { padding: [28, 28], maxZoom: 16, animate: false }); _tProg = false; }
+    if (allPts.length && !holdt) { _tProg = true; ramme(_tMap, allPts, ZOOM.NÆRHET); _tProg = false; }
     setTimeout(() => _tMap && _tMap.invalidateSize(), 100);
 
     // SAMME KNAPPER SOM RUTE (v1.218.154): kvadrat · bred · full, uten + og −,
@@ -1023,11 +1024,11 @@ function _fitArrMap(arrLL) {
   // 16 you see the platform and nothing around it — the question this screen
   // answers is which neighbourhood you are stepping into. Changing it to 16
   // was an unexplained number, which is the thing this session keeps removing.
-  if (pts.length === 1) { _arrMap.setView(pts[0], 15); return; }
+  if (pts.length === 1) { ramme(_arrMap, pts, ZOOM.NÆRHET, { ettPunkt: ZOOM.REISE }); return; }
   // Padding by the shared rule rather than a number chosen for another map.
   const el = document.getElementById('hn-map');
   const pad = fitPadding(el ? el.clientHeight : 0);
-  _arrMap.fitBounds(pts, { padding: [pad, pad], maxZoom: 16, animate: false });
+  ramme(_arrMap, pts, ZOOM.NÆRHET, { pad });
 }
 
 function _drawMobilityMarkers(ranked) {
@@ -1131,7 +1132,7 @@ function _updateArrMapWalkPin(arrLL) {
     if (!_arrMap || !pts) return;
     if (_arrRouteLine) _arrRouteLine.remove();
     _arrRouteLine = drawWalk(_arrMap, pts);
-    if (!_arrUserMoved) _arrMap.fitBounds(pts, { padding: [24, 24] });
+    if (!_arrUserMoved) ramme(_arrMap, pts, ZOOM.NÆRHET);
   }).catch(() => {});
 }
 
@@ -2790,7 +2791,7 @@ function _brukUnderveisFokus(allPts) {
   try {
     if (_tKartFokus === 'oversikt') {
       _tUserMoved = false;
-      if (allPts && allPts.length) _tMap.fitBounds(allPts, { padding: [28, 28], maxZoom: 16 });
+      if (allPts && allPts.length) ramme(_tMap, allPts, ZOOM.NÆRHET, { animer: true });
       _tegnUnderveisFokus(); return;
     }
     const legs = (state.jny && state.jny.legs) || [];

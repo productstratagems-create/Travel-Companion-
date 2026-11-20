@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import { ZOOM, ramme } from '../ui/kartRamme.js';
 import { setActiveRoute } from './settings.js';
 import { createMap, userDot } from '../ui/map.js';
 import { state } from '../state.js';
@@ -381,7 +382,7 @@ function _initLeisureMap(pos) {
   _lMap.on('dragstart zoomstart', () => { _leiUserMoved = true; });
 
   if (pos) {
-    _lMap.setView([pos.lat, pos.lon], 15);
+    _lMap.setView([pos.lat, pos.lon], ZOOM.REISE);
     _userMarker = userDot(_lMap, pos);
   }
 
@@ -449,9 +450,9 @@ function _updateLeisureMarkers(pos) {
   // kartet, og uten denne rammet det inn på nytt hver gang.
   if (!_leiUserMoved) {
     if (bounds.length > 1) {
-      _lMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 });
+      ramme(_lMap, bounds, ZOOM.NÆRHET);
     } else if (pos) {
-      _lMap.setView([pos.lat, pos.lon], 15);
+      _lMap.setView([pos.lat, pos.lon], ZOOM.REISE);
     }
   }
 }

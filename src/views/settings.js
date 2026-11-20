@@ -1,4 +1,5 @@
 import { linjeSvarOversikt, glemLinjeSvar } from '../api/linjeSvar.js';
+import { ZOOM, ramme } from '../ui/kartRamme.js';
 import { nesteSvarOversikt, glemNesteSvar } from '../api/nesteSvar.js';
 import { profil, vaneMatrise, reiserI, DØGNDELER, DAGTYPER, REISETYPER, avvisSted, svarReise, glemProfil } from '../profil.js';
 import { turopptak, turJson, slettTur, glemTuropptak } from '../api/turopptak.js';
@@ -1076,7 +1077,7 @@ function _renderMemMap(withPos) {
         weight: 1, opacity: .35, fillOpacity: .05 }).addTo(_memLayer);
     }
   }
-  _memMap.fitBounds(L.latLngBounds(pts), { padding: [24, 24], maxZoom: 15, animate: false });
+  ramme(_memMap, L.latLngBounds(pts), ZOOM.REISE);
 }
 
 export function initMemory() {

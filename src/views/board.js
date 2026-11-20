@@ -1,4 +1,5 @@
 import { erHelgLik } from '../dagtype.js';
+import { ZOOM, ramme } from '../ui/kartRamme.js';
 import { posGrå } from '../position.js';
 import { linjemerke } from '../ui/linjemerke.js';
 import config from '../config.js';
@@ -629,7 +630,7 @@ function _ensureMap(pos) {
   // stasjonslaget fra createMap (v1.218.59), samme terskel på alle kart.
   // Oslo S only when the app knows nothing — geoFocus says what it does know.
   const c = pos || geoFocus();
-  _bMap.setView([c.lat, c.lon], 14);
+  _bMap.setView([c.lat, c.lon], ZOOM.REISE);   // før temaet er kjent (§1)
   setTimeout(() => _bMap && _bMap.invalidateSize(), 100);
   // SAMME KNAPPER SOM AUTO-REISE (v1.218.129). Bestilt: «La Rute kartet få
   // samme zoom og kartstørrelsesknapper som Auto-reise. Og ta bort + og −.»
@@ -841,8 +842,7 @@ function renderBoardMap(pos, modes) {
     }
 
     if (pts.length > 0 && !_bFitted && !_bUserMoved) {
-      if (pts.length === 1) _bMap.setView(pts[0], 15);
-      else _bMap.fitBounds(pts, { padding: [36, 36], maxZoom: 16 });
+      ramme(_bMap, pts, ZOOM.NÆRHET);
       _bFitted = true;
     }
     setTimeout(() => _bMap && _bMap.invalidateSize(), 60);
@@ -870,7 +870,7 @@ function _drawWalkRoute(fromLL, toLL, destName) {
     .addTo(_bLayer);
 
   if (!_bUserMoved) {
-    _bMap.fitBounds([[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], { padding: [44, 44], maxZoom: 17 });
+    ramme(_bMap, [[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]], ZOOM.GANG);
     _bFitted = true;
   }
 
@@ -892,7 +892,7 @@ function _drawWalkRoute(fromLL, toLL, destName) {
       if (!pts) throw new Error('no points');
       const latlngs = decodePolyline(pts);
       drawWalk(_bLayer, latlngs);
-      if (!_bUserMoved) _bMap.fitBounds(latlngs, { padding: [44, 44], maxZoom: 17 });
+      if (!_bUserMoved) ramme(_bMap, latlngs, ZOOM.GANG);
     })
     .catch(() => {
       if (!_bLayer) return;
@@ -954,7 +954,7 @@ function _renderApproach() {
     // innzoomet i ingenting. En ramme av ugyldige eller bare ett punkt gjør
     // akkurat det. Da rammes ikke gangen inn, og det sies i loggen.
     const ok = gyldigRamme(pts);
-    if (ok) _bMap.fitBounds(ok, { padding: [40, 40], maxZoom: 17 });
+    if (ok) ramme(_bMap, ok, ZOOM.GANG);
     else logMsg('tavlekart: gangruta ga ingen gyldig ramme (' + (pts ? pts.length : 0) + ' punkter)', 'warn');
   }
 }
@@ -1676,7 +1676,7 @@ function renderLineRoute(visibleDeps, vehicles) {
   if (destIsVenue && dir._toLat && dir._toLon) fitPts.push([dir._toLat, dir._toLon]);
 
   if (_bFitRouteRequested && !_bUserMoved) {
-    _bMap.fitBounds(fitPts.length >= 2 ? fitPts : pts, { padding: [40, 40], maxZoom: 15 });
+    ramme(_bMap, fitPts.length >= 2 ? fitPts : pts, ZOOM.REISE);
   }
   _bFitRouteRequested = false;
   return paths;

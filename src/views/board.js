@@ -18,6 +18,7 @@ import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
 import { startGåHitSøk, ruteRåd, ruteMedStopp, ruteMål, rådMotEget, rådReiseTekst } from '../gaaHit.js';
 import { fetchTripFraPos, fetchTripFra } from '../api/entur.js';
 import { naboKandidater, naboRaderFra, naboTekst } from '../naboRader.js';
+import { lesFokus, lagreFokus, lesRuteLinjer, lagreRuteLinjer } from '../ui/kartValg.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest, påstigningTs, gåTilTekst } from '../api/adapt.js';
@@ -419,6 +420,7 @@ let _routeFitKey = null;
  * picture of, which is the one thing the strip must never do.
  */
 let _selectedLines = new Set();
+let _linjeRute = null;
 
 /** Is this line drawn right now? An empty selection means all of them. */
 function _lineOn(code) {
@@ -640,8 +642,10 @@ function _ensureMap(pos) {
   });
   settVerktøy(_bMap, 'inn', { skjult: true });
   settVerktøy(_bMap, 'ut', { skjult: true });
-  _bKartFokus = 'oversikt';
-  leggTilVerktøy(_bMap, 'fokus', { påTrykk: () => { _bKartFokus = nesteFokus(_bKartFokus, KART_FOKUS); _brukRuteFokus(); } });
+  // Fokuset du sist valgte på Rute-kartet (v1.218.187); brukes når avgangene er her.
+  _bKartFokus = lesFokus('rute', KART_FOKUS);
+  _bFokusVent = _bKartFokus !== 'oversikt';
+  leggTilVerktøy(_bMap, 'fokus', { påTrykk: () => { _bKartFokus = nesteFokus(_bKartFokus, KART_FOKUS); lagreFokus('rute', _bKartFokus); _bFokusVent = false; _brukRuteFokus(); } });
   _tegnRuteFokus();
   return _bMap;
 }
@@ -653,7 +657,7 @@ const RUTE_FORM_KEY = 't.ruteKartForm';
 // Regelen bor i kartVerktoy.js (v1.218.154), delt med Underveis.
 export function ruteKartForm() { return kartForm(RUTE_FORM_KEY); }
 export function settRuteKartForm(f) { settKartForm(RUTE_FORM_KEY, f); }
-let _bKartFokus = 'oversikt';
+let _bKartFokus = 'oversikt', _bFokusVent = false;
 /** Det Rute vet om utsnittene: deg, stoppet, og plattformen til første avgang. */
 export function ruteFokusData(dir, du, førsteAvgang) {
   const stopp = dir && Number.isFinite(dir._fromLat) ? { lat: dir._fromLat, lon: dir._fromLon } : null;
@@ -1021,6 +1025,10 @@ function renderLineFilter(visibleDeps) {
     return;
   }
 
+  // LINJEFILTERET HUSKES PER RUTE (v1.218.187).
+  const _d = config.dirs[state.dIdx] || {};
+  const ruteNøkkel = (_d.from || '') + '|' + (_d.to || '');
+  if (ruteNøkkel !== _linjeRute) { _linjeRute = ruteNøkkel; _selectedLines = lesRuteLinjer(ruteNøkkel); }
   // Drop selections that no longer exist on this route — otherwise switching
   // route leaves a filter referring to lines that are not there, and the
   // strip goes quietly empty.
@@ -1053,6 +1061,7 @@ function renderLineFilter(visibleDeps) {
   el.querySelectorAll('.line-pill').forEach(btn => {
     btn.addEventListener('click', () => {
       _selectedLines = _isolateLine(_selectedLines, btn.dataset.line, lines.map(l => l.code));
+      lagreRuteLinjer(_linjeRute, _selectedLines);
       _lineFilterKey = '';
       _bFitRouteRequested = true;
       renderBoard();
@@ -3192,6 +3201,7 @@ function refreshBoardMap() {
 }
 
 export function renderBoard() {
+  if (_bFokusVent && _bMap && state.deps && state.deps.length) { _bFokusVent = false; setTimeout(_brukRuteFokus, 0); }
   // Nabostoppene når posisjonen er kommet (v1.218.183): første henting skjer
   // ofte før GPS-en har svart. Strupet av nøkkel og alder.
   if (_tripDeps && !_naboVenter) { _naboVenter = true; Promise.resolve().then(() => { _naboVenter = false; _hentNabo(config.dirs[state.dIdx], _returnDepartAt(config.dirs[state.dIdx])); }); }

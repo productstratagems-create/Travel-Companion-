@@ -24,6 +24,7 @@ import { lappMedLogo } from '../ui/tilbyderlogo.js';
 import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import { stopsAhead, arriveText, kjentMål } from '../ui/stoppVelger.js';
+import { lesFokus, lagreFokus } from '../ui/kartValg.js';
 import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
 export { stopsAhead, arriveText };
 import config from '../config.js';
@@ -3131,6 +3132,7 @@ function _tegnFokusKnapp(ukjent) {
   if (!_fokusKontroll) {
     leggTilVerktøy(_aMap, 'fokus', { påTrykk: () => {
       _kartFokus = nesteFokus(_kartFokus, _autoTavle ? KART_FOKUS_TAVLE : KART_FOKUS);
+      lagreFokus(_autoTavle ? 'autoTavle' : 'auto', _kartFokus);   // huskes (v1.218.187)
       // Spor: hent plattformene og inngangene om de mangler, og ramm inn når de kommer.
       if (_kartFokus === 'spor' && _stop && _stop.id) {
         const vent = [];
@@ -3529,7 +3531,12 @@ function _renderMap() {
     _fokusStopp = _stop.id;
     // Ikke om du har justert kartet: et stopp appen byttet av seg selv er
     // ingen grunn til å ta det tilbake (v1.218.150).
-    if (_kartFokus !== 'oversikt' && !_aUserMoved) { _kartFokus = 'oversikt'; _aFitKey = ''; }
+    // FOKUSET DU VALGTE HUSKES (v1.218.187): nytt stopp rammes inn etter det,
+    // ikke tilbake til oversikten — med mindre du har flyttet kartet selv.
+    if (!_aUserMoved) {
+      const f = lesFokus(_autoTavle ? 'autoTavle' : 'auto', _autoTavle ? KART_FOKUS_TAVLE : KART_FOKUS);
+      if (f !== 'oversikt' || _kartFokus !== 'oversikt') { _kartFokus = f; _aFitKey = ''; if (f !== 'oversikt') setTimeout(_brukFokus, 0); }
+    }
   }
   _tegnFokusKnapp();
 
@@ -3583,7 +3590,9 @@ function _renderMap() {
   if (_aOpenKey !== (openKey(_open, line) || {}).id) {
     _aOpenKey = (openKey(_open, line) || {}).id;
     _aUserMoved = false;
-    _kartFokus = 'oversikt';
+    // En åpnet retning handler om linja: oversikt. Lukket: fokuset du valgte (v1.218.187).
+    _kartFokus = _open ? 'oversikt' : lesFokus(_autoTavle ? 'autoTavle' : 'auto', _autoTavle ? KART_FOKUS_TAVLE : KART_FOKUS);
+    if (_kartFokus !== 'oversikt') setTimeout(_brukFokus, 0);
     _linePicked = null;
   }
   // Rammen følger det du har bedt om, ikke klokka (v1.218.150).
@@ -5049,6 +5058,8 @@ export function settAutoTavle(på) {
   // Knutepunktet er større i tavla (gangavstand, v1.218.171): hent på nytt
   // når modusen byttes, ellers står 250 m-svaret fra Auto-reise.
   if (byttet && _stop && typeof document !== 'undefined') { _dirs = []; _asked = false; setTimeout(() => _stop && _load(), 0); }
+  // Hver modus har sitt fokus (v1.218.187): les det på nytt ved byttet.
+  if (byttet) _fokusStopp = null;
   // INTERVJUET OVER LISTA I AUTO-TAVLE (v1.218.126): nederst ville det aldri
   // bli sett under en liste med uendelig rulling. Tilbake når modusen slås av.
   _flyttProfil(_autoTavle);

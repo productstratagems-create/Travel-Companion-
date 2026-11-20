@@ -32,7 +32,8 @@ describe('justeringen din står', () => {
     expect(s).toMatch(/_rammer\(\(\) => _aMap\.setView\(midtpunkt\(rammePts\)/);
   });
   it('et stopp appen bytter selv, tar ikke tilbake fokuset du valgte', () => {
-    expect(s).toMatch(/if \(_kartFokus !== 'oversikt' && !_aUserMoved\) \{ _kartFokus = 'oversikt'; _aFitKey = ''; \}/);
+    // v1.218.187: fortsatt bare uten egen justering — men til fokuset du valgte, ikke «oversikt».
+    expect(s).toMatch(/if \(!_aUserMoved\) \{\s*const f = lesFokus\(_autoTavle \? 'autoTavle' : 'auto'/);
   });
   it('justeringen nullstilles bare av handlinger du gjør', () => {
     const resets = (s.match(/_aUserMoved = false/g) || []).length;

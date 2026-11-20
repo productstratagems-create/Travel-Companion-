@@ -16,7 +16,7 @@ const iso = ms => new Date(ms).toISOString();
 const HERE = { lat: 59.8300, lon: 10.8050 };
 const stop = (name, m) => ({ properties: { id: 'NSR:StopPlace:' + name, name, label: name, category: ['onstreetBus'] },
   geometry: { coordinates: [HERE.lon, HERE.lat + m / 111320] } });
-const NEARBY = [stop('Hauketo', -60), stop('Lofsrud', 300)];
+const NEARBY = [stop('Hauketo', -60), stop('Olasrudveien', 20), stop('Lofsrud', 300)];
 const RÅD = { tripPatterns: [{ legs: [
   { mode: 'foot', expectedStartTime: iso(NOW), expectedEndTime: iso(NOW + 4 * 60000), pointsOnLink: { length: 300, points: null } },
   { mode: 'bus', expectedStartTime: iso(NOW + 6 * 60000), expectedEndTime: iso(NOW + 26 * 60000),
@@ -82,6 +82,7 @@ async function run(scheme) {
   page.on('pageerror', e => console.log('  ! sidefeil:', e.message));
   await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'load' });
   await page.waitForTimeout(3500);
+  console.log('  faste lapper: ' + JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.leaflet-tooltip-pane .map-label')].map(e => e.textContent.trim()))));
   const rader = await page.evaluate(() => [...document.querySelectorAll('#dep-list .dep-row')].map(r => r.className.replace('dep-row', '').trim() + ' | ' + r.textContent.replace(/\s+/g, ' ').trim().slice(0, 110)));
   console.log('\n══ ' + scheme + ' ══'); rader.forEach(r => console.log('  ' + r));
   await page.screenshot({ path: 'scratchpad/rekk-' + scheme + '.png' });

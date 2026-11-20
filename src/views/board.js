@@ -734,7 +734,11 @@ function renderBoardMap(pos, modes) {
       // De 2 viktigste innen gangavstand per transportmiddel (ellers nærmeste) —
       // ikke bare de 2 nærmeste. Den samme regelen som «du er ved» i auto-reise.
       const etterViktighet = clusters.slice().sort(nærViktigFørst(c => stoppInfo(c[0].id.split('|')[0]), c => c[0].dist));
-      const viktigst = etterViktighet[0];
+      // RUTEBEVISST (v1.218.177). Rapportert: Olasrudveien fikk fast lapp på
+      // Rute-kartet uten å betjene ruta — nær deg og «viktig» i alminnelighet,
+      // men uten noe å bidra med her. Fast lapp bare for et stopp ruta faktisk
+      // går fra: rutas eget, radenes påstigning, eller «rekk den lenger ned».
+      const viktigst = ruteViktigst(etterViktighet, ruteStoppIder(dir, state.deps));
       const perMode = {};
       etterViktighet.forEach(cl => {
         const mode = cl[0].mode;
@@ -1879,6 +1883,22 @@ export function radRekkLengerNed(c, dir, nå) {
   const egen = walkInfo().mins;
   const gangTil = ll => { const w = walkMinsTo(ll); return w ? w.mins : null; };
   return rekkLengerNed(c.serviceJourney && c.serviceJourney.estimatedCalls, fra, slutt, gangTil, egen, nå);
+}
+/** Stoppene Rute faktisk går fra nå (v1.218.177). Ren. */
+export function ruteStoppIder(dir, deps) {
+  const ids = new Set();
+  if (dir && dir.stopId) ids.add(String(dir.stopId));
+  (deps || []).forEach(c => {
+    const kol = (c && c._legs || []).find(l => l && l.mode && l.mode !== 'foot');
+    const id = kol && kol.fromPlace && kol.fromPlace.quay && kol.fromPlace.quay.stopPlace && kol.fromPlace.quay.stopPlace.id;
+    if (id) ids.add(String(id));
+    if (c && c._rekkLengerNed && c._rekkLengerNed.stopp.id) ids.add(String(c._rekkLengerNed.stopp.id));
+  });
+  return ids;
+}
+/** Det viktigste stoppet som betjener ruta; null heller enn et som ikke gjør det. Ren. */
+export function ruteViktigst(etterViktighet, ids) {
+  return (etterViktighet || []).find(cl => cl.some(s => ids.has(String(s.id).split('|')[0]))) || null;
 }
 export function rekkeFor(c, walkActive) {
   if (c) c._rekkLengerNed = null;

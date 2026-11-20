@@ -39,6 +39,9 @@ const ALL_KEYS = [
   't.autoTavleIMeny',
   // Retningsvalget i Auto-tavle (v1.218.185). Nivå 1.
   't.autoTavleRetning',
+  // Kartets fokus per kart, og Rutes linjefilter per rute (v1.218.187). Nivå 1.
+  't.kartFokus',
+  't.ruteLinjer',
   // Klokkeslettene for «avganger etter …» (v1.218.132). Nivå 1.
   't.autoFraTider',
   // Fast dato for «avganger etter …» fra rullehjulene (v1.218.140). Nivå 1.

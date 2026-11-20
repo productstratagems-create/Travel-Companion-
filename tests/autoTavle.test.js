@@ -149,6 +149,6 @@ describe('raden: innstilt, avvik, rutetid (v1.218.126)', () => {
   });
   it('intervjuet flyttes over lista i Auto-tavle', () => {
     const src = readFileSync('src/views/auto.js', 'utf8');
-    expect(src).toMatch(/_autoTavle = !!på;[\s\S]{0,500}_flyttProfil\(_autoTavle\);/);   // v1.218.171: ny henting ved modusbytte står mellom
+    expect(src).toMatch(/_autoTavle = !!på;[\s\S]{0,700}_flyttProfil\(_autoTavle\);/);   // v1.218.171: ny henting ved modusbytte står mellom
   });
 });

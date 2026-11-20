@@ -8,7 +8,7 @@ import { leggTil } from './kartVerktoy.js';
 import { lastHånd, skalaHjørne } from '../haand.js';
 import { state } from '../state.js';
 import { posNå } from '../geo.js';
-import { posState } from '../position.js';
+import { posState, posGrå } from '../position.js';
 
 /**
  * One place that owns basemap tiles, map init options and the live-map
@@ -668,7 +668,7 @@ export const BRUKER_KANT = '#ffffff';
 export const RING_MAKS_M = 2000;
 /** Hvor ofte prikken ser på posisjonens alder selv. */
 export const PRIKK_TIKK_MS = 15_000;
-const GAMMEL = new Set(['gammel', 'borte', 'ukjent-alder', 'avslatt', 'utilgjengelig', 'tidsavbrudd']);
+// Én definisjon, i position.js (v1.218.180).
 
 /**
  * Hvordan prikken tegnes for en posisjonstilstand (posState). Ren.
@@ -676,7 +676,7 @@ const GAMMEL = new Set(['gammel', 'borte', 'ukjent-alder', 'avslatt', 'utilgjeng
  */
 export function prikkStil(ps, manuell = false) {
   if (manuell || !ps) return { fyll: BRUKER_BLÅ, grå: false, ringM: null, merk: manuell ? 'satt av deg' : '' };
-  const grå = GAMMEL.has(ps.kind);
+  const grå = posGrå(ps);
   const sigma = ps.kind === 'framskrevet' ? Number((ps.label.match(/±(\d+)/) || [])[1]) : ps.acc;
   const ringM = !grå && Number.isFinite(sigma) && sigma > 0 && sigma <= RING_MAKS_M ? sigma : null;
   return { fyll: grå ? BRUKER_GRÅ : BRUKER_BLÅ, grå, ringM, merk: grå ? ps.label : (ringM ? '±' + Math.round(ringM) + ' m' : '') };

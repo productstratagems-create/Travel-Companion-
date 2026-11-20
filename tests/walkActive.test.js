@@ -73,3 +73,31 @@ describe('nearStopMatch', () => {
     expect(nearStopMatch(METRO.id, METRO.name)).toBe(null);
   });
 });
+
+// v1.218.180: grå prikk → ingen «rekker / rekker ikke» fra posisjonen.
+import { posGrå, GRÅ_POS, posState } from '../src/position.js';
+import { readFileSync } from 'node:fs';
+describe('grå prikk dømmer ikke (v1.218.180)', () => {
+  const dir = { key: 'custom-out', stopId: METRO.id, from: METRO.name };
+  it('posisjon uten kjent alder (skjermbildet): ikke gangtid som dømmer', () => {
+    nearby([METRO]); state.homeLL = { lat: 59.85, lon: 10.83 }; state.posAt = undefined;
+    expect(posGrå(posState({ homeLL: state.homeLL, now: Date.now() }))).toBe(true);
+    expect(isWalkActive(dir)).toBe(false);
+  });
+  it('fersk posisjon: dømmer som før', () => {
+    nearby([METRO]); state.homeLL = { lat: 59.85, lon: 10.83 }; state.posAt = Date.now();
+    expect(isWalkActive(dir)).toBe(true);
+    state.homeLL = null; state.posAt = undefined;
+  });
+  it('kartets prikk og skjermene leser samme navn', () => {
+    const map = readFileSync('src/ui/map.js', 'utf8');
+    expect(map).toMatch(/const grå = posGrå\(ps\);/);
+    expect(map).not.toMatch(/new Set\(\['gammel'/);
+    expect([...GRÅ_POS]).toContain('ukjent-alder');
+  });
+  it('ingen målesetning ved siden av gangtida — «ca.» i stedet', () => {
+    const b = readFileSync('src/views/board.js', 'utf8');
+    expect(b).toMatch(/\(usikker \? 'ca\. ' : ''\) \+ wk\.mins \+ ' min gange'/);
+    expect(b).not.toMatch(/\+ \(note \? ' · ' \+ note : ''\)/);
+  });
+});

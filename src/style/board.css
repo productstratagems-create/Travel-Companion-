@@ -910,3 +910,4 @@ html.view-board.map-open #dep-list{
 #t-map.expanded{aspect-ratio:auto;height:var(--map-h-open)}
 #rute-gaahit .rute-gaa-bruk.rute-gaa-stille{background:none;color:var(--accent);border-color:var(--line,currentColor)}
 .sel-rekk{color:var(--accent);font-weight:600}
+#walk-summary.usikker{opacity:.6}

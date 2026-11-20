@@ -51,6 +51,37 @@ Den bærer to rammeverk, og de svarer på hvert sitt spørsmål:
 
 Det første portvokter det andre. Et Better-tiltak uten pull er polering.
 
+## Mønstre som er godkjent
+
+### Alternativer hører hjemme på raden de gjelder (2026-11-20)
+
+Bekreftet med skjermbilde: *«dette er måten å integrere alternativer for
+bruker!»* Raden «73 → 81 · 19:59 · ank. 20:31 · rekker ikke her — rekk den på
+Stenbråten 20:00 · 10 min å gå · 1 min igjen» (v1.218.176).
+
+- **Ikke et kort over kartet.** Kortet «beste holdeplass herfra?» ble opplevd
+  som et unaturlig, uforløst tillegg — det svarte på et spørsmål skjermen ikke
+  stilte, i et annet format, et annet sted.
+- **På raden brukeren alt ser på**, i radens eget språk: samme nedtelling,
+  samme ankomst, samme «gå om / igjen». Alternativet *er* avgangen, nådd et
+  annet sted.
+- **Bare det appen alt vet** (turens egne kall), og bare når det kan handles
+  på. Ingen dom om hva brukeren «trenger» — ikke «beste valg», ikke «bedre».
+- **Én definisjon** (`rekkeFor`): stripa, raden og avgangsdetaljene sier det
+  samme.
+
+Neste alternativer — nabostopp, andre reiser — skal følge samme form: en rad
+i lista, ikke en boks over den.
+
+### Posisjonens alder vises på kartet, ikke i tekst (2026-11-20)
+
+Utprøvd (Google, Apple): blå prikk, ring for unøyaktighet, **grå prikk** for
+gammel. Tekst bare når det endrer hva brukeren gjør, og da som følgen
+(«ca. 12 min gange», dempet), aldri som måling («vet ikke hvor gammel
+posisjonen er»). Dette er en allmenn app, ikke et ingeniørverktøy. «Si hva du
+ikke vet» betyr å si hva usikkerheten betyr for valget — ikke å beskrive
+sensoren. Grå prikk = ingen «rekker / rekker ikke» (`posGrå`, én definisjon).
+
 ## Arbeidsmåten
 
 - **Reproduser før du retter.** Bygg det rapporterte tilfellet som fikstur og

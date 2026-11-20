@@ -225,6 +225,15 @@ export function posState(o) {
  * failures were logged and forgotten. Named here rather than in the handler so
  * the states and their causes are written down in one place.
  */
+/**
+ * GRÅ PRIKK (v1.218.180) — én definisjon. Prikken på kartet blir grå for disse,
+ * og da regner heller ingen skjerm «rekker / rekker ikke» fra posisjonen.
+ * Utprøvd mønster (Google, Apple): kartet sier at posisjonen er gammel; teksten
+ * gjentar det ikke.
+ */
+export const GRÅ_POS = new Set(['gammel', 'borte', 'ukjent-alder', 'avslatt', 'utilgjengelig', 'tidsavbrudd']);
+export function posGrå(ps) { return !!ps && GRÅ_POS.has(ps.kind); }
+
 export function gpsErrorKind(code) {
   if (code === 1) return 'denied';
   if (code === 2) return 'unavailable';

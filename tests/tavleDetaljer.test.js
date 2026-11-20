@@ -114,3 +114,16 @@ describe('rekk den lenger ned i Auto-reise (v1.218.190)', () => {
     expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/'<span class="auto-rekk">rekker ikke her — ' \+ esc\(rekkTekst\(rk, clk\)\)/);
   });
 });
+
+import { unikeStopp } from '../src/ui/stoppVelger.js';
+describe('samme navn én gang (v1.218.191)', () => {
+  const st = (id, name, at) => ({ id, name, at });
+  const STOPP = [st('A', 'Bøler', 1), st('J1', 'Jernbanetorget', 54), st('J2', 'Jernbanetorget', 55)];
+  it('før-bildet: Jernbanetorget to ganger i «ofte brukt»; nå én, den tidligste', () => {
+    const html = stoppValgHtml(STOPP, [{ name: 'Jernbanetorget' }], null);
+    const [ofte, alle] = html.split('alle stopp');
+    expect((ofte.match(/>Jernbanetorget</g) || []).length).toBe(1);
+    expect((alle.match(/>Jernbanetorget</g) || []).length).toBe(1);
+    expect(unikeStopp(STOPP).map(s => s.id)).toEqual(['A', 'J1']);
+  });
+});

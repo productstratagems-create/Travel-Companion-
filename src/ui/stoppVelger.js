@@ -63,8 +63,19 @@ export function kjentMål(stops, vanlige) {
 }
 
 /** Lista du velger fra: vanlige mål først, så resten, med når du er framme. */
-export function stoppValgHtml(stops, vanlige, valgtId) {
-  if (!stops || !stops.length) return '<div class="sv-tom">vet ikke hvor den går videre</div>';
+/**
+ * SAMME NAVN ÉN GANG (v1.218.191). Rapportert: «Jernbanetorget» to ganger i
+ * «ofte brukt» (framme 22:54 og 22:55) — turen stopper ved to stoppesteder
+ * med samme navn rett etter hverandre. For deg er det ett sted å gå av; det
+ * første er det tidligste. Ren.
+ */
+export function unikeStopp(stops) {
+  const sett = new Set();
+  return (stops || []).filter(s => { const k = stopKey(s.name); if (!k || sett.has(k)) return false; sett.add(k); return true; });
+}
+export function stoppValgHtml(stopsInn, vanlige, valgtId) {
+  const stops = unikeStopp(stopsInn);
+  if (!stops.length) return '<div class="sv-tom">vet ikke hvor den går videre</div>';
   const ofte = new Set((vanlige || []).map(v => stopKey(v.name)));
   const rad = s => '<button type="button" class="nearby-btn sv-stopp' + (s.id && s.id === valgtId ? ' picked' : '')
     + (ofte.has(stopKey(s.name)) ? ' sv-ofte' : '') + '" data-sv="' + esc(s.id || s.name) + '">'

@@ -109,8 +109,10 @@ export function esc(s) {
  * Used by all suggestion dropdowns to show transit-type icons.
  */
 export function placeIcon(cats) {
+  // BRUKT FØR, UTEN Å GJETTE (v1.218.170): et lagret sted uten kategori.
+  if (cats && cats.includes('_historikk'))                                   return { cls: 'si-hist',  txt: '\u21BA' };
   if (cats && cats.includes('metroStation'))                                 return { cls: 'si-metro', txt: 'T' };
-  if (cats && cats.includes('tramStation'))                                  return { cls: 'si-tram',  txt: 'Tr' };
+  if (cats && (cats.includes('tramStation') || cats.includes('onstreetTram'))) return { cls: 'si-tram',  txt: 'Tr' };
   if (cats && (cats.includes('busStation') || cats.includes('onstreetBus'))) return { cls: 'si-bus',   txt: 'B' };
   if (cats && cats.includes('ferryStop'))                                    return { cls: 'si-ferry', txt: 'F' };
   return { cls: 'si-addr', txt: '◉' };
@@ -171,4 +173,21 @@ export function venueDetailHtml(p) {
   if (p.outdoor) bits.push('<span class="vd-chip" title="uteservering">⛱</span>');
   if (!bits.length) return '';
   return '<div class="venue-detail">' + bits.join('') + '</div>';
+}
+
+/**
+ * KATEGORIENE TIL ET LAGRET STED (v1.218.170). Spurt: «Rart at Bjørvika legger
+ * seg som t-bane stopp?» — lagrede stopp fikk alltid T-bane-merket. Nå fra
+ * søkets treff for samme sted (id, så navn), ellers «brukt før». Rent; tar
+ * både geokoderfeatures og geocodeDest-rader.
+ */
+export function kategorierFor(p, treff) {
+  const navn = s => String(s || '').toLowerCase().split(',')[0].replace(/\s+t$/, '').trim();
+  const t = (treff || []).find(f => {
+    const id = (f && f.properties && f.properties.id) || (f && f.id);
+    const n = (f && f.properties && (f.properties.name || f.properties.label)) || (f && f.label);
+    return (p.stopId && id === p.stopId) || (navn(n) && navn(n) === navn(p.name));
+  });
+  const cats = t && ((t.properties && t.properties.category) || t.category);
+  return cats && cats.length ? cats : ['_historikk'];
 }

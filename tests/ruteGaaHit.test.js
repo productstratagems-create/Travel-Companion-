@@ -83,3 +83,28 @@ describe('ikke i fart (v1.218.174)', () => {
     expect(del).toMatch(/if \(!gangGjelder\(fartNå\(\), false\)\) \{/);
   });
 });
+
+import { rådMotEget, BEDRE_MIN } from '../src/gaaHit.js';
+describe('«bedre» må være bedre (v1.218.175)', () => {
+  const T = Date.UTC(2026, 10, 20, 17, 0), M = 60_000;
+  it('skjermbildets tilfelle: 18 min gange til Ljabru, framme 18:06, mot ditt stopp framme 18:04 → ditt', () => {
+    expect(rådMotEget({ framme: T + 66 * M, gangMin: 18 }, { framme: T + 64 * M })).toBe('ditt');
+  });
+  it('5 min tidligere: bedre; 1 min: likt; terskelen er BEDRE_MIN', () => {
+    expect(rådMotEget({ framme: T }, { framme: T + 5 * M })).toBe('bedre');
+    expect(rådMotEget({ framme: T }, { framme: T + 1 * M })).toBe('likt');
+    expect(rådMotEget({ framme: T }, { framme: T + BEDRE_MIN * M })).toBe('bedre');
+  });
+  it('uten eget alternativ: ukjent, aldri bedre', () => {
+    expect(rådMotEget({ framme: T }, null)).toBe('ukjent');
+    expect(rådMotEget({ framme: NaN }, { framme: T })).toBe('ukjent');
+  });
+  it('«raskere herfra» står bare i bedre-grenen, og kartet tegner ikke et dårligere råd', () => {
+    const src = readFileSync('src/views/board.js', 'utf8');
+    expect((src.match(/raskere herfra/g) || []).length).toBe(1);
+    expect(src).toMatch(/else if \(dom === 'bedre'\) html = '<span class="rute-gaa-tekst">\\u\{1F6B6\} <strong>raskere herfra:/);
+    expect(src).not.toMatch(/bedre herfra/);
+    expect(src).toMatch(/const visNå = v\.kind === 'annet' && \(dom === 'bedre' \|\| dom === 'likt'\) \? v\.råd : null;/);
+    expect(src).toMatch(/dom = v\.kind === 'ditt' \? 'ditt' : rådMotEget\(r, egen\);/);
+  });
+});

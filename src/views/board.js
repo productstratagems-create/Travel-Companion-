@@ -13,7 +13,7 @@ import { storage } from '../storage.js';
 import { DEFAULT_MODES, loadModes, saveModes } from '../tavlaModuser.js';
 import { fartNå, walkInfo, walkMinsTo, mToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { turForm } from '../ui/turForm.js';
-import { startGåHitSøk, ruteRåd, ruteMedStopp, ruteMål } from '../gaaHit.js';
+import { startGåHitSøk, ruteRåd, ruteMedStopp, ruteMål, rådMotEget } from '../gaaHit.js';
 import { fetchTripFraPos } from '../api/entur.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
@@ -3012,22 +3012,31 @@ function renderRuteGåHit() {
     { hent: (p, til, t) => fetchTripFraPos(p, til, t, 3), avstand: _metres })) setTimeout(() => _venterRute(mål.id), 300);
   const v = ruteRåd(_ruteGåHit.get(mål.id), pos, dir, _metres);
   const lukk = '<button type="button" class="rute-gaa-lukk" aria-label="skjul holdeplassråd">skjul</button>';
-  let html;
+  let html, dom = null;
   if (v.kind === 'leter') html = '<span class="rute-gaa-tekst">leter etter beste holdeplass …</span>';
   else if (v.kind === 'feil') html = '<span class="rute-gaa-tekst">fant ikke noe råd</span>';
   else if (v.kind === 'ingen') html = '<span class="rute-gaa-tekst">ingen reise funnet herfra</span>';
   else {
     const r = v.råd;
     const gå = r.gangMin <= 0 ? 'ved ' : r.gangMin + ' min å gå til ';
-    const ta = (r.linje ? r.linje + ' ' : '') + 'mot ' + r.mot + ' · går ' + clk(r.går) + (r.bytter > 0 ? ' · ' + r.bytter + ' bytte' : '')
-      + (Number.isFinite(r.framme) ? ' · framme ' + clk(r.framme) : '');
-    html = v.kind === 'ditt'
-      ? '<span class="rute-gaa-tekst"><strong>ditt stopp er beste valg</strong> · ' + esc(gå + r.stoppNavn) + '</span><span class="rute-gaa-ta">' + esc(ta) + '</span>'
-      : '<span class="rute-gaa-tekst">\u{1F6B6} <strong>bedre herfra:</strong> ' + esc(gå + r.stoppNavn) + (r.spor ? ' · spor ' + esc(r.spor) : '') + '</span>'
-        + '<span class="rute-gaa-ta">' + esc(ta) + '</span>'
-        + '<button type="button" class="rute-gaa-bruk">bruk dette stoppet</button>';
+    const ta = (r.linje ? r.linje + ' ' : '') + 'mot ' + r.mot + ' · går ' + clk(r.går) + (r.bytter > 0 ? ' · ' + r.bytter + ' bytte' : '');
+    const egen = egetAlternativ(boardRowDeps(state.deps, _pages, loadModes(), _lineOn), dir, isWalkActive(dir), Date.now());
+    // Sammenlignet, ikke antatt (v1.218.175).
+    dom = v.kind === 'ditt' ? 'ditt' : rådMotEget(r, egen);
+    const fr = Number.isFinite(r.framme) ? 'framme ' + clk(r.framme) : '';
+    const egenTxt = egen ? 'ditt stopp: framme ' + clk(egen.framme) : 'vet ikke når du er framme fra ditt stopp';
+    const bruk = '<button type="button" class="rute-gaa-bruk">bruk dette stoppet</button>';
+    if (dom === 'ditt') html = '<span class="rute-gaa-tekst"><strong>ditt stopp er beste valg</strong>'
+      + (egen ? ' · framme ' + esc(clk(egen.framme)) : '') + '</span>'
+      + (v.kind === 'annet' ? '<span class="rute-gaa-ta">' + esc(r.stoppNavn + ': ' + r.gangMin + ' min å gå · ' + ta + (fr ? ' · ' + fr : '')) + '</span>' : '');
+    else if (dom === 'bedre') html = '<span class="rute-gaa-tekst">\u{1F6B6} <strong>raskere herfra:</strong> ' + esc(gå + r.stoppNavn) + (r.spor ? ' · spor ' + esc(r.spor) : '') + '</span>'
+      + '<span class="rute-gaa-ta">' + esc(ta + ' · ' + fr + ' — ' + egenTxt) + '</span>' + bruk;
+    else html = '<span class="rute-gaa-tekst">' + (dom === 'likt' ? esc(r.stoppNavn) + ' er et alternativ' : 'alternativ: ' + esc(r.stoppNavn))
+      + ' · ' + esc(r.gangMin + ' min å gå') + '</span>'
+      + '<span class="rute-gaa-ta">' + esc(ta + ' · ' + fr + ' — ' + egenTxt) + '</span>'
+      + bruk.replace('rute-gaa-bruk', 'rute-gaa-bruk rute-gaa-stille');
   }
-  const visNå = v.kind === 'annet' ? v.råd : null;
+  const visNå = v.kind === 'annet' && (dom === 'bedre' || dom === 'likt') ? v.råd : null;
   const kartEndret = visNå !== _ruteGåVis;
   _ruteGåVis = visNå;
   el.innerHTML = '<div class="rute-gaa">' + html + lukk + '</div>';
@@ -3040,6 +3049,21 @@ function renderRuteGåHit() {
     window._byttRute(ruteMedStopp(dir, v.råd), { chosen: true });
   });
   if (kartEndret) refreshBoardMap();
+}
+/**
+ * DITT EGET ALTERNATIV (v1.218.175): første avgang fra rutas stopp du rekker,
+ * og når den er framme — de samme verdiene radene viser («ank.»). Null uten.
+ */
+export function egetAlternativ(rader, dir, walkActive, nå) {
+  for (const { c } of rader || []) {
+    if (!c || erInnstilt(c)) continue;
+    if (Date.parse(c.expectedDepartureTime) < nå) continue;
+    if (rekkeFor(c, walkActive).rcls === 'missed') continue;
+    const arr = findArr(c.serviceJourney && c.serviceJourney.estimatedCalls, dir.to, { etter: dir.from });
+    const t = Date.parse((arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || '');
+    if (Number.isFinite(t)) return { framme: t };
+  }
+  return null;
 }
 function _venterRute(id) {
   if (_ruteGåBedt !== id) return;

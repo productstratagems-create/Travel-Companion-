@@ -138,3 +138,22 @@ export function ruteMål(dir) {
   if (Number.isFinite(dir._toLat)) return { id: dir._toLat + ',' + dir._toLon, til: { lat: dir._toLat, lon: dir._toLon }, navn: dir.to };
   return null;
 }
+
+/**
+ * ER RÅDET BEDRE? (v1.218.175). Rapportert: «bedre herfra: 18 min å gå til
+ * Ljabru hovedgård» mot 12 min til rutas eget stopp. «Annet stopp» ble lest
+ * som «bedre» uten at noe ble sammenlignet. Nå avgjør framme-tiden. Ren.
+ *   'bedre'  rådet er framme minst BEDRE_MIN før ditt eget alternativ
+ *   'likt'   innen BEDRE_MIN
+ *   'ditt'   ditt stopp er framme like tidlig eller før
+ *   'ukjent' ingen kjent framme-tid fra ditt stopp — aldri «bedre»
+ */
+export const BEDRE_MIN = 3;
+export function rådMotEget(råd, egen) {
+  if (!råd || !Number.isFinite(råd.framme)) return 'ukjent';
+  if (!egen || !Number.isFinite(egen.framme)) return 'ukjent';
+  const vinst = (egen.framme - råd.framme) / 60_000;
+  if (vinst >= BEDRE_MIN) return 'bedre';
+  if (vinst > 0) return 'likt';
+  return 'ditt';
+}

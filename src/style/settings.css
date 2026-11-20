@@ -1088,3 +1088,6 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 /* «Gå hjem» når det er raskest (v1.218.158). */
 #v-auto .at-gaa-hjem{font-weight:600;color:var(--accent);background:rgba(var(--accent-rgb),.08);border:1px solid rgba(var(--accent-rgb),.35);
   border-radius:10px;padding:.55rem .7rem;margin:.3rem 0 .5rem}
+/* Til fots (v1.218.171): når du må gå, og den beste raden. */
+#v-auto .at-gaa-om{display:block;font-size:.78rem;font-weight:600;color:var(--accent)}
+#v-auto .at-rad.at-best{box-shadow:inset 3px 0 0 var(--accent);background:rgba(var(--accent-rgb),.07)}

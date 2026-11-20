@@ -29,7 +29,7 @@ export function tavleUtvalg(dirs, nå, kanRekke = () => true, perRetning = TAVLE
     .filter(x => x && Number.isFinite(x.ms) && x.ms >= nå - 60_000)
     .sort((a, b) => a.ms - b.ms)
     .slice(0, perRetning)
-    .map(x => ({ d, ms: x.ms, call: x.call, innstilt: !!x.innstilt, rekker: !!kanRekke(x.ms) })))
+    .map(x => ({ d, ms: x.ms, call: x.call, innstilt: !!x.innstilt, rekker: !!kanRekke(x.ms, x.call) })))
     .sort((a, b) => a.ms - b.ms)
     .slice(0, maks);
 }
@@ -46,7 +46,7 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
   const min = Math.floor((x.ms - nå) / 60_000);
   const spor = x.call && x.call.quay && x.call.quay.publicCode;
   const merke = linjemerke({ kode: l.code, farge: l.colour, tekst: l.tekst, linjeId: l.id, modus: l.mode });
-  return '<button type="button" class="at-rad' + (x.rekker ? '' : ' at-rekker-ikke') + (x.innstilt ? ' at-innstilt' : '') + '" data-i="' + i + '"'
+  return '<button type="button" class="at-rad' + (x.rekker ? '' : ' at-rekker-ikke') + (x.best ? ' at-best' : '') + (x.innstilt ? ' at-innstilt' : '') + '" data-i="' + i + '"'
     + ' aria-label="' + esc((l.code || '') + ' mot ' + (x.d.frontText || '') + ', ' + (min < 1 ? 'nå' : min >= NEDTELLING_MAKS_MIN ? 'kl. ' + clk(x.ms) : 'om ' + min + ' min')
       + (spor ? ', spor ' + spor : '') + (x.innstilt ? ', innstilt' : x.rekker ? '' : ', rekker ikke')
       + (rutetid ? ', etter rutetid' : '') + (tittel ? ', avvik: ' + tittel : '')) + '"'
@@ -59,7 +59,9 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     + '<span class="at-front">' + esc(x.d.frontText || '') + '</span>'
     + (x.innstilt ? '<span class="at-merk">innstilt</span>' : '')
     // Fra et nabostopp i knutepunktet (v1.218.119): hvor du går om bord.
-    + (x.call && x.call._fra && x.call._fra.name ? '<span class="at-fra">fra ' + esc(x.call._fra.name) + '</span>' : '')
+    + (x.call && x.call._fra && x.call._fra.name ? '<span class="at-fra">fra ' + esc(x.call._fra.name) + (Number.isFinite(x.gang) ? ' · ' + x.gang + ' min å gå' : '') + '</span>' : '')
+    // NÅR DU MÅ GÅ (v1.218.171), til fots.
+    + (x.rekker && !x.innstilt && Number.isFinite(x.gåOm) ? '<span class="at-gaa-om">' + (x.gåOm <= 0 ? 'gå nå' : 'gå om ' + x.gåOm + ' min') + '</span>' : '')
     // Hjemover med bytte (v1.218.151): hvor du bytter.
     + (x.bytte ? '<span class="at-fra">bytt på ' + esc(x.bytte) + '</span>' : '')
     + (x.rekker || x.innstilt ? '' : '<span class="at-merk">rekker ikke</span>') + '</span>'

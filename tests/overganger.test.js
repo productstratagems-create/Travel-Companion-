@@ -58,7 +58,7 @@ describe('koblingen i auto-reise', () => {
     expect(s).toContain('fetchArrBoard(st.id, ARR_BOARD_ASK, arrBoardSpørsmål(st.at))');
   });
   it('og viser dem under overskriften', () => {
-    expect(s).toContain('(_lås ? overgangerHtml(_overgangerData(påLinja, nåW)');
+    expect(s).toContain('(syn.lås ? overgangerHtml(_overgangerData(påLinja, nåW)');
   });
 });
 

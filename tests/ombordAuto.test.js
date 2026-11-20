@@ -186,7 +186,7 @@ describe('«du er ved» i fart', () => {
   it('og skjermen sender den med, og bytter overskrift', () => {
     const src = require('node:fs').readFileSync('src/views/auto.js', 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-    expect(src).toMatch(/const fart = iFart\(fartNå\(/);
+    expect(src).toMatch(/gpsFart: iFart\(fartNå\(nåW\)\)[\s\S]*const fart = syn\.fart;/);
     expect(src).toMatch(/iFart: fart,/);
     expect(src).toMatch(/fart \? 'nærmeste stopp' : 'du er ved'/);
   });

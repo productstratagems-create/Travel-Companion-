@@ -94,11 +94,11 @@ describe('låsen slippes når den skal', () => {
 describe('koblingen', () => {
   const s = require('node:fs').readFileSync('src/views/auto.js', 'utf8');
   it('«du er ved» bruker låsen', () => {
-    expect(s).toContain('const påLinja = _påLinjaMedLås(nåW);');
+    expect(s).toContain('påLinja: _autoTavle ? null : _påLinjaMedLås(nåW)');
     expect(s).toMatch(/const r = oppdaterLås\(_lås, \{ låstK, vinner/);
   });
   it('låst er i fart, også når bussen står', () => {
-    expect(s).toContain('const fart = iFart(fartNå(Date.now())) || !!_lås;');
+    expect(s).toContain('return { påLinja, lås, fart: !!gpsFart || !!lås, følger: true };');
   });
 });
 

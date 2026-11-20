@@ -62,6 +62,7 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     + (x.call && x.call._fra && x.call._fra.name ? '<span class="at-fra">fra ' + esc(x.call._fra.name) + (Number.isFinite(x.gang) ? ' · ' + x.gang + ' min å gå' : '') + '</span>' : '')
     // NÅR DU MÅ GÅ (v1.218.171), til fots.
     + (x.rekker && !x.innstilt && Number.isFinite(x.gåOm) ? '<span class="at-gaa-om">' + (x.gåOm <= 0 ? 'gå nå' : 'gå om ' + x.gåOm + ' min') + '</span>' : '')
+    + (x.bak ? '<span class="at-bak">bak deg</span>' : '')
     // Hjemover med bytte (v1.218.151): hvor du bytter.
     + (x.bytte ? '<span class="at-fra">bytt på ' + esc(x.bytte) + '</span>' : '')
     + (x.rekker || x.innstilt ? '' : '<span class="at-merk">rekker ikke</span>') + '</span>'

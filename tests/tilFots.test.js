@@ -28,7 +28,7 @@ describe('når du må gå', () => {
     const rader = [{ ms: nå + 6 * M, gang: 1 }, { ms: nå + 9 * M, gang: 8 }];
     rader.sort((a, b) => (a.ms - a.gang * M) - (b.ms - b.gang * M));
     expect(rader[0].gang).toBe(8);
-    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/del\.rekker\.sort\(\(a, b\) => \(a\.ms - a\.gang \* 60_000\) - \(b\.ms - b\.gang \* 60_000\)\);/);
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/const verdi = x => \(x\.ms - \(x\.gang \|\| 0\) \* 60_000\) \/ 60_000 \+ \(x\.bak \? 1e6 : 0\);/);
   });
 });
 

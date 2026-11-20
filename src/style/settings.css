@@ -1090,4 +1090,5 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
   border-radius:10px;padding:.55rem .7rem;margin:.3rem 0 .5rem}
 /* Til fots (v1.218.171): når du må gå, og den beste raden. */
 #v-auto .at-gaa-om{display:block;font-size:.78rem;font-weight:600;color:var(--accent)}
+#v-auto .at-bak{display:block;font-size:.74rem;color:var(--muted)}
 #v-auto .at-rad.at-best{box-shadow:inset 3px 0 0 var(--accent);background:rgba(var(--accent-rgb),.07)}

@@ -36,7 +36,7 @@ describe('ikke spør om det appen alt vet', () => {
   });
   it('koblingen: tilbudet og låsen leser reisen', () => {
     const s = readFileSync('src/views/auto.js', 'utf8');
-    expect(s).toMatch(/const html = trengerSvar\(_lås, state\.jny, state\.lockedJourneyId\) \? ombordKortHtml\(dom, nå\) : '';/);
+    expect(s).toMatch(/const html = _følgerReise\(\) && trengerSvar\(_lås, state\.jny, state\.lockedJourneyId\) \? ombordKortHtml\(dom, nå\) : '';/);
     expect(s).toMatch(/if \(k\) _lås = \{ k, kilde: 'valgt', stilleFra: null \};/);
   });
 });

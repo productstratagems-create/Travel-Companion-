@@ -1618,6 +1618,14 @@ export function rettLinjeHtml(lås, kandidater, åpen, grunn) {
 
 let _låsHentet = false;
 let _låsLagret = '';
+// FRIGJORT (v1.218.172): Auto-tavle er for deg til fots ved stoppene; reisen
+// du sitter på eier Auto-reise. Én bryter avgjør hva tavla ser av reisen:
+// ingen linje, ingen lås, fart bare fra GPS. Låsen selv røres ikke.
+export function reiseSyn(autoTavle, { påLinja = null, lås = null, gpsFart = false } = {}) {
+  if (autoTavle) return { påLinja: null, lås: null, fart: !!gpsFart, følger: false };
+  return { påLinja, lås, fart: !!gpsFart || !!lås, følger: true };
+}
+function _følgerReise() { return !_autoTavle; }
 function _påLinjaMedLås(nå) {
   // OMLASTING (v1.218.25): låsen fra før omlastingen, hvis turen fortsatt går.
   if (!_lås && !_låsHentet) {
@@ -1852,7 +1860,7 @@ function _renderOmbord() {
   if (!el) return;
   const nå = Date.now();
   const dom = _ombordDom(nå);
-  const html = trengerSvar(_lås, state.jny, state.lockedJourneyId) ? ombordKortHtml(dom, nå) : '';
+  const html = _følgerReise() && trengerSvar(_lås, state.jny, state.lockedJourneyId) ? ombordKortHtml(dom, nå) : '';
   el.style.display = html ? '' : 'none';
   el.innerHTML = html;
   if (!html) return;
@@ -2231,7 +2239,7 @@ function _renderProfilQ(nå) {
   if (!el) return;
   // Ett spørsmål, og bare når du står stille: i fart og om bord er det
   // andre spørsmål som gjelder.
-  if (_lås || iFart(fartNå(nå)) || (_ombordDom(nå).kind || '').startsWith('ombord')) { el.style.display = 'none'; return; }
+  if (_følgerReise() && _lås || iFart(fartNå(nå)) || _følgerReise() && (_ombordDom(nå).kind || '').startsWith('ombord')) { el.style.display = 'none'; return; }
   const { p, m } = _profilNå();
   // VED UJEVNE MELLOMROM (v1.218.100, src/intervju.js): profilen først, så
   // reisene i innstillinger du ikke har svart på.
@@ -2270,7 +2278,7 @@ function _renderProfilQ(nå) {
 function _renderNeste(nå) {
   const el = _el('auto-neste');
   if (!el) return;
-  if (_lås || (_ombordDom(nå).kind || '').startsWith('ombord')) { el.style.display = 'none'; return; }
+  if (_følgerReise() && (_lås || (_ombordDom(nå).kind || "").startsWith("ombord"))) { el.style.display = "none"; return; }
   // PROFILEN FØRST (v1.218.29): hjem/jobb/sentrum for døgndelen du er i.
   // Uten noe der: vanen per mål, som før.
   const { p: prof, m: matr } = _profilNå();
@@ -2364,7 +2372,8 @@ function _renderWhere() {
   const list = _stops();
   _hentStoppInfo(list);
   const nåW = Date.now();
-  const påLinja = _påLinjaMedLås(nåW);
+  const syn = reiseSyn(_autoTavle, { påLinja: _autoTavle ? null : _påLinjaMedLås(nåW), lås: _lås, gpsFart: iFart(fartNå(nåW)) });
+  const påLinja = syn.påLinja;
   const picked = velgStoppIFart(pickStop(list, _stop, _stopPinned, _bandOf()), _stop, _stopPinned,
     påLinja, list);
   _stop = picked.stop;
@@ -2389,7 +2398,7 @@ function _renderWhere() {
   const w = walkMinsTo(_stop);
   // Samme terskel som tilbudet over, fra samme filter.
   // Låst på en tur er du i fart også når bussen står ved holdeplassen.
-  const fart = iFart(fartNå(Date.now())) || !!_lås;
+  const fart = syn.fart;
   const _way = (_stop && _stop.lat != null)
     ? approach(state.posTrail, { lat: _stop.lat, lon: _stop.lon })
     : { kind: 'vet-ikke', etaS: null };
@@ -2397,10 +2406,10 @@ function _renderWhere() {
   // the threshold is not repeated here. One definition of "stale".
   // «Du er ved» er usant fra en buss i 40 km/t. «Nærmeste stopp» er sant.
   // Med «du er ved / neste stasjon» over er «neste stopp på 3» samme setning to ganger.
-  const r = reiseAktiv(state.jny, _lås, state.lockedJourneyId);
+  const r = syn.følger ? reiseAktiv(state.jny, _lås, state.lockedJourneyId) : null;
   const fra = påLinja && (påLinja.base || påLinja.neste || påLinja.stop);
   _reiseInfo = r ? { r, igjen: fra ? stasjonerIgjen(r.k, fra.id, r.dest, nåW) : null } : null;
-  const vn = picked.linjer ? (_lås ? linjeHodeHtml(_lås, state.jny) : '') + vedNesteHtml(påLinja, nåW) + (_reiseInfo ? avstigningHtml(r, _reiseInfo.igjen) : '')
+  const vn = picked.linjer ? (syn.lås ? linjeHodeHtml(syn.lås, state.jny) : '') + vedNesteHtml(påLinja, nåW) + (_reiseInfo ? avstigningHtml(r, _reiseInfo.igjen) : '')
     + fokusNavHtml(påLinja, nåW, r && r.dest) : '';
   const _html = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer)) + '</div>')
     + stopHeadHtml(_stop, others.length, open, {
@@ -2409,10 +2418,10 @@ function _renderWhere() {
       // kjører dit. Stopphodet sier når toget er der.
       // Når «neste stasjon» står over med klokkeslett, sier ikke stopphodet
       // det igjen (v1.218.69); det blir en liten linje med «▾ N» for holdeplassene.
-      ombordAt: !(_lås && vn) && _lås && påLinja && påLinja.stop && Number.isFinite(påLinja.stop.at) ? påLinja.stop.at : null,
-      kompakt: !!(_lås && vn),
+      ombordAt: !(syn.lås && vn) && syn.lås && påLinja && påLinja.stop && Number.isFinite(påLinja.stop.at) ? påLinja.stop.at : null,
+      kompakt: !!(syn.lås && vn),
       // Toget står ved stasjonen som vises (v1.218.49).
-      ombordHer: !!(_lås && påLinja && påLinja.ved && påLinja.stop && påLinja.ved.id === påLinja.stop.id),
+      ombordHer: !!(syn.lås && påLinja && påLinja.ved && påLinja.stop && påLinja.ved.id === påLinja.stop.id),
       walkDist: w ? w.dist : null,
       walkMins: w ? w.mins : null,
       pos: _posState(),
@@ -2438,9 +2447,9 @@ function _renderWhere() {
       const linje = kontekstLinje(kontekstNå(nåW, _herSom(), pr, ma), nåW);
       return linje ? '<div class="auto-kontekst">' + esc(linje) + '</div>' : '';
     })()
-    + rettLinjeHtml(_lås, _sisteKand, _feilÅpen, _gjettGrunn)
-    + (_lås ? raskereHtml(_raskereData(nåW)) : '')
-    + (_lås ? overgangerHtml(_overgangerData(påLinja, nåW), (påLinja && påLinja.stop && påLinja.stop.name) || '', _ovÅpen) : '')
+    + (syn.følger ? rettLinjeHtml(_lås, _sisteKand, _feilÅpen, _gjettGrunn) : '')
+    + (syn.lås ? raskereHtml(_raskereData(nåW)) : '')
+    + (syn.lås ? overgangerHtml(_overgangerData(påLinja, nåW), (påLinja && påLinja.stop && påLinja.stop.name) || '', _ovÅpen) : '')
     + '<div id="auto-alts"' + (open ? '' : ' hidden') + '>'
     // One band per mode. The count in the heading above is the number of
     // STOPS, not of rows — an interchange stands in two lanes, and letting it
@@ -2524,8 +2533,8 @@ function _rammer(fn) { _aProgrammatisk = true; try { fn(); } finally { _aProgram
  * Hva som får kartet til å ramme inn på nytt — det du har bedt om, og
  * stoppet. IKKE minuttet, avgangene eller GPS-støy. Ren.
  */
-export function rammeNøkkel({ stoppId, åpen, kort, gåHit, fokus, størrelse }) {
-  return [stoppId || '-', åpen || '-', kort || '-', gåHit || '-', fokus || '-', størrelse || '-'].join('|');
+export function rammeNøkkel({ stoppId, åpen, kort, gåHit, fokus, størrelse, gangTil }) {
+  return [stoppId || '-', åpen || '-', kort || '-', gåHit || '-', fokus || '-', størrelse || '-'].join('|') + (gangTil ? '|g:' + gangTil : '');
 }
 let _aOpenKey = null;
 
@@ -3617,7 +3626,7 @@ function _renderMap() {
   // Rammen følger det du har bedt om, ikke klokka (v1.218.150).
   const _gvF = _gåHitVis && _gåHit.get(_gåHitVis);
   const rKey = rammeNøkkel({ stoppId: _stop && _stop.id, åpen: (openKey(_open, line) || {}).id, kort: kortLinje ? (_kortRute.id || _kortRute.navn) : null,
-    gåHit: _gvF && _gvF.råd ? _gåHitVis + ':' + _gvF.at : null, fokus: _kartFokus, størrelse: sizeKey });
+    gåHit: _gvF && _gvF.råd ? _gåHitVis + ':' + _gvF.at : null, fokus: _kartFokus, størrelse: sizeKey, gangTil: _autoTavle && _atGangTil ? _atGangTil.id : null });
   // Ute av rammen: går du ut av utsnittet (og ikke har rørt kartet), rammes det inn igjen.
   const ute = !!(userPos && _aFitKey && !_aMap.getBounds().pad(-0.05).contains([userPos.lat, userPos.lon]));
   const fitStale = !_aUserMoved && (_aFitKey !== rKey || ute);
@@ -3647,6 +3656,7 @@ function _renderMap() {
   _bak.forEach(st => pts.push([st.lat, st.lon]));
   others.forEach(s => { if (s.lat != null) pts.push([s.lat, s.lon]); });
   (walkPts || []).forEach(p => pts.push(p));
+  if (_autoTavle && _atGangTil && Number.isFinite(_atGangTil.lat)) pts.push([_atGangTil.lat, _atGangTil.lon]);
   if (userPos) pts.push([userPos.lat, userPos.lon]);
 
   // DEG I MIDTEN når ingen retning eller kort er tema: stoppet du er ved og
@@ -3925,6 +3935,13 @@ function _renderMap() {
       .bindTooltip(esc(_gr.stoppNavn + (_gr.spor ? ' · spor ' + _gr.spor : '') + ' · ' + _gr.gangMin + ' min'), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })
       .addTo(_aLayer);
   }
+  // GANGRUTA TIL NABOSTOPPET (v1.218.172): rett linje — ruta er ikke hentet.
+  if (_autoTavle && _atGangTil && userPos && Number.isFinite(_atGangTil.lat)) {
+    drawWalk(_aLayer, [[userPos.lat, userPos.lon], [_atGangTil.lat, _atGangTil.lon]]);
+    L.marker([_atGangTil.lat, _atGangTil.lon], { icon: makeStopIcon('bus', 1, { primary: true }) })
+      .bindTooltip(esc(_atGangTil.name || ''), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })
+      .addTo(_aLayer);
+  }
   if (userPos) userDot(_aLayer, userPos);
   // MERKELAPPER SOM KRASJER: den som kommer sist (lavere prioritet), blir et
   // vanlig verktøytips. Stoppet du er ved tegnes først og beholdes. Målt i
@@ -4048,6 +4065,34 @@ export function gåOm(ms, gang, nå) {
   return Number.isFinite(gang) ? minsToLeave(ms, gang, nå) : null;
 }
 
+/**
+ * GANGRETNING (v1.218.172): går du bort fra stoppet? Ren; «vet ikke» er ikke
+ * «bak deg» — uten spor stokkes ingenting.
+ */
+export function gangRetning(stopp, spor) {
+  if (!stopp || !Number.isFinite(stopp.lat)) return 'vet-ikke';
+  return approach(spor, { lat: stopp.lat, lon: stopp.lon }).kind === 'fra' ? 'bak' : 'ok';
+}
+export const TAVLE_RO_MIN = 2;
+/**
+ * ROLIG REKKEFØLGE (v1.218.172): rader innen `terskel` minutter av hverandre
+ * beholder forrige innbyrdes rekkefølge. Lista stokkes bare ved tydelig
+ * forskjell. Stabil innsetting. Ren.
+ */
+export function roligSortering(rader, forrige, nøkkel, verdi, terskel = TAVLE_RO_MIN) {
+  const pos = new Map((forrige || []).map((k, i) => [k, i]));
+  const ut = [...rader].sort((a, b) => verdi(a) - verdi(b));
+  for (let i = 1; i < ut.length; i++) {
+    let j = i;
+    while (j > 0) {
+      const a = ut[j - 1], b = ut[j];
+      const pa = pos.get(nøkkel(a)), pb = pos.get(nøkkel(b));
+      if (pa == null || pb == null || pa < pb || Math.abs(verdi(a) - verdi(b)) > terskel) break;
+      ut[j - 1] = b; ut[j] = a; j--;
+    }
+  }
+  return ut;
+}
 /** Kallene fra flere stoppesteder som ett: hver tur én gang, merket med stedet. Ren. */
 export function slåSammenKall(svar) {
   const sett = new Set();
@@ -5117,6 +5162,8 @@ function _hjemSøkOppdater(nå) {
     });
 }
 let _atRetning = 'alle';
+let _atRekke = [];      // forrige rekkefølge, for ro (v1.218.172)
+let _atGangTil = null;  // nabostoppet du trykket på (v1.218.172)
 /**
  * LANGT TRYKK PÅ «HJEMOVER» (v1.218.147). Bestilt: «Når bruker trykker og
  * holder på knappen lenge nok så sendes bruker til innstillinger for å legge
@@ -5186,13 +5233,23 @@ function _tegnAutoTavle(body) {
   if (hjemListe.length) _hjemSøkOppdater(nå);
   const iRetning = _iRetning(synlige, nå);
   // GANGTID PER RAD (v1.218.171): til radens eget stopp.
-  const gangTilStopp = s => { const g = gangTil(s); return g ? g.mins : null; };
+  // KOORDINATENE til nabostoppet (v1.218.172): `_fra` bærer bare id og navn,
+  // så gangtiden ble regnet mot ingenting — «1 min å gå» der kartet sa 7.
+  const medKoord = f => (f && Number.isFinite(f.lat)) ? f : (f && _stops().find(s => s.id === f.id)) || null;
+  const gangTilStopp = s => { const k = medKoord(s); const g = k && gangTil(k); return g ? g.mins : null; };
   const del = tavleDel(iRetning, nå, (ms, call) => canCatch(ms, radGang(call, gang, gangTilStopp), nå), _atGrense);
   // «Gå om N min» og rangering etter når du må gå — bare til fots.
-  if (Number.isFinite(gang)) {
-    [...del.ikke, ...del.rekker].forEach(x => { x.gang = radGang(x.call, gang, gangTilStopp); x.gåOm = gåOm(x.ms, x.gang, nå); });
-    del.rekker.sort((a, b) => (a.ms - a.gang * 60_000) - (b.ms - b.gang * 60_000));
-    if (del.rekker[0]) del.rekker[0].best = true;
+  const tilFots = Number.isFinite(gang);
+  if (tilFots) [...del.ikke, ...del.rekker].forEach(x => { x.gang = radGang(x.call, gang, gangTilStopp); x.gåOm = gåOm(x.ms, x.gang, nå); });
+  // BAK DEG (v1.218.172): stopp du går bort fra, kommer etter — også når
+  // gangtiden ikke er kjent; retningen kommer fra sporet, ikke fra ruta.
+  del.rekker.forEach(x => { x.bak = gangRetning(x.call && x.call._fra ? medKoord(x.call._fra) : _stop, state.posTrail) === 'bak'; });
+  if (tilFots || del.rekker.some(x => x.bak)) {
+    const nøkkel = x => (x.d && (x.d.journeyId || x.d.id)) || (x.ms + '|' + (x.d && x.d.frontText));
+    const verdi = x => (x.ms - (x.gang || 0) * 60_000) / 60_000 + (x.bak ? 1e6 : 0);
+    del.rekker = roligSortering(del.rekker, _atRekke, nøkkel, verdi);
+    _atRekke = del.rekker.map(nøkkel);
+    if (tilFots && del.rekker[0]) del.rekker[0].best = true;
   }
   const retningKnapper = harBegge ? '<div class="auto-fra at-retning" role="group" aria-label="retning">'
     + knappValg.map(k => '<button type="button" class="auto-fra-knapp' + (k === _atRetning ? ' valgt' : '')
@@ -5236,7 +5293,7 @@ function _tegnAutoTavle(body) {
   if (det) det.addEventListener('toggle', () => { _atIkkeÅpen = det.open; });
   body.querySelectorAll('.at-rad').forEach(b => b.addEventListener('click', () => {
     const x = rader[Number(b.dataset.i)];
-    if (x) { _open = x.d; _renderBody(); }
+    if (x) { _open = x.d; _atGangTil = (x.call && x.call._fra && medKoord(x.call._fra)) || null; _renderBody(); _renderMap(); }
   }));
   // UENDELIG RULLING: når bunnen synes, en side til; tomt lokalt → hent neste.
   if (_atObs) { _atObs.disconnect(); _atObs = null; }

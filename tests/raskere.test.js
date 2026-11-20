@@ -60,6 +60,6 @@ describe('visning og kobling', async () => {
     const s = readFileSync('src/views/auto.js', 'utf8');
     expect(s).toContain("const key = neste.id + '|' + _lås.k.nøkkel + '|' + mål;");
     expect(s).toMatch(/if \(!mål \|\| !neste \|\| !neste\.id \|\| neste\.id === mål/);
-    expect(s).toContain("(_lås ? raskereHtml(_raskereData(nåW)) : '')");
+    expect(s).toContain("(syn.lås ? raskereHtml(_raskereData(nåW)) : '')");
   });
 });

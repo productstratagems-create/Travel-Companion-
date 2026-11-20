@@ -5,7 +5,7 @@ import { normJid } from '../api/queries.js';
 import { stopKey } from '../stopId.js';
 import { clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, haver, findArr, isWalkActive, walkFocus, userLL, fartNå, loadWalkBuffer } from '../geo.js';
+import { walkInfo, walkMinsTo, minsToLeave, reachCls, haver, findArr, isWalkActive, walkFocus, userLL, fartNå, loadWalkBuffer } from '../geo.js';
 import { gangGjelder } from '../api/ombord.js';
 import { plattformTekst } from '../bytte.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
@@ -29,6 +29,8 @@ import { stoppestedKjent, hentStoppested } from '../api/stoppested.js';
 import { show } from '../ui/nav.js';
 import { startBoard, boardRows, RUTE_KART_FORMER, ruteFokusData, rekkeFor } from './board.js';
 import { rekkTekst } from '../rekkLengerNed.js';
+import { stopsAhead, stoppValgHtml } from '../ui/stoppVelger.js';
+import { loadFreq } from '../api/usage.js';
 import { kartForm, settKartForm } from '../ui/kartVerktoy.js';
 import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS, detaljFokusData } from '../ui/kartFokus.js';
 /** Avgangsdetalj-kartets form (v1.218.163), samme regel som Rute og Underveis. */
@@ -169,7 +171,7 @@ function _retningHtml(dir, rekk) {
   // Rekkes avgangen lenger ned (v1.218.176), peker pila dit — ikke til stoppet du ikke rekker.
   const r = rekk
     ? retningInfo(userLL(), { lat: rekk.stopp.lat, lon: rekk.stopp.lon }, { dist: Math.round(haver((userLL() || rekk.stopp).lat, (userLL() || rekk.stopp).lon, rekk.stopp.lat, rekk.stopp.lon)), mins: rekk.gangMin })
-    : retningInfo(userLL(), state.statLL && dir && state.statLL[dir.key], walkInfo());
+    : retningInfo(userLL(), _selStoppLL(dir), _selGang(dir));
   if (r.kind === 'ukjent') {
     return '<div class="sel-heading sel-heading-ukjent">'
       + 'vet ikke hvor du er — ingen retning til stoppet</div>';
@@ -791,6 +793,60 @@ function _renderSelMap(dep, fromName, toName, now) {
 
 /** RUTA FOR AVGANGEN SOM VISES (review 2026-11-10): dens egen når den har en
  *  (en etappe i reiseplanen), ellers den aktive. Én definisjon for skjermen. */
+/* ── HVOR GÅR DU AV? (v1.218.181) ─────────────────────────────────────
+   Åpnet fra Auto-tavle uten mål: skjermen spør her, der svaret hører hjemme,
+   i stedet for at du må velge mål før du får se avgangen. Valget gjelder
+   denne avgangen — det blir ikke en Rute. */
+let _svÅpen = false;
+export function _hvorAvHtml(c, dir) {
+  if (!dir || dir.key !== 'auto-tavle') return '';
+  const knapp = dir.to
+    ? '<button type="button" class="sv-bytt" data-sv-apne="1">' + (dir._målKjent ? 'ditt vanlige mål · ' : '') + 'går du av et annet sted? ' + (_svÅpen ? '▴' : '▾') + '</button>'
+    : '<button type="button" class="sv-bytt sv-spor" data-sv-apne="1">hvor går du av? ' + (_svÅpen ? '▴' : '▾') + '</button>';
+  if (!_svÅpen) return '<div class="sv-hvor">' + knapp + '</div>';
+  const stops = stopsAhead(c, dir.from, Date.now(), dir.stopId || null);
+  return '<div class="sv-hvor">' + knapp + '<div class="sv-liste">' + stoppValgHtml(stops, loadFreq('arr'), dir.toStopId) + '</div></div>';
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', e => {
+    const t = e.target && e.target.closest ? e.target : null;
+    if (!t || !state.sel || !state.sel._dir || state.sel._dir.key !== 'auto-tavle') return;
+    if (t.closest('[data-sv-apne]')) { _svÅpen = !_svÅpen; renderSelected(); return; }
+    const b = t.closest('[data-sv]');
+    if (!b) return;
+    const stops = stopsAhead(state.sel, state.sel._dir.from, Date.now(), state.sel._dir.stopId || null);
+    const st = stops.find(x => (x.id || x.name) === b.dataset.sv);
+    if (!st) return;
+    state.sel._dir = { ...state.sel._dir, to: st.name, toStopId: st.id, _målKjent: false };
+    _svÅpen = false;
+    renderSelected();
+  });
+}
+
+/* GANGEN TIL STOPPET AVGANGEN GÅR FRA (v1.218.181). Fra Auto-tavle er det
+   radens stopp, ikke Rute-stoppet: `walkInfo()` regner mot Rute, og sa
+   «passert» om en avgang fra et helt annet sted. Rute og alt annet: som før. */
+function _selStoppLL(dir) {
+  if (dir && dir.key === 'auto-tavle') return Number.isFinite(dir._fromLat) ? { lat: dir._fromLat, lon: dir._fromLon } : null;
+  return state.statLL && dir && state.statLL[dir.key];
+}
+function _selGang(dir) {
+  if (dir && dir.key === 'auto-tavle') {
+    const ll = _selStoppLL(dir);
+    const w = ll ? walkMinsTo(ll) : null;
+    return w ? { mins: w.mins, dist: w.dist } : { mins: NaN, dist: NaN };
+  }
+  return walkInfo();
+}
+function _selRekke(c, dir, wk) {
+  if (dir && dir.key === 'auto-tavle') {
+    if (c) c._rekkLengerNed = null;
+    const mtl = minsToLeave(påstigningTs(c), wk.mins, Date.now());
+    return { mtl, rcls: Number.isFinite(mtl) ? reachCls(mtl) : null };
+  }
+  return rekkeFor(c, true);
+}
+
 function _selDir() { return (state.sel && state.sel._dir) || config.dirs[state.dIdx]; }
 
 /* NESTE AVGANG ETTER ET BYTTE (v1.218.43, ui/reiselop.js `nesteRadHtml`).
@@ -858,10 +914,10 @@ export function renderSelected() {
   const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
   const tmin = arrT ? Math.round((new Date(arrT).getTime() - depTs) / 60000) : null;
   const delayed = c.realtime && depTs - new Date(c.aimedDepartureTime).getTime() > 60000;
-  const wk = walkInfo();
+  const wk = _selGang(dir);
   // ÉN DEFINISJON AV «REKKER» (v1.218.176): rekkeFor, som raden og stripa.
   // Den vet om avgangen nås lenger ned på turen; mToLeave her visste det ikke.
-  const { mtl, rcls } = rekkeFor(c, true);
+  const { mtl, rcls } = _selRekke(c, dir, wk);
   const rekk = c._rekkLengerNed;
   const leaveByTs = rekk ? rekk.ms - rekk.gangMin * 60000 : påstigningTs(c) - wk.mins * 60000;
   const ltCls = _ltCls(rcls);
@@ -985,6 +1041,8 @@ export function renderSelected() {
       ankSpor: plattformTekst(c._arrQuay, depMode(c)),
       belegg: c._belegg ? belegg({ status: c._belegg }) : null,
     })
+    // Rett under avgang/ankomst — der svaret hører hjemme (v1.218.181).
+    + _hvorAvHtml(c, dir)
     + '<div class="sel-weather" id="sel-weather-content">' + _selWeatherHtml(arrT) + '</div>'
     + (departed
       ? '<div class="departed-banner">avgikk ' + clk(depTs) + ' · reisen er i gang</div>'
@@ -1292,6 +1350,7 @@ function _refreshSelDisplay() {
   const meta = state.lockedJourneyMeta;
   const c    = state.sel;
   if (!c || !meta) return;
+  const dir  = _selDir();
 
   // ── Live status banner (cancellation / delay / platform change) ──
   const statusEl = document.getElementById('s-live-status');
@@ -1320,8 +1379,8 @@ function _refreshSelDisplay() {
   // ── Update leaveby countdown with corrected departure time ──
   if (!meta.cancelled) {
     const depTs    = new Date(c.expectedDepartureTime).getTime();
-    const wk       = walkInfo();
-    const { mtl, rcls } = rekkeFor(c, true);
+    const wk       = _selGang(dir);
+    const { mtl, rcls } = _selRekke(c, dir, wk);
     const rekk     = c._rekkLengerNed;
     const leaveByTs = rekk ? rekk.ms - rekk.gangMin * 60000 : påstigningTs(c) - wk.mins * 60000;
     const ltCls    = _ltCls(rcls);

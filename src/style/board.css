@@ -911,3 +911,8 @@ html.view-board.map-open #dep-list{
 #rute-gaahit .rute-gaa-bruk.rute-gaa-stille{background:none;color:var(--accent);border-color:var(--line,currentColor)}
 .sel-rekk{color:var(--accent);font-weight:600}
 #walk-summary.usikker{opacity:.6}
+.sv-hvor{margin:.4rem 0 .2rem}
+.sv-bytt{font:inherit;font-size:13px;color:var(--accent);background:none;border:1px solid var(--line,currentColor);border-radius:6px;padding:.35rem .6rem;min-height:36px;cursor:pointer}
+.sv-bytt.sv-spor{font-weight:600}
+.sv-liste{margin-top:.4rem}
+.sv-tom{font-size:12px;color:var(--text-soft)}

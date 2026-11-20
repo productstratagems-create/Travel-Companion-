@@ -5009,10 +5009,10 @@ function _zoomKnapper() {
 export function settAutoTavle(på) {
   const byttet = _autoTavle !== !!på;
   _autoTavle = !!på;
+  _zoomKnapper();
   // Knutepunktet er større i tavla (gangavstand, v1.218.171): hent på nytt
   // når modusen byttes, ellers står 250 m-svaret fra Auto-reise.
   if (byttet && _stop && typeof document !== 'undefined') { _dirs = []; _asked = false; setTimeout(() => _stop && _load(), 0); }
-  _zoomKnapper();
   // INTERVJUET OVER LISTA I AUTO-TAVLE (v1.218.126): nederst ville det aldri
   // bli sett under en liste med uendelig rulling. Tilbake når modusen slås av.
   _flyttProfil(_autoTavle);

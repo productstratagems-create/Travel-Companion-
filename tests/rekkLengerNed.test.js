@@ -41,7 +41,7 @@ describe('rekkLengerNed', () => {
 describe('koblingen', () => {
   const src = readFileSync('src/views/board.js', 'utf8');
   it('avgjøres i rekkeFor, så stripa og raden er enige', () => {
-    expect(src).toMatch(/export function rekkeFor\(c, walkActive\) \{[\s\S]{0,600}radRekkLengerNed\(c, dir, nå\)[\s\S]{0,200}return \{ mtl: m, rcls: reachCls\(m\) \};/);
+    expect(src).toMatch(/export function rekkeFor\(c, walkActive\) \{[\s\S]{0,1200}radRekkLengerNed\(c, dir, nå\)[\s\S]{0,200}return \{ mtl: m, rcls: reachCls\(m\) \};/);
   });
   it('raden sier det, og avgangsdetaljene går dit', () => {
     expect(src).toMatch(/rekker ikke her — ' \+ esc\(rekkTekst\(rekk, clk\)\)/);

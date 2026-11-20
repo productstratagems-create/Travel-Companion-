@@ -42,7 +42,7 @@ describe('avgangsdetaljene', () => {
     expect(s).toMatch(/  return rekkeFor\(c, true\);/);
   });
   it('«avgår» sier stoppet du faktisk går på, og gangen står over', () => {
-    expect(s).toContain("visStopp(cleanName(c._gåTil ? c._gåTil.navn : dir.from))");
+    expect(s).toContain("visStopp(cleanName(c._gåTil ? c._gåTil.navn : c._fra ? c._fra.name : dir.from))");
     expect(s).toContain("(gåTilTekst(c) ? '<div class=\"jd-gaa\">' + esc(gåTilTekst(c)) + '</div>' : '')");
   });
 });

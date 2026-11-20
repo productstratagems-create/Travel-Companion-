@@ -11,8 +11,9 @@ import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { DEFAULT_MODES, loadModes, saveModes } from '../tavlaModuser.js';
-import { fartNå, walkInfo, walkMinsTo, mToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
+import { fartNå, walkInfo, walkMinsTo, mToLeave, minsToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { turForm } from '../ui/turForm.js';
+import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
 import { startGåHitSøk, ruteRåd, ruteMedStopp, ruteMål, rådMotEget } from '../gaaHit.js';
 import { fetchTripFraPos } from '../api/entur.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
@@ -1864,10 +1865,38 @@ function _refreshInflight(dir) {
  * Stripa visste ikke hvor du var, mens raden under regnet det ut. Nå leser begge herfra,
  * så en brikke aldri kan si «rekker» om en rad som sier «rekker ikke».
  */
+/**
+ * Raden du ikke rekker, nådd lenger ned på samme tur (v1.218.176).
+ * Fra: der kjøretøy-etappen starter. Slutt: der den ender — bytte eller mål.
+ */
+export function radRekkLengerNed(c, dir, nå) {
+  const legs = (c._legs || []).filter(l => l && l.mode && l.mode !== 'foot');
+  const kol = legs[0];
+  const fraP = kol && kol.fromPlace, tilP = kol && kol.toPlace;
+  const id = p => (p && p.quay && p.quay.stopPlace && p.quay.stopPlace.id) || null;
+  const fra = fraP ? { id: id(fraP), navn: fraP.name } : { id: dir.stopId, navn: dir.from };
+  const slutt = tilP ? { id: id(tilP), navn: tilP.name } : null;
+  const egen = walkInfo().mins;
+  const gangTil = ll => { const w = walkMinsTo(ll); return w ? w.mins : null; };
+  return rekkLengerNed(c.serviceJourney && c.serviceJourney.estimatedCalls, fra, slutt, gangTil, egen, nå);
+}
 export function rekkeFor(c, walkActive) {
+  if (c) c._rekkLengerNed = null;
   if (!walkActive) return { mtl: null, rcls: null };
   const mtl = mToLeave(påstigningTs(c));
-  return { mtl, rcls: reachCls(mtl) };
+  const rcls = reachCls(mtl);
+  // REKK DEN LENGER NED (v1.218.176): rekker du den ikke her, men lenger ned
+  // på samme tur, er den en avgang du rekker — med gangen dit.
+  if (rcls === 'missed' && c && c.serviceJourney) {
+    const nå = Date.now(), dir = config.dirs[state.dIdx];
+    const rekk = dir ? radRekkLengerNed(c, dir, nå) : null;
+    if (rekk) {
+      c._rekkLengerNed = rekk;
+      const m = minsToLeave(rekk.ms, rekk.gangMin, nå);
+      return { mtl: m, rcls: reachCls(m) };
+    }
+  }
+  return { mtl, rcls };
 }
 
 /** Hvor «du» står på stripas akse: gangtiden din, på samme skala som brikkene. */
@@ -3352,6 +3381,8 @@ export function renderBoard() {
     const arr = findArr(sjc, dir.to, { etter: dir.from });
     const arrT = (arr && (arr.expectedArrivalTime || arr.aimedArrivalTime)) || c._finalArrival || null;
     const { mtl, rcls } = rekkeFor(c, walkActive);
+    // REKK DEN LENGER NED (v1.218.176): avgjort i rekkeFor, så stripa og raden er enige.
+    const rekk = c._rekkLengerNed;
     const isRail = _depMode(c) === 'rail';
     // `erInnstilt`: kallet ELLER hele turen. `c.cancellation` alene overså
     // en tur som var innstilt i sin helhet.
@@ -3574,6 +3605,7 @@ export function renderBoard() {
        * («Jernbanet…», og på 74 forsvant den helt) — samme feil som «bytte
        * innstilt» hadde. Det avgjørende skal stå. */
       + (gåTilTekst(c) ? '<div class="dep-gaa">' + esc(gåTilTekst(c)) + '</div>' : '')
+      + (rekk ? '<div class="dep-reach dep-rekk">rekker ikke her — ' + esc(rekkTekst(rekk, clk)) + '</div>' : '')
       + (rekkeTekst(rcls)
         ? '<div class="dep-reach missed">' + esc(rekkeTekst(rcls)) + '</div>'
         : '')

@@ -24,12 +24,12 @@ describe('linja under nedtellingen', () => {
 
 describe('retning og avstand står i nedtellingen', () => {
   const s = readFileSync('src/views/selected.js', 'utf8');
-  const hero = s.slice(s.indexOf("'<div class=\"leaveby-hero'"), s.indexOf("'<div class=\"leaveby-hero'") + 500);
+  const hero = s.slice(s.indexOf("'<div class=\"leaveby-hero'"), s.indexOf("'<div class=\"leaveby-hero'") + 800);
   it('rett under «gå senest»', () => {
-    expect(hero).toMatch(/_subLine\([^)]*\) \+ '<\/div>'\s*\+ _retningHtml\(dir\)/);
+    expect(hero).toMatch(/_subLine\([^)]*\) \+ '<\/div>'\s*\+ _retningHtml\(dir, rekk\)/);
   });
   it('og ikke øverst når nedtellingen vises', () => {
-    expect(s).toMatch(/\+ \(heroVises \? '' : _retningHtml\(dir\)( \+ gåVidere)?\)/);
+    expect(s).toMatch(/\+ \(heroVises \? '' : _retningHtml\(dir, rekk\)( \+ gåVidere)?\)/);
     expect(s).toMatch(/const heroVises = !departed && walkActive;/);
   });
 });

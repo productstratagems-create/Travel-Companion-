@@ -24,6 +24,7 @@ import { lappMedLogo } from '../ui/tilbyderlogo.js';
 import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import { stopsAhead, arriveText, kjentMål } from '../ui/stoppVelger.js';
+import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
 export { stopsAhead, arriveText };
 import config from '../config.js';
 import { state } from '../state.js';
@@ -4056,6 +4057,22 @@ export function roligSortering(rader, forrige, nøkkel, verdi, terskel = TAVLE_R
   return ut;
 }
 /**
+ * REKK DEN LENGER NED I AUTO-TAVLE (v1.218.185). Uten mål vet tavla ikke hvor
+ * du skal av, så ethvert senere stopp på turen teller (slutt: null); grensene
+ * for gange er de samme som i Rute. Ren.
+ */
+export function tavleRekk(call, fra, gangTil, egenGang, nå) {
+  if (!call || !fra) return null;
+  return rekkLengerNed(call.serviceJourney && call.serviceJourney.estimatedCalls,
+    { id: fra.id || null, navn: fra.name }, null, gangTil, egenGang, nå);
+}
+/** Kallet slik det ser ut fra stoppet lenger ned: der går du på, da. Ren. */
+export function rekkKall(call, rk) {
+  const t = new Date(rk.ms).toISOString();
+  return { ...call, expectedDepartureTime: t, aimedDepartureTime: t,
+    _fra: { id: rk.stopp.id, name: rk.stopp.navn, lat: rk.stopp.lat, lon: rk.stopp.lon }, _rekkFraTavle: true };
+}
+/**
  * Retningen avgangsdetaljene får fra en tavlerad (v1.218.181). Ren.
  * Fra: radens eget stopp (nabostoppet for `_fra`-rader). Til: et vanlig mål
  * turen stopper ved etter påstigning, ellers ingenting — da spør skjermen.
@@ -5215,12 +5232,27 @@ function _tegnAutoTavle(body) {
   // «Gå om N min» og rangering etter når du må gå — bare til fots.
   const tilFots = Number.isFinite(gang);
   if (tilFots) [...del.ikke, ...del.rekker].forEach(x => { x.gang = radGang(x.call, gang, gangTilStopp); x.gåOm = gåOm(x.ms, x.gang, nå); });
+  // REKK DEN LENGER NED (v1.218.185), samme regel som Rute (src/rekkLengerNed.js):
+  // en avgang du ikke rekker her, men lenger ned på samme tur, er en du rekker.
+  if (tilFots) {
+    const flytt = [];
+    del.ikke = del.ikke.filter(x => {
+      const rk = !x.innstilt && tavleRekk(x.call, x.call && x.call._fra ? medKoord(x.call._fra) : _stop,
+        ll => { const g = gangTil(ll); return g ? g.mins : null; }, x.gang, nå);
+      if (!rk) return true;
+      Object.assign(x, { rekk: rk, rekker: true, gang: rk.gangMin, gåOm: gåOm(rk.ms, rk.gangMin, nå) });
+      flytt.push(x);
+      return false;
+    });
+    del.rekker = del.rekker.concat(flytt);
+  }
   // BAK DEG (v1.218.172): stopp du går bort fra, kommer etter — også når
   // gangtiden ikke er kjent; retningen kommer fra sporet, ikke fra ruta.
-  del.rekker.forEach(x => { x.bak = gangRetning(x.call && x.call._fra ? medKoord(x.call._fra) : _stop, state.posTrail) === 'bak'; });
+  // Retningen mot stoppet du faktisk går på — lenger ned når raden rekkes der (v1.218.185).
+  del.rekker.forEach(x => { x.bak = gangRetning(x.rekk ? { lat: x.rekk.stopp.lat, lon: x.rekk.stopp.lon } : x.call && x.call._fra ? medKoord(x.call._fra) : _stop, state.posTrail) === 'bak'; });
   if (tilFots || del.rekker.some(x => x.bak)) {
     const nøkkel = x => (x.d && (x.d.journeyId || x.d.id)) || (x.ms + '|' + (x.d && x.d.frontText));
-    const verdi = x => (x.ms - (x.gang || 0) * 60_000) / 60_000 + (x.bak ? 1e6 : 0);
+    const verdi = x => ((x.rekk ? x.rekk.ms : x.ms) - (x.gang || 0) * 60_000) / 60_000 + (x.bak ? 1e6 : 0);
     del.rekker = roligSortering(del.rekker, _atRekke, nøkkel, verdi);
     _atRekke = del.rekker.map(nøkkel);
     if (tilFots && del.rekker[0]) del.rekker[0].best = true;
@@ -5272,7 +5304,8 @@ function _tegnAutoTavle(body) {
     // og et stopp der laget en Rute og åpnet tavla — to trykk, og ikke
     // avgangen du trykket på. Nå: det kallet, med målet appen alt vet
     // (kjentMål), ellers spør avgangsdetaljene «hvor går du av?».
-    const c = x.call;
+    // Rekkes den lenger ned, er det DER du går på (v1.218.185).
+    const c = x.rekk ? rekkKall(x.call, x.rekk) : x.call;
     if (c && typeof window !== 'undefined' && window.tap) {
       c._dir = tavleDetaljDir(c, _stop, medKoord, loadFreq('arr'), Date.now());
       window.tap(c);

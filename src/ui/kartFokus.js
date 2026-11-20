@@ -4,6 +4,8 @@
  * kartstørrelsesknapper som Auto-reise.» Én definisjon for begge kartene.
  * Rent: ingen DOM, ingen kart.
  */
+// Zoomtrinnene fra kartreglene (v1.218.188, docs/kartregler.md §2).
+import { ZOOM } from './kartRamme.js';
 export const KART_FOKUS = ['oversikt', 'vei', 'spor'];
 /**
  * HELE RUTER (v1.218.112), bare i Auto-tavle. Spurt: «utforske et nytt fast
@@ -30,19 +32,19 @@ export const FOKUS_IKON = { oversikt: '\u25CE', vei: '\u25A4', spor: '\u25F1', r
 export function fokusRamme(f, { du, stopp, gang, inngang, plattform, plattformer, bein } = {}) {
   const ll = p => [p.lat, p.lon];
   if (f === 'vei') {
-    if (!du || !stopp) return stopp ? { pts: [ll(stopp)], maksZoom: 16 } : null;
-    return { pts: [ll(du), ...(gang || []), ...(inngang ? [ll(inngang)] : []), ll(stopp)], maksZoom: 17 };
+    if (!du || !stopp) return stopp ? { pts: [ll(stopp)], maksZoom: ZOOM.NÆRHET } : null;
+    return { pts: [ll(du), ...(gang || []), ...(inngang ? [ll(inngang)] : []), ll(stopp)], maksZoom: ZOOM.GANG };
   }
   if (f === 'ruter') {
     const pts = (bein || []).flatMap(b => [...(b.stopp || []), ...(b.rester || []).flat()]).filter(p => p && p.lat != null).map(ll);
     if (stopp) pts.push(ll(stopp));
     if (du) pts.push(ll(du));
-    return pts.length ? { pts, maksZoom: 14 } : null;
+    return pts.length ? { pts, maksZoom: ZOOM.RUTER } : null;
   }
   if (f === 'spor') {
-    if (plattform) return { pts: [ll(plattform), ...(inngang ? [ll(inngang)] : [])], maksZoom: 18 };
-    if (plattformer && plattformer.length) return { pts: plattformer.map(ll), maksZoom: 18 };
-    return stopp ? { pts: [ll(stopp)], maksZoom: 17, ukjent: true } : null;
+    if (plattform) return { pts: [ll(plattform), ...(inngang ? [ll(inngang)] : [])], maksZoom: ZOOM.PLATTFORM };
+    if (plattformer && plattformer.length) return { pts: plattformer.map(ll), maksZoom: ZOOM.PLATTFORM };
+    return stopp ? { pts: [ll(stopp)], maksZoom: ZOOM.GANG, ukjent: true } : null;
   }
   return null;
 }

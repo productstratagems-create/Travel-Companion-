@@ -1,4 +1,5 @@
 import { linjemerke } from '../ui/linjemerke.js';
+import { ZOOM, ramme } from '../ui/kartRamme.js';
 import { loadPlan, savePlan, clearPlan, removeLegFromPlan, legStatus, planStatus, legExtent, legFarge, etappeKjede, planBytter, avgangGyldig, loadPlanNå, settGjentak, reiser, slettReise } from '../api/plan.js';
 import { gjentakTekst, FORHÅNDSVALG, UKE, UKEDAG_BOKSTAV, UKEDAG_KORT, nesteGjentak } from '../api/gjentak.js';
 import { LINJE_FARGE, LINJE_NØYTRAL } from '../ui/linjemerke.js';
@@ -173,9 +174,9 @@ async function _renderPlanMap(legs) {
   // samme her.
   if (!_planUserMoved) {
     if (allPts.length > 1) {
-      _planMap.fitBounds(allPts, { padding: [32, 32], maxZoom: 15 });
+      ramme(_planMap, allPts, ZOOM.REISE);
     } else if (allPts.length === 1) {
-      _planMap.setView(allPts[0], 14);
+      ramme(_planMap, allPts, ZOOM.REISE);
     }
   }
 }

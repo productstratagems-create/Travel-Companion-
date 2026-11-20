@@ -1,4 +1,5 @@
 import { linjemerke } from '../ui/linjemerke.js';
+import { ZOOM, ramme } from '../ui/kartRamme.js';
 import config from '../config.js';
 import { erInnstilt } from '../innstilt.js';
 import { normJid } from '../api/queries.js';
@@ -323,7 +324,7 @@ if (typeof document !== 'undefined') {
     // + ETIKETTENE. Et zoomet bytte har en etikett over og en under; uten
     // plass til dem ble begge klippet av kartets kant — sett i prøven.
     const pad = fitPadding(el ? el.clientHeight : 200) + ETIKETT_PX;
-    _selMap.fitBounds(geo, { padding: [pad, pad], maxZoom: 18, animate: true });
+    ramme(_selMap, geo, ZOOM.PLATTFORM, { pad, animer: true });
     // ÉN KNAPP (v1.218.164): fokusknappen sier «hele reisen»; «hele» er foldet.
     _selFokus = 'utsnitt'; _tegnSelFokus();
     const wrap = document.getElementById('sel-map-wrap');
@@ -591,7 +592,7 @@ function _renderSelMap(dep, fromName, toName, now) {
     const hele = (_selGeo && _selGeo.alt.length ? _selGeo.alt : _selFrame).concat(_selGå);
     if (_selMap && hele.length) {
       const pad = fitPadding(mapEl.clientHeight);
-      _selMap.fitBounds(hele, { padding: [pad, pad], maxZoom: 15, animate: true });
+      ramme(_selMap, hele, ZOOM.REISE, { pad, animer: true });
     }
     settVerktøy(_selMap, 'hele', { skjult: true });
   } });
@@ -618,7 +619,7 @@ function _renderSelMap(dep, fromName, toName, now) {
   const frame = [];
   legs.forEach(lg => (lg.stops || []).forEach(st => frame.push([st.lat, st.lon])));
   if (destIsVenue) frame.push([dir._toLat, dir._toLon]);
-  if (frame.length) _selMap.fitBounds(frame, { padding: [pad, pad], maxZoom: 15, animate: false });
+  if (frame.length) ramme(_selMap, frame, ZOOM.REISE, { pad });
   _selFrame = frame;
   _selGå = [];
 
@@ -759,10 +760,10 @@ function _renderSelMap(dep, fromName, toName, now) {
   // stoppet, så første utsnitt er den gangen. «Hele reisen» viser resten.
   const fokus = startUtsnitt(gå && !avgått && userPos ? userPos : null, harPåstigning ? påstigning : null, gangrute);
   if (fokus) {
-    _selMap.fitBounds(fokus, { padding: [pad, pad], maxZoom: 17, animate: false });
+    ramme(_selMap, fokus, ZOOM.GANG, { pad });
     _selFokus = 'utsnitt';   // fokusknappen tegnes under, når den finnes
   } else if (pts.length) {
-    _selMap.fitBounds(pts, { padding: [pad, pad], maxZoom: 15, animate: false });
+    ramme(_selMap, pts, ZOOM.REISE, { pad });
   }
   setTimeout(() => _selMap && _selMap.invalidateSize(), 100);
 
@@ -778,7 +779,7 @@ function _renderSelMap(dep, fromName, toName, now) {
     _selFokus = nesteFokus(_selFokus, KART_FOKUS);
     if (_selFokus === 'oversikt') {
       const hele = (_selGeo && _selGeo.alt.length ? _selGeo.alt : _selFrame).concat(_selGå);
-      if (hele.length) _selMap.fitBounds(hele, { padding: [pad, pad], maxZoom: 15 });
+      if (hele.length) ramme(_selMap, hele, ZOOM.REISE, { pad, animer: true });
     } else {
       // FRA AVGANGEN SELV (v1.218.165): ruta på Rute er ikke nødvendigvis denne
       // avgangens, og uten stoppets koordinat gjorde «vei» ingenting.

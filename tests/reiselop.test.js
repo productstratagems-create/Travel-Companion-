@@ -248,7 +248,7 @@ describe('kartet på avgangsdetaljene', () => {
   });
   it('og et trykk på en rad zoomer kartet dit', () => {
     expect(src()).toMatch(/closest\('\[data-rl\]'\)/);
-    expect(src()).toMatch(/_selMap\.fitBounds\(geo/);
+    expect(src()).toMatch(/ramme\(_selMap, geo, ZOOM\.PLATTFORM/);
   });
 });
 

@@ -25,6 +25,7 @@ import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
 import { stopsAhead, arriveText, kjentMål } from '../ui/stoppVelger.js';
 import { lesFokus, lagreFokus } from '../ui/kartValg.js';
+import { ZOOM as ZOOM_TRINN } from '../ui/kartRamme.js';
 import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
 export { stopsAhead, arriveText };
 import config from '../config.js';
@@ -3383,7 +3384,7 @@ export function utgangBeinPunkter(bein) {
   return (bein || []).map(b => b.stopp[Math.min(UTGANG_BEIN_STOPP, b.stopp.length) - 1])
     .filter(s => s && s.lat != null).map(s => [s.lat, s.lon]);
 }
-export const START_ZOOM = 15;  // v1.218.9: nytt skjermbilde, 2,03× det forrige → ett trinn inn.
+export const START_ZOOM = ZOOM_TRINN.REISE;   // kartreglene §2 (v1.218.188); 15 som før  // v1.218.9: nytt skjermbilde, 2,03× det forrige → ett trinn inn.
 export const FIT_PAD = 26, FIT_MAKS_ZOOM = START_ZOOM, MARGIN = 0.15;
 const M_PER_GRAD = 111320;
 export function zoomFor(her, pts, [b, h]) {

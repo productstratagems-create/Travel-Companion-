@@ -109,11 +109,12 @@ describe('avgangsdetaljer draws the shared bead', () => {
   // provisional view made it worse by measuring a frame the map was leaving.
   it('fits before it draws, without animating', () => {
     const t = s();
-    const frame = t.indexOf('_selMap.fitBounds(frame');
+    const frame = t.indexOf('ramme(_selMap, frame');
     const draw = t.indexOf('drawLeg(_selLayer');
     expect(frame).toBeGreaterThan(-1);
     expect(frame).toBeLessThan(draw);
-    expect(t).toMatch(/fitBounds\(frame,[^)]*animate: false/);
+    // v1.218.188: ramme() animerer aldri uten { animer: true }.
+    expect(t).toMatch(/ramme\(_selMap, frame, ZOOM\.REISE, \{ pad \}\)/);
   });
 
   // The two ends keep their permanent names — measured as not overlapping and
@@ -149,20 +150,21 @@ describe('every map fits before it projects', () => {
   };
 
   it('underveis fits before it asks where a point lands', () => {
-    const o = order('src/views/track.js', '_tMap.fitBounds(frame');
+    const o = order('src/views/track.js', 'ramme(_tMap, frame');
     expect(o.fit).toBeGreaterThan(-1);
     expect(o.project).toBeGreaterThan(-1);
     expect(o.fit).toBeLessThan(o.project);
   });
 
   it('avgangsdetaljer does too', () => {
-    const o = order('src/views/selected.js', '_selMap.fitBounds(frame');
+    const o = order('src/views/selected.js', 'ramme(_selMap, frame');
     expect(o.fit).toBeLessThan(o.project);
   });
 
   // An animated fit is a frame in motion, which is no frame to measure against.
   it('does not measure against a frame still moving', () => {
-    expect(src('src/views/track.js')).toMatch(/fitBounds\(frame,[^)]*animate: false/);
-    expect(src('src/views/selected.js')).toMatch(/fitBounds\(frame,[^)]*animate: false/);
+    expect(src('src/views/track.js')).toMatch(/ramme\(_tMap, frame, ZOOM\.NÆRHET\)/);
+    expect(src('src/views/selected.js')).toMatch(/ramme\(_selMap, frame, ZOOM\.REISE, \{ pad \}\)/);
+    expect(src('src/ui/kartRamme.js')).toMatch(/animate: !!animer/);
   });
 });

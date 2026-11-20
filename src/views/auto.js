@@ -5152,7 +5152,16 @@ function _hjemSøkOppdater(nå) {
       post.gange = hjemGange(alle);
     });
 }
-let _atRetning = 'alle';
+/* RETNINGSVALGET HUSKES (v1.218.185). Bestilt: «Lagre brukervalg som alle,
+   mot sentrum, hjemover og andre retninger.» Lagret valg gjelder fra start og
+   ved hvert nytt stopp; finnes ikke valget på et stopp (ingen hjemover-stopp,
+   bare én retning), vises «alle» der — uten at valget ditt glemmes. */
+export const AT_RETNING_KEY = 't.autoTavleRetning';
+export function lagretRetning() {
+  try { const v = storage.get(AT_RETNING_KEY); return AT_RETNINGER.includes(v) ? v : 'alle'; } catch { return 'alle'; }
+}
+function _lagreRetning(v) { try { if (AT_RETNINGER.includes(v)) storage.set(AT_RETNING_KEY, v); } catch { /* */ } }
+let _atRetning = lagretRetning();
 let _atRekke = [];      // forrige rekkefølge, for ro (v1.218.172)
 let _atGangTil = null;  // nabostoppet du trykket på (v1.218.172)
 /**
@@ -5199,7 +5208,7 @@ function _iRetning(dirs, nå = Date.now()) {
 }
 function _tegnAutoTavle(body) {
   const nå = Date.now();
-  if (!_stop || _atStopp !== _stop.id) { _atStopp = _stop && _stop.id; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false; _atIkkeÅpen = false; _atRetning = 'alle'; }
+  if (!_stop || _atStopp !== _stop.id) { _atStopp = _stop && _stop.id; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false; _atIkkeÅpen = false; _atRetning = lagretRetning(); }
   const g = _stop ? gangTil(_stop) : null, gang = g ? g.mins : null;
   // Kartets filter (lag-panelet) gjelder lista også, og den sier det.
   const skjult = _skjulteModi();
@@ -5292,7 +5301,7 @@ function _tegnAutoTavle(body) {
     if (_hjemHold.brukt) { _hjemHold.brukt = false; return; }   // langt trykk er ikke et valg
     // Uten stopp valgt er hjemover et spørsmål: hva er hjem? Svaret står i innstillinger.
     if (b.dataset.retning === 'hjem' && !hjemStopp().length) { tilHjemoverInnstilling(); return; }
-    _atRetning = b.dataset.retning; _atGrense = TAVLE_SIDE; _renderBody();
+    _atRetning = b.dataset.retning; _lagreRetning(_atRetning); _atGrense = TAVLE_SIDE; _renderBody();
   }));
   _hjemLangtTrykk(body);
   const det = body.querySelector('.at-ikke');

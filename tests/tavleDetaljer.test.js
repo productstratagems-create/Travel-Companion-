@@ -80,3 +80,17 @@ describe('rekk den lenger ned i Auto-tavle (v1.218.185)', () => {
     expect(rad).toMatch(/rekker ikke her — ' \+ esc\(rekkTekst\(x\.rekk, clk\)\)/);
   });
 });
+
+import { AT_RETNINGER, AT_RETNING_TEKST, AT_RETNING_KEY } from '../src/views/auto.js';
+describe('retningsvalget huskes (v1.218.185)', () => {
+  const auto = readFileSync('src/views/auto.js', 'utf8');
+  it('samme fire valg som knappene', () => {
+    expect([...AT_RETNINGER].sort()).toEqual(Object.keys(AT_RETNING_TEKST).sort());
+  });
+  it('lagres ved trykk, leses ved start og nytt stopp — ikke nullstilt til «alle»', () => {
+    expect(auto).toMatch(/_atRetning = b\.dataset\.retning; _lagreRetning\(_atRetning\);/);
+    expect(auto).toMatch(/let _atRetning = lagretRetning\(\);/);
+    expect(auto).toMatch(/_atIkkeÅpen = false; _atRetning = lagretRetning\(\); \}/);
+    expect(readFileSync('src/storage.js', 'utf8')).toContain("'" + AT_RETNING_KEY + "'");
+  });
+});

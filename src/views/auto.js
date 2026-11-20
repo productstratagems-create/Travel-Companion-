@@ -4011,7 +4011,13 @@ export function pinStop(id) {
  */
 export const KNUTEPUNKT_M = 250;
 export const KNUTEPUNKT_MAKS = 3;
-export function knutepunkt(stopp, nære, maksM = KNUTEPUNKT_M) {
+/* TIL FOTS (v1.218.171): Auto-tavle tar med stopp innen gangavstand, ikke
+ * bare 250 m. Bestilt: «Se hva som bør gjøres med Auto-tavle for at den skal
+ * støtte brukeren i å finne best egnet avreise mens bruker er til fots.» */
+export const TAVLE_GANG_MAKS_MIN = 8;
+export const TAVLE_GANG_M = TAVLE_GANG_MAKS_MIN * 80;   // ca. 4,8 km/t
+export const TAVLE_NABO_MAKS = 5;
+export function knutepunkt(stopp, nære, maksM = KNUTEPUNKT_M, maks = KNUTEPUNKT_MAKS) {
   if (!stopp) return [];
   const har = new Set((stopp.modes || []).map(normMode));
   const naboer = (nære || [])
@@ -4019,9 +4025,27 @@ export function knutepunkt(stopp, nære, maksM = KNUTEPUNKT_M) {
     .map(s => ({ s, d: metresBetween(stopp, s), ny: (s.modes || []).some(m => !har.has(normMode(m))) }))
     .filter(x => x.d <= maksM)
     .sort((a, b) => (b.ny - a.ny) || (a.d - b.d))
-    .slice(0, KNUTEPUNKT_MAKS)
+    .slice(0, maks)
     .map(x => x.s);
   return [stopp, ...naboer];
+}
+/** Knutepunktet slik skjermen bruker det: gangavstand i Auto-tavle (v1.218.171). */
+function _knutepunktHer(stopp) {
+  return _autoTavle ? knutepunkt(stopp, _stops(), TAVLE_GANG_M, TAVLE_NABO_MAKS) : knutepunkt(stopp, _stops());
+}
+/**
+ * Gangtiden for EN rad: til stoppet raden går fra (v1.218.171). Før brukte
+ * alle radene gangtiden til hovedstoppet, også de fra et nabostopp. Ren.
+ */
+export function radGang(call, hovedGang, gangTilStopp) {
+  const fra = call && call._fra;
+  if (!fra) return hovedGang;
+  const g = gangTilStopp(fra);
+  return Number.isFinite(g) ? g : hovedGang;
+}
+/** Minutter til du må gå for å rekke avgangen; samme regel som «rekker». Ren. */
+export function gåOm(ms, gang, nå) {
+  return Number.isFinite(gang) ? minsToLeave(ms, gang, nå) : null;
 }
 
 /** Kallene fra flere stoppesteder som ett: hver tur én gang, merket med stedet. Ren. */
@@ -4149,7 +4173,7 @@ function _load() {
   // ETTER ET TIDSPUNKT (v1.218.130): hele knutepunktet hentes fra det.
   if (Number.isFinite(_fraMs)) {
     const her = _stop, fra = _fraMs, modus = _fraModus;
-    const steder = knutepunkt(her, _stops());
+    const steder = _knutepunktHer(her);
     // ANKOMST: vinduet før fristen, og bare avganger som går innen den.
     const start = hentFraMs(modus, fra), vindu = modus === 'ankomst' ? ANKOMST_VINDU_MIN : 180;
     const innen = c => modus !== 'ankomst' || Date.parse(c.expectedDepartureTime || c.aimedDepartureTime) <= fra;
@@ -4171,7 +4195,7 @@ function _load() {
       // NABOSTOPPENE I KNUTEPUNKTET (v1.218.119), hentet ved siden av; lista
       // tegnes når de har svart, men senest etter KNUTEPUNKT_VENT_MS.
       const her = _stop;
-      const naboer = knutepunkt(her, _stops()).slice(1);
+      const naboer = _knutepunktHer(her).slice(1);
       const vent = ms => new Promise(r => setTimeout(() => r(null), ms));
       Promise.all(naboer.map(n => Promise.race([hentStoppAvganger(n.id, 20), vent(KNUTEPUNKT_VENT_MS)])
         .then(sp => ({ stopp: n, sp }))))
@@ -4983,7 +5007,11 @@ function _zoomKnapper() {
 }
 
 export function settAutoTavle(på) {
+  const byttet = _autoTavle !== !!på;
   _autoTavle = !!på;
+  // Knutepunktet er større i tavla (gangavstand, v1.218.171): hent på nytt
+  // når modusen byttes, ellers står 250 m-svaret fra Auto-reise.
+  if (byttet && _stop && typeof document !== 'undefined') { _dirs = []; _asked = false; setTimeout(() => _stop && _load(), 0); }
   _zoomKnapper();
   // INTERVJUET OVER LISTA I AUTO-TAVLE (v1.218.126): nederst ville det aldri
   // bli sett under en liste med uendelig rulling. Tilbake når modusen slås av.
@@ -5157,7 +5185,15 @@ function _tegnAutoTavle(body) {
   if (!knappValg.includes(_atRetning)) _atRetning = 'alle';
   if (hjemListe.length) _hjemSøkOppdater(nå);
   const iRetning = _iRetning(synlige, nå);
-  const del = tavleDel(iRetning, nå, ms => canCatch(ms, gang, nå), _atGrense);
+  // GANGTID PER RAD (v1.218.171): til radens eget stopp.
+  const gangTilStopp = s => { const g = gangTil(s); return g ? g.mins : null; };
+  const del = tavleDel(iRetning, nå, (ms, call) => canCatch(ms, radGang(call, gang, gangTilStopp), nå), _atGrense);
+  // «Gå om N min» og rangering etter når du må gå — bare til fots.
+  if (Number.isFinite(gang)) {
+    [...del.ikke, ...del.rekker].forEach(x => { x.gang = radGang(x.call, gang, gangTilStopp); x.gåOm = gåOm(x.ms, x.gang, nå); });
+    del.rekker.sort((a, b) => (a.ms - a.gang * 60_000) - (b.ms - b.gang * 60_000));
+    if (del.rekker[0]) del.rekker[0].best = true;
+  }
   const retningKnapper = harBegge ? '<div class="auto-fra at-retning" role="group" aria-label="retning">'
     + knappValg.map(k => '<button type="button" class="auto-fra-knapp' + (k === _atRetning ? ' valgt' : '')
       + '" data-retning="' + k + '" aria-pressed="' + (k === _atRetning) + '"' + (k === 'hjem' ? ' title="hold for å velge stoppene"' : '') + '>' + AT_RETNING_TEKST[k] + '</button>').join('') + '</div>' : '';

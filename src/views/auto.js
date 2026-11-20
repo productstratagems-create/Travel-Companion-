@@ -4088,6 +4088,22 @@ export function tavleRekk(call, fra, gangTil, egenGang, nå) {
   return rekkLengerNed(call.serviceJourney && call.serviceJourney.estimatedCalls,
     { id: fra.id || null, navn: fra.name }, null, gangTil, egenGang, nå);
 }
+/**
+ * REKK DEN LENGER NED I AUTO-REISE (v1.218.190). Retningsraden: den første
+ * avgangen du ikke rekker her, men lenger ned på samme tur — og bare når den
+ * kommer før den første du rekker herfra (ellers er det ingenting å vinne).
+ * Samme regel som Rute og Auto-tavle (tavleRekk → rekkLengerNed). Ren.
+ */
+export function retningRekk(d, fra, gangTil, walkMins, now) {
+  if (!Number.isFinite(walkMins)) return null;
+  const her = catchable(d, walkMins, now)[0];
+  for (const x of (d && d.calls) || []) {
+    if (!x || !x.call || x.innstilt || erInnstilt(x.call) || canCatch(x.ms, walkMins, now)) continue;
+    const rk = tavleRekk(x.call, fra, gangTil, walkMins, now);
+    if (rk && (!her || rk.ms < her.ms)) return { ...rk, call: x.call };
+  }
+  return null;
+}
 /** Kallet slik det ser ut fra stoppet lenger ned: der går du på, da. Ren. */
 export function rekkKall(call, rk) {
   const t = new Date(rk.ms).toISOString();
@@ -5747,6 +5763,9 @@ function _renderBody() {
         + (hjemAR.get(i) && hjemAR.get(i).bytte ? '<span class="auto-bytte">bytt på ' + esc(hjemAR.get(i).bytte) + '</span>' : '') + '</span>'
         // DIN AVGANG (v1.218.86): raden for tavlas valg merkes; den flyttes ikke.
         + (din ? '<span class="auto-din-merke">din avgang</span>' : '')
+        // REKK DEN LENGER NED (v1.218.190): samme tekst som Rute og Auto-tavle.
+        + ((rk => rk ? '<span class="auto-rekk">rekker ikke her — ' + esc(rekkTekst(rk, clk)) + '</span>' : '')(
+          _stop ? retningRekk(d, _stop, ll => { const g = gangTil(ll); return g ? g.mins : null; }, walkMins, now) : null))
         // Its own element, not part of the name: a long destination and the
         // platform on one line wrapped the row to two on a 414px screen —
         // measured. The name is the flexible one and gives way first; the

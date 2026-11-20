@@ -94,3 +94,23 @@ describe('retningsvalget huskes (v1.218.185)', () => {
     expect(readFileSync('src/storage.js', 'utf8')).toContain("'" + AT_RETNING_KEY + "'");
   });
 });
+
+import { retningRekk } from '../src/views/auto.js';
+describe('rekk den lenger ned i Auto-reise (v1.218.190)', () => {
+  const tur = m => ({ serviceJourney: { estimatedCalls: [k('Mrud', 'Mortensrud', m), k('Bol', 'Bøler', m + 5), k('Jbt', 'Jernbanetorget', m + 17)] } });
+  const d = (...ms) => ({ calls: ms.map(m => ({ ms: T + m * M, call: tur(m) })) });
+  const gang = () => 3;
+  it('første du ikke rekker her, nådd lenger ned', () => {
+    const r = retningRekk(d(1, 30), MRUD, gang, 4, T);
+    expect(r).toMatchObject({ stopp: { navn: 'Bøler' }, ms: T + 6 * M });
+  });
+  it('ingenting når du rekker en tidligere herfra', () => {
+    expect(retningRekk(d(1, 5), MRUD, gang, 4, T)).toBe(null);
+  });
+  it('uten gangtid: ingenting', () => {
+    expect(retningRekk(d(1, 30), MRUD, gang, null, T)).toBe(null);
+  });
+  it('raden sier det med samme tekst', () => {
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/'<span class="auto-rekk">rekker ikke her — ' \+ esc\(rekkTekst\(rk, clk\)\)/);
+  });
+});

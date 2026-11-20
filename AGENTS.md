@@ -82,6 +82,12 @@ posisjonen er»). Dette er en allmenn app, ikke et ingeniørverktøy. «Si hva d
 ikke vet» betyr å si hva usikkerheten betyr for valget — ikke å beskrive
 sensoren. Grå prikk = ingen «rekker / rekker ikke» (`posGrå`, én definisjon).
 
+### Kartene følger `docs/kartregler.md` (2026-11-20)
+
+Zoom og panorering har ett regelsett: ett tema per kart, fem navngitte
+zoomtrinn, én margin, innramming bare når temaet endrer seg, og brukeren eier
+kartet når hun har rørt det. Les det før du endrer et kart.
+
 ## Arbeidsmåten
 
 - **Reproduser før du retter.** Bygg det rapporterte tilfellet som fikstur og

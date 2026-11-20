@@ -26,7 +26,7 @@ import { stopKey } from '../stopId.js';
 import config from '../config.js';
 import { state } from '../state.js';
 import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra, fetchTripFraPos, fetchBoardPage, hentStoppAvganger } from '../api/entur.js';
-import { annetStopp, gåHitMål, rådGjelder, startGåHitSøk } from '../gaaHit.js';
+import { annetStopp, gåHitMål, rådGjelder, startGåHitSøk, rådReiseTekst } from '../gaaHit.js';
 import { raskereHer } from '../raskere.js';
 import { rangerMål, foldetSide } from '../maalModell.js';
 import { overganger, arrBoardSpørsmål, ARR_BOARD_ASK } from '../overganger.js';
@@ -2073,7 +2073,8 @@ export function gåHitKortHtml(liste, nå) {
   return liste.map(({ id, navn, råd }) => {
     const gå = råd.gangMin <= 0 ? 'gå til ' : 'gå ' + råd.gangMin + ' min til ';
     const how = gå + råd.stoppNavn + (råd.spor ? ' · spor ' + råd.spor : '');
-    const ta = (råd.linje ? råd.linje + ' ' : '') + 'mot ' + råd.mot + ' · går ' + clk(råd.går) + (råd.bytter > 0 ? ' · ' + råd.bytter + ' bytte' : '');
+    // Målet står alt som kortets tittel.
+    const ta = rådReiseTekst(råd, null, clk);
     return '<button class="nearby-btn auto-dest auto-gaa' + (_gåHitVis === id ? ' valgt' : '') + '" type="button" data-gaa="' + esc(id) + '"'
       + ' aria-label="' + esc(navn + ': ' + how + ', ' + ta + ', framme ' + clk(råd.framme)) + '">'
       + '<span class="auto-dest-top"><span class="auto-dest-name">' + esc(navn) + '</span>'

@@ -108,3 +108,24 @@ describe('«bedre» må være bedre (v1.218.175)', () => {
     expect(src).toMatch(/dom = v\.kind === 'ditt' \? 'ditt' : rådMotEget\(r, egen\);/);
   });
 });
+
+import { rådReiseTekst, gåHitFor } from '../src/gaaHit.js';
+describe('reisen sies med målet, ikke skiltet (v1.218.178)', () => {
+  const k = ms => new Date(ms).toISOString().slice(11, 16);
+  it('før-bildet: «73 mot Holmlia stasjon · 1 bytte» → «73 → 81 til Jernbanetorget · går … · 1 bytte»', () => {
+    const t = rådReiseTekst({ linjer: ['73', '81'], linje: '73', mot: 'Holmlia stasjon', går: Date.UTC(2026, 0, 1, 18, 45), bytter: 1 }, 'Jernbanetorget', k);
+    expect(t).toBe('73 → 81 til Jernbanetorget · går 18:45 · 1 bytte');
+    expect(t).not.toMatch(/Holmlia/);
+  });
+  it('gåHitFor tar med alle linjene', () => {
+    const iso = m => new Date(Date.UTC(2026, 0, 1, 18, m)).toISOString();
+    const bus = (code, m) => ({ mode: 'bus', expectedStartTime: iso(m), expectedEndTime: iso(m + 5), serviceJourney: { line: { publicCode: code } }, fromPlace: {}, fromEstimatedCall: {} });
+    const r = gåHitFor([{ legs: [{ mode: 'foot', expectedStartTime: iso(0), expectedEndTime: iso(10) }, bus('73', 13), bus('81', 20)] }], Date.UTC(2026, 0, 1, 18, 0));
+    expect(r.linjer).toEqual(['73', '81']);
+  });
+  it('«ditt stopp er beste valg» står alene — ingen reise å handle på', () => {
+    const src = readFileSync('src/views/board.js', 'utf8');
+    const i = src.indexOf("if (dom === 'ditt') html =");
+    expect(src.slice(i, src.indexOf("else if (dom === 'bedre')", i))).not.toMatch(/stoppNavn|ta \+/);
+  });
+});

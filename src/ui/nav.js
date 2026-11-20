@@ -208,18 +208,23 @@ export const NAV_ITEMS = [
 
 /** Valget i innstillinger: Auto-tavle i menylinjen (v1.218.123). */
 const AUTOTAVLE_MENY_KEY = 't.autoTavleIMeny';
-/** Valget i innstillinger: Auto-reise i menylinjen (v1.218.125). Fravær = på. */
+/** Valget i innstillinger: Auto-reise i menylinjen (v1.218.125). */
 const AUTOREISE_MENY_KEY = 't.autoReiseIMeny';
-export function autoReiseIMeny() { try { return storage.get(AUTOREISE_MENY_KEY) !== 'av'; } catch { return true; } }
-export function settAutoReiseIMeny(på) { try { if (på) storage.remove(AUTOREISE_MENY_KEY); else storage.set(AUTOREISE_MENY_KEY, 'av'); } catch { /* */ } }
+/* STANDARD (v1.218.182): Auto-reise AV, Auto-tavle PÅ. Fravær = standard;
+   et valg lagres uttrykkelig ('på'/'av'), så det overlever en ny standard. */
+export const AUTOREISE_STANDARD = false;
+export const AUTOTAVLE_STANDARD = true;
+const lesValg = (key, std) => { const v = storage.get(key); return v === 'på' ? true : v === 'av' ? false : std; };
+export function autoReiseIMeny() { try { return lesValg(AUTOREISE_MENY_KEY, AUTOREISE_STANDARD); } catch { return AUTOREISE_STANDARD; } }
+export function settAutoReiseIMeny(på) { try { storage.set(AUTOREISE_MENY_KEY, på ? 'på' : 'av'); } catch { /* */ } }
 /**
  * BARE AUTO-TAVLE I MENYEN (v1.218.125): da ER auto-skjermen Auto-tavle —
  * oppstart i auto-modus og lenker til v-auto skal ikke føre til en skjerm
  * menyen ikke har. Ren gitt valgene.
  */
 export function bareAutoTavle() { return !autoReiseIMeny() && autoTavleIMeny(); }
-export function autoTavleIMeny() { try { return storage.get(AUTOTAVLE_MENY_KEY) === 'på'; } catch { return false; } }
-export function settAutoTavleIMeny(på) { try { if (på) storage.set(AUTOTAVLE_MENY_KEY, 'på'); else storage.remove(AUTOTAVLE_MENY_KEY); } catch { /* */ } }
+export function autoTavleIMeny() { try { return lesValg(AUTOTAVLE_MENY_KEY, AUTOTAVLE_STANDARD); } catch { return AUTOTAVLE_STANDARD; } }
+export function settAutoTavleIMeny(på) { try { storage.set(AUTOTAVLE_MENY_KEY, på ? 'på' : 'av'); } catch { /* */ } }
 
 /**
  * Står menypunktet? Samme regel som om skjermen finnes (`_reachable`), så

@@ -128,8 +128,22 @@ describe('the fixed navigation menu', () => {
     expect(navSynlig('v-track')).toBe(false);
     state.jny = { dest: 'Hellerud', legs: [] };
     expect(navSynlig('v-track')).toBe(true);
+    // Auto-reise er av som standard (v1.218.182); her slått på med vilje.
+    const { settAutoReiseIMeny } = await import('../src/ui/nav.js');
+    settAutoReiseIMeny(true);
     expect(navSynlig('v-auto')).toBe(true);
     state.jny = null;
+  });
+  it('standard: Auto-reise av, Auto-tavle på — og et uttrykkelig valg står (v1.218.182)', async () => {
+    const nav = await import('../src/ui/nav.js');
+    const { storage } = await import('../src/storage.js');
+    storage.remove('t.autoReiseIMeny'); storage.remove('t.autoTavleIMeny');
+    expect(nav.autoReiseIMeny()).toBe(false);
+    expect(nav.autoTavleIMeny()).toBe(true);
+    nav.settAutoReiseIMeny(true); nav.settAutoTavleIMeny(false);
+    expect(nav.autoReiseIMeny()).toBe(true);
+    expect(nav.autoTavleIMeny()).toBe(false);
+    storage.remove('t.autoReiseIMeny'); storage.remove('t.autoTavleIMeny');
   });
   it('«auto-tavle» står bare når valgt i innstillinger (v1.218.123)', async () => {
     const { navSynlig, settAutoTavleIMeny } = await import('../src/ui/nav.js');

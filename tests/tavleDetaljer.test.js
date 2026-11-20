@@ -56,3 +56,27 @@ describe('koblingen', () => {
     expect(stoppValgHtml([], [], null)).toMatch(/vet ikke hvor den går videre/);
   });
 });
+
+import { tavleRekk, rekkKall } from '../src/views/auto.js';
+describe('rekk den lenger ned i Auto-tavle (v1.218.185)', () => {
+  // 74 går fra Mortensrud om 0 min (rekker ikke, 2 min gange), Bøler om 5 (3 min gange).
+  const tur = { serviceJourney: { estimatedCalls: [k('Mrud', 'Mortensrud', 0), k('Bol', 'Bøler', 5), k('Jbt', 'Jernbanetorget', 17)] } };
+  const gang = ll => 3;
+  it('samme regel som Rute, uten mål: et senere stopp du rekker', () => {
+    const r = tavleRekk(tur, MRUD, gang, 2, T);
+    expect(r).toMatchObject({ stopp: { navn: 'Bøler' }, gangMin: 3 });
+  });
+  it('kallet slik det ser ut derfra: avgang og påstigning på stoppet lenger ned', () => {
+    const r = tavleRekk(tur, MRUD, gang, 2, T);
+    const c = rekkKall(tur, r);
+    expect(Date.parse(c.expectedDepartureTime)).toBe(T + 5 * M);
+    expect(c._fra).toMatchObject({ name: 'Bøler', id: 'NSR:StopPlace:Bol' });
+    expect(tur._fra).toBeUndefined();
+  });
+  it('koblingen: raden flyttes til dem du rekker, med teksten fra Rute', () => {
+    const auto = readFileSync('src/views/auto.js', 'utf8'), rad = readFileSync('src/ui/tavleRad.js', 'utf8');
+    expect(auto).toMatch(/Object\.assign\(x, \{ rekk: rk, rekker: true, gang: rk\.gangMin, gåOm: gåOm\(rk\.ms, rk\.gangMin, nå\) \}\);/);
+    expect(auto).toMatch(/const c = x\.rekk \? rekkKall\(x\.call, x\.rekk\) : x\.call;/);
+    expect(rad).toMatch(/rekker ikke her — ' \+ esc\(rekkTekst\(x\.rekk, clk\)\)/);
+  });
+});

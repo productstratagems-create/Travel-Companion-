@@ -1,3 +1,4 @@
+import { rekkTekst } from '../rekkLengerNed.js';
 /**
  * TAVLERADEN for Auto-tavle (v1.218.107). Bestilt: «Lag en testside som
  * kombinerer alt som er typisk "proven" i både tavla og Auto-reise.»
@@ -59,7 +60,10 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     + '<span class="at-front">' + esc(x.d.frontText || '') + '</span>'
     + (x.innstilt ? '<span class="at-merk">innstilt</span>' : '')
     // Fra et nabostopp i knutepunktet (v1.218.119): hvor du går om bord.
-    + (x.call && x.call._fra && x.call._fra.name ? '<span class="at-fra">fra ' + esc(x.call._fra.name) + (Number.isFinite(x.gang) ? ' · ' + x.gang + ' min å gå' : '') + '</span>' : '')
+    // Rekkes den lenger ned, sier den linja hvor; «fra» ville sagt et sted du ikke går til.
+    + (!x.rekk && x.call && x.call._fra && x.call._fra.name ? '<span class="at-fra">fra ' + esc(x.call._fra.name) + (Number.isFinite(x.gang) ? ' · ' + x.gang + ' min å gå' : '') + '</span>' : '')
+    // REKK DEN LENGER NED (v1.218.185): samme tekst som Rute.
+    + (x.rekk ? '<span class="at-rekk">rekker ikke her — ' + esc(rekkTekst(x.rekk, clk)) + '</span>' : '')
     // NÅR DU MÅ GÅ (v1.218.171), til fots.
     + (x.rekker && !x.innstilt && Number.isFinite(x.gåOm) ? '<span class="at-gaa-om">' + (x.gåOm <= 0 ? 'gå nå' : 'gå om ' + x.gåOm + ' min') + '</span>' : '')
     + (x.bak ? '<span class="at-bak">bak deg</span>' : '')

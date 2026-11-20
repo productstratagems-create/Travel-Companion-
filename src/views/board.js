@@ -3086,9 +3086,17 @@ let _ruteGåBedt = null;     // målets nøkkel, når rådet er bestilt
 let _ruteGåVis = null;      // rådet som tegnes på kartet
 const _metres = (a, b) => haver(a.lat, a.lon, b.lat, b.lon);
 export function _resetRuteGåHit() { _ruteGåHit.clear(); _ruteGåBedt = null; _ruteGåVis = null; }
+/**
+ * FOLDET INN (v1.218.184). Kortet «beste holdeplass herfra?» er erstattet av
+ * rader i lista: «rekk den lenger ned» (v1.218.176) og nabostoppenes
+ * avganger (v1.218.183) — godkjent mønster, AGENTS.md. Koden står (ingenting
+ * kastes); bryteren viser kortet igjen.
+ */
+export const RUTE_GÅHIT_KORT = false;
 function renderRuteGåHit() {
   const el = document.getElementById('rute-gaahit');
   if (!el) return;
+  if (!RUTE_GÅHIT_KORT) { el.style.display = 'none'; _ruteGåVis = null; return; }
   const dir = config.dirs[state.dIdx];
   const mål = ruteMål(dir);
   const pos = state.homeLL;

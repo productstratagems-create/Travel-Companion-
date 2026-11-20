@@ -827,11 +827,14 @@ if (typeof document !== 'undefined') {
    radens stopp, ikke Rute-stoppet: `walkInfo()` regner mot Rute, og sa
    «passert» om en avgang fra et helt annet sted. Rute og alt annet: som før. */
 function _selStoppLL(dir) {
+  // Nabostopp-rad (v1.218.183): stoppet raden går fra.
+  const f = state.sel && state.sel._fra;
+  if (f && Number.isFinite(f.lat)) return { lat: f.lat, lon: f.lon };
   if (dir && dir.key === 'auto-tavle') return Number.isFinite(dir._fromLat) ? { lat: dir._fromLat, lon: dir._fromLon } : null;
   return state.statLL && dir && state.statLL[dir.key];
 }
 function _selGang(dir) {
-  if (dir && dir.key === 'auto-tavle') {
+  if ((dir && dir.key === 'auto-tavle') || (state.sel && state.sel._fra)) {
     const ll = _selStoppLL(dir);
     const w = ll ? walkMinsTo(ll) : null;
     return w ? { mins: w.mins, dist: w.dist } : { mins: NaN, dist: NaN };
@@ -839,7 +842,7 @@ function _selGang(dir) {
   return walkInfo();
 }
 function _selRekke(c, dir, wk) {
-  if (dir && dir.key === 'auto-tavle') {
+  if ((dir && dir.key === 'auto-tavle') || (c && c._fra)) {
     if (c) c._rekkLengerNed = null;
     const mtl = minsToLeave(påstigningTs(c), wk.mins, Date.now());
     return { mtl, rcls: Number.isFinite(mtl) ? reachCls(mtl) : null };
@@ -976,7 +979,7 @@ export function renderSelected() {
     journeyDetail = (gåTilTekst(c) ? '<div class="jd-gaa">' + esc(gåTilTekst(c)) + '</div>' : '')
       + '<div class="journey-detail">'
       + '<div class="jd-cell"' + (arrT ? '' : ' style="grid-column:1/-1"') + '>'
-      + '<div class="jd-label">avgår ' + esc(jdEtikett(jdDag(depTs, arrT, now).dep, visStopp(cleanName(c._gåTil ? c._gåTil.navn : dir.from)))) + '</div>'
+      + '<div class="jd-label">avgår ' + esc(jdEtikett(jdDag(depTs, arrT, now).dep, visStopp(cleanName(c._gåTil ? c._gåTil.navn : c._fra ? c._fra.name : dir.from)))) + '</div>'
       + '<div class="jd-val departure">' + clk(c.expectedDepartureTime) + '</div>'
       + (() => {
         const sub = [delayed ? 'rute ' + clk(c.aimedDepartureTime) : null, plattformTekst(quay, depMode(c))]
@@ -1035,7 +1038,7 @@ export function renderSelected() {
     + '<div id="s-live-status"></div>'
     // «Mortensrud → Jernbanetorget» er foldet inn i sammendraget (v1.218.35).
     + sammendragHtml({
-      fra: visStopp(cleanName(c._gåTil ? c._gåTil.navn : dir.from)), spor: plattformTekst(quay, depMode(c)),
+      fra: visStopp(cleanName(c._gåTil ? c._gåTil.navn : c._fra ? c._fra.name : dir.from)), spor: plattformTekst(quay, depMode(c)),
       avg: depTs, rute: c.aimedDepartureTime ? new Date(c.aimedDepartureTime).getTime() : NaN, sanntid: !!c.realtime,
       til: visStopp(cleanName(dir.to)), ank: arrT ? new Date(arrT).getTime() : NaN, min: tmin,
       ankSpor: plattformTekst(c._arrQuay, depMode(c)),

@@ -16,7 +16,8 @@ import { posGråNå, fartNå, walkInfo, walkMinsTo, mToLeave, minsToLeave, reach
 import { turForm } from '../ui/turForm.js';
 import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
 import { startGåHitSøk, ruteRåd, ruteMedStopp, ruteMål, rådMotEget, rådReiseTekst } from '../gaaHit.js';
-import { fetchTripFraPos } from '../api/entur.js';
+import { fetchTripFraPos, fetchTripFra } from '../api/entur.js';
+import { naboKandidater, naboRaderFra, naboTekst } from '../naboRader.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest, påstigningTs, gåTilTekst } from '../api/adapt.js';
@@ -470,7 +471,41 @@ function _applyDeps() {
   if (!_tripDeps) return;
   const extra = stopBoardExtras(_tripDeps, _stopCalls, Date.now());
   if (extra.length) logMsg('stopptavla hadde ' + extra.length + ' avgang(er) reisesøket ikke ga', 'ok');
-  state.deps = extra.length ? _tripDeps.concat(extra) : _tripDeps;
+  const egne = extra.length ? _tripDeps.concat(extra) : _tripDeps;
+  // NABOSTOPPENE (v1.218.183): som rader, ikke som en boks.
+  const ids = new Set(egne.map(c => c && c.serviceJourney && c.serviceJourney.id).filter(Boolean));
+  const nabo = (_naboDeps || []).filter(c => !(c.serviceJourney && ids.has(c.serviceJourney.id)));
+  state.deps = nabo.length ? egne.concat(nabo) : egne;
+}
+
+/* ── NABOSTOPPENES AVGANGER (v1.218.183) ──────────────────────────────
+   Ett reisesøk per nabostopp innen gangavstand (maks NABO_MAKS), til samme
+   mål. Hentes med hovedsøket, men høyst hvert NABO_FERSK_MS, og bare når du
+   går (i fart og med grå prikk: ingen nabo). */
+let _naboDeps = [];
+let _naboNøkkel = null, _naboAt = 0, _naboVenter = false;
+export const NABO_FERSK_MS = 2 * 60_000;
+function _hentNabo(dir, at) {
+  if (!isWalkActive(dir) || state.walkFromLL) { _naboDeps = []; return; }
+  const egenGang = walkInfo().mins;
+  const kand = naboKandidater(state.nearestStations, { id: dir.stopId, name: dir.from },
+    s => { const w = walkMinsTo(s); return w ? w.mins : null; }, egenGang);
+  const til = dir.toStopId || (Number.isFinite(dir._toLat) ? { lat: dir._toLat, lon: dir._toLon } : null);
+  if (!kand.length || !til) { _naboDeps = []; return; }
+  const nøkkel = dir.stopId + '>' + (dir.toStopId || dir.to) + '|' + kand.map(k => k.id).join(',');
+  if (nøkkel === _naboNøkkel && Date.now() - _naboAt < NABO_FERSK_MS) return;
+  _naboNøkkel = nøkkel; _naboAt = Date.now();
+  const egne = new Set((_tripDeps || []).map(c => c && c.serviceJourney && c.serviceJourney.id).filter(Boolean));
+  Promise.all(kand.map(k => fetchTripFra(k.id, til, at != null ? at : Date.now(), 6)
+    .then(p => naboRaderFra((p || []).map(adaptTripPattern).filter(Boolean), k, egne))
+    .catch(() => [])))
+    .then(lister => {
+      if (_naboNøkkel !== nøkkel) return;
+      _naboDeps = lister.flat();
+      if (_naboDeps.length) logMsg('nabostopp: ' + _naboDeps.length + ' avgang(er)', 'ok');
+      _applyDeps();
+      renderBoard();
+    });
 }
 
 let _bRoutePts = null;
@@ -1904,6 +1939,11 @@ export function ruteViktigst(etterViktighet, ids) {
 export function rekkeFor(c, walkActive) {
   if (c) c._rekkLengerNed = null;
   if (!walkActive) return { mtl: null, rcls: null };
+  // Fra et nabostopp: gangen DIT, ikke til rutas stopp (v1.218.183).
+  if (c && c._fra && Number.isFinite(c._fra.gangMin)) {
+    const m = minsToLeave(påstigningTs(c), c._fra.gangMin, Date.now());
+    return { mtl: m, rcls: reachCls(m) };
+  }
   const mtl = mToLeave(påstigningTs(c));
   const rcls = reachCls(mtl);
   // REKK DEN LENGER NED (v1.218.176): rekker du den ikke her, men lenger ned
@@ -3144,6 +3184,9 @@ function refreshBoardMap() {
 }
 
 export function renderBoard() {
+  // Nabostoppene når posisjonen er kommet (v1.218.183): første henting skjer
+  // ofte før GPS-en har svart. Strupet av nøkkel og alder.
+  if (_tripDeps && !_naboVenter) { _naboVenter = true; Promise.resolve().then(() => { _naboVenter = false; _hentNabo(config.dirs[state.dIdx], _returnDepartAt(config.dirs[state.dIdx])); }); }
   renderDemoNote();
   renderWalkSummary();
   renderRuteGåHit();
@@ -3642,6 +3685,8 @@ export function renderBoard() {
        * («Jernbanet…», og på 74 forsvant den helt) — samme feil som «bytte
        * innstilt» hadde. Det avgjørende skal stå. */
       + (gåTilTekst(c) ? '<div class="dep-gaa">' + esc(gåTilTekst(c)) + '</div>' : '')
+      // FRA ET NABOSTOPP (v1.218.183): samme plass som gangen over.
+      + (naboTekst(c) ? '<div class="dep-gaa dep-nabo">' + esc(naboTekst(c)) + '</div>' : '')
       + (rekk ? '<div class="dep-reach dep-rekk">rekker ikke her — ' + esc(rekkTekst(rekk, clk)) + '</div>' : '')
       + (rekkeTekst(rcls)
         ? '<div class="dep-reach missed">' + esc(rekkeTekst(rcls)) + '</div>'
@@ -3980,6 +4025,7 @@ function _fetchBoard() {
         + (dropped ? ' (' + dropped + ' forkastet)' : ''), dropped ? null : 'ok');
       _tripDeps = adapted;
       _applyDeps();
+      _hentNabo(dir, at);
       state.lastFetch = Date.now();
       saveBoardSnapshot(dir, state.deps, state.lastFetch);
       document.getElementById('board-error').style.display = 'none';
@@ -4006,7 +4052,7 @@ function _fetchBoard() {
       : raw;
     const byD = dir.filter ? byL.filter(c => dir.filter.test((c.destinationDisplay && c.destinationDisplay.frontText) || '')) : byL;
     logMsg('✓ ' + byD.length + '/' + raw.length + (dir.line ? ' L' + dir.line : ' alle linjer'), 'ok');
-    _tripDeps = null;
+    _tripDeps = null; _naboDeps = []; _naboNøkkel = null;
     state.deps = byD;
     state.lastFetch = Date.now();
     saveBoardSnapshot(dir, byD, state.lastFetch);

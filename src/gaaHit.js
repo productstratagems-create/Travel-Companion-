@@ -85,3 +85,56 @@ export function gåHitMål(freq) {
   return (freq || []).filter(p => p && p.stopId && p.name)
     .sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0)).slice(0, GÅHIT_MAKS_MÅL);
 }
+
+/**
+ * ÉN HENTING FOR BEGGE SKJERMER (v1.218.173). Auto-reise og Rute spør det
+ * samme spørsmålet — «hvilket stopp fra der jeg står» — og skal få samme svar,
+ * med samme regler for når det spørres på nytt. Avhengighetene sendes inn, så
+ * regelen kan prøves uten nett. Returnerer posten, eller null når intet søk.
+ */
+export function startGåHitSøk(cache, mål, pos, nå, { hent, tillat, avstand }) {
+  if (!pos || !mål || !mål.id) return null;
+  const f = cache.get(mål.id);
+  if (f && f.henter) return null;
+  if (!trengerNyttSøk(f, pos, nå, avstand)) return null;
+  if (tillat && !tillat(nå)) return null;
+  // Et nytt søk arver aldri rådet fra et annet sted (v1.218.148).
+  const post = { pos: { lat: pos.lat, lon: pos.lon }, at: nå, råd: undefined, henter: true, navn: mål.navn };
+  cache.set(mål.id, post);
+  Promise.resolve().then(() => hent(pos, mål.til, nå))
+    .then(mønstre => { post.råd = gåHitFor(mønstre, Date.now()); post.henter = false; })
+    .catch(() => { post.henter = false; post.feil = true; });
+  return post;
+}
+
+/**
+ * HVA RUTE SKAL SI (v1.218.173). Ren. Fem tilstander, fordi «leter», «fant
+ * ikke», «ingen reise» og «ditt stopp er best» ikke er samme setning:
+ *   'leter' | 'feil' | 'ingen' | 'ditt' | 'annet'
+ */
+export function ruteRåd(post, pos, dir, avstand) {
+  if (!post) return { kind: 'leter' };
+  if (post.henter) return { kind: 'leter' };
+  if (post.feil) return { kind: 'feil' };
+  if (!post.råd) return { kind: 'ingen' };
+  if (!rådGjelder(post, pos, null, avstand)) return { kind: 'leter' };
+  const egen = dir && dir.stopId;
+  return { kind: post.råd.stoppId && egen && post.råd.stoppId === egen ? 'ditt' : 'annet', råd: post.råd };
+}
+
+/**
+ * RUTA MED ET ANNET FRA-STOPP — bare når brukeren trykker (v1.218.173).
+ * Ren: lager den nye ruta, endrer ikke den gamle. Mål, via og resten står.
+ */
+export function ruteMedStopp(dir, råd) {
+  return { ...dir, from: råd.stoppNavn, stopId: råd.stoppId || null, geo: råd.stoppId ? null : råd.stoppNavn,
+    _fromLat: Number.isFinite(råd.lat) ? råd.lat : null, _fromLon: Number.isFinite(råd.lon) ? råd.lon : null };
+}
+
+/** Hva Rute søker mot: målets stopp, ellers koordinatene. Null uten noen. */
+export function ruteMål(dir) {
+  if (!dir) return null;
+  if (dir.toStopId) return { id: dir.toStopId, til: dir.toStopId, navn: dir.to };
+  if (Number.isFinite(dir._toLat)) return { id: dir._toLat + ',' + dir._toLon, til: { lat: dir._toLat, lon: dir._toLon }, navn: dir.to };
+  return null;
+}

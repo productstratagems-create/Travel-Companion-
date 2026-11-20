@@ -87,7 +87,8 @@ describe('rådet gjelder bare her (v1.218.148)', () => {
   });
   it('et nytt søk arver aldri det gamle rådet, og et hopp tømmer alt', () => {
     const s = readFileSync('src/views/auto.js', 'utf8');
-    expect(s).toMatch(/const post = \{ pos: \{ lat: pos\.lat, lon: pos\.lon \}, at: nå, råd: undefined,/);
+    // Flyttet til den delte hentingen (v1.218.173).
+    expect(readFileSync('src/gaaHit.js', 'utf8')).toMatch(/const post = \{ pos: \{ lat: pos\.lat, lon: pos\.lon \}, at: nå, råd: undefined,/);
     expect(s).toMatch(/metresBetween\(_gåHitSist, _her\) > GÅHIT_HOPP_M\) \{ _gåHit\.clear\(\); _gåHitVis = null; _gåHitBedt\.clear\(\); \}/);
     expect(s).toMatch(/\.filter\(\(\[id, v\]\) => \(GÅHIT_AUTO \|\| _gåHitBedt\.has\(id\)\) && rådGjelder\(v, _her, _stop, metresBetween\)/);
   });

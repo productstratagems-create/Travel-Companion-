@@ -26,7 +26,7 @@ import { stopKey } from '../stopId.js';
 import config from '../config.js';
 import { state } from '../state.js';
 import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra, fetchTripFraPos, fetchBoardPage, hentStoppAvganger } from '../api/entur.js';
-import { gåHitFor, annetStopp, trengerNyttSøk, gåHitMål, rådGjelder } from '../gaaHit.js';
+import { annetStopp, gåHitMål, rådGjelder, startGåHitSøk } from '../gaaHit.js';
 import { raskereHer } from '../raskere.js';
 import { rangerMål, foldetSide } from '../maalModell.js';
 import { overganger, arrBoardSpørsmål, ARR_BOARD_ASK } from '../overganger.js';
@@ -2057,18 +2057,10 @@ export function gåHitMålNå(freq, bedt) {
 }
 function _gåHitOppdater(pos, nå) {
   if (!pos) return;
-  gåHitMålNå(loadFreq('arr'), _gåHitBedt).forEach(m => {
-    const f = _gåHit.get(m.stopId);
-    if (f && f.henter) return;
-    if (!trengerNyttSøk(f, pos, nå, metresBetween)) return;
-    if (!budsjettTillater(_søkLogg, nå, 1)) return;
-    // Et nytt søk arver aldri rådet fra et annet sted (v1.218.148).
-    const post = { pos: { lat: pos.lat, lon: pos.lon }, at: nå, råd: undefined, henter: true, navn: m.name };
-    _gåHit.set(m.stopId, post);
-    fetchTripFraPos(pos, m.stopId, nå, 3)
-      .then(mønstre => { post.råd = gåHitFor(mønstre, Date.now()); post.henter = false; })
-      .catch(() => { post.henter = false; post.feil = true; });
-  });
+  // Samme henting som Rute (v1.218.173, src/gaaHit.js).
+  gåHitMålNå(loadFreq('arr'), _gåHitBedt).forEach(m => startGåHitSøk(_gåHit,
+    { id: m.stopId, til: m.stopId, navn: m.name }, pos, nå,
+    { hent: (p, til, t) => fetchTripFraPos(p, til, t, 3), tillat: t => budsjettTillater(_søkLogg, t, 1), avstand: metresBetween }));
 }
 /** Punktene kartet rammer inn for et valgt «gå hit»-kort. Ren; null uten råd. */
 export function gåHitRamme(userPos, råd) {

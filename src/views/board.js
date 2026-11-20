@@ -13,6 +13,8 @@ import { storage } from '../storage.js';
 import { DEFAULT_MODES, loadModes, saveModes } from '../tavlaModuser.js';
 import { fartNå, walkInfo, walkMinsTo, mToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { turForm } from '../ui/turForm.js';
+import { startGåHitSøk, ruteRåd, ruteMedStopp, ruteMål } from '../gaaHit.js';
+import { fetchTripFraPos } from '../api/entur.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
 import { adaptTripPattern, quayLatLon, legShape, journeyPoints, _rowDest, påstigningTs, gåTilTekst } from '../api/adapt.js';
@@ -654,6 +656,8 @@ function renderBoardMap(pos, modes) {
     Object.keys(modes).filter(k => modes[k]).sort().join(','),
     destName,
     Math.floor(Date.now() / 120000),
+    // Rådet med på nøkkelen (v1.218.173), ellers tegnes gangen aldri.
+    _ruteGåVis ? _ruteGåVis.stoppId + '@' + _ruteGåVis.lat : '',
   ].join('|');
   if (mapKey === _bMapKey) return;
   _bMapKey = mapKey;
@@ -696,6 +700,16 @@ function renderBoardMap(pos, modes) {
       const snapped = _snapToCorridor(pos) || pos;
       userDot(_bLayer, snapped);
       pts.push([snapped.lat, snapped.lon]);
+    }
+    // BESTE HOLDEPLASS (v1.218.173): gangen dit, rett linje uten rute.
+    if (_ruteGåVis && Number.isFinite(_ruteGåVis.lat)) {
+      const g = _ruteGåVis;
+      const gp = (g.gangPunkter && g.gangPunkter.length) ? g.gangPunkter : (pos ? [[pos.lat, pos.lon], [g.lat, g.lon]] : []);
+      if (gp.length) drawWalk(_bLayer, gp);
+      L.marker([g.lat, g.lon], { icon: makeStopIcon(normMode(g.modus), 1, { primary: true }) })
+        .bindTooltip(esc(g.stoppNavn + ' · ' + g.gangMin + ' min'), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })
+        .addTo(_bLayer);
+      pts.push([g.lat, g.lon]);
     }
 
     // Nearby stops: cluster tightly, show only the closest stop per mode,
@@ -2962,9 +2976,79 @@ function renderUsual() {
   el.style.display = 'block';
 }
 
+/* ── BESTE HOLDEPLASS I RUTE (v1.218.173) ─────────────────────────────
+   Samme spørsmål og samme henting som i Auto-reise (src/gaaHit.js). Bare når
+   du ber om det, og ruta byttes ALDRI av seg selv: «bruk dette stoppet» er
+   eneste dør. Har brukeren valgt fra-stoppet, eier brukeren det. */
+const _ruteGåHit = new Map();
+let _ruteGåBedt = null;     // målets nøkkel, når rådet er bestilt
+let _ruteGåVis = null;      // rådet som tegnes på kartet
+const _metres = (a, b) => haver(a.lat, a.lon, b.lat, b.lon);
+export function _resetRuteGåHit() { _ruteGåHit.clear(); _ruteGåBedt = null; _ruteGåVis = null; }
+function renderRuteGåHit() {
+  const el = document.getElementById('rute-gaahit');
+  if (!el) return;
+  const dir = config.dirs[state.dIdx];
+  const mål = ruteMål(dir);
+  const pos = state.homeLL;
+  if (!mål || !pos || isExample(dir) || dir.key === 'in') { el.style.display = 'none'; _ruteGåVis = null; return; }
+  el.style.display = '';
+  if (_ruteGåBedt !== mål.id) {
+    _ruteGåVis = null;
+    el.innerHTML = '<button type="button" class="rute-gaa-be">\u{1F6B6} beste holdeplass herfra?</button>';
+    el.querySelector('button').addEventListener('click', () => { _ruteGåBedt = mål.id; renderRuteGåHit(); });
+    return;
+  }
+  // Nytt søk startet: tegn igjen når svaret er kommet.
+  if (startGåHitSøk(_ruteGåHit, mål, pos, Date.now(),
+    { hent: (p, til, t) => fetchTripFraPos(p, til, t, 3), avstand: _metres })) setTimeout(() => _venterRute(mål.id), 300);
+  const v = ruteRåd(_ruteGåHit.get(mål.id), pos, dir, _metres);
+  const lukk = '<button type="button" class="rute-gaa-lukk" aria-label="skjul holdeplassråd">skjul</button>';
+  let html;
+  if (v.kind === 'leter') html = '<span class="rute-gaa-tekst">leter etter beste holdeplass …</span>';
+  else if (v.kind === 'feil') html = '<span class="rute-gaa-tekst">fant ikke noe råd</span>';
+  else if (v.kind === 'ingen') html = '<span class="rute-gaa-tekst">ingen reise funnet herfra</span>';
+  else {
+    const r = v.råd;
+    const gå = r.gangMin <= 0 ? 'ved ' : r.gangMin + ' min å gå til ';
+    const ta = (r.linje ? r.linje + ' ' : '') + 'mot ' + r.mot + ' · går ' + clk(r.går) + (r.bytter > 0 ? ' · ' + r.bytter + ' bytte' : '')
+      + (Number.isFinite(r.framme) ? ' · framme ' + clk(r.framme) : '');
+    html = v.kind === 'ditt'
+      ? '<span class="rute-gaa-tekst"><strong>ditt stopp er beste valg</strong> · ' + esc(gå + r.stoppNavn) + '</span><span class="rute-gaa-ta">' + esc(ta) + '</span>'
+      : '<span class="rute-gaa-tekst">\u{1F6B6} <strong>bedre herfra:</strong> ' + esc(gå + r.stoppNavn) + (r.spor ? ' · spor ' + esc(r.spor) : '') + '</span>'
+        + '<span class="rute-gaa-ta">' + esc(ta) + '</span>'
+        + '<button type="button" class="rute-gaa-bruk">bruk dette stoppet</button>';
+  }
+  const visNå = v.kind === 'annet' ? v.råd : null;
+  const kartEndret = visNå !== _ruteGåVis;
+  _ruteGåVis = visNå;
+  el.innerHTML = '<div class="rute-gaa">' + html + lukk + '</div>';
+  el.querySelector('.rute-gaa-lukk').addEventListener('click', () => { _ruteGåBedt = null; _ruteGåVis = null; renderRuteGåHit(); refreshBoardMap(); });
+  const bruk = el.querySelector('.rute-gaa-bruk');
+  if (bruk) bruk.addEventListener('click', () => {
+    if (!window._setActiveRoute) return;
+    window._setActiveRoute(ruteMedStopp(dir, v.råd), { chosen: true });
+    _ruteGåBedt = null; _ruteGåVis = null;
+    if (window._refreshBoard) window._refreshBoard();
+  });
+  if (kartEndret) refreshBoardMap();
+}
+function _venterRute(id) {
+  if (_ruteGåBedt !== id) return;
+  const p = _ruteGåHit.get(id);
+  if (p && p.henter) { setTimeout(() => _venterRute(id), 300); return; }
+  renderRuteGåHit();
+}
+function refreshBoardMap() {
+  // Rådet kom eller gikk: ramm inn på nytt — men bare om du ikke har flyttet kartet selv.
+  if (!_bUserMoved) _bFitted = false;
+  if (_bMap) renderBoardMap(state.homeLL, loadModes());
+}
+
 export function renderBoard() {
   renderDemoNote();
   renderWalkSummary();
+  renderRuteGåHit();
   renderModeFilter();
   const isStale = renderUpdatedStamp();
   const modes = loadModes();

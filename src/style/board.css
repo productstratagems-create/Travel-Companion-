@@ -223,6 +223,12 @@
 /* The walk time is computed from a position that may have stopped updating.
    Same treatment the board gives a stale departure stamp. */
 #walk-summary.stale{color:var(--err)}
+#rute-gaahit{padding:0 0 .6rem}
+#rute-gaahit .rute-gaa-be,#rute-gaahit .rute-gaa-lukk,#rute-gaahit .rute-gaa-bruk{font:inherit;font-size:12px;color:var(--accent);background:none;border:1px solid var(--line,currentColor);border-radius:6px;padding:.35rem .6rem;min-height:36px;cursor:pointer}
+#rute-gaahit .rute-gaa{display:flex;flex-wrap:wrap;gap:.3rem .6rem;align-items:center;font-size:13px;color:var(--text)}
+#rute-gaahit .rute-gaa-tekst,#rute-gaahit .rute-gaa-ta{flex:1 1 100%}
+#rute-gaahit .rute-gaa-ta{color:var(--text-soft);font-size:12px}
+#rute-gaahit .rute-gaa-bruk{background:var(--accent);color:var(--bg);border-color:var(--accent)}
 
 .map-wrap #mode-filter,.map-wrap #line-filter{
   position:absolute;left:.5rem;right:.5rem;

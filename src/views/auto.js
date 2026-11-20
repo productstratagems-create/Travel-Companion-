@@ -3103,12 +3103,23 @@ function _fokusData() {
   const inngang = _stop ? _valgtInngang(_innganger(_stop.id), du, plattform || _stop) : null;
   return { du, stopp: _stop, gang: approachPoints(), inngang, plattform, plattformer: Array.isArray(pl) ? pl : [], bein: _sisteBein };
 }
+/* FOKUS GJENNOM RAMMEN (v1.218.189). Rapportert: husket fokus etter omstart
+   viste et utsnitt uten deg og uten stoppet. Fokuset ble brukt én gang, før
+   kartet hadde størrelse, gangrute og posisjon — og låste kartet som om du
+   hadde flyttet det, så det ble aldri rammet inn når dataene kom. Nå er
+   fokuset en del av rammen: den rammes inn på nytt når kartets størrelse
+   eller fokusets data (deg, gangen, plattformen) kommer til, til du selv
+   rører kartet (docs/kartregler.md §4–5). */
 function _brukFokus() {
   if (!_aMap) return;
-  if (_kartFokus === 'oversikt') { _aUserMoved = false; _aFitKey = ''; _aKey = ''; _renderMap(); return; }
-  const r = fokusRamme(_kartFokus, _fokusData());
-  if (!r) return;
-  _aUserMoved = true;
+  _aUserMoved = false; _aFitKey = ''; _aKey = ''; _renderMap();
+}
+/** Hva fokuset har å ramme inn nå — en del av rammenøkkelen. Ren gitt data. */
+export function fokusSignatur(fokus, d) {
+  if (fokus === 'oversikt') return fokus;
+  return fokus + ':' + (d.du ? 1 : 0) + ((d.gang || []).length ? 1 : 0) + (d.plattform ? 1 : 0) + (d.inngang ? 1 : 0) + ((d.bein || []).length ? 1 : 0);
+}
+function _rammFokus(r) {
   if (r.pts.length === 1) _rammer(() => _aMap.setView(r.pts[0], r.maksZoom));
   else {
     // Rammen holder plass til knappene nede til høyre (fokusknappen og +/−),
@@ -3123,7 +3134,6 @@ function _brukFokus() {
     _rammer(() => _aMap.fitBounds(L.latLngBounds(r.pts), { paddingTopLeft: [(venstre ? side : 40) + lappB, 40 + (lappB ? 30 : 0)],
       paddingBottomRight: [(venstre ? 40 : side) + lappB, 40 + (lappB ? 30 : 0)], maxZoom: r.maksZoom }));
   }
-  _tegnFokusKnapp(r.ukjent);
 }
 const _FOKUS_IKON = FOKUS_IKON;
 function _tegnFokusKnapp(ukjent) {
@@ -3536,7 +3546,7 @@ function _renderMap() {
     // ikke tilbake til oversikten — med mindre du har flyttet kartet selv.
     if (!_aUserMoved) {
       const f = lesFokus(_autoTavle ? 'autoTavle' : 'auto', _autoTavle ? KART_FOKUS_TAVLE : KART_FOKUS);
-      if (f !== 'oversikt' || _kartFokus !== 'oversikt') { _kartFokus = f; _aFitKey = ''; if (f !== 'oversikt') setTimeout(_brukFokus, 0); }
+      if (f !== 'oversikt' || _kartFokus !== 'oversikt') { _kartFokus = f; _aFitKey = ''; }
     }
   }
   _tegnFokusKnapp();
@@ -3593,13 +3603,12 @@ function _renderMap() {
     _aUserMoved = false;
     // En åpnet retning handler om linja: oversikt. Lukket: fokuset du valgte (v1.218.187).
     _kartFokus = _open ? 'oversikt' : lesFokus(_autoTavle ? 'autoTavle' : 'auto', _autoTavle ? KART_FOKUS_TAVLE : KART_FOKUS);
-    if (_kartFokus !== 'oversikt') setTimeout(_brukFokus, 0);
     _linePicked = null;
   }
   // Rammen følger det du har bedt om, ikke klokka (v1.218.150).
   const _gvF = _gåHitVis && _gåHit.get(_gåHitVis);
   const rKey = rammeNøkkel({ stoppId: _stop && _stop.id, åpen: (openKey(_open, line) || {}).id, kort: kortLinje ? (_kortRute.id || _kortRute.navn) : null,
-    gåHit: _gvF && _gvF.råd ? _gåHitVis + ':' + _gvF.at : null, fokus: _kartFokus, størrelse: sizeKey, gangTil: _autoTavle && _atGangTil ? _atGangTil.id : null });
+    gåHit: _gvF && _gvF.råd ? _gåHitVis + ':' + _gvF.at : null, fokus: fokusSignatur(_kartFokus, _fokusData()), størrelse: sizeKey, gangTil: _autoTavle && _atGangTil ? _atGangTil.id : null });
   // Ute av rammen: går du ut av utsnittet (og ikke har rørt kartet), rammes det inn igjen.
   const ute = !!(userPos && _aFitKey && !_aMap.getBounds().pad(-0.05).contains([userPos.lat, userPos.lon]));
   const fitStale = !_aUserMoved && (_aFitKey !== rKey || ute);
@@ -3684,7 +3693,10 @@ function _renderMap() {
       .concat(utgangBeinPunkter(bein))
       .concat(walkPts || [])
     : pts;
-  if (rammePts.length && fitStale) {
+  const _fr = _kartFokus !== 'oversikt' ? fokusRamme(_kartFokus, _fokusData()) : null;
+  if (_fr && fitStale) { _aFitKey = rKey; _rammFokus(_fr); }
+  if (_kartFokus !== 'oversikt') _tegnFokusKnapp(_fr && _fr.ukjent);
+  if (!_fr && rammePts.length && fitStale) {
     _aFitKey = rKey;
     // animate:false so the projection is TRUE the moment this returns. With
     // the default animation latLngToContainerPoint still answers for the view

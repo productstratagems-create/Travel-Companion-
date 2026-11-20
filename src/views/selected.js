@@ -5,7 +5,7 @@ import { normJid } from '../api/queries.js';
 import { stopKey } from '../stopId.js';
 import { clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, mToLeave, reachCls, findArr, isWalkActive, walkFocus, userLL, fartNå, loadWalkBuffer } from '../geo.js';
+import { walkInfo, haver, findArr, isWalkActive, walkFocus, userLL, fartNå, loadWalkBuffer } from '../geo.js';
 import { gangGjelder } from '../api/ombord.js';
 import { plattformTekst } from '../bytte.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
@@ -27,7 +27,8 @@ import { reiselop, kartPunkter, kartUtsnitt } from '../ui/reiselop.js';
 import { visStopp } from '../stopId.js';
 import { stoppestedKjent, hentStoppested } from '../api/stoppested.js';
 import { show } from '../ui/nav.js';
-import { startBoard, boardRows, RUTE_KART_FORMER, ruteFokusData } from './board.js';
+import { startBoard, boardRows, RUTE_KART_FORMER, ruteFokusData, rekkeFor } from './board.js';
+import { rekkTekst } from '../rekkLengerNed.js';
 import { kartForm, settKartForm } from '../ui/kartVerktoy.js';
 import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS, detaljFokusData } from '../ui/kartFokus.js';
 /** Avgangsdetalj-kartets form (v1.218.163), samme regel som Rute og Underveis. */
@@ -158,14 +159,17 @@ export function retningInfo(her, stopp, walk) {
   return { kind: 'retning', deg, dist: walk.dist, mins: walk.mins };
 }
 
-function _retningHtml(dir) {
+function _retningHtml(dir, rekk) {
   // GANGTIDEN KOMMER FRA `walkInfo()`, ikke fra et nytt kall til walkMinsTo.
   //
   // Første utgave her regnet den selv — og gikk dermed utenom `state.walkOvr`,
   // den manuelle overstyringen `walkInfo` håndterer. To steder som regner det
   // samme tallet, og de ville vært uenige nøyaktig for leseren som hadde satt
   // gangtiden sin selv. Skjermen bruker `walkInfo()` overalt ellers.
-  const r = retningInfo(userLL(), state.statLL && dir && state.statLL[dir.key], walkInfo());
+  // Rekkes avgangen lenger ned (v1.218.176), peker pila dit — ikke til stoppet du ikke rekker.
+  const r = rekk
+    ? retningInfo(userLL(), { lat: rekk.stopp.lat, lon: rekk.stopp.lon }, { dist: Math.round(haver((userLL() || rekk.stopp).lat, (userLL() || rekk.stopp).lon, rekk.stopp.lat, rekk.stopp.lon)), mins: rekk.gangMin })
+    : retningInfo(userLL(), state.statLL && dir && state.statLL[dir.key], walkInfo());
   if (r.kind === 'ukjent') {
     return '<div class="sel-heading sel-heading-ukjent">'
       + 'vet ikke hvor du er — ingen retning til stoppet</div>';
@@ -536,7 +540,11 @@ function _renderSelMap(dep, fromName, toName, now) {
   // viser, og kartet bygges om én gang. Ikke i fart: en strek fra deg til
   // påstigningen er et råd om å gå. Samme regel som tavla og auto-reise
   // (`gangGjelder`).
-  const påstigning = legs[0] && legs[0].stops && legs[0].stops[0];
+  // REKK DEN LENGER NED (v1.218.176): rekker du den ikke der den går fra,
+  // men lenger ned på samme tur, er gangen dit det du skal gjøre.
+  const rekk = dep && dep._rekkLengerNed;
+  const påstigning = rekk ? { lat: rekk.stopp.lat, lon: rekk.stopp.lon, name: rekk.stopp.navn }
+    : legs[0] && legs[0].stops && legs[0].stops[0];
   const harPåstigning = !!(påstigning && påstigning.lat != null && påstigning.lon != null);
   const gå = gangGjelder(fartNå(), state.walkFromLL !== null);
   const herfra = userLL();
@@ -851,9 +859,11 @@ export function renderSelected() {
   const tmin = arrT ? Math.round((new Date(arrT).getTime() - depTs) / 60000) : null;
   const delayed = c.realtime && depTs - new Date(c.aimedDepartureTime).getTime() > 60000;
   const wk = walkInfo();
-  const leaveByTs = påstigningTs(c) - wk.mins * 60000;
-  const mtl = mToLeave(påstigningTs(c));
-  const rcls = reachCls(mtl);
+  // ÉN DEFINISJON AV «REKKER» (v1.218.176): rekkeFor, som raden og stripa.
+  // Den vet om avgangen nås lenger ned på turen; mToLeave her visste det ikke.
+  const { mtl, rcls } = rekkeFor(c, true);
+  const rekk = c._rekkLengerNed;
+  const leaveByTs = rekk ? rekk.ms - rekk.gangMin * 60000 : påstigningTs(c) - wk.mins * 60000;
   const ltCls = _ltCls(rcls);
 
   const walkActive = isWalkActive(dir);
@@ -957,7 +967,7 @@ export function renderSelected() {
   // den foldede reiseplanen, der proben fant den.
   const gåVidere = gåTilTekst(c) ? '<div class="jd-gaa sel-gaa">+ ' + esc(gåTilTekst(c)) + '</div>' : '';
   document.getElementById('s-content').innerHTML = ''
-    + (heroVises ? '' : _retningHtml(dir) + gåVidere)
+    + (heroVises ? '' : _retningHtml(dir, rekk) + gåVidere)
     + '<div class="train-chip">'
     + chipBadges
     // RETNINGEN, som på skiltet (v1.218.35). Målet ditt står i sammendraget.
@@ -983,8 +993,9 @@ export function renderSelected() {
           + '<div class="leaveby-label">' + heroLbl + '</div>'
           + '<div class="leaveby-time ' + ltCls + '">' + heroNum
           + '<span class="lt-unit">' + heroUnit + '</span></div>'
+          + (rekk ? '<div class="leaveby-sub sel-rekk">rekker ikke her — ' + esc(rekkTekst(rekk, clk)) + '</div>' : '')
           + '<div class="leaveby-sub soft">' + _subLine(rcls, mtl, leaveByTs, depTs, now) + '</div>'
-          + _retningHtml(dir) + gåVidere
+          + _retningHtml(dir, rekk) + gåVidere
           + '</div>'
         : '')
     // Folded once it is time to go. The itinerary is what you read while
@@ -1310,9 +1321,9 @@ function _refreshSelDisplay() {
   if (!meta.cancelled) {
     const depTs    = new Date(c.expectedDepartureTime).getTime();
     const wk       = walkInfo();
-    const leaveByTs = påstigningTs(c) - wk.mins * 60000;
-    const mtl      = mToLeave(påstigningTs(c));
-    const rcls     = reachCls(mtl);
+    const { mtl, rcls } = rekkeFor(c, true);
+    const rekk     = c._rekkLengerNed;
+    const leaveByTs = rekk ? rekk.ms - rekk.gangMin * 60000 : påstigningTs(c) - wk.mins * 60000;
     const ltCls    = _ltCls(rcls);
     const now      = Date.now();
     const hero     = _hero(Math.floor((leaveByTs - now) / 1000), depTs, now, rcls);

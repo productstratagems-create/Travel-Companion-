@@ -70,6 +70,7 @@
    det. Målt i scratchpad/radProbe.mjs, ikke antatt. */
 .dep-row.missed{opacity:.55;border-left-color:rgba(220,38,38,.35)}
 .dep-reach.missed{color:#f87171;font-weight:600;letter-spacing:.02em}
+.dep-reach.dep-rekk{color:var(--accent);font-weight:600;letter-spacing:.02em}
 .dep-row.plan-early{opacity:.5;border-left-color:rgba(116,133,160,.4)}
 .dep-row.cancelled{opacity:.2;pointer-events:none}
 .dep-row.r-ok  {border-left-color:rgba(74,222,128,.4)}
@@ -908,3 +909,4 @@ html.view-board.map-open #dep-list{
 #t-map.form-bred{aspect-ratio:16 / 9}
 #t-map.expanded{aspect-ratio:auto;height:var(--map-h-open)}
 #rute-gaahit .rute-gaa-bruk.rute-gaa-stille{background:none;color:var(--accent);border-color:var(--line,currentColor)}
+.sel-rekk{color:var(--accent);font-weight:600}

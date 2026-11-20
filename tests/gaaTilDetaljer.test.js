@@ -36,8 +36,9 @@ describe('én definisjon i adapt.js', () => {
 describe('avgangsdetaljene', () => {
   const s = readFileSync('src/views/selected.js', 'utf8');
   it('nedtellingen regnes fra når du må gå fra stoppet ditt — begge steder', () => {
-    expect((s.match(/const leaveByTs\s*=\s*påstigningTs\(c\) - wk\.mins \* 60000;/g) || []).length).toBe(2);
-    expect((s.match(/const mtl\s*=\s*mToLeave\(påstigningTs\(c\)\);/g) || []).length).toBe(2);
+    // v1.218.176: én definisjon av «rekker» (rekkeFor), og rekkes den lenger ned, derfra.
+    expect((s.match(/const leaveByTs\s*=\s*rekk \? rekk\.ms - rekk\.gangMin \* 60000 : påstigningTs\(c\) - wk\.mins \* 60000;/g) || []).length).toBe(2);
+    expect((s.match(/const \{ mtl, rcls \} = rekkeFor\(c, true\);/g) || []).length).toBe(2);
   });
   it('«avgår» sier stoppet du faktisk går på, og gangen står over', () => {
     expect(s).toContain("visStopp(cleanName(c._gåTil ? c._gåTil.navn : dir.from))");
@@ -62,7 +63,7 @@ describe('auto-reise: «raskere hvis du går av her»', () => {
 describe('avgangsdetaljene: gangen videre synes uten å folde ut', () => {
   it('rett under retningslinja, begge steder den tegnes (sett i proben)', () => {
     const s = readFileSync('src/views/selected.js', 'utf8');
-    expect(s).toContain("(heroVises ? '' : _retningHtml(dir) + gåVidere)");
-    expect(s).toContain('          + _retningHtml(dir) + gåVidere\n');
+    expect(s).toContain("(heroVises ? '' : _retningHtml(dir, rekk) + gåVidere)");
+    expect(s).toContain('          + _retningHtml(dir, rekk) + gåVidere\n');
   });
 });

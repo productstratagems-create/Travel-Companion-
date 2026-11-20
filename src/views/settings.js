@@ -24,7 +24,7 @@ import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
 import { hentTestPos, TEST_STEDER } from '../api/testPos.js';
 import { brukTestPos } from '../geo.js';
 import { oppdaterTestStripe } from '../ui/testStripe.js';
-import { makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
+import { makeSuggBtn, esc, venueDetailHtml, kategorierFor } from '../ui/fmt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { renderRouteShortcuts } from '../ui/favs.js';
 import { loadReturn, saveReturn, clearReturn, reverseOf, suggestHHMM, returnWindow, skipToday } from '../api/returnTrip.js';
@@ -99,7 +99,7 @@ const _depStopIds = new Map();
 const _arrStopIds = new Map();
 const _viaStopIds = new Map();
 
-function _prependFreqToSugg(sugg, inp, role, query, stopMap, onPick) {
+function _prependFreqToSugg(sugg, inp, role, query, stopMap, onPick, treff) {
   const all  = loadFreq(role);
   const q    = (query || '').toLowerCase();
   const matches = q.length
@@ -109,7 +109,7 @@ function _prependFreqToSugg(sugg, inp, role, query, stopMap, onPick) {
   matches.forEach(p => {
     added.add(p.name.toLowerCase());
     if (p.lat) stopMap.set(p.name, { id: p.stopId || null, lat: p.lat, lon: p.lon });
-    const btn = makeSuggBtn(p.name, p.stopId ? ['metroStation'] : [], () => {
+    const btn = makeSuggBtn(p.name, kategorierFor(p, treff), () => {
       inp.value = p.name;
       sugg.hidden = true; sugg.innerHTML = '';
       syncClear(inp.id, inp.id + '-clear');
@@ -152,7 +152,7 @@ function suggestStops(query, suggId, inputId, clearId, stopMap, getAbort, setAbo
         const stops = stopSuggestions(j && j.features);
         stopMap.clear();
         sugg.innerHTML = '';
-        const freqNames = _prependFreqToSugg(sugg, inp2, role, query, stopMap, null);
+        const freqNames = _prependFreqToSugg(sugg, inp2, role, query, stopMap, null, stops);
         const fresh = stops.filter(f => {
           const name = (f.properties.name || f.properties.label || '').toLowerCase();
           return !freqNames.has(name);
@@ -397,7 +397,7 @@ export function initSettings() {
         sugg.innerHTML = '';
         const freqNames = _prependFreqToSugg(sugg, i, 'arr', q, _arrStopIds, p => {
           if (p.lat && p.lon) _showDestPreview(p.lat, p.lon);
-        });
+        }, results);
         const fresh = results.filter(r => !freqNames.has(r.label.toLowerCase()));
         if (!fresh.length && !freqNames.size) { sugg.hidden = true; return; }
         fresh.forEach(r => {

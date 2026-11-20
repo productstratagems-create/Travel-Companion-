@@ -3075,9 +3075,11 @@ function renderRuteGåHit() {
     const fr = Number.isFinite(r.framme) ? 'framme ' + clk(r.framme) : '';
     const egenTxt = egen ? 'ditt stopp: framme ' + clk(egen.framme) : 'vet ikke når du er framme fra ditt stopp';
     const bruk = '<button type="button" class="rute-gaa-bruk">bruk dette stoppet</button>';
-    // DITT STOPP ER BEST: da er alternativet ingenting å handle på (v1.218.178).
-    if (dom === 'ditt') html = '<span class="rute-gaa-tekst"><strong>ditt stopp er beste valg</strong>'
-      + (egen ? ' · framme ' + esc(clk(egen.framme)) : '') + '</span>';
+    // INGEN DOM OM HVA DU TRENGER (v1.218.179). Rapportert: «ditt stopp er
+    // beste valg» med «framme 20:18» antok at det du vil er å være tidligst
+    // framme — og at 20:18 var tida du brydde deg om. Sammenligningen er
+    // ankomst; det sies, og ingenting mer. Ingen ankomsttid, ingen «beste».
+    if (dom === 'ditt') html = '<span class="rute-gaa-tekst">ingen annen holdeplass herfra gir tidligere ankomst</span>';
     else if (dom === 'bedre') html = '<span class="rute-gaa-tekst">\u{1F6B6} <strong>raskere herfra:</strong> ' + esc(gå + r.stoppNavn) + (r.spor ? ' · spor ' + esc(r.spor) : '') + '</span>'
       + '<span class="rute-gaa-ta">' + esc(ta + ' · ' + fr + ' — ' + egenTxt) + '</span>' + bruk;
     else html = '<span class="rute-gaa-tekst">' + (dom === 'likt' ? esc(r.stoppNavn) + ' er et alternativ' : 'alternativ: ' + esc(r.stoppNavn))
@@ -3104,6 +3106,8 @@ function renderRuteGåHit() {
  * og når den er framme — de samme verdiene radene viser («ank.»). Null uten.
  */
 export function egetAlternativ(rader, dir, walkActive, nå) {
+  // Uten gangtid vet vi ikke hva du rekker — da finnes ikke noe «ditt alternativ».
+  if (!walkActive) return null;
   for (const { c } of rader || []) {
     if (!c || erInnstilt(c)) continue;
     if (Date.parse(c.expectedDepartureTime) < nå) continue;

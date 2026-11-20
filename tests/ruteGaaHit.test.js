@@ -123,7 +123,12 @@ describe('reisen sies med målet, ikke skiltet (v1.218.178)', () => {
     const r = gåHitFor([{ legs: [{ mode: 'foot', expectedStartTime: iso(0), expectedEndTime: iso(10) }, bus('73', 13), bus('81', 20)] }], Date.UTC(2026, 0, 1, 18, 0));
     expect(r.linjer).toEqual(['73', '81']);
   });
-  it('«ditt stopp er beste valg» står alene — ingen reise å handle på', () => {
+  it('ingen dom om behovet: ingen «beste», ingen ankomsttid når ditt stopp holder (v1.218.179)', () => {
+    const src0 = readFileSync('src/views/board.js', 'utf8');
+    expect(src0).not.toMatch(/<strong>ditt stopp er beste valg/);
+    expect(src0).toMatch(/if \(dom === 'ditt'\) html = '<span class="rute-gaa-tekst">ingen annen holdeplass herfra gir tidligere ankomst<\/span>';/);
+  });
+  it('alternativet står ikke under — ingen reise å handle på', () => {
     const src = readFileSync('src/views/board.js', 'utf8');
     const i = src.indexOf("if (dom === 'ditt') html =");
     expect(src.slice(i, src.indexOf("else if (dom === 'bedre')", i))).not.toMatch(/stoppNavn|ta \+/);

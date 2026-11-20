@@ -70,7 +70,7 @@ describe('arket åpnes mens trykket ennå er ferskt', () => {
 
   it('deler etappen addLegToPlan nettopp ga tilbake', () => {
     const h = handler();
-    expect(h).toMatch(/const leg = addLegToPlan\(c, dir\)/);
+    expect(h).toMatch(/const leg = addLegToPlan\(c, dir(, [^)]*)?\)/);   // v1.218.169: med reise-id når den er valgt
     expect(h).toMatch(/shareLegCalendar\(leg/);
   });
 

@@ -100,7 +100,10 @@ describe('gangtiden har én kilde', () => {
     const s = src();
     const i = s.indexOf('function _retningHtml');
     const kropp = s.slice(i, s.indexOf('\n}', i));
-    expect(kropp).toMatch(/walkInfo\(\)/);
+    // v1.218.181: gjennom _selGang — walkInfo for Rute, radens stopp for Auto-tavle.
+    expect(kropp).toMatch(/_selGang\(dir\)/);
     expect(kropp).not.toMatch(/walkMinsTo/);
+    const g = s.slice(s.indexOf('function _selGang'), s.indexOf('\n}', s.indexOf('function _selGang')));
+    expect(g).toMatch(/return walkInfo\(\);/);
   });
 });

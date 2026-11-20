@@ -38,7 +38,8 @@ describe('avgangsdetaljene', () => {
   it('nedtellingen regnes fra når du må gå fra stoppet ditt — begge steder', () => {
     // v1.218.176: én definisjon av «rekker» (rekkeFor), og rekkes den lenger ned, derfra.
     expect((s.match(/const leaveByTs\s*=\s*rekk \? rekk\.ms - rekk\.gangMin \* 60000 : påstigningTs\(c\) - wk\.mins \* 60000;/g) || []).length).toBe(2);
-    expect((s.match(/const \{ mtl, rcls \} = rekkeFor\(c, true\);/g) || []).length).toBe(2);
+    expect((s.match(/const \{ mtl, rcls \} = _selRekke\(c, dir, wk\);/g) || []).length).toBe(2);
+    expect(s).toMatch(/  return rekkeFor\(c, true\);/);
   });
   it('«avgår» sier stoppet du faktisk går på, og gangen står over', () => {
     expect(s).toContain("visStopp(cleanName(c._gåTil ? c._gåTil.navn : dir.from))");

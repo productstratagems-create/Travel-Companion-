@@ -23,6 +23,8 @@ import { linjemerke, modusOrd } from '../ui/linjemerke.js';
 import { lappMedLogo } from '../ui/tilbyderlogo.js';
 import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
+import { stopsAhead, arriveText, kjentMål } from '../ui/stoppVelger.js';
+export { stopsAhead, arriveText };
 import config from '../config.js';
 import { state } from '../state.js';
 import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra, fetchTripFraPos, fetchBoardPage, hentStoppAvganger } from '../api/entur.js';
@@ -501,38 +503,7 @@ export function dirRows(dirs, desc, keep, local) {
  * The cut is made on the first call whose name matches yours, not on
  * position, because the board's own stop is the anchor we have.
  */
-export function stopsAhead(call, fromName, now, fraId = null) {
-  // FRA NABOSTOPPET (v1.218.119): et kall fra et annet stoppested i
-  // knutepunktet har det stedet i stopplista, ikke stoppet ditt.
-  if (call && call._fra) { fromName = call._fra.name || fromName; fraId = call._fra.id || fraId; }
-  const t0 = now == null ? Date.now() : now;
-  const sjc = (call && call.serviceJourney && call.serviceJourney.estimatedCalls) || [];
-  const norm = stopKey;   // was recipe C: the comma clause was missing
-  const me = norm(fromName);
-  let seen = false;
-  const out = [];
-  sjc.forEach(c => {
-    const sp = c.quay && c.quay.stopPlace;
-    const name = (sp && sp.name) || '';
-    // ID FØR NAVN (v1.218.68): «Mortensrud terminal» i kallet og «Mortensrud»
-    // på skjermen er samme stoppested; ID-en sier det, navnet bommer.
-    if (!seen) { if ((fraId && sp && sp.id === fraId) || (me && norm(name) === me)) seen = true; return; }
-    const t = c.expectedArrivalTime || c.aimedArrivalTime;
-    const ms = t ? new Date(t).getTime() : null;
-    out.push({
-      name,
-      id: (sp && sp.id) || null,
-      lat: sp && sp.latitude != null ? sp.latitude : (c.quay && c.quay.latitude),
-      lon: sp && sp.longitude != null ? sp.longitude : (c.quay && c.quay.longitude),
-      // BOTH DERIVED FROM ONE TIMESTAMP. `at` is what the screen shows and
-      // `mins` is what the map ranks by; two independently computed copies
-      // of the same arrival is exactly how they would drift apart.
-      at: ms,
-      mins: ms ? Math.max(0, Math.round((ms - t0) / MIN)) : null,
-    });
-  });
-  return out;
-}
+// stopsAhead bor i src/ui/stoppVelger.js (v1.218.181), delt med avgangsdetaljene.
 
 /**
  * When you are there — said as a clock, once, for every screen that says it.
@@ -553,9 +524,7 @@ export function stopsAhead(call, fromName, now, fraId = null) {
  * map tooltip), because the same sentence written down three times is the
  * fault this codebase keeps finding.
  */
-export function arriveText(st) {
-  return (st && st.at != null) ? 'framme ' + clk(st.at) : '';
-}
+// arriveText bor i src/ui/stoppVelger.js (v1.218.181), re-eksportert under.
 
 /**
  * A stop pair as a route the rest of the app already understands.
@@ -4086,6 +4055,18 @@ export function roligSortering(rader, forrige, nøkkel, verdi, terskel = TAVLE_R
   }
   return ut;
 }
+/**
+ * Retningen avgangsdetaljene får fra en tavlerad (v1.218.181). Ren.
+ * Fra: radens eget stopp (nabostoppet for `_fra`-rader). Til: et vanlig mål
+ * turen stopper ved etter påstigning, ellers ingenting — da spør skjermen.
+ */
+export function tavleDetaljDir(c, stopp, medKoord, vanlige, nå) {
+  const fra = (c && c._fra && medKoord(c._fra)) || stopp || {};
+  const mål = kjentMål(stopsAhead(c, fra.name, nå, fra.id || null), vanlige);
+  return { key: 'auto-tavle', from: fra.name || '', stopId: fra.id || null,
+    _fromLat: Number.isFinite(fra.lat) ? fra.lat : null, _fromLon: Number.isFinite(fra.lon) ? fra.lon : null,
+    to: mål ? mål.name : null, toStopId: mål ? mål.id : null, _målKjent: !!mål };
+}
 /** Kallene fra flere stoppesteder som ett: hver tur én gang, merket med stedet. Ren. */
 export function slåSammenKall(svar) {
   const sett = new Set();
@@ -5286,7 +5267,19 @@ function _tegnAutoTavle(body) {
   if (det) det.addEventListener('toggle', () => { _atIkkeÅpen = det.open; });
   body.querySelectorAll('.at-rad').forEach(b => b.addEventListener('click', () => {
     const x = rader[Number(b.dataset.i)];
-    if (x) { _open = x.d; _atGangTil = (x.call && x.call._fra && medKoord(x.call._fra)) || null; _renderBody(); _renderMap(); }
+    if (!x) return;
+    // ETT TRYKK → AVGANGSDETALJER (v1.218.181). Før: trykket åpnet stopplista,
+    // og et stopp der laget en Rute og åpnet tavla — to trykk, og ikke
+    // avgangen du trykket på. Nå: det kallet, med målet appen alt vet
+    // (kjentMål), ellers spør avgangsdetaljene «hvor går du av?».
+    const c = x.call;
+    if (c && typeof window !== 'undefined' && window.tap) {
+      c._dir = tavleDetaljDir(c, _stop, medKoord, loadFreq('arr'), Date.now());
+      window.tap(c);
+      return;
+    }
+    // Uten kallet (eller uten avgangsdetaljer): som før.
+    _open = x.d; _atGangTil = (c && c._fra && medKoord(c._fra)) || null; _renderBody(); _renderMap();
   }));
   // UENDELIG RULLING: når bunnen synes, en side til; tomt lokalt → hent neste.
   if (_atObs) { _atObs.disconnect(); _atObs = null; }

@@ -2,7 +2,7 @@ import { findStop, stopKey } from './stopId.js';
 import { CENTRE } from './api/centre.js';
 import { state } from './state.js';
 import { nyttFilter, oppdater, framskriv, anslag, FRAMSKRIV_MAKS_MS } from './kalman.js';
-import { ACC_GATE, POS_STALE_MS, gpsErrorKind, fixJump } from './position.js';
+import { ACC_GATE, POS_STALE_MS, gpsErrorKind, fixJump, posState, posGrå } from './position.js';
 import { pushFix, pushLang } from './trail.js';
 import config from './config.js';
 import { TRANSIT_CATS, modesOf } from './api/stopCats.js';
@@ -346,12 +346,18 @@ function routeHasOrigin() {
   return !!(d && d.key === 'custom-out' && d._fromLat && d._fromLon);
 }
 
+/** Er prikken grå nå? (v1.218.180) Én dør for skjermene; regelen er posGrå. */
+export function posGråNå() { return posGrå(posState(posNå())); }
+
 export function isWalkActive(dir) {
   if (dir.key === 'in') return false;
   // I fart gjelder ikke gangtid fra GPS-en din — med mindre «gå fra» er en
   // fast plass. Samme regel som auto-reise (`gangTil`), fra samme funksjon.
   if (!gangGjelder(fartNå(), state.walkFromLL !== null)) return false;
   if (state.walkFromLL !== null) return true;
+  // GRÅ PRIKK (v1.218.180): fra en posisjon kartet viser som gammel, dømmes
+  // ingen avgang «rekker ikke». Samme regel som prikken, fra samme navn.
+  if (posGråNå()) return false;
   return nearStopMatch(dir.stopId, dir.from) !== null;
 }
 

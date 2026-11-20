@@ -1,4 +1,5 @@
 import { erHelgLik } from '../dagtype.js';
+import { posGrå } from '../position.js';
 import { linjemerke } from '../ui/linjemerke.js';
 import config from '../config.js';
 import { erInnstilt } from '../innstilt.js';
@@ -11,7 +12,7 @@ import { saveBoardSnapshot, loadBoardSnapshot } from '../boardCache.js';
 import { state, intervals } from '../state.js';
 import { storage } from '../storage.js';
 import { DEFAULT_MODES, loadModes, saveModes } from '../tavlaModuser.js';
-import { fartNå, walkInfo, walkMinsTo, mToLeave, minsToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
+import { posGråNå, fartNå, walkInfo, walkMinsTo, mToLeave, minsToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { turForm } from '../ui/turForm.js';
 import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
 import { startGåHitSøk, ruteRåd, ruteMedStopp, ruteMål, rådMotEget, rådReiseTekst } from '../gaaHit.js';
@@ -2766,8 +2767,12 @@ function renderWalkSummary() {
     // position. The string used to be written out here and again in
     // auto.js:780. A manually set walk origin has no GPS behind it, so there
     // is nothing to qualify.
+    // INGEN MÅLESETNING (v1.218.180). Rapportert: «vet ikke hvor gammel
+    // posisjonen er» — ingeniørspråk, og det samme som den grå prikken alt
+    // sa. Utprøvd: kartet viser tilstanden; teksten sier bare følgen. Her er
+    // følgen at gangtida er et anslag: «ca.», dempet.
     const ps = state.walkFromLL ? null : posState(posNå());
-    const note = ps && ps.kind !== 'ok' ? ps.label : null;
+    const usikker = !!ps && ps.kind !== 'ok' && ps.kind !== 'ingen-stopp';
     /* OG ER DET TRINNFRITT NÅR DU KOMMER FRAM?
      *
      * Dette er linja som svarer på visjonens «hvordan kommer jeg dit», og
@@ -2780,10 +2785,9 @@ function renderWalkSummary() {
      * noen en helt annen vei. */
     const st = _sted();
     const adkomst = st && st.tilgang.kind !== 'vet-ikke' ? st.tilgang.ord : null;
-    el.textContent = (fromLabel ? fromLabel + ' · ' : '') + wk.mins + ' min gange'
-      + (adkomst ? ' · ' + adkomst : '')
-      + (note ? ' · ' + note : '');
-    el.className = note ? 'stale' : '';
+    el.textContent = (fromLabel ? fromLabel + ' · ' : '') + (usikker ? 'ca. ' : '') + wk.mins + ' min gange'
+      + (adkomst ? ' · ' + adkomst : '');
+    el.className = usikker ? 'usikker' : '';
     el.style.display = 'block';
   } else if (dir.key === 'out' || dir.key === 'custom-out') {
     // 'custom-out' TOO, which is the key every real route has - main.js,
@@ -2796,7 +2800,15 @@ function renderWalkSummary() {
     // posisjonen» and «leter …» were both rendered as nothing at all here.
     const ps = posState(posNå());
     if (ps.kind === 'ok' || ps.kind === 'ingen-stopp') { el.style.display = 'none'; return; }
+    // GRÅ PRIKK MED EN POSISJON (v1.218.180): gangtida er et anslag — si det
+    // som «ca.», ikke som en setning om sensoren. Prikken sier resten.
+    const ns = nearStopMatch(dir.stopId, dir.from) || state.nearestStation;
+    if (posGrå(ps) && state.homeLL && ns && ps.kind !== 'avslatt') {
+      const w = walkMinsTo(ns);
+      if (w) { el.textContent = ns.name + ' · ca. ' + w.mins + ' min gange'; el.className = 'usikker'; el.style.display = 'block'; return; }
+    }
     el.textContent = ps.label;
+    el.className = '';
     el.style.display = 'block';
   } else {
     el.style.display = 'none';
@@ -3040,7 +3052,8 @@ function renderRuteGåHit() {
   const dir = config.dirs[state.dIdx];
   const mål = ruteMål(dir);
   const pos = state.homeLL;
-  if (!mål || !pos || isExample(dir) || dir.key === 'in') { el.style.display = 'none'; _ruteGåVis = null; return; }
+  // Grå prikk (v1.218.180): et råd regnet fra en gammel posisjon er ikke et råd.
+  if (!mål || !pos || isExample(dir) || dir.key === 'in' || posGråNå()) { el.style.display = 'none'; _ruteGåVis = null; return; }
   el.style.display = '';
   // I FART (v1.218.174): rapportert fra 74-bussen — et gangråd regnet fra et
   // sete i fart er ikke et råd. Ingen knapp; bestilt råd sier hvorfor det venter.

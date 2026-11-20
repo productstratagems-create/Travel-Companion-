@@ -51,7 +51,24 @@ export function gåHitFor(mønstre, nå) {
     gangM: Math.round(gangM),
     gangPunkter: punkter,
     bytter: legs.filter(l => l.mode && l.mode !== 'foot').length - 1,
+    // ALLE LINJENE, i rekkefølge (v1.218.178): «73 → 81», ikke «73 mot Holmlia».
+    linjer: legs.filter(l => l.mode && l.mode !== 'foot')
+      .map(l => (l.serviceJourney && l.serviceJourney.line && l.serviceJourney.line.publicCode) || (l.line && l.line.publicCode) || '')
+      .filter(Boolean),
   };
+}
+
+/**
+ * HVA REISEN ER, I ORD (v1.218.178). Rapportert: «73 mot Holmlia stasjon ·
+ * 1 bytte» for en reise til Jernbanetorget. «Mot» er skiltet på bussen, ikke
+ * målet ditt — og leses som en reise et annet sted. Rådet er alltid en reise
+ * til målet du har lagt inn, så teksten sier målet. Én tekst for Rute og
+ * Auto-reise. Ren.
+ */
+export function rådReiseTekst(råd, mål, klokke) {
+  const linjer = (råd.linjer && råd.linjer.length) ? råd.linjer : (råd.linje ? [råd.linje] : []);
+  const hva = [linjer.join(' → '), mål ? 'til ' + mål : ''].filter(Boolean).join(' ');
+  return [hva, 'går ' + klokke(råd.går), råd.bytter > 0 ? råd.bytter + ' bytte' : ''].filter(Boolean).join(' · ');
 }
 
 /** Er rådet et ANNET stopp enn de du alt ser (stoppet og knutepunktet)? */

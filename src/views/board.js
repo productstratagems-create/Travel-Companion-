@@ -14,7 +14,7 @@ import { DEFAULT_MODES, loadModes, saveModes } from '../tavlaModuser.js';
 import { fartNå, walkInfo, walkMinsTo, mToLeave, minsToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { turForm } from '../ui/turForm.js';
 import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
-import { startGåHitSøk, ruteRåd, ruteMedStopp, ruteMål, rådMotEget } from '../gaaHit.js';
+import { startGåHitSøk, ruteRåd, ruteMedStopp, ruteMål, rådMotEget, rådReiseTekst } from '../gaaHit.js';
 import { fetchTripFraPos } from '../api/entur.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
@@ -3068,16 +3068,16 @@ function renderRuteGåHit() {
   else {
     const r = v.råd;
     const gå = r.gangMin <= 0 ? 'ved ' : r.gangMin + ' min å gå til ';
-    const ta = (r.linje ? r.linje + ' ' : '') + 'mot ' + r.mot + ' · går ' + clk(r.går) + (r.bytter > 0 ? ' · ' + r.bytter + ' bytte' : '');
+    const ta = rådReiseTekst(r, dir.to, clk);
     const egen = egetAlternativ(boardRowDeps(state.deps, _pages, loadModes(), _lineOn), dir, isWalkActive(dir), Date.now());
     // Sammenlignet, ikke antatt (v1.218.175).
     dom = v.kind === 'ditt' ? 'ditt' : rådMotEget(r, egen);
     const fr = Number.isFinite(r.framme) ? 'framme ' + clk(r.framme) : '';
     const egenTxt = egen ? 'ditt stopp: framme ' + clk(egen.framme) : 'vet ikke når du er framme fra ditt stopp';
     const bruk = '<button type="button" class="rute-gaa-bruk">bruk dette stoppet</button>';
+    // DITT STOPP ER BEST: da er alternativet ingenting å handle på (v1.218.178).
     if (dom === 'ditt') html = '<span class="rute-gaa-tekst"><strong>ditt stopp er beste valg</strong>'
-      + (egen ? ' · framme ' + esc(clk(egen.framme)) : '') + '</span>'
-      + (v.kind === 'annet' ? '<span class="rute-gaa-ta">' + esc(r.stoppNavn + ': ' + r.gangMin + ' min å gå · ' + ta + (fr ? ' · ' + fr : '')) + '</span>' : '');
+      + (egen ? ' · framme ' + esc(clk(egen.framme)) : '') + '</span>';
     else if (dom === 'bedre') html = '<span class="rute-gaa-tekst">\u{1F6B6} <strong>raskere herfra:</strong> ' + esc(gå + r.stoppNavn) + (r.spor ? ' · spor ' + esc(r.spor) : '') + '</span>'
       + '<span class="rute-gaa-ta">' + esc(ta + ' · ' + fr + ' — ' + egenTxt) + '</span>' + bruk;
     else html = '<span class="rute-gaa-tekst">' + (dom === 'likt' ? esc(r.stoppNavn) + ' er et alternativ' : 'alternativ: ' + esc(r.stoppNavn))

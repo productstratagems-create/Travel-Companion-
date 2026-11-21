@@ -72,7 +72,7 @@ import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer, saveWalkFrom, loadWalkFrom, clearWalkFrom, findNearestStation } from '../geo.js';
 import { posBekreftelse } from '../position.js';
 import { herLinjeHtml, stedPanelHtml, MANUELL_FLYTT_M } from '../ui/stedVelger.js';
-import { stedNavn } from '../api/stedNavn.js';
+import { stedNavn, stedMåling, målingLinje } from '../api/stedNavn.js';
 import { åpneStedKart } from '../ui/stedKart.js';
 import { bindPlaceInput } from '../ui/suggest.js';
 import { metresBetween as _avst } from '../haversine.js';
@@ -2393,7 +2393,8 @@ function _åpneStedPanel() {
   if (!start || typeof document === 'undefined') return _åpneStedListe(_el('auto-her'));
   const ps = _posState();
   åpneStedKart({ start, acc: ps && ps.acc, gps, nære: _stops().slice(0, 4), manuell: !!state.walkFromLL,
-    navnFor: (ll, ferdig) => stedNavn(ll, ferdig), søk: q => geocodePlace(q),
+    navnFor: (ll, ferdig) => stedNavn(ll, ferdig, { logg: m => logMsg(m) }), søk: q => geocodePlace(q),
+    målingFor: ll => stedMåling(ll), målingLinje,
     onVelg: (label, ll) => _settSted(label, ll),
     onGps: () => { clearWalkFrom(); _herAnker = null; _herSist = null; if (state.homeLL) _hentStoppVed(state.homeLL); _renderHer(); } });
 }

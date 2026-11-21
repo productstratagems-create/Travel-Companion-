@@ -64,6 +64,73 @@ export function velgGeonorge(json, ll) {
 }
 const _hent = (url, opts) => fetch(url, { signal: AbortSignal.timeout(8000), ...(opts || {}) });
 
+/* MÅLERUNDEN (v1.218.201). Bestilt: «Legg inn målerunden som viser hva
+   Kartverket svarer.» Sandkassen når verken Kartverket eller Entur, så formen
+   på svaret er fra dokumentasjonen. Hvert oppslag tar vare på hva som faktisk
+   kom tilbake — status eller feil, treff, avstander, feltnavn og starten av
+   råsvaret — og kartvelgeren viser det sammenfoldet. Blir på telefonen. */
+const _måling = new Map();
+export const RÅ_TEGN = 400;
+
+/** Kartverkets treff som enkle rader. Ren. */
+function kvRader(json) {
+  return ((json && json.adresser) || []).map(a => ({
+    navn: a.adressetekst || ((a.adressenavn || '') + (a.nummer != null ? ' ' + a.nummer + (a.bokstav || '') : '')).trim() || null,
+    lat: a.representasjonspunkt && a.representasjonspunkt.lat, lon: a.representasjonspunkt && a.representasjonspunkt.lon,
+    mOppgitt: Number.isFinite(a.meterDistanseTilPunkt) ? Math.round(a.meterDistanseTilPunkt) : null, rå: a,
+  }));
+}
+function enRader(json) {
+  return ((json && json.features) || []).map(f => ({
+    navn: f.properties && (f.properties.name || f.properties.label) || null,
+    lat: f.geometry && f.geometry.coordinates && f.geometry.coordinates[1],
+    lon: f.geometry && f.geometry.coordinates && f.geometry.coordinates[0], mOppgitt: null, rå: f.properties || f,
+  }));
+}
+/** Én kildes måling fra status, råtekst og rader. Ren. */
+export function målKilde({ status, feil, tekst, rader }, ll) {
+  const m = { status: status != null ? status : null, feil: feil || null, antall: 0, nærmeste: [], felter: [], rå: (tekst || '').slice(0, RÅ_TEGN) };
+  if (!rader) return m;
+  m.antall = rader.length;
+  m.felter = rader[0] && rader[0].rå ? Object.keys(rader[0].rå) : [];
+  m.nærmeste = rader.map(r => ({ navn: r.navn, m: Number.isFinite(r.lat) ? Math.round(metresBetween(ll, { lat: r.lat, lon: r.lon })) : null, mOppgitt: r.mOppgitt }))
+    .sort((a, b) => (a.m == null) - (b.m == null) || a.m - b.m).slice(0, 3);
+  return m;
+}
+/** Valget fra målingen: kilde, navn og hvorfor. Ren. */
+export function valgFraMåling(kv, en) {
+  const fra = (kilde, m) => {
+    const n = m && m.nærmeste.find(x => x.navn && x.m != null);
+    if (!n || n.m > ADRESSE_MAKS_M) return null;
+    return { kilde, navn: n.m <= ADRESSE_HER_M ? n.navn : 'nær ' + n.navn, m: n.m };
+  };
+  return fra('kartverket', kv) || fra('entur', en)
+    || { kilde: 'ingen', navn: null, m: null, grunn: 'ingen adresse innen ' + ADRESSE_MAKS_M + ' m' };
+}
+/** Én linje: hva valget bygde på. Ren. */
+export function målingLinje(mål) {
+  if (!mål) return '';
+  const kv = mål.kartverket, v = mål.valg || {};
+  const kvFeil = kv && (kv.feil || (kv.status && kv.status !== 200) ? 'Kartverket svarte ikke (' + (kv.feil || 'HTTP ' + kv.status) + ')' : null);
+  if (v.kilde === 'kartverket') return 'Kartverket · ' + v.navn + ' · ' + v.m + ' m';
+  if (v.kilde === 'entur') return (kvFeil || 'Kartverket: ingen adresse') + ' → Entur · ' + v.navn + ' · ' + v.m + ' m';
+  return (kvFeil ? kvFeil + ' · ' : '') + (v.grunn || 'ingen adresse');
+}
+export function stedMåling(ll) { return ll && Number.isFinite(ll.lat) ? _måling.get(nøkkel(ll)) || null : null; }
+
+async function spør(hent, url, tilRader, ll) {
+  try {
+    const r = await hent(url);
+    if (!r || !r.ok) return målKilde({ status: r && r.status, tekst: r && r.text ? await r.text() : '' }, ll);
+    let json = null, tekst = '';
+    if (r.text) { tekst = await r.text(); try { json = JSON.parse(tekst); } catch { return målKilde({ status: r.status, feil: 'ikke JSON', tekst }, ll); } }
+    else { json = await r.json(); tekst = JSON.stringify(json); }
+    return målKilde({ status: r.status, tekst, rader: tilRader(json) }, ll);
+  } catch (e) {
+    return målKilde({ feil: (e && (e.name === 'TimeoutError' ? 'tidsavbrudd' : e.message)) || 'nettverk' }, ll);
+  }
+}
+
 /** Navnet hvis kjent; ellers undefined (spør) eller null (fant ingen). */
 export function stedNavn(ll, ferdig, deps = {}) {
   if (!ll || !Number.isFinite(ll.lat)) return null;
@@ -72,11 +139,15 @@ export function stedNavn(ll, ferdig, deps = {}) {
   _svar.set(k, undefined);
   const hentG = deps.geonorge || (u => _hent(u));
   const hentE = deps.entur || (u => enturFetch(u));
-  const json = r => (r && r.ok ? r.json() : null);
-  hentG(geonorgeUrl(ll)).then(json).then(j => velgGeonorge(j, ll)).catch(() => null)
-    .then(navn => navn || hentE(reverseUrl(ll)).then(json).then(j => velgAdresse(j && j.features, ll)).catch(() => null))
-    .then(navn => _svar.set(k, navn || null))
-    .finally(() => { if (ferdig) ferdig(); });
+  (async () => {
+    const kv = await spør(hentG, geonorgeUrl(ll), kvRader, ll);
+    let valg = valgFraMåling(kv, null), en = null;
+    if (valg.kilde !== 'kartverket') { en = await spør(hentE, reverseUrl(ll), enRader, ll); valg = valgFraMåling(kv, en); }
+    const mål = { kartverket: kv, entur: en, valg };
+    _måling.set(k, mål);
+    _svar.set(k, valg.navn || null);
+    if (deps.logg) deps.logg('adresse: ' + målingLinje(mål));
+  })().catch(() => _svar.set(k, null)).finally(() => { if (ferdig) ferdig(); });
   return undefined;
 }
-export function _resetStedNavn() { _svar.clear(); }
+export function _resetStedNavn() { _svar.clear(); _måling.clear(); }

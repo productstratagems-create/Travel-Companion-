@@ -24,7 +24,16 @@ export function nålTekst(navn, venter) {
  * `navnFor(ll, ferdig)` gir navn, undefined mens det hentes, null uten svar;
  * `søk(q)` → Promise<[{label,lat,lon}]>; `onVelg(label, ll)`; `onGps()`.
  */
-export function åpneStedKart({ start, acc, gps, nære, manuell, navnFor, søk, onVelg, onGps }) {
+/** Målingen som tekst — det «kopier» gir deg. Ren. */
+export function målingTekst(ll, mål, linje) {
+  if (!mål) return 'ingen måling ennå for ' + ll.lat.toFixed(5) + ',' + ll.lon.toFixed(5);
+  const del = (navn, m) => !m ? navn + ': ikke spurt' : navn + ': status ' + (m.status != null ? m.status : '-') + (m.feil ? ' · feil ' + m.feil : '')
+    + ' · ' + m.antall + ' treff\n  nærmeste: ' + (m.nærmeste.map(n => (n.navn || '?') + ' ' + (n.m != null ? n.m + ' m' : '?') + (n.mOppgitt != null ? ' (oppgitt ' + n.mOppgitt + ' m)' : '')).join(' · ') || '-')
+    + '\n  felter: ' + (m.felter.join(', ') || '-') + '\n  rå: ' + (m.rå || '-');
+  return 'punkt ' + ll.lat.toFixed(5) + ',' + ll.lon.toFixed(5) + '\nvalg: ' + linje + '\n' + del('Kartverket', mål.kartverket) + '\n' + del('Entur', mål.entur);
+}
+
+export function åpneStedKart({ start, acc, gps, nære, manuell, navnFor, søk, onVelg, onGps, målingFor, målingLinje }) {
   const lag = document.createElement('div');
   lag.className = 'stedkart';
   lag.setAttribute('role', 'dialog');
@@ -43,6 +52,10 @@ export function åpneStedKart({ start, acc, gps, nære, manuell, navnFor, søk, 
     + '<div class="stedkart-bunn">'
     + '<div class="stedkart-adr" aria-live="polite"></div>'
     + '<div class="stedkart-hint">dra kartet til nåla står der du er</div>'
+    // MÅLERUNDEN (v1.218.201): hva oppslaget faktisk fikk, sammenfoldet.
+    + '<details class="stedkart-mål"><summary>hvorfor denne adressen?</summary>'
+    + '<div class="stedkart-mål-linje"></div><pre class="stedkart-mål-rå"></pre>'
+    + '<button type="button" class="stedkart-kopier">kopier målingen</button></details>'
     + '<button type="button" class="stedkart-ok">Bekreft — jeg er her</button>'
     + (gps ? '<button type="button" class="stedkart-gps">◎ ' + (manuell ? 'bruk GPS igjen' : 'tilbake til GPS-punktet') + '</button>' : '')
     + '</div>';
@@ -59,12 +72,21 @@ export function åpneStedKart({ start, acc, gps, nære, manuell, navnFor, søk, 
     const n = navnFor({ lat: c.lat, lon: c.lng }, () => { if (lag.isConnected) oppdater(); });
     valgtNavn = n || null;
     adr.textContent = nålTekst(n, n === undefined);
+    if (målingFor) {
+      const ll = { lat: c.lat, lon: c.lng }, mål = målingFor(ll), linje = mål && målingLinje ? målingLinje(mål) : '';
+      lag.querySelector('.stedkart-mål-linje').textContent = linje || (n === undefined ? 'måler …' : '');
+      lag.querySelector('.stedkart-mål-rå').textContent = målingTekst(ll, mål, linje);
+    }
   };
   kart.on('movestart', () => { adr.textContent = '…'; valgtNavn = null; });
   kart.on('moveend', oppdater);
   setTimeout(() => { kart.invalidateSize(); oppdater(); }, 60);
 
   const lukk = () => { kart.remove(); lag.remove(); };
+  lag.querySelector('.stedkart-kopier').addEventListener('click', () => {
+    const t = lag.querySelector('.stedkart-mål-rå').textContent;
+    try { navigator.clipboard.writeText(t); lag.querySelector('.stedkart-kopier').textContent = 'kopiert ✓'; } catch { /* markér teksten i stedet */ }
+  });
   const flytt = ll => kart.setView([ll.lat, ll.lon], ZOOM.GANG);
   lag.querySelector('.stedkart-lukk').addEventListener('click', lukk);
   lag.querySelector('.stedkart-ok').addEventListener('click', () => {

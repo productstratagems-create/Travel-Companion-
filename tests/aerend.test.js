@@ -26,3 +26,10 @@ describe('ærend (v1.218.207)', () => {
     expect(s).toMatch(/if \(_målSted && Number\.isFinite\(_målSted\.lat\)\)/);
   });
 });
+describe('foldet til svaret henger sammen med tavla (v1.218.210)', () => {
+  it('uten valg står bare lenken; knappene først etter trykk', () => {
+    const s = readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toMatch(/if \(!_hvaÆrend && !_hvaÅpen\) return '<div class="hva"><button type="button" class="hva-lenke" data-hva="åpne">hva skal du\? ▸<\/button><\/div>';/);
+    expect(s).toMatch(/let _hvaÅpen = false;/);
+  });
+});

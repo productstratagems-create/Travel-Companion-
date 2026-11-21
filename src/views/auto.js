@@ -1199,10 +1199,15 @@ export function stopHeadHtml(stop, count, open, extra) {
   // stasjonen toget skal til — en avstand til fots, og en gang-ETA, fra et
   // tog. Når toget er der, er svaret.
   const ombordAt = extra && Number.isFinite(extra.ombordAt) ? extra.ombordAt : null;
+  // ANSLAG, IKKE MÅLING (v1.218.205): med en usikker posisjon er gangtida et
+  // anslag — «ca.», dempet — og ringen på kartet viser usikkerheten. Ingen
+  // setning om sensoren (godkjent mønster, AGENTS.md).
+  const _ps = extra && extra.pos;
+  const ca = !!(_ps && _ps.kind && !['ok', 'ingen-stopp'].includes(_ps.kind)) ? 'ca. ' : '';
   if (ombordAt != null) bits.push(extra.ombordHer ? 'toget står her' : 'toget er der ' + clk(ombordAt));
-  else if (extra && extra.walkDist != null) bits.push(extra.walkDist + (fart ? ' m' : ' m å gå'));
+  else if (extra && extra.walkDist != null) bits.push(ca + extra.walkDist + (fart ? ' m' : ' m å gå'));
   else if (stop && stop.distM != null) bits.push(stop.distM + ' m');
-  if (ombordAt == null && !fart && extra && extra.walkMins != null) bits.push(extra.walkMins + ' min gange');
+  if (ombordAt == null && !fart && extra && extra.walkMins != null) bits.push(ca + extra.walkMins + ' min gange');
   // WHY THIS STOP AND NOT ANOTHER.
   //
   // From v1.141.0 the ranking can prefer a stop you are walking TOWARDS over
@@ -1251,7 +1256,9 @@ export function stopHeadHtml(stop, count, open, extra) {
   // be red. Two things that must agree, one release after the last one. One
   // object cannot disagree with itself.
   const ps = extra && extra.pos;
-  const note = ps && ps.kind && ps.kind !== 'ok' && ps.label
+  // Bare det du kan gjøre noe med står som tekst (avslått, ikke støttet);
+  // alder og nøyaktighet vises på kartet (v1.218.205).
+  const note = ps && ['avslatt', 'utilgjengelig', 'tidsavbrudd', 'ikke-stottet'].includes(ps.kind) && ps.label
     ? '<span class="auto-pos-note ' + esc('pos-' + ps.kind) + '">'
       + esc(ps.label) + '</span>'
     : '';
@@ -1270,7 +1277,7 @@ export function stopHeadHtml(stop, count, open, extra) {
   // A middot joins peers. Its own row cannot split another fact, and cannot be
   // split by one.
   const factsLine = bits.length
-    ? '<span class="auto-stop-facts">' + esc(bits.join(' \u00b7 ')) + '</span>' : '';
+    ? '<span class="auto-stop-facts' + (ca ? ' auto-anslag' : '') + '">' + esc(bits.join(' \u00b7 ')) + '</span>' : '';
   // NESTE SVING (v1.218.192): bare ved beslutningspunkter, ikke på rette strekk.
   const svingNote = extra && extra.sving ? '<span class="auto-way-note auto-sving">' + esc(extra.sving) + '</span>' : '';
   const facts = factsLine + wayNote + svingNote + note;
@@ -2356,11 +2363,34 @@ export const HER_JA_KEY = 't.herBekreftet';
 function _lesHerJa() { try { const v = JSON.parse(storage.get(HER_JA_KEY) || 'null'); return v && Number.isFinite(v.lat) ? v : null; } catch { return null; } }
 function _lagreHerJa(v) { try { if (v) storage.set(HER_JA_KEY, JSON.stringify({ lat: v.lat, lon: v.lon })); else storage.remove(HER_JA_KEY); } catch { /* */ } }
 let _herÅpen = false, _herJa = _lesHerJa(), _herAnker = null, _herKartVelg = false, _herSist = null;
-export function herTilstand(ps, manuell, ja, gps) {
+/* USIKKERHET MED RO (v1.218.205). Bestilt: en svært usikker posisjon skal
+   oppheve bekreftelsen — «men dersom en situasjon gir masse fluktueringer …
+   så må det håndteres på en måte som skaper ro». Hysterese med ventetid:
+   usikker først når det har vart USIKKER_INN_MS, sikker igjen først når det
+   har vart SIKKER_UT_MS — og grensene er ulike (150 m inn, 60 m ut), så en
+   nøyaktighet som bølger rundt én grense ikke flytter skjermen. Ren. */
+export const USIKKER_INN_M = 150, SIKKER_UT_M = 60, USIKKER_INN_MS = 15_000, SIKKER_UT_MS = 45_000;
+export function usikkerMedRo(forrige, ps, nå) {
+  const f = forrige || { usikker: false, siden: null };
+  const acc = ps && Number.isFinite(ps.acc) ? ps.acc : null;
+  const grå = ps && ['gammel', 'borte', 'ukjent-alder', 'framskrevet'].includes(ps.kind);
+  const vilUsikker = grå || (acc != null && acc > USIKKER_INN_M);
+  const vilSikker = !grå && acc != null && acc < SIKKER_UT_M;
+  const bytt = f.usikker ? vilSikker : vilUsikker;
+  if (!bytt) return { usikker: f.usikker, siden: null };
+  const siden = f.siden != null ? f.siden : nå;
+  if (nå - siden >= (f.usikker ? SIKKER_UT_MS : USIKKER_INN_MS)) return { usikker: !f.usikker, siden: null };
+  return { usikker: f.usikker, siden };
+}
+let _usikkerRo = null;
+
+export function herTilstand(ps, manuell, ja, gps, usikker = false) {
   let kind = posBekreftelse(ps, manuell);
   // BEKREFTET (v1.218.202): «ja» — på påstanden eller spørsmålet — tar
   // spørsmålet bort til du har flyttet deg tydelig (100 m).
   if ((kind === 'spørsmål' || kind === 'påstand') && ja && gps && _avst(ja, gps) < 100) kind = 'bekreftet';
+  // En bekreftelse holder ikke mot en posisjon som har vært svært usikker en stund (v1.218.205).
+  if (kind === 'bekreftet' && usikker) kind = 'spørsmål';
   return kind;
 }
 function _renderHer() {
@@ -2368,7 +2398,8 @@ function _renderHer() {
   if (!el || _herÅpen) return;
   const manuell = !!state.walkFromLL;
   const ps = _posState();
-  const kind = herTilstand(ps, manuell, _herJa, state.homeLL);
+  _usikkerRo = usikkerMedRo(_usikkerRo, ps, Date.now());
+  const kind = herTilstand(ps, manuell, _herJa, state.homeLL, _usikkerRo.usikker);
   const ll = state.walkFromLL || state.homeLL;
   const wf = manuell ? loadWalkFrom() : null;
   const oppslag = !manuell && ll ? stedNavn(ll, () => { _herSist = null; _renderHer(); }) : null;

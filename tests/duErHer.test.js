@@ -79,3 +79,27 @@ describe('bekreftelsen huskes (v1.218.203)', () => {
     expect(readFileSync('src/storage.js', 'utf8')).toContain("'t.herBekreftet'");
   });
 });
+
+import { usikkerMedRo, USIKKER_INN_MS, SIKKER_UT_MS } from '../src/views/auto.js';
+describe('usikkerhet med ro (v1.218.205)', () => {
+  const p = acc => ({ kind: 'ok', acc });
+  it('svært usikker en stund: bekreftelsen holder ikke, appen spør', () => {
+    let s = usikkerMedRo(null, p(784), 0);
+    expect(s.usikker).toBe(false);
+    s = usikkerMedRo(s, p(784), USIKKER_INN_MS);
+    expect(s.usikker).toBe(true);
+    expect(herTilstand({ kind: 'ok', acc: 784 }, false, { lat: 59.85, lon: 10.83 }, { lat: 59.85, lon: 10.83 }, s.usikker)).toBe('spørsmål');
+  });
+  it('bølger rundt grensen: ingen bytte (ro)', () => {
+    let s = null;
+    for (let t = 0; t < 120_000; t += 5_000) s = usikkerMedRo(s, p(t % 10_000 ? 200 : 40), t);
+    expect(s.usikker).toBe(false);
+  });
+  it('sikker igjen først når nøyaktigheten har vært god lenge', () => {
+    let s = { usikker: true, siden: null };
+    s = usikkerMedRo(s, p(30), 0); expect(s.usikker).toBe(true);
+    s = usikkerMedRo(s, p(100), 20_000); expect(s.usikker).toBe(true);   // mellom grensene: tellingen nullstilles
+    s = usikkerMedRo(s, p(30), 30_000); s = usikkerMedRo(s, p(30), 30_000 + SIKKER_UT_MS);
+    expect(s.usikker).toBe(false);
+  });
+});

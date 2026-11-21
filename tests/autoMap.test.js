@@ -167,10 +167,13 @@ describe('stopHeadHtml', () => {
 
   // The whole screen — heading, map, and the reach on every row — now leans
   // on the position being right. A twelve-minute-old fix has to say so.
-  it('says when the position is stale', () => {
+  // v1.218.205: alderen vises på kartet (grå prikk); gangtida sier «ca.».
+  it('says the walk is an estimate when the position is stale — not the sensor', () => {
     const h = stopHeadHtml(stop, 0, false,
       { walkMins: 5, pos: { kind: 'gammel', label: 'posisjon 12 min gammel' } });
-    expect(h).toContain('posisjon 12 min gammel');
+    expect(h).not.toContain('posisjon 12 min gammel');
+    expect(h).toContain('ca. 5 min gange');
+    expect(h).toContain('auto-anslag');
   });
 
   it('says nothing about age while the fix is fresh', () => {
@@ -454,35 +457,35 @@ describe('stopHeadHtml and the position note', () => {
     const el = document.createElement('div');
     el.innerHTML = stopHeadHtml(stop, 0, false, {
       walkDist: 979, walkMins: 14,
-      pos: { kind: 'unoyaktig', label: 'posisjonen er unøyaktig (±56 m)' },
+      pos: { kind: 'avslatt', label: 'stedstjenester er avslått' },
     });
     const facts = el.querySelector('.auto-stop-facts');
     const note = el.querySelector('.auto-pos-note');
-    expect(facts.textContent).toBe('979 m å gå · 14 min gange');
+    expect(facts.textContent).toBe('ca. 979 m å gå · ca. 14 min gange');
     // Not nested, and no middot left dangling between them.
     expect(facts.contains(note)).toBe(false);
     expect(facts.textContent.endsWith('·')).toBe(false);
-    expect(note.textContent).toBe('posisjonen er unøyaktig (±56 m)');
+    expect(note.textContent).toBe('stedstjenester er avslått');
   });
 
   // A caution with no facts beside it must not leave an empty facts line.
   it('writes no facts line when there is nothing but the caution', () => {
     const el = document.createElement('div');
     el.innerHTML = stopHeadHtml({ name: 'Skullerud' }, 0, false,
-      { pos: { kind: 'gammel', label: 'posisjon 3 min gammel' } });
+      { pos: { kind: 'avslatt', label: 'stedstjenester er avslått' } });
     expect(el.querySelector('.auto-stop-facts')).toBeNull();
-    expect(el.querySelector('.auto-pos-note').textContent).toBe('posisjon 3 min gammel');
+    expect(el.querySelector('.auto-pos-note').textContent).toBe('stedstjenester er avslått');
   });
 
   it('wraps only the note, not the whole facts line', () => {
     const h = stopHeadHtml(stop, 0, false,
       { walkDist: 374, walkMins: 7,
-        pos: { kind: 'unoyaktig', label: 'posisjonen er unøyaktig (±120 m)' } });
+        pos: { kind: 'tidsavbrudd', label: 'posisjonen tok for lang tid' } });
     const el = document.createElement('div');
     el.innerHTML = h;
     const note = el.querySelector('.auto-pos-note');
     expect(note).not.toBeNull();
-    expect(note.textContent).toContain('unøyaktig');
+    expect(note.textContent).toContain('for lang tid');
     // The distance is outside it — that is the whole point of the split.
     expect(note.textContent).not.toContain('374');
     expect(el.textContent).toContain('374');
@@ -494,7 +497,7 @@ describe('stopHeadHtml and the position note', () => {
       el.innerHTML = stopHeadHtml(stop, 0, false, { pos: { kind, label: 'x' } });
       return el.querySelector('.auto-pos-note').className;
     };
-    expect(mk('gammel')).not.toBe(mk('unoyaktig'));
+    expect(mk('avslatt')).not.toBe(mk('tidsavbrudd'));
   });
 
   // A good position says nothing. The verdict for 'ok' carries an empty label

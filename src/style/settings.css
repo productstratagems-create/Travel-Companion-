@@ -1164,3 +1164,4 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .at-kombi .hva-info{display:flex;flex-direction:column;gap:.1rem;font-size:14px}
 .at-kombi .hva-l1{display:flex;align-items:center;gap:.3rem;flex-wrap:wrap}
 #auto-her .her-ca-ord{color:var(--text-soft);font-weight:400}
+.stopp-linjer{font-size:.85em;opacity:.85}

@@ -1155,3 +1155,4 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 #auto-her .hva-l1{display:flex;align-items:center;gap:.3rem;flex-wrap:wrap}
 #auto-her .hva-l2,#auto-her .hva-l3{font-size:13px;color:var(--text-soft)}
 #auto-her .hva-pil{color:var(--text-soft);font-size:12px}
+.at-retning .omr-linjer{margin-left:.4em;font-size:.8em;opacity:.7}

@@ -36,6 +36,7 @@ function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f 
 import { ÆREND, ærendNå, ærendSteder, ÆREND_RADIUS_M } from '../aerend.js';
 import { reiseRader } from '../reiseTil.js';
 import { roPunkt } from '../roPunkt.js';
+import { målområder } from '../maalomrader.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
 export { stopsAhead, arriveText };
@@ -5422,7 +5423,9 @@ export function retningGruppe(d, here, walkMins, now) {
 export const AT_RETNINGER = ['alle', 'mot', 'hjem', 'andre'];
 export const AT_RETNING_TEKST = { alle: 'alle', mot: 'mot sentrum', hjem: 'hjemover', andre: 'andre retninger' };
 /** Retningene filteret slipper gjennom. «Andre» er verken mot sentrum eller hjemover. */
-export function filtrerRetning(dirs, valg, gruppe, hjem = () => false) {
+export function filtrerRetning(dirs, valg, gruppe, hjem = () => false, område = () => null) {
+  // MÅLOMRÅDENE (v1.218.213): «andre retninger» delt etter hvor linjene går.
+  if (typeof valg === 'string' && valg.startsWith('omr:')) return dirs.filter(d => område(d) === valg);
   if (valg === 'mot') return dirs.filter(d => gruppe(d) === 'mot');
   if (valg === 'hjem') return dirs.filter(d => hjem(d));
   if (valg === 'andre') return dirs.filter(d => gruppe(d) !== 'mot' && !hjem(d));
@@ -5499,9 +5502,23 @@ function _hjemSøkOppdater(nå) {
    bare én retning), vises «alle» der — uten at valget ditt glemmes. */
 export const AT_RETNING_KEY = 't.autoTavleRetning';
 export function lagretRetning() {
-  try { const v = storage.get(AT_RETNING_KEY); return AT_RETNINGER.includes(v) ? v : 'alle'; } catch { return 'alle'; }
+  try { const v = storage.get(AT_RETNING_KEY); return AT_RETNINGER.includes(v) || (v && v.startsWith('omr:')) ? v : 'alle'; } catch { return 'alle'; }
 }
-function _lagreRetning(v) { try { if (AT_RETNINGER.includes(v)) storage.set(AT_RETNING_KEY, v); } catch { /* */ } }
+function _lagreRetning(v) { try { if (AT_RETNINGER.includes(v) || (v && v.startsWith('omr:'))) storage.set(AT_RETNING_KEY, v); } catch { /* */ } }
+/* MÅLOMRÅDENE HER (v1.218.213, src/maalomrader.js). Regnet på nytt bare når
+   stoppet eller settet av retninger endres — knappene hopper ikke. */
+let _atOmr = [], _atOmrNøkkel = '', _atOmrAv = new Map();
+const _omrNøkkel = d => (d.frontText || '') + '\0' + ((d.lines && d.lines[0] && (d.lines[0].id || d.lines[0].code)) || '');
+function _oppdaterOmråder(andre, here, nå) {
+  const sig = (_stop && _stop.id) + '|' + andre.map(_omrNøkkel).sort().join('|');
+  if (sig === _atOmrNøkkel) return;
+  _atOmrNøkkel = sig;
+  _atOmr = målområder(andre, here, d => stopsAhead(d.call, _stop && _stop.name, nå), _omrNøkkel);
+  _atOmrAv = new Map();
+  _atOmr.forEach(o => o.nøkler.forEach(k => _atOmrAv.set(k, o.id)));
+  _atOmr.forEach(o => { o.linjer = [...new Set(andre.filter(d => o.nøkler.has(_omrNøkkel(d))).map(d => d.lines && d.lines[0] && d.lines[0].code).filter(Boolean))]; });
+}
+const _retningTekst = k => AT_RETNING_TEKST[k] || ((_atOmr.find(o => o.id === k) || {}).tekst) || 'dit';
 let _atRetning = lagretRetning();
 let _atRekke = [];      // forrige rekkefølge, for ro (v1.218.172)
 let _atGangTil = null;  // nabostoppet du trykket på (v1.218.172)
@@ -5570,7 +5587,7 @@ function _iRetning(dirs, nå = Date.now()) {
   const here = (_stop && _stop.lat != null) ? { lat: _stop.lat, lon: _stop.lon } : null;
   const g = _stop ? gangTil(_stop) : null, gang = g ? g.mins : null;
   const liste = hjemStopp();
-  return filtrerRetning(dirs, _atRetning, d => retningGruppe(d, here, gang, nå), d => retningHjem(d, gang, nå, liste));
+  return filtrerRetning(dirs, _atRetning, d => retningGruppe(d, here, gang, nå), d => retningHjem(d, gang, nå, liste), d => _atOmrAv.get(_omrNøkkel(d)) || null);
 }
 function _tegnAutoTavle(body) {
   const nå = Date.now();
@@ -5594,7 +5611,9 @@ function _tegnAutoTavle(body) {
   const harBegge = ([...grp.values()].some(v => v === 'mot') && [...grp.values()].some(v => v !== 'mot')) || hjemListe.length > 0;
   if (!harBegge) _atRetning = 'alle';
   // «Hjemover» står alltid (v1.218.147): uten stopp tar et trykk deg dit du velger dem.
-  const knappValg = AT_RETNINGER;
+  // «Andre retninger» delt i målområder når linjene herfra går flere veier.
+  _oppdaterOmråder(synlige.filter(d => grp.get(d) !== 'mot' && !retningHjem(d, gang, nå, hjemListe)), here, nå);
+  const knappValg = _atOmr.length ? ['alle', 'mot', 'hjem', ..._atOmr.map(o => o.id)] : AT_RETNINGER;
   if (!knappValg.includes(_atRetning)) _atRetning = 'alle';
   if (hjemListe.length) _hjemSøkOppdater(nå);
   const iRetning = _iRetning(synlige, nå);
@@ -5652,7 +5671,8 @@ function _tegnAutoTavle(body) {
   }
   const retningKnapper = harBegge ? '<div class="auto-fra at-retning" role="group" aria-label="retning">'
     + knappValg.map(k => '<button type="button" class="auto-fra-knapp' + (k === _atRetning ? ' valgt' : '')
-      + '" data-retning="' + k + '" aria-pressed="' + (k === _atRetning) + '"' + (k === 'hjem' ? ' title="hold for å velge stoppene"' : '') + '>' + AT_RETNING_TEKST[k] + '</button>').join('') + '</div>' : '';
+      + '" data-retning="' + k + '" aria-pressed="' + (k === _atRetning) + '"' + (k === 'hjem' ? ' title="hold for å velge stoppene"' : '') + '>' + esc(_retningTekst(k))
+      + ((o => o && o.linjer && o.linjer.length ? '<small class="omr-linjer">' + esc(o.linjer.slice(0, 4).join(' ')) + '</small>' : '')(_atOmr.find(o => o.id === k))) + '</button>').join('') + '</div>' : '';
   // Avvikene per linje, samme kilde som retningskortene (v1.218.126).
   const perLinje = byLine(_alerts);
   const meld = id => perLinje.get(id) || [];
@@ -5679,7 +5699,7 @@ function _tegnAutoTavle(body) {
   body.innerHTML = retningKnapper + (rader.length
     ? '<div class="set-label">' + (Number.isFinite(_fraMs) ? 'avganger ' + esc(fraTidTekst(_fraMs, nå)) : 'neste avganger herfra') + '</div>' + merknad + hjemMerk + ikkeHtml
       + '<div class="at-liste">' + del.rekker.map((x, i) => tavleRadHtml(x, nå, del.ikke.length + i, meld)).join('') + '</div>' + bunn
-    : merknad + hjemMerk + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : (_atRetning !== 'alle' ? 'ingen avganger ' + AT_RETNING_TEKST[_atRetning] + ' herfra nå' : 'ingen avganger herfra den nærmeste timen')) + '</div>');
+    : merknad + hjemMerk + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : (_atRetning !== 'alle' ? 'ingen avganger ' + _retningTekst(_atRetning) + ' herfra nå' : 'ingen avganger herfra den nærmeste timen')) + '</div>');
   body.querySelectorAll('.at-raskest[data-pin]').forEach(b => b.addEventListener('click', () => { if (pinStop(b.dataset.pin)) _renderBody(); }));
   body.querySelectorAll('.at-retning [data-retning]').forEach(b => b.addEventListener('click', () => {
     if (_hjemHold.brukt) { _hjemHold.brukt = false; return; }   // langt trykk er ikke et valg

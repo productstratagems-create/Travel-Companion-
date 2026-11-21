@@ -1,6 +1,6 @@
 // v1.218.192: gangen steg for steg — neste sving, framme-siden, kurs fra sporet.
 import { describe, it, expect } from 'vitest';
-import { nesteSving, svingTekst, kursNå, SVING_GRADER } from '../src/gangSteg.js';
+import { nesteSving, svingTekst, kursNå, SVING_GRADER, SVING_PÅ } from '../src/gangSteg.js';
 
 const N = 59.85, Ø = 10.83, M_LAT = 1 / 111320, M_LON = 1 / (111320 * Math.cos(N * Math.PI / 180));
 const p = (nord, øst) => [N + nord * M_LAT, Ø + øst * M_LON];
@@ -46,7 +46,9 @@ import { readFileSync } from 'node:fs';
 describe('koblingen', () => {
   it('kjeglen fra sporet på prikken; linja i Auto og avgangsdetaljene', () => {
     expect(readFileSync('src/ui/map.js', 'utf8')).toMatch(/const k = manuell \? null : kursNå\(state\.posTrail\);/);
-    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/sving: !fart && !syn\.lås \? svingTekst\(nesteSving\(approachPoints\(\), userLL\(\), kursNå\(state\.posTrail\)\)/);
-    expect(readFileSync('src/views/selected.js', 'utf8')).toMatch(/svingTekst\(nesteSving\(approachPoints\(\), userLL\(\), kursNå\(state\.posTrail\)\), navn\)/);
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/sving: SVING_PÅ && !fart && !syn\.lås \? svingTekst\(nesteSving\(approachPoints\(\), userLL\(\), kursNå\(state\.posTrail\)\)/);
+    expect(readFileSync('src/views/selected.js', 'utf8')).toMatch(/SVING_PÅ \? svingTekst\(nesteSving\(approachPoints\(\), userLL\(\), kursNå\(state\.posTrail\)\), navn\) : ''/);
+    // v1.218.230: av, ikke etter proven.
+    expect(SVING_PÅ).toBe(false);
   });
 });

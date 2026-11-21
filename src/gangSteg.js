@@ -102,3 +102,14 @@ export function svingTekst(s, stoppNavn) {
   const rund = s.m < 20 ? 'nå' : 'om ' + (s.m < 100 ? Math.round(s.m / 10) * 10 : Math.round(s.m / 50) * 50) + ' m';
   return rund + ': ' + (s.skarp ? 'skarpt ' : '') + 'til ' + s.side;
 }
+
+/**
+ * SVINGTEKSTEN AV (v1.218.230). Spurt: «Hva er proven for navigasjonsstøtte
+ * til fots? Her blir det ikke helt hjelpsomt. Ta det bort dersom vi ikke
+ * greier å lage det iht. proven.» Proven (Google Maps, Apple Kart, gange):
+ * svinger gis bare i en navigasjon du har startet — stor pil, avstand og
+ * gatenavn, oppdatert etter kursen din, med vibrasjon ved svingen. En
+ * tekstlinje under stoppnavnet på en tavle er ikke det. Én bryter for Auto
+ * og avgangsdetaljene; funksjonene står.
+ */
+export const SVING_PÅ = false;

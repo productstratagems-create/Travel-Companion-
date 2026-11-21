@@ -40,7 +40,7 @@ import { roPunkt } from '../roPunkt.js';
 import { målområder } from '../maalomrader.js';
 import { omrProbe } from '../api/omrProbe.js';
 import { fetchNearbyPlaces } from '../api/places.js';
-import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
+import { nesteSving, svingTekst, kursNå, SVING_PÅ } from '../gangSteg.js';
 export { stopsAhead, arriveText };
 import config from '../config.js';
 import { state } from '../state.js';
@@ -90,7 +90,7 @@ import { bindPlaceInput } from '../ui/suggest.js';
 import { metresBetween as _avst } from '../haversine.js';
 import L from 'leaflet';
 import { SPOR_ZOOM as PLATTFORM_ZOOM_AUTO, createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap, tømLag } from '../ui/map.js';
-import { uthevAvgang, aktivFraAvgang } from '../ui/stasjonslag.js';
+import { uthevAvgang, aktivFraAvgang, settPlattformLinjer, plattformLinjer } from '../ui/stasjonslag.js';
 import { leggTil as leggTilVerktøy, sett as settVerktøy, leggTilLag, verktøyFlate } from '../ui/kartVerktoy.js';
 import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, plattformMedKode as _plattformMedKode } from '../api/quays.js';
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
@@ -2701,7 +2701,10 @@ function _renderWhere() {
       way: _way.kind,
       wayEtaS: _way.etaS,
       // Neste sving på gangruta til stoppet (v1.218.192) — bare til fots.
-      sving: !fart && !syn.lås ? svingTekst(nesteSving(approachPoints(), userLL(), kursNå(state.posTrail)), _stop && _stop.name) : '',
+      // SVINGEN AV (v1.218.230): «Ta det bort dersom vi ikke greier å lage det
+      // iht. proven.» Proven (Google/Apple gange): svinger bare i en navigasjon
+      // du har startet, med pil, gatenavn og kurs — ikke som tekst på tavla.
+      sving: SVING_PÅ && !fart && !syn.lås ? svingTekst(nesteSving(approachPoints(), userLL(), kursNå(state.posTrail)), _stop && _stop.name) : '',
     })
     // HVA APPEN TROR (v1.218.55): dag, del av døgnet, hvor du er og neste
     // reise, sagt — ikke bare brukt. Bare til fots; om bord sier raden over det.
@@ -3514,8 +3517,12 @@ export function stoppLinjerLapp(bein, gangMin, nå) {
   const koder = [...new Set(bein.map(b => b.kode).filter(Boolean))].slice(0, 5);
   const først = bein.reduce((a, b) => (!a || b.ms < a.ms ? b : a), null);
   const om = først && Number.isFinite(gangMin) ? Math.round((først.ms - nå) / 60000) - gangMin : null;
-  return '<br><span class="stopp-linjer">' + esc(koder.join(' · '))
-    + (først && om != null ? ' — ' + esc(først.kode) + (om <= 0 ? ' gå nå' : ' gå om ' + om + ' min') : '') + '</span>';
+  // Første linje én gang (v1.218.230: «Hvorfor er 73 nevnt to ganger?»):
+  // «73 gå om 2 min · også 72», ikke «73 · 72 — 73 gå om 2 min».
+  const andre = først ? koder.filter(k => k !== først.kode) : koder;
+  if (!først || om == null) return '<br><span class="stopp-linjer">' + esc(koder.join(' · ')) + '</span>';
+  return '<br><span class="stopp-linjer">' + esc(først.kode) + (om <= 0 ? ' gå nå' : ' gå om ' + om + ' min')
+    + (andre.length ? ' · også ' + esc(andre.join(' · ')) : '') + '</span>';
 }
 function _lappHtml(b, nivå) {
   if (nivå <= 0) return null;
@@ -3883,6 +3890,8 @@ function _renderMap() {
   // DIN PLATTFORM (v1.218.60): åpen retning vinner, så kortet — samme
   // prioritet som kartets tema under.
   uthevAvgang(_aMap, _minAvgang(), _stop && _stop.id);
+  // Linjene på plattformene i stasjonsblikket (v1.218.230).
+  settPlattformLinjer(_aMap, plattformLinjer(_iRetning(_dirs).map(d => d.call).filter(Boolean), _stop && _stop.id));
   // Formknappen skal alltid stå i søylen (v1.218.89). Sett mangle på telefonen
   // om bord; ikke gjenskapt i proben — så den settes inn igjen om den er borte.
   _sikreFormknapp();

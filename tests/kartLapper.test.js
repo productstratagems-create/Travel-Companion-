@@ -26,3 +26,22 @@ describe('lappene i Auto-kartet', () => {
     expect(EDD_DEMPET).toBeLessThan(0.5);
   });
 });
+import { endeMerkeHtml, endeMerkeSide, endeLapper } from '../src/views/auto.js';
+describe('linjemerket ved linjas ende (v1.218.227)', () => {
+  const ende = { id: 'E', name: 'Dalsåsen', lat: 59.8, lon: 10.8 };
+  it('samme ende: én lapp med begge merkene, uten tid og navn', () => {
+    const g = endeLapper([{ kode: '73', farge: '#e60000', modus: 'bus', ms: T, stopp: [ende] }, { kode: '72', farge: '#e60000', modus: 'bus', ms: T, stopp: [ende] }]);
+    expect(g).toHaveLength(1);
+    const h = endeMerkeHtml(g[0]);
+    expect(h).toMatch(/73/); expect(h).toMatch(/72/);
+    expect(h).not.toMatch(/Dalsåsen|\d\d:\d\d/);
+  });
+  it('fritt endepunkt: lapp ved enden; overlapp med en viktigere lapp: ingen lapp (ikke flyttet)', () => {
+    expect(endeMerkeSide({ x: 200, y: 200 }, 40, 22, [], 414, 400)).toMatchObject({ side: 'right' });
+    const stoppLapp = { venstre: 150, høyre: 300, topp: 150, bunn: 250 };
+    expect(endeMerkeSide({ x: 200, y: 200 }, 40, 22, [stoppLapp], 414, 400)).toBe(null);
+  });
+  it('ved kanten: en annen side', () => {
+    expect(endeMerkeSide({ x: 400, y: 200 }, 40, 22, [], 414, 400).side).not.toBe('right');
+  });
+});

@@ -27,14 +27,16 @@ describe('linja', () => {
   it('påstand med «ikke riktig?», spørsmål med ja/nei og nøyaktighet, manuell med «bruk GPS igjen»', () => {
     expect(herLinjeHtml({ kind: 'påstand', navn: 'Stenbråtveien 14' })).toMatch(/Du er her: <b>Stenbråtveien 14<\/b><\/span><span class="her-valg">[\s\S]*data-her="ja"[\s\S]*ikke riktig\?/);
     const q = herLinjeHtml({ kind: 'spørsmål', navn: 'Stenbråtveien', acc: 150 });
-    expect(q).toMatch(/Er du her\?/); expect(q).toMatch(/±150 m/); expect(q).toMatch(/data-her="ja"/); expect(q).toMatch(/nei, velg sted/);
+    expect(q).toMatch(/Er du her\?/); expect(q).not.toMatch(/±/); expect(q).toMatch(/data-her="ja"/); expect(q).toMatch(/nei, velg sted/);
     expect(herLinjeHtml({ kind: 'manuell', navn: 'Stenbråten' })).toMatch(/bruk GPS igjen/);
     expect(herLinjeHtml({ kind: 'ukjent' })).toMatch(/Hvor er du\?/);
   });
   it('«ja» gjelder til du har flyttet deg 100 m', () => {
     const ja = { lat: 59.85, lon: 10.83 };
     expect(herTilstand({ kind: 'ok', acc: 150 }, false, ja, { lat: 59.8501, lon: 10.83 })).toBe('bekreftet');
-    expect(herTilstand({ kind: 'ok', acc: 150 }, false, ja, { lat: 59.852, lon: 10.83 })).toBe('spørsmål');
+    // v1.218.212: spørsmålet krever at usikkerheten har VART (hysteresen) — én fiks på ±150 m spør ikke.
+    expect(herTilstand({ kind: 'ok', acc: 150 }, false, ja, { lat: 59.852, lon: 10.83 })).toBe('påstand');
+    expect(herTilstand({ kind: 'ok', acc: 150 }, false, ja, { lat: 59.852, lon: 10.83 }, true)).toBe('spørsmål');
   });
 });
 

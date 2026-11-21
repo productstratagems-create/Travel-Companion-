@@ -35,7 +35,10 @@ describe('felles', () => {
   });
   it('koblingen: Auto-kartet tegner stamme, grener og «veivalg»', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');
-    expect(a).toMatch(/const _gaffel = walkPts && walkPts\.length && _altR \? felles\(walkPts, _altR\) : null;/);
+    expect(a).toMatch(/const _tre = gangTre\(_ruter\);/);
+    // v1.218.208: ÉN tegneplass for gang i Auto-kartet — ingen sti tegnes utenom treet.
+    expect(a.match(/drawWalk\(_aLayer,/g)).toHaveLength(1);
+    expect(a).toMatch(/_tre\.linjer\.forEach\(l => drawWalk\(_aLayer, l\)\)/);
     expect(a).toMatch(/bindTooltip\('veivalg'/);
     expect(MØTES_M).toBe(12);
   });

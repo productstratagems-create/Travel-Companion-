@@ -28,7 +28,11 @@ import { lesFokus, lagreFokus } from '../ui/kartValg.js';
 import { ZOOM as ZOOM_TRINN } from '../ui/kartRamme.js';
 import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
 import { sikreGang, gangRuteTil } from '../api/gangTilStopp.js';
-import { felles } from '../veivalg.js';
+import { gangTre, stierFraPrikken } from '../veivalg.js';
+let _gangTreLogg = '';
+/** Felles startpunkt (v1.218.208): første punkt på ruta til hovedstoppet —
+ *  der rutetjenesten alt satte deg på veien — så alle ruter starter på samme vei. */
+function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f ? (Array.isArray(f) ? { lat: f[0], lon: f[1] } : f) : userLL(); }
 import { ÆREND, ærendNå, ærendSteder, ÆREND_RADIUS_M } from '../aerend.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
@@ -4116,32 +4120,33 @@ function _renderMap() {
     }
   }
 
-  // VEIVALGET (v1.218.204, src/veivalg.js): går gangen til hovedstoppet og
-  // til alternativet samme vei et stykke, tegnes én felles stamme og to grener
-  // fra punktet der du må velge — ikke to stier fra døra.
-  const _altR = _altStopp() && gangRuteTil(_altStopp());
-  const _gaffel = walkPts && walkPts.length && _altR ? felles(walkPts, _altR) : null;
-  if (_gaffel) {
-    drawWalk(_aLayer, _gaffel.stamme);
-    drawWalk(_aLayer, _gaffel.a);
-    L.marker(_gaffel.veivalg, { icon: L.divIcon({ className: 'veivalg-merke', html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8] }), keyboard: false, interactive: false })
-      .bindTooltip('veivalg', { permanent: true, direction: 'left', className: 'map-label veivalg-lapp', offset: [-8, 0] })
-      .addTo(_aLayer);
-  } else if (walkPts && walkPts.length) drawWalk(_aLayer, walkPts);
-  // GÅ HIT (v1.218.143): gangruta til stoppet kortet peker på.
+  // GANGTREET (v1.218.208, src/veivalg.js): ALLE gangruter fra deg —
+  // hovedstoppet, alternativet/ærendet og GÅ HIT — tegnes som ett tre. Én
+  // sti ut fra prikken, grener fra veivalgene. Før: tre drawWalk-kall,
+  // hvert fra prikken («ikke lag flere veier ut fra brukers pos enn
+  // nødvendig»). Markørene tegnes som før.
   const _gv = _gåHitVis && rådGjelder(_gåHit.get(_gåHitVis), userPos, _stop, metresBetween) ? _gåHit.get(_gåHitVis) : null, _gr = _gv && _gv.råd;
+  const _alt = _altStopp();
+  const _altR = _alt && gangRuteTil(_alt);
+  const _ruter = [];
+  if (walkPts && walkPts.length) _ruter.push(walkPts);
+  if (_alt && userPos && Number.isFinite(_alt.lat)) _ruter.push(_altR || [[userPos.lat, userPos.lon], [_alt.lat, _alt.lon]]);
+  if (_gr && Number.isFinite(_gr.lat)) _ruter.push((_gr.gangPunkter && _gr.gangPunkter.length) ? _gr.gangPunkter : (userPos ? [[userPos.lat, userPos.lon], [_gr.lat, _gr.lon]] : []));
+  const _tre = gangTre(_ruter);
+  _tre.linjer.forEach(l => drawWalk(_aLayer, l));
+  _tre.veivalg.forEach(v => L.marker(v, { icon: L.divIcon({ className: 'veivalg-merke', html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8] }), keyboard: false, interactive: false })
+    .bindTooltip('veivalg', { permanent: true, direction: 'left', className: 'map-label veivalg-lapp', offset: [-8, 0] })
+    .addTo(_aLayer));
+  if (_ruter.length > 1 && userPos) {
+    const sig = _ruter.length + ':' + stierFraPrikken(_tre.linjer, userPos) + ':' + _tre.veivalg.length;
+    if (sig !== _gangTreLogg) { _gangTreLogg = sig; logMsg('gangtre: ' + _ruter.length + ' ruter · ' + stierFraPrikken(_tre.linjer, userPos) + ' sti(er) fra prikken · ' + _tre.veivalg.length + ' veivalg' + _tre.veivalg.map(v => ' ' + Math.round(metresBetween(userPos, { lat: v[0], lon: v[1] })) + ' m').join(',')); }
+  }
   if (_gr && Number.isFinite(_gr.lat)) {
-    const pts = (_gr.gangPunkter && _gr.gangPunkter.length) ? _gr.gangPunkter : (userPos ? [[userPos.lat, userPos.lon], [_gr.lat, _gr.lon]] : []);
-    if (pts.length) drawWalk(_aLayer, pts);
     L.marker([_gr.lat, _gr.lon], { icon: makeStopIcon(normMode(_gr.modus), 1, { primary: true }) })
       .bindTooltip(esc(_gr.stoppNavn + (_gr.spor ? ' · spor ' + _gr.spor : '') + ' · ' + _gr.gangMin + ' min'), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })
       .addTo(_aLayer);
   }
-  // GANGRUTA TIL NABOSTOPPET (v1.218.172): rett linje — ruta er ikke hentet.
-  const _alt = _altStopp();
   if (_alt && userPos && Number.isFinite(_alt.lat)) {
-    // Den målte gangruta når den finnes; ellers en rett linje — et anslag.
-    drawWalk(_aLayer, _gaffel ? _gaffel.b : (gangRuteTil(_alt) || [[userPos.lat, userPos.lon], [_alt.lat, _alt.lon]]));
     const gm = Number.isFinite(_alt.gangMin) ? ' · ' + (_alt.målt === false ? 'ca. ' : '') + _alt.gangMin + ' min' : '';
     L.marker([_alt.lat, _alt.lon], { icon: makeStopIcon('bus', 1, { primary: true }) })
       .bindTooltip(esc((_alt.name || '') + gm), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })
@@ -4328,7 +4333,7 @@ export function retningRekk(d, fra, gangTil, walkMins, now) {
 function _gangMålt(ll) { const g = gangTil(ll); return g ? { mins: g.mins, målt: g.målt } : null; }
 function _retningRekkMålt(d, walkMins, now) {
   const rk = retningRekk(d, _stop, _gangMålt, walkMins, now);
-  if (rk && !rk.målt) sikreGang(userLL(), rk.stopp, { ferdig: () => _renderBody() });
+  if (rk && !rk.målt) sikreGang(_gangFra(), rk.stopp, { ferdig: () => _renderBody() });
   return rk;
 }
 /** Kallet slik det ser ut fra stoppet lenger ned: der går du på, da. Ren. */
@@ -5442,7 +5447,7 @@ function _altStopp() {
   // Målet for ærendet du valgte går foran (v1.218.207): gangen DIT.
   if (_målSted && Number.isFinite(_målSted.lat)) {
     const w = walkMinsTo(_målSted);
-    if (w && !w.målt) sikreGang(state.walkFromLL || state.homeLL, { id: 'mål:' + _målSted.name, lat: _målSted.lat, lon: _målSted.lon }, { ferdig: () => { _aKey = ''; _renderMap(); _herSist = null; _renderHer(); } });
+    if (w && !w.målt) sikreGang(_gangFra() || state.walkFromLL || state.homeLL, { id: 'mål:' + _målSted.name, lat: _målSted.lat, lon: _målSted.lon }, { ferdig: () => { _aKey = ''; _renderMap(); _herSist = null; _renderHer(); } });
     return { id: 'mål:' + _målSted.name, name: _målSted.name, lat: _målSted.lat, lon: _målSted.lon, gangMin: w ? w.mins : null, målt: w ? w.målt : false };
   }
   return _atGangTil || _atAlt;
@@ -5530,7 +5535,7 @@ function _tegnAutoTavle(body) {
     const flytt = [];
     del.ikke = del.ikke.filter(x => {
       const rk = !x.innstilt && tavleRekk(x.call, x.call && x.call._fra ? medKoord(x.call._fra) : _stop, _gangMålt, x.gang, nå);
-      if (rk && !rk.målt) sikreGang(userLL(), rk.stopp, { ferdig: () => _renderBody() });
+      if (rk && !rk.målt) sikreGang(_gangFra(), rk.stopp, { ferdig: () => _renderBody() });
       if (!rk) return true;
       Object.assign(x, { rekk: rk, rekker: true, gang: rk.gangMin, gåOm: gåOm(rk.ms, rk.gangMin, nå) });
       flytt.push(x);
@@ -5545,7 +5550,7 @@ function _tegnAutoTavle(body) {
       : (k => k && { id: k.id, name: k.name, lat: k.lat, lon: k.lon, gangMin: x.gang, målt: (gangTil(k) || {}).målt })(medKoord(x.call._fra)));
     const før = _atAlt && (_atAlt.id || _atAlt.name), nå2 = s && (s.id || s.name);
     _atAlt = s && Number.isFinite(s.lat) ? s : null;
-    if (s && Number.isFinite(s.lat) && !s.målt) sikreGang(userLL(), s, { ferdig: () => { _aKey = ''; _renderMap(); _renderBody(); } });
+    if (s && Number.isFinite(s.lat) && !s.målt) sikreGang(_gangFra(), s, { ferdig: () => { _aKey = ''; _renderMap(); _renderBody(); } });
     if (før !== nå2) { _aKey = ''; setTimeout(() => _renderMap(), 0); }
   }
   // ANKOMST TIL DITT VANLIGE MÅL (v1.218.193): bare når turen stopper der.

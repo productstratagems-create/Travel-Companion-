@@ -29,6 +29,8 @@ import { ZOOM as ZOOM_TRINN } from '../ui/kartRamme.js';
 import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
 import { sikreGang, gangRuteTil } from '../api/gangTilStopp.js';
 import { felles } from '../veivalg.js';
+import { ÆREND, ærendNå, ærendSteder, ÆREND_RADIUS_M } from '../aerend.js';
+import { fetchNearbyPlaces } from '../api/places.js';
 import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
 export { stopsAhead, arriveText };
 import config from '../config.js';
@@ -2393,6 +2395,66 @@ export function herTilstand(ps, manuell, ja, gps, usikker = false) {
   if (kind === 'bekreftet' && usikker) kind = 'spørsmål';
   return kind;
 }
+/* ── HVA SKAL DU? (v1.218.207, steg 2a) ─────────────────────────────────
+   Bestilt: «"hvor" er underordnet "hvorfor"». Ærendet først: et trykk på
+   «🛒 handle mat» gir de nærmeste likeverdige stedene (åpne først), hvert
+   med gangtid — et trykk på ett tegner gangen dit. «🔍 et sted …» for den
+   som vet hvor. Stedene fra places.js (Geoapify + OpenStreetMap). */
+let _hvaÆrend = null, _hvaSteder = null, _målSted = null, _hvaSøk = false;
+function _hvaHtml() {
+  if (_hvaSøk) return '<div class="hva"><div class="hva-rad"><input id="hva-sok" class="her-sok" type="search" autocomplete="off" placeholder="hvor skal du?">'
+    + '<button type="button" class="her-knapp her-stille" data-hva="lukk">avbryt</button></div><div id="hva-sugg" class="sugg-list" hidden></div></div>';
+  if (!_hvaÆrend) {
+    return '<div class="hva"><div class="set-label">hva skal du?</div><div class="hva-chips">'
+      + ærendNå().map(e => '<button type="button" class="hva-chip" data-hva="ærend:' + e.id + '">' + e.emoji + ' ' + esc(e.tekst) + '</button>').join('')
+      + '<button type="button" class="hva-chip" data-hva="sted">🔍 et sted …</button></div></div>';
+  }
+  const e = ÆREND.find(x => x.id === _hvaÆrend);
+  const hode = '<div class="hva-hode"><b>' + (e ? e.emoji + ' ' + esc(e.tekst) : '📍 ' + esc((_målSted && _målSted.name) || 'sted')) + '</b>'
+    + '<button type="button" class="her-knapp her-stille" data-hva="lukk" aria-label="fjern">✕</button></div>';
+  if (_hvaSteder === 'henter') return '<div class="hva">' + hode + '<div class="hva-tom">leter i nærheten …</div></div>';
+  if (_hvaSteder === 'feil') return '<div class="hva">' + hode + '<div class="hva-tom">fant ikke steder nå</div></div>';
+  const liste = Array.isArray(_hvaSteder) ? _hvaSteder : [];
+  if (!liste.length) return '<div class="hva">' + hode + '<div class="hva-tom">ingen innen ' + (ÆREND_RADIUS_M / 1000).toFixed(1).replace('.', ',') + ' km</div></div>';
+  return '<div class="hva">' + hode + liste.map((p, i) => {
+    const w = walkMinsTo(p);
+    const valgt = _målSted && _målSted.lat === p.lat && _målSted.lon === p.lon;
+    return '<button type="button" class="nearby-btn hva-sted' + (valgt ? ' picked' : '') + '" data-hva-i="' + i + '">'
+      + '<span class="nearby-name">' + esc((p.emoji || '') + ' ' + p.name) + '<small class="hva-type">' + esc(p.type || '')
+      + (p.hours && p.hours.label ? ' · ' + p.hours.label : '') + '</small></span>'
+      + '<span class="nearby-dist">' + (w ? '🚶 ' + (w.målt ? '' : 'ca. ') + w.mins + ' min' : '') + '</span></button>';
+  }).join('') + '</div>';
+}
+function _bindHva(el) {
+  el.querySelectorAll('[data-hva]').forEach(b => b.addEventListener('click', () => {
+    const v = b.dataset.hva;
+    if (v === 'lukk') { _hvaÆrend = null; _hvaSteder = null; _målSted = null; _hvaSøk = false; }
+    else if (v === 'sted') { _hvaSøk = true; }
+    else if (v.startsWith('ærend:')) _velgÆrend(v.slice(6));
+    _herSist = null; _renderHer(); _aKey = ''; _renderMap();
+    if (_hvaSøk) {
+      const inp = el.querySelector('#hva-sok');
+      if (inp) { inp.focus(); bindPlaceInput(inp, el.querySelector('#hva-sugg'), q => geocodePlace(q), r => {
+        _hvaSøk = false; _hvaÆrend = 'sted'; _målSted = { name: r.label, lat: r.lat, lon: r.lon, type: 'sted' }; _hvaSteder = [_målSted];
+        _herSist = null; _renderHer(); _aKey = ''; _renderMap(); }); }
+    }
+  }));
+  el.querySelectorAll('[data-hva-i]').forEach(b => b.addEventListener('click', () => {
+    const p = Array.isArray(_hvaSteder) && _hvaSteder[Number(b.dataset.hvaI)];
+    if (!p) return;
+    _målSted = p; _herSist = null; _renderHer(); _aKey = ''; _renderMap();
+  }));
+}
+function _velgÆrend(id) {
+  const e = ÆREND.find(x => x.id === id), ll = state.walkFromLL || state.homeLL;
+  if (!e || !ll) return;
+  _hvaÆrend = id; _hvaSteder = 'henter'; _målSted = null;
+  fetchNearbyPlaces(ll.lat, ll.lon, e.kategorier, 8, ÆREND_RADIUS_M)
+    .then(l => { if (_hvaÆrend !== id) return; _hvaSteder = ærendSteder(l); })
+    .catch(() => { if (_hvaÆrend === id) _hvaSteder = 'feil'; })
+    .finally(() => { _herSist = null; _renderHer(); });
+}
+
 function _renderHer() {
   const el = _el('auto-her');
   if (!el || _herÅpen) return;
@@ -2405,11 +2467,13 @@ function _renderHer() {
   const oppslag = !manuell && ll ? stedNavn(ll, () => { _herSist = null; _renderHer(); }) : null;
   const navn = (wf && wf.label) || oppslag || (_stop ? 'nær ' + _stop.name : null);
   const flyttet = manuell && _herAnker && state.homeLL && _avst(_herAnker, state.homeLL) > MANUELL_FLYTT_M;
-  const html = (_herKartVelg ? '<div class="her-linje her-spørsmål"><span class="her-tekst">Trykk i kartet der du er</span><button type="button" class="her-knapp her-stille" data-her="lukk">avbryt</button></div>' : herLinjeHtml({ kind, navn, acc: ps && ps.acc, flyttet }));
+  const html = (_herKartVelg ? '<div class="her-linje her-spørsmål"><span class="her-tekst">Trykk i kartet der du er</span><button type="button" class="her-knapp her-stille" data-her="lukk">avbryt</button></div>' : herLinjeHtml({ kind, navn, acc: ps && ps.acc, flyttet }))
+    + (kind === 'ukjent' || !_autoTavle ? '' : _hvaHtml());
   if (html === _herSist) return;
   _herSist = html;
   el.innerHTML = html;
   _bindHer(el);
+  _bindHva(el);
   if (_aMap && !_aMap._herKlikk) {
     _aMap._herKlikk = true;
     _aMap.on('click', e => { if (!_herKartVelg) return; _herKartVelg = false; _settSted('punkt i kartet', { lat: e.latlng.lat, lon: e.latlng.lng }); });
@@ -5373,7 +5437,16 @@ let _atGangTil = null;  // nabostoppet du trykket på (v1.218.172)
    lapp og gangen dit — uten at du må trykke. */
 let _atAlt = null;
 /** Stoppet kartet skal vise gangen til: det du trykket, ellers øverste alternativ. */
-function _altStopp() { return _autoTavle ? (_atGangTil || _atAlt) : null; }
+function _altStopp() {
+  if (!_autoTavle) return null;
+  // Målet for ærendet du valgte går foran (v1.218.207): gangen DIT.
+  if (_målSted && Number.isFinite(_målSted.lat)) {
+    const w = walkMinsTo(_målSted);
+    if (w && !w.målt) sikreGang(state.walkFromLL || state.homeLL, { id: 'mål:' + _målSted.name, lat: _målSted.lat, lon: _målSted.lon }, { ferdig: () => { _aKey = ''; _renderMap(); _herSist = null; _renderHer(); } });
+    return { id: 'mål:' + _målSted.name, name: _målSted.name, lat: _målSted.lat, lon: _målSted.lon, gangMin: w ? w.mins : null, målt: w ? w.målt : false };
+  }
+  return _atGangTil || _atAlt;
+}
 /**
  * LANGT TRYKK PÅ «HJEMOVER» (v1.218.147). Bestilt: «Når bruker trykker og
  * holder på knappen lenge nok så sendes bruker til innstillinger for å legge

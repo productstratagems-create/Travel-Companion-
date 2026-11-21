@@ -73,3 +73,53 @@ export function felles(a0, b0) {
   const stamme = lengde(stammeA) <= lengde(stammeB) ? stammeA : stammeB;
   return { stamme, a: a.slice(best.i), b: b.slice(best.j), veivalg: a[best.i] };
 }
+
+/**
+ * GANGTREET (v1.218.208). Rapportert for tredje gang med skjermbilde: to
+ * stier ut fra prikken. «Ikke lag flere veier ut fra brukers pos enn
+ * nødvendig.» `felles` virket — men bare to av gangrutene gikk gjennom den;
+ * GÅ HIT og en umålt rute ble tegnet hver for seg fra prikken. Nå: ALLE
+ * gangruter fra deg går hit, og ut kommer ett tre. Den første ruta (til
+ * hovedstoppet) er stammen og tegnes hel; hver av de andre blir en gren fra
+ * veivalget der den skilles fra stammen. Møtes de ikke, grener ruta fra
+ * punktet på stammen nærmest den — aldri en ny linje fra prikken, med mindre
+ * den skilles fra stammen allerede ved døra (innen STAMME_MIN_M). Ren.
+ *
+ * @param ruter  [[lat, lon]…]-lister; tomme/korte hoppes over
+ * @returns { linjer: [pts…], veivalg: [[lat, lon]…] }
+ */
+/** Ligger ruta lenger enn dette fra stammen overalt, er den en egen vei. */
+export const SKILT_M = 40;
+export function gangTre(ruter) {
+  const r = (ruter || []).filter(p => Array.isArray(p) && p.length >= 2);
+  if (!r.length) return { linjer: [], veivalg: [] };
+  const stamme = r[0], linjer = [stamme], veivalg = [];
+  const st = tett(stamme);
+  for (const ru of r.slice(1)) {
+    const g = felles(stamme, ru);
+    if (g) { linjer.push(g.b); veivalg.push(g.veivalg); continue; }
+    // Møtes ikke: finn punktet på ruta som ligger nærmest stammen (forbi
+    // døra), og gren derfra — fra stammens nærmeste punkt.
+    const t = tett(ru);
+    let best = null, langsRu = 0;
+    for (let j = 0; j < t.length; j++) {
+      if (j) langsRu += metresBetween(ll(t[j - 1]), ll(t[j]));
+      // Døra teller ikke: der er de alltid 0 m fra hverandre.
+      if (langsRu < STAMME_MIN_M) continue;
+      for (let i = 0; i < st.length; i++) {
+        const d = metresBetween(ll(t[j]), ll(st[i]));
+        if (!best || d < best.d - 0.5 || (Math.abs(d - best.d) <= 0.5 && j > best.j)) best = { d, i, j };
+      }
+    }
+    const langs = best ? lengde(st.slice(0, best.i + 1)) : 0;
+    // Langt fra stammen hele veien (> SKILT_M): de går hver sin vei fra døra.
+    if (!best || langs < STAMME_MIN_M || best.d > SKILT_M) { linjer.push(ru); continue; }
+    linjer.push([st[best.i], ...t.slice(best.j)]);
+  }
+  return { linjer, veivalg };
+}
+
+/** Hvor mange av linjene som starter ved prikken (innen m meter). Ren. */
+export function stierFraPrikken(linjer, prikk, m = 10) {
+  return (linjer || []).filter(l => l && l.length && metresBetween(ll(l[0]), ll(prikk)) <= m).length;
+}

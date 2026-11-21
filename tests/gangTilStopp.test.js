@@ -48,12 +48,12 @@ describe('koblingen', () => {
   const b = readFileSync('src/views/board.js', 'utf8'), a = readFileSync('src/views/auto.js', 'utf8'), s = readFileSync('src/views/selected.js', 'utf8');
   it('tilbudenes stopp rutes i Rute og Auto, og walkMinsTo sier om den er målt', () => {
     expect(b).toMatch(/if \(rk && !rk\.målt\) sikreGang\(/);
-    expect(a).toMatch(/if \(rk && !rk\.målt\) sikreGang\(userLL\(\), rk\.stopp/);
+    expect(a).toMatch(/if \(rk && !rk\.målt\) sikreGang\(_gangFra\(\), rk\.stopp/);
     expect(readFileSync('src/geo.js', 'utf8')).toMatch(/målt: measured != null,/);
   });
   it('kartet i Auto-tavle viser alternativet og gangen dit', () => {
     // v1.218.204: grenen fra veivalget når rutene deler stamme.
-    expect(a).toMatch(/drawWalk\(_aLayer, _gaffel \? _gaffel\.b : \(gangRuteTil\(_alt\) \|\| \[\[userPos\.lat, userPos\.lon\], \[_alt\.lat, _alt\.lon\]\]\)\);/);
+    expect(a).toMatch(/_ruter\.push\(_altR \|\| \[\[userPos\.lat, userPos\.lon\], \[_alt\.lat, _alt\.lon\]\]\)/);
   });
   it('avgangsdetaljene bygger første etappe fra stoppet du går på', () => {
     expect(s).toMatch(/let fraOver = dep\._rekkLengerNed \? dep\._rekkLengerNed\.stopp\.navn : \(dep\._fra && dep\._fra\.name\) \|\| null;/);

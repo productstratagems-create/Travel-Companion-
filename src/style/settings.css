@@ -1156,3 +1156,10 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 #auto-her .hva-l2,#auto-her .hva-l3{font-size:13px;color:var(--text-soft)}
 #auto-her .hva-pil{color:var(--text-soft);font-size:12px}
 .at-retning .omr-linjer{margin-left:.4em;font-size:.8em;opacity:.7}
+/* Kombinasjoner i valgt område (v1.218.215): samme rad som reisene i 2a. */
+.at-kombi{display:flex;gap:.75rem;align-items:flex-start;width:100%;text-align:left;font:inherit;color:inherit;background:none;border:0;border-top:1px solid var(--line,rgba(127,127,127,.2));padding:.55rem .25rem;cursor:pointer}
+.at-kombi .hva-tall{display:flex;flex-direction:column;align-items:center;min-width:2.6rem}
+.at-kombi .hva-tall b{font-size:24px;line-height:1}
+.at-kombi .hva-tall small,.at-kombi .hva-l2,.at-kombi .hva-l3{font-size:12px;color:var(--text-soft)}
+.at-kombi .hva-info{display:flex;flex-direction:column;gap:.1rem;font-size:14px}
+.at-kombi .hva-l1{display:flex;align-items:center;gap:.3rem;flex-wrap:wrap}

@@ -34,7 +34,7 @@ let _gangTreLogg = '';
  *  der rutetjenesten alt satte deg på veien — så alle ruter starter på samme vei. */
 function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f ? (Array.isArray(f) ? { lat: f[0], lon: f[1] } : f) : userLL(); }
 import { ÆREND, ærendNå, ærendSteder, ÆREND_RADIUS_M } from '../aerend.js';
-import { reiseRader } from '../reiseTil.js';
+import { reiseRader, kombiRader } from '../reiseTil.js';
 import { roPunkt } from '../roPunkt.js';
 import { målområder } from '../maalomrader.js';
 import { omrProbe } from '../api/omrProbe.js';
@@ -5521,6 +5521,39 @@ function _oppdaterOmråder(andre, here, nå) {
   if (_atOmr.length && _stop) omrProbe(_stop.id, _atOmr, t => logMsg(t)).catch(() => {});
   _atOmr.forEach(o => { o.linjer = [...new Set(andre.filter(d => o.nøkler.has(_omrNøkkel(d))).map(d => d.lines && d.lines[0] && d.lines[0].code).filter(Boolean))]; });
 }
+/* KOMBINASJONER I VALGT OMRÅDE (v1.218.215, kombiRader i src/reiseTil.js).
+   Ett reisesøk per valgt område (ikke «alle», ikke «hjemover», som har sitt
+   eget), husket i 3 min eller til stoppet byttes. */
+export const KOMBI_GYLDIG_MS = 3 * 60_000;
+const _kombi = new Map();   // stopp|område → { t, tps | 'henter' | 'feil' }
+function _kombiMål(valg, here) {
+  if (valg === 'mot') { const c = sentrumFor(here); return c ? { lat: c.lat, lon: c.lon, name: 'sentrum' } : null; }
+  const o = _atOmr.find(x => x.id === valg);
+  return o && o.fjern && Number.isFinite(o.fjern.lat) ? { lat: o.fjern.lat, lon: o.fjern.lon, name: o.fjern.name } : null;
+}
+function _kombiFor(valg, here, nå) {
+  if (!_stop || valg === 'alle' || valg === 'hjem') return null;
+  const k = _stop.id + '|' + valg, v = _kombi.get(k);
+  if (v && (v.tps === 'henter' || nå - v.t < KOMBI_GYLDIG_MS)) return v;
+  const mål = _kombiMål(valg, here), fra = _gangFra();
+  if (!mål || !fra) return null;
+  if (!budsjettTillater(_søkLogg, nå, 1)) return v || null;
+  const post = { t: nå, tps: 'henter' };
+  _kombi.set(k, post);
+  fetchTripFraPos(fra, { lat: mål.lat, lon: mål.lon }, nå, 6)
+    .then(tps => { post.tps = tps; post.t = Date.now(); logMsg('kombi ' + _retningTekst(valg) + ': ' + tps.length + ' reiser, ' + kombiRader(reiseRader(tps, Date.now(), null)).length + ' med bytte vist'); })
+    .catch(e => { post.tps = 'feil'; post.t = Date.now(); logMsg('✗ kombi ' + _retningTekst(valg) + ': ' + (e && e.message), 'err'); })
+    .finally(() => _renderBody());
+  return post;
+}
+function _kombiRadHtml(r, i) {
+  const merker = r.linjer.map(l => linjemerke({ kode: l.kode, farge: l.farge, tekst: l.tekst, modus: l.modus })).join('<span class="hva-pil">→</span>');
+  return '<button type="button" class="at-kombi" data-kombi="' + i + '">'
+    + '<span class="hva-tall"><small>gå om</small><b>' + Math.max(0, r.gåOm) + '</b><small>min</small></span>'
+    + '<span class="hva-info"><span class="hva-l1">' + merker + (r.via ? ' via ' + esc(r.via) : '') + '</span>'
+    + '<span class="hva-l2">fra ' + esc(r.fra) + ' · ' + r.gangMin + ' min gange</span>'
+    + '<span class="hva-l3">ank. ' + _klokke(r.ank) + ' · ' + r.bytter + ' bytte' + r.fakta.filter(f => f !== 'ingen bytte').map(f => ' · ' + esc(f)).join('') + '</span></span></button>';
+}
 const _retningTekst = k => AT_RETNING_TEKST[k] || ((_atOmr.find(o => o.id === k) || {}).tekst) || 'dit';
 let _atRetning = lagretRetning();
 let _atRekke = [];      // forrige rekkefølge, for ro (v1.218.172)
@@ -5682,6 +5715,11 @@ function _tegnAutoTavle(body) {
   // «Bytt på X» på radene når hjemover er valgt (v1.218.151).
   if (_atRetning === 'hjem') [...del.ikke, ...del.rekker].forEach(x => { x.bytte = retningHjemDom(x.d, gang, nå, hjemListe).bytte; });
   const rader = [...del.ikke, ...del.rekker];
+  const kv = _autoTavle ? _kombiFor(_atRetning, here, nå) : null;
+  const kombi = kv && Array.isArray(kv.tps) ? kombiRader(reiseRader(kv.tps, nå, null)).filter(r => r.gåOm >= 0).sort((a, b) => a.gåOm - b.gåOm) : [];
+  // Si hva du ikke vet: leter, feilet — ikke stillhet.
+  const kombiMerk = !kv ? '' : kv.tps === 'henter' ? '<div class="at-filter">ser etter reiser med bytte …</div>'
+    : kv.tps === 'feil' ? '<div class="at-filter">fant ikke reiser med bytte nå</div>' : '';
   const hs = _stop && _hjemSøk.get(_stop.id);
   // RASKEST HJEM FRA ET ANNET STOPP (v1.218.153): starter den beste veien
   // fra et stopp tavla ikke viser (Majorstuen T fra trikkestoppet), sies det,
@@ -5701,7 +5739,16 @@ function _tegnAutoTavle(body) {
   const bunn = '<div class="at-bunn">' + (_atSlutt ? 'ikke flere avganger herfra' : _atHenter ? 'henter flere …' : '') + '</div>';
   body.innerHTML = retningKnapper + (rader.length
     ? '<div class="set-label">' + (Number.isFinite(_fraMs) ? 'avganger ' + esc(fraTidTekst(_fraMs, nå)) : 'neste avganger herfra') + '</div>' + merknad + hjemMerk + ikkeHtml
-      + '<div class="at-liste">' + del.rekker.map((x, i) => tavleRadHtml(x, nå, del.ikke.length + i, meld)).join('') + '</div>' + bunn
+      + kombiMerk + '<div class="at-liste">' + (() => {
+        // Flettet inn etter «gå om» blant de direkte radene — en rad i lista, ikke en boks.
+        const ut = [], k = kombi.slice();
+        del.rekker.forEach((x, i) => {
+          while (k.length && Number.isFinite(x.gåOm) && k[0].gåOm < x.gåOm) ut.push(_kombiRadHtml(k[0], kombi.indexOf(k.shift())));
+          ut.push(tavleRadHtml(x, nå, del.ikke.length + i, meld));
+        });
+        k.forEach(r => ut.push(_kombiRadHtml(r, kombi.indexOf(r))));
+        return ut.join('');
+      })() + '</div>' + bunn
     : merknad + hjemMerk + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : (_atRetning !== 'alle' ? 'ingen avganger ' + _retningTekst(_atRetning) + ' herfra nå' : 'ingen avganger herfra den nærmeste timen')) + '</div>');
   body.querySelectorAll('.at-raskest[data-pin]').forEach(b => b.addEventListener('click', () => { if (pinStop(b.dataset.pin)) _renderBody(); }));
   body.querySelectorAll('.at-retning [data-retning]').forEach(b => b.addEventListener('click', () => {
@@ -5713,6 +5760,11 @@ function _tegnAutoTavle(body) {
   _hjemLangtTrykk(body);
   const det = body.querySelector('.at-ikke');
   if (det) det.addEventListener('toggle', () => { _atIkkeÅpen = det.open; });
+  // Trykk på en kombinasjon: kartet viser gangen til påstigningen.
+  body.querySelectorAll('.at-kombi').forEach(b => b.addEventListener('click', () => {
+    const r = kombi[Number(b.dataset.kombi)];
+    if (r && r.fraLL) { _atGangTil = { id: 'kombi:' + r.fraLL.name, name: r.fraLL.name, lat: r.fraLL.lat, lon: r.fraLL.lon }; _aKey = ''; _renderMap(); }
+  }));
   body.querySelectorAll('.at-rad').forEach(b => b.addEventListener('click', () => {
     const x = rader[Number(b.dataset.i)];
     if (!x) return;

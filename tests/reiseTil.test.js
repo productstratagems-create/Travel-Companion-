@@ -47,3 +47,42 @@ describe('koblingen i Auto-tavle (v1.218.211)', () => {
     expect(readFileSync('src/style/settings.css', 'utf8')).toMatch(/\.hva-mål #auto-body/);
   });
 });
+import { kombiRader } from '../src/reiseTil.js';
+describe('kombinasjoner som kan brukes (v1.218.215)', () => {
+  const kj2 = (kode, a, b, fra, til) => ({ ...kj(kode, a, b, fra), toPlace: { name: til } });
+  // Før-bildet: 73→81 via Bøler framme 17:33 (min 33), direkte 74 framme 17:41 (min 41).
+  const SVAR = [
+    { legs: [gå(1, 11), kj2('73', 11, 25, 'Stenbråten', 'Bøler'), kj('81', 27, 33, 'Bøler')] },
+    { legs: [gå(4, 16), kj('74', 16, 41, 'Mortensrud T')] },
+    { legs: [gå(2, 12), kj2('76', 12, 30, 'Olasrudveien', 'Helsfyr'), kj('3', 32, 50, 'Helsfyr')] },
+  ];
+  it('raden med bytte står når den er raskere, med via og «N min raskere»', () => {
+    const k = kombiRader(reiseRader(SVAR, T, null));
+    expect(k).toHaveLength(1);
+    expect(k[0]).toMatchObject({ via: 'Bøler', bytter: 1 });
+    expect(k[0].fakta).toContain('8 min raskere');
+  });
+  it('senere enn direkte: vises ikke', () => {
+    expect(kombiRader(reiseRader(SVAR, T, null)).some(r => r.via === 'Helsfyr')).toBe(false);
+  });
+  it('uten direkte reise: eneste vei dit', () => {
+    const k = kombiRader(reiseRader([SVAR[2]], T, null));
+    expect(k).toHaveLength(1);
+    expect(k[0].fakta).toContain('eneste vei dit');
+  });
+  it('direkte reiser er aldri kombinasjoner', () => {
+    expect(kombiRader(reiseRader([SVAR[1]], T, null))).toEqual([]);
+  });
+});
+describe('kombinasjonene i Auto-tavle (v1.218.215)', () => {
+  const a = readFileSync('src/views/auto.js', 'utf8');
+  it('ett søk per valgt område, ikke «alle»/«hjemover», innenfor budsjettet', () => {
+    expect(a).toMatch(/if \(!_stop \|\| valg === 'alle' \|\| valg === 'hjem'\) return null;/);
+    expect(a).toMatch(/if \(!budsjettTillater\(_søkLogg, nå, 1\)\) return v \|\| null;/);
+  });
+  it('radene fra kombiRader, flettet inn i lista; leter/feil sies', () => {
+    expect(a).toMatch(/kombiRader\(reiseRader\(kv\.tps, nå, null\)\)/);
+    expect(a).toMatch(/ser etter reiser med bytte …/);
+    expect(a).toMatch(/fant ikke reiser med bytte nå/);
+  });
+});

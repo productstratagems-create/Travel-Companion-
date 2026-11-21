@@ -35,7 +35,8 @@ export function reiseRader(tps, nå, gangMin) {
     const gang = legs.filter(l => l.mode === 'foot').reduce((m, l) => m + Math.max(0, (slutt(l) - start(l)) || 0), 0);
     rader.push({ type: 'kollektiv', gåOm: Math.round((s0 - nå) / 60000), ank, linjer,
       fra: (kol[0].fromPlace && kol[0].fromPlace.name) || '', fraLL: kol[0].fromPlace && Number.isFinite(kol[0].fromPlace.latitude) ? { lat: kol[0].fromPlace.latitude, lon: kol[0].fromPlace.longitude, name: kol[0].fromPlace.name } : null,
-      bytter: kol.length - 1, gangMin: Math.round(gang / 60000), fakta: [] });
+      bytter: kol.length - 1, gangMin: Math.round(gang / 60000), fakta: [],
+      via: kol.length > 1 && kol[0].toPlace ? kol[0].toPlace.name || null : null });
   }
   // Det som er gått, er gått: en reise du måtte ha gått for et minutt siden, står ikke.
   const ute = rader.filter(r => r.gåOm >= -1);
@@ -48,4 +49,24 @@ export function reiseRader(tps, nå, gangMin) {
     if (kolRader.some(r => r.gangMin > minst)) kolRader.filter(r => r.gangMin === minst).forEach(r => r.fakta.push('minst gange'));
   }
   return ute;
+}
+
+/**
+ * KOMBINASJONENE SOM KAN BRUKES (v1.218.215). Bestilt: alternativer innenfor
+ * hurtigvalgene «som kombinerer ulike transportmidler og linjer». Av et
+ * reisesøk til området beholdes reisene MED BYTTE som enten er framme før
+ * den beste direkte i samme svar («N min raskere»), eller er eneste vei.
+ * Ingen kåring — et faktum på raden (AGENTS.md: alternativer på raden). Ren.
+ */
+export function kombiRader(rader) {
+  const kol = (rader || []).filter(r => r.type === 'kollektiv');
+  const direkte = kol.filter(r => r.bytter === 0);
+  const best = direkte.length ? Math.min(...direkte.map(r => r.ank)) : null;
+  return kol.filter(r => r.bytter >= 1 && (best == null || r.ank < best)).map(r => {
+    const raskere = best == null ? null : Math.round((best - r.ank) / 60000);
+    const fakta = r.fakta.filter(f => f !== 'minst gange');
+    if (raskere != null && raskere >= 1) fakta.push(raskere + ' min raskere');
+    if (best == null) fakta.push('eneste vei dit');
+    return { ...r, fakta };
+  });
 }

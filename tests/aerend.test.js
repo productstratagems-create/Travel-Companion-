@@ -33,3 +33,10 @@ describe('foldet til svaret henger sammen med tavla (v1.218.210)', () => {
     expect(s).toMatch(/let _hvaÅpen = false;/);
   });
 });
+describe('kuttet (v1.218.220)', () => {
+  it('«hva skal du?» tegnes ikke på Auto-tavle', () => {
+    const s = readFileSync('src/views/auto.js', 'utf8');
+    expect(s).toMatch(/export const HVA_PÅ = false;/);
+    expect(s).toMatch(/\+ \(!HVA_PÅ \|\| kind === 'ukjent' \|\| !_autoTavle \? '' : _hvaHtml\(\)\);/);
+  });
+});

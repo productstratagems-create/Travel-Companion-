@@ -19,8 +19,20 @@ describe('halvveis', () => {
   it('v1.218.224: halvveis bærer gangpillen; stopplappen står ved stoppet', () => {
     const s = readFileSync('src/views/auto.js', 'utf8');
     expect(s).toMatch(/const midt = sentrert && walkPts && walkPts\.length >= 2 \? halvveis\(walkPts\) : null;/);
-    expect(s).toMatch(/L\.marker\(midt, [\s\S]{0,200}gang-pille-anker[\s\S]{0,200}'🚶 '/);
+    expect(s).toMatch(/L\.marker\(pillePunkt\(walkPts, _tre\.veivalg\), [\s\S]{0,200}gang-pille-anker[\s\S]{0,200}'🚶 '/);   // v1.218.231: på grenen
     // Før: stopplappen ble forskjøvet til midtpunktet (direction center, offset [dx, dy]).
     expect(s).not.toMatch(/direction: 'center', offset: \[dx, dy\]/);
+  });
+});
+import { pillePunkt } from '../src/views/auto.js';
+describe('gangtiden på sin egen gren (v1.218.231)', () => {
+  // Ruta 0,0 → 0,6; veivalget ved 0,2, så grenen som bare er stoppets er 0,2 → 0,6.
+  const rute = [[0, 0], [0, 1], [0, 2], [0, 4], [0, 6]];
+  it('uten veivalg: midt på hele ruta', () => {
+    expect(pillePunkt(rute, [])).toEqual(halvveis(rute));
+  });
+  it('før-bildet: midt på hele ruta (0,3) lå i gaffelen; nå midt på grenen etter veivalget (0,4)', () => {
+    expect(halvveis(rute)).toEqual([0, 3]);
+    expect(pillePunkt(rute, [[0, 2]])).toEqual([0, 4]);
   });
 });

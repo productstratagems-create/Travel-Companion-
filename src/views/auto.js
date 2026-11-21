@@ -3608,6 +3608,21 @@ export function speiletOm(her, pts) {
  * Punktet halvveis langs en linje, målt i lengde langs linja — ikke midt
  * mellom endene, for gangruta svinger (v1.218.135). Ren; [lat, lon].
  */
+/**
+ * Der gangtidspillen står: midt på delen av ruta som bare er stoppets — etter
+ * det siste veivalget langs den. Uten veivalg: midt på hele ruta. Ren.
+ */
+export function pillePunkt(pts, veivalg) {
+  if (!pts || pts.length < 2) return null;
+  const ll = p => (Array.isArray(p) ? { lat: p[0], lon: p[1] } : p);
+  let fra = 0;
+  (veivalg || []).forEach(v => {
+    let best = 0, bd = Infinity;
+    pts.forEach((p, i) => { const d = metresBetween(ll(p), ll(v)); if (d < bd) { bd = d; best = i; } });
+    if (best > fra) fra = best;
+  });
+  return (fra > 0 && fra < pts.length - 1 ? halvveis(pts.slice(fra)) : null) || halvveis(pts);
+}
 export function halvveis(pts) {
   const p = (pts || []).map(x => Array.isArray(x) ? x : [x.lat, x.lon]).filter(x => x && Number.isFinite(x[0]));
   if (!p.length) return null;
@@ -4072,11 +4087,8 @@ function _renderMap() {
   // inntil symbolet sitt; gangtiden er en egen pille på gangstreken.
   const midt = sentrert && walkPts && walkPts.length >= 2 ? halvveis(walkPts) : null;
   const _gm = _stop ? gangTil(_stop) : null;
-  if (midt && _gm && _aMap.getZoom() >= STOPP_LAPP_ZOOM && !_gåHitVis) {
-    L.marker(midt, { icon: L.divIcon({ className: 'gang-pille-anker', html: '', iconSize: [1, 1] }), keyboard: false, interactive: false })
-      .bindTooltip('🚶 ' + (_gm.målt === false ? 'ca. ' : '') + _gm.mins + ' min', { permanent: true, direction: 'center', className: 'map-label gang-pille' })
-      .addTo(_aLayer);
-  }
+  // Pillen tegnes etter gangtreet (v1.218.231): den skal stå på grenen den gjelder.
+  const _pilleVis = !!(midt && _gm && _aMap.getZoom() >= STOPP_LAPP_ZOOM && !_gåHitVis);
   if (_stop && _stop.lat != null) {
     L.marker([_stop.lat, _stop.lon], {
       icon: makeStopIcon(normMode((_stop.modes || [])[0]), (_stop.modes || []).length, { primary: true }),
@@ -4331,6 +4343,15 @@ function _renderMap() {
   if (_gr && Number.isFinite(_gr.lat) && _gr.gangPunkter && _gr.gangPunkter.length > 2) _ruter.push(_gr.gangPunkter);
   const _tre = gangTre(_ruter);
   _tre.linjer.forEach(l => drawWalk(_aLayer, l));
+  // GANGTIDEN PÅ SIN EGEN GREN (v1.218.231). Rapportert: «Tvetydig for bruker
+  // når lapp med 12 min står i krysset og ikke på den leggen som 12 min
+  // gjelder.» Midt på hele ruta var midt i gaffelen; nå midt på delen som
+  // bare går til stoppet — etter siste veivalg.
+  if (_pilleVis) {
+    L.marker(pillePunkt(walkPts, _tre.veivalg), { icon: L.divIcon({ className: 'gang-pille-anker', html: '', iconSize: [1, 1] }), keyboard: false, interactive: false })
+      .bindTooltip('🚶 ' + (_gm.målt === false ? 'ca. ' : '') + _gm.mins + ' min', { permanent: true, direction: 'center', className: 'map-label gang-pille' })
+      .addTo(_aLayer);
+  }
   _tre.veivalg.forEach(v => L.marker(v, { icon: L.divIcon({ className: 'veivalg-merke', html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8] }), keyboard: false, interactive: false })
     // Ingen «veivalg»-lapp (v1.218.223): «overflødig» — ringen viser gaffelen, og lappen dekket stopplappen.
     .addTo(_aLayer));

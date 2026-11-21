@@ -188,7 +188,8 @@ describe('«du er ved» i fart', () => {
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     expect(src).toMatch(/gpsFart: iFart\(fartNå\(nåW\)\)[\s\S]*const fart = syn\.fart;/);
     expect(src).toMatch(/iFart: fart,/);
-    expect(src).toMatch(/fart \? 'nærmeste stopp' : 'du er ved'/);
+    // v1.218.197: «du er ved» bare når du står der.
+    expect(src).toMatch(/if \(fart \|\| \(Number\.isFinite\(avstandM\) && avstandM > AT_STOP_M\)\) return 'nærmeste stopp';\s*return 'du er ved';/);
   });
 });
 

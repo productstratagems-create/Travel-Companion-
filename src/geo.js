@@ -47,6 +47,8 @@ export function loadWalkFrom() {
 export function saveWalkFrom(v) {
   if (v) storage.set(WALK_FROM_KEY, JSON.stringify(v)); else storage.remove(WALK_FROM_KEY);
 }
+/** Der stoppene søkes rundt: stedet du har valgt, ellers GPS-punktet. Én definisjon. */
+export function søkePunkt(gps) { return state.walkFromLL || gps; }
 export function clearWalkFrom() {
   state.walkFromLL = null;
   storage.remove(WALK_FROM_KEY);
@@ -794,7 +796,8 @@ export function locateUser(onFound, onFail) {
   // you have actually moved.
   if (state.homeLL) {
     _stationAnchor = { lat: state.homeLL.lat, lon: state.homeLL.lon };
-    findNearestStation(state.homeLL.lat, state.homeLL.lon, onFound, onFail);
+    const sp = søkePunkt(state.homeLL);
+    findNearestStation(sp.lat, sp.lon, onFound, onFail);
   }
 
   _onFound = onFound;
@@ -937,12 +940,15 @@ function _handleFix(pos) {
 
   const first = !_stationAnchor;
   _stationAnchor = { lat: accepted.lat, lon: accepted.lon };
+  // Stoppene finnes rundt STEDET DITT (v1.218.197): har du valgt stedet selv
+  // («ikke riktig?»), søkes det der, ikke der GPS-en tror du er.
+  const sp = søkePunkt(accepted);
   if (first) {
     logMsg('✓ posisjon ±' + Math.round(accuracy) + 'm', 'ok');
-    findNearestStation(accepted.lat, accepted.lon, _onFound || (() => {}), _onFail || (() => {}));
+    findNearestStation(sp.lat, sp.lon, _onFound || (() => {}), _onFail || (() => {}));
   } else {
     logMsg('posisjon oppdatert ±' + Math.round(accuracy) + 'm (' + Math.round(drift) + 'm drift)', 'ok');
-    findNearestStation(accepted.lat, accepted.lon, () => {}, () => {});
+    findNearestStation(sp.lat, sp.lon, () => {}, () => {});
   }
 }
 

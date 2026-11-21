@@ -240,3 +240,21 @@ export function gpsErrorKind(code) {
   if (code === 3) return 'timeout';
   return null;
 }
+
+/**
+ * ER DETTE RIKTIG STED? (v1.218.197, onboarding steg 1). Bestilt: «har appen
+ * satt bruker på riktig sted? Dersom bruker er uenig må bruker kunne sette
+ * rett sted.» Linja øverst på Auto-tavle er en påstand når posisjonen er god,
+ * et spørsmål når den er usikker, og en bønn om sted når den mangler. Ren.
+ *  'manuell'  — du har satt stedet selv
+ *  'påstand'  — «Du er her: …»
+ *  'spørsmål' — «Er du her? … (±150 m)»
+ *  'ukjent'   — «Hvor er du?»
+ */
+export const BEKREFT_USIKKER_M = 100;
+export function posBekreftelse(ps, manuell = false) {
+  if (manuell) return 'manuell';
+  if (!ps || ['avslatt', 'utilgjengelig', 'tidsavbrudd', 'ikke-stottet', 'leter', 'ikke-spurt'].includes(ps.kind)) return 'ukjent';
+  if (posGrå(ps) || ps.kind === 'unoyaktig' || ps.kind === 'framskrevet' || (Number.isFinite(ps.acc) && ps.acc > BEKREFT_USIKKER_M)) return 'spørsmål';
+  return 'påstand';
+}

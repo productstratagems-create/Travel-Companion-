@@ -32,6 +32,7 @@ import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
 export { stopsAhead, arriveText };
 import config from '../config.js';
 import { state } from '../state.js';
+import { geocodePlace } from '../api/entur.js';
 import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra, fetchTripFraPos, fetchBoardPage, hentStoppAvganger } from '../api/entur.js';
 import { annetStopp, gåHitMål, rådGjelder, startGåHitSøk, rådReiseTekst } from '../gaaHit.js';
 import { raskereHer } from '../raskere.js';
@@ -68,7 +69,12 @@ import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst, fetchNearby
 import { kontekstNå, kontekstLinje, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
-import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
+import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer, saveWalkFrom, loadWalkFrom, clearWalkFrom, findNearestStation } from '../geo.js';
+import { posBekreftelse } from '../position.js';
+import { herLinjeHtml, stedPanelHtml, MANUELL_FLYTT_M } from '../ui/stedVelger.js';
+import { stedNavn } from '../api/stedNavn.js';
+import { bindPlaceInput } from '../ui/suggest.js';
+import { metresBetween as _avst } from '../haversine.js';
 import L from 'leaflet';
 import { SPOR_ZOOM as PLATTFORM_ZOOM_AUTO, createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap, tømLag } from '../ui/map.js';
 import { uthevAvgang, aktivFraAvgang } from '../ui/stasjonslag.js';
@@ -1870,9 +1876,12 @@ function _renderOmbord() {
  * Overskriften over stoppet. «Du er ved» er usant fra en buss i 40 km/t.
  * På en kjent linje er det neste stopp på den; ellers bare nærmeste.
  */
-export function whereLabel(fart, linjer) {
+export function whereLabel(fart, linjer, avstandM) {
   if (fart && linjer && linjer.length) return 'neste stopp på ' + linjer.join(' / ');
-  return fart ? 'nærmeste stopp' : 'du er ved';
+  // «Du er ved» bare når du står der (v1.218.197). Rapportert som
+  // selvmotsigelse: «DU ER VED Olasrudveien · 605 m å gå».
+  if (fart || (Number.isFinite(avstandM) && avstandM > AT_STOP_M)) return 'nærmeste stopp';
+  return 'du er ved';
 }
 
 /* OVERGANGENE PÅ NESTE STOPP (src/overganger.js). Hentet én gang per stopp
@@ -2333,7 +2342,76 @@ export function tilpassNavn(lab) {
   _navnPx.set(nøkkel, { px: satt, under });
 }
 
+/* ── «DU ER HER» (v1.218.197, onboarding steg 1) ─────────────────────────
+   Bestilt: «har appen satt bruker på riktig sted? Dersom bruker er uenig må
+   bruker kunne sette rett sted?» Linja over «du er ved»: påstand når
+   posisjonen er god, spørsmål når den er usikker, «hvor er du?» uten. Panelet
+   bak «ikke riktig?» setter stedet (walkFromLL), og stoppene hentes der. */
+let _herÅpen = false, _herJa = null, _herAnker = null, _herKartVelg = false, _herSist = null;
+export function herTilstand(ps, manuell, ja, gps) {
+  let kind = posBekreftelse(ps, manuell);
+  // «Ja» gjelder til du har flyttet deg tydelig.
+  if (kind === 'spørsmål' && ja && gps && _avst(ja, gps) < 100) kind = 'påstand';
+  return kind;
+}
+function _renderHer() {
+  const el = _el('auto-her');
+  if (!el || _herÅpen) return;
+  const manuell = !!state.walkFromLL;
+  const ps = _posState();
+  const kind = herTilstand(ps, manuell, _herJa, state.homeLL);
+  const ll = state.walkFromLL || state.homeLL;
+  const wf = manuell ? loadWalkFrom() : null;
+  const oppslag = !manuell && ll ? stedNavn(ll, () => { _herSist = null; _renderHer(); }) : null;
+  const navn = (wf && wf.label) || oppslag || (_stop ? 'nær ' + _stop.name : null);
+  const flyttet = manuell && _herAnker && state.homeLL && _avst(_herAnker, state.homeLL) > MANUELL_FLYTT_M;
+  const html = (_herKartVelg ? '<div class="her-linje her-spørsmål"><span class="her-tekst">Trykk i kartet der du er</span><button type="button" class="her-knapp her-stille" data-her="lukk">avbryt</button></div>' : herLinjeHtml({ kind, navn, acc: ps && ps.acc, flyttet }));
+  if (html === _herSist) return;
+  _herSist = html;
+  el.innerHTML = html;
+  _bindHer(el);
+  if (_aMap && !_aMap._herKlikk) {
+    _aMap._herKlikk = true;
+    _aMap.on('click', e => { if (!_herKartVelg) return; _herKartVelg = false; _settSted('punkt i kartet', { lat: e.latlng.lat, lon: e.latlng.lng }); });
+  }
+}
+function _bindHer(el) {
+  el.querySelectorAll('[data-her]').forEach(b => b.addEventListener('click', () => {
+    const v = b.dataset.her;
+    if (v === 'ja') { _herJa = state.homeLL ? { lat: state.homeLL.lat, lon: state.homeLL.lon } : null; _herSist = null; _renderHer(); }
+    else if (v === 'gps') { clearWalkFrom(); _herAnker = null; _herÅpen = false; _herSist = null; if (state.homeLL) _hentStoppVed(state.homeLL); _renderHer(); }
+    else if (v === 'kart') { _herKartVelg = true; _herÅpen = false; _herSist = null; _renderHer(); }
+    else if (v === 'lukk') { _herKartVelg = false; _herÅpen = false; _herSist = null; _renderHer(); }
+    else if (v === 'velg') _åpneStedPanel(el);
+  }));
+}
+function _åpneStedPanel(el) {
+  _herÅpen = true;
+  const nære = _stops().slice(0, 5).map(s => ({ ...s, distM: s.distM }));
+  el.innerHTML = stedPanelHtml(nære, !!state.walkFromLL);
+  _bindHer(el);
+  el.querySelectorAll('[data-her-i]').forEach(b => b.addEventListener('click', () => {
+    const s = nære[Number(b.dataset.herI)]; if (s) _settSted(s.name, s);
+  }));
+  bindPlaceInput(el.querySelector('#her-sok'), el.querySelector('#her-sugg'), q => geocodePlace(q), r => _settSted(r.label, r));
+  const inp = el.querySelector('#her-sok'); if (inp) inp.focus();
+}
+/** Stedet du har valgt: walkFromLL (som «gå fra»), og stoppene hentes der. */
+function _settSted(label, ll) {
+  if (!ll || !Number.isFinite(ll.lat)) return;
+  state.walkFromLL = { lat: ll.lat, lon: ll.lon };
+  saveWalkFrom({ label, lat: ll.lat, lon: ll.lon });
+  _herAnker = state.homeLL ? { lat: state.homeLL.lat, lon: state.homeLL.lon } : null;
+  _herÅpen = false; _herSist = null;
+  _hentStoppVed(ll);
+  _renderHer();
+}
+function _hentStoppVed(ll) {
+  findNearestStation(ll.lat, ll.lon, () => { _stopPinned = false; _dirs = []; _asked = false; renderAuto(); }, () => renderAuto());
+}
+
 function _renderWhere() {
+  _renderHer();
   const el = _el('auto-where');
   if (!el) return;
   _renderNeste(Date.now());
@@ -2380,7 +2458,7 @@ function _renderWhere() {
   _reiseInfo = r ? { r, igjen: fra ? stasjonerIgjen(r.k, fra.id, r.dest, nåW) : null } : null;
   const vn = picked.linjer ? (syn.lås ? linjeHodeHtml(syn.lås, state.jny) : '') + vedNesteHtml(påLinja, nåW) + (_reiseInfo ? avstigningHtml(r, _reiseInfo.igjen) : '')
     + fokusNavHtml(påLinja, nåW, r && r.dest) : '';
-  const _html = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer)) + '</div>')
+  const _html = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer, w ? w.dist : null)) + '</div>')
     + stopHeadHtml(_stop, others.length, open, {
       iFart: fart,
       // OM BORD (v1.218.48): avstanden til fots er ikke spørsmålet når toget
@@ -3867,8 +3945,11 @@ function _renderMap() {
   // to discover it. On the map the mistake is visible immediately.
   // Det viktigste av de andre stoppene (v1.218.11): stor nål og fast lapp.
   const viktigst = others.slice().sort(nærViktigFørst(s => stoppInfo(s.id)))[0];
+  const _altId = _altStopp() && (_altStopp().id || _altStopp().name);
   others.forEach(s => {
     if (s.lat == null) return;
+    // Står allerede som alternativet, med gangtid og gangrute (v1.218.197).
+    if (_altId && (s.id === _altId || s.name === _altId)) return;
     const fast = relevante.includes(s) || s === viktigst;
     L.marker([s.lat, s.lon], {
       icon: makeStopIcon(normMode((s.modes || [])[0]), (s.modes || []).length, { viktig: s === viktigst }),

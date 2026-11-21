@@ -14,7 +14,7 @@ describe('lappene i Auto-kartet', () => {
     expect(h).toMatch(/framme Lofsrud \d\d:35/);
   });
   it('ved stoppet: linjene herfra og den førstes «gå om»', () => {
-    expect(stoppLinjerLapp([b('76', 18, 'Helsfyr'), b('74', 14, 'Jernbanetorget')], 12, T)).toBe('<br><span class="stopp-linjer">74 gå om 2 min · også 76</span>');   // v1.218.230: 74 én gang
+    expect(stoppLinjerLapp([b('76', 18, 'Helsfyr'), b('74', 14, 'Jernbanetorget')], 12, T)).toBe('<br><span class="stopp-linjer lapp-lang">74 gå om 2 min · også 76</span>');   // v1.218.230: 74 én gang
     expect(stoppLinjerLapp([], 12, T)).toBe('');
   });
   it('bare den valgte (først) får lapp; de andre dempes', () => {

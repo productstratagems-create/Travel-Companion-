@@ -129,3 +129,26 @@ Proven (Google, Apple, Citymapper, Ruter), i `src/kartSteg.js`:
   < 2 m/s 17, < 6 m/s 16, < 15 m/s 15, ellers 14. Et nytt trinn gjelder først
   når det har vart 8 s (`fartMedRo`). Nær avstigning går foran farten.
 - Underveis' fokusrunde: `steg → oversikt → vei → plattform`.
+
+## 10. Lappenes plass — ett register, prioritet, kortform eller skjult (v1.218.233)
+
+Bestilt: «Appen må ha et konsept for å decluttre kartenes symbologi og
+lapper så den kritisk viktige infoen blir lesbar.» Proven (Mapbox/MapLibre
+symbol collision, Google, Apple, OpenLayers declutter), i `src/ui/lappPlass.js`:
+
+| prio | lapp |
+|---|---|
+| 1 | stoppet ditt (navn + «gå om»; kortform: bare navnet) |
+| 2 | gangtidspillen |
+| 3 | plattformen du skal til |
+| 4 | nabostopp, alternativ, andre lapper |
+| 5 | linjemerker ved endene |
+| 6 | andre plattformer |
+
+- Alle lappene måles som de faktisk ble tegnet, og plasseres i rekkefølgen
+  over. Første som ikke kolliderer med noe som alt står (eller med prikken
+  din og knappene), vinner.
+- Taperen får kortform (`.lapp-lang` skjules) om den da får plass, ellers
+  skjules den. Den flyttes aldri bort fra ankeret (§8).
+- Ro: blant like viktige går den som sto forrige gang først.
+- Først i Auto-tavle-kartet; de andre kartene tar samme kjerne.

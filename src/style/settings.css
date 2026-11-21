@@ -1178,3 +1178,6 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .leaflet-tooltip.edd-ende-merke::before{display:none}
 .leaflet-tooltip.edd-ende-merke.dempet{opacity:.55}
 .quay-pin .quay-linjer{display:block;font-size:10px;line-height:1.1;margin-top:1px;white-space:nowrap;color:var(--text)}
+/* Lappenes plass (v1.218.233): kortform og skjult fra ryddKart. */
+.leaflet-tooltip.kort .lapp-lang{display:none}
+.lapp-skjult{visibility:hidden!important}

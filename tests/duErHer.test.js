@@ -25,9 +25,12 @@ describe('posBekreftelse', () => {
 
 describe('linja', () => {
   it('påstand med «ikke riktig?», spørsmål med ja/nei og nøyaktighet, manuell med «bruk GPS igjen»', () => {
-    expect(herLinjeHtml({ kind: 'påstand', navn: 'Stenbråtveien 14' })).toMatch(/Du er her: <b>Stenbråtveien 14<\/b><\/span><span class="her-valg">[\s\S]*data-her="ja"[\s\S]*ikke riktig\?/);
-    const q = herLinjeHtml({ kind: 'spørsmål', navn: 'Stenbråtveien', acc: 150 });
-    expect(q).toMatch(/Er du her\?/); expect(q).not.toMatch(/±/); expect(q).toMatch(/data-her="ja"/); expect(q).toMatch(/nei, velg sted/);
+    // v1.218.218: «for masete» — påstanden er en stille knapp, uten «Stemmer det? ja».
+    const p = herLinjeHtml({ kind: 'påstand', navn: 'Stenbråtveien 14' });
+    expect(p).toMatch(/data-her="velg"[\s\S]*Du er her: <b>Stenbråtveien 14<\/b>/);
+    expect(p).not.toMatch(/data-her="ja"/);
+    const ca = herLinjeHtml({ kind: 'påstand', navn: 'Helga Vaneks vei 1J', ca: true });
+    expect(ca).toMatch(/ca\.<\/span> <b>Helga Vaneks vei 1J/); expect(ca).not.toMatch(/±|data-her="ja"/);
     expect(herLinjeHtml({ kind: 'manuell', navn: 'Stenbråten' })).toMatch(/bruk GPS igjen/);
     expect(herLinjeHtml({ kind: 'ukjent' })).toMatch(/Hvor er du\?/);
   });
@@ -36,7 +39,10 @@ describe('linja', () => {
     expect(herTilstand({ kind: 'ok', acc: 150 }, false, ja, { lat: 59.8501, lon: 10.83 })).toBe('bekreftet');
     // v1.218.212: spørsmålet krever at usikkerheten har VART (hysteresen) — én fiks på ±150 m spør ikke.
     expect(herTilstand({ kind: 'ok', acc: 150 }, false, ja, { lat: 59.852, lon: 10.83 })).toBe('påstand');
-    expect(herTilstand({ kind: 'ok', acc: 150 }, false, ja, { lat: 59.852, lon: 10.83 }, true)).toBe('spørsmål');
+    // v1.218.218: aldri spørsmål av seg selv — heller ikke usikker over tid, eller grå.
+    expect(herTilstand({ kind: 'ok', acc: 150 }, false, ja, { lat: 59.852, lon: 10.83 }, true)).toBe('påstand');
+    expect(herTilstand({ kind: 'ok', acc: 10 }, false, ja, { lat: 59.8501, lon: 10.83 }, true)).toBe('påstand');
+    expect(herTilstand({ kind: 'gammel', acc: 10 }, false, null, { lat: 59.85, lon: 10.83 }, true)).toBe('påstand');
   });
 });
 
@@ -85,12 +91,12 @@ describe('bekreftelsen huskes (v1.218.203)', () => {
 import { usikkerMedRo, USIKKER_INN_MS, SIKKER_UT_MS } from '../src/views/auto.js';
 describe('usikkerhet med ro (v1.218.205)', () => {
   const p = acc => ({ kind: 'ok', acc });
-  it('svært usikker en stund: bekreftelsen holder ikke, appen spør', () => {
+  it('svært usikker en stund: bekreftelsen holder ikke — påstand med «ca.», ikke spørsmål (v1.218.218)', () => {
     let s = usikkerMedRo(null, p(784), 0);
     expect(s.usikker).toBe(false);
     s = usikkerMedRo(s, p(784), USIKKER_INN_MS);
     expect(s.usikker).toBe(true);
-    expect(herTilstand({ kind: 'ok', acc: 784 }, false, { lat: 59.85, lon: 10.83 }, { lat: 59.85, lon: 10.83 }, s.usikker)).toBe('spørsmål');
+    expect(herTilstand({ kind: 'ok', acc: 784 }, false, { lat: 59.85, lon: 10.83 }, { lat: 59.85, lon: 10.83 }, s.usikker)).toBe('påstand');
   });
   it('bølger rundt grensen: ingen bytte (ro)', () => {
     let s = null;
@@ -103,5 +109,13 @@ describe('usikkerhet med ro (v1.218.205)', () => {
     s = usikkerMedRo(s, p(100), 20_000); expect(s.usikker).toBe(true);   // mellom grensene: tellingen nullstilles
     s = usikkerMedRo(s, p(30), 30_000); s = usikkerMedRo(s, p(30), 30_000 + SIKKER_UT_MS);
     expect(s.usikker).toBe(false);
+  });
+});
+
+describe('knappene svarer (v1.218.218)', () => {
+  const a = readFileSync('src/views/auto.js', 'utf8');
+  it('lik html bytter ikke nodene; under trykk venter tegningen', () => {
+    expect(a).toMatch(/if \(html === _herVist && el\.firstElementChild && el\.firstElementChild === _herNode\) return;/);
+    expect(a).toMatch(/if \(_herTrykk\) \{ _herVenter = true; return; \}/);
   });
 });

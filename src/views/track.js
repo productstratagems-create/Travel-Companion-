@@ -983,6 +983,8 @@ function _initArrMap(arrLL) {
   _arrLL = arrLL;
   _arrUserMoved = false;
   _arrMap = createMap(el, { expandable: true });
+  // LAPPENES PLASS (v1.218.237, kartregler §10): samme rydding som de andre kartene.
+  festLappRydding(_arrMap);
   _arrMap.on('dragstart', () => { _arrUserMoved = true; });
   // A FIFTH copy lived at the bottom of this function — the only one that
   // updated `title`, and the reason the others were found to be missing it.

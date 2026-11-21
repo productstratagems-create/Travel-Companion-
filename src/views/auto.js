@@ -4428,9 +4428,17 @@ export function tavleDetaljDir(c, stopp, medKoord, vanlige, nå) {
 /** Kallene fra flere stoppesteder som ett: hver tur én gang, merket med stedet. Ren. */
 export function slåSammenKall(svar) {
   const sett = new Set();
+  // SAMME TUR FRA TO STOPP (v1.218.216). Rapportert fra Munkerud: 74 passerte
+  // nabostoppet 18:10 og Munkerud 18:12 — ulik tid, så begge sto, og raden
+  // fra nabostoppet sa «rekker ikke her — rekk den på Munkerud», der du stod.
+  // Én avgang per tur på tvers av stoppene: den fra første gruppe (stoppet
+  // ditt). Innen ett stopp: tur + tid, så en ringlinje står to ganger.
+  const turFra = new Map();   // turens id → gruppen den først kom fra
   const ut = [];
-  (svar || []).forEach(({ stopp, kall }) => (kall || []).forEach(c => {
+  (svar || []).forEach(({ stopp, kall }, gruppe) => (kall || []).forEach(c => {
     const id = c && c.serviceJourney && c.serviceJourney.id;
+    if (id && turFra.has(id) && turFra.get(id) !== gruppe) return;
+    if (id && !turFra.has(id)) turFra.set(id, gruppe);
     const k = id ? id + '|' + (c.expectedDepartureTime || c.aimedDepartureTime) : null;
     if (k && sett.has(k)) return;
     if (k) sett.add(k);

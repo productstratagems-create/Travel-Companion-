@@ -16,9 +16,11 @@ describe('halvveis', () => {
     expect(halvveis([{ lat: 0, lon: 0 }, { lat: 0, lon: 4 }])).toEqual([0, 2]);
     expect(halvveis([])).toBe(null);
   });
-  it('kartet forankrer stoppets lapp der når gangruta finnes', () => {
+  it('v1.218.224: halvveis bærer gangpillen; stopplappen står ved stoppet', () => {
     const s = readFileSync('src/views/auto.js', 'utf8');
     expect(s).toMatch(/const midt = sentrert && walkPts && walkPts\.length >= 2 \? halvveis\(walkPts\) : null;/);
-    expect(s).toMatch(/direction: 'center', offset: \[dx, dy\]/);
+    expect(s).toMatch(/L\.marker\(midt, [\s\S]{0,200}gang-pille-anker[\s\S]{0,200}'🚶 '/);
+    // Før: stopplappen ble forskjøvet til midtpunktet (direction center, offset [dx, dy]).
+    expect(s).not.toMatch(/direction: 'center', offset: \[dx, dy\]/);
   });
 });

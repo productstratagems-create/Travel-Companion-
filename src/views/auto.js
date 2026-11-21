@@ -4031,13 +4031,25 @@ function _renderMap() {
   }
 
   let stoppHinder = null;
+  // GANGTIDEN PÅ GANGEN, NAVNET VED STOPPET (v1.218.224). Rapportert: «Finn
+  // proven for hvordan lapper skal ankres til symbolikk i kart.» Lappen sto
+  // halvveis på gangruta (v1.218.135) og så ut til å gjelde gaffelen, med
+  // stoppet langt unna. Proven (kartografi, Google/Apple): punktnavnet står
+  // inntil symbolet sitt; gangtiden er en egen pille på gangstreken.
+  const midt = sentrert && walkPts && walkPts.length >= 2 ? halvveis(walkPts) : null;
+  const _gm = _stop ? gangTil(_stop) : null;
+  if (midt && _gm && _aMap.getZoom() >= STOPP_LAPP_ZOOM && !_gåHitVis) {
+    L.marker(midt, { icon: L.divIcon({ className: 'gang-pille-anker', html: '', iconSize: [1, 1] }), keyboard: false, interactive: false })
+      .bindTooltip('🚶 ' + (_gm.målt === false ? 'ca. ' : '') + _gm.mins + ' min', { permanent: true, direction: 'center', className: 'map-label gang-pille' })
+      .addTo(_aLayer);
+  }
   if (_stop && _stop.lat != null) {
     L.marker([_stop.lat, _stop.lon], {
       icon: makeStopIcon(normMode((_stop.modes || [])[0]), (_stop.modes || []).length, { primary: true }),
     })
       // LINJENE VED STOPPET (v1.218.222): «Mortensrud · 12 min» + linjene som
       // går herfra, og den valgte avgangens «gå om» — der du skal gå på.
-      .bindTooltip(lappMedLogo((sentrert ? gangLapp(_stop) : _stop.name) + (sentrert ? stoppLinjerLapp(bein, _gang ? _gang.mins : null, Date.now()) : ''), stoppLinjer(_stop.id)),
+      .bindTooltip(lappMedLogo((sentrert ? (midt && _gm ? _stop.name : gangLapp(_stop)) : _stop.name) + (sentrert ? stoppLinjerLapp(bein, _gang ? _gang.mins : null, Date.now()) : ''), stoppLinjer(_stop.id)),
         (() => {
           // Bort fra beina og gangruta, og lenger ut når stasjonsdetaljene vises.
           const z = _aMap.getZoom();
@@ -4051,13 +4063,7 @@ function _renderMap() {
           // HALVVEIS PÅ GANGRUTA (v1.218.135). Bestilt med skjermbilde: «Lappen
           // # Mortensrud 12 min kan kanskje forankres til halvveien mellom brukers
           // posisjon og stedet?» Lappen sier gangtiden, så den står på gangen.
-          const midt = sentrert && walkPts && walkPts.length >= 2 ? halvveis(walkPts) : null;
-          if (midt) {
-            const mp = _aMap.latLngToContainerPoint(midt);
-            const dx = Math.round(mp.x - sp.x), dy = Math.round(mp.y - sp.y), w = 150, h = 20;
-            if (z >= STOPP_LAPP_ZOOM) stoppHinder = { venstre: mp.x - w / 2, høyre: mp.x + w / 2, topp: mp.y - h / 2, bunn: mp.y + h / 2 };
-            return { className: lappKlasse, direction: 'center', offset: [dx, dy], permanent: z >= STOPP_LAPP_ZOOM && !_gåHitVis };
-          }
+          // Lappen ved stoppet, alltid: halvveis-plasseringen er gangpillens nå.
           const side = stoppLappSide(sp, ender, passer);
           // Linjelappene skal ikke legge seg oppå denne (v1.218.66).
           if (sentrert && z >= STOPP_LAPP_ZOOM) {

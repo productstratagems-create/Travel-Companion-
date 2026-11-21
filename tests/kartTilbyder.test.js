@@ -44,7 +44,7 @@ describe('koblet inn', () => {
   const auto = readFileSync('src/views/auto.js', 'utf8');
   const board = readFileSync('src/views/board.js', 'utf8');
   it('auto-reise: stoppet og de andre holdeplassene', () => {
-    expect(auto).toContain("lappMedLogo((sentrert ? gangLapp(_stop) : _stop.name) + (sentrert ? stoppLinjerLapp(bein, _gang ? _gang.mins : null, Date.now()) : ''), stoppLinjer(_stop.id))");
+    expect(auto).toContain("lappMedLogo((sentrert ? (midt && _gm ? _stop.name : gangLapp(_stop)) : _stop.name) + (sentrert ? stoppLinjerLapp(bein, _gang ? _gang.mins : null, Date.now()) : ''), stoppLinjer(_stop.id))");
     expect(auto).toContain('lappMedLogo(gangLapp(s), stoppLinjer(s.id))');
   });
   it('Tavla: holdeplassene', () => {

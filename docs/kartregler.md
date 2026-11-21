@@ -100,3 +100,15 @@ Gjennomført i `src/ui/kartRamme.js` (`ZOOM`, `marg`, `ramme`):
 
 Igjen: Auto-kartets egen nærhetszoom (`zoomFor`, `FIT_PAD`) — en egen,
 målt regel for «deg i midten» som ikke er en ren innramming; den står.
+
+## 8. Lappene står ved symbolet sitt (v1.218.224)
+
+Bestilt: «Finn proven for hvordan lapper skal ankres til symbolikk i kart.»
+Proven (kartografi; Google Maps, Apple Kart):
+
+- **Et punktnavn står inntil symbolet sitt**, på en av plassene rundt det
+  (`stoppLappSide`), med spissen mot punktet. Det flyttes aldri løs.
+- **Er det ikke plass, utelates lappen**, lavest prioritet først
+  (nabostopp og alternativ før stoppet ditt). Den flyttes ikke bort.
+- **Ett faktum, ett anker:** stoppnavn, linjer og «gå om» står ved stoppet;
+  gangtiden står som en egen pille midt på gangstreken («🚶 12 min»).

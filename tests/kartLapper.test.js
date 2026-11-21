@@ -14,7 +14,7 @@ describe('lappene i Auto-kartet', () => {
     expect(h).toMatch(/framme Lofsrud \d\d:35/);
   });
   it('ved stoppet: linjene herfra og den førstes «gå om»', () => {
-    expect(stoppLinjerLapp([b('76', 18, 'Helsfyr'), b('74', 14, 'Jernbanetorget')], 12, T)).toMatch(/76 · 74 — 74 gå om 2 min/);
+    expect(stoppLinjerLapp([b('76', 18, 'Helsfyr'), b('74', 14, 'Jernbanetorget')], 12, T)).toBe('<br><span class="stopp-linjer">74 gå om 2 min · også 76</span>');   // v1.218.230: 74 én gang
     expect(stoppLinjerLapp([], 12, T)).toBe('');
   });
   it('bare den valgte (først) får lapp; de andre dempes', () => {
@@ -43,5 +43,16 @@ describe('linjemerket ved linjas ende (v1.218.227)', () => {
   });
   it('ved kanten: en annen side', () => {
     expect(endeMerkeSide({ x: 400, y: 200 }, 40, 22, [], 414, 400).side).not.toBe('right');
+  });
+});
+
+import { plattformLinjer } from '../src/ui/stasjonslag.js';
+describe('linjene på plattformen (v1.218.230)', () => {
+  it('per stoppested og plattformkode, hver linje én gang', () => {
+    const k = (kode, linje, fra) => ({ quay: { publicCode: kode }, serviceJourney: { line: { publicCode: linje } }, ...(fra ? { _fra: { id: fra } } : {}) });
+    const m = plattformLinjer([k('B', '73'), k('B', '72'), k('B', '73'), k('A', '74'), k('D', '71', 'NSR:T')], 'NSR:M');
+    expect(m.get('NSR:M|B')).toEqual(['73', '72']);
+    expect(m.get('NSR:M|A')).toEqual(['74']);
+    expect(m.get('NSR:T|D')).toEqual(['71']);
   });
 });

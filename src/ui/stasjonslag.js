@@ -41,13 +41,17 @@ function _tegn(map, st) {
   const rP = nøkler.flatMap(k => plattformerIRute(k) || []);
   const rI = nøkler.flatMap(k => inngangerIRute(k) || []);
   const inn = stasjonsInnhold(rP, rI, st.aktiv);
-  const sig = inn.plattformer.map(q => q.id + (q.aktiv ? '*' : '')).join() + '|' + inn.innganger.map(e => e.id + (e.aktiv ? '*' : '')).join();
+  // LINJENE PÅ PLATTFORMEN (v1.218.230): «Linjenummerene bør kanskje fordele
+  // seg på riktige holdeplasser/plattformer når bruker zoomer inn.» Proven
+  // (Google transit, Ruter): i stasjonsblikket står linjene ved plattformen.
+  const lj = q => (st.linjer && st.linjer.get(q.stopId + '|' + q.kode)) || [];
+  const sig = inn.plattformer.map(q => q.id + (q.aktiv ? '*' : '') + lj(q).join('.')).join() + '|' + inn.innganger.map(e => e.id + (e.aktiv ? '*' : '')).join();
   if (sig === st.sig) return;
   st.sig = sig;
   tømLag(st.lag);
   inn.plattformer.forEach(m => {
     L.marker([m.lat, m.lon], { icon: L.divIcon({ className: 'quay-pin' + (m.aktiv ? ' aktiv' : ''),
-      html: '<span>' + esc(m.kode) + '</span>', iconSize: null }), zIndexOffset: m.aktiv ? 500 : 0 })
+      html: '<span>' + esc(m.kode) + '</span>' + (lj(m).length ? '<small class="quay-linjer">' + esc(lj(m).join(' ')) + '</small>' : ''), iconSize: null }), zIndexOffset: m.aktiv ? 500 : 0 })
       .bindTooltip((m.tekst || m.kode) + (m.aktiv ? ' · din avgang' : ''), { className: 'map-label', direction: 'top', offset: [0, -10] })
       .addTo(st.lag);
   });
@@ -118,4 +122,26 @@ export function uthevAvgang(map, call, stopId, inngangId) {
   if (vis && plattformer(vis.stopId) === undefined) hentPlattformer(vis.stopId).then(() => settStasjonAktiv(map, vis));
   settStasjonAktiv(map, vis);
   return aktiv;
+}
+
+/** Linjene per plattform (stopId|kode → [linjekoder]) fra avgangene skjermen har. */
+export function settPlattformLinjer(map, linjer) {
+  const st = map && map._stasjonslag;
+  if (!st) return;
+  st.linjer = linjer || null;
+  _tegn(map, st);
+}
+/** Linjer per plattform fra kall: quay.publicCode + stoppestedet. Ren. */
+export function plattformLinjer(kall, stoppId) {
+  const ut = new Map();
+  (kall || []).forEach(c => {
+    const kode = c && c.quay && c.quay.publicCode;
+    const sid = (c && c._fra && c._fra.id) || (c && c.quay && c.quay.stopPlace && c.quay.stopPlace.id) || stoppId;
+    const linje = c && c.serviceJourney && c.serviceJourney.line && c.serviceJourney.line.publicCode;
+    if (!kode || !sid || !linje) return;
+    const k = sid + '|' + kode, l = ut.get(k) || [];
+    if (!l.includes(linje)) l.push(linje);
+    ut.set(k, l);
+  });
+  return ut;
 }

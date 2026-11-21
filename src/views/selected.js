@@ -31,7 +31,7 @@ import { stoppestedKjent, hentStoppested } from '../api/stoppested.js';
 import { show } from '../ui/nav.js';
 import { startBoard, boardRows, RUTE_KART_FORMER, ruteFokusData, rekkeFor } from './board.js';
 import { rekkTekst, rekkLinje } from '../rekkLengerNed.js';
-import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
+import { nesteSving, svingTekst, kursNå, SVING_PÅ } from '../gangSteg.js';
 import { stopsAhead, stoppValgHtml } from '../ui/stoppVelger.js';
 import { loadFreq } from '../api/usage.js';
 import { kartForm, settKartForm } from '../ui/kartVerktoy.js';
@@ -167,7 +167,8 @@ export function retningInfo(her, stopp, walk) {
 function _svingHtml(rekk) {
   if (!gangGjelder(fartNå(), state.walkFromLL !== null)) return '';
   const navn = rekk ? rekk.stopp.navn : (state.sel && state.sel._fra && state.sel._fra.name) || null;
-  const t = svingTekst(nesteSving(approachPoints(), userLL(), kursNå(state.posTrail)), navn);
+  // Av sammen med Auto (v1.218.230, SVING_PÅ i gangSteg.js): ikke etter proven.
+  const t = SVING_PÅ ? svingTekst(nesteSving(approachPoints(), userLL(), kursNå(state.posTrail)), navn) : '';
   return t ? '<div class="sel-sving">' + esc(t) + '</div>' : '';
 }
 function _retningHtml(dir, rekk) {

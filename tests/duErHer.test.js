@@ -119,3 +119,18 @@ describe('knappene svarer (v1.218.218)', () => {
     expect(a).toMatch(/if \(_herTrykk\) \{ _herVenter = true; return; \}/);
   });
 });
+import { herVises } from '../src/views/auto.js';
+describe('skjult når sikker nok (v1.218.221)', () => {
+  it('sikker GPS: skjult; usikker, manuell, ukjent, kartvelg: vist', () => {
+    expect(herVises({ manuell: false, kind: 'påstand', usikker: false, kartVelg: false })).toBe(false);
+    expect(herVises({ manuell: false, kind: 'påstand', usikker: true })).toBe(true);
+    expect(herVises({ manuell: true, kind: 'manuell' })).toBe(true);
+    expect(herVises({ kind: 'ukjent' })).toBe(true);
+    expect(herVises({ kind: 'påstand', kartVelg: true })).toBe(true);
+  });
+  it('«ca.» fra hysteresen alene; prikken åpner stedvelgeren', () => {
+    const a = readFileSync('src/views/auto.js', 'utf8');
+    expect(a).toMatch(/const ca = !manuell && _usikkerRo\.usikker;/);
+    expect(a).toMatch(/userDot\(_aLayer, userPos, \{ påTrykk: \(\) => _åpneStedPanel\(\) \}\)/);
+  });
+});

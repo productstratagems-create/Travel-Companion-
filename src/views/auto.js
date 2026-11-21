@@ -2394,6 +2394,10 @@ export function usikkerMedRo(forrige, ps, nå) {
 }
 let _usikkerRo = null, _herRo = null, _herVist = null, _herNode = null, _herTrykk = false, _herVenter = false;
 
+/** Skal «du er her»-linja stå? Bare når den sier noe prikken ikke sier. Ren. */
+export function herVises({ manuell, kind, usikker, kartVelg }) {
+  return !!(manuell || kartVelg || usikker || kind === 'ukjent');
+}
 export function herTilstand(ps, manuell, ja, gps, usikker = false) {
   let kind = posBekreftelse(ps, manuell);
   // MED RO (v1.218.212): spørsmålet kommer og går med hysteresen
@@ -2544,7 +2548,8 @@ function _renderHer() {
   const oppslag = !manuell && _herRo ? stedNavn(_herRo, () => { _herSist = null; _renderHer(); }) : null;
   const navn = (wf && wf.label) || oppslag || (_stop ? 'nær ' + _stop.name : null);
   const flyttet = manuell && _herAnker && state.homeLL && _avst(_herAnker, state.homeLL) > MANUELL_FLYTT_M;
-  const ca = !manuell && (_usikkerRo.usikker || posBekreftelse(ps, false) === 'spørsmål');
+  // «ca.» bare fra hysteresen (v1.218.221): den rå 100 m-terskelen blafret.
+  const ca = !manuell && _usikkerRo.usikker;
   const html = (_herKartVelg ? '<div class="her-linje her-spørsmål"><span class="her-tekst">Trykk i kartet der du er</span><button type="button" class="her-knapp her-stille" data-her="lukk">avbryt</button></div>' : herLinjeHtml({ kind, navn, acc: ps && ps.acc, flyttet, ca }))
     // «HVA SKAL DU?» KUTTET (v1.218.220). Bestilt: «Kutt hele denne funksjonen
     // nå.» Ikke tegnet; koden (2a-reisene, ærend) står, slått av med ett navn.
@@ -2560,6 +2565,12 @@ function _renderHer() {
     const slipp = () => { if (!_herTrykk) return; _herTrykk = false; if (_herVenter) { _herVenter = false; setTimeout(_renderHer, 0); } };
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, slipp));
   }
+  // SKJULT NÅR SIKKER NOK (v1.218.221). Bestilt: «Når du er sikker nok på
+  // posisjon så kan du skjule denne linjen.» Prikken sier det samme; rett
+  // stedet med et trykk på prikken (userDot påTrykk).
+  const vis = herVises({ manuell, kind, usikker: ca, kartVelg: _herKartVelg });
+  el.hidden = !vis;
+  if (!vis) { _herSist = null; _herVist = null; if (el.firstChild) el.innerHTML = ''; _herNode = null; return; }
   _herSist = html;
   // Lik html OG våre egne noder (panelet/kartvelgeren kan ha byttet dem).
   if (html === _herVist && el.firstElementChild && el.firstElementChild === _herNode) return;
@@ -4248,7 +4259,8 @@ function _renderMap() {
       .bindTooltip(esc((_alt.name || '') + gm), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })
       .addTo(_aLayer);
   }
-  if (userPos) userDot(_aLayer, userPos);
+  // Trykk på prikken: rett stedet — døra når «du er her»-linja er skjult (v1.218.221).
+  if (userPos) userDot(_aLayer, userPos, { påTrykk: () => _åpneStedPanel() });
   // MERKELAPPER SOM KRASJER: den som kommer sist (lavere prioritet), blir et
   // vanlig verktøytips. Stoppet du er ved tegnes først og beholdes. Målt i
   // nettleserprøven: tre faste merkelapper i et 140 px kart overlappet.

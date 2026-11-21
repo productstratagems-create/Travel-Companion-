@@ -614,6 +614,8 @@ export function userDot(layer, ll, opts = {}) {
   const ring = L.circle([ll.lat, ll.lon], { radius: 0, stroke: true, weight: 1, opacity: 0,
     fillOpacity: 0, interactive: false }).addTo(grp);
   const m = L.marker([ll.lat, ll.lon], { icon: prikkIkon(BRUKER_BLÅ, false, radius), keyboard: false, ...(pane ? { pane } : {}) }).addTo(grp);
+  // Trykk på prikken (v1.218.221): Auto-kartet åpner stedvelgeren.
+  if (opts.påTrykk && m.on) m.on('click', () => opts.påTrykk());
   let sistIkon = BRUKER_BLÅ + '|false';
   /** Stilen fra tilstanden NÅ. Kalles ved tegning og ved hver flytting
    * (v1.218.138): Utforsk og Underveis flytter prikken i stedet for å tegne

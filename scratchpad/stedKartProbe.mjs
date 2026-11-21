@@ -61,7 +61,12 @@ async function run(scheme, acc = 5) {
   }, { now: NOW, scheme });
   await page.route('**/geocoder/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ features: NEARBY }) }));
   // Spesifikk etter generell: Playwright prøver den sist registrerte først.
-  await page.route(/geocoder\/v1\/reverse.*layers=address/, r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ features: [{ properties: { name: (Number(new URL(r.request().url()).searchParams.get('point.lat')) > HERE.lat + 0.0005 ? 'Lofsrudhøgda 3' : 'Stenbråtveien 14') }, geometry: { coordinates: [HERE.lon, HERE.lat] } }] }) }));
+  // Adresse per 10 m nordover: «Testveien N» der N følger punktet — så vi ser
+  // om adressen følger nåla og ikke en grov rute.
+  await page.route(/geocoder\/v1\/reverse.*layers=address/, r => { const u = new URL(r.request().url());
+    const la = Number(u.searchParams.get('point.lat')), lo = Number(u.searchParams.get('point.lon'));
+    const n = Math.round((la - HERE.lat) * 111320 / 10);
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ features: [{ properties: { name: 'Testveien ' + n }, geometry: { coordinates: [lo, HERE.lat + n * 10 / 111320] } }] }) }); });
   await page.route('**/journey-planner/**', route => {
     const body = route.request().postData() || '';
     const navn = /Lofsrud/.test(body) ? 'Lofsrud' : 'Hauketo';
@@ -90,6 +95,8 @@ async function run(scheme, acc = 5) {
   const b = await page.locator('.stedkart-kart').boundingBox();
   await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
   await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2 + 160, { steps: 12 }); await page.mouse.up();
+  await page.waitForTimeout(1200);
+  console.log('  nål (kartets midtpunkt) ' + await page.evaluate(() => 'nord ' + Math.round((window.__stedkartSenter || 0)))); 
   await page.waitForTimeout(1500);
   console.log('  etter dra: ' + await adr());
   await page.screenshot({ path: 'scratchpad/stedkart-dratt-' + scheme + '.png' });

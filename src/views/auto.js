@@ -70,7 +70,7 @@ import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer } from '../geo.js';
 import L from 'leaflet';
-import { SPOR_ZOOM as PLATTFORM_ZOOM_AUTO, createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap } from '../ui/map.js';
+import { SPOR_ZOOM as PLATTFORM_ZOOM_AUTO, createMap, drawWalk, userDot, drawStopLine, ryddMerkelapper, bindMapExpand, fitExpandedMap, tømLag } from '../ui/map.js';
 import { uthevAvgang, aktivFraAvgang } from '../ui/stasjonslag.js';
 import { leggTil as leggTilVerktøy, sett as settVerktøy, leggTilLag, verktøyFlate } from '../ui/kartVerktoy.js';
 import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, plattformMedKode as _plattformMedKode } from '../api/quays.js';
@@ -3621,7 +3621,7 @@ function _renderMap() {
   if (key === _aKey && !fitStale) return;
   _aKey = key;
 
-  _aLayer.clearLayers();
+  tømLag(_aLayer);
 
   // ── FRAME FIRST, THEN DRAW ───────────────────────────────────────────
   //

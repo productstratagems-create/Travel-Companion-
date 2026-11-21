@@ -42,7 +42,7 @@ import { fmtMins, makeSuggBtn, esc, venueDetailHtml } from '../ui/fmt.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { fetchWalkRoute } from '../api/route.js';
-import { createMap, bindMapExpand, fitExpandedMap, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints, fitPadding } from '../ui/map.js';
+import { createMap, bindMapExpand, fitExpandedMap, drawRoute, drawWalk, userDot, drawLeg, drawJourneyPoints, fitPadding, tømLag } from '../ui/map.js';
 import { storage } from '../storage.js';
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -1305,7 +1305,7 @@ function _catPillsHtml(activeCatIdx) {
 
 function _addPlacesMarkers(places) {
   if (!_arrMap) return;
-  if (_placesLayer) { _placesLayer.clearLayers(); } else { _placesLayer = L.layerGroup().addTo(_arrMap); }
+  if (_placesLayer) { tømLag(_placesLayer); } else { _placesLayer = L.layerGroup().addTo(_arrMap); }
   if (!places || !places.length) return;
   places.forEach(p => {
     const icon = L.divIcon({

@@ -13,7 +13,7 @@ import { confirmTap } from '../ui/confirm.js';
 import config from '../config.js';
 import L from 'leaflet';
 import { tokens, alpha } from '../ui/themeTokens.js';
-import { createMap, bindMapExpand, drawRoute } from '../ui/map.js';
+import { createMap, bindMapExpand, drawRoute, tømLag } from '../ui/map.js';
 import { loadReturn, returnWindow } from '../api/returnTrip.js';
 import { esc } from '../ui/fmt.js';
 import { geocodePlace, fetchJourneyMeta } from '../api/entur.js';
@@ -131,7 +131,7 @@ async function _renderPlanMap(legs) {
   bindMapExpand(_planMap, el, document.getElementById('plan-map-expand'));
   }
 
-  if (_planMapLayer) { _planMapLayer.clearLayers(); }
+  if (_planMapLayer) { tømLag(_planMapLayer); }
   else { _planMapLayer = L.layerGroup().addTo(_planMap); }
 
   const allPts = [];

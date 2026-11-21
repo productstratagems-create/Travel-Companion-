@@ -63,3 +63,19 @@ describe('gangtiden på stoppkortet (v1.218.234)', () => {
     expect(a).toMatch(/GANG_PILLE_PÅ && midt && _gm \? _stop\.name : gangLapp\(_stop\)/);
   });
 });
+import { avgangerFra } from '../src/views/auto.js';
+describe('samme lapp for alternativet (v1.218.238: Stenbråten som Mortensrud)', () => {
+  it('avgangene derfra: rekkes der, eller går derfra', () => {
+    const rader = [
+      { d: { lines: [{ code: '73' }] }, ms: T + 10 * 60000, rekk: { stopp: { id: 'Stb', navn: 'Stenbråten' }, ms: T + 12 * 60000 } },
+      { d: { lines: [{ code: '72' }] }, ms: T + 20 * 60000, call: { _fra: { id: 'Stb' } } },
+      { d: { lines: [{ code: '74' }] }, ms: T + 5 * 60000, call: {} },
+    ];
+    const a = avgangerFra(rader, 'Stb');
+    expect(a.map(x => x.kode)).toEqual(['73', '72']);
+    expect(stoppLinjerLapp(a, 10, T)).toBe('<br><span class="stopp-linjer lapp-lang">73 gå om 2 min · også 72</span>');
+  });
+  it('alternativets lapp bruker samme definisjon', () => {
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/\+ stoppLinjerLapp\(_alt\.avganger \|\| \[\], _alt\.gangMin, Date\.now\(\)\)/);
+  });
+});

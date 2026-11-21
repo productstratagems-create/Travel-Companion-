@@ -3514,6 +3514,19 @@ export function valgtLappHtml(b, e) {
   const fram = e && e.name && Number.isFinite(e.at) ? '<span class="edd-mot">framme ' + esc(e.name) + ' ' + clk(e.at) + '</span>' : '';
   return '<span class="edd-topp">' + merke + '<span class="edd-mot">mot ' + esc(b.front || '') + '</span></span>' + fram;
 }
+/**
+ * Avgangene som går fra et gitt stopp blant tavlas rader: rader som går
+ * derfra (nabostopp) og rader som rekkes der lenger ned. {kode, ms}. Ren.
+ */
+export function avgangerFra(rader, stoppId) {
+  return (rader || []).map(x => {
+    const kode = x.d && x.d.lines && x.d.lines[0] && x.d.lines[0].code;
+    if (x.rekk && (x.rekk.stopp.id || x.rekk.stopp.navn) === stoppId) return { kode, ms: x.rekk.ms };
+    const f = x.call && x.call._fra;
+    if (f && (f.id || f.name) === stoppId) return { kode, ms: x.ms };
+    return null;
+  }).filter(a => a && a.kode && Number.isFinite(a.ms));
+}
 /** Linjene ved stoppet + den valgte avgangens «gå om». Ren. */
 export function stoppLinjerLapp(bein, gangMin, nå) {
   if (!bein || !bein.length) return '';
@@ -4381,8 +4394,11 @@ function _renderMap() {
   }
   if (_alt && userPos && Number.isFinite(_alt.lat)) {
     const gm = Number.isFinite(_alt.gangMin) ? ' · ' + (_alt.målt === false ? 'ca. ' : '') + _alt.gangMin + ' min' : '';
+    // SAMME LAPP SOM STOPPET DITT (v1.218.238). Spurt: «Hvorfor er det ikke
+    // samme info på lappen ved Stenbråten som ved Mortensrud?» Én definisjon:
+    // navn · gangtid, og linjene derfra med den førstes «gå om» (stoppLinjerLapp).
     L.marker([_alt.lat, _alt.lon], { icon: makeStopIcon('bus', 1, { primary: true }) })
-      .bindTooltip(esc((_alt.name || '') + gm), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })
+      .bindTooltip(esc((_alt.name || '') + gm) + stoppLinjerLapp(_alt.avganger || [], _alt.gangMin, Date.now()), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })
       .addTo(_aLayer);
   }
   // Trykk på prikken: rett stedet — døra når «du er her»-linja er skjult (v1.218.221).
@@ -5856,6 +5872,8 @@ function _tegnAutoTavle(body) {
     const s = x && (x.rekk ? { id: x.rekk.stopp.id, name: x.rekk.stopp.navn, lat: x.rekk.stopp.lat, lon: x.rekk.stopp.lon, gangMin: x.rekk.gangMin, målt: x.rekk.målt }
       : (k => k && { id: k.id, name: k.name, lat: k.lat, lon: k.lon, gangMin: x.gang, målt: (gangTil(k) || {}).målt })(medKoord(x.call._fra)));
     const før = _atAlt && (_atAlt.id || _atAlt.name), nå2 = s && (s.id || s.name);
+    // AVGANGENE DERFRA (v1.218.238): så lappen kan si det samme som stoppet ditt.
+    if (s) s.avganger = avgangerFra(del.rekker, s.id || s.name);
     _atAlt = s && Number.isFinite(s.lat) ? s : null;
     if (s && Number.isFinite(s.lat) && !s.målt) sikreGang(_gangFra(), s, { ferdig: () => { _aKey = ''; _renderMap(); _renderBody(); } });
     if (før !== nå2) { _aKey = ''; setTimeout(() => _renderMap(), 0); }

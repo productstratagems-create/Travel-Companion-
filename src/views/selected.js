@@ -1,5 +1,6 @@
 import { linjemerke } from '../ui/linjemerke.js';
 import { ZOOM, ramme } from '../ui/kartRamme.js';
+import { STEG_TAK } from '../kartSteg.js';
 import config from '../config.js';
 import { erInnstilt } from '../innstilt.js';
 import { normJid } from '../api/queries.js';
@@ -774,7 +775,8 @@ function _renderSelMap(dep, fromName, toName, now) {
   // stoppet, så første utsnitt er den gangen. «Hele reisen» viser resten.
   const fokus = startUtsnitt(gå && !avgått && userPos ? userPos : null, harPåstigning ? påstigning : null, gangrute);
   if (fokus) {
-    ramme(_selMap, fokus, ZOOM.GANG, { pad });
+    // Steget «gå» — samme tak som Underveis bruker for steget (src/kartSteg.js, v1.218.228).
+    ramme(_selMap, fokus, STEG_TAK['gå'], { pad });
     _selFokus = 'utsnitt';   // fokusknappen tegnes under, når den finnes
   } else if (pts.length) {
     ramme(_selMap, pts, ZOOM.REISE, { pad });

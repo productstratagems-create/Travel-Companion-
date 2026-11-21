@@ -9,7 +9,7 @@ import { whereAmI, whereAmILabel } from '../api/whereAmI.js';
 import { callPlace, placeLL } from '../api/place.js';
 import { logEvent, skalLogges } from '../api/eventLog.js';
 import { posState } from '../position.js';
-import { findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, walkMinsTo, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL, posNå } from '../geo.js';
+import { fartNå, findArr, haver, atPlace, loadWalkSpeed, loadWalkBuffer, SPEED_MPN, walkMinsTo, reachCls, clusterByDistance, MOBILITY_CLUSTER_M, userLL, posNå } from '../geo.js';
 import { fetchTrack, geocodePlace, fetchArrBoard, resolveToStop, fetchJourneyMeta } from '../api/entur.js';
 import { leggTilOvergang, fjernOvergang, saveJny } from '../journey.js';
 import { quayLatLon, legShape, journeyPoints } from '../api/adapt.js';
@@ -33,7 +33,8 @@ import { _trainPosition, SRC_LABEL } from './trainPosition.js';
 import { VEHICLE_NOUN, VEHICLE_WORD, MODE_PIN } from '../api/posSource.js';
 import { renderJourneyStrip, UNDERVEIS_KART_ALLTID } from './journeyStrip.js';
 import { sett as settVerktøy, leggTil as leggTilVerktøy, verktøyFlate, kartForm, settKartForm } from '../ui/kartVerktoy.js';
-import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS } from '../ui/kartFokus.js';
+import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS, KART_FOKUS_UNDERVEIS } from '../ui/kartFokus.js';
+import { stegNøkkel, stegRamme, fartMedRo } from '../kartSteg.js';
 import { lastHånd } from '../haand.js';
 import { RUTE_KART_FORMER } from './board.js';
 import { renderAlertsInto } from '../ui/alerts.js';
@@ -101,7 +102,7 @@ let _tMapKey = null;
  * gjøres likt som kartet for Rute-siden.» Valgt: alltid synlig. Grenen som
  * holdt kartet lukket står igjen, foldet bak UNDERVEIS_KART_ALLTID. */
 let _tMapOpen = UNDERVEIS_KART_ALLTID;
-let _tUserMoved = false, _tSisteInput = 0, _tProg = false, _tKartFokus = 'oversikt';
+let _tUserMoved = false, _tSisteInput = 0, _tProg = false, _tKartFokus = 'steg';
 export const UNDERVEIS_FORM_KEY = 't.underveisKartForm';
 /** Det Underveis vet om utsnittene: deg, og stoppet du går av på. Ren. */
 export function underveisFokusData(du, avStopp) {
@@ -300,6 +301,7 @@ function _renderTrackMap(now, cs, legs) {
     const holdt = (_tMap && _tUserMoved) ? { c: _tMap.getCenter(), z: _tMap.getZoom() } : null;
     _destroyTrackMap();
     _tMapKey = key;
+    _tSteg = null;
     _tMap = createMap(mapEl, { expandable: true });
     _tLayer = L.layerGroup().addTo(_tMap);
     const lineColor = leg.lineBg || '#7c2d12';
@@ -412,7 +414,7 @@ function _renderTrackMap(now, cs, legs) {
     });
     settVerktøy(_tMap, 'inn', { skjult: true });
     settVerktøy(_tMap, 'ut', { skjult: true });
-    leggTilVerktøy(_tMap, 'fokus', { påTrykk: () => { _tKartFokus = nesteFokus(_tKartFokus, KART_FOKUS); _brukUnderveisFokus(allPts); } });
+    leggTilVerktøy(_tMap, 'fokus', { påTrykk: () => { _tKartFokus = nesteFokus(_tKartFokus, KART_FOKUS_UNDERVEIS); _brukUnderveisFokus(allPts); } });
     _tegnUnderveisFokus();
     // Ro: dra, knipe-zoom og hjul er dine (samme regel som Auto, v1.218.150).
     _tMap.on('dragstart', () => { _tUserMoved = true; });
@@ -474,6 +476,34 @@ function _renderTrackMap(now, cs, legs) {
     _tUserMarker.remove();
     _tUserMarker = null;
   }
+  _stegFokus(now, leg, userPos);
+}
+
+/* FOKUS PER STEG OG ZOOM ETTER FART (v1.218.228, src/kartSteg.js). Kartet
+   rammer inn etappen: om bord deg + neste stopp, nær avstigning deg + stoppet
+   du skal av på. Bare når steget skifter (§4); om bord følger kartet deg med
+   zoom etter farten, med ro. Har du rørt kartet, gjøres ingenting (§5). */
+let _tSteg = null, _tFart = null;
+function _stegLL(s) { return s ? (placeLL(callPlace(s)) || quayLatLon(s.quay)) : null; }
+function _stegTid(s) { const t = s && (s.expectedArrivalTime || s.aimedArrivalTime || s.expectedDepartureTime || s.aimedDepartureTime); return t ? Date.parse(t) : NaN; }
+function _stegFokus(now, leg, du) {
+  if (!_tMap || _tKartFokus !== 'steg' || _tUserMoved || !leg) return;
+  const st = _legRouteStops(leg);
+  const igjen = st.filter(s => !(_stegTid(s) <= now));
+  const arr = leg.arrTime ? new Date(leg.arrTime.time).getTime() : NaN;
+  const steg = stegNøkkel('riding', { stopp: igjen.length || null, sek: Number.isFinite(arr) ? (arr - now) / 1000 : null });
+  const neste = _stegLL(igjen[0]), av = _stegLL(st[st.length - 1]);
+  if (steg !== _tSteg) {
+    _tSteg = steg; _tFart = null;
+    const rr = stegRamme(steg, { du, neste, av });
+    if (rr) { _tProg = true; try { ramme(_tMap, rr.pts, rr.maks); } finally { _tProg = false; } }
+    return;
+  }
+  if (steg !== 'ombord' || !du) return;
+  _tFart = fartMedRo(_tFart, fartNå(now), now);
+  const pt = _tMap.latLngToContainerPoint([du.lat, du.lon]), sz = _tMap.getSize();
+  const kant = pt.x < sz.x * 0.15 || pt.x > sz.x * 0.85 || pt.y < sz.y * 0.15 || pt.y > sz.y * 0.85;
+  if (_tFart.zoom !== _tMap.getZoom() || kant) { _tProg = true; try { _tMap.setView([du.lat, du.lon], _tFart.zoom, { animate: false }); } finally { _tProg = false; } }
 }
 
 /* Spørsmålet og tallene bor i `src/overganger.js` nå: auto-reise stiller
@@ -2789,6 +2819,8 @@ function _brukUnderveisFokus(allPts) {
   if (!_tMap) return;
   _tProg = true;
   try {
+    // STEG (v1.218.228): kartet tar over igjen; neste tikk rammer inn steget.
+    if (_tKartFokus === 'steg') { _tUserMoved = false; _tSteg = null; _tegnUnderveisFokus(); return; }
     if (_tKartFokus === 'oversikt') {
       _tUserMoved = false;
       if (allPts && allPts.length) ramme(_tMap, allPts, ZOOM.NÆRHET, { animer: true });

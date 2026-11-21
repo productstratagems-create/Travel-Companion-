@@ -34,7 +34,8 @@ describe('koblingen i _renderSelMap', () => {
   it('rammer inn utsnittet og viser «hele reisen»', () => {
     // v1.218.72: «hele reisen» er en knapp i verktøysøylen, vist med `settVerktøy`.
     // v1.218.164: én knapp — fokusknappen sier «hele reisen» etter et utsnitt.
-    expect(kart).toMatch(/if \(fokus\) \{\s*ramme\(_selMap, fokus, ZOOM\.GANG, \{ pad \}\);\s*_selFokus = 'utsnitt';/);
+    // v1.218.228: taket er gå-stegets (STEG_TAK['gå'] = GANG 17), én definisjon med Underveis.
+    expect(kart).toMatch(/if \(fokus\) \{[\s\S]{0,160}ramme\(_selMap, fokus, STEG_TAK\['gå'\], \{ pad \}\);\s*_selFokus = 'utsnitt';/);
   });
   it('avgått er en del av nøkkelen, så kartet viser hele reisen etter avgang', () => {
     expect(kart).toMatch(/\+ \(avgått \? '\|avgått' : ''\)/);

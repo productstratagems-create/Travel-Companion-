@@ -13,20 +13,22 @@ export const KART_FOKUS = ['oversikt', 'vei', 'spor'];
  * endstasjon navngitt». Auto-reise beholder sine tre.
  */
 export const KART_FOKUS_TAVLE = ['oversikt', 'vei', 'spor', 'ruter'];
+/** Underveis (v1.218.228): «steg» først — kartet følger etappen (src/kartSteg.js). */
+export const KART_FOKUS_UNDERVEIS = ['steg', 'oversikt', 'vei', 'spor'];
 /** Så bred en endestasjonslapp om lag er, til marginen i «hele ruter». */
 export const HELE_RUTER_LAPP_PX = 25;
 export function nesteFokus(f, liste = KART_FOKUS) {
   const i = liste.indexOf(f);
   return liste[(i + 1) % liste.length];
 }
-export const FOKUS_TEKST = { oversikt: '◎ vei til stoppet', vei: '▤ plattform', spor: '◱ oversikt', ruter: '◱ oversikt' };
+export const FOKUS_TEKST = { steg: '➤ følger reisen', oversikt: '◎ vei til stoppet', vei: '▤ plattform', spor: '◱ oversikt', ruter: '◱ oversikt' };
 /** Teksten for NESTE steg (knappen sier hva et trykk gjør). */
 export function fokusTekst(f, tavle) {
   return tavle && f === 'spor' ? '⤧ hele ruter' : FOKUS_TEKST[f];
 }
 
 /** Ikonet for nivået du står på. */
-export const FOKUS_IKON = { oversikt: '\u25CE', vei: '\u25A4', spor: '\u25F1', ruter: '\u2927' };
+export const FOKUS_IKON = { steg: '\u27A4', oversikt: '\u25CE', vei: '\u25A4', spor: '\u25F1', ruter: '\u2927' };
 
 /** Rammen for et fokus: punktene og hvor nær. null: den vanlige rammen. Ren. */
 export function fokusRamme(f, { du, stopp, gang, inngang, plattform, plattformer, bein } = {}) {

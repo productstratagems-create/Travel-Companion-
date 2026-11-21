@@ -22,6 +22,7 @@ import { metresBetween } from '../haversine.js';
 import { linjemerke, modusOrd } from '../ui/linjemerke.js';
 import { lappMedLogo } from '../ui/tilbyderlogo.js';
 import { esc, clk, clkDay } from '../ui/fmt.js';
+import { stoppLinjerLapp } from '../ui/stoppLapp.js';
 import { stopKey } from '../stopId.js';
 import { stopsAhead, arriveText, kjentMål, radAnkomst } from '../ui/stoppVelger.js';
 import { lesFokus, lagreFokus } from '../ui/kartValg.js';
@@ -3528,18 +3529,8 @@ export function avgangerFra(rader, stoppId) {
   }).filter(a => a && a.kode && Number.isFinite(a.ms));
 }
 /** Linjene ved stoppet + den valgte avgangens «gå om». Ren. */
-export function stoppLinjerLapp(bein, gangMin, nå) {
-  if (!bein || !bein.length) return '';
-  const koder = [...new Set(bein.map(b => b.kode).filter(Boolean))].slice(0, 5);
-  const først = bein.reduce((a, b) => (!a || b.ms < a.ms ? b : a), null);
-  const om = først && Number.isFinite(gangMin) ? Math.round((først.ms - nå) / 60000) - gangMin : null;
-  // Første linje én gang (v1.218.230: «Hvorfor er 73 nevnt to ganger?»):
-  // «73 gå om 2 min · også 72», ikke «73 · 72 — 73 gå om 2 min».
-  const andre = først ? koder.filter(k => k !== først.kode) : koder;
-  if (!først || om == null) return '<br><span class="stopp-linjer lapp-lang">' + esc(koder.join(' · ')) + '</span>';
-  return '<br><span class="stopp-linjer lapp-lang">' + esc(først.kode) + (om <= 0 ? ' gå nå' : ' gå om ' + om + ' min')
-    + (andre.length ? ' · også ' + esc(andre.join(' · ')) : '') + '</span>';
-}
+// stoppLinjerLapp bor i src/ui/stoppLapp.js (v1.218.239): én definisjon for Auto og Rute.
+export { stoppLinjerLapp } from '../ui/stoppLapp.js';
 function _lappHtml(b, nivå) {
   if (nivå <= 0) return null;
   const merke = linjemerke({ kode: b.kode, farge: b.farge.replace(/^#/, ''), tekst: b.tekst, linjeId: b.linjeId, modus: b.modus, logo: false });

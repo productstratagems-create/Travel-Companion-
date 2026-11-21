@@ -79,3 +79,20 @@ describe('samme lapp for alternativet (v1.218.238: Stenbråten som Mortensrud)',
     expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/\+ stoppLinjerLapp\(_alt\.avganger \|\| \[\], _alt\.gangMin, Date\.now\(\)\)/);
   });
 });
+import { ruteAvgangerFra } from '../src/ui/stoppLapp.js';
+describe('samme stopplapp i Rute-kartet (v1.218.239)', () => {
+  const iso = m => new Date(T + m * 60000).toISOString();
+  const reise = (kode, fra, m, rekk) => ({ _legs: [{ mode: 'foot' }, { mode: 'bus', line: { publicCode: kode }, expectedStartTime: iso(m),
+    fromPlace: fra ? { quay: { stopPlace: { id: fra } } } : null }], _rekkLengerNed: rekk || null });
+  it('avgangene fra stoppet: påstigning der, eller «rekk den» der', () => {
+    const deps = [reise('73', 'Mrud', 14), reise('72', 'Mrud', 20), reise('74', 'Stb', 9), reise('71', 'Mrud', 5, { stopp: { id: 'Stb' }, ms: T + 6 * 60000 })];
+    expect(ruteAvgangerFra(deps, 'Mrud').map(a => a.kode)).toEqual(['73', '72']);
+    expect(ruteAvgangerFra(deps, 'Stb').map(a => a.kode)).toEqual(['74', '71']);
+    expect(stoppLinjerLapp(ruteAvgangerFra(deps, 'Mrud'), 12, T)).toBe('<br><span class="stopp-linjer lapp-lang">73 gå om 2 min · også 72</span>');
+  });
+  it('Rute-kartet bruker samme definisjon som Auto', () => {
+    const b = readFileSync('src/views/board.js', 'utf8'), a = readFileSync('src/views/auto.js', 'utf8');
+    expect(b).toMatch(/stoppLinjerLapp\(avg, w \? w\.mins : null, Date\.now\(\)\)/);
+    expect(a).toMatch(/export \{ stoppLinjerLapp \} from '\.\.\/ui\/stoppLapp\.js';/);
+  });
+});

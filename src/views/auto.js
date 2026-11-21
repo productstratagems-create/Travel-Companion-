@@ -2348,7 +2348,13 @@ export function tilpassNavn(lab) {
    bruker kunne sette rett sted?» Linja over «du er ved»: påstand når
    posisjonen er god, spørsmål når den er usikker, «hvor er du?» uten. Panelet
    bak «ikke riktig?» setter stedet (walkFromLL), og stoppene hentes der. */
-let _herÅpen = false, _herJa = null, _herAnker = null, _herKartVelg = false, _herSist = null;
+/* BEKREFTELSEN HUSKES (v1.218.203). Bestilt: «la bekreftelsen huskes til jeg
+   flytter meg». Punktet du sa «ja» på lagres; ved oppstart på samme sted
+   (innen 100 m, herTilstand) spør appen ikke igjen. */
+export const HER_JA_KEY = 't.herBekreftet';
+function _lesHerJa() { try { const v = JSON.parse(storage.get(HER_JA_KEY) || 'null'); return v && Number.isFinite(v.lat) ? v : null; } catch { return null; } }
+function _lagreHerJa(v) { try { if (v) storage.set(HER_JA_KEY, JSON.stringify({ lat: v.lat, lon: v.lon })); else storage.remove(HER_JA_KEY); } catch { /* */ } }
+let _herÅpen = false, _herJa = _lesHerJa(), _herAnker = null, _herKartVelg = false, _herSist = null;
 export function herTilstand(ps, manuell, ja, gps) {
   let kind = posBekreftelse(ps, manuell);
   // BEKREFTET (v1.218.202): «ja» — på påstanden eller spørsmålet — tar
@@ -2380,7 +2386,7 @@ function _renderHer() {
 function _bindHer(el) {
   el.querySelectorAll('[data-her]').forEach(b => b.addEventListener('click', () => {
     const v = b.dataset.her;
-    if (v === 'ja') { _herJa = state.homeLL ? { lat: state.homeLL.lat, lon: state.homeLL.lon } : null; _herSist = null; _renderHer(); }
+    if (v === 'ja') { _herJa = state.homeLL ? { lat: state.homeLL.lat, lon: state.homeLL.lon } : null; _lagreHerJa(_herJa); _herSist = null; _renderHer(); }
     else if (v === 'gps') { clearWalkFrom(); _herAnker = null; _herÅpen = false; _herSist = null; if (state.homeLL) _hentStoppVed(state.homeLL); _renderHer(); }
     else if (v === 'kart') { _herKartVelg = true; _herÅpen = false; _herSist = null; _renderHer(); }
     else if (v === 'lukk') { _herKartVelg = false; _herÅpen = false; _herSist = null; _renderHer(); }

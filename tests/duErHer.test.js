@@ -70,3 +70,12 @@ describe('bekreftet posisjon (v1.218.202)', () => {
     expect(h).toMatch(/data-her="velg"[^>]*aria-label="Du er her: Stenbråtveien 14\. Endre sted"/);
   });
 });
+
+describe('bekreftelsen huskes (v1.218.203)', () => {
+  it('lagres ved «ja», leses ved oppstart, og nøkkelen er registrert', () => {
+    const a = readFileSync('src/views/auto.js', 'utf8');
+    expect(a).toMatch(/_lagreHerJa\(_herJa\);/);
+    expect(a).toMatch(/let _herÅpen = false, _herJa = _lesHerJa\(\),/);
+    expect(readFileSync('src/storage.js', 'utf8')).toContain("'t.herBekreftet'");
+  });
+});

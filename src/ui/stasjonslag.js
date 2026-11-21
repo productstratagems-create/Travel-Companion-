@@ -9,6 +9,7 @@
  * ruten går gjennom) gis med `settStasjonAktiv` og utheves; resten tegnes
  * nøytralt. Ett lag, ett sett regler — ikke en kopi per skjerm.
  */
+import { tømLag } from './tomLag.js';
 import L from 'leaflet';
 import { esc } from './fmt.js';
 import { ruterFor, hentRute, plattformerIRute, RUTE_GRAD, plattformer, hentPlattformer } from '../api/quays.js';
@@ -43,7 +44,7 @@ function _tegn(map, st) {
   const sig = inn.plattformer.map(q => q.id + (q.aktiv ? '*' : '')).join() + '|' + inn.innganger.map(e => e.id + (e.aktiv ? '*' : '')).join();
   if (sig === st.sig) return;
   st.sig = sig;
-  st.lag.clearLayers();
+  tømLag(st.lag);
   inn.plattformer.forEach(m => {
     L.marker([m.lat, m.lon], { icon: L.divIcon({ className: 'quay-pin' + (m.aktiv ? ' aktiv' : ''),
       html: '<span>' + esc(m.kode) + '</span>', iconSize: null }), zIndexOffset: m.aktiv ? 500 : 0 })

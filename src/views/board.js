@@ -42,7 +42,7 @@ import { fetchInflight } from '../api/entur.js';
 import { belegg, beleggTekst, fraEntur } from '../api/belegg.js';
 import { SRC_LABEL } from '../api/posSource.js';
 import { hentStoppested, stoppestedKjent } from '../api/stoppested.js';
-import { SPOR_ZOOM, createMap, bindMapExpand, fitExpandedMap, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby, drawLeg, drawJourneyPoints } from '../ui/map.js';
+import { SPOR_ZOOM, createMap, bindMapExpand, fitExpandedMap, drawRoute, drawWalk, userDot, corridorStyle, stopsReadable, mergeNearby, drawLeg, drawJourneyPoints, tømLag } from '../ui/map.js';
 import { snapToCorridor } from '../ui/corridor.js';
 import { _headingDeg, projectOnPath, pointAtDistance } from '../ui/path.js';
 import { _callTime, _callPoints, _interpolateVehiclePos, _interpolateOnPath } from '../api/forventetPos.js';
@@ -735,7 +735,7 @@ function renderBoardMap(pos, modes) {
 
   Promise.allSettled([p1, p2, p3, p4]).then(([r1, r2, r3, r4]) => {
     if (!_bLayer) return;
-    _bLayer.clearLayers();
+    tømLag(_bLayer);
     const pts = [];
 
     // User position — anchor for the whole map
@@ -860,7 +860,7 @@ function _drawWalkRoute(fromLL, toLL, destName) {
   if (_walkRouteKey === key) return;
   _walkRouteKey = key;
 
-  if (_bLayer) _bLayer.clearLayers();
+  if (_bLayer) tømLag(_bLayer);
 
   L.circleMarker([fromLL.lat, fromLL.lon], {
     radius: 8, color: tokens().accent, fillColor: tokens().accent, fillOpacity: 0.9, weight: 2,
@@ -945,7 +945,7 @@ export function gyldigRamme(pts) {
 function _renderApproach() {
   if (!_bMap) return;
   if (!_approachLayer) _approachLayer = L.layerGroup().addTo(_bMap);
-  _approachLayer.clearLayers();
+  tømLag(_approachLayer);
   const pts = approachPoints();
   if (!pts) { _approachFitKey = null; return; }
   drawWalk(_approachLayer, pts);
@@ -1299,7 +1299,7 @@ function renderLineRoute(visibleDeps, vehicles) {
   if (!_bRouteLayer) _bRouteLayer = L.layerGroup().addTo(_bMap);
 
   if (!match) {
-    _bRouteLayer.clearLayers();
+    tømLag(_bRouteLayer);
     _setRoutePts(null, null);
     return paths;
   }
@@ -1319,7 +1319,7 @@ function renderLineRoute(visibleDeps, vehicles) {
       id: (sp && sp.id) || '' });
   });
   if (allPts.length < 2) {
-    _bRouteLayer.clearLayers();
+    tømLag(_bRouteLayer);
     _setRoutePts(null, null);
     return paths;
   }
@@ -1397,7 +1397,7 @@ function renderLineRoute(visibleDeps, vehicles) {
   }
 
   if (pts.length < 1) {
-    _bRouteLayer.clearLayers();
+    tømLag(_bRouteLayer);
     _setRoutePts(null, null);
     return paths;
   }
@@ -1430,7 +1430,7 @@ function renderLineRoute(visibleDeps, vehicles) {
   _bRouteSnapDist = isBus ? 25 : 50;
   paths.set(ln.publicCode, { path: _bRoutePts, snapDist: _bRouteSnapDist });
 
-  _bRouteLayer.clearLayers();
+  tømLag(_bRouteLayer);
 
   // The corridor is drawn straight from `pts`.
   //

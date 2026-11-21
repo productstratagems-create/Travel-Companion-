@@ -711,6 +711,9 @@ onThemeChange(retileMaps);
  * `lapp-skjult`), så den viser seg som verktøytips ved trykk i stedet.
  * Første merkelapp vinner. Returnerer hvor mange som ble skjult.
  */
+// tømLag bor i ./tomLag.js (v1.218.196), så stasjonslaget kan bruke den uten importsirkel.
+export { tømLag } from './tomLag.js';
+
 export function ryddMerkelapper(el, klasse) {
   // Bare denne tegningens merkelapper (`klasse`): de forrige kan ligge i
   // kartet et øyeblikk til, og da ble de nye skjult bak de gamle.

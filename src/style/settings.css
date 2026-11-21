@@ -1105,3 +1105,19 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 #auto-her .her-spørsmål .her-tekst,#auto-her .her-ukjent .her-tekst{font-weight:600}
 #auto-her .her-panel{display:flex;flex-direction:column;gap:.35rem}
 #auto-her .her-sok{font:inherit;font-size:16px;padding:.5rem;border-radius:6px;border:1px solid var(--line,#888);background:var(--bg);color:var(--text)}
+.stedkart{position:fixed;inset:0;z-index:2000;background:var(--bg);display:flex;flex-direction:column}
+.stedkart-topp{position:relative;z-index:2;padding:.6rem 16px .4rem;background:var(--bg);display:flex;flex-direction:column;gap:.4rem}
+.stedkart-rad{display:flex;gap:.5rem}
+.stedkart-sok{flex:1;font:inherit;font-size:16px;padding:.55rem .6rem;border-radius:8px;border:1px solid var(--line,#888);background:var(--bg);color:var(--text)}
+.stedkart-lukk{font:inherit;font-size:18px;min-width:44px;background:none;border:1px solid var(--line,#888);border-radius:8px;color:var(--text)}
+.stedkart-chips{display:flex;gap:.4rem;overflow-x:auto}
+.stedkart-chip{font:inherit;font-size:13px;white-space:nowrap;padding:.35rem .7rem;border-radius:999px;border:1px solid var(--line,#888);background:none;color:var(--accent);min-height:36px}
+.stedkart-flate{position:relative;flex:1;min-height:0}
+.stedkart-kart{position:absolute;inset:0}
+.stedkart-nal{position:absolute;left:50%;top:50%;z-index:1000;pointer-events:none;transform:translate(-50%,calc(-100% - 5px))}
+.stedkart-nal span{display:block;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#4285f4;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45)}
+.stedkart-bunn{position:relative;z-index:2;padding:.7rem 16px calc(.7rem + env(safe-area-inset-bottom));background:var(--bg);display:flex;flex-direction:column;gap:.45rem}
+.stedkart-adr{font-size:17px;font-weight:700;color:var(--text);min-height:1.3em}
+.stedkart-hint{font-size:12px;color:var(--text-soft)}
+.stedkart-ok{font:inherit;font-size:16px;font-weight:700;padding:.8rem;border-radius:10px;border:0;background:var(--accent);color:var(--bg);min-height:48px}
+.stedkart-gps{font:inherit;font-size:14px;padding:.5rem;border-radius:8px;border:1px solid var(--line,#888);background:none;color:var(--accent);min-height:40px}

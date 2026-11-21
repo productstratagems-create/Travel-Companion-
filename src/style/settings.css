@@ -1134,3 +1134,12 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .veivalg-merke span{display:block;width:16px;height:16px;border-radius:50%;background:var(--bg);border:3px solid var(--accent);box-sizing:border-box}
 .veivalg-lapp{font-weight:700}
 #v-auto .auto-anslag{opacity:.65}
+#auto-her .hva{margin-top:.5rem;display:flex;flex-direction:column;gap:.35rem}
+#auto-her .hva-chips{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:.4rem;scrollbar-width:none}
+#auto-her .hva-chip{flex:0 0 auto}
+#auto-her .hva-chip{font:inherit;font-size:14px;padding:.4rem .75rem;border-radius:999px;border:1px solid var(--line,#888);background:none;color:var(--accent);min-height:40px;cursor:pointer}
+#auto-her .hva-hode{display:flex;align-items:center;justify-content:space-between;font-size:15px}
+#auto-her .hva-type{display:block;font-size:12px;color:var(--text-soft)}
+#auto-her .hva-tom{font-size:13px;color:var(--text-soft)}
+#auto-her .hva-rad{display:flex;gap:.4rem}
+#auto-her .hva-rad .her-sok{flex:1}

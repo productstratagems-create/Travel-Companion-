@@ -17,6 +17,8 @@ const CAT_EMOJI = {
   'commercial.books': '📖', 'commercial.electronics': '📱',
   'commercial.shopping_mall': '🏬', 'commercial.department_store': '🏬',
   'commercial.gift': '🎁', 'commercial.jewelry': '💍',
+  // Ærend (v1.218.207): det en reise ofte dreier seg om.
+  'commercial.supermarket': '🛒', 'commercial.convenience': '🛒', 'healthcare.pharmacy': '💊',
 };
 const CAT_LABEL = {
   'catering.restaurant': 'restaurant', 'catering.cafe': 'kafé',
@@ -30,6 +32,7 @@ const CAT_LABEL = {
   'commercial.sport': 'sport', 'commercial.books': 'bøker',
   'commercial.electronics': 'elektronikk', 'commercial.shopping_mall': 'kjøpesenter',
   'commercial.department_store': 'stormagasin', 'commercial.gift': 'gavebutikk',
+  'commercial.supermarket': 'dagligvare', 'commercial.convenience': 'nærbutikk', 'healthcare.pharmacy': 'apotek',
   'commercial.jewelry': 'smykker',
 };
 
@@ -179,6 +182,9 @@ const _OSM_TAGS = {
   'commercial.department_store': [['shop', 'department_store']],
   'commercial.gift':             [['shop', 'gift']],
   'commercial.jewelry':          [['shop', 'jewelry']],
+  'commercial.supermarket':      [['shop', 'supermarket']],
+  'commercial.convenience':      [['shop', 'convenience']],
+  'healthcare.pharmacy':         [['amenity', 'pharmacy']],
 };
 const _OSM_TO_CAT = {};
 Object.entries(_OSM_TAGS).forEach(([cat, pairs]) => {

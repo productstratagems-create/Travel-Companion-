@@ -1144,3 +1144,14 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 #auto-her .hva-rad{display:flex;gap:.4rem}
 #auto-her .hva-rad .her-sok{flex:1}
 #auto-her .hva-lenke{font:inherit;font-size:13px;background:none;border:0;padding:.25rem 0;color:var(--text-soft);cursor:pointer;text-align:left;min-height:32px}
+/* Steg 2a (v1.218.211): reiser til stedet som rader; resten av tavla foldet. */
+.hva-mål #auto-where, .hva-mål #auto-where-head, .hva-mål #auto-dest-body, .hva-mål #auto-body, .hva-mål #auto-neste { display: none !important; }
+#auto-her .hva-reise{display:flex;gap:.75rem;align-items:flex-start;width:100%;text-align:left;font:inherit;color:inherit;background:none;border:0;border-left:3px solid transparent;padding:.5rem .5rem;cursor:pointer}
+#auto-her .hva-reise.valgt{border-left-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+#auto-her .hva-tall{display:flex;flex-direction:column;align-items:center;min-width:2.6rem}
+#auto-her .hva-tall b{font-size:24px;line-height:1}
+#auto-her .hva-tall small{font-size:11px;color:var(--text-soft)}
+#auto-her .hva-info{display:flex;flex-direction:column;gap:.1rem;font-size:14px}
+#auto-her .hva-l1{display:flex;align-items:center;gap:.3rem;flex-wrap:wrap}
+#auto-her .hva-l2,#auto-her .hva-l3{font-size:13px;color:var(--text-soft)}
+#auto-her .hva-pil{color:var(--text-soft);font-size:12px}

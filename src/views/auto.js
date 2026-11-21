@@ -34,6 +34,7 @@ let _gangTreLogg = '';
  *  der rutetjenesten alt satte deg på veien — så alle ruter starter på samme vei. */
 function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f ? (Array.isArray(f) ? { lat: f[0], lon: f[1] } : f) : userLL(); }
 import { ÆREND, ærendNå, ærendSteder, ÆREND_RADIUS_M } from '../aerend.js';
+import { reiseRader } from '../reiseTil.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
 export { stopsAhead, arriveText };
@@ -2409,10 +2410,43 @@ let _hvaÆrend = null, _hvaSteder = null, _målSted = null, _hvaSøk = false;
    endret ikke tavla under. Til svaret henger sammen med tavla, står bare en
    liten lenke; knappene åpnes ved trykk. */
 let _hvaÅpen = false;
+/* STEG 2a (v1.218.211): «hvor skal du?» → reiser dit som rader. */
+let _hvaReiser = null, _hvaValgt = 0, _hvaVisAlle = false, _hvaFeil = false;
+const _klokke = ms => new Date(ms).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo' });
+function _velgSted(p) {
+  _hvaSøk = false; _hvaÆrend = 'sted'; _målSted = { name: p.label || p.name, lat: p.lat, lon: p.lon, type: 'sted' };
+  _hvaSteder = [_målSted]; _hvaReiser = 'henter'; _hvaValgt = 0; _hvaVisAlle = false;
+  const fra = _gangFra(), mål = _målSted;
+  if (!fra) { _hvaReiser = 'feil'; return; }
+  fetchTripFraPos(fra, { lat: p.lat, lon: p.lon }, Date.now(), 6)
+    .then(tps => { if (_målSted !== mål) return; _hvaReiser = tps; logMsg('hvor skal du: ' + tps.length + ' reiser til ' + mål.name); })
+    .catch(e => { if (_målSted === mål) { _hvaReiser = 'feil'; logMsg('✗ hvor skal du: ' + (e && e.message), 'err'); } })
+    .finally(() => { _herSist = null; _renderHer(); _aKey = ''; _renderMap(); });
+}
+/** Radene akkurat nå — én definisjon for lista og kartet. */
+function _hvaRader() {
+  if (!Array.isArray(_hvaReiser) || !_målSted) return [];
+  const w = walkMinsTo(_målSted);
+  return reiseRader(_hvaReiser, Date.now(), w ? w.mins : null);
+}
+function _hvaRadHtml(r, i) {
+  const valgt = i === _hvaValgt;
+  const merker = r.type === 'gå' ? '<span class="hva-gå">🚶</span>' : r.linjer.map(l => linjemerke({ kode: l.kode, farge: l.farge, tekst: l.tekst, modus: l.modus })).join('<span class="hva-pil">→</span>');
+  const tall = r.type === 'gå' ? r.gangMin : Math.max(0, r.gåOm);
+  const linje1 = r.type === 'gå' ? 'gå hele veien' : 'fra ' + esc(r.fra);
+  const linje2 = r.type === 'gå' ? (walkMinsTo(_målSted) && !walkMinsTo(_målSted).målt ? 'ca. ' : '') + r.gangMin + ' min gange'
+    : r.gangMin + ' min gange';
+  const linje3 = 'ank. ' + _klokke(r.ank) + (r.type === 'gå' ? '' : ' · ' + (r.bytter ? r.bytter + ' bytte' : '')) + r.fakta.filter(f => !(f === 'ingen bytte' && false)).map(f => ' · ' + f).join('');
+  return '<button type="button" class="hva-reise' + (valgt ? ' valgt' : '') + '" data-hva-r="' + i + '">'
+    // Det store tallet er «gå om» — som tavla (én betydning, ikke gjentatt i teksten).
+    + '<span class="hva-tall"><small>' + (r.type === 'gå' ? 'gå' : r.gåOm <= 0 ? 'gå' : 'gå om') + '</small><b>' + (r.type !== 'gå' && r.gåOm <= 0 ? 'nå' : tall) + '</b><small>' + (r.type !== 'gå' && r.gåOm <= 0 ? '' : 'min') + '</small></span>'
+    + '<span class="hva-info"><span class="hva-l1">' + merker + ' ' + linje1 + '</span><span class="hva-l2">' + linje2 + '</span><span class="hva-l3">' + linje3.replace(' ·  · ', ' · ').replace(/ · $/, '') + '</span></span></button>';
+}
 function _hvaHtml() {
-  if (_hvaSøk) return '<div class="hva"><div class="hva-rad"><input id="hva-sok" class="her-sok" type="search" autocomplete="off" placeholder="hvor skal du?">'
+  if (_hvaSøk) return '<div class="hva"><div class="hva-rad"><input id="hva-sok" class="her-sok" type="search" autocomplete="off" placeholder="hvor skal du? sted, adresse …">'
     + '<button type="button" class="her-knapp her-stille" data-hva="lukk">avbryt</button></div><div id="hva-sugg" class="sugg-list" hidden></div></div>';
   if (!_hvaÆrend && !_hvaÅpen) return '<div class="hva"><button type="button" class="hva-lenke" data-hva="åpne">hva skal du? ▸</button></div>';
+  if (!_hvaÆrend && !_hvaSøk) { _hvaSøk = true; return _hvaHtml(); }   // 2a: åpnet = feltet. Ærend-knappene venter på 2c.
   if (!_hvaÆrend) {
     return '<div class="hva"><div class="set-label">hva skal du?</div><div class="hva-chips">'
       + ærendNå().map(e => '<button type="button" class="hva-chip" data-hva="ærend:' + e.id + '">' + e.emoji + ' ' + esc(e.tekst) + '</button>').join('')
@@ -2421,6 +2455,17 @@ function _hvaHtml() {
   const e = ÆREND.find(x => x.id === _hvaÆrend);
   const hode = '<div class="hva-hode"><b>' + (e ? e.emoji + ' ' + esc(e.tekst) : '📍 ' + esc((_målSted && _målSted.name) || 'sted')) + '</b>'
     + '<button type="button" class="her-knapp her-stille" data-hva="lukk" aria-label="fjern">✕</button></div>';
+  if (_hvaÆrend === 'sted') {
+    let kropp;
+    if (_hvaReiser === 'henter') kropp = '<div class="hva-tom">leter etter reiser …</div>';
+    else if (_hvaReiser === 'feil') kropp = '<div class="hva-tom">fant ikke reiser nå — prøv igjen</div>';
+    else {
+      const rader = _hvaRader();
+      kropp = rader.length ? rader.map(_hvaRadHtml).join('') : '<div class="hva-tom">ingen reiser dit den neste timen</div>';
+    }
+    return '<div class="hva">' + hode + kropp
+      + '<button type="button" class="hva-lenke" data-hva="alle">' + (_hvaVisAlle ? '▾ skjul avgangene herfra' : '▸ alle avganger herfra') + '</button></div>';
+  }
   if (_hvaSteder === 'henter') return '<div class="hva">' + hode + '<div class="hva-tom">leter i nærheten …</div></div>';
   if (_hvaSteder === 'feil') return '<div class="hva">' + hode + '<div class="hva-tom">fant ikke steder nå</div></div>';
   const liste = Array.isArray(_hvaSteder) ? _hvaSteder : [];
@@ -2437,18 +2482,25 @@ function _hvaHtml() {
 function _bindHva(el) {
   el.querySelectorAll('[data-hva]').forEach(b => b.addEventListener('click', () => {
     const v = b.dataset.hva;
-    if (v === 'lukk') { _hvaÆrend = null; _hvaSteder = null; _målSted = null; _hvaSøk = false; _hvaÅpen = false; }
+    if (v === 'lukk') { _hvaÆrend = null; _hvaSteder = null; _målSted = null; _hvaSøk = false; _hvaÅpen = false; _hvaReiser = null; }
+    else if (v === 'alle') { _hvaVisAlle = !_hvaVisAlle; }
     else if (v === 'åpne') { _hvaÅpen = true; }
     else if (v === 'sted') { _hvaSøk = true; }
     else if (v.startsWith('ærend:')) _velgÆrend(v.slice(6));
     _herSist = null; _renderHer(); _aKey = ''; _renderMap();
-    if (_hvaSøk) {
+    if (_hvaSøk && el.querySelector('#hva-sok')) {
       const inp = el.querySelector('#hva-sok');
       if (inp) { inp.focus(); bindPlaceInput(inp, el.querySelector('#hva-sugg'), q => geocodePlace(q), r => {
-        _hvaSøk = false; _hvaÆrend = 'sted'; _målSted = { name: r.label, lat: r.lat, lon: r.lon, type: 'sted' }; _hvaSteder = [_målSted];
+        _velgSted(r);
         _herSist = null; _renderHer(); _aKey = ''; _renderMap(); }); }
     }
   }));
+  el.querySelectorAll('[data-hva-r]').forEach(b => b.addEventListener('click', () => {
+    _hvaValgt = Number(b.dataset.hvaR); _herSist = null; _renderHer(); _aKey = ''; _renderMap();
+  }));
+  // Resten av tavla foldes mens et sted er valgt — ikke kastet (AGENTS.md).
+  const side = _el('auto-body') && _el('auto-body').parentElement;
+  if (side) side.classList.toggle('hva-mål', _hvaÆrend === 'sted' && !_hvaVisAlle);
   el.querySelectorAll('[data-hva-i]').forEach(b => b.addEventListener('click', () => {
     const p = Array.isArray(_hvaSteder) && _hvaSteder[Number(b.dataset.hvaI)];
     if (!p) return;
@@ -5456,6 +5508,15 @@ let _atAlt = null;
 function _altStopp() {
   if (!_autoTavle) return null;
   // Målet for ærendet du valgte går foran (v1.218.207): gangen DIT.
+  if (_hvaÆrend === 'sted') {
+    // Kartet følger raden du har valgt: påstigningen, eller stedet når du går hele veien.
+    const rad = _hvaRader()[_hvaValgt];
+    const m = rad && rad.type === 'kollektiv' ? rad.fraLL : (rad ? _målSted : null);
+    if (!m || !Number.isFinite(m.lat)) return null;
+    const w = walkMinsTo(m);
+    if (w && !w.målt) sikreGang(_gangFra(), { id: 'mål:' + m.name, lat: m.lat, lon: m.lon }, { ferdig: () => { _aKey = ''; _renderMap(); } });
+    return { id: 'mål:' + m.name, name: m.name, lat: m.lat, lon: m.lon, gangMin: w ? w.mins : null, målt: w ? w.målt : false };
+  }
   if (_målSted && Number.isFinite(_målSted.lat)) {
     const w = walkMinsTo(_målSted);
     if (w && !w.målt) sikreGang(_gangFra() || state.walkFromLL || state.homeLL, { id: 'mål:' + _målSted.name, lat: _målSted.lat, lon: _målSted.lon }, { ferdig: () => { _aKey = ''; _renderMap(); _herSist = null; _renderHer(); } });

@@ -1,4 +1,5 @@
 import { erHelgLik } from '../dagtype.js';
+import { ryddKart } from '../ui/lappPlass.js';
 import { ZOOM, ramme } from '../ui/kartRamme.js';
 import { posGrå } from '../position.js';
 import { linjemerke } from '../ui/linjemerke.js';
@@ -626,6 +627,7 @@ function _ensureMap(pos) {
     _modeFilterKey = '';
   }
   _bMap.on('dragstart', () => { _bUserMoved = true; });
+  _bMap.on('zoomend moveend', _ryddRute);
   _bLayer = L.layerGroup().addTo(_bMap);
   // PLATTFORMENE (v1.218.56) synes først når du har zoomet inn — nå styrt av
   // stasjonslaget fra createMap (v1.218.59), samme terskel på alle kart.
@@ -804,7 +806,7 @@ function renderBoardMap(pos, modes) {
             permanent: erViktigst,
             direction: 'top',
             offset: [0, -15],
-            className: 'map-label',
+            className: 'map-label' + (erViktigst ? ' lapp-stopp' : ''),
           })
           .addTo(_bLayer);
       });
@@ -847,7 +849,18 @@ function renderBoardMap(pos, modes) {
       _bFitted = true;
     }
     setTimeout(() => _bMap && _bMap.invalidateSize(), 60);
+    _ryddRute();
   });
+}
+
+/* LAPPENES PLASS (v1.218.235, src/ui/lappPlass.js). Bestilt: «Bruk samme
+   lapp-konsept på Rute-kartet også.» Samme prioritet som Auto-tavle: stoppet
+   først, så gangen, plattformene, de andre; taperen får kortform eller
+   skjules, aldri flyttet. Kjøres etter tegning og ved zoom/flytting. */
+let _ryddTid = null;
+function _ryddRute() {
+  clearTimeout(_ryddTid);
+  _ryddTid = setTimeout(() => { const el = document.getElementById('board-map'); if (el) ryddKart(el); }, 80);
 }
 
 let _walkRouteKey = null;
@@ -898,7 +911,8 @@ function _drawWalkRoute(fromLL, toLL, destName) {
     .catch(() => {
       if (!_bLayer) return;
       drawWalk(_bLayer, [[fromLL.lat, fromLL.lon], [toLL.lat, toLL.lon]]);
-    });
+    })
+    .finally(_ryddRute);   // gangens lapper med i ryddingen (v1.218.235)
 }
 
 /**

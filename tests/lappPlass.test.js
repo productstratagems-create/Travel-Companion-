@@ -46,3 +46,14 @@ describe('lappenes plass', () => {
     expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/requestAnimationFrame\(\(\) => ryddKart\(el\)\)/);
   });
 });
+describe('Rute-kartet bruker samme konsept (v1.218.235)', () => {
+  const b = readFileSync('src/views/board.js', 'utf8');
+  it('ryddes etter tegning, ved zoom/flytting og når gangen er tegnet', () => {
+    expect(b).toMatch(/if \(el\) ryddKart\(el\);/);
+    expect(b).toMatch(/_bMap\.on\('zoomend moveend', _ryddRute\);/);
+    expect(b).toMatch(/\.finally\(_ryddRute\);/);
+  });
+  it('det viktigste stoppet er stopplappen (prioritet 1)', () => {
+    expect(b).toMatch(/className: 'map-label' \+ \(erViktigst \? ' lapp-stopp' : ''\)/);
+  });
+});

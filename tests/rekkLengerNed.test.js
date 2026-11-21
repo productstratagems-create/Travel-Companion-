@@ -44,7 +44,21 @@ describe('koblingen', () => {
     expect(src).toMatch(/export function rekkeFor\(c, walkActive\) \{[\s\S]{0,1200}radRekkLengerNed\(c, dir, nå\)[\s\S]{0,200}return \{ mtl: m, rcls: reachCls\(m\) \};/);
   });
   it('raden sier det, og avgangsdetaljene går dit', () => {
-    expect(src).toMatch(/rekker ikke her — ' \+ esc\(rekkTekst\(rekk, clk\)\)/);
+    expect(src).toMatch(/esc\(rekkLinje\(rekk, clk\)\)/);
     expect(readFileSync('src/views/selected.js', 'utf8')).toMatch(/const påstigning = rekk \? \{ lat: rekk\.stopp\.lat/);
+  });
+});
+import { rekkLinje } from '../src/rekkLengerNed.js';
+describe('hele setningen (v1.218.229)', () => {
+  const r = { stopp: { navn: 'Stenbråten' }, ms: Date.parse('2026-11-21T22:32:00+01:00'), gangMin: 10, målt: true, fra: 'Mortensrud' };
+  const kl = () => '22:32';
+  it('stoppet ved navn, ikke «her» (brukeren er ikke nødvendigvis på stoppet)', () => {
+    expect(rekkLinje(r, kl)).toBe('rekker den ikke fra Mortensrud — rekk den på Stenbråten 22:32 · 10 min å gå');
+    expect(rekkLinje(r, kl, 'Mortensrud T')).toMatch(/^rekker den ikke fra Mortensrud T — /);
+    expect(rekkLinje({ ...r, fra: null }, kl)).not.toMatch(/\bher\b/);
+  });
+  it('ingen «rekker ikke her» igjen noe sted', () => {
+    for (const f of ['src/ui/tavleRad.js', 'src/views/auto.js', 'src/views/selected.js', 'src/views/board.js'])
+      expect(readFileSync(f, 'utf8')).not.toMatch(/'[^'\n]*rekker ikke her —/);
   });
 });

@@ -30,7 +30,7 @@ import { visStopp } from '../stopId.js';
 import { stoppestedKjent, hentStoppested } from '../api/stoppested.js';
 import { show } from '../ui/nav.js';
 import { startBoard, boardRows, RUTE_KART_FORMER, ruteFokusData, rekkeFor } from './board.js';
-import { rekkTekst } from '../rekkLengerNed.js';
+import { rekkTekst, rekkLinje } from '../rekkLengerNed.js';
 import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
 import { stopsAhead, stoppValgHtml } from '../ui/stoppVelger.js';
 import { loadFreq } from '../api/usage.js';
@@ -1104,7 +1104,7 @@ export function renderSelected() {
           + '<div class="leaveby-label">' + heroLbl + '</div>'
           + '<div class="leaveby-time ' + ltCls + '">' + heroNum
           + '<span class="lt-unit">' + heroUnit + '</span></div>'
-          + (rekk ? '<div class="leaveby-sub sel-rekk">rekker ikke her — ' + esc(rekkTekst(rekk, clk)) + '</div>' : '')
+          + (rekk ? '<div class="leaveby-sub sel-rekk">' + esc(rekkLinje(rekk, clk)) + '</div>' : '')
           + '<div class="leaveby-sub soft">' + _subLine(rcls, mtl, leaveByTs, depTs, now) + '</div>'
           + _retningHtml(dir, rekk) + gåVidere
           + '</div>'

@@ -26,7 +26,7 @@ import { stopKey } from '../stopId.js';
 import { stopsAhead, arriveText, kjentMål, radAnkomst } from '../ui/stoppVelger.js';
 import { lesFokus, lagreFokus } from '../ui/kartValg.js';
 import { ZOOM as ZOOM_TRINN } from '../ui/kartRamme.js';
-import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
+import { rekkLengerNed, rekkTekst, rekkLinje } from '../rekkLengerNed.js';
 import { sikreGang, gangRuteTil } from '../api/gangTilStopp.js';
 import { gangTre, stierFraPrikken } from '../veivalg.js';
 let _gangTreLogg = '';
@@ -6311,7 +6311,7 @@ function _renderBody() {
         // DIN AVGANG (v1.218.86): raden for tavlas valg merkes; den flyttes ikke.
         + (din ? '<span class="auto-din-merke">din avgang</span>' : '')
         // REKK DEN LENGER NED (v1.218.190): samme tekst som Rute og Auto-tavle.
-        + ((rk => rk ? '<span class="auto-rekk">rekker ikke her — ' + esc(rekkTekst(rk, clk)) + '</span>' : '')(
+        + ((rk => rk ? '<span class="auto-rekk">' + esc(rekkLinje(rk, clk, _stop && _stop.name)) + '</span>' : '')(
           _stop ? _retningRekkMålt(d, walkMins, now) : null))
         // Its own element, not part of the name: a long destination and the
         // platform on one line wrapped the row to two on a 414px screen —

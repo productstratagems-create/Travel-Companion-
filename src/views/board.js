@@ -15,7 +15,7 @@ import { storage } from '../storage.js';
 import { DEFAULT_MODES, loadModes, saveModes } from '../tavlaModuser.js';
 import { posGråNå, fartNå, walkInfo, walkMinsTo, mToLeave, minsToLeave, reachCls, rekkeTekst, findArr, isWalkActive, nearStopMatch, loadWalkFrom, haver, SPEED_MPN, loadWalkSpeed, loadWalkBuffer, normStopName, posState, posNå, geoFocus, clusterByDistance, MOBILITY_CLUSTER_M, STOP_CLUSTER_M } from '../geo.js';
 import { turForm } from '../ui/turForm.js';
-import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
+import { rekkLengerNed, rekkTekst, rekkLinje } from '../rekkLengerNed.js';
 import { startGåHitSøk, ruteRåd, ruteMedStopp, ruteMål, rådMotEget, rådReiseTekst } from '../gaaHit.js';
 import { fetchTripFraPos, fetchTripFra } from '../api/entur.js';
 import { naboKandidater, naboRaderFra, naboTekst } from '../naboRader.js';
@@ -3710,7 +3710,7 @@ export function renderBoard() {
       + (gåTilTekst(c) ? '<div class="dep-gaa">' + esc(gåTilTekst(c)) + '</div>' : '')
       // FRA ET NABOSTOPP (v1.218.183): samme plass som gangen over.
       + (naboTekst(c) ? '<div class="dep-gaa dep-nabo">' + esc(naboTekst(c)) + '</div>' : '')
-      + (rekk ? '<div class="dep-reach dep-rekk">rekker ikke her — ' + esc(rekkTekst(rekk, clk)) + '</div>' : '')
+      + (rekk ? '<div class="dep-reach dep-rekk">' + esc(rekkLinje(rekk, clk)) + '</div>' : '')
       + (rekkeTekst(rcls)
         ? '<div class="dep-reach missed">' + esc(rekkeTekst(rcls)) + '</div>'
         : '')

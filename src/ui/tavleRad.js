@@ -1,4 +1,4 @@
-import { rekkTekst } from '../rekkLengerNed.js';
+import { rekkTekst, rekkLinje } from '../rekkLengerNed.js';
 /**
  * TAVLERADEN for Auto-tavle (v1.218.107). Bestilt: «Lag en testside som
  * kombinerer alt som er typisk "proven" i både tavla og Auto-reise.»
@@ -69,7 +69,7 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     // merke med stoppikon, i full tekstfarge — også når det er stoppet ditt.
     + (() => { const n = !x.rekk && ((x.call && x.call._fra && x.call._fra.name) || x.herNavn); return n ? fraMerke(n, x.gang) : ''; })()
     // REKK DEN LENGER NED (v1.218.185): samme tekst som Rute.
-    + (x.rekk ? '<span class="at-rekk">rekker ikke her — ' + esc(rekkTekst(x.rekk, clk)) + '</span>' : '')
+    + (x.rekk ? '<span class="at-rekk">' + esc(rekkLinje(x.rekk, clk, (x.call && x.call._fra && x.call._fra.name) || x.herNavn)) + '</span>' : '')
     // NÅR DU MÅ GÅ (v1.218.171), til fots.
     + (x.rekker && !x.innstilt && Number.isFinite(x.gåOm) ? '<span class="at-gaa-om">' + (x.gåOm <= 0 ? 'gå nå' : 'gå om ' + x.gåOm + ' min') + '</span>' : '')
     // «bak deg» står ikke lenger (v1.218.219): rapportert «hjelper ikke bruker».

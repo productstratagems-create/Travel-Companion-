@@ -77,7 +77,7 @@ describe('rekk den lenger ned i Auto-tavle (v1.218.185)', () => {
     const auto = readFileSync('src/views/auto.js', 'utf8'), rad = readFileSync('src/ui/tavleRad.js', 'utf8');
     expect(auto).toMatch(/Object\.assign\(x, \{ rekk: rk, rekker: true, gang: rk\.gangMin, gåOm: gåOm\(rk\.ms, rk\.gangMin, nå\) \}\);/);
     expect(auto).toMatch(/const c = x\.rekk \? rekkKall\(x\.call, x\.rekk\) : x\.call;/);
-    expect(rad).toMatch(/rekker ikke her — ' \+ esc\(rekkTekst\(x\.rekk, clk\)\)/);
+    expect(rad).toMatch(/esc\(rekkLinje\(x\.rekk, clk, /);
   });
 });
 
@@ -111,7 +111,7 @@ describe('rekk den lenger ned i Auto-reise (v1.218.190)', () => {
     expect(retningRekk(d(1, 30), MRUD, gang, null, T)).toBe(null);
   });
   it('raden sier det med samme tekst', () => {
-    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/'<span class="auto-rekk">rekker ikke her — ' \+ esc\(rekkTekst\(rk, clk\)\)/);
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/'<span class="auto-rekk">' \+ esc\(rekkLinje\(rk, clk, _stop && _stop\.name\)\)/);
   });
 });
 

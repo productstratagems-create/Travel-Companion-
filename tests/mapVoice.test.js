@@ -127,7 +127,9 @@ describe('avgangsdetaljer draws the shared bead', () => {
    * (prøvd i reiselop.test.js). Påstanden står: byttet er merket, og navnene
    * står fast. */
   it('marks the change, and keeps the endpoint names', () => {
-    expect(s()).toMatch(/kartPunkter\(dep\._allLegs \|\| dep\._legs\)/);
+    // v1.218.195: gjennom påstigningPerler, som bruker kartPunkter for reisens egne etapper.
+    expect(s()).toMatch(/påstigningPerler\(dep, legs\)\.forEach/);
+    expect(s()).toMatch(/const perler = rå \? kartPunkter\(rå\) : \[\];/);
     expect(s()).toMatch(/permanent: true/);
   });
 

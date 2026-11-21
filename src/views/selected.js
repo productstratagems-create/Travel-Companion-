@@ -6,7 +6,7 @@ import { normJid } from '../api/queries.js';
 import { stopKey } from '../stopId.js';
 import { clk, clkDay, dayPrefix, countdownText } from '../ui/fmt.js';
 import { state, intervals } from '../state.js';
-import { walkInfo, walkMinsTo, minsToLeave, reachCls, haver, findArr, isWalkActive, walkFocus, userLL, fartNå, loadWalkBuffer } from '../geo.js';
+import { posGråNå, walkInfo, walkMinsTo, minsToLeave, reachCls, haver, findArr, isWalkActive, walkFocus, userLL, fartNå, loadWalkBuffer } from '../geo.js';
 import { gangGjelder } from '../api/ombord.js';
 import { plattformTekst } from '../bytte.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
@@ -674,7 +674,7 @@ function _renderSelMap(dep, fromName, toName, now) {
    * uten ord. Nå sier hvert punkt hva du gjør der og hvor: «[18] bytt ·
    * plattform E», på kvaiens egne koordinater. Fra de samme rå etappene som
    * tabellen (`kartPunkter`), så kartet og tabellen sier det samme. */
-  kartPunkter(dep._allLegs || dep._legs).forEach(pk => {
+  påstigningPerler(dep, legs).forEach(pk => {
     const badge = pk.linje
       ? linjemerke({ kode: pk.linje, farge: pk.farge, linjeId: pk.linjeId, modus: pk.modus }) + ' '
       : '';
@@ -865,6 +865,39 @@ function _selRekke(c, dir, wk) {
   return rekkeFor(c, true);
 }
 
+/**
+ * PÅSTIGNINGEN PÅ KARTET (v1.218.195). Rapportert: avgangsdetaljene for et
+ * alternativ hadde ingen «PÅ · Bøler». Perlene kom fra reisens rå etapper
+ * (`kartPunkter`): et kall fra Auto-tavle har ingen, og en avgang som rekkes
+ * lenger ned fikk «PÅ» på det opprinnelige stoppet. Har avgangen en annen
+ * påstigning, lages «PÅ» fra rute-etappens første stopp — det stoppet
+ * _depToRouteLegs alt starter fra. «Bytt» og «av» står. Ren.
+ */
+export function påstigningPerler(dep, ruteEtapper) {
+  const rå = (dep && (dep._allLegs || dep._legs)) || null;
+  const annen = !!(dep && (dep._rekkLengerNed || dep._fra)) || !rå;
+  const perler = rå ? kartPunkter(rå) : [];
+  if (!annen) return perler;
+  const st = ruteEtapper && ruteEtapper[0] && ruteEtapper[0].stops && ruteEtapper[0].stops[0];
+  if (!st || !Number.isFinite(st.lat)) return perler;
+  const ln = (dep.serviceJourney && dep.serviceJourney.line) || {};
+  const spor = dep.quay && dep.quay.publicCode && dep.quay.publicCode !== '?' ? dep.quay.publicCode : null;
+  const på = { kind: 'på', lat: st.lat, lon: st.lon, linje: ln.publicCode || '?',
+    farge: '#' + String((ln.presentation && ln.presentation.colour) || '7c2d12').replace(/^#/, ''),
+    tekst: st.name + (spor && !dep._rekkLengerNed ? ' · plattform ' + spor : '') };
+  return [på, ...perler.filter(p => p.kind !== 'på')];
+}
+/**
+ * GJELDER GANGEN? (v1.218.195). isWalkActive krever at rutas stopp er blant
+ * stoppene i nærheten — et alternativ (Bøler, Kantarellen) er det ikke, så
+ * nedtellingen forsvant der gangen er nettopp det du skal gjøre.
+ */
+export function selGangAktiv(dir, c) {
+  const alternativ = (dir && dir.key === 'auto-tavle') || !!(c && (c._fra || c._rekkLengerNed));
+  if (alternativ) return gangGjelder(fartNå(), false) && !posGråNå();
+  return isWalkActive(dir);
+}
+
 function _selDir() { return (state.sel && state.sel._dir) || config.dirs[state.dIdx]; }
 
 /* NESTE AVGANG ETTER ET BYTTE (v1.218.43, ui/reiselop.js `nesteRadHtml`).
@@ -940,7 +973,7 @@ export function renderSelected() {
   const leaveByTs = rekk ? rekk.ms - rekk.gangMin * 60000 : påstigningTs(c) - wk.mins * 60000;
   const ltCls = _ltCls(rcls);
 
-  const walkActive = isWalkActive(dir);
+  const walkActive = selGangAktiv(dir, c);
   // Is it time to go? One question, three consequences — see walkFocus.
   const focus = walkActive && !departed && walkFocus(mtl);
 

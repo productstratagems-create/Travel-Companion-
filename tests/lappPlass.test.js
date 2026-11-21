@@ -72,3 +72,9 @@ describe('avgangsdetaljer og Underveis (v1.218.236)', () => {
     expect(readFileSync('src/views/track.js', 'utf8')).toMatch(/festLappRydding\(_tMap\);/);
   });
 });
+
+describe('ankomstkartet (v1.218.237)', () => {
+  it('fester ryddingen også', () => {
+    expect(readFileSync('src/views/track.js', 'utf8')).toMatch(/festLappRydding\(_arrMap\);/);
+  });
+});

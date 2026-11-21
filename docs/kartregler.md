@@ -151,4 +151,4 @@ symbol collision, Google, Apple, OpenLayers declutter), i `src/ui/lappPlass.js`:
 - Taperen får kortform (`.lapp-lang` skjules) om den da får plass, ellers
   skjules den. Den flyttes aldri bort fra ankeret (§8).
 - Ro: blant like viktige går den som sto forrige gang først.
-- I alle fire kartene: Auto-tavle (v1.218.233), Rute (v1.218.235), avgangsdetaljene og Underveis (v1.218.236), festet med `festLappRydding`. PÅ/BYTT/AV og målet er stopplapper (prioritet 1).
+- I alle kartene: Auto-tavle (v1.218.233), Rute (v1.218.235), avgangsdetaljene og Underveis (v1.218.236) og ankomstkartet (v1.218.237), festet med `festLappRydding`. PÅ/BYTT/AV og målet er stopplapper (prioritet 1).

@@ -3475,6 +3475,23 @@ function _kartHindre(el, box) {
 }
 
 /** Lappens innhold på et nivå. */
+/** Dempede linjer (ikke valgt) i Auto-kartet. */
+export const EDD_DEMPET = 0.3;
+/** Lappen på den valgte linja: «74 mot Jernbanetorget · framme Lofsrud 19:34». Ren. */
+export function valgtLappHtml(b, e) {
+  const merke = linjemerke({ kode: b.kode, farge: (b.farge || '').replace(/^#/, ''), tekst: b.tekst, linjeId: b.linjeId, modus: b.modus, logo: false });
+  const fram = e && e.name && Number.isFinite(e.at) ? '<span class="edd-mot">framme ' + esc(e.name) + ' ' + clk(e.at) + '</span>' : '';
+  return '<span class="edd-topp">' + merke + '<span class="edd-mot">mot ' + esc(b.front || '') + '</span></span>' + fram;
+}
+/** Linjene ved stoppet + den valgte avgangens «gå om». Ren. */
+export function stoppLinjerLapp(bein, gangMin, nå) {
+  if (!bein || !bein.length) return '';
+  const koder = [...new Set(bein.map(b => b.kode).filter(Boolean))].slice(0, 5);
+  const først = bein.reduce((a, b) => (!a || b.ms < a.ms ? b : a), null);
+  const om = først && Number.isFinite(gangMin) ? Math.round((først.ms - nå) / 60000) - gangMin : null;
+  return '<br><span class="stopp-linjer">' + esc(koder.join(' · '))
+    + (først && om != null ? ' — ' + esc(først.kode) + (om <= 0 ? ' gå nå' : ' gå om ' + om + ' min') : '') + '</span>';
+}
 function _lappHtml(b, nivå) {
   if (nivå <= 0) return null;
   const merke = linjemerke({ kode: b.kode, farge: b.farge.replace(/^#/, ''), tekst: b.tekst, linjeId: b.linjeId, modus: b.modus, logo: false });
@@ -4018,7 +4035,9 @@ function _renderMap() {
     L.marker([_stop.lat, _stop.lon], {
       icon: makeStopIcon(normMode((_stop.modes || [])[0]), (_stop.modes || []).length, { primary: true }),
     })
-      .bindTooltip(lappMedLogo(sentrert ? gangLapp(_stop) : _stop.name, stoppLinjer(_stop.id)),
+      // LINJENE VED STOPPET (v1.218.222): «Mortensrud · 12 min» + linjene som
+      // går herfra, og den valgte avgangens «gå om» — der du skal gå på.
+      .bindTooltip(lappMedLogo((sentrert ? gangLapp(_stop) : _stop.name) + (sentrert ? stoppLinjerLapp(bein, _gang ? _gang.mins : null, Date.now()) : ''), stoppLinjer(_stop.id)),
         (() => {
           // Bort fra beina og gangruta, og lenger ut når stasjonsdetaljene vises.
           const z = _aMap.getZoom();
@@ -4098,12 +4117,18 @@ function _renderMap() {
     const vei = turForm(b.jid, start, b.stopp[b.stopp.length - 1], _renderBody);
     drawStopLine(g, [start, ...b.stopp], { color: b.farge, mode: normMode(b.modus), dots: false,
       shape: vei ? [[start.lat, start.lon], ...vei] : null });
-    if (!først) g.eachLayer(l => l.setStyle && l.setStyle({ opacity: 0.55 }));
+    // ÉN LAPP, DEN VALGTE (v1.218.222). Rapportert: «krevende å forstå hva
+    // lappene med linje/rutenummer i kartet egentlig betyr for bruker.» Bare
+    // avgangen øverst i lista (den første) får lapp og full styrke; de andre
+    // linjene står tynne og dempet, uten lapp. Lappen sier hva den er:
+    // linja, mot hvor, og når du er framme der.
+    const valgt = først;
+    if (!valgt) g.eachLayer(l => l.setStyle && l.setStyle({ opacity: EDD_DEMPET }));
     const plass = plasser[bi] || null;
     const e = plass ? plass.stopp : b.stopp[b.stopp.length - 1];
     const retning = plass ? plass.side : 'top';
     const niv = plass ? plass.nivå : 0;
-    const lapp = plass && !ruterModus ? _lappHtml(b, niv) : null;
+    const lapp = valgt && plass && !ruterModus ? valgtLappHtml(b, e) : null;
     const ende = L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'edderkopp-ende', html: '', iconSize: [8, 8] }), keyboard: false })
       .on('click', () => { _open = b.dir; _renderBody(); });
     if (lapp) ende.bindTooltip(lapp, { className: lappKlasse + ' edderkopp-lapp nivå-' + niv + (først ? ' først' : '') + (plass.tvunget ? ' tvunget' : ''), direction: retning,

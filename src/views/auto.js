@@ -2421,6 +2421,8 @@ let _hvaÆrend = null, _hvaSteder = null, _målSted = null, _hvaSøk = false;
    endret ikke tavla under. Til svaret henger sammen med tavla, står bare en
    liten lenke; knappene åpnes ved trykk. */
 let _hvaÅpen = false;
+/** «Hva skal du?» på Auto-tavle. Av (v1.218.220): bestilt kuttet. */
+export const HVA_PÅ = false;
 /* STEG 2a (v1.218.211): «hvor skal du?» → reiser dit som rader. */
 let _hvaReiser = null, _hvaValgt = 0, _hvaVisAlle = false, _hvaFeil = false;
 const _klokke = ms => new Date(ms).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo' });
@@ -2544,7 +2546,9 @@ function _renderHer() {
   const flyttet = manuell && _herAnker && state.homeLL && _avst(_herAnker, state.homeLL) > MANUELL_FLYTT_M;
   const ca = !manuell && (_usikkerRo.usikker || posBekreftelse(ps, false) === 'spørsmål');
   const html = (_herKartVelg ? '<div class="her-linje her-spørsmål"><span class="her-tekst">Trykk i kartet der du er</span><button type="button" class="her-knapp her-stille" data-her="lukk">avbryt</button></div>' : herLinjeHtml({ kind, navn, acc: ps && ps.acc, flyttet, ca }))
-    + (kind === 'ukjent' || !_autoTavle ? '' : _hvaHtml());
+    // «HVA SKAL DU?» KUTTET (v1.218.220). Bestilt: «Kutt hele denne funksjonen
+    // nå.» Ikke tegnet; koden (2a-reisene, ærend) står, slått av med ett navn.
+    + (!HVA_PÅ || kind === 'ukjent' || !_autoTavle ? '' : _hvaHtml());
   // KNAPPENE SVARER (v1.218.218). Rapportert: «knappene responderer ofte
   // ikke». innerHTML ble byttet hver gang _herSist ble nullet — også med lik
   // html — og en knapp byttet mellom finger ned og opp gir aldri et klikk.

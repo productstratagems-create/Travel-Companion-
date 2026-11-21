@@ -3478,6 +3478,8 @@ function _kartHindre(el, box) {
 /** Lappens innhold på et nivå. */
 /** Dempede linjer (ikke valgt) i Auto-kartet. */
 export const EDD_DEMPET = 0.3;
+/** Lapp på den valgte linja i Auto-kartet. Av (v1.218.226): stopplappen sier det. */
+export const VALGT_LAPP_PÅ = false;
 /** Lappen på den valgte linja: «74 mot Jernbanetorget · framme Lofsrud 19:34». Ren. */
 export function valgtLappHtml(b, e) {
   const merke = linjemerke({ kode: b.kode, farge: (b.farge || '').replace(/^#/, ''), tekst: b.tekst, linjeId: b.linjeId, modus: b.modus, logo: false });
@@ -4086,6 +4088,7 @@ function _renderMap() {
   // Uten stopp har beina ingen fot å stå på (v1.218.198): sidefeil «reading 'lat'» i proben, eldre enn denne endringen.
   if (!_stop || !Number.isFinite(_stop.lat)) bein = [];
   const førsteMs = bein.length ? Math.min(...bein.map(b => b.ms)) : null;
+  const valgtIndeks = bein.findIndex(b => b.ms === førsteMs);
   _sisteBein = bein;
   // HELE RUTER (v1.218.112): hele linja i full styrke, lappen ved endestasjonen.
   const ruterModus = _autoTavle && _kartFokus === 'ruter';
@@ -4129,13 +4132,17 @@ function _renderMap() {
     // avgangen øverst i lista (den første) får lapp og full styrke; de andre
     // linjene står tynne og dempet, uten lapp. Lappen sier hva den er:
     // linja, mot hvor, og når du er framme der.
-    const valgt = først;
+    // Én valgt, også når to går samme minutt (v1.218.226: to lapper i skjermbildet).
+    const valgt = bi === valgtIndeks;
     if (!valgt) g.eachLayer(l => l.setStyle && l.setStyle({ opacity: EDD_DEMPET }));
     const plass = plasser[bi] || null;
     const e = plass ? plass.stopp : b.stopp[b.stopp.length - 1];
     const retning = plass ? plass.side : 'top';
     const niv = plass ? plass.nivå : 0;
-    const lapp = valgt && plass && !ruterModus ? valgtLappHtml(b, e) : null;
+    // INGEN LAPP PÅ LINJENE (v1.218.226). Spurt: «Linjenummerene slik blir vel
+    // dobbelt opp med lappen?» Stopplappen sier alt linjene og «gå om»; den
+    // valgte linja står i full styrke, resten dempet. valgtLappHtml står.
+    const lapp = VALGT_LAPP_PÅ && valgt && plass && !ruterModus ? valgtLappHtml(b, e) : null;
     const ende = L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'edderkopp-ende', html: '', iconSize: [8, 8] }), keyboard: false })
       .on('click', () => { _open = b.dir; _renderBody(); });
     if (lapp) ende.bindTooltip(lapp, { className: lappKlasse + ' edderkopp-lapp nivå-' + niv + (først ? ' først' : '') + (plass.tvunget ? ' tvunget' : ''), direction: retning,

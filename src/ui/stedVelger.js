@@ -22,7 +22,9 @@ export function herLinjeHtml({ kind, navn, acc, flyttet }) {
   }
   if (kind === 'spørsmål') {
     return '<div class="her-linje her-spørsmål"><span class="her-tekst">◌ Er du her? <b>' + n + '</b>'
-      + (Number.isFinite(acc) ? ' <small>(±' + Math.round(acc) + ' m)</small>' : '') + '</span>'
+      // Ingen «(±1126 m)» (v1.218.212): et tall som tikker er uro, og
+      // usikkerheten vises på kartet (ringen) — godkjent mønster i AGENTS.md.
+      + '</span>'
       + '<span class="her-valg"><button type="button" class="her-knapp" data-her="ja">ja</button>'
       + '<button type="button" class="her-knapp" data-her="velg">nei, velg sted</button></span></div>';
   }

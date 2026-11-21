@@ -35,6 +35,7 @@ let _gangTreLogg = '';
 function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f ? (Array.isArray(f) ? { lat: f[0], lon: f[1] } : f) : userLL(); }
 import { ÆREND, ærendNå, ærendSteder, ÆREND_RADIUS_M } from '../aerend.js';
 import { reiseRader } from '../reiseTil.js';
+import { roPunkt } from '../roPunkt.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
 export { stopsAhead, arriveText };
@@ -2389,10 +2390,13 @@ export function usikkerMedRo(forrige, ps, nå) {
   if (nå - siden >= (f.usikker ? SIKKER_UT_MS : USIKKER_INN_MS)) return { usikker: !f.usikker, siden: null };
   return { usikker: f.usikker, siden };
 }
-let _usikkerRo = null;
+let _usikkerRo = null, _herRo = null;
 
 export function herTilstand(ps, manuell, ja, gps, usikker = false) {
   let kind = posBekreftelse(ps, manuell);
+  // MED RO (v1.218.212): spørsmålet kommer og går med hysteresen
+  // (usikkerMedRo), ikke med hver fiks som krysser 100 m.
+  if (kind === 'spørsmål' && !usikker) kind = 'påstand';
   // BEKREFTET (v1.218.202): «ja» — på påstanden eller spørsmålet — tar
   // spørsmålet bort til du har flyttet deg tydelig (100 m).
   if ((kind === 'spørsmål' || kind === 'påstand') && ja && gps && _avst(ja, gps) < 100) kind = 'bekreftet';
@@ -2524,9 +2528,11 @@ function _renderHer() {
   const ps = _posState();
   _usikkerRo = usikkerMedRo(_usikkerRo, ps, Date.now());
   const kind = herTilstand(ps, manuell, _herJa, state.homeLL, _usikkerRo.usikker);
-  const ll = state.walkFromLL || state.homeLL;
   const wf = manuell ? loadWalkFrom() : null;
-  const oppslag = !manuell && ll ? stedNavn(ll, () => { _herSist = null; _renderHer(); }) : null;
+  // RO-PUNKTET (v1.218.212, src/roPunkt.js): adressen følger stedet du er,
+  // ikke hver fiks (81D → 81C → 81D).
+  if (!manuell && state.homeLL) _herRo = roPunkt(_herRo, { lat: state.homeLL.lat, lon: state.homeLL.lon, acc: ps && ps.acc }, Date.now());
+  const oppslag = !manuell && _herRo ? stedNavn(_herRo, () => { _herSist = null; _renderHer(); }) : null;
   const navn = (wf && wf.label) || oppslag || (_stop ? 'nær ' + _stop.name : null);
   const flyttet = manuell && _herAnker && state.homeLL && _avst(_herAnker, state.homeLL) > MANUELL_FLYTT_M;
   const html = (_herKartVelg ? '<div class="her-linje her-spørsmål"><span class="her-tekst">Trykk i kartet der du er</span><button type="button" class="her-knapp her-stille" data-her="lukk">avbryt</button></div>' : herLinjeHtml({ kind, navn, acc: ps && ps.acc, flyttet }))

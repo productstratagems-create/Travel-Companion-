@@ -3478,6 +3478,28 @@ function _kartHindre(el, box) {
 /** Lappens innhold på et nivå. */
 /** Dempede linjer (ikke valgt) i Auto-kartet. */
 export const EDD_DEMPET = 0.3;
+/* LINJEMERKET VED LINJAS ENDE (v1.218.227). Foreslått: «linje/rute-nummer
+   som lapp ankret til endestasjoner, så fremt de ikke overlapper med andre
+   viktigere lapper». Bare merket — tid og retning står i stopplappen.
+   Får det ikke plass, får enden ingen lapp; den flyttes aldri (§8). */
+export function endeMerkeHtml(g) {
+  return g.linjer.map(l => linjemerke({ kode: l.kode, farge: String(l.farge || '').replace(/^#/, ''), tekst: l.tekst, linjeId: l.linjeId, modus: l.modus, logo: false })).join('');
+}
+const _rektKolliderer = (a, b) => a.venstre < b.høyre && a.høyre > b.venstre && a.topp < b.bunn && a.bunn > b.topp;
+/**
+ * Sidene rundt endepunktet, i rekkefølge; første som verken overlapper et
+ * hinder (viktigere lapper, knapper, prikken din) eller kanten. Null: ingen
+ * lapp. Ren. pt: skjermpunkt; b/h: lappens anslåtte størrelse.
+ */
+export function endeMerkeSide(pt, b, h, hindre, W, H, kant = 4) {
+  for (const side of ['right', 'top', 'left', 'bottom']) {
+    const rk = lappRekt(pt, side, b, h);
+    if (rk.venstre < kant || rk.høyre > W - kant || rk.topp < kant || rk.bunn > H - kant) continue;
+    if ((hindre || []).some(o => _rektKolliderer(rk, o))) continue;
+    return { side, rekt: rk };
+  }
+  return null;
+}
 /** Lapp på den valgte linja i Auto-kartet. Av (v1.218.226): stopplappen sier det. */
 export const VALGT_LAPP_PÅ = false;
 /** Lappen på den valgte linja: «74 mot Jernbanetorget · framme Lofsrud 19:34». Ren. */
@@ -4149,6 +4171,26 @@ function _renderMap() {
       offset: _LAPP_FORSKYV[retning], permanent: true, interactive: true });
     ende.addTo(g);
   });
+  // Linjemerkene ved endene, lavest prioritet: valgt linjes ende først.
+  if (!ruterModus && bein.length) {
+    const hindre = grunnHindre.slice();
+    if (userPos) { const u = _aMap.latLngToContainerPoint([userPos.lat, userPos.lon]); hindre.push({ venstre: u.x - 14, høyre: u.x + 14, topp: u.y - 14, bunn: u.y + 14 }); }
+    // Gangpillen og de andre lappene som alt står (DOM), som hindre.
+    el.querySelectorAll('.leaflet-tooltip').forEach(t => { const rr = t.getBoundingClientRect(); if (rr.width) hindre.push({ venstre: rr.left - box.left - 2, høyre: rr.right - box.left + 2, topp: rr.top - box.top - 2, bunn: rr.bottom - box.top + 2 }); });
+    const valgtKode = bein[valgtIndeks] && bein[valgtIndeks].kode;
+    const grupper = endeLapper(bein).sort((a, b) => (b.linjer.some(l => l.kode === valgtKode) ? 1 : 0) - (a.linjer.some(l => l.kode === valgtKode) ? 1 : 0)
+      || Math.min(...a.linjer.map(l => l.ms || Infinity)) - Math.min(...b.linjer.map(l => l.ms || Infinity)));
+    grupper.forEach(gr => {
+      const pt = _aMap.latLngToContainerPoint([gr.ende.lat, gr.ende.lon]);
+      const plass = endeMerkeSide(pt, 34 * gr.linjer.length + 6, 22, hindre, box.width, box.height);
+      if (!plass) return;
+      hindre.push(plass.rekt);
+      const dempet = !gr.linjer.some(l => l.kode === valgtKode);
+      L.marker([gr.ende.lat, gr.ende.lon], { icon: L.divIcon({ className: 'edderkopp-ende', html: '', iconSize: [8, 8] }), keyboard: false })
+        .bindTooltip(endeMerkeHtml(gr), { className: 'edd-ende-merke' + (dempet ? ' dempet' : ''), direction: plass.side, offset: _LAPP_FORSKYV[plass.side], permanent: true })
+        .addTo(_aLayer);
+    });
+  }
   if (ruterModus) {
     const sp = _aMap.latLngToContainerPoint([_stop.lat, _stop.lon]);
     endeLapper(bein).forEach(gr => {

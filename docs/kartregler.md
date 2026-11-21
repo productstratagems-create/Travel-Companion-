@@ -112,3 +112,7 @@ Proven (kartografi; Google Maps, Apple Kart):
   (nabostopp og alternativ før stoppet ditt). Den flyttes ikke bort.
 - **Ett faktum, ett anker:** stoppnavn, linjer og «gå om» står ved stoppet;
   gangtiden står som en egen pille midt på gangstreken («🚶 12 min»).
+- **Linjemerket ved linjas ende** (v1.218.227) har lavest prioritet: bare
+  linjenummeret, ankret til endepunktet av den tegnede streken. Det står
+  bare der det ikke dekker stopplappen, gangpillen, andre lapper, prikken
+  din eller knappene. Ellers står det ikke.

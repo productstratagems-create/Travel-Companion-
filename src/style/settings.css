@@ -1173,3 +1173,7 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .at-fra.at-fra-stopp{color:var(--text);font-size:.8rem;display:inline-flex;align-items:center;gap:.35em;flex-wrap:wrap}
 .at-fra-stopp .fra-ikon{width:.7em;height:.7em;border-radius:50%;border:2px solid var(--accent);box-sizing:border-box;flex:0 0 auto}
 .at-fra-stopp b{font-weight:700}
+/* Linjemerket ved linjas ende (v1.218.227): kompakt, ingen ramme ut over merket. */
+.leaflet-tooltip.edd-ende-merke{background:transparent;border:0;box-shadow:none;padding:0;display:flex;gap:2px}
+.leaflet-tooltip.edd-ende-merke::before{display:none}
+.leaflet-tooltip.edd-ende-merke.dempet{opacity:.55}

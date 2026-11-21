@@ -3482,6 +3482,8 @@ function _kartHindre(el, box) {
 /** Lappens innhold på et nivå. */
 /** Dempede linjer (ikke valgt) i Auto-kartet. */
 export const EDD_DEMPET = 0.3;
+/** Gangtidspillen på gangstreken. Av (v1.218.234): gangtiden står på stoppkortet. */
+export const GANG_PILLE_PÅ = false;
 /* LINJEMERKET VED LINJAS ENDE (v1.218.227). Foreslått: «linje/rute-nummer
    som lapp ankret til endestasjoner, så fremt de ikke overlapper med andre
    viktigere lapper». Bare merket — tid og retning står i stopplappen.
@@ -4098,14 +4100,17 @@ function _renderMap() {
   const midt = sentrert && walkPts && walkPts.length >= 2 ? halvveis(walkPts) : null;
   const _gm = _stop ? gangTil(_stop) : null;
   // Pillen tegnes etter gangtreet (v1.218.231): den skal stå på grenen den gjelder.
-  const _pilleVis = !!(midt && _gm && _aMap.getZoom() >= STOPP_LAPP_ZOOM && !_gåHitVis);
+  // GANGTIDEN PÅ STOPPKORTET (v1.218.234). Bestilt: «Gangtid burde stå på
+  // kortet til Mortensrud.» Pillen på gangstreken er av (GANG_PILLE_PÅ); tallet
+  // står ett sted — i stopplappen, «Mortensrud · 12 min».
+  const _pilleVis = GANG_PILLE_PÅ && !!(midt && _gm && _aMap.getZoom() >= STOPP_LAPP_ZOOM && !_gåHitVis);
   if (_stop && _stop.lat != null) {
     L.marker([_stop.lat, _stop.lon], {
       icon: makeStopIcon(normMode((_stop.modes || [])[0]), (_stop.modes || []).length, { primary: true }),
     })
       // LINJENE VED STOPPET (v1.218.222): «Mortensrud · 12 min» + linjene som
       // går herfra, og den valgte avgangens «gå om» — der du skal gå på.
-      .bindTooltip(lappMedLogo((sentrert ? (midt && _gm ? _stop.name : gangLapp(_stop)) : _stop.name) + (sentrert ? stoppLinjerLapp(bein, _gang ? _gang.mins : null, Date.now()) : ''), stoppLinjer(_stop.id)),
+      .bindTooltip(lappMedLogo((sentrert ? (GANG_PILLE_PÅ && midt && _gm ? _stop.name : gangLapp(_stop)) : _stop.name) + (sentrert ? stoppLinjerLapp(bein, _gang ? _gang.mins : null, Date.now()) : ''), stoppLinjer(_stop.id)),
         (() => {
           // Bort fra beina og gangruta, og lenger ut når stasjonsdetaljene vises.
           const z = _aMap.getZoom();

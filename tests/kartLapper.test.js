@@ -56,3 +56,10 @@ describe('linjene på plattformen (v1.218.230)', () => {
     expect(m.get('NSR:T|D')).toEqual(['71']);
   });
 });
+describe('gangtiden på stoppkortet (v1.218.234)', () => {
+  it('stopplappen sier gangtiden; pillen er av', () => {
+    const a = readFileSync('src/views/auto.js', 'utf8');
+    expect(a).toMatch(/export const GANG_PILLE_PÅ = false;/);
+    expect(a).toMatch(/GANG_PILLE_PÅ && midt && _gm \? _stop\.name : gangLapp\(_stop\)/);
+  });
+});

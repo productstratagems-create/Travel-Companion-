@@ -1,5 +1,5 @@
 import { erHelgLik } from '../dagtype.js';
-import { ryddKart } from '../ui/lappPlass.js';
+import { festLappRydding } from '../ui/lappPlass.js';
 import { ZOOM, ramme } from '../ui/kartRamme.js';
 import { posGrå } from '../position.js';
 import { linjemerke } from '../ui/linjemerke.js';
@@ -627,7 +627,7 @@ function _ensureMap(pos) {
     _modeFilterKey = '';
   }
   _bMap.on('dragstart', () => { _bUserMoved = true; });
-  _bMap.on('zoomend moveend', _ryddRute);
+  festLappRydding(_bMap);
   _bLayer = L.layerGroup().addTo(_bMap);
   // PLATTFORMENE (v1.218.56) synes først når du har zoomet inn — nå styrt av
   // stasjonslaget fra createMap (v1.218.59), samme terskel på alle kart.
@@ -857,11 +857,7 @@ function renderBoardMap(pos, modes) {
    lapp-konsept på Rute-kartet også.» Samme prioritet som Auto-tavle: stoppet
    først, så gangen, plattformene, de andre; taperen får kortform eller
    skjules, aldri flyttet. Kjøres etter tegning og ved zoom/flytting. */
-let _ryddTid = null;
-function _ryddRute() {
-  clearTimeout(_ryddTid);
-  _ryddTid = setTimeout(() => { const el = document.getElementById('board-map'); if (el) ryddKart(el); }, 80);
-}
+function _ryddRute() { if (_bMap) festLappRydding(_bMap)(); }
 
 let _walkRouteKey = null;
 

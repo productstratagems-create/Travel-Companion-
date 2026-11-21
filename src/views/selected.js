@@ -1,4 +1,5 @@
 import { linjemerke } from '../ui/linjemerke.js';
+import { festLappRydding } from '../ui/lappPlass.js';
 import { ZOOM, ramme } from '../ui/kartRamme.js';
 import { STEG_TAK } from '../kartSteg.js';
 import config from '../config.js';
@@ -584,6 +585,8 @@ function _renderSelMap(dep, fromName, toName, now) {
   destroySelMap();
   _selMapKey = key;
   _selMap = createMap(mapEl, { expandable: true });
+  // LAPPENES PLASS (v1.218.236, kartregler §10): PÅ/BYTT/AV og målet først.
+  festLappRydding(_selMap);
   _selFokus = 'oversikt';
   // DIN PLATTFORM (v1.218.60): avgangen du valgte, uthevet blant alle.
   uthevAvgang(_selMap, dep, dir && dir.stopId);
@@ -687,7 +690,7 @@ function _renderSelMap(dep, fromName, toName, now) {
     })
       .bindTooltip(badge + '<b>' + esc(pk.kind) + '</b> · ' + esc(pk.tekst), {
         permanent: true, direction: pk.kind === 'av' ? 'bottom' : 'top',
-        offset: [0, pk.kind === 'av' ? 8 : -10], className: 'sel-stop-label sel-pkt-label',
+        offset: [0, pk.kind === 'av' ? 8 : -10], className: 'sel-stop-label sel-pkt-label lapp-stopp',
       })
       .addTo(_selLayer);
   });
@@ -719,7 +722,7 @@ function _renderSelMap(dep, fromName, toName, now) {
       + '<circle cx="11" cy="11" r="4.5" fill="#b8860b"/></svg>';
     L.marker([destLL.lat, destLL.lon], {
       icon: L.divIcon({ className: '', html: pinHtml, iconSize: [20, 28], iconAnchor: [10, 28] }),
-    }).bindTooltip(dir.to || 'Destinasjon', { permanent: true, direction: 'top', offset: [0, -30], className: 'sel-stop-label' })
+    }).bindTooltip(dir.to || 'Destinasjon', { permanent: true, direction: 'top', offset: [0, -30], className: 'sel-stop-label lapp-stopp' })
       .addTo(_selLayer);
 
     // The walk itself comes from the itinerary, not from a second query.

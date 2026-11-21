@@ -37,6 +37,7 @@ import { ÆREND, ærendNå, ærendSteder, ÆREND_RADIUS_M } from '../aerend.js';
 import { reiseRader } from '../reiseTil.js';
 import { roPunkt } from '../roPunkt.js';
 import { målområder } from '../maalomrader.js';
+import { omrProbe } from '../api/omrProbe.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
 export { stopsAhead, arriveText };
@@ -5516,6 +5517,8 @@ function _oppdaterOmråder(andre, here, nå) {
   _atOmr = målområder(andre, here, d => stopsAhead(d.call, _stop && _stop.name, nå), _omrNøkkel);
   _atOmrAv = new Map();
   _atOmr.forEach(o => o.nøkler.forEach(k => _atOmrAv.set(k, o.id)));
+  // PROBEN (v1.218.214): hva Entur og Kartverket sier om områdene — til loggen.
+  if (_atOmr.length && _stop) omrProbe(_stop.id, _atOmr, t => logMsg(t)).catch(() => {});
   _atOmr.forEach(o => { o.linjer = [...new Set(andre.filter(d => o.nøkler.has(_omrNøkkel(d))).map(d => d.lines && d.lines[0] && d.lines[0].code).filter(Boolean))]; });
 }
 const _retningTekst = k => AT_RETNING_TEKST[k] || ((_atOmr.find(o => o.id === k) || {}).tekst) || 'dit';

@@ -40,7 +40,7 @@ export function målområder(dirs, her, stoppFor, nøkkel) {
     const ute = st.filter(s => s.m >= OMR_NÆR_M && s.m <= OMR_FJERN_M);
     const fjern = (ute.length ? ute : st).reduce((a, s) => (!a || s.m > a.m ? s : a), null);
     if (!fjern) continue;
-    med.push({ d, p: peiling(her, fjern), stopp: ute, front: d.frontText || '' });
+    med.push({ d, p: peiling(her, fjern), stopp: ute, front: d.frontText || '', fjern });
   }
   if (med.length < 2) return [];
   med.sort((a, b) => a.p - b.p);
@@ -70,6 +70,8 @@ export function målområder(dirs, her, stoppFor, nøkkel) {
     if (brukt.has(stopKey(navn))) navn = g[0].front || navn + ' ' + (brukt.size + 1);
     brukt.add(stopKey(navn));
     const p = g[0].p;
-    return { id: 'omr:' + navn, navn, tekst: 'mot ' + navn, nøkler: new Set(g.map(x => nøkkel(x.d))), peiling: p };
+    // Det fjerneste stoppet i området — der proben spør om navn (omrProbe).
+    const fjern = g.map(x => x.fjern).reduce((a, b) => (!a || b.m > a.m ? b : a), null);
+    return { id: 'omr:' + navn, navn, tekst: 'mot ' + navn, nøkler: new Set(g.map(x => nøkkel(x.d))), peiling: p, fjern };
   }).sort((a, b) => a.peiling - b.peiling);
 }

@@ -35,6 +35,7 @@ let _gangTreLogg = '';
 function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f ? (Array.isArray(f) ? { lat: f[0], lon: f[1] } : f) : userLL(); }
 import { ÆREND, ærendNå, ærendSteder, ÆREND_RADIUS_M } from '../aerend.js';
 import { reiseRader, kombiRader } from '../reiseTil.js';
+import { fraMerke } from '../ui/tavleRad.js';
 import { roPunkt } from '../roPunkt.js';
 import { målområder } from '../maalomrader.js';
 import { omrProbe } from '../api/omrProbe.js';
@@ -5627,7 +5628,7 @@ function _kombiRadHtml(r, i) {
   return '<button type="button" class="at-kombi" data-kombi="' + i + '">'
     + '<span class="hva-tall"><small>gå om</small><b>' + Math.max(0, r.gåOm) + '</b><small>min</small></span>'
     + '<span class="hva-info"><span class="hva-l1">' + merker + (r.via ? ' via ' + esc(r.via) : '') + '</span>'
-    + '<span class="hva-l2">fra ' + esc(r.fra) + ' · ' + r.gangMin + ' min gange</span>'
+    + fraMerke(r.fra, r.gangMin)
     + '<span class="hva-l3">ank. ' + _klokke(r.ank) + ' · ' + r.bytter + ' bytte' + r.fakta.filter(f => f !== 'ingen bytte').map(f => ' · ' + esc(f)).join('') + '</span></span></button>';
 }
 const _retningTekst = k => AT_RETNING_TEKST[k] || ((_atOmr.find(o => o.id === k) || {}).tekst) || 'dit';
@@ -5791,6 +5792,8 @@ function _tegnAutoTavle(body) {
   // «Bytt på X» på radene når hjemover er valgt (v1.218.151).
   if (_atRetning === 'hjem') [...del.ikke, ...del.rekker].forEach(x => { x.bytte = retningHjemDom(x.d, gang, nå, hjemListe).bytte; });
   const rader = [...del.ikke, ...del.rekker];
+  // Stoppet ditt står på radene som går derfra også (v1.218.225, fraMerke).
+  rader.forEach(x => { x.herNavn = _stop && _stop.name; });
   const kv = _autoTavle ? _kombiFor(_atRetning, here, nå) : null;
   const kombi = kv && Array.isArray(kv.tps) ? kombiRader(reiseRader(kv.tps, nå, null)).filter(r => r.gåOm >= 0).sort((a, b) => a.gåOm - b.gåOm) : [];
   // Si hva du ikke vet: leter, feilet — ikke stillhet.

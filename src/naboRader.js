@@ -17,7 +17,8 @@ export function naboKandidater(stops, ruteStopp, gangTil, egenGang, maks = NABO_
   return (stops || [])
     .filter(s => s && s.id && Number.isFinite(s.lat))
     .filter(s => !(egen.id && s.id === egen.id) && !(egen.name && stopKey(s.name) === stopKey(egen.name)))
-    .map(s => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon, gangMin: gangTil(s) }))
+    .map(s => { const g = gangTil(s); const o = g && typeof g === 'object';
+      return { id: s.id, name: s.name, lat: s.lat, lon: s.lon, gangMin: o ? g.mins : g, målt: o ? !!g.målt : true }; })
     .filter(s => Number.isFinite(s.gangMin) && s.gangMin <= grense)
     .sort((a, b) => a.gangMin - b.gangMin)
     .slice(0, maks);
@@ -44,11 +45,11 @@ export function naboRaderFra(adapterte, nabo, egneJourneyIds) {
     if (c._gåTil) return false;
     const j = jid(c);
     return !(j && egne.has(j));
-  }).map(c => Object.assign(c, { _fra: { id: nabo.id, name: nabo.name, lat: nabo.lat, lon: nabo.lon, gangMin: nabo.gangMin } }));
+  }).map(c => Object.assign(c, { _fra: { id: nabo.id, name: nabo.name, lat: nabo.lat, lon: nabo.lon, gangMin: nabo.gangMin, målt: nabo.målt !== false } }));
 }
 
 /** Linja på raden. Én tekst. */
 export function naboTekst(c) {
   const f = c && c._fra;
-  return f ? 'fra ' + f.name + (Number.isFinite(f.gangMin) ? ' · ' + f.gangMin + ' min å gå' : '') : null;
+  return f ? 'fra ' + f.name + (Number.isFinite(f.gangMin) ? ' · ' + (f.målt === false ? 'ca. ' : '') + f.gangMin + ' min å gå' : '') : null;
 }

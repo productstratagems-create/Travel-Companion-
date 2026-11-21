@@ -19,6 +19,7 @@ import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
 import { startGåHitSøk, ruteRåd, ruteMedStopp, ruteMål, rådMotEget, rådReiseTekst } from '../gaaHit.js';
 import { fetchTripFraPos, fetchTripFra } from '../api/entur.js';
 import { naboKandidater, naboRaderFra, naboTekst } from '../naboRader.js';
+import { sikreGang, gangRuteTil } from '../api/gangTilStopp.js';
 import { lesFokus, lagreFokus, lesRuteLinjer, lagreRuteLinjer } from '../ui/kartValg.js';
 import { fetchBoard, fetchTrip, fetchTripPage, fetchBoardPage, stopBoardSummary, geocodePlace, _resetStopBoardCache, fetchJourneyShape, journeyShapeCached } from '../api/entur.js';
 import { setDot, logMsg } from '../ui/log.js';
@@ -492,7 +493,7 @@ function _hentNabo(dir, at) {
   if (!isWalkActive(dir) || state.walkFromLL) { _naboDeps = []; return; }
   const egenGang = walkInfo().mins;
   const kand = naboKandidater(state.nearestStations, { id: dir.stopId, name: dir.from },
-    s => { const w = walkMinsTo(s); return w ? w.mins : null; }, egenGang);
+    s => { const w = walkMinsTo(s); if (w && !w.målt) sikreGang(state.walkFromLL || state.homeLL, s, { ferdig: () => renderBoard() }); return w ? { mins: w.mins, målt: w.målt } : null; }, egenGang);
   const til = dir.toStopId || (Number.isFinite(dir._toLat) ? { lat: dir._toLat, lon: dir._toLon } : null);
   if (!kand.length || !til) { _naboDeps = []; return; }
   const nøkkel = dir.stopId + '>' + (dir.toStopId || dir.to) + '|' + kand.map(k => k.id).join(',');
@@ -1926,8 +1927,12 @@ export function radRekkLengerNed(c, dir, nå) {
   const fra = fraP ? { id: id(fraP), navn: fraP.name } : { id: dir.stopId, navn: dir.from };
   const slutt = tilP ? { id: id(tilP), navn: tilP.name } : null;
   const egen = walkInfo().mins;
-  const gangTil = ll => { const w = walkMinsTo(ll); return w ? w.mins : null; };
-  return rekkLengerNed(c.serviceJourney && c.serviceJourney.estimatedCalls, fra, slutt, gangTil, egen, nå);
+  const gangTil = ll => { const w = walkMinsTo(ll); return w ? { mins: w.mins, målt: w.målt } : null; };
+  const rk = rekkLengerNed(c.serviceJourney && c.serviceJourney.estimatedCalls, fra, slutt, gangTil, egen, nå);
+  // MÅL FØR VI LOVER (v1.218.194): stoppet tilbudet peker på, rutes; neste
+  // tegning leser den målte lengden og står ved — eller trekker — tilbudet.
+  if (rk && !rk.målt) sikreGang(state.walkFromLL || state.homeLL, rk.stopp, { ferdig: () => renderBoard() });
+  return rk;
 }
 /** Stoppene Rute faktisk går fra nå (v1.218.177). Ren. */
 export function ruteStoppIder(dir, deps) {

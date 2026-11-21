@@ -360,10 +360,15 @@ function _depToRouteLegs(dep, fromName, toName) {
   if (!dep) return null;
   if (dep._legs && dep._legs.length) {
     const legs = [];
+    // PÅSTIGNINGEN DU FAKTISK GJØR (v1.218.194): rekkes avgangen lenger ned
+    // eller fra et nabostopp, starter første etappe der — ellers manglet
+    // «PÅ · Kantarellen» og ruta ble tegnet fra et stopp du ikke går til.
+    let fraOver = dep._rekkLengerNed ? dep._rekkLengerNed.stopp.navn : (dep._fra && dep._fra.name) || null;
     for (const leg of dep._legs) {
       const calls = (leg.serviceJourney && leg.serviceJourney.estimatedCalls) || [];
       if (!calls.length) continue;
-      const fLow = _ns((leg.fromPlace && leg.fromPlace.name) || fromName);
+      const fLow = _ns(fraOver || (leg.fromPlace && leg.fromPlace.name) || fromName);
+      fraOver = null;
       const tLow = _ns((leg.toPlace   && leg.toPlace.name)   || toName);
       let fi = 0, ti = calls.length - 1;
       calls.forEach((ca, i) => {

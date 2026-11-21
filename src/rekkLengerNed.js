@@ -43,16 +43,19 @@ export function rekkLengerNed(kall, fra, slutt, gangTil, egenGang, nå) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
     const t = ms(c);
     if (!Number.isFinite(t)) continue;
-    const g = gangTil({ lat, lon });
+    // gangTil gir minutter, eller { mins, målt } (v1.218.194).
+    const gr = gangTil({ lat, lon });
+    const g = gr && typeof gr === 'object' ? gr.mins : gr;
+    const målt = gr && typeof gr === 'object' ? !!gr.målt : true;
     if (!Number.isFinite(g) || g > maks) continue;
     // Samme regel som «rekker»: du må kunne gå nå og være der før den.
     if (Math.floor((t - g * 60_000 - nå) / 60_000) < 0) continue;
-    return { stopp: { id: sted(c).id || null, navn: sted(c).name || '', lat, lon }, ms: t, gangMin: g };
+    return { stopp: { id: sted(c).id || null, navn: sted(c).name || '', lat, lon }, ms: t, gangMin: g, målt };
   }
   return null;
 }
 
 /** Linja på raden. Én tekst for Rute og Auto-tavle. */
 export function rekkTekst(r, klokke) {
-  return 'rekk den på ' + r.stopp.navn + ' ' + klokke(r.ms) + ' · ' + r.gangMin + ' min å gå';
+  return 'rekk den på ' + r.stopp.navn + ' ' + klokke(r.ms) + ' · ' + (r.målt === false ? 'ca. ' : '') + r.gangMin + ' min å gå';
 }

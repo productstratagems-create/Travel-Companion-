@@ -20,6 +20,7 @@
  * two is not worth a one-line convenience.
  */
 import { storage } from '../storage.js';
+import { metresBetween } from '../haversine.js';
 import { measurePath } from '../ui/path.js';
 
 /* `2` fra v1.207.0. Avstandene under den gamle nøkkelen er målt langs
@@ -66,10 +67,37 @@ export function plausible(metres, crowMetres) {
 /** The measured length for this pair, or null when there is none to trust. */
 export function getWalkDist(from, to, crowMetres) {
   if (!from || !to) return null;
-  const hit = load()[walkKey(from, to)];
-  if (typeof hit !== 'number') return null;
-  return plausible(hit, crowMetres) ? hit : null;
+  const alle = load();
+  const hit = alle[walkKey(from, to)];
+  if (typeof hit === 'number') return plausible(hit, crowMetres) ? hit : null;
+  return nærMåling(alle, from, to, crowMetres);
 }
+
+/** Hvor langt du kan ha flyttet deg før en måling ikke gjelder lenger. */
+export const MÅLING_NÆR_M = 100;
+/**
+ * MÅLINGEN FØLGER DEG NOEN SKRITT (v1.218.194). Nøkkelen er posisjonen
+ * avrundet til ~10 m, så en gangrute målt for ti skritt siden ble ikke
+ * funnet, og et tilbud ble stående som «ca.» selv om ruta var hentet. En
+ * måling til SAMME stopp fra et punkt innen MÅLING_NÆR_M brukes, skalert med
+ * luftlinja nå mot da — omveiene er de samme. Ren gitt lagret.
+ */
+export function nærMåling(alle, from, to, crowMetres) {
+  const tk = (n) => Number(n).toFixed(4);
+  const målNøkkel = '>' + tk(to.lat) + ',' + tk(to.lon);
+  let best = null;
+  for (const [k, m] of Object.entries(alle || {})) {
+    if (typeof m !== 'number' || !k.endsWith(målNøkkel)) continue;
+    const [la, lo] = k.slice(0, k.indexOf('>')).split(',').map(Number);
+    const flytt = _m(la, lo, from.lat, from.lon);
+    if (flytt > MÅLING_NÆR_M || (best && flytt >= best.flytt)) continue;
+    const crowDa = _m(la, lo, to.lat, to.lon);
+    if (!(crowDa > 0)) continue;
+    best = { flytt, m: m * (crowMetres / crowDa) };
+  }
+  return best && plausible(best.m, crowMetres) ? best.m : null;
+}
+function _m(a1, o1, a2, o2) { return metresBetween({ lat: a1, lon: o1 }, { lat: a2, lon: o2 }); }
 
 /**
  * Remember the length of a route someone just drew.

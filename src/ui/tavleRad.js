@@ -59,6 +59,8 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     + '<span class="at-midt">' + merke + (avvik.length ? '<span class="at-avvik" aria-hidden="true">!</span>' : '')
     + '<span class="at-front">' + esc(x.d.frontText || '') + '</span>'
     + (x.innstilt ? '<span class="at-merk">innstilt</span>' : '')
+    // ANKOMST (v1.218.193): bare til et vanlig mål på turen — samme ord som Rute («ank.»).
+    + (x.ank && !x.innstilt ? '<span class="at-ank">ank. ' + esc(x.ank.navn) + ' ' + esc(clk(x.ank.ms)) + '</span>' : '')
     // Fra et nabostopp i knutepunktet (v1.218.119): hvor du går om bord.
     // Rekkes den lenger ned, sier den linja hvor; «fra» ville sagt et sted du ikke går til.
     + (!x.rekk && x.call && x.call._fra && x.call._fra.name ? '<span class="at-fra">fra ' + esc(x.call._fra.name) + (Number.isFinite(x.gang) ? ' · ' + x.gang + ' min å gå' : '') + '</span>' : '')

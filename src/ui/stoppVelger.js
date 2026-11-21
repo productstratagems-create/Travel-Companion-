@@ -84,3 +84,17 @@ export function stoppValgHtml(stopsInn, vanlige, valgtId) {
   return (først.length ? '<div class="set-label">ofte brukt</div>' + først.map(rad).join('') + '<div class="set-label">alle stopp</div>' : '')
     + stops.map(rad).join('');
 }
+
+/**
+ * ANKOMST PÅ TAVLERADEN (v1.218.193). Spurt: «Hva hadde det gjort for bruker
+ * dersom vi legger til ankomsttider på lista i Auto-tavlen?» Tavla har ikke
+ * noe mål, så endestasjonen ville vært riktig men sjelden relevant — støy på
+ * hver rad. Ankomst bare til et av dine vanlige mål som turen stopper ved
+ * etter påstigning (kjentMål); ellers ingenting. Ren.
+ * @returns {{ navn, ms } | null}
+ */
+export function radAnkomst(call, fra, vanlige, nå) {
+  if (!call || !fra) return null;
+  const mål = kjentMål(stopsAhead(call, fra.name, nå, fra.id || null), vanlige);
+  return mål && Number.isFinite(mål.at) ? { navn: mål.name, ms: mål.at } : null;
+}

@@ -127,3 +127,19 @@ describe('samme navn én gang (v1.218.191)', () => {
     expect(unikeStopp(STOPP).map(s => s.id)).toEqual(['A', 'J1']);
   });
 });
+
+import { radAnkomst } from '../src/ui/stoppVelger.js';
+describe('ankomst på tavleraden (v1.218.193)', () => {
+  it('til et vanlig mål på turen', () => {
+    expect(radAnkomst(KALL, MRUD, [{ name: 'Jernbanetorget', count: 3 }], T)).toEqual({ navn: 'Jernbanetorget', ms: T + 34 * M });
+  });
+  it('mål før påstigning eller ikke på turen: ingenting', () => {
+    expect(radAnkomst(KALL, MRUD, [{ name: 'Hauketo' }, { name: 'Majorstuen' }], T)).toBe(null);
+  });
+  it('uten vanlige mål: ingenting — aldri endestasjonen', () => {
+    expect(radAnkomst(KALL, MRUD, [], T)).toBe(null);
+  });
+  it('raden viser det med Rutes ord', () => {
+    expect(readFileSync('src/ui/tavleRad.js', 'utf8')).toMatch(/'<span class="at-ank">ank\. ' \+ esc\(x\.ank\.navn\) \+ ' ' \+ esc\(clk\(x\.ank\.ms\)\)/);
+  });
+});

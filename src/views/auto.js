@@ -23,7 +23,7 @@ import { linjemerke, modusOrd } from '../ui/linjemerke.js';
 import { lappMedLogo } from '../ui/tilbyderlogo.js';
 import { esc, clk, clkDay } from '../ui/fmt.js';
 import { stopKey } from '../stopId.js';
-import { stopsAhead, arriveText, kjentMål } from '../ui/stoppVelger.js';
+import { stopsAhead, arriveText, kjentMål, radAnkomst } from '../ui/stoppVelger.js';
 import { lesFokus, lagreFokus } from '../ui/kartValg.js';
 import { ZOOM as ZOOM_TRINN } from '../ui/kartRamme.js';
 import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
@@ -5299,6 +5299,14 @@ function _tegnAutoTavle(body) {
       return false;
     });
     del.rekker = del.rekker.concat(flytt);
+  }
+  // ANKOMST TIL DITT VANLIGE MÅL (v1.218.193): bare når turen stopper der.
+  {
+    const vanlige = loadFreq('arr');
+    [...del.ikke, ...del.rekker].forEach(x => {
+      const fra = x.rekk ? { id: x.rekk.stopp.id, name: x.rekk.stopp.navn } : (x.call && x.call._fra ? x.call._fra : _stop);
+      x.ank = radAnkomst(x.call, fra, vanlige, nå);
+    });
   }
   // BAK DEG (v1.218.172): stopp du går bort fra, kommer etter — også når
   // gangtiden ikke er kjent; retningen kommer fra sporet, ikke fra ruta.

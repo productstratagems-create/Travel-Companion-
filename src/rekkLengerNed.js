@@ -50,7 +50,7 @@ export function rekkLengerNed(kall, fra, slutt, gangTil, egenGang, nå) {
     if (!Number.isFinite(g) || g > maks) continue;
     // Samme regel som «rekker»: du må kunne gå nå og være der før den.
     if (Math.floor((t - g * 60_000 - nå) / 60_000) < 0) continue;
-    return { stopp: { id: sted(c).id || null, navn: sted(c).name || '', lat, lon }, ms: t, gangMin: g, målt };
+    return { stopp: { id: sted(c).id || null, navn: sted(c).name || '', lat, lon }, ms: t, gangMin: g, målt, fra: (fra && fra.navn) || (sted(k[i]) && sted(k[i]).name) || null };
   }
   return null;
 }
@@ -58,4 +58,16 @@ export function rekkLengerNed(kall, fra, slutt, gangTil, egenGang, nå) {
 /** Linja på raden. Én tekst for Rute og Auto-tavle. */
 export function rekkTekst(r, klokke) {
   return 'rekk den på ' + r.stopp.navn + ' ' + klokke(r.ms) + ' · ' + (r.målt === false ? 'ca. ' : '') + r.gangMin + ' min å gå';
+}
+
+/**
+ * HELE SETNINGEN (v1.218.229). Rapportert: «"Rekker ikke her" er ikke helt
+ * helhetlig. Bruker er nødvendigvis ikke PÅ nærmeste stasjon — så "her" for
+ * bruker er hvor bruker er.» Stoppet sies ved navn: «rekker den ikke fra
+ * Mortensrud — rekk den på Stenbråten 22:32 · 10 min å gå». Én definisjon
+ * for Auto-tavle, Auto-reise, Rute og avgangsdetaljene. Ren.
+ */
+export function rekkLinje(r, klokke, fraNavn) {
+  const fra = fraNavn || (r && r.fra);
+  return (fra ? 'rekker den ikke fra ' + fra : 'rekker den ikke der') + ' — ' + rekkTekst(r, klokke);
 }

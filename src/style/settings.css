@@ -1131,3 +1131,5 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 #auto-her .her-valg{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .6rem;flex-basis:100%}
 #auto-her .her-spm{font-size:13px;color:var(--text-soft)}
 #auto-her button.her-bekreftet{font:inherit;background:none;border:0;padding:0;text-align:left;width:100%;color:var(--text);min-height:36px;cursor:pointer}
+.veivalg-merke span{display:block;width:16px;height:16px;border-radius:50%;background:var(--bg);border:3px solid var(--accent);box-sizing:border-box}
+.veivalg-lapp{font-weight:700}

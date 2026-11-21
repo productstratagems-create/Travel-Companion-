@@ -592,7 +592,10 @@ export function drawStopLine(layer, stops, opts = {}) {
  * @param {{lat:number, lon:number}} ll
  */
 export function userDot(layer, ll, opts = {}) {
-  const { radius = 7, tooltip = 'Din posisjon' } = opts;
+  // STØRRE OG MED PULS (v1.218.217). Rapportert: prikken druknet blant
+  // plattformbokstaver, stoppikon og linjer. Proven (Apple/Google): ~20 px,
+  // tykk hvit kant; Apple pulserer rolig når posisjonen er fersk.
+  const { radius = BRUKER_RADIUS, tooltip = 'Din posisjon' } = opts;
   // DEN KJENTE PRIKKEN (v1.218.137): blå med hvit kant, ring for nøyaktigheten,
   // grå når posisjonen er gammel — som Google og Apple, så den leses uten
   // forklaring. Et sted du satte selv er ingen måling: ingen ring, aldri grå.
@@ -622,8 +625,8 @@ export function userDot(layer, ll, opts = {}) {
     const kart = layer && (layer.getBearing ? layer : layer._map);
     const k = manuell ? null : kursNå(state.posTrail);
     const kursSkjerm = Number.isFinite(k) ? k - (kart && kart.getBearing ? kart.getBearing() || 0 : 0) : null;
-    const nøkkel = st.fyll + '|' + st.grå + '|' + (Number.isFinite(kursSkjerm) ? Math.round(kursSkjerm / 10) : '-');
-    if (nøkkel !== sistIkon && m.setIcon) { sistIkon = nøkkel; m.setIcon(prikkIkon(st.fyll, st.grå, radius, kursSkjerm)); }
+    const nøkkel = st.fyll + '|' + st.grå + '|' + manuell + '|' + (Number.isFinite(kursSkjerm) ? Math.round(kursSkjerm / 10) : '-');
+    if (nøkkel !== sistIkon && m.setIcon) { sistIkon = nøkkel; m.setIcon(prikkIkon(st.fyll, st.grå, radius, kursSkjerm, !st.grå && !manuell)); }
     if (ring.setRadius) ring.setRadius(st.ringM || 0);
     if (ring.setStyle) ring.setStyle(st.ringM ? { color: st.fyll, opacity: 0.35, fillColor: st.fyll, fillOpacity: 0.12 } : { opacity: 0, fillOpacity: 0 });
     const tekst = [tooltip, st.merk].filter(Boolean).join(' · ');
@@ -642,7 +645,11 @@ export function userDot(layer, ll, opts = {}) {
 }
 
 /** Prikken som DOM-ikon: fylt sirkel med hvit kant, diameter 2·radius. */
-export function prikkIkon(fyll, grå, radius = 7, kursSkjerm = null) {
+/** Prikkens radius i px (20 px bred) — én definisjon. */
+export const BRUKER_RADIUS = 10;
+/** Den hvite kanten. */
+export const BRUKER_KANT_PX = 3;
+export function prikkIkon(fyll, grå, radius = BRUKER_RADIUS, kursSkjerm = null, puls = false) {
   const d = radius * 2;
   // RETNINGSKJEGLE (v1.218.192): dit du går, fra sporet. Utprøvd (Google,
   // Apple): kjeglen svarer «hvilken vei» bedre enn noen tekst. Ingen kjegle
@@ -654,8 +661,10 @@ export function prikkIkon(fyll, grå, radius = 7, kursSkjerm = null) {
       + '-webkit-mask:radial-gradient(circle,#000 0,#000 50%,transparent 50%);mask:radial-gradient(circle,#000 0,#000 50%,transparent 50%)"></span>'
     : '';
   return L.divIcon({ className: 'bruker-prikk' + (grå ? ' bruker-prikk-gammel' : ''), iconSize: [d, d], iconAnchor: [radius, radius],
-    html: kjegle + '<span style="position:relative;display:block;width:' + d + 'px;height:' + d + 'px;border-radius:50%;box-sizing:border-box;background:' + fyll
-      + ';border:2.5px solid ' + BRUKER_KANT + ';box-shadow:0 0 3px rgba(0,0,0,.45)"></span>', fyll });
+    // PULSEN: bare fersk, målt posisjon — aldri grå (gammel) eller manuell.
+    html: kjegle + (puls ? '<span class="bruker-puls"></span>' : '')
+      + '<span style="position:relative;display:block;width:' + d + 'px;height:' + d + 'px;border-radius:50%;box-sizing:border-box;background:' + fyll
+      + ';border:' + BRUKER_KANT_PX + 'px solid ' + BRUKER_KANT + ';box-shadow:0 1px 4px rgba(0,0,0,.5)"></span>', fyll });
 }
 /** Laget prikken ligger i: over markører (600) og lapper (650), under popups (700). */
 export const BRUKER_LAG = 'bruker';

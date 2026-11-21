@@ -61,7 +61,7 @@ vi.mock('../src/ui/themeTokens.js', () => ({
 
 vi.mock('../src/geo.js', () => ({ posNå: () => globalThis.__pos }));
 globalThis.__pos = { asked: true, homeLL: { lat: 59.9, lon: 10.8 }, posAt: Date.now(), acc: null };
-import { userDot, prikkStil, BRUKER_BLÅ, BRUKER_GRÅ, RING_MAKS_M } from '../src/ui/map.js';
+import { userDot, prikkStil, BRUKER_BLÅ, BRUKER_GRÅ, RING_MAKS_M, prikkIkon, BRUKER_RADIUS, BRUKER_KANT_PX } from '../src/ui/map.js';
 const prikk = () => made.find(m => !m.ring);
 
 /** The blue that meant both "you" and "your destination". */
@@ -197,5 +197,32 @@ describe('prikken ligger øverst (v1.218.152)', () => {
     // v1.218.166: ringen (meter) følger kartet i overlayPane; laget er i norotatePane.
     expect(made.find(m => m.ring).opts.pane).toBe(undefined);
     expect(panes[BRUKER_LAG].forelder).toBe(norot);
+  });
+});
+
+// v1.218.217: «Brukers posisjon forsvinner litt i annen symbolikk.» Proven:
+// ~20 px, tykk hvit kant; rolig puls bare når posisjonen er fersk.
+describe('større prikk med puls (v1.218.217)', () => {
+  it('20 px, 3 px hvit kant', () => {
+    expect(BRUKER_RADIUS).toBe(10); expect(BRUKER_KANT_PX).toBe(3);
+    const i = prikkIkon('#1a73e8', false);
+    expect(i.iconSize).toEqual([20, 20]);
+    expect(i.html).toMatch(/border:3px solid/);
+  });
+  it('fersk posisjon pulserer', () => {
+    globalThis.__pos = { asked: true, homeLL: { lat: 59.9, lon: 10.8 }, posAt: Date.now(), acc: 10 };
+    made.length = 0;
+    userDot({}, { lat: 59.9, lon: 10.8 }, { manuell: false });
+    expect(made.find(m => m.opts.icon).opts.icon.html).toMatch(/bruker-puls/);
+  });
+  it('gammel (grå) eller manuell: ingen puls', () => {
+    globalThis.__pos = { asked: true, homeLL: { lat: 59.9, lon: 10.8 }, posAt: Date.now() - 10 * 60_000, acc: 10 };
+    made.length = 0;
+    userDot({}, { lat: 59.9, lon: 10.8 }, { manuell: false });
+    expect(made.find(m => m.opts.icon).opts.icon.html).not.toMatch(/bruker-puls/);
+    globalThis.__pos = { asked: true, homeLL: { lat: 59.9, lon: 10.8 }, posAt: Date.now(), acc: 10 };
+    made.length = 0;
+    userDot({}, { lat: 59.9, lon: 10.8 }, { manuell: true });
+    expect(made.find(m => m.opts.icon).opts.icon.html).not.toMatch(/bruker-puls/);
   });
 });

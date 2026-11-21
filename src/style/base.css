@@ -195,3 +195,7 @@ body::before{
 /* Prikken i brukerlaget tar trykk selv om laget slipper dem gjennom (v1.218.152). */
 .leaflet-bruker-pane .leaflet-interactive,.leaflet-bruker-pane .leaflet-marker-icon{pointer-events:auto}
 .bruker-prikk{background:none;border:0}
+/* Pulsen rundt posisjonsprikken (v1.218.217): rolig, hvit, bare fersk posisjon.
+   prefers-reduced-motion over stopper den. */
+.bruker-prikk .bruker-puls{position:absolute;inset:0;border-radius:50%;border:2px solid #fff;box-sizing:border-box;pointer-events:none;animation:bruker-puls 2.4s ease-out infinite}
+@keyframes bruker-puls{0%{transform:scale(1);opacity:.55}100%{transform:scale(2.4);opacity:0}}

@@ -62,3 +62,31 @@ describe('Kartverkets adresseregister først (v1.218.200)', () => {
     expect(navn).toBe('Stenbråtveien 14'); expect(entur).toBe(0);
   });
 });
+
+import { stedMåling, målingLinje } from '../src/api/stedNavn.js';
+import { målingTekst } from '../src/ui/stedKart.js';
+describe('målerunden (v1.218.201)', () => {
+  const tekstSvar = (status, j) => Promise.resolve({ ok: status === 200, status, text: () => Promise.resolve(typeof j === 'string' ? j : JSON.stringify(j)) });
+  const kvSvar = { adresser: [{ adressetekst: 'Stenbråtveien 14', meterDistanseTilPunkt: 4.2, representasjonspunkt: { lat: N + 4 * DL, lon: Ø } }] };
+  const kjør = async deps => { _resetStedNavn(); stedNavn(punkt, null, deps); await new Promise(r => setTimeout(r, 10)); return stedMåling(punkt); };
+  it('Kartverket svarer: kilde, nærmeste med avstand (regnet og oppgitt), feltnavn, råsvar', async () => {
+    const m = await kjør({ geonorge: () => tekstSvar(200, kvSvar), entur: () => tekstSvar(500, '') });
+    expect(m.valg).toMatchObject({ kilde: 'kartverket', navn: 'Stenbråtveien 14', m: 4 });
+    expect(m.kartverket.nærmeste[0]).toMatchObject({ navn: 'Stenbråtveien 14', m: 4, mOppgitt: 4 });
+    expect(m.kartverket.felter).toEqual(['adressetekst', 'meterDistanseTilPunkt', 'representasjonspunkt']);
+    expect(m.kartverket.rå).toMatch(/Stenbråtveien 14/);
+    expect(m.entur).toBe(null);
+    expect(målingLinje(m)).toBe('Kartverket · Stenbråtveien 14 · 4 m');
+  });
+  it('Kartverket feiler: feilen står, Entur tar over', async () => {
+    const m = await kjør({ geonorge: () => Promise.reject(Object.assign(new Error('x'), { name: 'TimeoutError' })), entur: () => tekstSvar(200, { features: [f('Entur-veien 2', 3, 0)] }) });
+    expect(m.kartverket.feil).toBe('tidsavbrudd');
+    expect(målingLinje(m)).toBe('Kartverket svarte ikke (tidsavbrudd) → Entur · Entur-veien 2 · 3 m');
+  });
+  it('annen form enn dokumentert: feltnavnene viser det', async () => {
+    const m = await kjør({ geonorge: () => tekstSvar(200, { adresser: [{ tekst: 'X 1', punkt: [1, 2] }] }), entur: () => tekstSvar(200, { features: [] }) });
+    expect(m.kartverket.felter).toEqual(['tekst', 'punkt']);
+    expect(m.valg.kilde).toBe('ingen');
+    expect(målingTekst(punkt, m, målingLinje(m))).toMatch(/felter: tekst, punkt/);
+  });
+});

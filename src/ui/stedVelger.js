@@ -8,7 +8,7 @@
 import { esc } from './fmt.js';
 
 /** Linja. Ren. */
-export function herLinjeHtml({ kind, navn, acc, flyttet }) {
+export function herLinjeHtml({ kind, navn, acc, flyttet, ca }) {
   const n = esc(navn || 'ukjent sted');
   if (kind === 'manuell') {
     return '<div class="her-linje her-manuell"><span class="her-tekst">📍 Du har valgt: <b>' + n + '</b></span>'
@@ -30,9 +30,12 @@ export function herLinjeHtml({ kind, navn, acc, flyttet }) {
   }
   // BEKREFTET (v1.218.202): ingen spørsmål — hele linja er en stille knapp
   // («endre sted» for skjermleseren), så du kan rette den senere.
-  if (kind === 'bekreftet') {
-    return '<button type="button" class="her-linje her-bekreftet" data-her="velg" aria-label="Du er her: ' + n + '. Endre sted">'
-      + '<span class="her-tekst">● Du er her: <b>' + n + '</b></span></button>';
+  // PÅSTAND = BEKREFTET (v1.218.218): ingen «Stemmer det? ja / ikke riktig?»
+  // — det var maset. Hele linja er en stille knapp til stedvelgeren. Er
+  // posisjonen usikker eller gammel: «ca.», dempet, uten tall.
+  if (kind === 'bekreftet' || kind === 'påstand') {
+    return '<button type="button" class="her-linje her-bekreftet' + (ca ? ' her-ca' : '') + '" data-her="velg" aria-label="Du er her: ' + (ca ? 'ca. ' : '') + n + '. Endre sted">'
+      + '<span class="her-tekst">● Du er her: ' + (ca ? '<span class="her-ca-ord">ca.</span> ' : '') + '<b>' + n + '</b></span></button>';
   }
   // Påstand: adressen på egen linje, valgene under — adresser kan være lange,
   // og en knapp som hopper mellom linjene er uro (rapportert i portrett).

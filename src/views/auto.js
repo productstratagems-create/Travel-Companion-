@@ -2392,18 +2392,23 @@ export function usikkerMedRo(forrige, ps, nå) {
   if (nå - siden >= (f.usikker ? SIKKER_UT_MS : USIKKER_INN_MS)) return { usikker: !f.usikker, siden: null };
   return { usikker: f.usikker, siden };
 }
-let _usikkerRo = null, _herRo = null;
+let _usikkerRo = null, _herRo = null, _herVist = null, _herNode = null, _herTrykk = false, _herVenter = false;
 
 export function herTilstand(ps, manuell, ja, gps, usikker = false) {
   let kind = posBekreftelse(ps, manuell);
   // MED RO (v1.218.212): spørsmålet kommer og går med hysteresen
   // (usikkerMedRo), ikke med hver fiks som krysser 100 m.
   if (kind === 'spørsmål' && !usikker) kind = 'påstand';
+  // ALDRI SPØRSMÅL AV SEG SELV (v1.218.218). Rapportert: «App spør for ofte
+  // om posisjonen er riktig. Blir for masete.» Proven (Apple, Google): appen
+  // spør aldri — usikkerheten står på kartet (grå prikk, ring), og stedet
+  // rettes ved å trykke på linja. Usikker gir påstand med «ca.» (herCa).
+  if (kind === 'spørsmål') kind = 'påstand';
   // BEKREFTET (v1.218.202): «ja» — på påstanden eller spørsmålet — tar
   // spørsmålet bort til du har flyttet deg tydelig (100 m).
   if ((kind === 'spørsmål' || kind === 'påstand') && ja && gps && _avst(ja, gps) < 100) kind = 'bekreftet';
   // En bekreftelse holder ikke mot en posisjon som har vært svært usikker en stund (v1.218.205).
-  if (kind === 'bekreftet' && usikker) kind = 'spørsmål';
+  if (kind === 'bekreftet' && usikker) kind = 'påstand';   // med «ca.», aldri spørsmål (v1.218.218)
   return kind;
 }
 /* ── HVA SKAL DU? (v1.218.207, steg 2a) ─────────────────────────────────
@@ -2537,11 +2542,27 @@ function _renderHer() {
   const oppslag = !manuell && _herRo ? stedNavn(_herRo, () => { _herSist = null; _renderHer(); }) : null;
   const navn = (wf && wf.label) || oppslag || (_stop ? 'nær ' + _stop.name : null);
   const flyttet = manuell && _herAnker && state.homeLL && _avst(_herAnker, state.homeLL) > MANUELL_FLYTT_M;
-  const html = (_herKartVelg ? '<div class="her-linje her-spørsmål"><span class="her-tekst">Trykk i kartet der du er</span><button type="button" class="her-knapp her-stille" data-her="lukk">avbryt</button></div>' : herLinjeHtml({ kind, navn, acc: ps && ps.acc, flyttet }))
+  const ca = !manuell && (_usikkerRo.usikker || posBekreftelse(ps, false) === 'spørsmål');
+  const html = (_herKartVelg ? '<div class="her-linje her-spørsmål"><span class="her-tekst">Trykk i kartet der du er</span><button type="button" class="her-knapp her-stille" data-her="lukk">avbryt</button></div>' : herLinjeHtml({ kind, navn, acc: ps && ps.acc, flyttet, ca }))
     + (kind === 'ukjent' || !_autoTavle ? '' : _hvaHtml());
-  if (html === _herSist) return;
+  // KNAPPENE SVARER (v1.218.218). Rapportert: «knappene responderer ofte
+  // ikke». innerHTML ble byttet hver gang _herSist ble nullet — også med lik
+  // html — og en knapp byttet mellom finger ned og opp gir aldri et klikk.
+  // Nå: byttes bare når html-en faktisk er en annen, og aldri mens en finger
+  // er nede på linja (tegnes når den slippes).
+  if (!el._herPeker) {
+    el._herPeker = true;
+    el.addEventListener('pointerdown', () => { _herTrykk = true; });
+    const slipp = () => { if (!_herTrykk) return; _herTrykk = false; if (_herVenter) { _herVenter = false; setTimeout(_renderHer, 0); } };
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => el.addEventListener(t, slipp));
+  }
   _herSist = html;
+  // Lik html OG våre egne noder (panelet/kartvelgeren kan ha byttet dem).
+  if (html === _herVist && el.firstElementChild && el.firstElementChild === _herNode) return;
+  if (_herTrykk) { _herVenter = true; return; }
+  _herVist = html;
   el.innerHTML = html;
+  _herNode = el.firstElementChild;
   _bindHer(el);
   _bindHva(el);
   if (_aMap && !_aMap._herKlikk) {

@@ -63,7 +63,11 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     + (x.ank && !x.innstilt ? '<span class="at-ank">ank. ' + esc(x.ank.navn) + ' ' + esc(clk(x.ank.ms)) + '</span>' : '')
     // Fra et nabostopp i knutepunktet (v1.218.119): hvor du går om bord.
     // Rekkes den lenger ned, sier den linja hvor; «fra» ville sagt et sted du ikke går til.
-    + (!x.rekk && x.call && x.call._fra && x.call._fra.name ? '<span class="at-fra">fra ' + esc(x.call._fra.name) + (Number.isFinite(x.gang) ? ' · ' + x.gang + ' min å gå' : '') + '</span>' : '')
+    // FRA-STOPPET PÅ HVER RAD (v1.218.225). Rapportert: «Fra-stasjon er ikke
+    // tydelig nok visualisert på kortene — gitt at det kan være ulike
+    // fra-stasjoner på ulike kort.» Hver rad bærer stoppet den går fra, som et
+    // merke med stoppikon, i full tekstfarge — også når det er stoppet ditt.
+    + (() => { const n = !x.rekk && ((x.call && x.call._fra && x.call._fra.name) || x.herNavn); return n ? fraMerke(n, x.gang) : ''; })()
     // REKK DEN LENGER NED (v1.218.185): samme tekst som Rute.
     + (x.rekk ? '<span class="at-rekk">rekker ikke her — ' + esc(rekkTekst(x.rekk, clk)) + '</span>' : '')
     // NÅR DU MÅ GÅ (v1.218.171), til fots.
@@ -96,4 +100,10 @@ export function tavleDel(dirs, nå, kanRekke, grense) {
   const rekker = alle.filter(x => x.rekker);
   return { ikke: alle.filter(x => !x.rekker), rekker: rekker.slice(0, grense),
     tomForLokale: rekker.length <= grense, sisteMs: alle.length ? alle[alle.length - 1].ms : null };
+}
+
+/** Fra-stoppet som merke: «⬤ Mortensrud · 12 min å gå». Én definisjon for tavlerad og kombinasjonsrad. Ren. */
+export function fraMerke(navn, gangMin) {
+  return '<span class="at-fra at-fra-stopp"><span class="fra-ikon" aria-hidden="true"></span>fra <b>' + esc(navn) + '</b>'
+    + (Number.isFinite(gangMin) ? ' · ' + gangMin + ' min å gå' : '') + '</span>';
 }

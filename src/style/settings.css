@@ -1169,3 +1169,7 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .leaflet-tooltip.gang-pille{background:var(--accent,#3b82f6);color:#fff;border:0;border-radius:999px;padding:1px 7px;font-size:12px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .leaflet-tooltip.gang-pille::before{display:none}
 .gang-pille-anker{background:none;border:0}
+/* Fra-stoppet på hver rad (v1.218.225): tydelig, med stoppikon. */
+.at-fra.at-fra-stopp{color:var(--text);font-size:.8rem;display:inline-flex;align-items:center;gap:.35em;flex-wrap:wrap}
+.at-fra-stopp .fra-ikon{width:.7em;height:.7em;border-radius:50%;border:2px solid var(--accent);box-sizing:border-box;flex:0 0 auto}
+.at-fra-stopp b{font-weight:700}

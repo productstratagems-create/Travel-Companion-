@@ -33,7 +33,7 @@ describe('raden sier hvor (v1.218.119)', () => {
     const call = { quay: { publicCode: 'B' }, serviceJourney: { line: { transportMode: 'bus' } }, _fra: { name: 'Tveita T' } };
     expect(quayLabel(call)).toMatch(/ · Tveita T$/);   // v1.218.122: sporet først
     const h = tavleRadHtml({ d: { frontText: 'Bryn', lines: [{ code: '25', mode: 'bus' }] }, ms: Date.now() + 5 * 60_000, call, rekker: true }, Date.now(), 0);
-    expect(h).toContain('fra Tveita T');
+    expect(h).toMatch(/fra <b>Tveita T<\/b>/);
   });
 });
 

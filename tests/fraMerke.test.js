@@ -1,0 +1,17 @@
+// v1.218.225: «Fra-stasjon er ikke tydelig nok visualisert på kortene.»
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { tavleRadHtml, fraMerke } from '../src/ui/tavleRad.js';
+const rad = x => tavleRadHtml({ d: { frontText: 'Helsfyr', lines: [{ code: '76', mode: 'bus' }] }, ms: Date.now() + 12 * 60_000, rekker: true, ...x }, Date.now(), 0);
+describe('fra-stoppet på hver rad', () => {
+  it('også fra stoppet ditt (før: bare nabostopp)', () => {
+    expect(rad({ call: {}, herNavn: 'Mortensrud', gang: 12 })).toMatch(/at-fra-stopp[\s\S]*fra <b>Mortensrud<\/b> · 12 min å gå/);
+  });
+  it('nabostoppet vinner over stoppet ditt', () => {
+    expect(rad({ call: { _fra: { name: 'Mortensrud T' } }, herNavn: 'Mortensrud' })).toMatch(/fra <b>Mortensrud T<\/b>/);
+  });
+  it('kombinasjonsraden bruker samme merke', () => {
+    expect(fraMerke('Mortensrud T', 14)).toMatch(/fra-ikon[\s\S]*fra <b>Mortensrud T<\/b> · 14 min å gå/);
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/\+ fraMerke\(r\.fra, r\.gangMin\)/);
+  });
+});

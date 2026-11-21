@@ -38,7 +38,7 @@ import { reiseRader, kombiRader } from '../reiseTil.js';
 import { fraMerke } from '../ui/tavleRad.js';
 import { roPunkt } from '../roPunkt.js';
 import { målområder } from '../maalomrader.js';
-import { ryddKart } from '../ui/lappPlass.js';
+import { festLappRydding } from '../ui/lappPlass.js';
 import { omrProbe } from '../api/omrProbe.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { nesteSving, svingTekst, kursNå, SVING_PÅ } from '../gangSteg.js';
@@ -4393,8 +4393,7 @@ function _renderMap() {
   // LAPPENES PLASS (v1.218.233, src/ui/lappPlass.js): ALLE lappene — stopp,
   // gangpille, plattform, nabostopp, linjemerker — i én prioritet; taperen får
   // kortform eller skjules. Erstatter ryddMerkelapper, som bare så én klasse.
-  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => ryddKart(el));
-  if (!_aMap._lappRydd) { _aMap._lappRydd = true; _aMap.on('zoomend moveend', () => setTimeout(() => ryddKart(el), 60)); }
+  festLappRydding(_aMap)();
 }
 
 /**

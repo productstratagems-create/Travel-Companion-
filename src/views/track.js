@@ -1,4 +1,5 @@
 import { linjemerke } from '../ui/linjemerke.js';
+import { festLappRydding } from '../ui/lappPlass.js';
 import { ZOOM, ramme } from '../ui/kartRamme.js';
 import config from '../config.js';
 import { stopKey } from '../stopId.js';
@@ -303,6 +304,8 @@ function _renderTrackMap(now, cs, legs) {
     _tMapKey = key;
     _tSteg = null;
     _tMap = createMap(mapEl, { expandable: true });
+    // LAPPENES PLASS (v1.218.236, kartregler §10).
+    festLappRydding(_tMap);
     _tLayer = L.layerGroup().addTo(_tMap);
     const lineColor = leg.lineBg || '#7c2d12';
 

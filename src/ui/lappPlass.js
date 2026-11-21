@@ -74,3 +74,19 @@ export function ryddKart(el) {
   _forrige = vist;
   return skjult;
 }
+
+/**
+ * Fest ryddingen til et kart (v1.218.236): etter zoom og flytting, forsinket
+ * så lappene har fått sin nye plass. Returnerer `rydd()` til å kalle etter en
+ * tegning. Én definisjon for Auto-tavle, Rute, avgangsdetaljene og Underveis.
+ */
+export const LAPP_RYDD_MS = 80;
+export function festLappRydding(map) {
+  if (!map) return () => {};
+  if (map._lappRydd) return map._lappRydd;
+  let tid = null;
+  const rydd = () => { clearTimeout(tid); tid = setTimeout(() => { const el = map.getContainer && map.getContainer(); if (el) ryddKart(el); }, LAPP_RYDD_MS); };
+  if (map.on) map.on('zoomend moveend', rydd);
+  map._lappRydd = rydd;
+  return rydd;
+}

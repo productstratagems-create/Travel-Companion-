@@ -43,17 +43,32 @@ describe('lappenes plass', () => {
     expect(lappType(['leaflet-tooltip', 'map-label'])).toBe('annet');
   });
   it('koblet inn i Auto-kartet for alle lapper', () => {
-    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/requestAnimationFrame\(\(\) => ryddKart\(el\)\)/);
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/festLappRydding\(_aMap\)\(\);/);
   });
 });
 describe('Rute-kartet bruker samme konsept (v1.218.235)', () => {
   const b = readFileSync('src/views/board.js', 'utf8');
   it('ryddes etter tegning, ved zoom/flytting og når gangen er tegnet', () => {
-    expect(b).toMatch(/if \(el\) ryddKart\(el\);/);
-    expect(b).toMatch(/_bMap\.on\('zoomend moveend', _ryddRute\);/);
+    expect(b).toMatch(/function _ryddRute\(\) \{ if \(_bMap\) festLappRydding\(_bMap\)\(\); \}/);
+    expect(b).toMatch(/  festLappRydding\(_bMap\);/);
     expect(b).toMatch(/\.finally\(_ryddRute\);/);
   });
   it('det viktigste stoppet er stopplappen (prioritet 1)', () => {
     expect(b).toMatch(/className: 'map-label' \+ \(erViktigst \? ' lapp-stopp' : ''\)/);
+  });
+});
+
+describe('avgangsdetaljer og Underveis (v1.218.236)', () => {
+  it('PÅ/BYTT/AV og målet er stopplapper (prioritet 1) og vinner over plattformen', () => {
+    const sel = readFileSync('src/views/selected.js', 'utf8');
+    expect(sel).toMatch(/className: 'sel-stop-label sel-pkt-label lapp-stopp'/);
+    expect(sel).toMatch(/className: 'sel-stop-label lapp-stopp' \}\)/);
+    expect(lappType(['leaflet-tooltip', 'sel-stop-label', 'sel-pkt-label', 'lapp-stopp'])).toBe('stopp');
+    const d = ryddLapper([{ id: 'B', prio: LAPP_PRIO.plattform, rekt: R(0, 0, 40, 30) }, { id: 'PÅ', prio: LAPP_PRIO.stopp, rekt: R(10, 5) }]);
+    expect(d.get('PÅ')).toBe('full'); expect(d.get('B')).toBe('skjult');
+  });
+  it('alle fire kartene fester ryddingen', () => {
+    expect(readFileSync('src/views/selected.js', 'utf8')).toMatch(/festLappRydding\(_selMap\);/);
+    expect(readFileSync('src/views/track.js', 'utf8')).toMatch(/festLappRydding\(_tMap\);/);
   });
 });

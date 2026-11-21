@@ -30,6 +30,7 @@ import { stoppestedKjent, hentStoppested } from '../api/stoppested.js';
 import { show } from '../ui/nav.js';
 import { startBoard, boardRows, RUTE_KART_FORMER, ruteFokusData, rekkeFor } from './board.js';
 import { rekkTekst } from '../rekkLengerNed.js';
+import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
 import { stopsAhead, stoppValgHtml } from '../ui/stoppVelger.js';
 import { loadFreq } from '../api/usage.js';
 import { kartForm, settKartForm } from '../ui/kartVerktoy.js';
@@ -162,6 +163,12 @@ export function retningInfo(her, stopp, walk) {
   return { kind: 'retning', deg, dist: walk.dist, mins: walk.mins };
 }
 
+function _svingHtml(rekk) {
+  if (!gangGjelder(fartNå(), state.walkFromLL !== null)) return '';
+  const navn = rekk ? rekk.stopp.navn : (state.sel && state.sel._fra && state.sel._fra.name) || null;
+  const t = svingTekst(nesteSving(approachPoints(), userLL(), kursNå(state.posTrail)), navn);
+  return t ? '<div class="sel-sving">' + esc(t) + '</div>' : '';
+}
 function _retningHtml(dir, rekk) {
   // GANGTIDEN KOMMER FRA `walkInfo()`, ikke fra et nytt kall til walkMinsTo.
   //
@@ -186,7 +193,9 @@ function _retningHtml(dir, rekk) {
     + ' aria-hidden="true">↑</span>'
     + '<span class="sel-heading-dist">' + dist + '</span>'
     + '<span class="sel-heading-walk">' + r.mins + ' min å gå</span>'
-    + '</div>';
+    + '</div>'
+    // NESTE SVING (v1.218.192, src/gangSteg.js): bare ved beslutningspunkter.
+    + _svingHtml(rekk);
 }
 
 export function _subLine(rcls, mtl, leaveByTs, depTs, now) {

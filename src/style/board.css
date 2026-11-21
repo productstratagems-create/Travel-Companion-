@@ -916,3 +916,4 @@ html.view-board.map-open #dep-list{
 .sv-bytt.sv-spor{font-weight:600}
 .sv-liste{margin-top:.4rem}
 .sv-tom{font-size:12px;color:var(--text-soft)}
+.sel-sving{text-align:center;font-size:14px;font-weight:600;color:var(--accent);margin-top:.2rem}

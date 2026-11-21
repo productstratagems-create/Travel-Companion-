@@ -4130,8 +4130,13 @@ function _renderMap() {
   const _altR = _alt && gangRuteTil(_alt);
   const _ruter = [];
   if (walkPts && walkPts.length) _ruter.push(walkPts);
-  if (_alt && userPos && Number.isFinite(_alt.lat)) _ruter.push(_altR || [[userPos.lat, userPos.lon], [_alt.lat, _alt.lon]]);
-  if (_gr && Number.isFinite(_gr.lat)) _ruter.push((_gr.gangPunkter && _gr.gangPunkter.length) ? _gr.gangPunkter : (userPos ? [[userPos.lat, userPos.lon], [_gr.lat, _gr.lon]] : []));
+  // Bare MÅLTE ruter tegnes (v1.218.209): en luftlinje over jordet er ikke en
+  // vei. Mangler ruta, bes den hentet; stoppet står med «ca. N min» til den kommer.
+  if (_alt && userPos && Number.isFinite(_alt.lat)) {
+    if (_altR) _ruter.push(_altR);
+    else sikreGang(_gangFra(), _alt, { ferdig: () => { _aKey = ''; _renderMap(); } });
+  }
+  if (_gr && Number.isFinite(_gr.lat) && _gr.gangPunkter && _gr.gangPunkter.length > 2) _ruter.push(_gr.gangPunkter);
   const _tre = gangTre(_ruter);
   _tre.linjer.forEach(l => drawWalk(_aLayer, l));
   _tre.veivalg.forEach(v => L.marker(v, { icon: L.divIcon({ className: 'veivalg-merke', html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8] }), keyboard: false, interactive: false })

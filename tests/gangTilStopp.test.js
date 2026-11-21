@@ -53,7 +53,9 @@ describe('koblingen', () => {
   });
   it('kartet i Auto-tavle viser alternativet og gangen dit', () => {
     // v1.218.204: grenen fra veivalget når rutene deler stamme.
-    expect(a).toMatch(/_ruter\.push\(_altR \|\| \[\[userPos\.lat, userPos\.lon\], \[_alt\.lat, _alt\.lon\]\]\)/);
+    expect(a).toMatch(/if \(_altR\) _ruter\.push\(_altR\);/);
+    // v1.218.209: ingen luftlinje inn i gangtreet.
+    expect(a).not.toMatch(/_ruter\.push\([^)]*\[\[userPos\.lat, userPos\.lon\]/);
   });
   it('avgangsdetaljene bygger første etappe fra stoppet du går på', () => {
     expect(s).toMatch(/let fraOver = dep\._rekkLengerNed \? dep\._rekkLengerNed\.stopp\.navn : \(dep\._fra && dep\._fra\.name\) \|\| null;/);
@@ -70,5 +72,27 @@ describe('målingen følger deg noen skritt', () => {
   });
   it('mer enn 100 m unna: ingen måling', () => {
     expect(nærMåling(lagret, { lat: 59.8315, lon: 10.805 }, til, 367)).toBe(null);
+  });
+});
+
+describe('luftlinje er ikke en rute (v1.218.209, Stenbråten over jordet)', () => {
+  beforeEach(() => _resetGang());
+  const fra = { lat: 59.85, lon: 10.83 }, stopp = { id: 'Stb', lat: 59.852, lon: 10.84 };
+  const korde = () => Promise.resolve({ latlngs: [[fra.lat, fra.lon], [stopp.lat, stopp.lon]], src: 'korde', metres: null });
+  it('feilet ruting (korde) lagres ikke som rute', async () => {
+    await new Promise(ok => sikreGang(fra, stopp, { rute: korde, ferdig: ok }));
+    expect(gangRuteTil(stopp)).toBe(null);
+  });
+  it('målt rute lagres', async () => {
+    const pts = [[59.85, 10.83], [59.851, 10.835], [59.852, 10.84]];
+    await new Promise(ok => sikreGang(fra, stopp, { rute: () => Promise.resolve({ latlngs: pts, metres: 700 }), ferdig: ok }));
+    expect(gangRuteTil(stopp)).toEqual(pts);
+  });
+  it('prøves igjen etter et minutt, uten å måtte gå 100 m', async () => {
+    let n = 0; const rute = () => { n++; return korde(); };
+    await new Promise(ok => sikreGang(fra, stopp, { rute, ferdig: ok }));
+    sikreGang(fra, stopp, { rute }); expect(n).toBe(1);
+    const nå = Date.now; Date.now = () => nå() + 61_000;
+    try { sikreGang(fra, stopp, { rute }); expect(n).toBe(2); } finally { Date.now = nå; }
   });
 });

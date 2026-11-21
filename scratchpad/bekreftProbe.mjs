@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import pw from '/opt/node22/lib/node_modules/playwright/index.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DIST = path.join(ROOT, 'dist'); const PORT = 4647;
+const DIST = path.join(ROOT, 'dist'); const PORT = 4649;
 const NOW = Date.parse('2026-09-08T07:41:00+02:00');
 const iso = ms => new Date(ms).toISOString();
 const HERE = { lat: 59.8300, lon: 10.8050 };
@@ -97,6 +97,9 @@ async function run(scheme, acc = 5, kvNede = false) {
   await page.locator('#auto-her [data-her="ja"]').click(); await page.waitForTimeout(800);
   console.log('  etter ja: ' + JSON.stringify(await geo()));
   await page.screenshot({ path: 'scratchpad/bekreft-etter-' + scheme + '.png' });
+  await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(1500);
+  await page.evaluate(() => window._settAutoTavle && window._settAutoTavle(true)); await page.waitForTimeout(2500);
+  console.log('  etter omstart: ' + JSON.stringify(await geo()));
   await page.locator('#auto-her .her-bekreftet').click(); await page.waitForTimeout(800);
   console.log('  trykk på linja åpner kartet: ' + await page.evaluate(() => !!document.querySelector('.stedkart')));
   await ctx.close();

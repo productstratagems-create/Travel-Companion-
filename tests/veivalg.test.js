@@ -39,7 +39,9 @@ describe('felles', () => {
     // v1.218.208: ÉN tegneplass for gang i Auto-kartet — ingen sti tegnes utenom treet.
     expect(a.match(/drawWalk\(_aLayer,/g)).toHaveLength(1);
     expect(a).toMatch(/_tre\.linjer\.forEach\(l => drawWalk\(_aLayer, l\)\)/);
-    expect(a).toMatch(/bindTooltip\('veivalg'/);
+    // v1.218.223: ringen står, lappen er borte («overflødig»).
+    expect(a).toMatch(/veivalg-merke/);
+    expect(a).not.toMatch(/bindTooltip\('veivalg'/);
     expect(MØTES_M).toBe(12);
   });
 });

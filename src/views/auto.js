@@ -4267,7 +4267,7 @@ function _renderMap() {
   const _tre = gangTre(_ruter);
   _tre.linjer.forEach(l => drawWalk(_aLayer, l));
   _tre.veivalg.forEach(v => L.marker(v, { icon: L.divIcon({ className: 'veivalg-merke', html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8] }), keyboard: false, interactive: false })
-    .bindTooltip('veivalg', { permanent: true, direction: 'left', className: 'map-label veivalg-lapp', offset: [-8, 0] })
+    // Ingen «veivalg»-lapp (v1.218.223): «overflødig» — ringen viser gaffelen, og lappen dekket stopplappen.
     .addTo(_aLayer));
   if (_ruter.length > 1 && userPos) {
     const sig = _ruter.length + ':' + stierFraPrikken(_tre.linjer, userPos) + ':' + _tre.veivalg.length;

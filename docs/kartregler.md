@@ -116,3 +116,16 @@ Proven (kartografi; Google Maps, Apple Kart):
   linjenummeret, ankret til endepunktet av den tegnede streken. Det står
   bare der det ikke dekker stopplappen, gangpillen, andre lapper, prikken
   din eller knappene. Ellers står det ikke.
+
+## 9. Fokus per steg og zoom etter fart (v1.218.228)
+
+Proven (Google, Apple, Citymapper, Ruter), i `src/kartSteg.js`:
+- **Steget bestemmer rammen** (`stegNøkkel`, `stegRamme`, `STEG_TAK`):
+  gå 17, vent 18, om bord 15 (deg + neste stopp), nær avstigning 16 (deg +
+  stoppet du skal av på, ≤ 2 stopp eller ≤ 90 s), bytte 18.
+- **Rammes bare når steget skifter**, aldri hvert sekund (§4), og aldri etter
+  at du har rørt kartet (§5).
+- **Om bord følger kartet deg med zoom etter farten** (`zoomEtterFart`):
+  < 2 m/s 17, < 6 m/s 16, < 15 m/s 15, ellers 14. Et nytt trinn gjelder først
+  når det har vart 8 s (`fartMedRo`). Nær avstigning går foran farten.
+- Underveis' fokusrunde: `steg → oversikt → vei → plattform`.

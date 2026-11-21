@@ -28,6 +28,7 @@ import { lesFokus, lagreFokus } from '../ui/kartValg.js';
 import { ZOOM as ZOOM_TRINN } from '../ui/kartRamme.js';
 import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
 import { sikreGang, gangRuteTil } from '../api/gangTilStopp.js';
+import { felles } from '../veivalg.js';
 import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
 export { stopsAhead, arriveText };
 import config from '../config.js';
@@ -4020,7 +4021,18 @@ function _renderMap() {
     }
   }
 
-  if (walkPts && walkPts.length) drawWalk(_aLayer, walkPts);
+  // VEIVALGET (v1.218.204, src/veivalg.js): går gangen til hovedstoppet og
+  // til alternativet samme vei et stykke, tegnes én felles stamme og to grener
+  // fra punktet der du må velge — ikke to stier fra døra.
+  const _altR = _altStopp() && gangRuteTil(_altStopp());
+  const _gaffel = walkPts && walkPts.length && _altR ? felles(walkPts, _altR) : null;
+  if (_gaffel) {
+    drawWalk(_aLayer, _gaffel.stamme);
+    drawWalk(_aLayer, _gaffel.a);
+    L.marker(_gaffel.veivalg, { icon: L.divIcon({ className: 'veivalg-merke', html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8] }), keyboard: false, interactive: false })
+      .bindTooltip('veivalg', { permanent: true, direction: 'left', className: 'map-label veivalg-lapp', offset: [-8, 0] })
+      .addTo(_aLayer);
+  } else if (walkPts && walkPts.length) drawWalk(_aLayer, walkPts);
   // GÅ HIT (v1.218.143): gangruta til stoppet kortet peker på.
   const _gv = _gåHitVis && rådGjelder(_gåHit.get(_gåHitVis), userPos, _stop, metresBetween) ? _gåHit.get(_gåHitVis) : null, _gr = _gv && _gv.råd;
   if (_gr && Number.isFinite(_gr.lat)) {
@@ -4034,7 +4046,7 @@ function _renderMap() {
   const _alt = _altStopp();
   if (_alt && userPos && Number.isFinite(_alt.lat)) {
     // Den målte gangruta når den finnes; ellers en rett linje — et anslag.
-    drawWalk(_aLayer, gangRuteTil(_alt) || [[userPos.lat, userPos.lon], [_alt.lat, _alt.lon]]);
+    drawWalk(_aLayer, _gaffel ? _gaffel.b : (gangRuteTil(_alt) || [[userPos.lat, userPos.lon], [_alt.lat, _alt.lon]]));
     const gm = Number.isFinite(_alt.gangMin) ? ' · ' + (_alt.målt === false ? 'ca. ' : '') + _alt.gangMin + ' min' : '';
     L.marker([_alt.lat, _alt.lon], { icon: makeStopIcon('bus', 1, { primary: true }) })
       .bindTooltip(esc((_alt.name || '') + gm), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })

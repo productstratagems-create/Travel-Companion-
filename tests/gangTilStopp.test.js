@@ -52,7 +52,8 @@ describe('koblingen', () => {
     expect(readFileSync('src/geo.js', 'utf8')).toMatch(/målt: measured != null,/);
   });
   it('kartet i Auto-tavle viser alternativet og gangen dit', () => {
-    expect(a).toMatch(/drawWalk\(_aLayer, gangRuteTil\(_alt\) \|\| \[\[userPos\.lat, userPos\.lon\], \[_alt\.lat, _alt\.lon\]\]\);/);
+    // v1.218.204: grenen fra veivalget når rutene deler stamme.
+    expect(a).toMatch(/drawWalk\(_aLayer, _gaffel \? _gaffel\.b : \(gangRuteTil\(_alt\) \|\| \[\[userPos\.lat, userPos\.lon\], \[_alt\.lat, _alt\.lon\]\]\)\);/);
   });
   it('avgangsdetaljene bygger første etappe fra stoppet du går på', () => {
     expect(s).toMatch(/let fraOver = dep\._rekkLengerNed \? dep\._rekkLengerNed\.stopp\.navn : \(dep\._fra && dep\._fra\.name\) \|\| null;/);

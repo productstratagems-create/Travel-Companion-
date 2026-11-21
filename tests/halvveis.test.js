@@ -36,3 +36,14 @@ describe('gangtiden på sin egen gren (v1.218.231)', () => {
     expect(pillePunkt(rute, [[0, 2]])).toEqual([0, 4]);
   });
 });
+import { kartGangNøkkel } from '../src/views/auto.js';
+describe('gangminuttene i kartnøkkelen (v1.218.232: «12 og 11 min»)', () => {
+  it('nytt minutt gir ny nøkkel, så lappene tegnes på nytt', () => {
+    expect(kartGangNøkkel({ mins: 11 }, { gangMin: 10 })).not.toBe(kartGangNøkkel({ mins: 12 }, { gangMin: 10 }));
+    expect(kartGangNøkkel({ mins: 12 }, { gangMin: 9 })).not.toBe(kartGangNøkkel({ mins: 12 }, { gangMin: 10 }));
+    expect(kartGangNøkkel(null, null)).toBe('|w-:-');
+  });
+  it('kartnøkkelen bruker den', () => {
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/\+ kartGangNøkkel\(_stop \? gangTil\(_stop\) : null, _altStopp\(\)\)/);
+  });
+});

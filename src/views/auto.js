@@ -3623,6 +3623,10 @@ export function pillePunkt(pts, veivalg) {
   });
   return (fra > 0 && fra < pts.length - 1 ? halvveis(pts.slice(fra)) : null) || halvveis(pts);
 }
+/** Gangminuttene kartets lapper viser — en del av kartnøkkelen. Ren. */
+export function kartGangNøkkel(gStopp, alt) {
+  return '|w' + (gStopp && Number.isFinite(gStopp.mins) ? gStopp.mins : '-') + ':' + (alt && Number.isFinite(alt.gangMin) ? alt.gangMin : '-');
+}
 export function halvveis(pts) {
   const p = (pts || []).map(x => Array.isArray(x) ? x : [x.lat, x.lon]).filter(x => x && Number.isFinite(x[0]));
   if (!p.length) return null;
@@ -3954,6 +3958,11 @@ function _renderMap() {
   // come back when the reader pinches in — without this the map answers for
   // the zoom it was drawn at for the rest of the screen's life.
   const key = mapKey(_stop, userPos, others, walkPts, openKey(_open, line))
+    // GANGMINUTTENE I NØKKELEN (v1.218.232). Rapportert: «gangtid til
+    // Mortensrud er nevnt to ganger og med ulik gangtid — 12 og 11 min.»
+    // Overskriften tegnes hvert sekund; kartets lapper bare når nøkkelen
+    // endres, og den kjente ikke minuttene. Nå: nytt minutt, nye lapper.
+    + kartGangNøkkel(_stop ? gangTil(_stop) : null, _altStopp())
     + '|g' + (_gåHitVis || '-') + ((_gåHitVis && _gåHit.get(_gåHitVis) && _gåHit.get(_gåHitVis).at) || '')
     // Turen også (v1.218.136): et nytt kort med like mange stopp (en annen
     // avgang, «fremme før») sto ellers med den gamle tiden på kartet.

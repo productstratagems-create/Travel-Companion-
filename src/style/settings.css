@@ -1126,3 +1126,8 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .stedkart-mål-linje{font-weight:600;color:var(--text);margin:.2rem 0}
 .stedkart-mål-rå{white-space:pre-wrap;word-break:break-all;max-height:30vh;overflow:auto;font-size:11px;background:rgba(127,127,127,.12);padding:.4rem;border-radius:6px}
 .stedkart-kopier{font:inherit;font-size:13px;color:var(--accent);background:none;border:1px solid var(--line,#888);border-radius:6px;padding:.35rem .6rem;min-height:36px}
+/* v1.218.202: adressen på egen linje, valgene alltid under — ikke hoppende. */
+#auto-her .her-tekst{flex:1 1 100%}
+#auto-her .her-valg{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .6rem;flex-basis:100%}
+#auto-her .her-spm{font-size:13px;color:var(--text-soft)}
+#auto-her button.her-bekreftet{font:inherit;background:none;border:0;padding:0;text-align:left;width:100%;color:var(--text);min-height:36px;cursor:pointer}

@@ -23,11 +23,21 @@ export function herLinjeHtml({ kind, navn, acc, flyttet }) {
   if (kind === 'spørsmål') {
     return '<div class="her-linje her-spørsmål"><span class="her-tekst">◌ Er du her? <b>' + n + '</b>'
       + (Number.isFinite(acc) ? ' <small>(±' + Math.round(acc) + ' m)</small>' : '') + '</span>'
-      + '<button type="button" class="her-knapp" data-her="ja">ja</button>'
-      + '<button type="button" class="her-knapp" data-her="velg">nei, velg sted</button></div>';
+      + '<span class="her-valg"><button type="button" class="her-knapp" data-her="ja">ja</button>'
+      + '<button type="button" class="her-knapp" data-her="velg">nei, velg sted</button></span></div>';
   }
+  // BEKREFTET (v1.218.202): ingen spørsmål — hele linja er en stille knapp
+  // («endre sted» for skjermleseren), så du kan rette den senere.
+  if (kind === 'bekreftet') {
+    return '<button type="button" class="her-linje her-bekreftet" data-her="velg" aria-label="Du er her: ' + n + '. Endre sted">'
+      + '<span class="her-tekst">● Du er her: <b>' + n + '</b></span></button>';
+  }
+  // Påstand: adressen på egen linje, valgene under — adresser kan være lange,
+  // og en knapp som hopper mellom linjene er uro (rapportert i portrett).
   return '<div class="her-linje"><span class="her-tekst">● Du er her: <b>' + n + '</b></span>'
-    + '<button type="button" class="her-knapp her-stille" data-her="velg">ikke riktig? ›</button></div>';
+    + '<span class="her-valg"><span class="her-spm">Stemmer det?</span>'
+    + '<button type="button" class="her-knapp" data-her="ja">ja</button>'
+    + '<button type="button" class="her-knapp her-stille" data-her="velg">ikke riktig? ›</button></span></div>';
 }
 
 /** Panelet. Ren. `nære`: [{ id, name, distM }]. */

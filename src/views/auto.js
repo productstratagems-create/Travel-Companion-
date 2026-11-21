@@ -2351,8 +2351,9 @@ export function tilpassNavn(lab) {
 let _herÅpen = false, _herJa = null, _herAnker = null, _herKartVelg = false, _herSist = null;
 export function herTilstand(ps, manuell, ja, gps) {
   let kind = posBekreftelse(ps, manuell);
-  // «Ja» gjelder til du har flyttet deg tydelig.
-  if (kind === 'spørsmål' && ja && gps && _avst(ja, gps) < 100) kind = 'påstand';
+  // BEKREFTET (v1.218.202): «ja» — på påstanden eller spørsmålet — tar
+  // spørsmålet bort til du har flyttet deg tydelig (100 m).
+  if ((kind === 'spørsmål' || kind === 'påstand') && ja && gps && _avst(ja, gps) < 100) kind = 'bekreftet';
   return kind;
 }
 function _renderHer() {

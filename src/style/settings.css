@@ -1143,3 +1143,4 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 #auto-her .hva-tom{font-size:13px;color:var(--text-soft)}
 #auto-her .hva-rad{display:flex;gap:.4rem}
 #auto-her .hva-rad .her-sok{flex:1}
+#auto-her .hva-lenke{font:inherit;font-size:13px;background:none;border:0;padding:.25rem 0;color:var(--text-soft);cursor:pointer;text-align:left;min-height:32px}

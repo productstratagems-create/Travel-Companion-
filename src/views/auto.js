@@ -2405,9 +2405,14 @@ export function herTilstand(ps, manuell, ja, gps, usikker = false) {
    med gangtid — et trykk på ett tegner gangen dit. «🔍 et sted …» for den
    som vet hvor. Stedene fra places.js (Geoapify + OpenStreetMap). */
 let _hvaÆrend = null, _hvaSteder = null, _målSted = null, _hvaSøk = false;
+/* FOLDET (v1.218.210). «De gir ikke noe mening slik de er nå»: valget
+   endret ikke tavla under. Til svaret henger sammen med tavla, står bare en
+   liten lenke; knappene åpnes ved trykk. */
+let _hvaÅpen = false;
 function _hvaHtml() {
   if (_hvaSøk) return '<div class="hva"><div class="hva-rad"><input id="hva-sok" class="her-sok" type="search" autocomplete="off" placeholder="hvor skal du?">'
     + '<button type="button" class="her-knapp her-stille" data-hva="lukk">avbryt</button></div><div id="hva-sugg" class="sugg-list" hidden></div></div>';
+  if (!_hvaÆrend && !_hvaÅpen) return '<div class="hva"><button type="button" class="hva-lenke" data-hva="åpne">hva skal du? ▸</button></div>';
   if (!_hvaÆrend) {
     return '<div class="hva"><div class="set-label">hva skal du?</div><div class="hva-chips">'
       + ærendNå().map(e => '<button type="button" class="hva-chip" data-hva="ærend:' + e.id + '">' + e.emoji + ' ' + esc(e.tekst) + '</button>').join('')
@@ -2432,7 +2437,8 @@ function _hvaHtml() {
 function _bindHva(el) {
   el.querySelectorAll('[data-hva]').forEach(b => b.addEventListener('click', () => {
     const v = b.dataset.hva;
-    if (v === 'lukk') { _hvaÆrend = null; _hvaSteder = null; _målSted = null; _hvaSøk = false; }
+    if (v === 'lukk') { _hvaÆrend = null; _hvaSteder = null; _målSted = null; _hvaSøk = false; _hvaÅpen = false; }
+    else if (v === 'åpne') { _hvaÅpen = true; }
     else if (v === 'sted') { _hvaSøk = true; }
     else if (v.startsWith('ærend:')) _velgÆrend(v.slice(6));
     _herSist = null; _renderHer(); _aKey = ''; _renderMap();

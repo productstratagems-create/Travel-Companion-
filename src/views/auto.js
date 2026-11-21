@@ -27,6 +27,7 @@ import { stopsAhead, arriveText, kjentMål, radAnkomst } from '../ui/stoppVelger
 import { lesFokus, lagreFokus } from '../ui/kartValg.js';
 import { ZOOM as ZOOM_TRINN } from '../ui/kartRamme.js';
 import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
+import { sikreGang, gangRuteTil } from '../api/gangTilStopp.js';
 import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
 export { stopsAhead, arriveText };
 import config from '../config.js';
@@ -3613,7 +3614,7 @@ function _renderMap() {
   // Rammen følger det du har bedt om, ikke klokka (v1.218.150).
   const _gvF = _gåHitVis && _gåHit.get(_gåHitVis);
   const rKey = rammeNøkkel({ stoppId: _stop && _stop.id, åpen: (openKey(_open, line) || {}).id, kort: kortLinje ? (_kortRute.id || _kortRute.navn) : null,
-    gåHit: _gvF && _gvF.råd ? _gåHitVis + ':' + _gvF.at : null, fokus: fokusSignatur(_kartFokus, _fokusData()), størrelse: sizeKey, gangTil: _autoTavle && _atGangTil ? _atGangTil.id : null });
+    gåHit: _gvF && _gvF.råd ? _gåHitVis + ':' + _gvF.at : null, fokus: fokusSignatur(_kartFokus, _fokusData()), størrelse: sizeKey, gangTil: _altStopp() ? (_altStopp().id || _altStopp().name) + (gangRuteTil(_altStopp()) ? ':r' : '') : null });
   // Ute av rammen: går du ut av utsnittet (og ikke har rørt kartet), rammes det inn igjen.
   const ute = !!(userPos && _aFitKey && !_aMap.getBounds().pad(-0.05).contains([userPos.lat, userPos.lon]));
   const fitStale = !_aUserMoved && (_aFitKey !== rKey || ute);
@@ -3643,7 +3644,7 @@ function _renderMap() {
   _bak.forEach(st => pts.push([st.lat, st.lon]));
   others.forEach(s => { if (s.lat != null) pts.push([s.lat, s.lon]); });
   (walkPts || []).forEach(p => pts.push(p));
-  if (_autoTavle && _atGangTil && Number.isFinite(_atGangTil.lat)) pts.push([_atGangTil.lat, _atGangTil.lon]);
+  if (_altStopp() && Number.isFinite(_altStopp().lat)) pts.push([_altStopp().lat, _altStopp().lon]);
   if (userPos) pts.push([userPos.lat, userPos.lon]);
 
   // DEG I MIDTEN når ingen retning eller kort er tema: stoppet du er ved og
@@ -3926,10 +3927,13 @@ function _renderMap() {
       .addTo(_aLayer);
   }
   // GANGRUTA TIL NABOSTOPPET (v1.218.172): rett linje — ruta er ikke hentet.
-  if (_autoTavle && _atGangTil && userPos && Number.isFinite(_atGangTil.lat)) {
-    drawWalk(_aLayer, [[userPos.lat, userPos.lon], [_atGangTil.lat, _atGangTil.lon]]);
-    L.marker([_atGangTil.lat, _atGangTil.lon], { icon: makeStopIcon('bus', 1, { primary: true }) })
-      .bindTooltip(esc(_atGangTil.name || ''), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })
+  const _alt = _altStopp();
+  if (_alt && userPos && Number.isFinite(_alt.lat)) {
+    // Den målte gangruta når den finnes; ellers en rett linje — et anslag.
+    drawWalk(_aLayer, gangRuteTil(_alt) || [[userPos.lat, userPos.lon], [_alt.lat, _alt.lon]]);
+    const gm = Number.isFinite(_alt.gangMin) ? ' · ' + (_alt.målt === false ? 'ca. ' : '') + _alt.gangMin + ' min' : '';
+    L.marker([_alt.lat, _alt.lon], { icon: makeStopIcon('bus', 1, { primary: true }) })
+      .bindTooltip(esc((_alt.name || '') + gm), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })
       .addTo(_aLayer);
   }
   if (userPos) userDot(_aLayer, userPos);
@@ -4108,6 +4112,13 @@ export function retningRekk(d, fra, gangTil, walkMins, now) {
     if (rk && (!her || rk.ms < her.ms)) return { ...rk, call: x.call };
   }
   return null;
+}
+/** Gangtid til et stopp med «målt»-merke (v1.218.194). Null i fart. */
+function _gangMålt(ll) { const g = gangTil(ll); return g ? { mins: g.mins, målt: g.målt } : null; }
+function _retningRekkMålt(d, walkMins, now) {
+  const rk = retningRekk(d, _stop, _gangMålt, walkMins, now);
+  if (rk && !rk.målt) sikreGang(userLL(), rk.stopp, { ferdig: () => _renderBody() });
+  return rk;
 }
 /** Kallet slik det ser ut fra stoppet lenger ned: der går du på, da. Ren. */
 export function rekkKall(call, rk) {
@@ -5209,6 +5220,13 @@ function _lagreRetning(v) { try { if (AT_RETNINGER.includes(v)) storage.set(AT_R
 let _atRetning = lagretRetning();
 let _atRekke = [];      // forrige rekkefølge, for ro (v1.218.172)
 let _atGangTil = null;  // nabostoppet du trykket på (v1.218.172)
+/* ALTERNATIVET PÅ KARTET (v1.218.194). Rapportert: «rekk den på Stenbråten»
+   på raden, men kartet viste bare gangen til Mortensrud. Øverste rad som går
+   fra et annet stopp (rekk lenger ned eller nabostopp) står på kartet med
+   lapp og gangen dit — uten at du må trykke. */
+let _atAlt = null;
+/** Stoppet kartet skal vise gangen til: det du trykket, ellers øverste alternativ. */
+function _altStopp() { return _autoTavle ? (_atGangTil || _atAlt) : null; }
 /**
  * LANGT TRYKK PÅ «HJEMOVER» (v1.218.147). Bestilt: «Når bruker trykker og
  * holder på knappen lenge nok så sendes bruker til innstillinger for å legge
@@ -5291,14 +5309,24 @@ function _tegnAutoTavle(body) {
   if (tilFots) {
     const flytt = [];
     del.ikke = del.ikke.filter(x => {
-      const rk = !x.innstilt && tavleRekk(x.call, x.call && x.call._fra ? medKoord(x.call._fra) : _stop,
-        ll => { const g = gangTil(ll); return g ? g.mins : null; }, x.gang, nå);
+      const rk = !x.innstilt && tavleRekk(x.call, x.call && x.call._fra ? medKoord(x.call._fra) : _stop, _gangMålt, x.gang, nå);
+      if (rk && !rk.målt) sikreGang(userLL(), rk.stopp, { ferdig: () => _renderBody() });
       if (!rk) return true;
       Object.assign(x, { rekk: rk, rekker: true, gang: rk.gangMin, gåOm: gåOm(rk.ms, rk.gangMin, nå) });
       flytt.push(x);
       return false;
     });
     del.rekker = del.rekker.concat(flytt);
+  }
+  // Øverste rad som går fra et annet stopp, til kartet (v1.218.194).
+  {
+    const x = del.rekker.find(r => r.rekk || (r.call && r.call._fra));
+    const s = x && (x.rekk ? { id: x.rekk.stopp.id, name: x.rekk.stopp.navn, lat: x.rekk.stopp.lat, lon: x.rekk.stopp.lon, gangMin: x.rekk.gangMin, målt: x.rekk.målt }
+      : (k => k && { id: k.id, name: k.name, lat: k.lat, lon: k.lon, gangMin: x.gang, målt: (gangTil(k) || {}).målt })(medKoord(x.call._fra)));
+    const før = _atAlt && (_atAlt.id || _atAlt.name), nå2 = s && (s.id || s.name);
+    _atAlt = s && Number.isFinite(s.lat) ? s : null;
+    if (s && Number.isFinite(s.lat) && !s.målt) sikreGang(userLL(), s, { ferdig: () => { _aKey = ''; _renderMap(); _renderBody(); } });
+    if (før !== nå2) { _aKey = ''; setTimeout(() => _renderMap(), 0); }
   }
   // ANKOMST TIL DITT VANLIGE MÅL (v1.218.193): bare når turen stopper der.
   {
@@ -5778,7 +5806,7 @@ function _renderBody() {
         + (din ? '<span class="auto-din-merke">din avgang</span>' : '')
         // REKK DEN LENGER NED (v1.218.190): samme tekst som Rute og Auto-tavle.
         + ((rk => rk ? '<span class="auto-rekk">rekker ikke her — ' + esc(rekkTekst(rk, clk)) + '</span>' : '')(
-          _stop ? retningRekk(d, _stop, ll => { const g = gangTil(ll); return g ? g.mins : null; }, walkMins, now) : null))
+          _stop ? _retningRekkMålt(d, walkMins, now) : null))
         // Its own element, not part of the name: a long destination and the
         // platform on one line wrapped the row to two on a 414px screen —
         // measured. The name is the flexible one and gives way first; the

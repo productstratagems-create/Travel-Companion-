@@ -305,6 +305,8 @@ export function walkMinsTo(stopLL, fromLL) {
     mins: gangMinutter(d, spd, buf),
     dist: Math.round(d),
     src: measured != null ? 'gangrute' : (state.walkFromLL ? 'sted' : 'beregnet'),
+    // Målt langs en gangrute, eller anslått (v1.218.194) — et tilbud sier «ca.» til den er målt.
+    målt: measured != null,
   };
 }
 

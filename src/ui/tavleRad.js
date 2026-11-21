@@ -68,7 +68,9 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     + (x.rekk ? '<span class="at-rekk">rekker ikke her — ' + esc(rekkTekst(x.rekk, clk)) + '</span>' : '')
     // NÅR DU MÅ GÅ (v1.218.171), til fots.
     + (x.rekker && !x.innstilt && Number.isFinite(x.gåOm) ? '<span class="at-gaa-om">' + (x.gåOm <= 0 ? 'gå nå' : 'gå om ' + x.gåOm + ' min') + '</span>' : '')
-    + (x.bak ? '<span class="at-bak">bak deg</span>' : '')
+    // «bak deg» står ikke lenger (v1.218.219): rapportert «hjelper ikke bruker».
+    // Den sto på hver rad når du gikk bort fra stoppet — og sa ikke hva du skulle
+    // gjøre. `x.bak` brukes fortsatt i rekkefølgen (tavleFrigjort).
     // Hjemover med bytte (v1.218.151): hvor du bytter.
     + (x.bytte ? '<span class="at-fra">bytt på ' + esc(x.bytte) + '</span>' : '')
     + (x.rekker || x.innstilt ? '' : '<span class="at-merk">rekker ikke</span>') + '</span>'

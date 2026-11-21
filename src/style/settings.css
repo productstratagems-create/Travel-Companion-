@@ -1094,3 +1094,4 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 #v-auto .at-rad.at-best{box-shadow:inset 3px 0 0 var(--accent);background:rgba(var(--accent-rgb),.07)}
 #v-auto .at-rekk{display:block;font-size:.78rem;font-weight:600;color:var(--accent)}
 #v-auto .auto-rekk{display:block;flex-basis:100%;font-size:.78rem;font-weight:600;color:var(--accent)}
+#v-auto .auto-sving{display:block;font-weight:600;color:var(--accent)}

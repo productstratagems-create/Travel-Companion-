@@ -9,6 +9,7 @@ import { lastHånd, skalaHjørne } from '../haand.js';
 import { state } from '../state.js';
 import { posNå } from '../geo.js';
 import { posState, posGrå } from '../position.js';
+import { kursNå } from '../gangSteg.js';
 
 /**
  * One place that owns basemap tiles, map init options and the live-map
@@ -617,8 +618,12 @@ export function userDot(layer, ll, opts = {}) {
   const restil = () => {
     const manuell = opts.manuell != null ? opts.manuell : !!state.walkFromLL;
     const st = prikkStil(manuell ? null : posState(posNå()), manuell);
-    const nøkkel = st.fyll + '|' + st.grå;
-    if (nøkkel !== sistIkon && m.setIcon) { sistIkon = nøkkel; m.setIcon(prikkIkon(st.fyll, st.grå, radius)); }
+    // Kursen på skjermen: dit du går, minus kartets egen dreining.
+    const kart = layer && (layer.getBearing ? layer : layer._map);
+    const k = manuell ? null : kursNå(state.posTrail);
+    const kursSkjerm = Number.isFinite(k) ? k - (kart && kart.getBearing ? kart.getBearing() || 0 : 0) : null;
+    const nøkkel = st.fyll + '|' + st.grå + '|' + (Number.isFinite(kursSkjerm) ? Math.round(kursSkjerm / 10) : '-');
+    if (nøkkel !== sistIkon && m.setIcon) { sistIkon = nøkkel; m.setIcon(prikkIkon(st.fyll, st.grå, radius, kursSkjerm)); }
     if (ring.setRadius) ring.setRadius(st.ringM || 0);
     if (ring.setStyle) ring.setStyle(st.ringM ? { color: st.fyll, opacity: 0.35, fillColor: st.fyll, fillOpacity: 0.12 } : { opacity: 0, fillOpacity: 0 });
     const tekst = [tooltip, st.merk].filter(Boolean).join(' · ');
@@ -637,10 +642,19 @@ export function userDot(layer, ll, opts = {}) {
 }
 
 /** Prikken som DOM-ikon: fylt sirkel med hvit kant, diameter 2·radius. */
-export function prikkIkon(fyll, grå, radius = 7) {
+export function prikkIkon(fyll, grå, radius = 7, kursSkjerm = null) {
   const d = radius * 2;
+  // RETNINGSKJEGLE (v1.218.192): dit du går, fra sporet. Utprøvd (Google,
+  // Apple): kjeglen svarer «hvilken vei» bedre enn noen tekst. Ingen kjegle
+  // når kursen er ukjent eller prikken er grå — da vet vi den ikke.
+  const K = d * 3.2;
+  const kjegle = Number.isFinite(kursSkjerm) && !grå
+    ? '<span class="bruker-kjegle" style="position:absolute;left:' + (radius - K / 2) + 'px;top:' + (radius - K / 2) + 'px;width:' + K + 'px;height:' + K
+      + 'px;border-radius:50%;transform:rotate(' + Math.round(kursSkjerm) + 'deg);background:conic-gradient(from -28deg,' + fyll + 'b3 0deg,' + fyll + '22 56deg,transparent 56deg);'
+      + '-webkit-mask:radial-gradient(circle,#000 0,#000 50%,transparent 50%);mask:radial-gradient(circle,#000 0,#000 50%,transparent 50%)"></span>'
+    : '';
   return L.divIcon({ className: 'bruker-prikk' + (grå ? ' bruker-prikk-gammel' : ''), iconSize: [d, d], iconAnchor: [radius, radius],
-    html: '<span style="display:block;width:' + d + 'px;height:' + d + 'px;border-radius:50%;box-sizing:border-box;background:' + fyll
+    html: kjegle + '<span style="position:relative;display:block;width:' + d + 'px;height:' + d + 'px;border-radius:50%;box-sizing:border-box;background:' + fyll
       + ';border:2.5px solid ' + BRUKER_KANT + ';box-shadow:0 0 3px rgba(0,0,0,.45)"></span>', fyll });
 }
 /** Laget prikken ligger i: over markører (600) og lapper (650), under popups (700). */

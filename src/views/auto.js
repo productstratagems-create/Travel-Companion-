@@ -27,6 +27,7 @@ import { stopsAhead, arriveText, kjentMål } from '../ui/stoppVelger.js';
 import { lesFokus, lagreFokus } from '../ui/kartValg.js';
 import { ZOOM as ZOOM_TRINN } from '../ui/kartRamme.js';
 import { rekkLengerNed, rekkTekst } from '../rekkLengerNed.js';
+import { nesteSving, svingTekst, kursNå } from '../gangSteg.js';
 export { stopsAhead, arriveText };
 import config from '../config.js';
 import { state } from '../state.js';
@@ -1261,7 +1262,9 @@ export function stopHeadHtml(stop, count, open, extra) {
   // split by one.
   const factsLine = bits.length
     ? '<span class="auto-stop-facts">' + esc(bits.join(' \u00b7 ')) + '</span>' : '';
-  const facts = factsLine + wayNote + note;
+  // NESTE SVING (v1.218.192): bare ved beslutningspunkter, ikke på rette strekk.
+  const svingNote = extra && extra.sving ? '<span class="auto-way-note auto-sving">' + esc(extra.sving) + '</span>' : '';
+  const facts = factsLine + wayNote + svingNote + note;
   const name = esc((stop && stop.name) || '');
   // The name in its own element so it can be given an ellipsis. It used to be
   // a bare text node beside the caret, which is also why a browser probe that
@@ -2394,6 +2397,8 @@ function _renderWhere() {
       // so the sentence and the choice cannot say different things.
       way: _way.kind,
       wayEtaS: _way.etaS,
+      // Neste sving på gangruta til stoppet (v1.218.192) — bare til fots.
+      sving: !fart && !syn.lås ? svingTekst(nesteSving(approachPoints(), userLL(), kursNå(state.posTrail)), _stop && _stop.name) : '',
     })
     // HVA APPEN TROR (v1.218.55): dag, del av døgnet, hvor du er og neste
     // reise, sagt — ikke bare brukt. Bare til fots; om bord sier raden over det.

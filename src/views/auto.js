@@ -38,6 +38,7 @@ import { reiseRader, kombiRader } from '../reiseTil.js';
 import { fraMerke } from '../ui/tavleRad.js';
 import { roPunkt } from '../roPunkt.js';
 import { målområder } from '../maalomrader.js';
+import { ryddKart } from '../ui/lappPlass.js';
 import { omrProbe } from '../api/omrProbe.js';
 import { fetchNearbyPlaces } from '../api/places.js';
 import { nesteSving, svingTekst, kursNå, SVING_PÅ } from '../gangSteg.js';
@@ -3520,8 +3521,8 @@ export function stoppLinjerLapp(bein, gangMin, nå) {
   // Første linje én gang (v1.218.230: «Hvorfor er 73 nevnt to ganger?»):
   // «73 gå om 2 min · også 72», ikke «73 · 72 — 73 gå om 2 min».
   const andre = først ? koder.filter(k => k !== først.kode) : koder;
-  if (!først || om == null) return '<br><span class="stopp-linjer">' + esc(koder.join(' · ')) + '</span>';
-  return '<br><span class="stopp-linjer">' + esc(først.kode) + (om <= 0 ? ' gå nå' : ' gå om ' + om + ' min')
+  if (!først || om == null) return '<br><span class="stopp-linjer lapp-lang">' + esc(koder.join(' · ')) + '</span>';
+  return '<br><span class="stopp-linjer lapp-lang">' + esc(først.kode) + (om <= 0 ? ' gå nå' : ' gå om ' + om + ' min')
     + (andre.length ? ' · også ' + esc(andre.join(' · ')) : '') + '</span>';
 }
 function _lappHtml(b, nivå) {
@@ -4127,7 +4128,7 @@ function _renderMap() {
             stoppHinder = { venstre: cx - (side === 'left' ? w : side === 'right' ? 0 : w / 2), høyre: cx + (side === 'right' ? w : side === 'left' ? 0 : w / 2),
               topp: cy - (side === 'top' ? h : side === 'bottom' ? 0 : h / 2), bunn: cy + (side === 'bottom' ? h : side === 'top' ? 0 : h / 2) };
           }
-          return { className: sentrert ? lappKlasse : 'map-label', direction: side,
+          return { className: (sentrert ? lappKlasse : 'map-label') + ' lapp-stopp', direction: side,
             offset: lappForskyv(side, av),
             permanent: sentrert && z >= STOPP_LAPP_ZOOM && !_gåHitVis };   // gå-hit-lappen alene (v1.218.144)
         })())
@@ -4384,7 +4385,11 @@ function _renderMap() {
   // MERKELAPPER SOM KRASJER: den som kommer sist (lavere prioritet), blir et
   // vanlig verktøytips. Stoppet du er ved tegnes først og beholdes. Målt i
   // nettleserprøven: tre faste merkelapper i et 140 px kart overlappet.
-  if (sentrert && typeof requestAnimationFrame === 'function') requestAnimationFrame(() => ryddMerkelapper(el, lappKlasse.split(' ').pop()));
+  // LAPPENES PLASS (v1.218.233, src/ui/lappPlass.js): ALLE lappene — stopp,
+  // gangpille, plattform, nabostopp, linjemerker — i én prioritet; taperen får
+  // kortform eller skjules. Erstatter ryddMerkelapper, som bare så én klasse.
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => ryddKart(el));
+  if (!_aMap._lappRydd) { _aMap._lappRydd = true; _aMap.on('zoomend moveend', () => setTimeout(() => ryddKart(el), 60)); }
 }
 
 /**

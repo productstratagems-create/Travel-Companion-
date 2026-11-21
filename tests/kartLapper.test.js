@@ -19,8 +19,10 @@ describe('lappene i Auto-kartet', () => {
   });
   it('bare den valgte (først) får lapp; de andre dempes', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');
-    expect(a).toMatch(/const valgt = først;/);
-    expect(a).toMatch(/const lapp = valgt && plass && !ruterModus \? valgtLappHtml\(b, e\) : null;/);
+    // v1.218.226: én valgt også ved samme minutt, og ingen lapp på linjene (stopplappen sier det).
+    expect(a).toMatch(/const valgt = bi === valgtIndeks;/);
+    expect(a).toMatch(/const valgtIndeks = bein\.findIndex\(b => b\.ms === førsteMs\);/);
+    expect(a).toMatch(/export const VALGT_LAPP_PÅ = false;/);
     expect(EDD_DEMPET).toBeLessThan(0.5);
   });
 });

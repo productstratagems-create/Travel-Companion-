@@ -48,7 +48,7 @@ describe('koblet inn', () => {
     expect(auto).toContain('lappMedLogo(gangLapp(s), stoppLinjer(s.id))');
   });
   it('Tavla: holdeplassene', () => {
-    expect(board).toContain("lappMedLogo(name, stoppLinjer(String(cluster[0].id).split('|')[0]))");
+    expect(board).toContain("lappMedLogo(erViktigst ? ruteStoppLapp(name, cluster, dir) : name, stoppLinjer(String(cluster[0].id).split('|')[0]))");
   });
   it('kartnålene i plan og underveis har logo igjen; filteret over Tavla-kartet ikke', () => {
     expect(readFileSync('src/views/plan.js', 'utf8')).not.toMatch(/stil: 'font-size:11px;padding:3px 7px', logo: false/);

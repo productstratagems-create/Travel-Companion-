@@ -1,5 +1,6 @@
 import { erHelgLik } from '../dagtype.js';
 import { festLappRydding } from '../ui/lappPlass.js';
+import { stoppLinjerLapp, ruteAvgangerFra } from '../ui/stoppLapp.js';
 import { ZOOM, ramme } from '../ui/kartRamme.js';
 import { posGrå } from '../position.js';
 import { linjemerke } from '../ui/linjemerke.js';
@@ -802,7 +803,9 @@ function renderBoardMap(pos, modes) {
         // Det viktigste stoppet: større nål og fast lapp.
         const erViktigst = cluster === viktigst;
         L.marker([lat, lon], { icon: makeStopIcon(mode, cluster.length, { primary: isPrimary, viktig: erViktigst }) })
-          .bindTooltip(lappMedLogo(name, stoppLinjer(String(cluster[0].id).split('|')[0])), {
+          // SAMME STOPPLAPP SOM AUTO-TAVLE (v1.218.239, src/ui/stoppLapp.js):
+          // «navn · gangtid» og den førstes «gå om» fra rutas reiser.
+          .bindTooltip(lappMedLogo(erViktigst ? ruteStoppLapp(name, cluster, dir) : name, stoppLinjer(String(cluster[0].id).split('|')[0])), {
             permanent: erViktigst,
             direction: 'top',
             offset: [0, -15],
@@ -1945,6 +1948,12 @@ export function radRekkLengerNed(c, dir, nå) {
   return rk;
 }
 /** Stoppene Rute faktisk går fra nå (v1.218.177). Ren. */
+/** Stopplappen i Rute-kartet: navn · gangtid, så linjene derfra. */
+function ruteStoppLapp(name, cluster, dir) {
+  const c0 = cluster[0], w = walkMinsTo(c0);
+  const avg = cluster.flatMap(s => ruteAvgangerFra(state.deps, String(s.id).split('|')[0], dir && dir.stopId));
+  return esc(name) + (w ? ' · ' + (w.målt === false ? 'ca. ' : '') + w.mins + ' min' : '') + stoppLinjerLapp(avg, w ? w.mins : null, Date.now());
+}
 export function ruteStoppIder(dir, deps) {
   const ids = new Set();
   if (dir && dir.stopId) ids.add(String(dir.stopId));

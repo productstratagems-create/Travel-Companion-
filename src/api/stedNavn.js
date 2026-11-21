@@ -44,16 +44,38 @@ export function velgAdresse(features, ll) {
   return best.d <= ADRESSE_HER_M ? best.navn : 'nær ' + best.navn;
 }
 
+/* KARTVERKETS ADRESSEREGISTER FØRST (v1.218.200). Rapportert: «Appen finner
+   verken korrekt veinavn eller husnummer.» Enturs geokoder er laget for søk,
+   ikke for adressen i et punkt. Kartverket (Geonorge) har det offisielle
+   adresseregisteret og et punktsøk som gir nærmeste vegadresse med husnummer
+   og avstand. Åpent, uten nøkkel, CORS. Kan ikke prøves fra sandkassen —
+   svarer det ikke, spørres Entur som før. */
+export function geonorgeUrl(ll) {
+  return 'https://ws.geonorge.no/adresser/v1/punktsok?lat=' + ll.lat + '&lon=' + ll.lon
+    + '&radius=' + ADRESSE_MAKS_M + '&treffPerSide=5&koordsys=4258&utkoordsys=4258';
+}
+/** Nærmeste adresse fra Kartverkets svar. Ren. */
+export function velgGeonorge(json, ll) {
+  const feats = ((json && json.adresser) || []).map(a => ({
+    properties: { name: a.adressetekst || ((a.adressenavn || '') + (a.nummer != null ? ' ' + a.nummer + (a.bokstav || '') : '')).trim() || null },
+    geometry: { coordinates: a.representasjonspunkt ? [a.representasjonspunkt.lon, a.representasjonspunkt.lat] : null },
+  })).filter(f => f.geometry.coordinates);
+  return velgAdresse(feats, ll);
+}
+const _hent = (url, opts) => fetch(url, { signal: AbortSignal.timeout(8000), ...(opts || {}) });
+
 /** Navnet hvis kjent; ellers undefined (spør) eller null (fant ingen). */
-export function stedNavn(ll, ferdig) {
+export function stedNavn(ll, ferdig, deps = {}) {
   if (!ll || !Number.isFinite(ll.lat)) return null;
   const k = nøkkel(ll);
   if (_svar.has(k)) return _svar.get(k);
   _svar.set(k, undefined);
-  enturFetch(reverseUrl(ll))
-    .then(r => (r && r.ok ? r.json() : null))
-    .then(j => _svar.set(k, velgAdresse(j && j.features, ll)))
-    .catch(() => _svar.set(k, null))
+  const hentG = deps.geonorge || (u => _hent(u));
+  const hentE = deps.entur || (u => enturFetch(u));
+  const json = r => (r && r.ok ? r.json() : null);
+  hentG(geonorgeUrl(ll)).then(json).then(j => velgGeonorge(j, ll)).catch(() => null)
+    .then(navn => navn || hentE(reverseUrl(ll)).then(json).then(j => velgAdresse(j && j.features, ll)).catch(() => null))
+    .then(navn => _svar.set(k, navn || null))
     .finally(() => { if (ferdig) ferdig(); });
   return undefined;
 }

@@ -24,3 +24,41 @@ describe('velgAdresse', () => {
     expect(readFileSync('src/api/stedNavn.js', 'utf8')).toMatch(/const nøkkel = ll => ll\.lat\.toFixed\(5\)/);
   });
 });
+
+import { velgGeonorge, geonorgeUrl, stedNavn, _resetStedNavn } from '../src/api/stedNavn.js';
+describe('Kartverkets adresseregister først (v1.218.200)', () => {
+  const svar = { adresser: [
+    { adressetekst: 'Stenbråtveien 16', representasjonspunkt: { lat: N + 40 * DL, lon: Ø } },
+    { adressetekst: 'Stenbråtveien 14', representasjonspunkt: { lat: N + 4 * DL, lon: Ø } },
+  ] };
+  it('veinavn og husnummer: den nærmeste', () => {
+    expect(velgGeonorge(svar, punkt)).toBe('Stenbråtveien 14');
+  });
+  it('uten adressetekst: navn + nummer + bokstav', () => {
+    expect(velgGeonorge({ adresser: [{ adressenavn: 'Stenbråtveien', nummer: 14, bokstav: 'B', representasjonspunkt: { lat: N, lon: Ø } }] }, punkt)).toBe('Stenbråtveien 14B');
+  });
+  it('punktsøk med radius og WGS84', () => {
+    expect(geonorgeUrl(punkt)).toMatch(/^https:\/\/ws\.geonorge\.no\/adresser\/v1\/punktsok\?lat=59\.85&lon=10\.83&radius=\d+&treffPerSide=5&koordsys=4258&utkoordsys=4258$/);
+  });
+  it('Kartverket svarer ikke: Entur som før', async () => {
+    _resetStedNavn();
+    const ok = j => Promise.resolve({ ok: true, json: () => Promise.resolve(j) });
+    let navn;
+    stedNavn(punkt, () => { navn = stedNavn(punkt); }, {
+      geonorge: () => Promise.reject(new Error('nede')),
+      entur: () => ok({ features: [f('Entur-veien 2', 3, 0)] }),
+    });
+    await new Promise(r => setTimeout(r, 10));
+    expect(navn).toBe('Entur-veien 2');
+  });
+  it('Kartverket svarer: Entur spørres ikke', async () => {
+    _resetStedNavn();
+    let entur = 0, navn;
+    stedNavn(punkt, () => { navn = stedNavn(punkt); }, {
+      geonorge: () => Promise.resolve({ ok: true, json: () => Promise.resolve(svar) }),
+      entur: () => { entur++; return Promise.resolve({ ok: false }); },
+    });
+    await new Promise(r => setTimeout(r, 10));
+    expect(navn).toBe('Stenbråtveien 14'); expect(entur).toBe(0);
+  });
+});

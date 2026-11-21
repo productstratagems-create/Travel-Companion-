@@ -1,8 +1,8 @@
 /**
  * HVA HETER STEDET DU STÅR? (v1.218.197). «Du er her: Stenbråtveien 14» —
  * ditt sted, ikke et stopp. Enturs geokoder har et omvendt oppslag
- * (/reverse); det er en PROBE: kan ikke prøves fra sandkassen, og svarer det
- * ikke, sier skjermen «nær <stopp>» i stedet — aldri tomt.
+ * (/reverse), det samme stoppsøket bruker. Lag `address,venue` er ikke prøvd
+ * mot det ekte API-et herfra; svarer det ikke, står «nær <stopp>» — aldri tomt.
  */
 import config from '../config.js';
 import { enturFetch } from './http.js';
@@ -10,7 +10,9 @@ import { enturFetch } from './http.js';
 const _svar = new Map();   // ~50 m rute → navn | null
 const rute = ll => (Math.round(ll.lat * 2000) / 2000) + ',' + (Math.round(ll.lon * 1000) / 1000);
 export function reverseUrl(ll) {
-  return String(config.api.geocoder).replace(/autocomplete$/, 'reverse')
+  // Samme oppslag som finner stoppene rundt deg (geo.js), allerede i bruk mot
+  // Entur — én adresse i config, ikke en avledet kopi.
+  return config.api.geocoderReverse
     + '?point.lat=' + ll.lat + '&point.lon=' + ll.lon + '&size=1&layers=address,venue&boundary.circle.radius=0.2';
 }
 /** Navnet hvis kjent; ellers undefined (spør) eller null (fant ingen). */

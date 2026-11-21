@@ -73,6 +73,7 @@ import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userL
 import { posBekreftelse } from '../position.js';
 import { herLinjeHtml, stedPanelHtml, MANUELL_FLYTT_M } from '../ui/stedVelger.js';
 import { stedNavn } from '../api/stedNavn.js';
+import { åpneStedKart } from '../ui/stedKart.js';
 import { bindPlaceInput } from '../ui/suggest.js';
 import { metresBetween as _avst } from '../haversine.js';
 import L from 'leaflet';
@@ -2382,10 +2383,22 @@ function _bindHer(el) {
     else if (v === 'gps') { clearWalkFrom(); _herAnker = null; _herÅpen = false; _herSist = null; if (state.homeLL) _hentStoppVed(state.homeLL); _renderHer(); }
     else if (v === 'kart') { _herKartVelg = true; _herÅpen = false; _herSist = null; _renderHer(); }
     else if (v === 'lukk') { _herKartVelg = false; _herÅpen = false; _herSist = null; _renderHer(); }
-    else if (v === 'velg') _åpneStedPanel(el);
+    else if (v === 'velg') _åpneStedPanel();
   }));
 }
-function _åpneStedPanel(el) {
+/* KARTET MED FAST NÅL (v1.218.198) er døra; lista-panelet under står, foldet. */
+function _åpneStedPanel() {
+  const gps = state.homeLL ? { lat: state.homeLL.lat, lon: state.homeLL.lon } : null;
+  const start = state.walkFromLL || gps || (_stop && Number.isFinite(_stop.lat) ? { lat: _stop.lat, lon: _stop.lon } : null);
+  if (!start || typeof document === 'undefined') return _åpneStedListe(_el('auto-her'));
+  const ps = _posState();
+  åpneStedKart({ start, acc: ps && ps.acc, gps, nære: _stops().slice(0, 4), manuell: !!state.walkFromLL,
+    navnFor: (ll, ferdig) => stedNavn(ll, ferdig), søk: q => geocodePlace(q),
+    onVelg: (label, ll) => _settSted(label, ll),
+    onGps: () => { clearWalkFrom(); _herAnker = null; _herSist = null; if (state.homeLL) _hentStoppVed(state.homeLL); _renderHer(); } });
+}
+function _åpneStedListe(el) {
+  if (!el) return;
   _herÅpen = true;
   const nære = _stops().slice(0, 5).map(s => ({ ...s, distM: s.distM }));
   el.innerHTML = stedPanelHtml(nære, !!state.walkFromLL);
@@ -3834,6 +3847,8 @@ function _renderMap() {
   // ── EDDERKOPPBEINA (v1.218.61) ──────────────────────────────────────
   // v1.218.62: lappen er linjemerket og klokka, retningen liten under; satt
   // utover; den første avgangen full styrke, resten dempet.
+  // Uten stopp har beina ingen fot å stå på (v1.218.198): sidefeil «reading 'lat'» i proben, eldre enn denne endringen.
+  if (!_stop || !Number.isFinite(_stop.lat)) bein = [];
   const førsteMs = bein.length ? Math.min(...bein.map(b => b.ms)) : null;
   _sisteBein = bein;
   // HELE RUTER (v1.218.112): hele linja i full styrke, lappen ved endestasjonen.
@@ -3848,7 +3863,7 @@ function _renderMap() {
   }));
   // PLASSERINGEN FØRST, FOR ALLE (v1.218.115): én lapp per linje, spredt.
   const W = box.width, H = box.height, grunnHindre = _kartHindre(el, box).concat(stoppHinder ? [stoppHinder] : []);
-  const stopPt = _aMap.latLngToContainerPoint([_stop.lat, _stop.lon]);
+  const stopPt = _stop && Number.isFinite(_stop.lat) ? _aMap.latLngToContainerPoint([_stop.lat, _stop.lon]) : { x: W / 2, y: H / 2 };
   const tilPt = st => _aMap.latLngToContainerPoint([st.lat, st.lon]);
   const kandidaterFor = b => [{ lat: (_stop.lat + b.stopp[0].lat) / 2, lon: (_stop.lon + b.stopp[0].lon) / 2 }, ...b.stopp,
     ...(b.rester || []).flatMap(r => r.slice(1))].filter(st => st && st.lat != null);

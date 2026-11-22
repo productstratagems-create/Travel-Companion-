@@ -3584,6 +3584,8 @@ function _kartHindre(el, box) {
 /** Lappens innhold på et nivå. */
 /** Dempede linjer (ikke valgt) i Auto-kartet. */
 export const EDD_DEMPET = 0.3;
+/** «▸ 7 holdeplasser til med samme linjer nærmere · vis» under kartet. Av (v1.218.245). */
+export const LIKE_LINJE_PÅ = false;
 /** Gangtidspillen på gangstreken. Av (v1.218.234): gangtiden står på stoppkortet. */
 export const GANG_PILLE_PÅ = false;
 /* LINJEMERKET VED LINJAS ENDE (v1.218.227). Foreslått: «linje/rute-nummer
@@ -4057,7 +4059,9 @@ function _renderMap() {
   const others = _visLike ? alle : unike;
   const flere = _el('auto-map-flere');
   if (flere) {
-    flere.hidden = !like.length;
+    // FØRSTE KORT OVER KANTEN (v1.218.245): linja er skjult — «7 ▾» ved
+    // stoppnavnet åpner holdeplassene. Brytere og telling står (LIKE_LINJE_PÅ).
+    flere.hidden = !LIKE_LINJE_PÅ || !like.length;
     flere.textContent = _visLike ? '▾ skjul holdeplasser med samme linjer nærmere'
       : '▸ ' + like.length + (like.length === 1 ? ' holdeplass' : ' holdeplasser') + ' til med samme linjer nærmere · vis';
     if (!flere._bundet) { flere._bundet = true; flere.addEventListener('click', () => { _visLike = !_visLike; _aKey = ''; _renderMap(); }); }
@@ -6028,7 +6032,10 @@ function _tegnAutoTavle(body) {
     : '';
   const bunn = '<div class="at-bunn">' + (_atSlutt ? 'ikke flere avganger herfra' : _atHenter ? 'henter flere …' : '') + '</div>';
   body.innerHTML = retningKnapper + (rader.length
-    ? '<div class="set-label">' + (Number.isFinite(_fraMs) ? 'avganger ' + esc(fraTidTekst(_fraMs, nå)) : 'neste avganger herfra') + '</div>' + merknad + hjemMerk + ikkeHtml
+    // FØRSTE KORT OVER KANTEN (v1.218.245): ingen «neste avganger herfra» —
+    // lista sier det selv; «N avganger du ikke rekker» står under kortene.
+    // Overskriften står når den sier noe: et valgt tidspunkt.
+    ? (Number.isFinite(_fraMs) ? '<div class="set-label">avganger ' + esc(fraTidTekst(_fraMs, nå)) + '</div>' : '') + merknad + hjemMerk
       + kombiMerk + '<div class="at-liste">' + (() => {
         // Flettet inn etter «gå om» blant de direkte radene — en rad i lista, ikke en boks.
         const ut = [], k = kombi.slice();
@@ -6038,7 +6045,7 @@ function _tegnAutoTavle(body) {
         });
         k.forEach(r => ut.push(_kombiRadHtml(r, kombi.indexOf(r))));
         return ut.join('');
-      })() + '</div>' + bunn
+      })() + '</div>' + ikkeHtml + bunn
     : merknad + hjemMerk + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : (_atRetning !== 'alle' ? 'ingen avganger ' + _retningTekst(_atRetning) + ' herfra nå' : 'ingen avganger herfra den nærmeste timen')) + '</div>');
   body.querySelectorAll('.at-raskest[data-pin]').forEach(b => b.addEventListener('click', () => { if (pinStop(b.dataset.pin)) _renderBody(); }));
   body.querySelectorAll('.at-retning [data-retning]').forEach(b => b.addEventListener('click', () => {

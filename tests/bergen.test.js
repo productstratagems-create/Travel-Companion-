@@ -20,7 +20,9 @@ describe('sentrum i Bergen', () => {
     expect(sentrumFor(at(63.42, 10.40)).by).toBe('Trondheim');
     expect(sentrumFor(at(58.96, 5.73)).by).toBe('Stavanger');
     expect(sentrumFor(at(59.92, 10.76)).by).toBe('Oslo');
-    expect(sentrumFor(at(60.79, 11.07))).toBe(null);       // Hamar
+    // v1.218.254: Hamar har eget sentrum; utenfor alle byene: null.
+    expect(sentrumFor(at(60.79, 11.07)).by).toBe('Hamar');
+    expect(sentrumFor(at(61.6, 9.0))).toBe(null);
   });
   it('Oslo uendret', () => {
     expect(CENTRE).toEqual({ lat: 59.9139, lon: 10.7522 });

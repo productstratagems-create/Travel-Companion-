@@ -34,3 +34,17 @@ describe('knutepunktet: spørringen deles', () => {
     expect(iBiter(Array.from({ length: 100 }, (_, i) => i), STOPP_BIT).map(b => b.length)).toEqual([20, 20, 20, 20, 20]);
   });
 });
+import { sentrumFor } from '../src/api/centre.js';
+describe('«mot sentrum» i flere byer (v1.218.254)', () => {
+  it('Tromsø, Bodø og Kristiansand har sentrum; en bygd langt fra alle har ikke', () => {
+    expect(sentrumFor({ lat: 69.68, lon: 18.93 }).by).toBe('Tromsø');
+    expect(sentrumFor({ lat: 67.28, lon: 14.38 }).by).toBe('Bodø');
+    expect(sentrumFor({ lat: 58.16, lon: 8.0 }).by).toBe('Kristiansand');
+    expect(sentrumFor({ lat: 61.6, lon: 9.0 })).toBe(null);   // Valdres/Gudbrandsdalen
+  });
+  it('de store byene som før; liten by vinner ikke over stor by i nærheten', () => {
+    expect(sentrumFor({ lat: 59.92, lon: 10.75 }).by).toBe('Oslo');
+    expect(sentrumFor({ lat: 60.39, lon: 5.33 }).by).toBe('Bergen');
+    expect(sentrumFor({ lat: 59.745, lon: 10.21 }).by).toBe('Drammen');
+  });
+});

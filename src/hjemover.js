@@ -13,6 +13,7 @@ import { storage } from './storage.js';
 import { focusParam } from './geo.js';
 import { TRANSIT_CATS } from './api/stopCats.js';
 import { stopKey } from './stopId.js';
+import { lesSagt } from './profil.js';
 
 export const HJEM_KEY = 't.hjemoverStopp';
 export const HJEM_MAKS = 12;
@@ -21,7 +22,26 @@ export const HJEM_MAKS = 12;
 export function hjemStopp() {
   let v = null;
   try { v = JSON.parse(storage.get(HJEM_KEY) || 'null'); } catch { v = null; }
-  return Array.isArray(v) ? v.filter(s => s && s.id && s.name) : [];
+  const egen = Array.isArray(v) ? v.filter(s => s && s.id && s.name) : [];
+  // MORGENSTOPPET ER HJEMOVER (v1.218.266). Bestilt: «svaret på fra hvor
+  // bruker reiser om morgenen skal også brukes for Hjemover». Egen liste går
+  // alltid foran; uten den er morgenstoppet og stoppene rundt det hjemover.
+  if (egen.length) return egen;
+  let sagt = null;
+  try { sagt = lesSagt(); } catch { sagt = null; }
+  return hjemFraProfil(sagt);
+}
+
+/** Morgenstoppet (profilens hjem) + stoppene rundt det, som hjemover-liste. Ren. */
+export function hjemFraProfil(sagt) {
+  const h = sagt && sagt.hjem;
+  if (!h || !h.stopId || !h.navn) return [];
+  const ut = [], sett = new Set();
+  [{ stopId: h.stopId, navn: h.navn }, ...(h.nær || [])].forEach(n => {
+    const id = n && n.stopId ? String(n.stopId).split('|')[0] : null;
+    if (id && n.navn && !sett.has(id) && ut.length < HJEM_MAKS) { sett.add(id); ut.push({ id, name: n.navn }); }
+  });
+  return ut;
 }
 function _lagre(liste) {
   try { storage.set(HJEM_KEY, JSON.stringify(liste.slice(0, HJEM_MAKS))); } catch { /* privat modus */ }

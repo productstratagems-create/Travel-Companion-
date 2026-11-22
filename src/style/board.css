@@ -835,6 +835,8 @@ div.demo-note{cursor:default;color:var(--text)}
   color:var(--accent);background:rgba(var(--accent-rgb),.1);border:1px solid rgba(var(--accent-rgb),.3)}
 /* Ingen rute ennå: ingen tomme plassholdere under kortet som ser ut som lasting. */
 html.din-rute-apen #dep-list{display:none}
+/* Ingen rute: tavlas ramme har ingenting å vise. ⋮ og statusprikken står. */
+/* DIN-RUTE-RAMME */html.din-rute-apen #station-name-btn,html.din-rute-apen #dir-btn,html.din-rute-apen #board-refresh-btn,html.din-rute-apen #v-board .map-wrap,html.din-rute-apen #line-strip{display:none}
 
 /* Sharing confirmation, in the ⋯ menu beside the item that produced it.
    Doubles as the last resort: with neither the share sheet nor the clipboard

@@ -360,7 +360,10 @@ export function kontekstLinje(k, nå) {
       + (mål !== 'sentrum' && k.senere.til && k.senere.til.navn ? ' (' + k.senere.til.navn + ')' : '')
       + (k.senere.retning ? ', ' + k.senere.retning : ''));
   } else {
-    deler.push('ingen faste reiser i ' + DØGNDELER.find(x => x.id === k.del).navn.replace('midt på dagen', 'dag'));
+    // FØRSTE KORT OVER KANTEN (v1.218.245): en hel linje om det som IKKE
+    // finnes («lørdag natt · ingen faste reiser i natt») tok plass uten noe å
+    // gjøre. Linja står bare når den har en reise å vise.
+    return '';
   }
   return deler.join(' · ');
 }

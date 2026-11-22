@@ -465,7 +465,9 @@
    kartet skjules når lista er det viktigste, og blåses opp når kartet er det. */
 #v-auto #auto-map {
   height: auto;
-  aspect-ratio: 1 / 1;
+  /* 4:3 (v1.218.245): kvadratisk kart (~45 % av skjermen) skjøv første kort
+     under kanten. Større kart er ett trykk unna (form-knappen). */
+  aspect-ratio: 4 / 3;
   border-radius: 8px;
   overflow: hidden;
   background: var(--surface-2);
@@ -1182,3 +1184,8 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .leaflet-tooltip.kort .lapp-lang{display:none}
 .lapp-skjult{visibility:hidden!important}
 .at-min.at-min-gaa small:first-child{display:block;white-space:nowrap;font-size:.4em;letter-spacing:.04em;text-transform:uppercase;opacity:.75}
+/* Filterknappene på én linje (v1.218.245): rulles sidelengs, presser ikke lista ned. */
+#v-auto .at-retning{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+#v-auto .at-retning::-webkit-scrollbar{display:none}
+#v-auto .at-retning .auto-fra-knapp{flex:0 0 auto;white-space:nowrap}
+#v-auto .at-retning .auto-fra-knapp:not(.valgt) .omr-linjer{display:none}

@@ -15,7 +15,8 @@ beforeEach(() => localStorage.clear());
 
 describe('form', () => {
   it('kvadratisk, og ikke kvadratisk utvidet', () => {
-    expect(css).toMatch(/#v-auto #auto-map \{\s*height: auto;\s*aspect-ratio: 1 \/ 1;/);
+    // v1.218.245: 4:3, så første kort står over kanten; større er ett trykk unna.
+    expect(css).toMatch(/#v-auto #auto-map \{\s*height: auto;\s*\/\*[\s\S]*?\*\/\s*aspect-ratio: 4 \/ 3;/);
     expect(css).toContain('#v-auto #auto-map.expanded{aspect-ratio:auto;height:var(--map-h-open)}');
   });
 });

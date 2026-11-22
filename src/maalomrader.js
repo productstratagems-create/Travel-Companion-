@@ -10,6 +10,10 @@
 import { metresBetween } from './haversine.js';
 import { stopKey } from './stopId.js';
 
+/** Kort navn til knappene (v1.218.245): «Holmlia stasjon» → «Holmlia». Ren. */
+export function kortStedsnavn(n) {
+  return String(n || '').replace(/\s+(stasjon|terminal|T)$/i, '').trim();
+}
 /** Stopp nærmere enn dette er ikke et «sted å dra». */
 export const OMR_NÆR_M = 1500;
 /** Retningen leses mot stopp innen dette. */
@@ -65,7 +69,7 @@ export function målområder(dirs, her, stoppFor, nøkkel) {
     const kand = [...tell.values()].filter(v => v.c >= 2 || g.length === 1).sort((a, b) => b.c - a.c || b.m - a.m);
     // Høyst to mål: si begge («Holmlia / Kolbotn»); flere: stoppet de har felles.
     const fronter = [...new Set(g.map(x => x.front).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'nb'));
-    let navn = fronter.length && fronter.length <= 2 ? fronter.join(' / ')
+    let navn = fronter.length && fronter.length <= 2 ? fronter.map(kortStedsnavn).join(' · ')
       : (kand[0] ? kand[0].n : (fronter[0] || 'andre'));
     if (brukt.has(stopKey(navn))) navn = g[0].front || navn + ' ' + (brukt.size + 1);
     brukt.add(stopKey(navn));

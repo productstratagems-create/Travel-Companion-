@@ -26,7 +26,7 @@ describe('målområder (v1.218.213)', () => {
   });
   it('navnet: målene når de er få, ellers stoppet de har felles', () => {
     const o = kjør(dirs);
-    expect(o.find(x => x.nøkler.has('73H')).tekst).toBe('mot Holmlia / Kolbotn');
+    expect(o.find(x => x.nøkler.has('73H')).tekst).toBe('mot Holmlia · Kolbotn');   // v1.218.245: korte navn
     // Flere enn to mål: stoppet de har felles.
     const tre = kjør([...dirs, { frontText: 'Ski', key: '500S', stopp: [MORTENSRUD, LJAN, s('Ski', 59.719, 10.835)] }]);
     expect(tre.find(x => x.nøkler.has('73H')).tekst).toBe('mot Ljan');

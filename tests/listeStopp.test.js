@@ -44,7 +44,7 @@ describe('stoppet lista bruker', () => {
     expect(listeStoppRo(r, k, 'Mrud', T + LISTE_RO_MS).bytt).toBe(null);
   });
   it('koblet inn: ikke når du har valgt stoppet selv', () => {
-    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/if \(!_stopPinned && !picked\.changed && _stop && _dirs && _dirs\.length\) \{/);
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/if \(!_stopPinned && !picked\.changed && _stop && _dirs && _dirs\.length && !vedStoppet\) \{/);   // v1.218.274: heller ikke ved stoppet
   });
 });
 import { listeHolder } from '../src/views/auto.js';

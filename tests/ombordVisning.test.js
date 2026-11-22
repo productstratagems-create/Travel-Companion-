@@ -17,8 +17,8 @@ describe('stopphodet om bord', () => {
   });
   it('til fots: som før', () => {
     const h = tekst(stopHeadHtml({ name: 'Oppsal', distM: 300 }, 2, false, { iFart: false, walkDist: 300, walkMins: 5, pos: 'ok' }));
-    expect(h).toContain('300 m å gå');
-    expect(h).toContain('5 min gange');
+    // v1.218.244: én gangtid.
+    expect(h).toContain('5 min å gå');
   });
 });
 

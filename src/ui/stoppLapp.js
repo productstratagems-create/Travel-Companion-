@@ -9,16 +9,12 @@ import { esc } from './fmt.js';
 
 /** Linjene ved stoppet + den førstes «gå om». avganger: [{kode, ms}]. Ren. */
 export function stoppLinjerLapp(bein, gangMin, nå) {
+  // BARE LINJENE (v1.218.244): «gå om» står på kortet under kartet; to steder
+  // med to utregninger sa 3 og 2 min om samme buss. Første avgang først.
   if (!bein || !bein.length) return '';
-  const koder = [...new Set(bein.map(b => b.kode).filter(Boolean))].slice(0, 5);
   const først = bein.reduce((a, b) => (!a || b.ms < a.ms ? b : a), null);
-  const om = først && Number.isFinite(gangMin) ? Math.round((først.ms - nå) / 60000) - gangMin : null;
-  // Første linje én gang (v1.218.230: «Hvorfor er 73 nevnt to ganger?»):
-  // «73 gå om 2 min · også 72», ikke «73 · 72 — 73 gå om 2 min».
-  const andre = først ? koder.filter(k => k !== først.kode) : koder;
-  if (!først || om == null) return '<br><span class="stopp-linjer lapp-lang">' + esc(koder.join(' · ')) + '</span>';
-  return '<br><span class="stopp-linjer lapp-lang">' + esc(først.kode) + (om <= 0 ? ' gå nå' : ' gå om ' + om + ' min')
-    + (andre.length ? ' · også ' + esc(andre.join(' · ')) : '') + '</span>';
+  const koder = [...new Set([først && først.kode, ...bein.map(b => b.kode)].filter(Boolean))].slice(0, 5);
+  return '<br><span class="stopp-linjer lapp-lang">' + esc(koder.join(' · ')) + '</span>';
 }
 
 /** Avgangene fra et stopp blant Rutes reiser: påstigning der, eller «rekk den» der. Ren. */

@@ -1241,9 +1241,11 @@ export function stopHeadHtml(stop, count, open, extra) {
   const _ps = extra && extra.pos;
   const ca = !!(_ps && _ps.kind && !['ok', 'ingen-stopp'].includes(_ps.kind)) ? 'ca. ' : '';
   if (ombordAt != null) bits.push(extra.ombordHer ? 'toget står her' : 'toget er der ' + clk(ombordAt));
-  else if (extra && extra.walkDist != null) bits.push(ca + extra.walkDist + (fart ? ' m' : ' m å gå'));
+  // ÉN GANGTID (v1.218.244): «12 min å gå», ikke «ca. 802 m å gå · ca. 12 min
+  // gange». Metrene står når gangtiden ikke gjelder (i fart) eller mangler.
+  else if (!fart && extra && extra.walkMins != null) bits.push(ca + extra.walkMins + ' min å gå');
+  else if (extra && extra.walkDist != null) bits.push(ca + extra.walkDist + ' m');
   else if (stop && stop.distM != null) bits.push(stop.distM + ' m');
-  if (ombordAt == null && !fart && extra && extra.walkMins != null) bits.push(ca + extra.walkMins + ' min gange');
   // WHY THIS STOP AND NOT ANOTHER.
   //
   // From v1.141.0 the ranking can prefer a stop you are walking TOWARDS over

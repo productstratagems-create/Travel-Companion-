@@ -168,8 +168,8 @@ describe('«du er ved» i fart', () => {
 
   it('men til fots er alt som før', () => {
     const t = tekst(stopHeadHtml(STOPP, 0, false, extra({ iFart: false })));
-    expect(t).toMatch(/127 m å gå/);
-    expect(t).toMatch(/4 min gange/);
+    // v1.218.244: én gangtid.
+    expect(t).toMatch(/4 min å gå/);
     expect(t).toMatch(/du går mot den/);
   });
 

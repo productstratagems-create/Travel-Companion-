@@ -136,15 +136,18 @@ describe('stopHeadHtml', () => {
   it('prefers the distance the walk itself was measured over', () => {
     const far = { name: 'Mortensrud', distM: 6014 };
     const h = stopHeadHtml(far, 0, false, { walkDist: 1240, walkMins: 15 });
-    expect(h).toContain('1240 m');
+    // v1.218.244: én gangtid — «N min å gå»; metrene bare når gangtiden ikke gjelder.
+    expect(h).toContain('15 min å gå');
+    expect(stopHeadHtml(far, 0, false, { walkDist: 1240 })).toContain('1240 m');
     expect(h).not.toContain('6014');
   });
 
   // A number that changes meaning without saying so is worse than two numbers
   // that disagree: «m» is now the distance you walk, not the crow line.
   it('says the metres are a walk when they are', () => {
+    // v1.218.244: én gangtid — «N min å gå»; metrene bare når gangtiden ikke gjelder.
     expect(stopHeadHtml(stop, 0, false, { walkDist: 480, walkMins: 6 }))
-      .toContain('480 m å gå');
+      .toContain('6 min å gå');
   });
 
   it('does not say «å gå» about the crow distance', () => {
@@ -162,7 +165,8 @@ describe('stopHeadHtml', () => {
 
   it('shows the walking time beside the metres', () => {
     const h = stopHeadHtml(stop, 0, false, { walkDist: 480, walkMins: 5 });
-    expect(h).toContain('5 min gange');
+    // v1.218.244: én gangtid — «N min å gå»; metrene bare når gangtiden ikke gjelder.
+    expect(h).toContain('5 min å gå'); expect(h).not.toContain('480 m');
   });
 
   // The whole screen — heading, map, and the reach on every row — now leans
@@ -172,7 +176,7 @@ describe('stopHeadHtml', () => {
     const h = stopHeadHtml(stop, 0, false,
       { walkMins: 5, pos: { kind: 'gammel', label: 'posisjon 12 min gammel' } });
     expect(h).not.toContain('posisjon 12 min gammel');
-    expect(h).toContain('ca. 5 min gange');
+    expect(h).toContain('ca. 5 min å gå');
     expect(h).toContain('auto-anslag');
   });
 
@@ -199,7 +203,7 @@ describe('stopHeadHtml', () => {
     expect(name).not.toBeNull();
     expect(facts).not.toBeNull();
     expect(name.contains(facts)).toBe(false);
-    expect(facts.textContent).toContain('480 m');
+    expect(facts.textContent).toContain('min å gå');   // v1.218.244
   });
 
   // The name needs a box of its own to be given an ellipsis. It used to be a
@@ -461,7 +465,7 @@ describe('stopHeadHtml and the position note', () => {
     });
     const facts = el.querySelector('.auto-stop-facts');
     const note = el.querySelector('.auto-pos-note');
-    expect(facts.textContent).toBe('ca. 979 m å gå · ca. 14 min gange');
+    expect(facts.textContent).toBe('ca. 14 min å gå');   // v1.218.244: én gangtid
     // Not nested, and no middot left dangling between them.
     expect(facts.contains(note)).toBe(false);
     expect(facts.textContent.endsWith('·')).toBe(false);
@@ -488,7 +492,7 @@ describe('stopHeadHtml and the position note', () => {
     expect(note.textContent).toContain('for lang tid');
     // The distance is outside it — that is the whole point of the split.
     expect(note.textContent).not.toContain('374');
-    expect(el.textContent).toContain('374');
+    expect(el.textContent).toMatch(/min å gå/);   // v1.218.244: gangtiden, ikke metrene
   });
 
   it('carries the kind, so «old» and «inaccurate» can differ', () => {
@@ -506,7 +510,7 @@ describe('stopHeadHtml and the position note', () => {
     const el = document.createElement('div');
     el.innerHTML = stopHeadHtml(stop, 0, false, { walkMins: 7, pos: { kind: 'ok', label: '' } });
     expect(el.querySelector('.auto-pos-note')).toBeNull();
-    expect(el.textContent).toContain('7 min gange');
+    expect(el.textContent).toContain('7 min å gå');
   });
 });
 

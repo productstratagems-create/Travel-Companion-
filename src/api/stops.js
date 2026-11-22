@@ -126,13 +126,16 @@ export function samletInfo(ids) {
  * ÉN regel: «du er ved» (og dermed gangruten), navnelappene i auto-reise og
  * utvalget på Tavla-kartet leser alle denne. */
 export const VIKTIG_GANG_M = 400;
-export function nærViktigFørst(viktigAv, avstandAv = s => s.distM) {
+export function nærViktigFørst(viktigAv, avstandAv = s => s.distM, bånd = VIKTIG_GANG_M) {
+  // BÅNDET (v1.218.252): hvor langt «viktighet avgjør» rekker. 400 m for
+  // «hvor er jeg nå»; et fast stopp velges for hele morgenen, og rangeres over
+  // hele stopplista. Samme sammenligning — ett konsept.
   const d = s => { const v = avstandAv(s); return v == null ? Infinity : v; };
   return (a, b) => {
     // «Innenfor før utenfor» trengs ikke som eget ledd: et stopp innenfor er
     // alltid nærmere enn et utenfor, så avstanden under gir den rekkefølgen.
     // (Mutasjonstesten viste at leddet ikke kunne feile.)
-    const ia = d(a) <= VIKTIG_GANG_M, ib = d(b) <= VIKTIG_GANG_M;
+    const ia = d(a) <= bånd, ib = d(b) <= bånd;
     return (ia && ib && viktigAv ? sammenlignViktighet(viktighet(a, viktigAv(a)), viktighet(b, viktigAv(b))) : 0)
       || (d(a) - d(b));
   };

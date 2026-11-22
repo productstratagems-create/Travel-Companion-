@@ -79,7 +79,7 @@ import { lastHånd } from '../haand.js';
 import { ankomstMs } from '../ankomst.js';
 import { hensikt, hensiktLinje, sammeTur, reiseKall } from '../hensikt.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
-import { fetchStoppLinjer, stoppLinjer, stoppInfoUtdatert, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
+import { fetchStoppLinjer, stoppLinjer, stoppInfoUtdatert, stoppInfo, nærViktigFørst, fetchNearbyStops, viktighet, sammenlignViktighet } from '../api/stops.js';
 import { kontekstNå, kontekstLinje, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
@@ -1038,7 +1038,33 @@ function _stops() {
   // place would move a list nobody asked to move.
   // The trail is read here, once, for the same reason the ranking is: the
   // heading and the alternatives must not disagree about the order.
-  return rankStops(list, depUses(), state.posTrail, s => stoppInfo(s.id));
+  return rankStops(list, depUses(), state.posTrail, retningsViktig(s => stoppInfo(s.id), _retningTelling()));
+}
+/**
+ * RETNING I RANGERINGEN (v1.218.241, steg 2). Evaluert: «et stopp med 10
+ * linjer der ingen går din vei slår et stopp med 2 som gjør det.» Når et
+ * retningsvalg er aktivt i Auto-tavle, teller avgangene i den retningen
+ * (fra tavlas egne avganger, per stopp) i stedet for alle. Et stopp tavla
+ * ikke har avganger fra, teller 0 i retningen — vi vet ikke at noe går din vei.
+ */
+export function retningsViktig(viktigAv, telling) {
+  if (!telling) return viktigAv;
+  return s => { const i = viktigAv(s); return i ? { ...i, avgangerNå: telling.get(s.id) || 0 } : i; };
+}
+/** Avganger per stopp i valgt retning, fra tavlas avganger; null uten retningsvalg. */
+function _retningTelling(nå = Date.now()) {
+  if (!_autoTavle || _atRetning === 'alle' || !_dirs || !_dirs.length || !_stop) return null;
+  return avgangerPerStopp(_iRetning(_dirs, nå), _stop.id, nå);
+}
+/** Kall per stopp-id i dirs, neste time: nabostoppets id eller stoppet ditt. Ren. */
+export function avgangerPerStopp(dirs, egetId, nå) {
+  const m = new Map();
+  (dirs || []).forEach(d => (d.calls || []).forEach(x => {
+    if (!Number.isFinite(x.ms) || x.ms < nå || x.ms > nå + 3600_000) return;
+    const id = (x.call && x.call._fra && x.call._fra.id) || egetId;
+    m.set(id, (m.get(id) || 0) + 1);
+  }));
+  return m;
 }
 
 /** The band function the heading's margin asks with — the ranking's own. */
@@ -4498,14 +4524,18 @@ export const KNUTEPUNKT_MAKS = 3;
 export const TAVLE_GANG_MAKS_MIN = 8;
 export const TAVLE_GANG_M = TAVLE_GANG_MAKS_MIN * 80;   // ca. 4,8 km/t
 export const TAVLE_NABO_MAKS = 5;
-export function knutepunkt(stopp, nære, maksM = KNUTEPUNKT_M, maks = KNUTEPUNKT_MAKS) {
+export function knutepunkt(stopp, nære, maksM = KNUTEPUNKT_M, maks = KNUTEPUNKT_MAKS, viktigAv = s => stoppInfo(s.id)) {
   if (!stopp) return [];
+  // TILBUDET FØR AVSTANDEN (v1.218.241, steg 2): nytt transportmiddel først
+  // som før, så det viktigste (sammenlignViktighet: avganger neste time), så
+  // det nærmeste. Før valgte avstanden alene blant naboene.
+  const vk = s => viktighet(s, viktigAv && viktigAv(s));
   const har = new Set((stopp.modes || []).map(normMode));
   const naboer = (nære || [])
     .filter(s => s && s.id && s.id !== stopp.id && Number.isFinite(s.lat) && Number.isFinite(stopp.lat))
     .map(s => ({ s, d: metresBetween(stopp, s), ny: (s.modes || []).some(m => !har.has(normMode(m))) }))
     .filter(x => x.d <= maksM)
-    .sort((a, b) => (b.ny - a.ny) || (a.d - b.d))
+    .sort((a, b) => (b.ny - a.ny) || sammenlignViktighet(vk(a.s), vk(b.s)) || (a.d - b.d))
     .slice(0, maks)
     .map(x => x.s);
   return [stopp, ...naboer];

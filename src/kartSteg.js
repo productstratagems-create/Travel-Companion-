@@ -50,6 +50,9 @@ export function zoomEtterFart(ms) {
 export const FART_RO_MS = 8000;
 /** Fartstrinn med ro: kortvarige topper (lyskryss, rykk) bytter ikke. Ren. */
 export function fartMedRo(forrige, ms, nå) {
+  // UKJENT FART ER IKKE GANGFART (v1.218.246, T-bane i tunnel): uten fart
+  // står trinnet som det står — før zoomet kartet inn til 17 etter 8 s.
+  if (!Number.isFinite(ms)) return forrige || { zoom: zoomEtterFart(null), kandidat: null, siden: null };
   const ny = zoomEtterFart(ms);
   if (!forrige) return { zoom: ny, kandidat: null, siden: null };
   if (ny === forrige.zoom) return { zoom: forrige.zoom, kandidat: null, siden: null };

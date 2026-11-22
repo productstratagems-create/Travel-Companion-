@@ -3622,6 +3622,12 @@ export function valgtLappHtml(b, e) {
  * Avgangene som går fra et gitt stopp blant tavlas rader: rader som går
  * derfra (nabostopp) og rader som rekkes der lenger ned. {kode, ms}. Ren.
  */
+/** Transportmiddelet til et alternativt stopp: stopplista, ellers buss. Ren. */
+export function altModus(alt, liste) {
+  const s = alt && (liste || []).find(x => (alt.id && x.id === alt.id) || (alt.name && x.name === alt.name));
+  const m = (alt && alt.modus) || (s && ((s.modes && s.modes[0]) || s.mode));
+  return normMode(m) || 'bus';
+}
 export function avgangerFra(rader, stoppId) {
   return (rader || []).map(x => {
     const kode = x.d && x.d.lines && x.d.lines[0] && x.d.lines[0].code;
@@ -4493,7 +4499,8 @@ function _renderMap() {
     // SAMME LAPP SOM STOPPET DITT (v1.218.238). Spurt: «Hvorfor er det ikke
     // samme info på lappen ved Stenbråten som ved Mortensrud?» Én definisjon:
     // navn · gangtid, og linjene derfra med den førstes «gå om» (stoppLinjerLapp).
-    L.marker([_alt.lat, _alt.lon], { icon: makeStopIcon('bus', 1, { primary: true }) })
+    // Stoppets eget transportmiddel (v1.218.246): en T-stasjon som alternativ var tegnet som buss.
+    L.marker([_alt.lat, _alt.lon], { icon: makeStopIcon(altModus(_alt, _stops()), 1, { primary: true }) })
       .bindTooltip(esc((_alt.name || '') + gm) + stoppLinjerLapp(_alt.avganger || [], _alt.gangMin, Date.now()), { permanent: true, direction: 'top', className: 'map-label', offset: [0, -8] })
       .addTo(_aLayer);
   }

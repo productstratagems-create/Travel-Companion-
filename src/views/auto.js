@@ -2447,12 +2447,20 @@ function _tegnHjemover(el) {
   return true;
 }
 let _spørsmålPågår = null, _spørsmålMemo = { t: 0, kilde: null };
+export const SPØRSMÅL_MS = 10_000;
+let _hypMemo = { t: 0, h: null };
 function _nesteHypotese(nå) {
+  // Delt mellom køen og «neste reise», husket SPØRSMÅL_MS (v1.218.259).
+  if (nå - _hypMemo.t < SPØRSMÅL_MS) return _hypMemo.h;
   const { p: prof, m: matr } = _profilNå();
-  return kontekstNå(nå, _herSom(), prof, matr).neste || nesteReise({ nå, her: userLL(), rangering: at => destRanking(at), svar: nesteSvarFor });
+  const h = kontekstNå(nå, _herSom(), prof, matr).neste || nesteReise({ nå, her: userLL(), rangering: at => destRanking(at), svar: nesteSvarFor });
+  _hypMemo = { t: nå, h };
+  return h;
 }
 function _spørsmålNå(nå) {
-  if (nå - _spørsmålMemo.t < 1000) return _spørsmålMemo.kilde;
+  // Høyst hvert SPØRSMÅL_MS (v1.218.259): grunnlaget (profil, vaner, reiser)
+  // endrer seg ikke fra sekund til sekund. Et svar nullstiller.
+  if (nå - _spørsmålMemo.t < SPØRSMÅL_MS) return _spørsmålMemo.kilde;
   const klare = new Set();
   let avvist = false; try { avvist = storage.get(FASTE_AVVIST_KEY) === '1'; } catch { /* */ }
   if (tilbyFasteStopp({ sagt: lesSagt(), avvist, tavleVist: (!!(_dirs && _dirs.length) && _autoTavle) || _fasteVist })) klare.add('faste');
@@ -2468,15 +2476,14 @@ function _spørsmålNå(nå) {
   return kilde;
 }
 /** Et svar på spørsmålet som står: dagens er brukt. */
-function _spørsmålBesvart() { merkBesvart(Date.now()); _spørsmålPågår = null; _spørsmålMemo = { t: 0, kilde: null }; }
+function _spørsmålBesvart() { merkBesvart(Date.now()); _spørsmålPågår = null; _spørsmålMemo = { t: 0, kilde: null }; _hypMemo = { t: 0, h: null }; }
 function _renderNeste(nå) {
   const el = _el('auto-neste');
   if (!el) return;
   if (_følgerReise() && (_lås || (_ombordDom(nå).kind || "").startsWith("ombord"))) { el.style.display = "none"; return; }
   // PROFILEN FØRST (v1.218.29): hjem/jobb/sentrum for døgndelen du er i.
   // Uten noe der: vanen per mål, som før.
-  const { p: prof, m: matr } = _profilNå();
-  const h = kontekstNå(nå, _herSom(), prof, matr).neste || nesteReise({ nå, her: userLL(), rangering: at => destRanking(at), svar: nesteSvarFor });
+  const h = _nesteHypotese(nå);
   const nøkkel = h ? h.toName + '|' + h.bucket + '|' + h.helg : null;
   // Samme gangtid som lista bruker til «rekker du den?».
   const w = _stop ? gangTil(_stop) : null;
@@ -3635,7 +3642,14 @@ export function altModus(alt, liste) {
    «Bussruten følger ikke veien.» Svaret fra turForm kalte _renderBody — lista,
    ikke kartet — og kartnøkkelen kjente ikke formen, så streken sto rett til
    noe annet endret kartet. Nå tegnes kartet på nytt når en trasé kommer. */
-function _formKom() { _aKey = ''; _renderMap(); _renderBody(); }
+// SAMLET (v1.218.259): 10–30 traseer kom hver for seg og tegnet hele kartet
+// hver gang — en storm rett etter åpning. Nå én tegning per FORM_SAMLE_MS.
+export const FORM_SAMLE_MS = 300;
+let _formTid = null;
+function _formKom() {
+  if (_formTid) return;
+  _formTid = setTimeout(() => { _formTid = null; _aKey = ''; _renderMap(); _renderBody(); }, FORM_SAMLE_MS);
+}
 export function avgangerFra(rader, stoppId) {
   return (rader || []).map(x => {
     const kode = x.d && x.d.lines && x.d.lines[0] && x.d.lines[0].code;

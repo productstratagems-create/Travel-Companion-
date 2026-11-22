@@ -154,3 +154,22 @@ export function profilForslag(sagt) {
   return ['hjem', 'jobb'].map(r => sagt && sagt[r]).filter(s => s && s.navn)
     .map(s => ({ name: s.navn, id: s.stopId || null, lat: s.lat, lon: s.lon }));
 }
+
+/**
+ * REIS FRA AUTO-TAVLE FYLLER RUTE (v1.218.268). Rapportert: velger du en
+ * avgang i Auto-tavle, et avstigningsstopp og «reis», må Rute få den ruta.
+ * Før: doBoard leste Rutes rute (config.dirs) og ignorerte avgangens egen
+ * (`c._dir`), så Rute sto urørt — og reisen kunne få feil mål. Ren.
+ * @returns {object|null} en ekte rute, eller null uten mål
+ */
+export function ruteFraTavle(d) {
+  if (!d || !d.from || !d.to || stopKey(d.from) === stopKey(d.to)) return null;
+  return {
+    key: 'custom-out',
+    from: d.from, stopId: d.stopId || null, geo: d.stopId ? null : d.from,
+    _fromLat: d._fromLat ?? null, _fromLon: d._fromLon ?? null,
+    to: d.to, toStopId: d.toStopId || null, toGeo: d.toStopId ? null : d.to,
+    _toLat: d._toLat ?? null, _toLon: d._toLon ?? null,
+    filter: null, line: null, via: null, viaStopId: null, viaGeo: null, viaOgså: false,
+  };
+}

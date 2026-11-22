@@ -817,7 +817,7 @@ function _renderSelMap(dep, fromName, toName, now) {
 /* ── HVOR GÅR DU AV? (v1.218.181) ─────────────────────────────────────
    Åpnet fra Auto-tavle uten mål: skjermen spør her, der svaret hører hjemme,
    i stedet for at du må velge mål før du får se avgangen. Valget gjelder
-   denne avgangen — det blir ikke en Rute. */
+   denne avgangen; først «reis →» gjør den til Rutes rute (v1.218.268). */
 let _svÅpen = false;
 export function _hvorAvHtml(c, dir) {
   if (!dir || dir.key !== 'auto-tavle') return '';

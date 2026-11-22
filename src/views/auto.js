@@ -84,7 +84,7 @@ import { fetchStoppLinjer, stoppLinjer, stoppInfoUtdatert, stoppInfo, nærViktig
 import { kontekstNå, kontekstLinje, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise, lesSagt } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
-import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer, saveWalkFrom, loadWalkFrom, clearWalkFrom, findNearestStation } from '../geo.js';
+import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer, saveWalkFrom, loadWalkFrom, clearWalkFrom, findNearestStation, erStasjon, iNærheten } from '../geo.js';
 import { posBekreftelse } from '../position.js';
 import { herLinjeHtml, stedPanelHtml, MANUELL_FLYTT_M, posForklaringHtml } from '../ui/stedVelger.js';
 import { stedNavn, stedMåling, målingLinje } from '../api/stedNavn.js';
@@ -1101,7 +1101,7 @@ function _bandOf() {
 export function nearbyAlternatives(list, chosen) {
   const id = chosen && chosen.id;
   return (list || []).filter(s =>
-    s && s.id !== id && (s.distM == null || s.distM <= NEAR_STOP_MAX_M));
+    s && s.id !== id && iNærheten(s));   // v1.218.275: stasjoner til STASJON_MAKS_M
 }
 
 /**
@@ -4711,7 +4711,7 @@ export const KNUTEPUNKT_MAKS = 3;
 export const TAVLE_GANG_MAKS_MIN = 8;
 export const TAVLE_GANG_M = TAVLE_GANG_MAKS_MIN * 80;   // ca. 4,8 km/t
 export const TAVLE_NABO_MAKS = 5;
-export function knutepunkt(stopp, nære, maksM = KNUTEPUNKT_M, maks = KNUTEPUNKT_MAKS, viktigAv = s => stoppInfo(s.id)) {
+export function knutepunkt(stopp, nære, maksM = KNUTEPUNKT_M, maks = KNUTEPUNKT_MAKS, viktigAv = s => stoppInfo(s.id), stasjonFraDeg = false) {
   if (!stopp) return [];
   // TILBUDET FØR AVSTANDEN (v1.218.241, steg 2): nytt transportmiddel først
   // som før, så det viktigste (sammenlignViktighet: avganger neste time), så
@@ -4721,7 +4721,8 @@ export function knutepunkt(stopp, nære, maksM = KNUTEPUNKT_M, maks = KNUTEPUNKT
   const naboer = (nære || [])
     .filter(s => s && s.id && s.id !== stopp.id && Number.isFinite(s.lat) && Number.isFinite(stopp.lat))
     .map(s => ({ s, d: metresBetween(stopp, s), ny: (s.modes || []).some(m => !har.has(normMode(m))) }))
-    .filter(x => x.d <= maksM)
+    // Stasjoner måles fra deg, ikke fra stoppet (v1.218.275), når bedt om.
+    .filter(x => x.d <= maksM || (stasjonFraDeg && erStasjon(x.s.modes) && iNærheten(x.s) && Number.isFinite(x.s.distM)))
     .sort((a, b) => (b.ny - a.ny) || sammenlignViktighet(vk(a.s), vk(b.s)) || (a.d - b.d))
     .slice(0, maks)
     .map(x => x.s);
@@ -4729,7 +4730,7 @@ export function knutepunkt(stopp, nære, maksM = KNUTEPUNKT_M, maks = KNUTEPUNKT
 }
 /** Knutepunktet slik skjermen bruker det: gangavstand i Auto-tavle (v1.218.171). */
 function _knutepunktHer(stopp) {
-  return _autoTavle ? knutepunkt(stopp, _stops(), TAVLE_GANG_M, TAVLE_NABO_MAKS) : knutepunkt(stopp, _stops());
+  return _autoTavle ? knutepunkt(stopp, _stops(), TAVLE_GANG_M, TAVLE_NABO_MAKS, undefined, true) : knutepunkt(stopp, _stops());
 }
 /**
  * Gangtiden for EN rad: til stoppet raden går fra (v1.218.171). Før brukte

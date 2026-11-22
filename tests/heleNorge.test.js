@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 const I = (nå, døgn) => ({ moduser: ['bus'], avgangerNå: nå, avgangerDøgn: døgn, linjer: 1, plattformer: 1 });
 describe('bygda: få avganger, langt mellom stoppene', () => {
   it('stoppsøket leter utover når ingenting er innen 850 m', () => {
-    expect(SØK_TRINN_KM).toEqual([0.85, 2, 5]);
+    expect(SØK_TRINN_KM).toEqual([1.5, 2, 5]);   // v1.218.275: første trinn = stasjonens rekkevidde
     expect(readFileSync('src/geo.js', 'utf8')).toMatch(/if \(!stops\.length && trinn \+ 1 < SØK_TRINN_KM\.length\)/);
   });
   it('båndet følger nærmeste stopp: tilbudet teller også på 1,8 km', () => {

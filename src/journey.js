@@ -1,4 +1,4 @@
-import { ruteFraTavle } from './dinRute.js';
+import { ruteFraTavle, medEndestasjon } from './dinRute.js';
 import config from './config.js';
 import { clk, clkDay } from './ui/fmt.js';
 import { state, intervals } from './state.js';
@@ -237,7 +237,8 @@ export function doBoard() {
   if (!c) return;
   // Avgangens egen rute når den har et mål (Auto-tavle, v1.218.268), og den
   // blir Rutes rute: samme dør som et valg i innstillingene.
-  const egen = ruteFraTavle(c._dir);
+  // Uten valgt avstigning: endestasjonen (v1.218.270).
+  const egen = ruteFraTavle(c._dir && c._dir.key === 'auto-tavle' ? medEndestasjon(c._dir, c, Date.now()) : c._dir);
   if (egen && window._settRute) window._settRute(egen);
   const dir = egen || config.dirs[state.dIdx];
   const legs = legsFromTrip(c, dir);

@@ -1177,8 +1177,25 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .faste-stopp .faste-rad{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin:.35rem 0}
 .faste-stopp .faste-sp{flex-basis:100%;font-size:13px;color:var(--text-soft)}
 .faste-stopp .faste-følge{font-size:12px;color:var(--text-soft)}
-.faste-stopp .faste-endre{padding:.2rem .6rem;font-size:12px}
+.faste-stopp .faste-endre{padding:.2rem .8rem;font-size:13px}
 .faste-stopp .faste-feil{flex-basis:100%;font-size:12.5px;color:var(--warn,#e0a030);margin-top:.2rem}
 .faste-stopp .faste-valg{display:flex;flex-wrap:wrap;gap:.35rem;flex-basis:100%}
 .faste-stopp .faste-sok{flex-basis:100%;font:inherit;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line,#888);background:var(--surface-2);color:var(--text)}
 .at-bestill{flex-basis:100%;font-size:.8rem;color:var(--warn,#d97706);font-weight:600}
+
+/* SØKEFORSLAG (v1.218.270). bindPlaceInput lager .sugg-btn i en .sugg-list,
+   og ingen av dem hadde stil: faste stopp, «Din rute» og stedvelgeren viste
+   nettleserens grå standardknapper. Samme form som .stop-sugg, med temaets
+   flate så lys modus også stemmer. */
+.sugg-list{flex-basis:100%;width:100%;margin-top:.25rem;background:var(--surface);
+  border:1px solid rgba(var(--border-rgb),.25);border-radius:6px;overflow:hidden}
+.sugg-list[hidden]{display:none}
+.sugg-list .sugg-btn{display:block;width:100%;min-height:44px;padding:.65rem .75rem;
+  background:none;border:0;border-bottom:1px solid rgba(var(--border-rgb),.1);
+  color:var(--accent);font:inherit;font-size:.95rem;text-align:left;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.sugg-list .sugg-btn:last-child{border-bottom:0}
+.sugg-list .sugg-btn:active{background:rgba(var(--accent-rgb),.1)}
+/* «endre» stor nok for en finger (v1.218.270): 44 px er minstemålet. */
+.faste-stopp .faste-endre{min-height:44px;min-width:44px}
+.faste-stopp .faste-lagrer{font-size:12px;color:var(--text-soft)}

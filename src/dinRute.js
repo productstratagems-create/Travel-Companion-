@@ -11,6 +11,7 @@
 import { stopKey } from './stopId.js';
 import { esc } from './ui/fmt.js';
 import { fastSvar } from './fasteStopp.js';
+import { stopsAhead } from './ui/stoppVelger.js';
 
 /** Plassholderen for «ingen rute ennå». Lagres aldri. */
 export const NÆRMESTE_KEY = 'nærmeste';
@@ -172,4 +173,19 @@ export function ruteFraTavle(d) {
     _toLat: d._toLat ?? null, _toLon: d._toLon ?? null,
     filter: null, line: null, via: null, viaStopId: null, viaGeo: null, viaOgså: false,
   };
+}
+
+/**
+ * UTEN VALGT AVSTIGNING: ENDESTASJONEN (v1.218.270). Bestilt: «Hvis bruker
+ * ikke setter ankomststed fra auto-tavla, velg da endestasjon.» Siste stopp i
+ * turens stoppliste etter der du går på. Et valgt mål røres ikke. Ren.
+ */
+export function medEndestasjon(d, c, nå) {
+  if (!d || d.to) return d;
+  const fram = stopsAhead(c, d.from, nå, d.stopId || null);
+  const ende = fram[fram.length - 1];
+  if (!ende || !ende.name) return d;
+  return { ...d, to: ende.name, toStopId: ende.id || null,
+    _toLat: Number.isFinite(ende.lat) ? ende.lat : null, _toLon: Number.isFinite(ende.lon) ? ende.lon : null,
+    _endestasjon: true };
 }

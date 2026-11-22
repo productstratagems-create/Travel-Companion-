@@ -49,7 +49,7 @@ describe('koblingen (v1.218.251)', () => {
   it('kortet står før andre spørsmål, og lagrer i profilen', () => {
     // v1.218.257: gjennom spørsmålskøen.
     expect(a).toMatch(/if \(valgt === 'faste' && _tegnFasteStopp\(el\)\) return;/);
-    expect(a).toMatch(/settSted\(rolle, sted, nær2\)/);
+    expect(a).toMatch(/settSted\(rolle, sted, \[\]\)/);   // v1.218.270: straks, stoppene rundt etterpå
   });
   it('posisjonen forklares før nettleseren spør; knappen starter den', () => {
     expect(m).toMatch(/if \(trengerPosForklaring\(t, forklart\) && loadAutoMode\(\)\) \{ state\.posVenter = true; renderAuto\(\); \}/);
@@ -140,5 +140,25 @@ describe('onboarding tar bare imot svar appen kan bruke (v1.218.267)', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');
     expect(a).toMatch(/data-fast-sok\]'\)\.forEach\(inp => bindPlaceInput\(inp, inp\.nextElementSibling, q => søkHjemStopp\(q\)/);
     expect(a).toMatch(/const g = gyldigFastStopp\(s, lesSagt\(\), rolle\);/);
+  });
+});
+
+describe('faste stopp-kortet på telefon (v1.218.270)', () => {
+  const a = readFileSync('src/views/auto.js', 'utf8'), css = readFileSync('src/style/settings.css', 'utf8');
+  it('før-bildet: lagringen ventet på stoppene rundt; nå lagres valget straks', () => {
+    const i = a.indexOf('const lagre = (rolle, s) => {');
+    const blokk = a.slice(i, i + 1600);
+    expect(blokk).toMatch(/settSted\(rolle, sted, \[\]\);\s*_fasteÅpen = null;/);
+    expect(blokk.indexOf('settSted(rolle, sted, [])')).toBeLessThan(blokk.indexOf('fetchNearbyStops'));
+  });
+  it('søkeforslagene har stil, og «endre» er minst 44 px', () => {
+    expect(css).toMatch(/\.sugg-list \.sugg-btn\{[^}]*min-height:44px/);
+    expect(css).toMatch(/\.faste-stopp \.faste-endre\{min-height:44px/);
+  });
+});
+describe('valget vises straks også fra søket (v1.218.270)', () => {
+  it('feltet slipper fokus før kortet tegnes om', () => {
+    const a = readFileSync('src/views/auto.js', 'utf8');
+    expect(a).toMatch(/settSted\(rolle, sted, \[\]\);[\s\S]{0,400}document\.activeElement\.blur\(\);\s*el\._sistKort = null; _renderWhere\(\); _renderProfilQ/);
   });
 });

@@ -16,7 +16,7 @@ describe('tilbudet nå', () => {
   it('leser avgangene neste time når svaret har dem', () => {
     const m = infoFraSvar({ data: { stopPlaces: [{ id: 'X', quays: [{ lines: [{ id: 'L1', transportMode: 'bus' }] }], estimatedCalls: [{}, {}, {}] }] } });
     expect(m.get('X').avgangerNå).toBe(3);
-    expect(stoppInfoGql(['X'], true)).toMatch(/estimatedCalls\(timeRange: 3600, numberOfDepartures: 100\)/);
+    expect(stoppInfoGql(['X'], true)).toMatch(/estimatedCalls\(timeRange: 86400, numberOfDepartures: 50\)/);   // v1.218.253: døgnet
     expect(stoppInfoGql(['X'], false)).not.toMatch(/estimatedCalls/);
   });
   it('styrer valget av stopp innen gangavstand (rankStops leser nærViktigFørst)', () => {

@@ -78,7 +78,7 @@ import { lastHånd } from '../haand.js';
 import { ankomstMs } from '../ankomst.js';
 import { hensikt, hensiktLinje, sammeTur, reiseKall } from '../hensikt.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
-import { fetchStoppLinjer, stoppLinjer, stoppInfoUtdatert, stoppInfo, nærViktigFørst, fetchNearbyStops, viktighet, sammenlignViktighet, retningsViktig } from '../api/stops.js';
+import { fetchStoppLinjer, stoppLinjer, stoppInfoUtdatert, stoppInfo, nærViktigFørst, båndFor, fetchNearbyStops, viktighet, sammenlignViktighet, retningsViktig } from '../api/stops.js';
 import { kontekstNå, kontekstLinje, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise, lesSagt } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
@@ -1004,6 +1004,8 @@ export function rankStops(list, uses, trail, viktigAv) {
   const d = (s) => (s.distM == null ? Infinity : s.distM);
   // Approaching beats standing beats walking away, inside a band.
   const dir = (s) => ({ mot: 0, 'vet-ikke': 1, staar: 1, fra: 2 }[way(s)]);
+  // Båndet følger stedet (v1.218.253): på bygda avgjør tilbudet også over 400 m.
+  const viktigRekkefølge = nærViktigFørst(viktigAv, undefined, båndFor(Math.min(...(list || []).map(d))));
   return (list || []).slice().sort((a, b) =>
     (band(a) - band(b))
     // DIRECTION BEFORE HISTORY, and never above band 0: at the platform the
@@ -1022,7 +1024,7 @@ export function rankStops(list, uses, trail, viktigAv) {
     // VIKTIGHET SOM TIEBREAK, aldri i band 0: der står du.
     // NÆR OG VIKTIG (v1.218.11), aldri i band 0: der står du. Innen gangavstand
     // avgjør viktigheten, ellers avstanden. Gangruten går til det som vinner.
-    || (band(a) === 0 ? d(a) - d(b) : nærViktigFørst(viktigAv)(a, b)));
+    || (band(a) === 0 ? d(a) - d(b) : viktigRekkefølge(a, b)));
 }
 
 function _stops() {

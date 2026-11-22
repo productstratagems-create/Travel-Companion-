@@ -628,10 +628,15 @@ const NEAR_RADIUS_KM = NEAR_STOP_MAX_M / 1000;
  */
 export const NEAR_SIZE = 100;
 
-export function findNearestStation(lat, lon, onFound, onFail) {
+/* HELE DEKNINGSOMRÅDET (v1.218.253). Bestilt: «alle funksjoner må skalere
+ * godt innenfor Enturs API geografisk dekningsområde.» På bygda er nærmeste
+ * stopp ofte lenger unna enn 850 m, og appen sa «sett stoppet selv». Finnes
+ * ingenting, letes det videre utover (SØK_TRINN_KM) før svaret er «ingen». */
+export const SØK_TRINN_KM = [NEAR_STOP_MAX_M / 1000, 2, 5];
+export function findNearestStation(lat, lon, onFound, onFail, trinn = 0) {
   enturFetch(config.api.geocoderReverse
     + '?point.lat=' + lat + '&point.lon=' + lon
-    + '&boundary.circle.radius=' + NEAR_RADIUS_KM
+    + '&boundary.circle.radius=' + SØK_TRINN_KM[trinn]
     + '&size=' + NEAR_SIZE + '&layers=venue')
     .then(r => r.json())
     .then(j => {
@@ -652,6 +657,11 @@ export function findNearestStation(lat, lon, onFound, onFail) {
           modes: modesOf(f.properties.category),
         }))
         .sort((a, b) => a.distM - b.distM);
+      if (!stops.length && trinn + 1 < SØK_TRINN_KM.length) {
+        logMsg('ingen holdeplass innen ' + SØK_TRINN_KM[trinn] + ' km — leter innen ' + SØK_TRINN_KM[trinn + 1] + ' km');
+        findNearestStation(lat, lon, onFound, onFail, trinn + 1);
+        return;
+      }
       if (!stops.length) {
         // The position was fine; there is simply nothing within the radius.
         // Said as its own state because the screen used to blame GPS for it,

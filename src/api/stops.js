@@ -100,6 +100,9 @@ export function modusVekt(moduser) {
 export function sammenlignViktighet(a, b) {
   return (modusVekt(b.moduser) - modusVekt(a.moduser))
     || ((b.avgangerNå || 0) - (a.avgangerNå || 0))
+    // Få avganger (v1.218.253): på bygda er neste time ofte 0 for alle — da
+    // avgjør døgnet.
+    || ((b.avgangerDøgn || 0) - (a.avgangerDøgn || 0))
     || (b.linjer - a.linjer) || (b.plattformer - a.plattformer);
 }
 /** Flere stopp i én klynge samlet: union av linjer og transportmidler, sum av avganger og plattformer. */
@@ -126,6 +129,14 @@ export function samletInfo(ids) {
  * ÉN regel: «du er ved» (og dermed gangruten), navnelappene i auto-reise og
  * utvalget på Tavla-kartet leser alle denne. */
 export const VIKTIG_GANG_M = 400;
+/**
+ * BÅNDET SKALERER MED STEDET (v1.218.253). 400 m er riktig i byen; på bygda,
+ * der nærmeste stopp er 1,8 km unna, ville tilbudet aldri telle. Båndet er
+ * minst VIKTIG_GANG_M, og ellers halvannen gang avstanden til nærmeste stopp.
+ */
+export function båndFor(nærmesteM) {
+  return Number.isFinite(nærmesteM) ? Math.max(VIKTIG_GANG_M, Math.round(nærmesteM * 1.5)) : VIKTIG_GANG_M;
+}
 export function nærViktigFørst(viktigAv, avstandAv = s => s.distM, bånd = VIKTIG_GANG_M) {
   // BÅNDET (v1.218.252): hvor langt «viktighet avgjør» rekker. 400 m for
   // «hvor er jeg nå»; et fast stopp velges for hele morgenen, og rangeres over
@@ -149,13 +160,17 @@ export function infoFraSvar(j) {
     const linjer = new Set(), moduser = [];
     let plattformer = 0;
     // Tilbudet nå (v1.218.240): kall neste time, når svaret har dem.
-    const avgangerNå = Array.isArray(sp.estimatedCalls) ? sp.estimatedCalls.length : null;
+    // Neste time teller; døgnet skiller stopp med få avganger (v1.218.253).
+    const kall = Array.isArray(sp.estimatedCalls) ? sp.estimatedCalls : null;
+    const t0 = Date.now(), tid = c => Date.parse((c && (c.expectedDepartureTime || c.aimedDepartureTime)) || '');
+    const avgangerNå = kall ? kall.filter(c => { const t = tid(c); return !Number.isFinite(t) || t <= t0 + 3600_000; }).length : null;
+    const avgangerDøgn = kall ? kall.length : null;
     (sp.quays || []).forEach(q => {
       const ls = (q && q.lines) || [];
       if (ls.length) plattformer++;
       ls.forEach(l => { if (!l || !l.id) return; linjer.add(l.id); if (l.transportMode && !moduser.includes(l.transportMode)) moduser.push(l.transportMode); });
     });
-    m.set(sp.id, { moduser, linjer: linjer.size, plattformer, avgangerNå });
+    m.set(sp.id, { moduser, linjer: linjer.size, plattformer, avgangerNå, avgangerDøgn });
   });
   return m;
 }
@@ -182,9 +197,16 @@ export function stoppInfoUtdatert(id, nå = Date.now()) {
   const t = _hentet.get(id);
   return t == null || nå - t > STOPP_INFO_MS;
 }
+/** Døgnet, så stopp med få avganger skilles; høyst så mange kall per stopp. */
+export const STOPP_VINDU_S = 86400, STOPP_KALL_MAKS = 50;
+/** Stopp per spørring, og spørringer samtidig (v1.218.253): et knutepunkt
+ *  med 100 stopp i nærheten ble ett enormt svar. */
+export const STOPP_BIT = 20, STOPP_SAMTIDIG = 3;
+/** Del i biter. Ren. */
+export function iBiter(xs, n) { const ut = []; for (let i = 0; i < (xs || []).length; i += n) ut.push(xs.slice(i, i + n)); return ut; }
 export function stoppInfoGql(ids, medAvganger) {
   return '{ stopPlaces(ids:' + JSON.stringify(ids) + ') { id quays { lines { id transportMode } }'
-    + (medAvganger ? ' estimatedCalls(timeRange: 3600, numberOfDepartures: 100) { expectedDepartureTime }' : '') + ' } }';
+    + (medAvganger ? ' estimatedCalls(timeRange: ' + STOPP_VINDU_S + ', numberOfDepartures: ' + STOPP_KALL_MAKS + ') { expectedDepartureTime aimedDepartureTime }' : '') + ' } }';
 }
 export function fetchStoppLinjer(ids, nå = Date.now()) {
   const nye = [...new Set((ids || []).filter(id => id && stoppInfoUtdatert(id, nå)))];
@@ -196,6 +218,13 @@ export function fetchStoppLinjer(ids, nå = Date.now()) {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: stoppInfoGql(nye, med) }),
   }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
   const med = !_utenAvganger;
+  const biter = iBiter(nye, STOPP_BIT);
+  if (biter.length > 1) {
+    // Høyst STOPP_SAMTIDIG om gangen; hver bit som før, enkeltvis.
+    let i = 0, ok = false;
+    const neste = () => (i < biter.length ? fetchStoppLinjer(biter[i++], nå).then(m => { if (m) ok = true; return neste(); }) : Promise.resolve());
+    return Promise.all(Array.from({ length: Math.min(STOPP_SAMTIDIG, biter.length) }, neste)).then(() => (ok ? _linjer : null));
+  }
   return spør(med)
     .then(j => {
       if (med && j && j.errors && j.errors.length && !(j.data && j.data.stopPlaces)) {

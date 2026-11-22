@@ -10,7 +10,7 @@
  * JOBB-holdeplassen. Én definisjon; ingen ny lagring. Rene funksjoner.
  */
 import { erHelgLik } from './dagtype.js';
-import { nærViktigFørst } from './api/stops.js';
+import { nærViktigFørst, båndFor } from './api/stops.js';
 import { NEAR_STOP_MAX_M } from './geo.js';
 
 /** Hverdag 05–10: du reiser fra morgen-stoppet. 14–19: fra ettermiddags-stoppet. */
@@ -40,7 +40,9 @@ export function fastFørst(list, sagt, nå, ved = 100) {
   const rolle = fastRolleNå(nå), f = rolle && sagt && sagt[rolle];
   if (!f || !list || !list.length) return list;
   if (Number.isFinite(list[0].distM) && list[0].distM <= ved && !like(list[0], f)) return list;
-  const i = list.findIndex(s => like(s, f) && Number.isFinite(s.distM) && s.distM <= FAST_MAKS_M);
+  // På bygda (v1.218.253): gangavstanden følger nærmeste stopp, som båndet.
+  const maks = Math.max(FAST_MAKS_M, båndFor(Math.min(...list.map(s => (Number.isFinite(s.distM) ? s.distM : Infinity)))));
+  const i = list.findIndex(s => like(s, f) && Number.isFinite(s.distM) && s.distM <= maks);
   if (i <= 0) return list;
   return [list[i], ...list.slice(0, i), ...list.slice(i + 1)];
 }

@@ -168,3 +168,25 @@ export function hjemDom(linjeId, fram, liste, etapper, gange = null) {
   const e = (etapper || []).find(x => x.linjeId === linjeId && (x.bytte ? navn.has(stopKey(x.bytte)) : false));
   return e ? { hjem: true, bytte: e.bytte } : { hjem: false, bytte: null };
 }
+
+/**
+ * LÆRT HJEMOVER (v1.218.258, onboarding steg 3). Planen: «foreslå "hjemover =
+ * X?" når appen har sett samme mål om kvelden flere ganger; ett trykk "ja"
+ * lagrer.» Profilens hjem-holdeplass (oppgitt som morgen-stopp, eller avledet
+ * av kvelds-reiser — avledProfil) er kandidaten. Bare når hjemover er tomt,
+ * og ikke et stopp du har sagt nei til. Ren.
+ * @returns { navn, stopId, nær } | null
+ */
+export function hjemoverForslag(prof, hjemListe, avvistId) {
+  const h = prof && prof.hjem;
+  if (!h || !h.stopId || (hjemListe && hjemListe.length)) return null;
+  if (avvistId && String(avvistId) === String(h.stopId)) return null;
+  return h;
+}
+/** Ja: hjem-holdeplassen og stoppene rundt den (profilens `nær`) blir hjemover. */
+export function lagreHjemoverFra(h) {
+  if (!h || !h.stopId) return hjemStopp();
+  leggTilHjem({ id: String(h.stopId).split('|')[0], name: h.navn });
+  (h.nær || []).forEach(n => { if (n && n.stopId && n.navn) leggTilHjem({ id: String(n.stopId).split('|')[0], name: n.navn }); });
+  return hjemStopp();
+}

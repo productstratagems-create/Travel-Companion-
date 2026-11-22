@@ -6,6 +6,6 @@ describe('når traseen kommer, tegnes kartet på nytt', () => {
   it('turForm sitt svar tegner kartet, ikke bare lista', () => {
     expect(a).toMatch(/function _formKom\(\) \{ _aKey = ''; _renderMap\(\); _renderBody\(\); \}/);
     expect(a).not.toMatch(/turForm\(.*, _renderBody\)/);
-    expect((a.match(/turForm\(.*, _formKom\)/g) || []).length).toBe(2);
+    expect((a.match(/turForm\(.*, _formKom\)/g) || []).length).toBe(3);
   });
 });

@@ -4374,7 +4374,7 @@ function _renderMap() {
     const { color, mode } = openLine(_open);
     drawStopLine(_aLayer, line, {
       color, mode: normMode(mode),
-      shape: turForm(_open.call && _open.call.serviceJourney && _open.call.serviceJourney.id, _stop, line[line.length - 1], _renderBody),
+      shape: turForm(_open.call && _open.call.serviceJourney && _open.call.serviceJourney.id, _stop, line[line.length - 1], _formKom),
       // Cull the beads when they would touch. The line still says where it
       // goes, and every stop is named in the list directly below it.
       project: (ll) => _aMap.latLngToContainerPoint(ll),

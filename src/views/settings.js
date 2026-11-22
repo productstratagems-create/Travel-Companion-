@@ -1225,11 +1225,26 @@ function _renderTestPos() {
   }
 }
 
+/* INNSTILLINGER SVARER MED EN GANG (v1.218.249). Rapportert: «knappen for
+   Innstillinger blitt veldig treg eller ikke responsiv.» Minnet (turer,
+   knappebruk, minnekartet) vokser med det som er lagret på telefonen og ble
+   tegnet før skjermen kom fram. Nå: valgene først, minnet i neste runde, og
+   tiden logges når den er lang — så det kan måles på telefonen. */
+export const PREFS_TREG_MS = 150;
 export function showPrefs() {
+  const t0 = _nå();
   _highlightPrefs();
-  renderMemory();
   _renderTestPos();
+  const t1 = _nå();
+  setTimeout(() => {
+    const t2 = _nå();
+    try { renderMemory(); } finally {
+      const minne = Math.round(_nå() - t2), valg = Math.round(t1 - t0);
+      if (minne + valg > PREFS_TREG_MS && window._logMsg) window._logMsg('innstillinger: valg ' + valg + ' ms · minne ' + minne + ' ms', 'warn');
+    }
+  }, 0);
 }
+const _nå = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
 
 export function applyRoute() {
   const ns = state.nearestStation;

@@ -1038,8 +1038,18 @@ function _stops() {
   // place would move a list nobody asked to move.
   // The trail is read here, once, for the same reason the ranking is: the
   // heading and the alternatives must not disagree about the order.
-  return rankStops(list, depUses(), state.posTrail, retningsViktig(s => stoppInfo(s.id), _retningTelling()));
+  // HUSKET PER SEKUND (v1.218.249): _stops() kalles mange steder per tegning,
+  // og hvert kall rangerte hele lista på nytt (med retningstellingen). Samme
+  // liste, samme sekund, samme retningsvalg → samme svar.
+  const nøkkel = Math.floor(Date.now() / 1000) + '|' + _atRetning + '|' + (_dirs ? _dirs.length : 0) + '|' + list.length + '|' + (list[0] && list[0].id);
+  if (_stopsHusket && _stopsHusket.liste === list && _stopsHusket.nøkkel === nøkkel) return _stopsHusket.svar;
+  const svar = rankStops(list, depUses(), state.posTrail, retningsViktig(s => stoppInfo(s.id), _retningTelling()));
+  _stopsHusket = { liste: list, nøkkel, svar };
+  return svar;
 }
+let _stopsHusket = null;
+/** Antall rangeringsløp (for testen som holder huskingen). */
+export function _stopsLøp() { return _stopsHusket; }
 /**
  * RETNING I RANGERINGEN (v1.218.241, steg 2). Evaluert: «et stopp med 10
  * linjer der ingen går din vei slår et stopp med 2 som gjør det.» Når et

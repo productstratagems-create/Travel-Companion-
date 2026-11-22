@@ -106,7 +106,7 @@ describe('the request', () => {
   // unbounded and handed prominence the decision.
   it('asks within a real radius, in kilometres', async () => {
     await find([feature('Et stopp', ['onstreetBus'], 50)]);
-    expect(lastUrl).toContain('boundary.circle.radius=1.5');   // v1.218.275: stasjonenes rekkevidde
+    expect(lastUrl).toContain('boundary.circle.radius=0.85');
     expect(lastUrl).not.toContain('radius=5000');
   });
 
@@ -115,10 +115,7 @@ describe('the request', () => {
   // files were free to drift into exactly that.
   it('asks for exactly as far as the list is willing to offer', async () => {
     await find([feature('Et stopp', ['onstreetBus'], 50)]);
-    // v1.218.275: spørringen går så langt stasjonene; lista filtrerer per slags stopp
-    // (rekkeviddeFor) — fortsatt én definisjon, ikke to tall som må være enige.
-    const { STASJON_MAKS_M } = await import('../src/geo.js');
-    expect(lastUrl).toContain('boundary.circle.radius=' + (STASJON_MAKS_M / 1000));
+    expect(lastUrl).toContain('boundary.circle.radius=' + (NEAR_STOP_MAX_M / 1000));
     const fs = await import('node:fs');
     const auto = fs.readFileSync('src/views/auto.js', 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');

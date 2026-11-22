@@ -588,19 +588,6 @@ const STOP_CATS = new Set(TRANSIT_CATS);
  */
 export const NEAR_STOP_MAX_M = 850;
 
-/* T-BANE OG TOG LENGER UNNA (v1.218.275). Spurt: «Hvorfor plukker ikke appen
- * opp at t-bane kan være et alternativ?» Mortensrud T på ~1 km ble aldri
- * hentet: søket stoppet på 850 m så lenge det fantes busser nærmere. Proven
- * (Ruter, Entur, Citymapper, Google): folk går lenger til skinnegående og båt,
- * typisk 1–1,5 km mot ~800 m for buss. Én definisjon for «stasjon» og for
- * hvor langt hver slags stopp regnes som i nærheten. Rene. */
-export const STASJON_MAKS_M = 1500;
-const STASJON_MODUS = new Set(['rail', 'metro', 'tram', 'water']);
-export function erStasjon(modes) { return (modes || []).some(m => STASJON_MODUS.has(m)); }
-export function rekkeviddeFor(modes) { return erStasjon(modes) ? STASJON_MAKS_M : NEAR_STOP_MAX_M; }
-/** Innen rekkevidde for sitt slags stopp? Ukjent avstand regnes som innen. */
-export function iNærheten(s) { return !s || !Number.isFinite(s.distM) || s.distM <= rekkeviddeFor(s.modes); }
-
 /*
  * And it is the ONLY rule. There used to be two silent caps on top of it —
  * eight stops here and four alternatives in auto.js — so a stop well inside
@@ -645,8 +632,7 @@ export const NEAR_SIZE = 100;
  * godt innenfor Enturs API geografisk dekningsområde.» På bygda er nærmeste
  * stopp ofte lenger unna enn 850 m, og appen sa «sett stoppet selv». Finnes
  * ingenting, letes det videre utover (SØK_TRINN_KM) før svaret er «ingen». */
-// Første trinn spør så langt en stasjon kan være; bussene filtreres til 850 m.
-export const SØK_TRINN_KM = [STASJON_MAKS_M / 1000, 2, 5];
+export const SØK_TRINN_KM = [NEAR_STOP_MAX_M / 1000, 2, 5];
 export function findNearestStation(lat, lon, onFound, onFail, trinn = 0) {
   enturFetch(config.api.geocoderReverse
     + '?point.lat=' + lat + '&point.lon=' + lon
@@ -670,7 +656,6 @@ export function findNearestStation(lat, lon, onFound, onFail, trinn = 0) {
           cats: (f.properties.category || []).filter(c => STOP_CATS.has(c)),
           modes: modesOf(f.properties.category),
         }))
-        .filter(s => trinn > 0 || iNærheten(s))
         .sort((a, b) => a.distM - b.distM);
       if (!stops.length && trinn + 1 < SØK_TRINN_KM.length) {
         logMsg('ingen holdeplass innen ' + SØK_TRINN_KM[trinn] + ' km — leter innen ' + SØK_TRINN_KM[trinn + 1] + ' km');

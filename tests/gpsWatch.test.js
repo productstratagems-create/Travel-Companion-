@@ -16,19 +16,12 @@ vi.mock('../src/storage.js', () => ({
 }));
 
 // Every reverse-geocode returns one station, so calls can simply be counted.
-// Stasjonen ligger der det spørres fra (v1.218.275 filtrerer på avstand, så et
-// fast punkt langt unna ble filtrert bort og søket utvidet — to kall i stedet for ett).
-const geocode = vi.fn(url => {
-  const m = /point\.lat=([-\d.]+)&point\.lon=([-\d.]+)/.exec(String(url)) || [];
-  const lat = Number(m[1]) || 59.86, lon = Number(m[2]) || 10.82;
-  return Promise.resolve({
-    json: () => Promise.resolve({ features: [{
-      properties: { name: 'Mortensrud', id: 'NSR:StopPlace:1', category: ['metroStation'] },
-      geometry: { coordinates: [lon + 0.001, lat + 0.001] },
-    }] }),
-  });
-});
-
+const geocode = vi.fn(() => Promise.resolve({
+  json: () => Promise.resolve({ features: [{
+    properties: { name: 'Mortensrud', id: 'NSR:StopPlace:1', category: ['metroStation'] },
+    geometry: { coordinates: [10.82, 59.86] },
+  }] }),
+}));
 vi.mock('../src/api/http.js', () => ({ enturFetch: (...a) => geocode(...a) }));
 
 // One metre of latitude, near enough at Oslo's latitude for a walk fixture.

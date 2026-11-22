@@ -1,4 +1,4 @@
-import { haver, NEAR_STOP_MAX_M, NEAR_SIZE, STASJON_MAKS_M, rekkeviddeFor } from '../geo.js';
+import { haver, NEAR_STOP_MAX_M, NEAR_SIZE } from '../geo.js';
 import config from '../config.js';
 import { enturFetch } from './http.js';
 import { logMsg } from '../ui/log.js';
@@ -23,7 +23,7 @@ export function fetchNearbyStops(lat, lon) {
     // ONE definition of nearby, shared with geo.js. This said 0.8 while
     // geo.js said 0.85 — two circles for one idea, and the map quietly saw a
     // smaller one than the list beside it.
-    + '&boundary.circle.radius=' + (STASJON_MAKS_M / 1000)   // v1.218.275: stasjoner lenger unna; bussene filtreres til 850 m under
+    + '&boundary.circle.radius=' + (NEAR_STOP_MAX_M / 1000)
     + '&size=' + NEAR_SIZE
     + '&layers=venue';
 
@@ -49,7 +49,6 @@ export function fetchNearbyStops(lat, lon) {
           // the app cannot find in Bergen.
           const mode = STOP_MODE[cat];
           if (!mode || modesAdded.has(mode)) return;
-          if (dist > rekkeviddeFor([mode])) return;
           modesAdded.add(mode);
           const uid = baseId + '|' + mode;
           if (seen.has(uid)) return;

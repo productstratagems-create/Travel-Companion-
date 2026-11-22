@@ -43,7 +43,7 @@ describe('innstillingen', () => {
   it('Entur-forslag: bare stoppesteder', () => {
     const f = (id, cat, name) => ({ properties: { id, name, category: cat, locality: 'Oslo' } });
     expect(hjemForslag([f('NSR:StopPlace:1', ['metroStation'], 'Mortensrud'), f('OSM:1', ['street'], 'Mortensrudveien')]))
-      .toEqual([{ id: 'NSR:StopPlace:1', name: 'Mortensrud', sted: 'Oslo' }]);
+      .toEqual([{ id: 'NSR:StopPlace:1', name: 'Mortensrud', sted: 'Oslo', lat: null, lon: null }]);
   });
   it('legg til, ingen dobbel, fjern', () => {
     leggTilHjem(HJEM[0]); leggTilHjem(HJEM[0]);

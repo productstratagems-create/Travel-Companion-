@@ -52,7 +52,7 @@ export function fastFørst(list, sagt, nå, ved = 100) {
  * oppgitt eller du har trykket «ikke nå» / «ferdig» (avvist).
  */
 export function tilbyFasteStopp({ sagt, avvist, tavleVist }) {
-  return !!tavleVist && !avvist && !(sagt && sagt.hjem && sagt.jobb);
+  return !!tavleVist && !avvist && !(fastSvar(sagt, 'hjem') && fastSvar(sagt, 'jobb'));
 }
 
 /**
@@ -104,7 +104,37 @@ export function fasteRo(forrige, ny, pos, kjent, avstand) {
  * står bare søket. Et stopp valgt for én rolle foreslås aldri for den andre. Ren.
  */
 export function fasteForslagFor(rolle, sagt, nær) {
-  const annen = sagt && sagt[rolle === 'hjem' ? 'jobb' : 'hjem'];
+  const annen = fastSvar(sagt, rolle === 'hjem' ? 'jobb' : 'hjem');
   if (annen) return [];
   return nær || [];
+}
+
+/**
+ * GYLDIG SVAR (v1.218.267). Proven: begrens valget til den kanoniske kilden
+ * framfor å validere fritekst, og sjekk at svarene henger sammen. Før lagret
+ * «annet stopp …» geokoderens adresser uten id — «Hjemover» og ruta ble tomme.
+ * Ett navn for regelen: knappene, søket og alle lesere går gjennom den.
+ */
+export function stoppIdAv(s) {
+  const id = s && (s.stopId || s.id);
+  const ren = id ? String(id).split('|')[0] : '';
+  return /^NSR:StopPlace:\d+$/.test(ren) ? ren : null;
+}
+export function gyldigFastStopp(s, sagt, rolle) {
+  const id = stoppIdAv(s);
+  if (!id) return { ok: false, grunn: 'velg et stoppested fra lista' };
+  const annenRolle = rolle === 'hjem' ? 'jobb' : 'hjem';
+  const annen = fastSvar(sagt, annenRolle);
+  if (annen) {
+    const nære = new Set([stoppIdAv(annen), ...(annen.nær || []).map(stoppIdAv)].filter(Boolean));
+    if (nære.has(id)) return { ok: false, grunn: annenRolle === 'hjem'
+      ? 'det er stoppet ditt om morgenen — hvor reiser du fra på vei hjem?'
+      : 'det er stoppet ditt på vei hjem — hvor reiser du fra om morgenen?' };
+  }
+  return { ok: true, id };
+}
+/** Et lagret svar teller bare med gyldig stopp-id; gamle adressesvar er ubesvart. Ren. */
+export function fastSvar(sagt, rolle) {
+  const s = sagt && sagt[rolle];
+  return s && s.navn && stoppIdAv(s) ? s : null;
 }

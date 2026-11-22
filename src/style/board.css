@@ -819,6 +819,22 @@ html.view-board.map-open #dep-list{
   cursor:pointer;-webkit-tap-highlight-color:transparent;
 }
 .demo-note strong{font-weight:600}
+/* «Din rute» (v1.218.261): Rute uten egen rute. */
+div.demo-note{cursor:default;color:var(--text)}
+.din-rute{display:flex;flex-direction:column;gap:.4rem}
+.din-rute-tittel{color:var(--accent);font-size:12px;letter-spacing:.04em}
+.din-rute-felt{display:flex;align-items:center;gap:.5rem}
+.din-rute-felt>span{width:2rem;color:var(--text-muted);font-size:11px}
+.din-rute-felt input{flex:1;min-width:0;font:inherit;font-size:14px;padding:.45rem .55rem;
+  color:var(--text);background:rgba(var(--border-rgb),.08);
+  border:1px solid rgba(var(--border-rgb),.35);border-radius:6px}
+.din-rute-felt input:disabled{opacity:.5}
+.din-rute-hint{margin-left:2.5rem;font-size:10.5px;color:var(--text-muted)}
+.din-rute-forslag{display:flex;flex-wrap:wrap;gap:.35rem;margin-left:2.5rem}
+.din-rute-forslag .chip{font:inherit;font-size:12px;padding:.3rem .6rem;border-radius:999px;
+  color:var(--accent);background:rgba(var(--accent-rgb),.1);border:1px solid rgba(var(--accent-rgb),.3)}
+/* Ingen rute ennå: ingen tomme plassholdere under kortet som ser ut som lasting. */
+html.din-rute-apen #dep-list{display:none}
 
 /* Sharing confirmation, in the ⋯ menu beside the item that produced it.
    Doubles as the last resort: with neither the share sheet nor the clipboard

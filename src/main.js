@@ -20,12 +20,13 @@ import './views/favs.js';
 import './views/plan.js';
 import { renderLeisure } from './views/leisure.js';
 import { renderExplore } from './views/explore.js';
-import { renderAuto, resetAuto, armAutoJump, hasStop } from './views/auto.js';
+import { renderAuto, resetAuto, armAutoJump } from './views/auto.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
 import { trengerPosForklaring } from './fasteStopp.js';
 const POS_FORKLART_KEY = 't.posForklart';
-import { landingChoice, exampleDir, isExample, upgradeToNearest, exampleFallback, AUTO_FALLBACK_MS } from './firstRun.js';
-import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode, autoModePref, saveAutoMode, posState, posNå } from './geo.js';
+import { landingChoice } from './firstRun.js';
+import { nærmesteDir, erNærmeste, erEgenRute } from './dinRute.js';
+import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode, autoModePref, saveAutoMode } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
 import { loadJny, activateTracking } from './journey.js';
 import { renderTrack } from './views/track.js';
@@ -151,7 +152,9 @@ if (_profileChip) {
 // ladder the app did not have. This branches on the decision; it does not
 // re-make it.
 const restored = loadJny();
-const stored = loadActiveRoute();
+// Et gammelt lagret Oslo-eksempel er ingen rute (v1.218.261).
+const _lagret = loadActiveRoute();
+const stored = erEgenRute(_lagret) ? _lagret : null;
 const savedDest = loadDest();
 const landing = landingChoice({
   hasJourney: !!restored,
@@ -179,18 +182,14 @@ if (!hasRoute && stored) {
   hasRoute = true;
 } else if (!hasRoute && savedDest) {
   // The old path that rebuilds a route from two names, dropping ids and
-  // coordinates on the way. It can still fail, and then the example answers.
+  // coordinates on the way. It can still fail, and then «din rute» answers.
   hasRoute = applyRouteFromState(savedDest);
 }
 if (!hasRoute) {
-  // Open a working board rather than an empty form.
-  //
-  // Assigned directly instead of through setActiveRoute, on purpose — the
-  // example is not a choice the reader made, so it must not be saved as
-  // their route, counted among their places, or fed to the smart engine.
-  // The next visit is still a first visit until they pick something.
-  const ex = exampleDir();
-  if (ex) { config.dirs[2] = ex; state.dIdx = 2; hasRoute = true; }
+  // «Din rute» (v1.218.261), ikke et Oslo-eksempel: fra stoppet der du står,
+  // til et søk. Satt direkte, ikke via setActiveRoute — plassholderen er ikke
+  // et valg, og skal ikke lagres eller telles.
+  config.dirs[2] = nærmesteDir(state.nearestStation); state.dIdx = 2; hasRoute = true;
 }
 updateHeader();
 
@@ -219,43 +218,11 @@ if (landing === 'journey') {
   renderAuto();
   show('v-auto');
 
-  // AND IF IT HAS NOTHING TO SHOW, THE EXAMPLE BOARD ANSWERS INSTEAD.
-  //
-  // This rung is the default, so it is where strangers land — on a
-  // position-first screen. Measured with nothing stored: «Stedstjenester er
-  // avslått» and a link to the form, which is the exact first impression
-  // firstRun.js was written to remove. The example board still existed; it had
-  // simply become unreachable, because only a reader who turned auto-reise off
-  // could get to it and a first-time visitor cannot have done that.
-  //
-  // A window rather than an immediate check: GPS takes a second or two, and
-  // bouncing someone off the screen before a fix could arrive would be its own
-  // bug. And a re-read of hasStop() when it fires, not a decision made now —
-  // the fix usually lands inside the window, and then nothing happens at all.
-  setTimeout(() => {
-    if (!exampleFallback({
-      hasStop: hasStop(),
-      posKind: posState(posNå()).kind, venter: !!state.posVenter,
-      storedRoute: !!stored, savedDest, hasJourney: !!restored,
-    })) return;
-    // Only if they are still standing here. Tapping through to anything else
-    // is a choice, and this must never yank a reader off a screen they went
-    // to themselves.
-    const cur = document.querySelector('#v-auto');
-    if (!cur || cur.style.display === 'none') return;
-    // BOTH, and in this order. startBoard() deliberately does not navigate —
-    // its own comment says it assumes the board is already the visible screen,
-    // which is true at a cold start and false here. Calling it alone left the
-    // reader looking at auto-reise while a board they could not see fetched
-    // departures behind it; the probe reported no change at all and was right.
-    show('v-board');
-    startBoard();
-  }, AUTO_FALLBACK_MS);
 } else if (landing === 'leisure') {
   renderExplore();
   show('v-leisure');
 } else if (hasRoute) {
-  // deeplink, stored, legacy and example all open the same screen.
+  // deeplink, stored, legacy and «din rute» all open the same screen.
   startBoard();
 } else {
   showSettings();
@@ -269,8 +236,8 @@ initHistory();
 // GPS runs in the background and only feeds walk time. It must never gate
 // which route is shown: a slow or blocked fix used to mean startBoard() was
 // never reached, leaving the board empty on a stale default route.
-// The example board opens instantly; this upgrades it to the reader's own
-// nearest stop once a fix arrives. Only while it is still the example — the
+// «Din rute» får «fra» fra nærmeste stopp når en posisjon kommer. Bare så
+// lenge det fortsatt er plassholderen — et eget valg står.
 // moment they choose something themselves, that choice stands.
 /* POSISJONEN FORKLARES FØRST (v1.218.251, onboarding steg 1). Første gang —
    nettleseren har ikke spurt («prompt») — sier Auto-tavle hvorfor før
@@ -284,9 +251,11 @@ const _startPos = () => locateUser(() => {
   // end-to-end run.
   if (loadAutoMode()) { renderAuto(); return; }
   const cur = config.dirs[state.dIdx];
-  if (!isExample(cur)) return;
-  const up = upgradeToNearest(cur, state.nearestStation);
-  if (!up) return;
+  // «Din rute» får «fra» når posisjonen kommer — med mindre brukeren alt
+  // har valgt et annet fra-sted selv.
+  if (!erNærmeste(cur) || cur._fraValgt || !state.nearestStation) return;
+  const up = nærmesteDir(state.nearestStation);
+  if (up.from === cur.from) return;
   config.dirs[state.dIdx] = up;
   updateHeader();
   state.deps = [];

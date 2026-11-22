@@ -359,8 +359,8 @@ describe('spørsmålet posState stilles, bygges ett sted', () => {
     expect(src()).not.toMatch(/posState\(\{/);
   });
 
-  it('og alle fem spør gjennom det ene navnet', () => {
-    expect((src().match(/posState\(posNå\(\)\)/g) || []).length).toBe(5);
+  it('og alle fire spør (eksempel-reserven i main.js er borte, v1.218.261) gjennom det ene navnet', () => {
+    expect((src().match(/posState\(posNå\(\)\)/g) || []).length).toBe(4);
   });
 
   it('og posNå tar framskrivingen med', () => {

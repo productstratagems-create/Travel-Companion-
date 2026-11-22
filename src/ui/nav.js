@@ -6,6 +6,7 @@ import { storage } from '../storage.js';
 import { fraTider, settFraTid, KLOKKESLETT_VALG } from '../fraTider.js';
 import { hjemStopp, leggTilHjem, fjernHjem, søkHjemStopp } from '../hjemover.js';
 import { esc } from './fmt.js';
+import { dinRuteValg } from '../dinRute.js';
 import { renderBoardProfileSwitcher, setActiveRoute, syncRouteFields } from '../views/settings.js';
 import { loadAutoMode, saveAutoMode } from '../geo.js';
 import { loadReturn, returnDir, returnWindow, shouldSwitch, skipToday, loadSkip } from '../api/returnTrip.js';
@@ -683,15 +684,15 @@ export function renderReturnToast(r) {
 export function attachEventListeners() {
   document.getElementById('dir-btn').addEventListener('click', toggleDir);
 
-  // The example board's "set your own route" line. Same destination as the
-  // header, and bound here because this is where navigation lives.
-  const demoNote = document.getElementById('demo-note');
-  if (demoNote) {
-    demoNote.addEventListener('click', () => {
-      window._showSettings && window._showSettings();
-      show('v-settings');
-    });
-  }
+  // «Din rute» (v1.218.261): et valgt mål gjør plassholderen til en ekte
+  // rute, gjennom samme dør som innstillingenes «velg rute».
+  window._velgDinRute = mål => {
+    const r = dinRuteValg(config.dirs[state.dIdx], mål);
+    if (!r) return;
+    setActiveRoute(r, { chosen: true });
+    updateHeader();
+    window._startBoard && window._startBoard();
+  };
 
   document.getElementById('station-name-btn').addEventListener('click', () => {
     window._showSettings && window._showSettings();

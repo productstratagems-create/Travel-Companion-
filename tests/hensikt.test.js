@@ -115,6 +115,7 @@ describe('en startet reise er det sterkeste signalet (v1.218.90)', () => {
     expect(erReiseStartet(j, null, T)).toBe(true);
     expect(erReiseStartet(null, { to: 'X' }, T)).toBe(false);
     const s = fs.readFileSync('src/views/auto.js', 'utf8');
-    expect(s).toMatch(/const html = erReiseStartet\(state\.jny, state\.route, nå\) \? '' :/);
+    // v1.218.257: også spørsmålskøen (sinTur) foran.
+    expect(s).toMatch(/const html = !sinTur \|\| erReiseStartet\(state\.jny, state\.route, nå\) \? '' :/);
   });
 });

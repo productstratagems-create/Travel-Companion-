@@ -47,7 +47,8 @@ describe('koblingen (v1.218.251)', () => {
     expect(a).toMatch(/fastFørst\(rankStops\([\s\S]*?\), lesSagt\(\), Date\.now\(\)\)/);
   });
   it('kortet står før andre spørsmål, og lagrer i profilen', () => {
-    expect(a).toMatch(/if \(_tegnFasteStopp\(el\)\) return;/);
+    // v1.218.257: gjennom spørsmålskøen.
+    expect(a).toMatch(/if \(valgt === 'faste' && _tegnFasteStopp\(el\)\) return;/);
     expect(a).toMatch(/settSted\(rolle, sted, nær2\)/);
   });
   it('posisjonen forklares før nettleseren spør; knappen starter den', () => {

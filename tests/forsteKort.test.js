@@ -17,8 +17,10 @@ describe('første kort over kanten', () => {
     expect(a).not.toMatch(/'neste avganger herfra'\) \+ '<\/div>'/);
     expect(a).toMatch(/\+ '<\/div>' \+ ikkeHtml \+ bunn/);
   });
-  it('linja om holdeplasser med samme linjer er av; knappene på én linje', () => {
+  it('linja om holdeplasser med samme linjer er av; filterknappene bryter linja (v1.218.269)', () => {
     expect(a).toMatch(/flere\.hidden = !LIKE_LINJE_PÅ \|\| !like\.length;/);
-    expect(css).toMatch(/#v-auto \.at-retning\{flex-wrap:nowrap;overflow-x:auto/);
+    // Før-bildet: én linje som rulles sidelengs, og brukeren nådde ikke alle.
+    expect(css).toMatch(/#v-auto \.at-retning\{flex-wrap:wrap\}/);
+    expect(css).not.toMatch(/#v-auto \.at-retning\{[^}]*nowrap/);
   });
 });

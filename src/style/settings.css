@@ -1163,10 +1163,12 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .leaflet-tooltip.kort .lapp-lang{display:none}
 .lapp-skjult{visibility:hidden!important}
 .at-min.at-min-gaa small:first-child{display:block;white-space:nowrap;font-size:.4em;letter-spacing:.04em;text-transform:uppercase;opacity:.75}
-/* Filterknappene på én linje (v1.218.245): rulles sidelengs, presser ikke lista ned. */
-#v-auto .at-retning{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-#v-auto .at-retning::-webkit-scrollbar{display:none}
-#v-auto .at-retning .auto-fra-knapp{flex:0 0 auto;white-space:nowrap}
+/* Filterknappene bryter linja igjen (v1.218.269). Rapportert: «de er på en
+   linje og får ikke tak i alle» — sidelengs rulling (v1.218.245) var ikke
+   oppdagbar/nåbar på telefon. Alle synlige; korte navn og linjenumre bare på
+   valgt knapp står, så de tar minst mulig plass. */
+#v-auto .at-retning{flex-wrap:wrap}
+#v-auto .at-retning .auto-fra-knapp{white-space:nowrap}
 #v-auto .at-retning .auto-fra-knapp:not(.valgt) .omr-linjer{display:none}
 
 .at-kombi .hva-pil{color:var(--text-soft);font-size:12px}

@@ -1937,6 +1937,54 @@ export function ikkeNærmest(stopp, alle) {
   if (!stopp || !Number.isFinite(stopp.distM)) return false;
   return (alle || []).some(s => s && s.id !== stopp.id && Number.isFinite(s.distM) && s.distM < stopp.distM - 30);
 }
+let _listeRo = null, _listeValgt = null;
+/** Lista sitt valg gjelder så lenge stoppet er innen gangavstand. */
+export const LISTE_HOLD_M = 800;
+/** Står stoppet lista valgte fortsatt i lista, innen LISTE_HOLD_M? Ren. */
+export function listeHolder(id, list) {
+  const s = (list || []).find(x => x.id === id);
+  return !!s && Number.isFinite(s.distM) && s.distM <= LISTE_HOLD_M;
+}
+/** Topp så mange avganger telles. */
+export const LISTE_TOPP = 5;
+/** Et nytt stopp må ha ledet så lenge før overskriften bytter. */
+export const LISTE_RO_MS = 90_000;
+/** Og ikke oftere enn dette. */
+export const LISTE_MIN_MELLOM_MS = 5 * 60_000;
+/**
+ * Hvilket stopp de første avgangene du rekker går fra. dirs: tavlas
+ * retninger; gangMin(id): gangtid til stoppet (null = ukjent → regnes ikke).
+ * @returns { id, antall, eget } — eget: antallet fra stoppet i overskriften. Ren.
+ */
+export function listeStoppKandidat(dirs, egetId, gangMin, nå, topp = LISTE_TOPP) {
+  const første = [];
+  (dirs || []).forEach(d => {
+    const x = (d.calls || []).find(c => {
+      const id = (c.call && c.call._fra && c.call._fra.id) || egetId;
+      const g = gangMin(id);
+      return Number.isFinite(g) && Number.isFinite(c.ms) && c.ms - nå >= g * 60_000;
+    });
+    if (x) første.push({ ms: x.ms, id: (x.call && x.call._fra && x.call._fra.id) || egetId });
+  });
+  første.sort((a, b) => a.ms - b.ms);
+  const tell = new Map();
+  første.slice(0, topp).forEach(f => tell.set(f.id, (tell.get(f.id) || 0) + 1));
+  let best = null;
+  tell.forEach((n, id) => { if (!best || n > best.antall || (n === best.antall && id === egetId)) best = { id, antall: n }; });
+  return best ? { ...best, eget: tell.get(egetId) || 0 } : null;
+}
+/**
+ * Ro: bytt bare når kandidaten har minst 2 flere enn stoppet i overskriften,
+ * har ledet i LISTE_RO_MS, og det er LISTE_MIN_MELLOM_MS siden sist. Ren.
+ */
+export function listeStoppRo(forrige, kandidat, egetId, nå) {
+  const f = forrige || { leder: null, siden: null, sistByttet: -Infinity, bytt: null };
+  const klar = kandidat && kandidat.id !== egetId && kandidat.antall >= kandidat.eget + 2;
+  if (!klar) return { ...f, leder: null, siden: null, bytt: null };
+  const siden = f.leder === kandidat.id ? f.siden : nå;
+  const bytt = nå - siden >= LISTE_RO_MS && nå - f.sistByttet >= LISTE_MIN_MELLOM_MS ? kandidat.id : null;
+  return { ...f, leder: kandidat.id, siden, bytt };
+}
 /* OVERGANGENE PÅ NESTE STOPP (src/overganger.js). Hentet én gang per stopp
  * og tur, ikke per sekund, og bare mens låsen holder. */
 let _ov = { key: null, board: null };
@@ -2680,9 +2728,27 @@ function _renderWhere() {
   const nåW = Date.now();
   const syn = reiseSyn(_autoTavle, { påLinja: _autoTavle ? null : _påLinjaMedLås(nåW), lås: _lås, gpsFart: iFart(fartNå(nåW)) });
   const påLinja = syn.påLinja;
-  const picked = velgStoppIFart(pickStop(list, _stop, _stopPinned, _bandOf()), _stop, _stopPinned,
+  // Lista sitt valg holdes (v1.218.243): ellers velger rangeringen straks
+  // tilbake, og overskriften vipper. Slippes når du er langt fra det.
+  if (_listeValgt && !listeHolder(_listeValgt, list)) _listeValgt = null;
+  const holdt = _stopPinned || (!!_listeValgt && !!_stop && _stop.id === _listeValgt);
+  const picked = velgStoppIFart(pickStop(list, _stop, holdt, _bandOf()), _stop, holdt,
     påLinja, list);
   _stop = picked.stop;
+  // STOPPET LISTA BRUKER (v1.218.243). Bestilt: «"Nærmeste stopp" skal være
+  // nærmeste og mest relevant stopp … det stoppestedet som oftest dukker opp
+  // høyt i lista … men pass på at dette stopper ikke byttes så ofte at appen
+  // oppleves som ustabil.» Bytter bare når et annet stopp klart har flest av
+  // de første avgangene du rekker, og har hatt det i LISTE_RO_MS.
+  if (!_stopPinned && !picked.changed && _stop && _dirs && _dirs.length) {
+    const gangId = id => { const s = list.find(x => x.id === id); const g = s && gangTil(s); return g ? g.mins : null; };
+    _listeRo = listeStoppRo(_listeRo, listeStoppKandidat(_dirs, _stop.id, gangId, nåW), _stop.id, nåW);
+    if (_listeRo.bytt) {
+      const ny = list.find(x => x.id === _listeRo.bytt);
+      _listeRo = { ...(_listeRo), bytt: null, sistByttet: nåW };
+      if (ny) { logMsg('stopp etter lista: ' + _stop.name + ' → ' + ny.name); _stop = ny; _listeValgt = ny.id; picked.changed = true; }
+    }
+  }
   // A different stop is a different board. Without this the departures below
   // would keep belonging to the stop the reader has walked away from — and
   // the guard in renderAuto only refetches when _dirs is empty.
@@ -7148,7 +7214,7 @@ export function renderAuto() {
 export function hasStop() { return !!_stop; }
 
 export function resetAuto() {
-  _askedFor = null; _stop = null; _stopPinned = false; _dirs = []; _open = null; _alerts = [];
+  _askedFor = null; _stop = null; _stopPinned = false; _listeValgt = null; _listeRo = null; _dirs = []; _open = null; _alerts = [];
   _truncated = false; _asked = false; _nextMs = undefined;
   _resetAutoMap();
   _stopsShown = false; _jumpArmed = false; _openMsgs = new Set(); }

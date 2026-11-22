@@ -90,7 +90,7 @@ describe('retningsvalget huskes (v1.218.185)', () => {
   it('lagres ved trykk, leses ved start og nytt stopp — ikke nullstilt til «alle»', () => {
     expect(auto).toMatch(/_atRetning = b\.dataset\.retning; _lagreRetning\(_atRetning\);/);
     expect(auto).toMatch(/let _atRetning = lagretRetning\(\);/);
-    expect(auto).toMatch(/_atIkkeÅpen = false; _atRetning = lagretRetning\(\); \}/);
+    expect(auto).toMatch(/_atIkkeÅpen = false; _atRetning = lagretRetning\(\); _atRull = \{ vist: -1, tomme: 0 \}; \}/);
     expect(readFileSync('src/storage.js', 'utf8')).toContain("'" + AT_RETNING_KEY + "'");
   });
 });

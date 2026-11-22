@@ -1,6 +1,7 @@
 import { haver, NEAR_STOP_MAX_M, NEAR_SIZE } from '../geo.js';
 import config from '../config.js';
 import { enturFetch } from './http.js';
+import { logMsg } from '../ui/log.js';
 import { CAT_MODE, STOP_MODE, TRANSIT_CATS } from './stopCats.js';
 
 
@@ -64,7 +65,7 @@ export function fetchNearbyStops(lat, lon) {
  * ikke hva som går der. Kartet trenger det siste for å vise bare holdeplasser
  * som gir en linje ingen nærmere har. Én spørring for alle, husket per id. */
 const _linjer = new Map();
-export function _resetStoppLinjer() { _linjer.clear(); _info.clear(); }
+export function _resetStoppLinjer() { _linjer.clear(); _info.clear(); _hentet.clear(); _utenAvganger = false; }
 
 /* VIKTIGHET (v1.218.10). Bestilt: «Vi trenger et system for å rangere
  * stoppesteder (uavhengig av transportmiddel) … flere transportmidler og
@@ -84,8 +85,36 @@ export function viktighet(s, info) {
   return { moduser: ((s && s.modes) || []).slice(), linjer: 0, plattformer: 0 };
 }
 /** <0 når a er viktigst. */
+/* TILBUDET NÅ OG VEKT PÅ TRANSPORTMIDDEL (v1.218.240). Evaluert: «antall
+ * linjer ≠ tilbud» — en nattlinje talte like mye som en linje hvert femte
+ * minutt, og én sjelden båt pluss buss slo et busstopp med 20 linjer. Bestilt
+ * at dette styrer «nærmeste stopp» i Auto-reise og Auto-tavle.
+ * Kriteriene nå, i rekkefølge:
+ *   1. beste transportmiddel   tog/T-bane > trikk > buss/båt (MODUS_VEKT)
+ *   2. avganger neste time     tilbudet nå (null = ukjent, teller som 0)
+ *   3. linjer, 4. plattformer  som før */
+export const MODUS_VEKT = { rail: 4, metro: 4, tram: 3, bus: 2, coach: 2, water: 2, air: 1, cableway: 1, funicular: 1, lift: 1 };
+export function modusVekt(moduser) {
+  return Math.max(0, ...(moduser || []).map(m => MODUS_VEKT[m] || 1));
+}
 export function sammenlignViktighet(a, b) {
-  return (b.moduser.length - a.moduser.length) || (b.linjer - a.linjer) || (b.plattformer - a.plattformer);
+  return (modusVekt(b.moduser) - modusVekt(a.moduser))
+    || ((b.avgangerNå || 0) - (a.avgangerNå || 0))
+    || (b.linjer - a.linjer) || (b.plattformer - a.plattformer);
+}
+/** Flere stopp i én klynge samlet: union av linjer og transportmidler, sum av avganger og plattformer. */
+export function samletInfo(ids) {
+  const deler = (ids || []).map(id => ({ id, info: _info.get(id), linjer: _linjer.get(id) })).filter(d => d.info);
+  if (!deler.length) return undefined;
+  const linjer = new Set(), moduser = [];
+  let avgangerNå = null, plattformer = 0;
+  deler.forEach(d => {
+    (d.linjer || []).forEach(l => linjer.add(l));
+    d.info.moduser.forEach(m => { if (!moduser.includes(m)) moduser.push(m); });
+    plattformer += d.info.plattformer;
+    if (d.info.avgangerNå != null) avgangerNå = (avgangerNå || 0) + d.info.avgangerNå;
+  });
+  return { moduser, linjer: linjer.size, plattformer, avgangerNå };
 }
 /* NÆR OG VIKTIG (v1.218.11). Bestilt: «Bruk dette rangeringssystemet i å
  * bestemme hvordan kartene skal se ut og hvilket innhold som skal være
@@ -116,12 +145,14 @@ export function infoFraSvar(j) {
     if (!sp || !sp.id) return;
     const linjer = new Set(), moduser = [];
     let plattformer = 0;
+    // Tilbudet nå (v1.218.240): kall neste time, når svaret har dem.
+    const avgangerNå = Array.isArray(sp.estimatedCalls) ? sp.estimatedCalls.length : null;
     (sp.quays || []).forEach(q => {
       const ls = (q && q.lines) || [];
       if (ls.length) plattformer++;
       ls.forEach(l => { if (!l || !l.id) return; linjer.add(l.id); if (l.transportMode && !moduser.includes(l.transportMode)) moduser.push(l.transportMode); });
     });
-    m.set(sp.id, { moduser, linjer: linjer.size, plattformer });
+    m.set(sp.id, { moduser, linjer: linjer.size, plattformer, avgangerNå });
   });
   return m;
 }
@@ -139,15 +170,44 @@ export function linjerFraSvar(j) {
 }
 
 /** @returns {Promise<Map|null>} `null` når vi ikke fikk svar — da skjules ingenting. */
-export function fetchStoppLinjer(ids) {
-  const nye = [...new Set((ids || []).filter(id => id && !_linjer.has(id)))];
+/** Tilbudet endrer seg over døgnet: et svar gjelder så lenge (v1.218.240). */
+export const STOPP_INFO_MS = 10 * 60_000;
+const _hentet = new Map();
+let _utenAvganger = false;   // proben avvist: spør som før, uten avganger
+/** Mangler eller er utdatert — skal hentes. */
+export function stoppInfoUtdatert(id, nå = Date.now()) {
+  const t = _hentet.get(id);
+  return t == null || nå - t > STOPP_INFO_MS;
+}
+export function stoppInfoGql(ids, medAvganger) {
+  return '{ stopPlaces(ids:' + JSON.stringify(ids) + ') { id quays { lines { id transportMode } }'
+    + (medAvganger ? ' estimatedCalls(timeRange: 3600, numberOfDepartures: 100) { expectedDepartureTime }' : '') + ' } }';
+}
+export function fetchStoppLinjer(ids, nå = Date.now()) {
+  const nye = [...new Set((ids || []).filter(id => id && stoppInfoUtdatert(id, nå)))];
   if (!nye.length) return Promise.resolve(_linjer);
-  const q = '{ stopPlaces(ids:' + JSON.stringify(nye) + ') { id quays { lines { id transportMode } } } }';
-  return enturFetch(config.api.journeyPlanner, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }),
-  })
-    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(j => { linjerFraSvar(j).forEach((v, k) => _linjer.set(k, v)); infoFraSvar(j).forEach((v, k) => _info.set(k, v)); return _linjer; })
+  /* AVGANGENE SOM PROBE (v1.218.240): `estimatedCalls` på stopPlaces kan ikke
+   * prøves herfra. Avviser Entur det, spørres det som før — uten avganger,
+   * rangert på linjer — og det sies i loggen. */
+  const spør = med => enturFetch(config.api.journeyPlanner, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: stoppInfoGql(nye, med) }),
+  }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  const med = !_utenAvganger;
+  return spør(med)
+    .then(j => {
+      if (med && j && j.errors && j.errors.length && !(j.data && j.data.stopPlaces)) {
+        _utenAvganger = true;
+        try { logMsg('stoppinfo: avganger neste time avvist (' + String(j.errors[0].message).slice(0, 80) + ') — rangerer på linjer', 'warn'); } catch { /* */ }
+        return spør(false);
+      }
+      return j;
+    })
+    .then(j => {
+      linjerFraSvar(j).forEach((v, k) => _linjer.set(k, v));
+      infoFraSvar(j).forEach((v, k) => _info.set(k, v));
+      nye.forEach(id => _hentet.set(id, nå));
+      return _linjer;
+    })
     .catch(() => null);
 }
 export function stoppLinjer(id) { return _linjer.get(id); }

@@ -109,5 +109,11 @@ kartet når hun har rørt det. Les det før du endrer et kart.
   feilformen i denne kodebasen, funnet omtrent femten ganger: to steder skriver
   ned det samme faktum og driver fra hverandre. Rettelsen er alltid den samme —
   ett navn, resten avledet, og en test som binder dem.
+- **Hele dekningsområdet.** Hver funksjon må virke i hele Enturs
+  dekningsområde — storby, småby, bygd med to avganger i døgnet, ferge og
+  fleksible linjer. Ingen terskel skal anta tett nett uten å skalere med
+  stedet (som `båndFor`), og ingen spørring skal vokse ubegrenset med
+  tettheten (som `STOPP_BIT`). Fiksturer veksler mellom steder; de er ikke
+  bundet til ett nabolag.
 - **Ingenting kastes for å rydde.** Kan vi ikke bevise at noe er irrelevant,
   foldes det sammen — det slettes ikke.

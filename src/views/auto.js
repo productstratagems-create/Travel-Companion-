@@ -4088,8 +4088,9 @@ function _renderMap() {
   if (!_aMap) {
     // `zoom: false` sto her. Kommentaren rett under sier at kartet er DITT
     // når du har dratt det — da skal knappene også si at du kan. Issue #397.
-    _aMap = createMap(el); if (typeof window !== 'undefined' && window.__probe) window.__aMap = _aMap;
+    _aMap = createMap(el);
     _zoomKnapper();
+    if (typeof window !== 'undefined' && window.__probe) window.__aMap = _aMap;   // prober (scratchpad)
     // Fullskjerm som de andre kartene: plassen mellom statuslinja og
     // bunnmenyen. Utsnittet tegnes på nytt, så du står i midten av den nye
     // størrelsen.

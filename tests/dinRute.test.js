@@ -74,3 +74,15 @@ describe('Rute uten egen rute: din rute fra nærmeste stopp (v1.218.261)', () =>
     expect(b).toMatch(/if \(erNærmeste\(config\.dirs\[state\.dIdx\]\)\) \{ renderDemoNote\(\); return; \}/);
   });
 });
+
+describe('«Din rute» står alene (v1.218.262)', () => {
+  const css = () => readFileSync('src/style/board.css', 'utf8');
+  const regel = () => { const m = css().match(/\/\* DIN-RUTE-RAMME \*\/([^{]*)\{display:none\}/); return m ? m[1] : ''; };
+  it('kart, ⇄, ↻ og tom overskrift skjules mens kortet vises', () => {
+    const r = regel();
+    for (const s of ['html.din-rute-apen #v-board .map-wrap', 'html.din-rute-apen #dir-btn', 'html.din-rute-apen #board-refresh-btn', 'html.din-rute-apen #station-name-btn', 'html.din-rute-apen #line-strip']) expect(r).toContain(s);
+  });
+  it('⋮ blir stående — menyen er veien videre', () => {
+    expect(regel()).not.toContain('board-more-btn');
+  });
+});

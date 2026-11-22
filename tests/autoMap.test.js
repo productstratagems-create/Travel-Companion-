@@ -635,6 +635,7 @@ describe('auto-reise gir marginen båndet den skal måle med', () => {
   it('og bånd-oppslaget er rangeringens eget', () => {
     const t = src();
     expect(t).toMatch(/function _bandOf\(\)[\s\S]{0,200}stopBand\(s, uses, state\.posTrail\)/);
-    expect(t).toMatch(/rankStops\(list, depUses\(\), state\.posTrail, s => stoppInfo\(s\.id\)\)/);
+    // v1.218.241: viktigheten kan telle i valgt retning (retningsViktig).
+    expect(t).toMatch(/rankStops\(list, depUses\(\), state\.posTrail, retningsViktig\(s => stoppInfo\(s\.id\), _retningTelling\(\)\)\)/);
   });
 });

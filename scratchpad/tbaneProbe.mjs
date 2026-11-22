@@ -43,7 +43,7 @@ const HEL = { name: 'Kronstad', id: 'NSR:StopPlace:Kronstad' };
 
 /* Two directions from Mortensrud, as on the reported screen. Both reach
    Jernbanetorget; line 3 towards Kolsås leaves first. */
-const call = (line, front, mins, stops, mode, cs) => ({
+const call = (line, front, mins, stops, mode, cs, fra) => ({
   realtime: true, cancellation: false, situations: [],
   aimedDepartureTime: iso(NOW + mins * 60000), expectedDepartureTime: iso(NOW + mins * 60000),
   destinationDisplay: { frontText: front },
@@ -52,8 +52,8 @@ const call = (line, front, mins, stops, mode, cs) => ({
     line: { id: (cs || 'SKY:') + 'Line:' + line, publicCode: line, transportMode: mode || 'tram',
       presentation: { colour: 'f5a000' } },
     estimatedCalls: [
-      { quay: { latitude: HERE.lat, longitude: HERE.lon,
-        stopPlace: { id: 'NSR:StopPlace:Mortensrud', name: 'Nonneseter', latitude: HERE.lat, longitude: HERE.lon } },
+      { quay: { latitude: (fra || {}).lat ?? HERE.lat, longitude: (fra || {}).lon ?? HERE.lon,
+        stopPlace: { id: (fra || {}).id ?? 'NSR:StopPlace:Mortensrud', name: (fra || {}).name ?? 'Nonneseter', latitude: (fra || {}).lat ?? HERE.lat, longitude: (fra || {}).lon ?? HERE.lon } },
         aimedDepartureTime: iso(NOW + mins * 60000), expectedDepartureTime: iso(NOW + mins * 60000) },
       ...stops.map((s, i) => ({
         quay: { latitude: s.lat ?? 59.9 + i / 1000, longitude: s.lon ?? 10.75,
@@ -81,7 +81,8 @@ const CALLS = [
   call('1', 'Lufthavnen', 7, [LAG, RÅD], 'tram'),
   call('1', 'Lufthavnen', 17, [LAG, RÅD], 'tram'),
 ];
-const TCALLS = [6, 11, 16, 21].map(m => ({ ...call('2', 'Sentrum', m, [BYP], 'metro'), }));
+const TST = { id: 'NSR:StopPlace:9001', name: 'Nesttun T', lat: HERE.lat - 1050 / 111320, lon: HERE.lon };
+const TCALLS = [6, 11, 16, 21].map(m => call('2', 'Sentrum', m, [{ name: 'Midt', id: 'NSR:StopPlace:9002', lat: TST.lat + 0.004, lon: TST.lon - 0.01 }, BYP], 'metro', undefined, TST));
 
 const histRow = (to, id, n) => ({
   key: to.toLowerCase() + '|3|wd', fromName: 'Nonneseter', toName: to, toStopId: id,
@@ -121,7 +122,7 @@ async function run(scheme) {
     localStorage.setItem('default::t.autoMode', '1');
     localStorage.setItem('default::t.posForklart', '1');
     localStorage.setItem('default::t.homeLL', JSON.stringify(here));
-    localStorage.setItem('default::t.theme', scheme); localStorage.setItem('default::t.autoTavleRetning', 'alle'); window.__probe = 1;
+    localStorage.setItem('default::t.theme', scheme); window.__probe = 1; localStorage.setItem('default::t.autoTavleRetning', 'alle'); window.__probe = 1;
   }, { now: NOW, here: BRUKER, scheme });
   await page.route('**/geocoder/**', r => {
     const u = r.request().url();
@@ -147,9 +148,12 @@ async function run(scheme) {
   console.log(scheme, 'T-bane-rader:', rader.filter(r => /Nesttun T/.test(r)).length);
   const t = page.locator('#auto-body .at-rad', { hasText: 'Nesttun T' }).first();
   if (await t.count()) await t.scrollIntoViewIfNeeded().catch(() => {});
+  console.log(scheme, 'streker (første punkt):', await page.evaluate(() => { const m = window.__aMap; if (!m) return 'ingen kart';
+    const ut = []; m.eachLayer(l => { if (l.getLatLngs && !l.getRadius) { const p = l.getLatLngs(); const f = Array.isArray(p[0]) ? p[0][0] : p[0]; if (f) ut.push((l.options.color || '?') + '@' + f.lat.toFixed(4)); } }); return ut.join(' '); }));
+  console.log(scheme, 'Nesttun T lat:', (HERE.lat - 1050 / 111320).toFixed(4), ' overskrift-stopp lat:', (HERE.lat + 300 / 111320).toFixed(4));
   await page.screenshot({ path: `scratchpad/shots/tbane-${scheme}.png`, animations: 'disabled' });
   await ctx.close();
 }
 fs.mkdirSync('scratchpad/shots', { recursive: true });
-await run('dark'); await run('light');
+await run('dark');
 await browser.close(); server.close();

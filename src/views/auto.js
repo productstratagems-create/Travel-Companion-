@@ -3154,6 +3154,8 @@ export function edderkoppBein(dirs, stopName, now, foretrukket, walkMins = null,
         linjeId: l.id || null, tekst: l.tekst || null, front: d.frontText, ms: ride.ms, stopp,
         // Sporet avgangen går fra (v1.218.81): beinet starter der.
         spor: (ride.call && ride.call.quay && ride.call.quay.publicCode) || null,
+        // Stasjonen den går fra (v1.218.276): beinet starter der, ikke i overskriften.
+        fra: (ride.call && ride.call._fra) || null,
         // Turens id, for veiformen (v1.218.98).
         jid: (ride.call && ride.call.serviceJourney && ride.call.serviceJourney.id) || null,
         // De neste du rekker, til lappens høyeste nivå (v1.218.65).
@@ -3922,6 +3924,19 @@ export function kartFormValgt() { try { const v = storage.get(FORM_KEY); return 
  * midtpunkt. Nå starter hvert ved plattformen avgangen går fra, når den er
  * kjent; ellers i midtpunktet som før. Ren.
  */
+/**
+ * HVOR LINJA FAKTISK GÅR FRA (v1.218.276). Rapportert med skjermbilde: L2 fra
+ * Hauketo stasjon ble tegnet som rette streker ut fra Mortensrud buss.
+ * «Enhver rute/linje må tegnes opp fra og til de reelle stasjonene sine.»
+ * Kallets eget stoppested (`_fra`, med koordinater fra stopplista), ellers
+ * overskriftens stopp. Én definisjon for beina, den åpne linja og kortruta. Ren.
+ */
+export function beinFra(fra, stopp, alle) {
+  if (fra && Number.isFinite(fra.lat) && Number.isFinite(fra.lon)) return fra;
+  const k = fra && fra.id ? (alle || []).find(s => s && s.id === fra.id && Number.isFinite(s.lat)) : null;
+  if (k) return k;
+  return stopp;
+}
 export function beinStart(b, plattformListe, stopp) {
   const p = b && b.spor ? (plattformListe || []).find(q => q.kode === String(b.spor)) : null;
   return p ? { lat: p.lat, lon: p.lon } : { lat: stopp.lat, lon: stopp.lon };
@@ -4075,6 +4090,7 @@ function _renderMap() {
     // når du har dratt det — da skal knappene også si at du kan. Issue #397.
     _aMap = createMap(el);
     _zoomKnapper();
+    if (typeof window !== 'undefined' && window.__probe) window.__aMap = _aMap;   // prober (scratchpad)
     // Fullskjerm som de andre kartene: plassen mellom statuslinja og
     // bunnmenyen. Utsnittet tegnes på nytt, så du står i midten av den nye
     // størrelsen.
@@ -4158,7 +4174,8 @@ function _renderMap() {
   // WHEN A DIRECTION IS OPEN THE MAP IS ABOUT THE LINE, NOT THE NEIGHBOURHOOD.
   // The list has moved on to the stops ahead; the alternatives it was offering
   // a moment ago belong to a question the reader has already answered.
-  const line = _open && _stop ? stopsAhead(_open.call, _stop.name) : null;
+  const åpenFra = _open && _stop ? beinFra(_open.call && _open.call._fra, _stop, _stops()) : null;
+  const line = _open && _stop ? stopsAhead(_open.call, åpenFra.name, Date.now(), åpenFra.id || null) : null;
   /* «DIT DU OFTE SKAL» ER KARTETS TEMA når det finnes et kort og ingen
    * retning er åpen. En åpen retning er det du nettopp trykket på, og den
    * vinner. Rapportert: kortet sa «Jernbanetorget», kartet viste sju stopp
@@ -4388,8 +4405,8 @@ function _renderMap() {
   const W = box.width, H = box.height, grunnHindre = _kartHindre(el, box).concat(stoppHinder ? [stoppHinder] : []);
   const stopPt = _stop && Number.isFinite(_stop.lat) ? _aMap.latLngToContainerPoint([_stop.lat, _stop.lon]) : { x: W / 2, y: H / 2 };
   const tilPt = st => _aMap.latLngToContainerPoint([st.lat, st.lon]);
-  const kandidaterFor = b => [{ lat: (_stop.lat + b.stopp[0].lat) / 2, lon: (_stop.lon + b.stopp[0].lon) / 2 }, ...b.stopp,
-    ...(b.rester || []).flatMap(r => r.slice(1))].filter(st => st && st.lat != null);
+  const kandidaterFor = b => { const f = beinFra(b.fra, _stop, _stops()); return [{ lat: (f.lat + b.stopp[0].lat) / 2, lon: (f.lon + b.stopp[0].lon) / 2 }, ...b.stopp,
+    ...(b.rester || []).flatMap(r => r.slice(1))].filter(st => st && st.lat != null); };
   const plasser = ruterModus ? [] : plasserLapper(bein.length, {
     nivå: i => nivåer[i], kandidater: i => kandidaterFor(bein[i]), hindre: grunnHindre,
     naturlig: (i, st) => lappRetning(stopPt, tilPt(st)),
@@ -4405,8 +4422,9 @@ function _renderMap() {
   bein.forEach((b, bi) => {
     const først = b.ms === førsteMs;
     const g = L.layerGroup().addTo(_aLayer);
-    const _pl = _plattformer(_stop.id);
-    const start = beinStart(b, Array.isArray(_pl) ? _pl : [], _stop);
+    const fra = beinFra(b.fra, _stop, _stops());
+    const _pl = _plattformer(fra.id || _stop.id);
+    const start = beinStart(b, Array.isArray(_pl) ? _pl : [], fra);
     // Veien bussen kjører (v1.218.98), fra sporet ditt; rette streker uten form.
     const vei = turForm(b.jid, start, b.stopp[b.stopp.length - 1], _formKom);
     drawStopLine(g, [start, ...b.stopp], { color: b.farge, mode: normMode(b.modus), dots: false,
@@ -4480,7 +4498,7 @@ function _renderMap() {
     const { color, mode } = openLine(_open);
     drawStopLine(_aLayer, line, {
       color, mode: normMode(mode),
-      shape: turForm(_open.call && _open.call.serviceJourney && _open.call.serviceJourney.id, _stop, line[line.length - 1], _formKom),
+      shape: turForm(_open.call && _open.call.serviceJourney && _open.call.serviceJourney.id, åpenFra || _stop, line[line.length - 1], _formKom),
       // Cull the beads when they would touch. The line still says where it
       // goes, and every stop is named in the list directly below it.
       project: (ll) => _aMap.latLngToContainerPoint(ll),
@@ -4548,7 +4566,8 @@ function _renderMap() {
      * manglet stykket fram til første stopp — og med bare ett stopp igjen
      * var det ingen linje i det hele tatt, bare to prikker. Sett i
      * nettleserprøven. */
-    const fra = _stop && _stop.lat != null ? [{ name: _stop.name, lat: _stop.lat, lon: _stop.lon }] : [];
+    const kf = _stop ? beinFra(_kortRute && _kortRute.call && _kortRute.call._fra, _stop, _stops()) : null;
+    const fra = kf && kf.lat != null ? [{ name: kf.name, lat: kf.lat, lon: kf.lon }] : [];
     drawStopLine(_aLayer, fra.concat(kortLinje), {
       color, mode: normMode(mode),
       project: (ll) => _aMap.latLngToContainerPoint(ll),

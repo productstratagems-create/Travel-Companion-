@@ -118,7 +118,9 @@ import { userLL } from '../geo.js';
 import { settStasjonAktiv, uthevAvgang } from '../ui/stasjonslag.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
-import { isExample } from '../firstRun.js';
+import { erNærmeste, erEgenRute, dinRuteHtml, dinRuteForslag, dinRuteFra } from '../dinRute.js';
+import { bindPlaceInput } from '../ui/suggest.js';
+import { loadFreq } from '../api/usage.js';
 import { newRecord, stage, showRecord, takeLookbackLost } from '../api/diagnose.js';
 import { BOARD_MODES, LOOKBACK_MINS, normJid, BOARD_WINDOW_MINS } from '../api/queries.js';
 import { takeDropReasons } from '../api/adapt.js';
@@ -3084,27 +3086,39 @@ export function dedupeDepartures(deps) {
 }
 
 /**
- * The line that admits the board is an example.
+ * «Din rute» — Rute uten egen rute (v1.218.261).
  *
- * Without it the first screen would quietly claim to be about the reader —
- * showing real departures for a route they never chose. One tap goes to the
- * form, which is where they were being dumped before.
+ * Erstatter Oslo-eksempelet. «Fra» er stoppet rangeringen valgte der du står,
+ * «til» er søk og dine vanlige mål. Valget gjøres i nav.js
+ * (window._velgDinRute), som eier setActiveRoute.
  */
-function renderDemoNote() {
+function renderDemoNote(tving) {
   const el = document.getElementById('demo-note');
   if (!el) return;
   const dir = config.dirs[state.dIdx];
-  if (!isExample(dir)) { el.style.display = 'none'; return; }
-  // Once GPS has moved the origin, half of this board is genuinely about the
-  // reader — say which half rather than calling the whole thing an example.
-  el.innerHTML = dir._fromGps
-    ? '<strong>fra ditt nærmeste stopp</strong> · ' + esc(dir.to)
-      + ' er et eksempel — trykk for å velge hvor du skal'
-    : '<strong>eksempel</strong> · ' + esc(dir.from) + ' → ' + esc(dir.to)
-      + ' — trykk for å sette din egen rute';
+  document.documentElement.classList.toggle('din-rute-apen', erNærmeste(dir));
+  if (!erNærmeste(dir)) { el.style.display = 'none'; el.innerHTML = ''; el._sistKort = null; return; }
+  const forslag = dinRuteForslag(loadFreq('arr'), dir.from);
+  const html = dinRuteHtml(dir, forslag);
   el.style.display = 'block';
-  // The tap is bound in ui/nav.js beside every other navigation button —
-  // board.js is the lower layer and importing nav here would make a cycle.
+  // Ikke tegn om mens brukeren skriver — da mister feltet fokus.
+  if (el._sistKort === html && el.firstElementChild) return;
+  if (!tving && el.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
+  el._sistKort = html;
+  el.innerHTML = html;
+  const velg = m => window._velgDinRute && window._velgDinRute(m);
+  bindPlaceInput(el.querySelector('#din-rute-til'), el.querySelector('#din-rute-til-sugg'), q => geocodePlace(q), velg);
+  bindPlaceInput(el.querySelector('#din-rute-fra'), el.querySelector('#din-rute-fra-sugg'), q => geocodePlace(q), r => {
+    config.dirs[state.dIdx] = dinRuteFra(config.dirs[state.dIdx], r);
+    el._sistKort = null;
+    renderDemoNote(true);
+    // Neste spørsmål er «til» — fokus dit, ikke tapt.
+    const til = el.querySelector('#din-rute-til'); if (til) til.focus();
+  });
+  el.querySelectorAll('[data-din-mal]').forEach(b => b.addEventListener('click', () => {
+    const p = forslag[+b.dataset.dinMal];
+    if (p) velg({ label: p.name, id: p.id || null, lat: p.lat, lon: p.lon });
+  }));
 }
 
 /**
@@ -3160,7 +3174,7 @@ function renderRuteGåHit() {
   const mål = ruteMål(dir);
   const pos = state.homeLL;
   // Grå prikk (v1.218.180): et råd regnet fra en gammel posisjon er ikke et råd.
-  if (!mål || !pos || isExample(dir) || dir.key === 'in' || posGråNå()) { el.style.display = 'none'; _ruteGåVis = null; return; }
+  if (!mål || !pos || !erEgenRute(dir) || dir.key === 'in' || posGråNå()) { el.style.display = 'none'; _ruteGåVis = null; return; }
   el.style.display = '';
   // I FART (v1.218.174): rapportert fra 74-bussen — et gangråd regnet fra et
   // sete i fart er ikke et råd. Ingen knapp; bestilt råd sier hvorfor det venter.
@@ -3840,6 +3854,8 @@ export function startBoard() {
     }
   }
   if (intervals.board) clearInterval(intervals.board);
+  // Ingen rute ennå: bare «Din rute»-kortet, ingen henting mot en tom «til».
+  if (erNærmeste(config.dirs[state.dIdx])) { renderDemoNote(); return; }
   _fetchBoard();
   intervals.board = setInterval(_fetchBoard, config.boardRefreshMs);
   window._updatePlanCtx && window._updatePlanCtx();

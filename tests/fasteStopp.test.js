@@ -57,14 +57,6 @@ describe('koblingen (v1.218.251)', () => {
   });
 });
 
-import { exampleFallback } from '../src/firstRun.js';
-describe('ingen eksempeltavle mens forklaringen venter på svar (v1.218.251)', () => {
-  it('før-bildet: uten posisjon falt appen til eksempelet; nå ikke mens den venter', () => {
-    expect(exampleFallback({})).toBe(true);
-    expect(exampleFallback({ venter: true })).toBe(false);
-  });
-});
-
 describe('valgt sted avslutter ventingen (v1.218.251)', () => {
   it('_settSted slipper forklaringen, så lista tegnes', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');

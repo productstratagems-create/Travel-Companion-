@@ -66,7 +66,7 @@ describe('Rute uten egen rute: din rute fra nærmeste stopp (v1.218.261)', () =>
     expect(d._fraValgt).toBe(true);
     expect(d.from).toBe('Voss skysstasjon');
     const m = readFileSync('src/main.js', 'utf8');
-    expect(m).toMatch(/if \(!erNærmeste\(cur\) \|\| cur\._fraValgt \|\| !state\.nearestStation\) return;/);
+    expect(m).toMatch(/if \(erNærmeste\(cur\) && !cur\._fraValgt && state\.nearestStation\)/);
   });
 
   it('tavla henter ikke mot en tom «til»', () => {
@@ -84,5 +84,26 @@ describe('«Din rute» står alene (v1.218.262)', () => {
   });
   it('⋮ blir stående — menyen er veien videre', () => {
     expect(regel()).not.toContain('board-more-btn');
+  });
+});
+
+describe('«Din rute» hører til Rute (v1.218.263)', () => {
+  it('kortet ligger inne i #v-board, så show() skjuler det med skjermen', () => {
+    const h = readFileSync('index.html', 'utf8');
+    const i = h.indexOf('<div id="v-board"'), d = h.indexOf('id="demo-note"');
+    expect(i).toBeGreaterThan(-1);
+    expect(d).toBeGreaterThan(i);
+    expect(d).toBeLessThan(h.indexOf('class="board-header-slim"', i));
+  });
+  it('«fra» fylles også når Auto-tavle er på', () => {
+    const m = readFileSync('src/main.js', 'utf8');
+    const a = m.indexOf('if (erNærmeste(cur) && !cur._fraValgt && state.nearestStation)');
+    const b = m.indexOf('if (loadAutoMode()) { renderAuto(); return; }');
+    expect(a).toBeGreaterThan(-1);
+    expect(a).toBeLessThan(b);
+  });
+  it('renderDemoNote fyller «fra» fra rangeringen', () => {
+    const b = readFileSync('src/views/board.js', 'utf8');
+    expect(b).toMatch(/if \(!dir\._fraValgt && state\.nearestStation && state\.nearestStation\.name !== dir\.from\) \{ dir = nærmesteDir\(state\.nearestStation\); config\.dirs\[state\.dIdx\] = dir; \}/);
   });
 });

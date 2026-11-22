@@ -118,7 +118,7 @@ import { userLL } from '../geo.js';
 import { settStasjonAktiv, uthevAvgang } from '../ui/stasjonslag.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
-import { erNærmeste, erEgenRute, dinRuteHtml, dinRuteForslag, dinRuteFra } from '../dinRute.js';
+import { nærmesteDir, erNærmeste, erEgenRute, dinRuteHtml, dinRuteForslag, dinRuteFra } from '../dinRute.js';
 import { bindPlaceInput } from '../ui/suggest.js';
 import { loadFreq } from '../api/usage.js';
 import { newRecord, stage, showRecord, takeLookbackLost } from '../api/diagnose.js';
@@ -3095,7 +3095,11 @@ export function dedupeDepartures(deps) {
 function renderDemoNote(tving) {
   const el = document.getElementById('demo-note');
   if (!el) return;
-  const dir = config.dirs[state.dIdx];
+  let dir = config.dirs[state.dIdx];
+  // «Fra» er alltid stoppet rangeringen valgte — med mindre brukeren har valgt selv.
+  if (erNærmeste(dir)) {
+    if (!dir._fraValgt && state.nearestStation && state.nearestStation.name !== dir.from) { dir = nærmesteDir(state.nearestStation); config.dirs[state.dIdx] = dir; }
+  }
   document.documentElement.classList.toggle('din-rute-apen', erNærmeste(dir));
   if (!erNærmeste(dir)) { el.style.display = 'none'; el.innerHTML = ''; el._sistKort = null; return; }
   const forslag = dinRuteForslag(loadFreq('arr'), dir.from);

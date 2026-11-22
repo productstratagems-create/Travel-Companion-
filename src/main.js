@@ -249,17 +249,17 @@ const _startPos = () => locateUser(() => {
   // or two and the app opens immediately. Without this the mode landed on
   // "Ingen avganger herfra nå" and stayed there — measured on the very first
   // end-to-end run.
-  if (loadAutoMode()) { renderAuto(); return; }
+  // «Din rute» får «fra» når posisjonen kommer — også med Auto-tavle på
+  // (v1.218.263). Tegnes bare om Rute vises; ellers tar renderDemoNote det.
   const cur = config.dirs[state.dIdx];
-  // «Din rute» får «fra» når posisjonen kommer — med mindre brukeren alt
-  // har valgt et annet fra-sted selv.
-  if (!erNærmeste(cur) || cur._fraValgt || !state.nearestStation) return;
-  const up = nærmesteDir(state.nearestStation);
-  if (up.from === cur.from) return;
-  config.dirs[state.dIdx] = up;
-  updateHeader();
-  state.deps = [];
-  startBoard();
+  if (erNærmeste(cur) && !cur._fraValgt && state.nearestStation) {
+    const up = nærmesteDir(state.nearestStation);
+    if (up.from !== cur.from) {
+      config.dirs[state.dIdx] = up;
+      if (state.view === 'board') { updateHeader(); state.deps = []; startBoard(); }
+    }
+  }
+  if (loadAutoMode()) { renderAuto(); return; }
 }, () => {
   // A denial has to reach the screen too. Auto-reise is position-first, so
   // "no position" is not a silent non-event there — it is the whole content

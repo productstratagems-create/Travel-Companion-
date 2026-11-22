@@ -1433,6 +1433,22 @@ export function pickStop(list, current, pinned, bandOf) {
 export const PICK_MARGIN_M = 40;
 
 /**
+ * AVKLARING AV STOPPVALGET (v1.218.273). Spurt: bør appen vente før den setter
+ * «beste stopp herfra», og hvordan sies ventingen? Proven (Google/Apple Maps,
+ * Citymapper, Transit; NN/g om svartid): ikke blokkér — vis det beste du har
+ * straks, si dempet at det er foreløpig, lås når grunnlaget er godt nok eller
+ * etter et tak. Før: første fix (også ±500 m) og ren avstand låste valget, så
+ * byttet det når stoppinfo kom, og avgangene ble hentet på nytt.
+ * Avklart når posisjonen er god nok OG stoppinfo for kandidatene er kommet —
+ * eller når taket er nådd, så det alltid ender (også på bygda). Ren.
+ */
+export const AVKLAR_ACC_M = 50, AVKLAR_MAKS_MS = 8000;
+export function stoppAvklart({ acc, infoKjent, ms }) {
+  if (Number.isFinite(ms) && ms >= AVKLAR_MAKS_MS) return true;
+  return Number.isFinite(acc) && acc <= AVKLAR_ACC_M && !!infoKjent;
+}
+
+/**
  * What to say about the position under the stop name, or nothing.
  *
  * Silent while the fix is good: a line reading «posisjonen er fin» under a
@@ -1955,6 +1971,15 @@ export function ikkeNærmest(stopp, alle) {
   return (alle || []).some(s => s && s.id !== stopp.id && Number.isFinite(s.distM) && s.distM < stopp.distM - 30);
 }
 let _listeRo = null, _listeValgt = null;
+/* Avklaringen (v1.218.273): når første stopp kom, om det er låst, og hvilket stopp avgangene hører til. */
+let _avklar = { start: null, ferdig: false, dirsFor: null }, _sistMerkelapp = null;
+/** Margin på merkelappen (v1.218.273): «du er ved» står til du er MERKE_UT_M lenger unna enn grensen, så den ikke blafrer ved 120 m. */
+export const MERKE_UT_M = 30;
+export function merkelappMedRo(forrige, ny, avstandM, fart) {
+  if (!fart && forrige === 'du er ved' && ny !== 'du er ved' && ny !== forrige
+    && Number.isFinite(avstandM) && avstandM <= AT_STOP_M + MERKE_UT_M) return 'du er ved';
+  return ny;
+}
 /** Lista sitt valg gjelder så lenge stoppet er innen gangavstand. */
 export const LISTE_HOLD_M = 800;
 /** Står stoppet lista valgte fortsatt i lista, innen LISTE_HOLD_M? Ren. */
@@ -2777,8 +2802,15 @@ function _renderWhere() {
   // tilbake, og overskriften vipper. Slippes når du er langt fra det.
   if (_listeValgt && !listeHolder(_listeValgt, list)) _listeValgt = null;
   const holdt = _stopPinned || (!!_listeValgt && !!_stop && _stop.id === _listeValgt);
-  const picked = velgStoppIFart(pickStop(list, _stop, holdt, _bandOf()), _stop, holdt,
+  // Foreløpig til avklart: øverste kandidat uten margin, og uten ny henting.
+  if (!list.length && !_stop) _avklar = { start: null, ferdig: false, dirsFor: null };
+  if (_avklar.start == null && list.length) _avklar.start = nåW;
+  const infoKjent = list.slice(0, 5).every(s => !s || !s.id || !!stoppInfo(s.id));
+  if (!_avklar.ferdig && _avklar.start != null) _avklar.ferdig = stoppAvklart({ acc: state.posAcc, infoKjent, ms: nåW - _avklar.start });
+  const foreløpig = !_avklar.ferdig && !holdt;
+  const picked = velgStoppIFart(pickStop(list, foreløpig ? null : _stop, holdt, _bandOf()), _stop, holdt,
     påLinja, list);
+  if (foreløpig) picked.changed = !_stop || (picked.stop && picked.stop.id !== _stop.id);
   _stop = picked.stop;
   // STOPPET LISTA BRUKER (v1.218.243). Bestilt: «"Nærmeste stopp" skal være
   // nærmeste og mest relevant stopp … det stoppestedet som oftest dukker opp
@@ -2797,7 +2829,11 @@ function _renderWhere() {
   // A different stop is a different board. Without this the departures below
   // would keep belonging to the stop the reader has walked away from — and
   // the guard in renderAuto only refetches when _dirs is empty.
-  if (picked.changed) { _dirs = []; _open = null; _asked = false; _nextMs = undefined; }
+  // Under avklaring hentes avgangene bare for første kandidat; når valget er
+  // avklart, hentes de på nytt bare om det endte på et annet stopp.
+  const nyTavle = foreløpig ? (picked.changed && _avklar.dirsFor == null)
+    : (picked.changed || (!!_stop && _avklar.dirsFor != null && _avklar.dirsFor !== _stop.id));
+  if (nyTavle) { _dirs = []; _open = null; _asked = false; _nextMs = undefined; _avklar.dirsFor = _stop ? _stop.id : null; }
   if (!_stop) {
     el._sistHtml = null;
     el.innerHTML = '<div class="set-label">du er ved</div>'
@@ -2828,7 +2864,13 @@ function _renderWhere() {
   _reiseInfo = r ? { r, igjen: fra ? stasjonerIgjen(r.k, fra.id, r.dest, nåW) : null } : null;
   const vn = picked.linjer ? (syn.lås ? linjeHodeHtml(syn.lås, state.jny) : '') + vedNesteHtml(påLinja, nåW) + (_reiseInfo ? avstigningHtml(r, _reiseInfo.igjen) : '')
     + fokusNavHtml(påLinja, nåW, r && r.dest) : '';
-  const _html = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer, w ? w.dist : null, ikkeNærmest(_stop, _stops()))) + '</div>')
+  // Foreløpig: «nærmeste stopp» (en påstand appen kan stå for) og én dempet linje.
+  const merkelapp = foreløpig && !fart ? 'nærmeste stopp'
+    : merkelappMedRo(_sistMerkelapp, whereLabel(fart, picked.linjer, w ? w.dist : null, ikkeNærmest(_stop, _stops())), w ? w.dist : null, fart);
+  _sistMerkelapp = merkelapp;
+  // På samme linje som merkelappen: når den forsvinner, flytter ingenting seg.
+  const _html = (vn || '<div class="set-label">' + esc(merkelapp)
+    + (foreløpig && !fart ? '<span class="avklar-linje" role="status"> · finner beste stopp …</span>' : '') + '</div>')
     + stopHeadHtml(_stop, others.length, open, {
       iFart: fart,
       // OM BORD (v1.218.48): avstanden til fots er ikke spørsmålet når toget

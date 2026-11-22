@@ -633,8 +633,9 @@ describe('auto-reise gir marginen båndet den skal måle med', () => {
     .readFileSync('src/views/auto.js', 'utf8').replace(/\/\/[^\n]*/g, '');
 
   it('sender bånd-oppslaget inn i pickStop', () => {
-    // v1.218.243: «holdt» = ditt valg eller lista sitt valg.
-    expect(src()).toMatch(/pickStop\(list, _stop, holdt, _bandOf\(\)\)/);
+    // v1.218.243: «holdt» = ditt valg eller lista sitt valg. v1.218.273: foreløpig
+    // velges øverste kandidat (null som nåværende) til valget er avklart.
+    expect(src()).toMatch(/pickStop\(list, foreløpig \? null : _stop, holdt, _bandOf\(\)\)/);
   });
 
   it('og bånd-oppslaget er rangeringens eget', () => {

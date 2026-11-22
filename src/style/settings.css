@@ -1199,3 +1199,6 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 /* «endre» stor nok for en finger (v1.218.270): 44 px er minstemålet. */
 .faste-stopp .faste-endre{min-height:44px;min-width:44px}
 .faste-stopp .faste-lagrer{font-size:12px;color:var(--text-soft)}
+
+/* «finner beste stopp …» (v1.218.273): dempet, én linje, ingen spinner. */
+.set-label .avklar-linje{color:var(--text-soft);text-transform:none;letter-spacing:.02em}

@@ -1136,27 +1136,6 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .veivalg-merke span{display:block;width:16px;height:16px;border-radius:50%;background:var(--bg);border:3px solid var(--accent);box-sizing:border-box}
 .veivalg-lapp{font-weight:700}
 #v-auto .auto-anslag{opacity:.65}
-#auto-her .hva{margin-top:.5rem;display:flex;flex-direction:column;gap:.35rem}
-#auto-her .hva-chips{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:.4rem;scrollbar-width:none}
-#auto-her .hva-chip{flex:0 0 auto}
-#auto-her .hva-chip{font:inherit;font-size:14px;padding:.4rem .75rem;border-radius:999px;border:1px solid var(--line,#888);background:none;color:var(--accent);min-height:40px;cursor:pointer}
-#auto-her .hva-hode{display:flex;align-items:center;justify-content:space-between;font-size:15px}
-#auto-her .hva-type{display:block;font-size:12px;color:var(--text-soft)}
-#auto-her .hva-tom{font-size:13px;color:var(--text-soft)}
-#auto-her .hva-rad{display:flex;gap:.4rem}
-#auto-her .hva-rad .her-sok{flex:1}
-#auto-her .hva-lenke{font:inherit;font-size:13px;background:none;border:0;padding:.25rem 0;color:var(--text-soft);cursor:pointer;text-align:left;min-height:32px}
-/* Steg 2a (v1.218.211): reiser til stedet som rader; resten av tavla foldet. */
-.hva-mål #auto-where, .hva-mål #auto-where-head, .hva-mål #auto-dest-body, .hva-mål #auto-body, .hva-mål #auto-neste { display: none !important; }
-#auto-her .hva-reise{display:flex;gap:.75rem;align-items:flex-start;width:100%;text-align:left;font:inherit;color:inherit;background:none;border:0;border-left:3px solid transparent;padding:.5rem .5rem;cursor:pointer}
-#auto-her .hva-reise.valgt{border-left-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
-#auto-her .hva-tall{display:flex;flex-direction:column;align-items:center;min-width:2.6rem}
-#auto-her .hva-tall b{font-size:24px;line-height:1}
-#auto-her .hva-tall small{font-size:11px;color:var(--text-soft)}
-#auto-her .hva-info{display:flex;flex-direction:column;gap:.1rem;font-size:14px}
-#auto-her .hva-l1{display:flex;align-items:center;gap:.3rem;flex-wrap:wrap}
-#auto-her .hva-l2,#auto-her .hva-l3{font-size:13px;color:var(--text-soft)}
-#auto-her .hva-pil{color:var(--text-soft);font-size:12px}
 .at-retning .omr-linjer{margin-left:.4em;font-size:.8em;opacity:.7}
 /* Kombinasjoner i valgt område (v1.218.215): samme rad som reisene i 2a. */
 .at-kombi{display:flex;gap:.75rem;align-items:flex-start;width:100%;text-align:left;font:inherit;color:inherit;background:none;border:0;border-top:1px solid var(--line,rgba(127,127,127,.2));padding:.55rem .25rem;cursor:pointer}
@@ -1189,3 +1168,5 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 #v-auto .at-retning::-webkit-scrollbar{display:none}
 #v-auto .at-retning .auto-fra-knapp{flex:0 0 auto;white-space:nowrap}
 #v-auto .at-retning .auto-fra-knapp:not(.valgt) .omr-linjer{display:none}
+
+.at-kombi .hva-pil{color:var(--text-soft);font-size:12px}

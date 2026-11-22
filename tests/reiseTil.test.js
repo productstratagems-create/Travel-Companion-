@@ -33,18 +33,11 @@ describe('reiser til stedet som rader (v1.218.211)', () => {
   });
 });
 import { readFileSync } from 'node:fs';
-describe('koblingen i Auto-tavle (v1.218.211)', () => {
-  const a = readFileSync('src/views/auto.js', 'utf8');
-  it('valgt sted → reisesøk fra der du står, rader fra reiseRader', () => {
-    expect(a).toMatch(/fetchTripFraPos\(fra, \{ lat: p\.lat, lon: p\.lon \}, Date\.now\(\), 6\)/);
-    expect(a).toMatch(/return reiseRader\(_hvaReiser, Date\.now\(\), w \? w\.mins : null\);/);
-  });
-  it('kartet følger den valgte raden (én definisjon: _hvaRader)', () => {
-    expect(a).toMatch(/const rad = _hvaRader\(\)\[_hvaValgt\];/);
-  });
-  it('resten av tavla foldes, ikke kastes', () => {
-    expect(a).toMatch(/side\.classList\.toggle\('hva-mål', _hvaÆrend === 'sted' && !_hvaVisAlle\)/);
-    expect(readFileSync('src/style/settings.css', 'utf8')).toMatch(/\.hva-mål #auto-body/);
+describe('«hva skal du?» er slettet (v1.218.250)', () => {
+  it('ingen rester i Auto-tavle; reiseRader brukes fortsatt av kombinasjonsradene', () => {
+    const a = readFileSync('src/views/auto.js', 'utf8');
+    expect(a).not.toMatch(/_hvaHtml|_velgSted|_velgÆrend|HVA_PÅ|aerend\.js/);
+    expect(a).toMatch(/kombiRader\(reiseRader\(kv\.tps, nå, null\)\)/);
   });
 });
 import { kombiRader } from '../src/reiseTil.js';

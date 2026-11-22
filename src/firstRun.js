@@ -93,6 +93,10 @@ export const AUTO_FALLBACK_MS = 4000;
 export function exampleFallback(o) {
   const s = o || {};
   if (s.hasStop) return false;
+  // VENTER PÅ SVAR (v1.218.251): forklaringen om posisjon står, og brukeren
+  // har ikke svart ennå. Ingen posisjon er da ikke et fravær å erstatte med et
+  // eksempel fra et annet sted — det er et spørsmål som venter.
+  if (s.venter) return false;
   // A POSITION WITH NO STOP NEAR IT IS AN ANSWER, not an absence. The reader
   // granted location, the app found them, and «ingen holdeplass innenfor 850
   // meter» is true and about them. Replacing that with a board about

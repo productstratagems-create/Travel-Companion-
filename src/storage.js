@@ -44,6 +44,8 @@ const ALL_KEYS = [
   't.ruteLinjer',
   // Punktet du bekreftet «du er her» på (v1.218.203). Nivå 1.
   't.herBekreftet',
+  // Onboarding steg 1 (v1.218.251): posisjonen forklart; kortet om faste stopp avvist.
+  't.posForklart', 't.fasteStoppAvvist',
   // Klokkeslettene for «avganger etter …» (v1.218.132). Nivå 1.
   't.autoFraTider',
   // Fast dato for «avganger etter …» fra rullehjulene (v1.218.140). Nivå 1.

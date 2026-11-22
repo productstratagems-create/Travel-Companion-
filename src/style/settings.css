@@ -1170,3 +1170,9 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 #v-auto .at-retning .auto-fra-knapp:not(.valgt) .omr-linjer{display:none}
 
 .at-kombi .hva-pil{color:var(--text-soft);font-size:12px}
+/* Dine faste stopp (v1.218.251). */
+.faste-stopp .faste-tekst{font-size:14px;margin:.15rem 0 .5rem}
+.faste-stopp .faste-rad{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin:.35rem 0}
+.faste-stopp .faste-sp{flex-basis:100%;font-size:13px;color:var(--text-soft)}
+.faste-stopp .faste-valg{display:flex;flex-wrap:wrap;gap:.35rem;flex-basis:100%}
+.faste-stopp .faste-sok{flex-basis:100%;font:inherit;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line,#888);background:var(--surface-2);color:var(--text)}

@@ -37,7 +37,7 @@ function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f 
 import { reiseRader, kombiRader } from '../reiseTil.js';
 import { fraMerke } from '../ui/tavleRad.js';
 import { roPunkt } from '../roPunkt.js';
-import { fastFørst, tilbyFasteStopp } from '../fasteStopp.js';
+import { fastFørst, tilbyFasteStopp, fasteKandidater, fasteRo } from '../fasteStopp.js';
 import { målområder } from '../maalomrader.js';
 import { festLappRydding } from '../ui/lappPlass.js';
 import { omrProbe } from '../api/omrProbe.js';
@@ -2329,13 +2329,22 @@ export function profilSpørsmålHtml(q) {
     + '</div>';
 }
 const FASTE_AVVIST_KEY = 't.fasteStoppAvvist';
-let _fasteÅpen = null;   // rollen som velges nå: 'hjem' | 'jobb' | null
+let _fasteÅpen = null, _fasteVist = false, _fasteListe = null;   // rollen som velges nå: 'hjem' | 'jobb' | null
 function _tegnFasteStopp(el) {
   let avvist = false; try { avvist = storage.get(FASTE_AVVIST_KEY) === '1'; } catch { /* */ }
-  const tavleVist = !!(_dirs && _dirs.length) && _autoTavle;
+  // Kortet blir stående når det er vist (v1.218.252), også mens tavla henter
+  // på nytt og _dirs er tom et øyeblikk.
+  const tavleVist = (!!(_dirs && _dirs.length) && _autoTavle) || _fasteVist;
   const sagt = lesSagt();
-  if (!tilbyFasteStopp({ sagt, avvist, tavleVist })) return false;
-  const nær = _stops().slice(0, 6);
+  if (!tilbyFasteStopp({ sagt, avvist, tavleVist })) { _fasteVist = false; return false; }
+  _fasteVist = true;
+  // Rangeringskonseptet (fasteKandidater → nærViktigFørst), og ro: lista
+  // fryses til du har flyttet deg 300 m, eller én gang når tilbudet blir kjent.
+  const alle = _stops();
+  const kjent = alle.some(s => stoppInfo(s.id));
+  const pos = userLL();
+  _fasteListe = fasteRo(_fasteListe, fasteKandidater(alle, _stop, s => stoppInfo(s.id)), pos, kjent, (a, b) => metresBetween(a, b));
+  const nær = _fasteListe.liste;
   const valg = rolle => '<div class="faste-rad"><span class="faste-sp">' + (rolle === 'hjem' ? 'Om morgenen reiser jeg fra' : 'På vei hjem reiser jeg fra') + '</span>'
     + (sagt[rolle] ? '<b>' + esc(sagt[rolle].navn) + '</b>'
       : (_fasteÅpen === rolle

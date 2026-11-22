@@ -10,6 +10,8 @@
  * JOBB-holdeplassen. Én definisjon; ingen ny lagring. Rene funksjoner.
  */
 import { erHelgLik } from './dagtype.js';
+import { nærViktigFørst } from './api/stops.js';
+import { NEAR_STOP_MAX_M } from './geo.js';
 
 /** Hverdag 05–10: du reiser fra morgen-stoppet. 14–19: fra ettermiddags-stoppet. */
 export const MORGEN = [5, 10], ETTERMIDDAG = [14, 19];
@@ -57,4 +59,34 @@ export function tilbyFasteStopp({ sagt, avvist, tavleVist }) {
  */
 export function trengerPosForklaring(tillatelse, forklart) {
   return tillatelse === 'prompt' && !forklart;
+}
+
+/** Så mange forslag i kortet. */
+export const FASTE_MAKS = 6;
+/**
+ * FORSLAGENE (v1.218.252). Rapportert: Mortensrud T og bussterminalen manglet,
+ * seks små stopp nær deg sto i stedet. Rangeringskonseptet (nærViktigFørst →
+ * sammenlignViktighet) over hele stopplista — stoppet i overskriften først. Ren.
+ */
+export function fasteKandidater(liste, overskrift, viktigAv, maks = FASTE_MAKS) {
+  const innen = (liste || []).filter(s => s && s.id && (!Number.isFinite(s.distM) || s.distM <= NEAR_STOP_MAX_M));
+  const rangert = innen.slice().sort(nærViktigFørst(viktigAv, s => s.distM, NEAR_STOP_MAX_M));
+  const ut = [], sett = new Set();
+  [overskrift, ...rangert].forEach(s => { if (s && s.id && !sett.has(s.id) && ut.length < maks) { sett.add(s.id); ut.push(s); } });
+  return ut;
+}
+/** Flyttet du deg så langt, lages forslagene på nytt. */
+export const FASTE_RO_M = 300;
+/**
+ * RO I FORSLAGENE (v1.218.252). Bestilt: «ikke konstant skifter plass eller at
+ * plasser forsvinner eller kommer til flere ganger på svært kort tid».
+ * Lista fryses første gang; ny bare når du har flyttet deg FASTE_RO_M, eller
+ * én gang når tilbudet blir kjent (kjent: true første gang). Ren.
+ * @param forrige { liste, pos, kjent } | null
+ */
+export function fasteRo(forrige, ny, pos, kjent, avstand) {
+  if (!forrige || !forrige.liste || !forrige.liste.length) return { liste: ny, pos, kjent };
+  const flyttet = pos && forrige.pos && avstand(pos, forrige.pos) > FASTE_RO_M;
+  if (flyttet || (kjent && !forrige.kjent)) return { liste: ny, pos, kjent };
+  return forrige;
 }

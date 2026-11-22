@@ -71,3 +71,33 @@ describe('valgt sted avslutter ventingen (v1.218.251)', () => {
     expect(a).toMatch(/if \(state\.posVenter\) \{ const b = _el\('auto-body'\); if \(b\) b\.innerHTML = ''; return; \}/);
   });
 });
+import { fasteKandidater, fasteRo, FASTE_RO_M } from '../src/fasteStopp.js';
+describe('forslagene bruker rangeringskonseptet (v1.218.252)', () => {
+  // Nøytral fikstur: seks små stopp nær deg (én busslinje, få avganger), og et
+  // T-banestopp og en bussterminal på 800 m.
+  const små = Array.from({ length: 6 }, (_, i) => ({ id: 'S' + i, name: 'Lite ' + i, distM: 150 + i * 40 }));
+  const T = { id: 'T', name: 'Stasjon T', distM: 790 }, TERM = { id: 'B', name: 'Terminal', distM: 800 };
+  const info = { T: { moduser: ['metro', 'bus'], avgangerNå: 30, linjer: 3, plattformer: 2 }, B: { moduser: ['bus'], avgangerNå: 40, linjer: 6, plattformer: 6 } };
+  små.forEach(s => { info[s.id] = { moduser: ['bus'], avgangerNå: 3, linjer: 1, plattformer: 1 }; });
+  const liste = [...små, T, TERM];
+  it('før-bildet: de seks nærmeste; nå stoppet i overskriften først, så stasjon og terminal', () => {
+    expect(liste.slice(0, 6).map(s => s.id)).not.toContain('T');
+    const k = fasteKandidater(liste, TERM, s => info[s.id]);
+    expect(k.map(s => s.id).slice(0, 3)).toEqual(['B', 'T', 'S0']);
+    expect(k).toHaveLength(6);
+  });
+  it('ro: lista som veksler rekkefølge hvert sekund gir samme forslag', () => {
+    const d = () => 0;
+    let r = fasteRo(null, ['a', 'b', 'c'], { lat: 0, lon: 0 }, true, d);
+    for (let i = 0; i < 10; i++) r = fasteRo(r, i % 2 ? ['c', 'b', 'a'] : ['b', 'a'], { lat: 0, lon: 0 }, true, d);
+    expect(r.liste).toEqual(['a', 'b', 'c']);
+  });
+  it('ny liste når du har flyttet deg, eller én gang når tilbudet blir kjent', () => {
+    let r = fasteRo(null, ['a'], {}, false, () => 0);
+    r = fasteRo(r, ['b'], {}, true, () => 0);
+    expect(r.liste).toEqual(['b']);
+    r = fasteRo(r, ['c'], {}, true, () => 0);
+    expect(r.liste).toEqual(['b']);
+    expect(fasteRo(r, ['d'], {}, true, () => FASTE_RO_M + 1).liste).toEqual(['d']);
+  });
+});

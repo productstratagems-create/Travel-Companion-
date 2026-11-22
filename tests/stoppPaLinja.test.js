@@ -101,7 +101,7 @@ describe('«du er ved» i fart', () => {
 import { readFileSync } from 'node:fs';
 describe('koblingen i auto-reise', () => {
   const src = readFileSync('src/views/auto.js', 'utf8');
-  const where = src.slice(src.indexOf('function _renderWhere()'), src.indexOf('function _renderWhere()') + 600);
+  const where = src.slice(src.indexOf('function _renderWhere()'), src.indexOf('function _renderWhere()') + 1200);   // v1.218.243: lista sitt valg står foran kallet
   it('«du er ved» velger med stoppet på linja fra samme dom som tilbudet', () => {
     // Siden v1.215.0 gjennom låsen (`_påLinjaMedLås`), som bruker samme dom.
     expect(where).toMatch(/påLinja: _autoTavle \? null : _påLinjaMedLås\(nåW\)[\s\S]*const påLinja = syn\.påLinja;[\s\S]*velgStoppIFart\([\s\S]*påLinja, list\)/);

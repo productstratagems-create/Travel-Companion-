@@ -37,6 +37,7 @@ function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f 
 import { reiseRader, kombiRader } from '../reiseTil.js';
 import { fraMerke } from '../ui/tavleRad.js';
 import { roPunkt } from '../roPunkt.js';
+import { fastFørst, tilbyFasteStopp } from '../fasteStopp.js';
 import { målområder } from '../maalomrader.js';
 import { festLappRydding } from '../ui/lappPlass.js';
 import { omrProbe } from '../api/omrProbe.js';
@@ -78,12 +79,12 @@ import { ankomstMs } from '../ankomst.js';
 import { hensikt, hensiktLinje, sammeTur, reiseKall } from '../hensikt.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
 import { fetchStoppLinjer, stoppLinjer, stoppInfoUtdatert, stoppInfo, nærViktigFørst, fetchNearbyStops, viktighet, sammenlignViktighet, retningsViktig } from '../api/stops.js';
-import { kontekstNå, kontekstLinje, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
+import { kontekstNå, kontekstLinje, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise, lesSagt } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
 import { loadAutoSort, saveAutoSort, NEAR_STOP_MAX_M, walkMinsTo, gangTil, userLL, minsToLeave, reachCls, posState, posNå, fartNå, loadWalkBuffer, saveWalkFrom, loadWalkFrom, clearWalkFrom, findNearestStation } from '../geo.js';
 import { posBekreftelse } from '../position.js';
-import { herLinjeHtml, stedPanelHtml, MANUELL_FLYTT_M } from '../ui/stedVelger.js';
+import { herLinjeHtml, stedPanelHtml, MANUELL_FLYTT_M, posForklaringHtml } from '../ui/stedVelger.js';
 import { stedNavn, stedMåling, målingLinje } from '../api/stedNavn.js';
 import { åpneStedKart } from '../ui/stedKart.js';
 import { bindPlaceInput } from '../ui/suggest.js';
@@ -1041,7 +1042,9 @@ function _stops() {
   // liste, samme sekund, samme retningsvalg → samme svar.
   const nøkkel = Math.floor(Date.now() / 1000) + '|' + _atRetning + '|' + (_dirs ? _dirs.length : 0) + '|' + list.length + '|' + (list[0] && list[0].id);
   if (_stopsHusket && _stopsHusket.liste === list && _stopsHusket.nøkkel === nøkkel) return _stopsHusket.svar;
-  const svar = rankStops(list, depUses(), state.posTrail, retningsViktig(s => stoppInfo(s.id), _retningTelling()));
+  // DINE FASTE STOPP (v1.218.251, src/fasteStopp.js): på hverdager, morgen og
+  // ettermiddag, står stoppet du har oppgitt først når det er innen gangavstand.
+  const svar = fastFørst(rankStops(list, depUses(), state.posTrail, retningsViktig(s => stoppInfo(s.id), _retningTelling())), lesSagt(), Date.now());
   _stopsHusket = { liste: list, nøkkel, svar };
   return svar;
 }
@@ -2325,12 +2328,49 @@ export function profilSpørsmålHtml(q) {
     + '<button type="button" class="neste-nei profil-senere">senere</button></div>'
     + '</div>';
 }
+const FASTE_AVVIST_KEY = 't.fasteStoppAvvist';
+let _fasteÅpen = null;   // rollen som velges nå: 'hjem' | 'jobb' | null
+function _tegnFasteStopp(el) {
+  let avvist = false; try { avvist = storage.get(FASTE_AVVIST_KEY) === '1'; } catch { /* */ }
+  const tavleVist = !!(_dirs && _dirs.length) && _autoTavle;
+  const sagt = lesSagt();
+  if (!tilbyFasteStopp({ sagt, avvist, tavleVist })) return false;
+  const nær = _stops().slice(0, 6);
+  const valg = rolle => '<div class="faste-rad"><span class="faste-sp">' + (rolle === 'hjem' ? 'Om morgenen reiser jeg fra' : 'På vei hjem reiser jeg fra') + '</span>'
+    + (sagt[rolle] ? '<b>' + esc(sagt[rolle].navn) + '</b>'
+      : (_fasteÅpen === rolle
+        ? '<span class="faste-valg">' + nær.map((s, i) => '<button type="button" class="neste-ja faste-knapp" data-fast="' + rolle + '|' + i + '">' + esc(s.name) + '</button>').join('')
+          + '<input class="faste-sok" data-fast-sok="' + rolle + '" type="search" autocomplete="off" placeholder="annet stopp …"><div class="sugg-list faste-sugg" hidden></div></span>'
+        : '<button type="button" class="neste-ja faste-knapp" data-fast-apne="' + rolle + '">velg</button>')) + '</div>';
+  const html = '<div class="profil-q faste-stopp"><div class="set-label">dine faste stopp</div>'
+    + '<div class="faste-tekst">Oppgi stoppene du pleier å reise fra, så viser appen dem først på hverdager.</div>'
+    + valg('hjem') + valg('jobb')
+    + '<div class="neste-svar"><button type="button" class="neste-nei" data-fast-ferdig="1">' + (sagt.hjem || sagt.jobb ? 'ferdig' : 'ikke nå') + '</button></div></div>';
+  el.style.display = '';
+  if (el.innerHTML === html) return true;
+  el.innerHTML = html;
+  const ferdig = () => { try { storage.set(FASTE_AVVIST_KEY, '1'); } catch { /* */ } _fasteÅpen = null; el.innerHTML = ''; _renderProfilQ(Date.now()); };
+  const lagre = (rolle, s) => {
+    const sted = { navn: s.name || s.label || s.navn, stopId: s.id ? String(s.id).split('|')[0] : null, lat: s.lat, lon: s.lon };
+    const ferdigLagret = nær2 => { settSted(rolle, sted, nær2); _fasteÅpen = null; _renderWhere(); _renderProfilQ(Date.now()); };
+    if (Number.isFinite(sted.lat)) fetchNearbyStops(sted.lat, sted.lon).then(l => ferdigLagret(l || []), () => ferdigLagret([]));
+    else ferdigLagret([]);
+  };
+  el.querySelectorAll('[data-fast-apne]').forEach(b => b.addEventListener('click', () => { _fasteÅpen = b.dataset.fastApne; el.innerHTML = ''; _renderProfilQ(Date.now()); }));
+  el.querySelectorAll('[data-fast]').forEach(b => b.addEventListener('click', () => { const [rolle, i] = b.dataset.fast.split('|'); const s = nær[Number(i)]; if (s) lagre(rolle, s); }));
+  el.querySelectorAll('[data-fast-sok]').forEach(inp => bindPlaceInput(inp, inp.nextElementSibling, q => geocodePlace(q), r => lagre(inp.dataset.fastSok, r)));
+  const f = el.querySelector('[data-fast-ferdig]'); if (f) f.addEventListener('click', ferdig);
+  return true;
+}
 function _renderProfilQ(nå) {
   const el = _el('auto-profil');
   if (!el) return;
   // Ett spørsmål, og bare når du står stille: i fart og om bord er det
   // andre spørsmål som gjelder.
   if (_følgerReise() && _lås || iFart(fartNå(nå)) || _følgerReise() && (_ombordDom(nå).kind || '').startsWith('ombord')) { el.style.display = 'none'; return; }
+  // DINE FASTE STOPP (v1.218.251): tilbys én gang, etter første tavle, før
+  // andre spørsmål. Samme plass som intervjuet — ett sted for spørsmål.
+  if (_tegnFasteStopp(el)) return;
   const { p, m } = _profilNå();
   // VED UJEVNE MELLOMROM (v1.218.100, src/intervju.js): profilen først, så
   // reisene i innstillinger du ikke har svart på.
@@ -2529,7 +2569,8 @@ function _renderHer() {
   const flyttet = manuell && _herAnker && state.homeLL && _avst(_herAnker, state.homeLL) > MANUELL_FLYTT_M;
   // «ca.» bare fra hysteresen (v1.218.221): den rå 100 m-terskelen blafret.
   const ca = !manuell && _usikkerRo.usikker;
-  const html = (_herKartVelg ? '<div class="her-linje her-spørsmål"><span class="her-tekst">Trykk i kartet der du er</span><button type="button" class="her-knapp her-stille" data-her="lukk">avbryt</button></div>' : herLinjeHtml({ kind, navn, acc: ps && ps.acc, flyttet, ca }));
+  // FØRSTE ÅPNING (v1.218.251): forklaringen før nettleserens spørsmål.
+  const html = state.posVenter ? posForklaringHtml() : (_herKartVelg ? '<div class="her-linje her-spørsmål"><span class="her-tekst">Trykk i kartet der du er</span><button type="button" class="her-knapp her-stille" data-her="lukk">avbryt</button></div>' : herLinjeHtml({ kind, navn, acc: ps && ps.acc, flyttet, ca }));
   // KNAPPENE SVARER (v1.218.218). Rapportert: «knappene responderer ofte
   // ikke». innerHTML ble byttet hver gang _herSist ble nullet — også med lik
   // html — og en knapp byttet mellom finger ned og opp gir aldri et klikk.
@@ -2544,7 +2585,7 @@ function _renderHer() {
   // SKJULT NÅR SIKKER NOK (v1.218.221). Bestilt: «Når du er sikker nok på
   // posisjon så kan du skjule denne linjen.» Prikken sier det samme; rett
   // stedet med et trykk på prikken (userDot påTrykk).
-  const vis = herVises({ manuell, kind, usikker: ca, kartVelg: _herKartVelg });
+  const vis = !!state.posVenter || herVises({ manuell, kind, usikker: ca, kartVelg: _herKartVelg });
   el.hidden = !vis;
   if (!vis) { _herSist = null; _herVist = null; if (el.firstChild) el.innerHTML = ''; _herNode = null; return; }
   _herSist = html;
@@ -2563,6 +2604,7 @@ function _renderHer() {
 function _bindHer(el) {
   el.querySelectorAll('[data-her]').forEach(b => b.addEventListener('click', () => {
     const v = b.dataset.her;
+    if (v === 'pos') { if (window.__startPos) window.__startPos(); _herSist = null; _renderHer(); return; }
     if (v === 'ja') { _herJa = state.homeLL ? { lat: state.homeLL.lat, lon: state.homeLL.lon } : null; _lagreHerJa(_herJa); _herSist = null; _renderHer(); }
     else if (v === 'gps') { clearWalkFrom(); _herAnker = null; _herÅpen = false; _herSist = null; if (state.homeLL) _hentStoppVed(state.homeLL); _renderHer(); }
     else if (v === 'kart') { _herKartVelg = true; _herÅpen = false; _herSist = null; _renderHer(); }
@@ -2597,6 +2639,8 @@ function _åpneStedListe(el) {
 /** Stedet du har valgt: walkFromLL (som «gå fra»), og stoppene hentes der. */
 function _settSted(label, ll) {
   if (!ll || !Number.isFinite(ll.lat)) return;
+  // Stedet er valgt: forklaringen har fått sitt svar (v1.218.251).
+  if (state.posVenter) { state.posVenter = false; try { storage.set('t.posForklart', '1'); } catch { /* */ } }
   state.walkFromLL = { lat: ll.lat, lon: ll.lon };
   saveWalkFrom({ label, lat: ll.lat, lon: ll.lon });
   _herAnker = state.homeLL ? { lat: state.homeLL.lat, lon: state.homeLL.lon } : null;
@@ -2612,6 +2656,11 @@ function _renderWhere() {
   _renderHer();
   const el = _el('auto-where');
   if (!el) return;
+  // Mens forklaringen venter på svar (v1.218.251): ikke «finner ikke
+  // posisjonen din ennå» — appen har ikke begynt å lete.
+  const man = _el('auto-manual');
+  if (man && man.parentElement) man.parentElement.hidden = !!state.posVenter;
+  if (state.posVenter) { el._sistHtml = null; el.innerHTML = ''; return; }
   _renderNeste(Date.now());
   _renderProfilQ(Date.now());
   const list = _stops();
@@ -5988,6 +6037,8 @@ if (typeof window !== 'undefined') { window._settAutoTavle = settAutoTavle; wind
 
 function _renderBody() {
   _kortRute = null;
+  // Forklaringen venter på svar (v1.218.251): lista har ingenting å si ennå.
+  if (state.posVenter) { const b = _el('auto-body'); if (b) b.innerHTML = ''; return; }
   // ↑ Nullstilt hvert tikk; settes igjen bare når lista faktisk har et kort.
   // Ellers ville et kort fra et stopp du har gått fra blitt stående på kartet.
   // Et passert tidspunkt slipper av seg selv (v1.218.130).

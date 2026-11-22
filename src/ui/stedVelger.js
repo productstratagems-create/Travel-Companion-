@@ -62,3 +62,11 @@ export function stedPanelHtml(nære, manuell) {
 
 /** Har du flyttet deg langt fra der du valgte stedet? Da spør vi om GPS igjen. */
 export const MANUELL_FLYTT_M = 300;
+
+/** Første åpning (v1.218.251): hvorfor appen vil vite hvor du er — før nettleseren spør. Ren. */
+export function posForklaringHtml() {
+  return '<div class="her-linje her-forklar"><span class="her-tekst">Appen viser avgangene der du står — nærmeste stopp, og når du må gå.</span>'
+    + '<span class="her-valg"><button type="button" class="her-knapp" data-her="pos">📍 Bruk posisjonen min</button>'
+    + '<button type="button" class="her-knapp her-stille" data-her="velg">velg sted i stedet</button></span>'
+    + '<small class="her-merk">Posisjonen blir på telefonen.</small></div>';
+}

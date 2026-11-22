@@ -22,6 +22,8 @@ import { renderLeisure } from './views/leisure.js';
 import { renderExplore } from './views/explore.js';
 import { renderAuto, resetAuto, armAutoJump, hasStop } from './views/auto.js';
 import { initDebugToggle, logMsg } from './ui/log.js';
+import { trengerPosForklaring } from './fasteStopp.js';
+const POS_FORKLART_KEY = 't.posForklart';
 import { landingChoice, exampleDir, isExample, upgradeToNearest, exampleFallback, AUTO_FALLBACK_MS } from './firstRun.js';
 import { locateUser, updateWalkDbg, loadWeekendMode, loadAutoMode, autoModePref, saveAutoMode, posState, posNå } from './geo.js';
 import { startRenderLoop } from './scheduler.js';
@@ -233,7 +235,7 @@ if (landing === 'journey') {
   setTimeout(() => {
     if (!exampleFallback({
       hasStop: hasStop(),
-      posKind: posState(posNå()).kind,
+      posKind: posState(posNå()).kind, venter: !!state.posVenter,
       storedRoute: !!stored, savedDest, hasJourney: !!restored,
     })) return;
     // Only if they are still standing here. Tapping through to anything else
@@ -270,7 +272,11 @@ initHistory();
 // The example board opens instantly; this upgrades it to the reader's own
 // nearest stop once a fix arrives. Only while it is still the example — the
 // moment they choose something themselves, that choice stands.
-locateUser(() => {
+/* POSISJONEN FORKLARES FØRST (v1.218.251, onboarding steg 1). Første gang —
+   nettleseren har ikke spurt («prompt») — sier Auto-tavle hvorfor før
+   nettleserens spørsmål kommer: «Appen viser avgangene der du står ·
+   [Bruk posisjonen min] · velg sted i stedet». Uten Permissions-API: som før. */
+const _startPos = () => locateUser(() => {
   // Auto-reise is a position-first screen, and a position that arrives after
   // the screen did is the ordinary case, not an edge one: GPS takes a second
   // or two and the app opens immediately. Without this the mode landed on
@@ -292,3 +298,12 @@ locateUser(() => {
   // posisjonen din ennå" forever, which reads as still-looking.
   if (loadAutoMode()) renderAuto();
 });
+window.__startPos = () => { try { storage.set(POS_FORKLART_KEY, '1'); } catch { /* */ } state.posVenter = false; _startPos(); };
+(navigator.permissions && navigator.permissions.query
+  ? navigator.permissions.query({ name: 'geolocation' }).then(r => r.state, () => undefined)
+  : Promise.resolve(undefined))
+  .then(t => {
+    let forklart = false; try { forklart = storage.get(POS_FORKLART_KEY) === '1'; } catch { /* */ }
+    if (trengerPosForklaring(t, forklart) && loadAutoMode()) { state.posVenter = true; renderAuto(); }
+    else _startPos();
+  });

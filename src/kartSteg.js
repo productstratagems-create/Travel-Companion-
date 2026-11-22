@@ -59,3 +59,18 @@ export function fartMedRo(forrige, ms, nå) {
   if (forrige.kandidat === ny && nå - forrige.siden >= FART_RO_MS) return { zoom: ny, kandidat: null, siden: null };
   return { zoom: forrige.zoom, kandidat: ny, siden: forrige.kandidat === ny ? forrige.siden : nå };
 }
+
+/** Så nær påstigningen regnes du som ved stoppet. */
+export const VED_STOPPET_M = 120;
+/**
+ * HVILKEN FASE UNDERVEIS ER I (v1.218.271). Rapportert: «Kartet i Underveis
+ * viser ingenting utover kartet og brukers pos» — 24 min før avgang, hjemme.
+ * Underveis spurte alltid som om du satt om bord, og «om bord» følger deg på
+ * gangzoom: ingen holdeplass, ingen rute. Før avgang er steget «gå» (deg,
+ * påstigningen og gangen) eller «vent» ved stoppet. Ren.
+ * @param avstandM  meter fra deg til påstigningen, eller null
+ */
+export function underveisFase(nå, avgangMs, avstandM) {
+  if (Number.isFinite(avgangMs) && nå < avgangMs) return { fase: 'før', vedStoppet: Number.isFinite(avstandM) && avstandM <= VED_STOPPET_M };
+  return { fase: 'riding', vedStoppet: false };
+}

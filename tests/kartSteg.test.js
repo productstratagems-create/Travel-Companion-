@@ -36,13 +36,41 @@ describe('zoom etter fart', () => {
 import { readFileSync } from 'node:fs';
 describe('koblingen (v1.218.228)', () => {
   const t = readFileSync('src/views/track.js', 'utf8');
-  it('Underveis: steg er standard, rammes bare når steget skifter, og ikke etter din justering', () => {
+  it('Underveis: steg er standard, rammes når steget skifter (eller kartet endrer størrelse, v1.218.271), og ikke etter din justering', () => {
     expect(t).toMatch(/_tKartFokus = 'steg';/);
     expect(t).toMatch(/if \(!_tMap \|\| _tKartFokus !== 'steg' \|\| _tUserMoved \|\| !leg\) return;/);
-    expect(t).toMatch(/if \(steg !== _tSteg\) \{/);
+    expect(t).toMatch(/if \(steg !== _tSteg \|\| \(størrelse !== _tStegStr/);
     expect(t).toMatch(/_tFart = fartMedRo\(_tFart, fartNå\(now\), now\);/);
   });
   it('avgangsdetaljene bruker samme tak for gå-steget', () => {
     expect(readFileSync('src/views/selected.js', 'utf8')).toMatch(/ramme\(_selMap, fokus, STEG_TAK\['gå'\], \{ pad \}\);/);
+  });
+});
+
+import { underveisFase, VED_STOPPET_M } from '../src/kartSteg.js';
+import { readFileSync as _rf } from 'node:fs';
+describe('Underveis før avgang viser veien til stoppet (v1.218.271)', () => {
+  const dep = Date.parse('2026-11-23T22:01:00+01:00'), nå = dep - 24 * 60000;
+  it('før-bildet: 24 min før avgang hjemme ble regnet som «om bord»; nå «gå»', () => {
+    const f = underveisFase(nå, dep, 450);
+    expect(f).toEqual({ fase: 'før', vedStoppet: false });
+    expect(stegNøkkel(f.fase, { stopp: 9 }, f.vedStoppet)).toBe('gå');
+    expect(stegRamme('gå', { du: { lat: 59.85, lon: 10.83 }, stopp: { lat: 59.853, lon: 10.835 } }).pts.length).toBe(2);
+  });
+  it('ved stoppet: «vent»; etter avgang: om bord', () => {
+    expect(stegNøkkel('før', {}, underveisFase(nå, dep, VED_STOPPET_M - 1).vedStoppet)).toBe('vent');
+    expect(underveisFase(dep + 1000, dep, 5).fase).toBe('riding');
+    expect(underveisFase(nå, NaN, 5).fase).toBe('riding');
+  });
+  it('Underveis spør fasen, ikke alltid «riding»', () => {
+    const t = _rf('src/views/track.js', 'utf8');
+    expect(t).not.toMatch(/stegNøkkel\('riding'/);
+    expect(t).toMatch(/const f = underveisFase\(now, dep,/);
+  });
+});
+describe('rammen settes på nytt når kartet endrer størrelse (v1.218.271)', () => {
+  it('ikke bare når steget skifter', () => {
+    const t = _rf('src/views/track.js', 'utf8');
+    expect(t).toMatch(/if \(steg !== _tSteg \|\| \(størrelse !== _tStegStr && steg !== 'ombord'\)\) \{/);
   });
 });

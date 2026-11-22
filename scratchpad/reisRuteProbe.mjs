@@ -26,7 +26,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist'); const PORT = 4503;
 const NOW = Date.parse('2026-09-08T07:41:00+02:00');
 const iso = ms => new Date(ms).toISOString();
-const HERE = { lat: 60.3894, lon: 5.3327 };   // Bergen stasjon
+const HERE = { lat: 60.3894, lon: 5.3327 };
+const BRUKER = process.env.BORTE ? { lat: 60.3894 + 700 / 111320, lon: 5.3327 } : HERE;   // Bergen stasjon
 const AWAY = { lat: HERE.lat - 637 / 111320, lon: HERE.lon };   // 637 m south, as on the screen
 
 const stop = (name, m) => ({
@@ -103,7 +104,7 @@ async function run(scheme) {
   const ctx = await browser.newContext({
     viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: scheme,
     hasTouch: true, isMobile: true, timezoneId: 'Europe/Oslo', locale: 'nb-NO',
-    geolocation: { latitude: HERE.lat, longitude: HERE.lon }, permissions: ['geolocation'],
+    geolocation: { latitude: BRUKER.lat, longitude: BRUKER.lon }, permissions: ['geolocation'],
   });
   const page = await ctx.newPage();
   await page.addInitScript(({ now, here, scheme }) => {
@@ -115,8 +116,8 @@ async function run(scheme) {
     localStorage.setItem('default::t.autoMode', '1');
     localStorage.setItem('default::t.posForklart', '1');
     localStorage.setItem('default::t.homeLL', JSON.stringify(here));
-    localStorage.setItem('default::t.theme', scheme);
-  }, { now: NOW, here: HERE, scheme });
+    localStorage.setItem('default::t.theme', scheme); window.__probe = 1;
+  }, { now: NOW, here: BRUKER, scheme });
   await page.route('**/geocoder/**', r => {
     const u = r.request().url();
     const f = /text=Vos/i.test(u) ? [ADR, ...VOSS] : NEARBY;
@@ -135,12 +136,14 @@ async function run(scheme) {
   await page.waitForTimeout(13000);
   const rute = () => page.evaluate(() => JSON.parse(localStorage.getItem('default::t.route') || 'null'));
   console.log(scheme, 'Rute før:', JSON.stringify(await rute()));
-  await page.locator('.at-rad').first().click(); await page.waitForTimeout(1200);
+  await page.locator('.at-rad').nth(Number(process.env.RAD || 0)).click(); await page.waitForTimeout(1200);
   if (process.env.VELG) { await page.locator('[data-sv-apne]').first().click(); await page.waitForTimeout(500);
     const valg = page.locator('[data-sv]'); console.log(scheme, 'avstigningsvalg:', await valg.count());
     await valg.nth(0).click(); await page.waitForTimeout(500); }
   await page.screenshot({ path: `scratchpad/shots/reis-detalj-${scheme}.png`, animations: 'disabled' });
   await page.locator('button', { hasText: 'reis →' }).first().click(); await page.waitForTimeout(1200);
+  await page.waitForTimeout(2500); await page.screenshot({ path: `scratchpad/shots/underveis-${process.env.NAVN || 'x'}.png`, animations: 'disabled' });
+  console.log(scheme, 'kart:', await page.evaluate(() => { const m = window.__tMap; if (!m) return null; const c = m.getCenter(); return JSON.stringify({ z: m.getZoom(), c: [c.lat.toFixed(5), c.lng.toFixed(5)], lag: Object.values(m._layers).filter(l => l.getLatLng).map(l => { const p = m.latLngToContainerPoint(l.getLatLng()); return Math.round(p.x) + ',' + Math.round(p.y); }).join(' '), sz: m.getSize(), home: JSON.parse(localStorage.getItem('default::t.homeLL') || 'null') }); }));
   const r = await rute();
   console.log(scheme, 'Rute etter:', r && r.from, '→', r && r.to, r && r.key);
   await page.locator('#app-nav >> text=Rute').click().catch(() => {}); await page.waitForTimeout(1200);

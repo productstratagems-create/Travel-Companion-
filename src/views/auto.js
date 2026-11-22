@@ -3628,6 +3628,11 @@ export function altModus(alt, liste) {
   const m = (alt && alt.modus) || (s && ((s.modes && s.modes[0]) || s.mode));
   return normMode(m) || 'bus';
 }
+/* TRASEEN KOM, KARTET TEGNES (v1.218.247). Rapportert med skjermbilde:
+   «Bussruten følger ikke veien.» Svaret fra turForm kalte _renderBody — lista,
+   ikke kartet — og kartnøkkelen kjente ikke formen, så streken sto rett til
+   noe annet endret kartet. Nå tegnes kartet på nytt når en trasé kommer. */
+function _formKom() { _aKey = ''; _renderMap(); _renderBody(); }
 export function avgangerFra(rader, stoppId) {
   return (rader || []).map(x => {
     const kode = x.d && x.d.lines && x.d.lines[0] && x.d.lines[0].code;
@@ -4270,7 +4275,7 @@ function _renderMap() {
   bein.forEach(b => (b.rester || []).forEach(r => {
     const g = L.layerGroup().addTo(_aLayer);
     drawStopLine(g, r, { color: b.farge, mode: normMode(b.modus), dots: false,
-      shape: turForm(b.jid, r[0], r[r.length - 1], _renderBody) });
+      shape: turForm(b.jid, r[0], r[r.length - 1], _formKom) });
     if (!ruterModus) g.eachLayer(l => l.setStyle && l.setStyle({ opacity: EDDERKOPP_REST_OPASITET }));
   }));
   // PLASSERINGEN FØRST, FOR ALLE (v1.218.115): én lapp per linje, spredt.
@@ -4297,7 +4302,7 @@ function _renderMap() {
     const _pl = _plattformer(_stop.id);
     const start = beinStart(b, Array.isArray(_pl) ? _pl : [], _stop);
     // Veien bussen kjører (v1.218.98), fra sporet ditt; rette streker uten form.
-    const vei = turForm(b.jid, start, b.stopp[b.stopp.length - 1], _renderBody);
+    const vei = turForm(b.jid, start, b.stopp[b.stopp.length - 1], _formKom);
     drawStopLine(g, [start, ...b.stopp], { color: b.farge, mode: normMode(b.modus), dots: false,
       shape: vei ? [[start.lat, start.lon], ...vei] : null });
     // ÉN LAPP, DEN VALGTE (v1.218.222). Rapportert: «krevende å forstå hva

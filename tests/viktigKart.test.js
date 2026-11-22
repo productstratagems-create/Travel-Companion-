@@ -61,7 +61,9 @@ describe('utseende', () => {
   it('Tavla: per transportmiddel velges de viktigste innen gangavstand, ikke bare de nærmeste', () => {
     const s = readFileSync('src/views/board.js', 'utf8');
     // v1.218.240: hele klyngen (samletInfo), ikke bare første medlem.
-    expect(s).toContain("nærViktigFørst(c => samletInfo([...new Set(c.map(x => String(x.id).split('|')[0]))]), c => c[0].dist)");
+    // v1.218.242: samme rangering som Auto — klyngen samlet, ruta som retning.
+    expect(s).toContain("const _vk = retningsViktig(c => samletInfo(_kId(c)), _kTelling, _kNøkkel);");
+    expect(s).toContain("nærViktigFørst(c => _vk(c), c => c[0].dist)");
   });
 });
 

@@ -34,3 +34,19 @@ describe('nabostoppene etter tilbud', () => {
     expect(knutepunkt(stopp, [nær, travel], 250, 1, () => undefined)[1].id).toBe('N1');   // uten info: avstand som før
   });
 });
+import { ruteTelling } from '../src/views/board.js';
+describe('Rute: ruta er retningen (v1.218.242)', () => {
+  const iso = m => new Date(T + m * 60000).toISOString();
+  const reise = (fra, m, rekk) => ({ _legs: [{ mode: 'bus', expectedStartTime: iso(m), fromPlace: { quay: { stopPlace: { id: fra } } } }], _rekkLengerNed: rekk || null });
+  it('rutas avganger per påstigning neste time; «rekk den» teller der den rekkes', () => {
+    const m = ruteTelling([reise('A', 5), reise('A', 20), reise('B', 10), reise('A', 90), reise('A', 3, { stopp: { id: 'C' }, ms: T + 4 * 60000 })], 'A', T);
+    expect(m.get('A')).toBe(2); expect(m.get('B')).toBe(1); expect(m.get('C')).toBe(1);
+    expect(ruteTelling([], 'A', T)).toBe(null);
+  });
+  it('før-bildet: stoppet med flest linjer (ingen på ruta) vant; nå stoppet ruta går fra', () => {
+    const info = { A: I(40, 10), B: I(4, 2) };
+    const stopp = [{ id: 'A', distM: 150 }, { id: 'B', distM: 300 }];
+    const rt = new Map([['B', 3]]);
+    expect([...stopp].sort(nærViktigFørst(retningsViktig(s => info[s.id], rt)))[0].id).toBe('B');
+  });
+});

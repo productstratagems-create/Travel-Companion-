@@ -39,7 +39,7 @@ import { fraMerke } from '../ui/tavleRad.js';
 import { roPunkt } from '../roPunkt.js';
 import { velgSpørsmål, besvartIDag, merkBesvart } from '../sporsmal.js';
 import { bestillingFor } from '../api/bestilling.js';
-import { fastFørst, tilbyFasteStopp, fasteKandidater, fasteForslagFor, fasteRo } from '../fasteStopp.js';
+import { fastFørst, tilbyFasteStopp, fasteKandidater, fasteForslagFor, gyldigFastStopp, fastSvar, fasteRo } from '../fasteStopp.js';
 import { målområder } from '../maalomrader.js';
 import { festLappRydding } from '../ui/lappPlass.js';
 import { omrProbe } from '../api/omrProbe.js';
@@ -99,7 +99,7 @@ import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, platt
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
 import { fraTider, settFraTid, fraDatoer, settFraDatoTid, KLOKKESLETT_VALG } from '../fraTider.js';
-import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest, annetHjemStopp, hjemGange , hjemoverForslag, lagreHjemoverFra } from '../hjemover.js';
+import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest, annetHjemStopp, hjemGange , hjemoverForslag, søkHjemStopp, lagreHjemoverFra } from '../hjemover.js';
 import { navTo } from '../ui/nav.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
@@ -2333,7 +2333,7 @@ export function profilSpørsmålHtml(q) {
     + '</div>';
 }
 const FASTE_AVVIST_KEY = 't.fasteStoppAvvist';
-let _fasteÅpen = null, _fasteVist = false, _fasteListe = null;   // rollen som velges nå: 'hjem' | 'jobb' | null
+let _fasteÅpen = null, _fasteVist = false, _fasteListe = null, _fasteFeil = null;   // rollen som velges nå: 'hjem' | 'jobb' | null
 function _tegnFasteStopp(el) {
   let avvist = false; try { avvist = storage.get(FASTE_AVVIST_KEY) === '1'; } catch { /* */ }
   // Kortet blir stående når det er vist (v1.218.252), også mens tavla henter
@@ -2349,16 +2349,20 @@ function _tegnFasteStopp(el) {
   const pos = userLL();
   _fasteListe = fasteRo(_fasteListe, fasteKandidater(alle, _stop, s => stoppInfo(s.id)), pos, kjent, (a, b) => metresBetween(a, b));
   const nær = _fasteListe.liste;
-  const valg = rolle => '<div class="faste-rad"><span class="faste-sp">' + (rolle === 'hjem' ? 'Om morgenen reiser jeg fra' : 'På vei hjem reiser jeg fra') + '</span>'
-    + (sagt[rolle] ? '<b>' + esc(sagt[rolle].navn) + '</b>'
-      : (_fasteÅpen === rolle
+  // Bekreft og angre (v1.218.267): valgt stopp vises med hva det gjør, og «endre».
+  const følge = { hjem: 'vises først om morgenen · Hjemover', jobb: 'vises først på vei hjem' };
+  const valg = rolle => { const svar = fastSvar(sagt, rolle); const åpen = _fasteÅpen === rolle;
+    return '<div class="faste-rad"><span class="faste-sp">' + (rolle === 'hjem' ? 'Om morgenen reiser jeg fra' : 'På vei hjem reiser jeg fra') + '</span>'
+    + (svar && !åpen ? '<b>' + esc(svar.navn) + '</b> <span class="faste-følge">' + følge[rolle] + '</span> <button type="button" class="neste-nei faste-endre" data-fast-apne="' + rolle + '">endre</button>'
+      : (åpen
         ? '<span class="faste-valg">' + fasteForslagFor(rolle, sagt, nær).map((s, i) => '<button type="button" class="neste-ja faste-knapp" data-fast="' + rolle + '|' + i + '">' + esc(s.name) + '</button>').join('')
-          + '<input class="faste-sok" data-fast-sok="' + rolle + '" type="search" autocomplete="off" placeholder="annet stopp …"><div class="sugg-list faste-sugg" hidden></div></span>'
-        : '<button type="button" class="neste-ja faste-knapp" data-fast-apne="' + rolle + '">velg</button>')) + '</div>';
+          + '<input class="faste-sok" data-fast-sok="' + rolle + '" type="search" autocomplete="off" placeholder="annet stopp …"><div class="sugg-list faste-sugg" hidden></div>'
+          + (_fasteFeil && _fasteFeil.rolle === rolle ? '<div class="faste-feil" role="alert">' + esc(_fasteFeil.grunn) + '</div>' : '') + '</span>'
+        : '<button type="button" class="neste-ja faste-knapp" data-fast-apne="' + rolle + '">velg</button>')) + '</div>'; };
   const html = '<div class="profil-q faste-stopp"><div class="set-label">dine faste stopp</div>'
     + '<div class="faste-tekst">Oppgi stoppene du pleier å reise fra, så viser appen dem først på hverdager.</div>'
     + valg('hjem') + valg('jobb')
-    + '<div class="neste-svar"><button type="button" class="neste-nei" data-fast-ferdig="1">' + (sagt.hjem || sagt.jobb ? 'ferdig' : 'ikke nå') + '</button></div></div>';
+    + '<div class="neste-svar"><button type="button" class="neste-nei" data-fast-ferdig="1">' + (fastSvar(sagt, 'hjem') || fastSvar(sagt, 'jobb') ? 'ferdig' : 'ikke nå') + '</button></div></div>';
   el.style.display = '';
   // FOKUS I SØKEFELTET (v1.218.260). Rapportert: «inputfeltet for annet stopp
   // holder seg ikke i fokus». Kortet ble byttet hvert sekund: el.innerHTML er
@@ -2370,14 +2374,19 @@ function _tegnFasteStopp(el) {
   el.innerHTML = html;
   const ferdig = () => { try { storage.set(FASTE_AVVIST_KEY, '1'); } catch { /* */ } _fasteÅpen = null; _spørsmålBesvart(); el.innerHTML = ''; _renderProfilQ(Date.now()); };
   const lagre = (rolle, s) => {
-    const sted = { navn: s.name || s.label || s.navn, stopId: s.id ? String(s.id).split('|')[0] : null, lat: s.lat, lon: s.lon };
+    // Bare et stoppested fra lista, og ikke den andre rollens stopp (v1.218.267).
+    const g = gyldigFastStopp(s, lesSagt(), rolle);
+    if (!g.ok) { _fasteFeil = { rolle, grunn: g.grunn }; el._sistKort = null; if (document.activeElement && el.contains(document.activeElement)) document.activeElement.blur(); _renderProfilQ(Date.now()); return; }
+    _fasteFeil = null;
+    const sted = { navn: s.name || s.label || s.navn, stopId: g.id, lat: s.lat, lon: s.lon };
     const ferdigLagret = nær2 => { settSted(rolle, sted, nær2); _fasteÅpen = null; const ss = lesSagt(); if (ss.hjem && ss.jobb) _spørsmålBesvart(); _renderWhere(); _renderProfilQ(Date.now()); };
     if (Number.isFinite(sted.lat)) fetchNearbyStops(sted.lat, sted.lon).then(l => ferdigLagret(l || []), () => ferdigLagret([]));
     else ferdigLagret([]);
   };
-  el.querySelectorAll('[data-fast-apne]').forEach(b => b.addEventListener('click', () => { _fasteÅpen = b.dataset.fastApne; el.innerHTML = ''; _renderProfilQ(Date.now()); }));
+  el.querySelectorAll('[data-fast-apne]').forEach(b => b.addEventListener('click', () => { _fasteÅpen = b.dataset.fastApne; _fasteFeil = null; el.innerHTML = ''; _renderProfilQ(Date.now()); }));
   el.querySelectorAll('[data-fast]').forEach(b => b.addEventListener('click', () => { const [rolle, i] = b.dataset.fast.split('|'); const s = fasteForslagFor(rolle, sagt, nær)[Number(i)]; if (s) lagre(rolle, s); }));
-  el.querySelectorAll('[data-fast-sok]').forEach(inp => bindPlaceInput(inp, inp.nextElementSibling, q => geocodePlace(q), r => lagre(inp.dataset.fastSok, r)));
+  // Stoppsøket, ikke adressesøket (v1.218.267): bare NSR-stoppesteder kan velges.
+  el.querySelectorAll('[data-fast-sok]').forEach(inp => bindPlaceInput(inp, inp.nextElementSibling, q => søkHjemStopp(q).then(l => l.map(x => ({ ...x, label: x.name + (x.sted ? ', ' + x.sted : '') }))), r => lagre(inp.dataset.fastSok, r)));
   const f = el.querySelector('[data-fast-ferdig]'); if (f) f.addEventListener('click', ferdig);
   return true;
 }

@@ -10,6 +10,7 @@
 // selv har valgt.
 import { stopKey } from './stopId.js';
 import { esc } from './ui/fmt.js';
+import { fastSvar } from './fasteStopp.js';
 
 /** Plassholderen for «ingen rute ennå». Lagres aldri. */
 export const NÆRMESTE_KEY = 'nærmeste';
@@ -120,8 +121,8 @@ function _avst(a, b) {
  * @returns {object|null}
  */
 export function profilRute(sagt, her, nå) {
-  const h = sagt && sagt.hjem, j = sagt && sagt.jobb;
-  if (!h || !j || !h.navn || !j.navn || stopKey(h.navn) === stopKey(j.navn)) return null;
+  const h = fastSvar(sagt, 'hjem'), j = fastSvar(sagt, 'jobb');
+  if (!h || !j || stopKey(h.navn) === stopKey(j.navn)) return null;
   const dh = _avst(her, h), dj = _avst(her, j);
   const hjemover = (dh === Infinity && dj === Infinity)
     ? new Date(nå || Date.now()).getHours() >= PROFIL_KL_SKILLE

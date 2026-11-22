@@ -27,7 +27,7 @@ describe('dine faste stopp styrer «nærmeste stopp»', () => {
     expect(tilbyFasteStopp({ sagt: null, avvist: false, tavleVist: false })).toBe(false);
     expect(tilbyFasteStopp({ sagt: null, avvist: true, tavleVist: true })).toBe(false);
     expect(tilbyFasteStopp({ sagt: { jobb: { navn: 'X' } }, avvist: false, tavleVist: true })).toBe(true);   // ett igjen
-    expect(tilbyFasteStopp({ sagt: { hjem: { navn: 'Y' }, jobb: { navn: 'X' } }, avvist: false, tavleVist: true })).toBe(false);
+    expect(tilbyFasteStopp({ sagt: { hjem: { navn: 'Y', stopId: 'NSR:StopPlace:1' }, jobb: { navn: 'X', stopId: 'NSR:StopPlace:2' } }, avvist: false, tavleVist: true })).toBe(false);
   });
 });
 describe('posisjonen forklares før nettleseren spør', () => {
@@ -99,8 +99,8 @@ import { fasteForslagFor } from '../src/fasteStopp.js';
 describe('stoppene nær deg gjelder bare én rolle (v1.218.265)', () => {
   const nær = [{ id: 'NSR:StopPlace:10', name: 'Voss skysstasjon' }, { id: 'NSR:StopPlace:11', name: 'Voss stasjon' }];
   it('før-bildet: «På vei hjem» fikk nærlista etter at morgenstoppet var valgt; nå bare søk', () => {
-    expect(fasteForslagFor('jobb', { hjem: { navn: 'Voss skysstasjon' } }, nær)).toEqual([]);
-    expect(fasteForslagFor('hjem', { jobb: { navn: 'Tromsø sentrum' } }, nær)).toEqual([]);
+    expect(fasteForslagFor('jobb', { hjem: { navn: 'Voss skysstasjon', stopId: 'NSR:StopPlace:10' } }, nær)).toEqual([]);
+    expect(fasteForslagFor('hjem', { jobb: { navn: 'Tromsø sentrum', stopId: 'NSR:StopPlace:40' } }, nær)).toEqual([]);
   });
   it('ingen besvart: nærlista til begge, den man velger først', () => {
     expect(fasteForslagFor('hjem', {}, nær)).toBe(nær);
@@ -109,5 +109,36 @@ describe('stoppene nær deg gjelder bare én rolle (v1.218.265)', () => {
   it('kortet bruker regelen både for knappene og for valget', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');
     expect((a.match(/fasteForslagFor\(rolle, sagt, nær\)/g) || []).length).toBe(2);
+  });
+});
+
+import { gyldigFastStopp, fastSvar, stoppIdAv, tilbyFasteStopp as _tilby } from '../src/fasteStopp.js';
+describe('onboarding tar bare imot svar appen kan bruke (v1.218.267)', () => {
+  const VOSS = { navn: 'Voss skysstasjon', stopId: 'NSR:StopPlace:10', nær: [{ navn: 'Voss stasjon', stopId: 'NSR:StopPlace:11|rail' }] };
+  it('før-bildet: en adresse uten stopp-id ble lagret som hjem; nå avvist', () => {
+    const adr = { label: 'Storgata 1, Bodø', lat: 67.28, lon: 14.4 };
+    expect(gyldigFastStopp(adr, {}, 'hjem').ok).toBe(false);
+    expect(gyldigFastStopp({ id: 'NSR:StopPlace:20|bus', name: 'Tromsø Prostneset' }, {}, 'hjem')).toEqual({ ok: true, id: 'NSR:StopPlace:20' });
+  });
+  it('før-bildet: «på vei hjem» = morgenstoppet ble godtatt; nå avvist med grunn', () => {
+    const g = gyldigFastStopp({ id: 'NSR:StopPlace:10' }, { hjem: VOSS }, 'jobb');
+    expect(g.ok).toBe(false);
+    expect(g.grunn).toMatch(/om morgenen/);
+    expect(gyldigFastStopp({ id: 'NSR:StopPlace:11' }, { hjem: VOSS }, 'jobb').ok).toBe(false);
+    expect(gyldigFastStopp({ id: 'NSR:StopPlace:30' }, { hjem: VOSS }, 'jobb').ok).toBe(true);
+  });
+  it('før-bildet: gamle adressesvar regnes som ubesvart, så kortet spør igjen', () => {
+    const gammel = { hjem: { navn: 'Storgata 1', stopId: null }, jobb: { navn: 'Bodø lufthavn', stopId: 'NSR:StopPlace:2' } };
+    expect(fastSvar(gammel, 'hjem')).toBeNull();
+    expect(_tilby({ sagt: gammel, avvist: false, tavleVist: true })).toBe(true);
+  });
+  it('stoppIdAv godtar bare NSR-stoppesteder', () => {
+    expect(stoppIdAv({ id: 'NSR:Quay:5' })).toBeNull();
+    expect(stoppIdAv({ stopId: 'NSR:StopPlace:7|metro' })).toBe('NSR:StopPlace:7');
+  });
+  it('kortet søker bare stopp og validerer før lagring', () => {
+    const a = readFileSync('src/views/auto.js', 'utf8');
+    expect(a).toMatch(/data-fast-sok\]'\)\.forEach\(inp => bindPlaceInput\(inp, inp\.nextElementSibling, q => søkHjemStopp\(q\)/);
+    expect(a).toMatch(/const g = gyldigFastStopp\(s, lesSagt\(\), rolle\);/);
   });
 });

@@ -14,6 +14,7 @@ import { focusParam } from './geo.js';
 import { TRANSIT_CATS } from './api/stopCats.js';
 import { stopKey } from './stopId.js';
 import { lesSagt } from './profil.js';
+import { fastSvar } from './fasteStopp.js';
 
 export const HJEM_KEY = 't.hjemoverStopp';
 export const HJEM_MAKS = 12;
@@ -34,8 +35,8 @@ export function hjemStopp() {
 
 /** Morgenstoppet (profilens hjem) + stoppene rundt det, som hjemover-liste. Ren. */
 export function hjemFraProfil(sagt) {
-  const h = sagt && sagt.hjem;
-  if (!h || !h.stopId || !h.navn) return [];
+  const h = fastSvar(sagt, 'hjem');
+  if (!h) return [];
   const ut = [], sett = new Set();
   [{ stopId: h.stopId, navn: h.navn }, ...(h.nær || [])].forEach(n => {
     const id = n && n.stopId ? String(n.stopId).split('|')[0] : null;
@@ -75,7 +76,7 @@ export function hjemForslag(features) {
   return ((features) || [])
     .filter(f => f && f.properties && (f.properties.category || []).some(c => TRANSIT_CATS.includes(c)))
     .filter(f => f.properties.id && /^NSR:StopPlace:/.test(f.properties.id))
-    .map(f => ({ id: f.properties.id, name: f.properties.name || f.properties.label || '', sted: f.properties.locality || f.properties.county || '' }));
+    .map(f => { const c = (f.geometry && f.geometry.coordinates) || []; return { id: f.properties.id, name: f.properties.name || f.properties.label || '', sted: f.properties.locality || f.properties.county || '', lat: Number.isFinite(c[1]) ? c[1] : null, lon: Number.isFinite(c[0]) ? c[0] : null }; });
 }
 export function søkHjemStopp(tekst, signal) {
   return enturFetch(config.api.geocoder + '?text=' + encodeURIComponent(tekst) + '&size=10&layers=venue' + focusParam(), { signal })

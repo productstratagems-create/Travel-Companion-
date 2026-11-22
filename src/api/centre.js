@@ -64,14 +64,31 @@ export const SENTRA = [
   { by: 'Bergen', lat: 60.3913, lon: 5.3221 },       // Byparken
   { by: 'Trondheim', lat: 63.4305, lon: 10.3951 },   // Torvet
   { by: 'Stavanger', lat: 58.9700, lon: 5.7331 },    // Torget
+  // HELE DEKNINGSOMRÅDET (v1.218.254): flere byer, med radius etter størrelse
+  // (`km`). Utenfor alle: ingen «mot sentrum» — målområdene tar over.
+  { by: 'Kristiansand', lat: 58.1462, lon: 7.9956, km: 20 },
+  { by: 'Tromsø', lat: 69.6492, lon: 18.9553, km: 20 },
+  { by: 'Drammen', lat: 59.7439, lon: 10.2045, km: 15 },
+  { by: 'Fredrikstad', lat: 59.2181, lon: 10.9298, km: 15 },
+  { by: 'Bodø', lat: 67.2804, lon: 14.4049, km: 15 },
+  { by: 'Ålesund', lat: 62.4722, lon: 6.1549, km: 15 },
+  { by: 'Tønsberg', lat: 59.2675, lon: 10.4076, km: 12 },
+  { by: 'Haugesund', lat: 59.4138, lon: 5.2680, km: 12 },
+  { by: 'Hamar', lat: 60.7945, lon: 11.0680, km: 12 },
+  { by: 'Lillehammer', lat: 61.1153, lon: 10.4662, km: 10 },
+  { by: 'Gjøvik', lat: 60.7957, lon: 10.6916, km: 10 },
+  { by: 'Molde', lat: 62.7372, lon: 7.1607, km: 10 },
+  { by: 'Harstad', lat: 68.7984, lon: 16.5415, km: 10 },
+  { by: 'Alta', lat: 69.9689, lon: 23.2716, km: 10 },
 ];
 
 /** Sentrum i byen du er i, eller null utenfor alle. */
 export function sentrumFor(p) {
   if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) return null;
+  // Nærmeste sentrum innenfor sin egen radius (by.km, ellers CENTRE_MAX_KM).
   let best = null, bestKm = Infinity;
-  for (const s of SENTRA) { const d = kmTo(p, s); if (d != null && d < bestKm) { best = s; bestKm = d; } }
-  return bestKm <= CENTRE_MAX_KM ? best : null;
+  for (const s of SENTRA) { const d = kmTo(p, s); if (d != null && d <= (s.km || CENTRE_MAX_KM) && d < bestKm) { best = s; bestKm = d; } }
+  return best;
 }
 
 /** Beyond this, the app does not know where «sentrum» is, and says so by saying nothing. */

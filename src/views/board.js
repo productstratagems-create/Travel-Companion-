@@ -3864,7 +3864,9 @@ export function startBoard() {
   { const før = config.dirs[state.dIdx];
     const nå = ruteUtenValg(før, lesSagt(), state.nearestStation, state.nearestStation || state.homeLL, Date.now());
     if (nå !== før) { config.dirs[state.dIdx] = nå; window._updateHeader && window._updateHeader(); } }
-  if (erNærmeste(config.dirs[state.dIdx])) { renderDemoNote(); return; }
+  // Kortet følger ruta med én gang, ikke først ved neste tegning (v1.218.268).
+  renderDemoNote();
+  if (erNærmeste(config.dirs[state.dIdx])) return;
   _fetchBoard();
   intervals.board = setInterval(_fetchBoard, config.boardRefreshMs);
   window._updatePlanCtx && window._updatePlanCtx();

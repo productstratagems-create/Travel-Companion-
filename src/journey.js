@@ -1,3 +1,4 @@
+import { ruteFraTavle } from './dinRute.js';
 import config from './config.js';
 import { clk, clkDay } from './ui/fmt.js';
 import { state, intervals } from './state.js';
@@ -234,7 +235,11 @@ export function legsFromTrip(c, dir) {
 export function doBoard() {
   const c = state.sel;
   if (!c) return;
-  const dir = config.dirs[state.dIdx];
+  // Avgangens egen rute når den har et mål (Auto-tavle, v1.218.268), og den
+  // blir Rutes rute: samme dør som et valg i innstillingene.
+  const egen = ruteFraTavle(c._dir);
+  if (egen && window._settRute) window._settRute(egen);
+  const dir = egen || config.dirs[state.dIdx];
   const legs = legsFromTrip(c, dir);
 
   const firstLeg = legs[0];

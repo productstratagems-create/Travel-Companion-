@@ -687,6 +687,8 @@ export function attachEventListeners() {
   // «Din rute» (v1.218.261): et valgt mål gjør plassholderen til en ekte
   // rute, gjennom samme dør som innstillingenes «velg rute».
   window._updateHeader = updateHeader;
+  // Reis fra Auto-tavle fyller Rute (v1.218.268).
+  window._settRute = r => { setActiveRoute(r, { chosen: true }); updateHeader(); };
   window._velgDinRute = mål => {
     const r = dinRuteValg(config.dirs[state.dIdx], mål);
     if (!r) return;

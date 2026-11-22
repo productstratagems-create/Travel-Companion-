@@ -71,7 +71,7 @@ describe('Rute uten egen rute: din rute fra nærmeste stopp (v1.218.261)', () =>
 
   it('tavla henter ikke mot en tom «til»', () => {
     const b = readFileSync('src/views/board.js', 'utf8');
-    expect(b).toMatch(/if \(erNærmeste\(config\.dirs\[state\.dIdx\]\)\) \{ renderDemoNote\(\); return; \}/);
+    expect(b).toMatch(/renderDemoNote\(\);\s*if \(erNærmeste\(config\.dirs\[state\.dIdx\]\)\) return;/);
   });
 });
 
@@ -140,5 +140,30 @@ describe('svarene fra onboardingen gir Rute en rute (v1.218.264)', () => {
   it('tavla utleder ruta før den henter', () => {
     const b = readFileSync('src/views/board.js', 'utf8');
     expect(b).toMatch(/ruteUtenValg\(før, lesSagt\(\)/);
+  });
+});
+
+import { ruteFraTavle } from '../src/dinRute.js';
+describe('«reis» fra Auto-tavle fyller Rute (v1.218.268)', () => {
+  const tavle = { key: 'auto-tavle', from: 'Tromsø Prostneset', stopId: 'NSR:StopPlace:20', _fromLat: 69.65, _fromLon: 18.96,
+    to: 'UNN', toStopId: 'NSR:StopPlace:21', _målKjent: false };
+  it('avgangens rute blir en ekte rute', () => {
+    const r = ruteFraTavle(tavle);
+    expect(r.key).toBe('custom-out');
+    expect([r.from, r.to, r.stopId, r.toStopId]).toEqual(['Tromsø Prostneset', 'UNN', 'NSR:StopPlace:20', 'NSR:StopPlace:21']);
+    expect(erEgenRute(r)).toBe(true);
+  });
+  it('uten mål, eller mål = fra: ingen rute', () => {
+    expect(ruteFraTavle({ ...tavle, to: null })).toBeNull();
+    expect(ruteFraTavle({ ...tavle, to: 'Tromsø Prostneset' })).toBeNull();
+    expect(ruteFraTavle(undefined)).toBeNull();
+  });
+  it('før-bildet: doBoard leste bare Rutes rute; nå avgangens egen, og setter Rute', () => {
+    const j = readFileSync('src/journey.js', 'utf8');
+    const i = j.indexOf('export function doBoard()');
+    const blokk = j.slice(i, i + 700);
+    expect(blokk).toMatch(/const egen = ruteFraTavle\(c\._dir\);\s*if \(egen && window\._settRute\) window\._settRute\(egen\);\s*const dir = egen \|\| config\.dirs\[state\.dIdx\];/);
+    const n = readFileSync('src/ui/nav.js', 'utf8');
+    expect(n).toMatch(/window\._settRute = r => \{ setActiveRoute\(r, \{ chosen: true \}\);/);
   });
 });

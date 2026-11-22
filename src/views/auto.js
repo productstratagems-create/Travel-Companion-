@@ -2360,7 +2360,13 @@ function _tegnFasteStopp(el) {
     + valg('hjem') + valg('jobb')
     + '<div class="neste-svar"><button type="button" class="neste-nei" data-fast-ferdig="1">' + (sagt.hjem || sagt.jobb ? 'ferdig' : 'ikke nå') + '</button></div></div>';
   el.style.display = '';
-  if (el.innerHTML === html) return true;
+  // FOKUS I SØKEFELTET (v1.218.260). Rapportert: «inputfeltet for annet stopp
+  // holder seg ikke i fokus». Kortet ble byttet hvert sekund: el.innerHTML er
+  // nettleserens omskrevne HTML og ble aldri lik strengen vår. Nå: sammenlign
+  // med det vi sist skrev, og bytt aldri mens du skriver i kortet.
+  if (el._sistKort === html && el.firstElementChild) return true;
+  if (el.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return true;
+  el._sistKort = html;
   el.innerHTML = html;
   const ferdig = () => { try { storage.set(FASTE_AVVIST_KEY, '1'); } catch { /* */ } _fasteÅpen = null; _spørsmålBesvart(); el.innerHTML = ''; _renderProfilQ(Date.now()); };
   const lagre = (rolle, s) => {
@@ -2398,7 +2404,10 @@ function _renderProfilQ(nå) {
     : null);
   const html = profilSpørsmålHtml(q);
   el.style.display = html ? '' : 'none';
-  if (el.innerHTML === html) return;
+  // Det vi sist skrev, ikke nettleserens innerHTML (v1.218.260): ellers byttes
+  // kortet hvert sekund — trykk forsvinner, og det koster tid.
+  if (el._sistKort === html && (html === '' || el.firstElementChild)) return;
+  el._sistKort = html;
   el.innerHTML = html;
   if (!q) return;
   const ferdig = () => { _profilSenere.add(q.nøkkel); intervjuUtsett(Date.now()); _spørsmålBesvart(); _renderProfilQ(Date.now()); };
@@ -2440,7 +2449,8 @@ function _tegnHjemover(el) {
     + '<div class="neste-svar"><button type="button" class="neste-ja hjem-ja">ja</button>'
     + '<button type="button" class="neste-nei hjem-nei">nei</button></div></div>';
   el.style.display = '';
-  if (el.innerHTML === html) return true;
+  if (el._sistKort === html && el.firstElementChild) return true;
+  el._sistKort = html;
   el.innerHTML = html;
   el.querySelector('.hjem-ja').addEventListener('click', () => { lagreHjemoverFra(h); _spørsmålBesvart(); el.innerHTML = ''; _renderBody(); _renderProfilQ(Date.now()); });
   el.querySelector('.hjem-nei').addEventListener('click', () => { try { storage.set(HJEMOVER_AVVIST_KEY, String(h.stopId)); } catch { /* */ } _spørsmålBesvart(); el.innerHTML = ''; _renderProfilQ(Date.now()); });
@@ -2494,7 +2504,10 @@ function _renderNeste(nå) {
   const html = !sinTur || erReiseStartet(state.jny, state.route, nå) ? '' : nøkkel && nøkkel === _nesteAvvist ? ''
     : nesteReiseHtml(h, nøkkel && nøkkel === _nesteBesvart, { nå, hit, walkMins: w ? w.mins : null });
   el.style.display = html ? '' : 'none';
-  if (el.innerHTML === html) return;
+  // Det vi sist skrev, ikke nettleserens innerHTML (v1.218.260): ellers byttes
+  // kortet hvert sekund — trykk forsvinner, og det koster tid.
+  if (el._sistKort === html && (html === '' || el.firstElementChild)) return;
+  el._sistKort = html;
   el.innerHTML = html;
   const svar = tegn => () => { if (h.kilde === 'profil') svarReise(h.celle, h.type, tegn > 0); else lærNesteSvar(h, tegn); _nesteBesvart = nøkkel; if (tegn < 0) _nesteAvvist = nøkkel; _spørsmålBesvart(); _renderNeste(Date.now()); };
   const ja = el.querySelector('.neste-ja'), nei = el.querySelector('.neste-nei');

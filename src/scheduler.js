@@ -19,7 +19,18 @@ import { renderTrack } from './views/track.js';
  * the debug panel is where it should show up — but a broken tick must not
  * take the clock down with it.
  */
+/** En tegning lenger enn dette logges (v1.218.249) — så tregheten kan måles på telefonen. */
+export const TREG_TEGNING_MS = 250;
+let _tregLogget = 0;
 function render() {
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  try { _render(); } finally {
+    const ms = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
+    // Høyst én linje i minuttet, så loggen ikke selv blir støy.
+    if (ms > TREG_TEGNING_MS && Date.now() - _tregLogget > 60_000) { _tregLogget = Date.now(); logMsg('treg tegning (' + state.view + '): ' + Math.round(ms) + ' ms', 'warn'); }
+  }
+}
+function _render() {
   try {
     switch (state.view) {
       case 'board':    renderBoard();    break;

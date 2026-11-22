@@ -35,7 +35,7 @@ import { VEHICLE_NOUN, VEHICLE_WORD, MODE_PIN } from '../api/posSource.js';
 import { renderJourneyStrip, UNDERVEIS_KART_ALLTID } from './journeyStrip.js';
 import { sett as settVerktøy, leggTil as leggTilVerktøy, verktøyFlate, kartForm, settKartForm } from '../ui/kartVerktoy.js';
 import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS, KART_FOKUS_UNDERVEIS } from '../ui/kartFokus.js';
-import { stegNøkkel, stegRamme, fartMedRo } from '../kartSteg.js';
+import { stegNøkkel, stegRamme, fartMedRo, underveisFase } from '../kartSteg.js';
 import { lastHånd } from '../haand.js';
 import { RUTE_KART_FORMER } from './board.js';
 import { renderAlertsInto } from '../ui/alerts.js';
@@ -303,7 +303,7 @@ function _renderTrackMap(now, cs, legs) {
     _destroyTrackMap();
     _tMapKey = key;
     _tSteg = null;
-    _tMap = createMap(mapEl, { expandable: true });
+    _tMap = createMap(mapEl, { expandable: true }); if (typeof window !== 'undefined' && window.__probe) window.__tMap = _tMap;
     // LAPPENES PLASS (v1.218.236, kartregler §10).
     festLappRydding(_tMap);
     _tLayer = L.layerGroup().addTo(_tMap);
@@ -486,7 +486,7 @@ function _renderTrackMap(now, cs, legs) {
    rammer inn etappen: om bord deg + neste stopp, nær avstigning deg + stoppet
    du skal av på. Bare når steget skifter (§4); om bord følger kartet deg med
    zoom etter farten, med ro. Har du rørt kartet, gjøres ingenting (§5). */
-let _tSteg = null, _tFart = null;
+let _tSteg = null, _tFart = null, _tStegStr = '';
 function _stegLL(s) { return s ? (placeLL(callPlace(s)) || quayLatLon(s.quay)) : null; }
 function _stegTid(s) { const t = s && (s.expectedArrivalTime || s.aimedArrivalTime || s.expectedDepartureTime || s.aimedDepartureTime); return t ? Date.parse(t) : NaN; }
 function _stegFokus(now, leg, du) {
@@ -494,11 +494,18 @@ function _stegFokus(now, leg, du) {
   const st = _legRouteStops(leg);
   const igjen = st.filter(s => !(_stegTid(s) <= now));
   const arr = leg.arrTime ? new Date(leg.arrTime.time).getTime() : NaN;
-  const steg = stegNøkkel('riding', { stopp: igjen.length || null, sek: Number.isFinite(arr) ? (arr - now) / 1000 : null });
+  // Før avgang (v1.218.271): «gå» til påstigningen, eller «vent» ved den.
+  const på = _stegLL(st[0]);
+  const dep = leg.depTime ? new Date(leg.depTime.time).getTime() : NaN;
+  const f = underveisFase(now, dep, du && på ? haver(du.lat, du.lon, på.lat, på.lon) : null);
+  const steg = stegNøkkel(f.fase, { stopp: igjen.length || null, sek: Number.isFinite(arr) ? (arr - now) / 1000 : null }, f.vedStoppet);
   const neste = _stegLL(igjen[0]), av = _stegLL(st[st.length - 1]);
-  if (steg !== _tSteg) {
-    _tSteg = steg; _tFart = null;
-    const rr = stegRamme(steg, { du, neste, av });
+  // Også når kartets størrelse er endret (v1.218.271): rammen ble satt mens
+  // kartet ennå hadde en annen høyde, og du og stoppet havnet utenfor.
+  const kz = _tMap.getSize(), størrelse = kz.x + 'x' + kz.y;
+  if (steg !== _tSteg || (størrelse !== _tStegStr && steg !== 'ombord')) {
+    _tSteg = steg; _tFart = null; _tStegStr = størrelse;
+    const rr = stegRamme(steg, { du, stopp: på, plattform: på, neste, av });
     if (rr) { _tProg = true; try { ramme(_tMap, rr.pts, rr.maks); } finally { _tProg = false; } }
     return;
   }

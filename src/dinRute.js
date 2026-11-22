@@ -101,3 +101,55 @@ export function dinRuteHtml(dir, forslag) {
       : '')
     + '</div>';
 }
+
+// SVARENE GIR EN RUTE (v1.218.264). Faste stopp lagrer `hjem` («om morgenen
+// reiser jeg fra») og `jobb` («på vei hjem reiser jeg fra») i t.profil, men
+// ingenting gjorde dem til en rute: Rute sto tom selv etter svarene.
+export const PROFIL_KEY = 'profil';
+export const PROFIL_KL_SKILLE = 12;
+
+function _avst(a, b) {
+  if (!a || !b || a.lat == null || b.lat == null) return Infinity;
+  const k = Math.cos(a.lat * Math.PI / 180);
+  return Math.hypot((a.lat - b.lat) * 111320, (a.lon - b.lon) * 111320 * k);
+}
+
+/**
+ * Hjem ↔ jobb fra svarene. Retning: står du nærmere jobb, går den hjem; ellers
+ * til jobb. Uten posisjon avgjør klokka (før 12: hjem → jobb).
+ * @returns {object|null}
+ */
+export function profilRute(sagt, her, nå) {
+  const h = sagt && sagt.hjem, j = sagt && sagt.jobb;
+  if (!h || !j || !h.navn || !j.navn || stopKey(h.navn) === stopKey(j.navn)) return null;
+  const dh = _avst(her, h), dj = _avst(her, j);
+  const hjemover = (dh === Infinity && dj === Infinity)
+    ? new Date(nå || Date.now()).getHours() >= PROFIL_KL_SKILLE
+    : dj < dh;
+  const [fra, til] = hjemover ? [j, h] : [h, j];
+  return {
+    key: PROFIL_KEY,
+    from: fra.navn, stopId: fra.stopId || null, geo: fra.stopId ? null : fra.navn,
+    _fromLat: fra.lat ?? null, _fromLon: fra.lon ?? null,
+    to: til.navn, toStopId: til.stopId || null, toGeo: til.stopId ? null : til.navn,
+    _toLat: til.lat ?? null, _toLon: til.lon ?? null,
+    filter: null, line: null, via: null, viaStopId: null, viaGeo: null, viaOgså: false,
+  };
+}
+
+export function erProfilRute(dir) { return !!dir && dir.key === PROFIL_KEY; }
+
+/** Rute uten eget valg: profil-ruta om svarene finnes, ellers «Din rute» fra nærmeste stopp. */
+export function ruteUtenValg(dir, sagt, ns, her, nå) {
+  if (!erNærmeste(dir) && !erProfilRute(dir)) return dir;
+  const p = profilRute(sagt, her, nå);
+  if (p) return p;
+  if (erNærmeste(dir) && (dir._fraValgt || !ns || ns.name === dir.from)) return dir;
+  return nærmesteDir(ns);
+}
+
+/** Profilsteder som forslag i «til» (bare ett av svarene gitt). */
+export function profilForslag(sagt) {
+  return ['hjem', 'jobb'].map(r => sagt && sagt[r]).filter(s => s && s.navn)
+    .map(s => ({ name: s.navn, id: s.stopId || null, lat: s.lat, lon: s.lon }));
+}

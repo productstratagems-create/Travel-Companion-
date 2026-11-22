@@ -79,7 +79,7 @@ import { lastHånd } from '../haand.js';
 import { ankomstMs } from '../ankomst.js';
 import { hensikt, hensiktLinje, sammeTur, reiseKall } from '../hensikt.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
-import { fetchStoppLinjer, stoppLinjer, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
+import { fetchStoppLinjer, stoppLinjer, stoppInfoUtdatert, stoppInfo, nærViktigFørst, fetchNearbyStops } from '../api/stops.js';
 import { kontekstNå, kontekstLinje, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
@@ -1898,14 +1898,22 @@ function _renderOmbord() {
  * Overskriften over stoppet. «Du er ved» er usant fra en buss i 40 km/t.
  * På en kjent linje er det neste stopp på den; ellers bare nærmeste.
  */
-export function whereLabel(fart, linjer, avstandM) {
+export function whereLabel(fart, linjer, avstandM, ikkeNærmest = false) {
   if (fart && linjer && linjer.length) return 'neste stopp på ' + linjer.join(' / ');
+  // BESTE, IKKE NÆRMESTE (v1.218.240): valgt for tilbudet nå (stops.js) mens et
+  // annet stopp er nærmere — da sier ikke overskriften «nærmeste».
+  if (!fart && ikkeNærmest && Number.isFinite(avstandM) && avstandM > AT_STOP_M) return 'beste stopp herfra';
   // «Du er ved» bare når du står der (v1.218.197). Rapportert som
   // selvmotsigelse: «DU ER VED Olasrudveien · 605 m å gå».
   if (fart || (Number.isFinite(avstandM) && avstandM > AT_STOP_M)) return 'nærmeste stopp';
   return 'du er ved';
 }
 
+/** Er et annet stopp tydelig nærmere (30 m) enn det valgte? Ren. */
+export function ikkeNærmest(stopp, alle) {
+  if (!stopp || !Number.isFinite(stopp.distM)) return false;
+  return (alle || []).some(s => s && s.id !== stopp.id && Number.isFinite(s.distM) && s.distM < stopp.distM - 30);
+}
 /* OVERGANGENE PÅ NESTE STOPP (src/overganger.js). Hentet én gang per stopp
  * og tur, ikke per sekund, og bare mens låsen holder. */
 let _ov = { key: null, board: null };
@@ -2142,13 +2150,15 @@ export function raskereHtml(svar) {
  * ikke bare der kartet tegnes: rangeringen (rankStops) trenger dem også når
  * kartet er skjult. Kommer svaret, tegnes både «du er ved» og kartet på nytt. */
 function _hentStoppInfo(list) {
-  const mangler = (list || []).filter(s => s && s.id && stoppLinjer(s.id) === undefined).map(s => s.id);
-  if (!mangler.length || _linjerVenter || _linjerFeilet) return;
+  // Utdatert etter 10 min, og et feilet svar prøves igjen etter 60 s (v1.218.240):
+  // før gjaldt «ingen linjer» resten av økta.
+  const mangler = (list || []).filter(s => s && s.id && stoppInfoUtdatert(s.id)).map(s => s.id);
+  if (!mangler.length || _linjerVenter || (_linjerFeilet && Date.now() - _linjerFeilet < 60_000)) return;
   _linjerVenter = true;
   fetchStoppLinjer(mangler).then(m => {
     _linjerVenter = false;
     if (m) { _renderWhere(); _aKey = ''; _renderMap(); }
-    else { _linjerFeilet = true; logMsg('linjer per holdeplass: ikke svar — viser alle, rangert som før', 'warn'); }
+    else { _linjerFeilet = Date.now(); logMsg('linjer per holdeplass: ikke svar — viser alle, rangert som før', 'warn'); }
   });
 }
 
@@ -2684,7 +2694,7 @@ function _renderWhere() {
   _reiseInfo = r ? { r, igjen: fra ? stasjonerIgjen(r.k, fra.id, r.dest, nåW) : null } : null;
   const vn = picked.linjer ? (syn.lås ? linjeHodeHtml(syn.lås, state.jny) : '') + vedNesteHtml(påLinja, nåW) + (_reiseInfo ? avstigningHtml(r, _reiseInfo.igjen) : '')
     + fokusNavHtml(påLinja, nåW, r && r.dest) : '';
-  const _html = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer, w ? w.dist : null)) + '</div>')
+  const _html = (vn || '<div class="set-label">' + esc(whereLabel(fart, picked.linjer, w ? w.dist : null, ikkeNærmest(_stop, _stops()))) + '</div>')
     + stopHeadHtml(_stop, others.length, open, {
       iFart: fart,
       // OM BORD (v1.218.48): avstanden til fots er ikke spørsmålet når toget

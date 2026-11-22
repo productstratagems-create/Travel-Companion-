@@ -36,7 +36,7 @@ import { fmtMins, esc, clk, clkDay, dayPrefix, countdownText, NEDTELLING_MAKS_MI
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
-import { fetchNearbyStops, _resetNearbyCache, fetchStoppLinjer, stoppInfo, stoppLinjer, nærViktigFørst } from '../api/stops.js';
+import { fetchNearbyStops, _resetNearbyCache, fetchStoppLinjer, stoppInfo, stoppInfoUtdatert, samletInfo, stoppLinjer, nærViktigFørst } from '../api/stops.js';
 import { lappMedLogo } from '../ui/tilbyderlogo.js';
 import { makeStopIcon, makeVehicleIcon, VEHICLE_MARKER_OPTS, makeRouteStopIcon, makeJourneyPointIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { livePosFeed, livePosition, _resetVehicleCache } from '../api/vehicles.js';
@@ -771,14 +771,19 @@ function renderBoardMap(pos, modes) {
       // VIKTIGHET (v1.218.11): linjene hentes én gang per stopp; når de kommer,
       // tegnes kartet på nytt. Til da: nærmeste først, som før.
       const ider = [...new Set(stops.map(s => String(s.id).split('|')[0]))];
-      const nye = ider.filter(id => !stoppInfo(id) && !_bInfoBedt.has(id));
+      // Utdatert etter 10 min; feilet prøves igjen etter 60 s (v1.218.240).
+      const nye = ider.filter(id => stoppInfoUtdatert(id) && !_bInfoBedt.has(id));
       if (nye.length) {
         nye.forEach(id => _bInfoBedt.add(id));
-        fetchStoppLinjer(nye).then(m => { if (m && _bMap) renderBoardMap(pos, modes); });
+        fetchStoppLinjer(nye).then(m => {
+          if (m) { nye.forEach(id => _bInfoBedt.delete(id)); if (_bMap) renderBoardMap(pos, modes); }
+          else setTimeout(() => nye.forEach(id => _bInfoBedt.delete(id)), 60_000);
+        });
       }
       // De 2 viktigste innen gangavstand per transportmiddel (ellers nærmeste) —
       // ikke bare de 2 nærmeste. Den samme regelen som «du er ved» i auto-reise.
-      const etterViktighet = clusters.slice().sort(nærViktigFørst(c => stoppInfo(c[0].id.split('|')[0]), c => c[0].dist));
+      // Hele klyngen (v1.218.240): linjene på alle plattformene, ikke bare den første.
+      const etterViktighet = clusters.slice().sort(nærViktigFørst(c => samletInfo([...new Set(c.map(x => String(x.id).split('|')[0]))]), c => c[0].dist));
       // RUTEBEVISST (v1.218.177). Rapportert: Olasrudveien fikk fast lapp på
       // Rute-kartet uten å betjene ruta — nær deg og «viktig» i alminnelighet,
       // men uten noe å bidra med her. Fast lapp bare for et stopp ruta faktisk

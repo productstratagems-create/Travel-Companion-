@@ -31,7 +31,8 @@ describe('viktighet', () => {
       { lines: [] },
       { lines: [{ id: 'L1', transportMode: 'metro' }, { id: 'L2', transportMode: 'bus' }] },
       { lines: [{ id: 'L2', transportMode: 'bus' }] }] }] } });
-    expect(m.get('X')).toEqual(info(['metro', 'bus'], 2, 2));
+    // v1.218.240: avgangerNå er null når svaret ikke har estimatedCalls.
+    expect(m.get('X')).toEqual({ ...info(['metro', 'bus'], 2, 2), avgangerNå: null });
   });
 });
 

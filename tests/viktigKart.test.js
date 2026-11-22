@@ -60,13 +60,15 @@ describe('utseende', () => {
   });
   it('Tavla: per transportmiddel velges de viktigste innen gangavstand, ikke bare de nærmeste', () => {
     const s = readFileSync('src/views/board.js', 'utf8');
-    expect(s).toContain("nærViktigFørst(c => stoppInfo(c[0].id.split('|')[0]), c => c[0].dist)");
+    // v1.218.240: hele klyngen (samletInfo), ikke bare første medlem.
+    expect(s).toContain("nærViktigFørst(c => samletInfo([...new Set(c.map(x => String(x.id).split('|')[0]))]), c => c[0].dist)");
   });
 });
 
 describe('Tavla spør om nye stopp når du flytter deg', () => {
   it('husker id-ene, ikke ett ja/nei for hele økta', () => {
     const s = readFileSync('src/views/board.js', 'utf8');
-    expect(s).toContain('const nye = ider.filter(id => !stoppInfo(id) && !_bInfoBedt.has(id));');
+    // v1.218.240: utdatert etter 10 min, og feilet prøves igjen.
+    expect(s).toContain('const nye = ider.filter(id => stoppInfoUtdatert(id) && !_bInfoBedt.has(id));');
   });
 });

@@ -161,9 +161,27 @@ describe('«reis» fra Auto-tavle fyller Rute (v1.218.268)', () => {
   it('før-bildet: doBoard leste bare Rutes rute; nå avgangens egen, og setter Rute', () => {
     const j = readFileSync('src/journey.js', 'utf8');
     const i = j.indexOf('export function doBoard()');
-    const blokk = j.slice(i, i + 700);
-    expect(blokk).toMatch(/const egen = ruteFraTavle\(c\._dir\);\s*if \(egen && window\._settRute\) window\._settRute\(egen\);\s*const dir = egen \|\| config\.dirs\[state\.dIdx\];/);
+    const blokk = j.slice(i, i + 900);
+    expect(blokk).toMatch(/const egen = ruteFraTavle\(c\._dir && c\._dir\.key === .auto-tavle. \? medEndestasjon\(c\._dir, c, Date\.now\(\)\) : c\._dir\);\s*if \(egen && window\._settRute\) window\._settRute\(egen\);\s*const dir = egen \|\| config\.dirs\[state\.dIdx\];/);
     const n = readFileSync('src/ui/nav.js', 'utf8');
     expect(n).toMatch(/window\._settRute = r => \{ setActiveRoute\(r, \{ chosen: true \}\);/);
+  });
+});
+
+import { medEndestasjon } from '../src/dinRute.js';
+describe('uten valgt avstigning: endestasjonen (v1.218.270)', () => {
+  const sp = (id, name, lat) => ({ quay: { stopPlace: { id, name, latitude: lat, longitude: 18.9 } }, expectedArrivalTime: '2026-11-23T08:10:00Z' });
+  const c = { serviceJourney: { estimatedCalls: [sp('NSR:StopPlace:20', 'Prostneset', 69.65), sp('NSR:StopPlace:21', 'UNN', 69.68), sp('NSR:StopPlace:22', 'Breivika', 69.69)] } };
+  const d = { key: 'auto-tavle', from: 'Prostneset', stopId: 'NSR:StopPlace:20', to: null };
+  it('før-bildet: uten mål ble det ingen rute; nå endestasjonen', () => {
+    expect(ruteFraTavle(d)).toBeNull();
+    const r = ruteFraTavle(medEndestasjon(d, c, 0));
+    expect([r.from, r.to, r.toStopId]).toEqual(['Prostneset', 'Breivika', 'NSR:StopPlace:22']);
+  });
+  it('et valgt mål røres ikke', () => {
+    expect(medEndestasjon({ ...d, to: 'UNN' }, c, 0).to).toBe('UNN');
+  });
+  it('ingen stopp etter påstigning: uendret', () => {
+    expect(medEndestasjon({ ...d, from: 'Breivika', stopId: 'NSR:StopPlace:22' }, c, 0).to).toBeNull();
   });
 });

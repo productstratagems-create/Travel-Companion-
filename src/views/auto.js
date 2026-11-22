@@ -2379,9 +2379,20 @@ function _tegnFasteStopp(el) {
     if (!g.ok) { _fasteFeil = { rolle, grunn: g.grunn }; el._sistKort = null; if (document.activeElement && el.contains(document.activeElement)) document.activeElement.blur(); _renderProfilQ(Date.now()); return; }
     _fasteFeil = null;
     const sted = { navn: s.name || s.label || s.navn, stopId: g.id, lat: s.lat, lon: s.lon };
-    const ferdigLagret = nær2 => { settSted(rolle, sted, nær2); _fasteÅpen = null; const ss = lesSagt(); if (ss.hjem && ss.jobb) _spørsmålBesvart(); _renderWhere(); _renderProfilQ(Date.now()); };
-    if (Number.isFinite(sted.lat)) fetchNearbyStops(sted.lat, sted.lon).then(l => ferdigLagret(l || []), () => ferdigLagret([]));
-    else ferdigLagret([]);
+    // LAGRET MED ÉN GANG (v1.218.270). Før ventet lagringen på at stoppene
+    // rundt ble hentet: på mobilnett sto kortet uendret i sekunder, og trykket
+    // så ut til ikke å virke. Nå: valget står straks; stoppene rundt fylles på.
+    settSted(rolle, sted, []);
+    _fasteÅpen = null;
+    { const ss = lesSagt(); if (fastSvar(ss, 'hjem') && fastSvar(ss, 'jobb')) _spørsmålBesvart(); }
+    // Feltet slipper fokus, ellers venter kortet på at du skriver ferdig.
+    if (document.activeElement && el.contains(document.activeElement)) document.activeElement.blur();
+    el._sistKort = null; _renderWhere(); _renderProfilQ(Date.now());
+    if (Number.isFinite(sted.lat)) fetchNearbyStops(sted.lat, sted.lon).then(l => {
+      // Bare om svaret fortsatt er dette stoppet (du kan ha trykket «endre»).
+      const nå = fastSvar(lesSagt(), rolle);
+      if (l && l.length && nå && nå.stopId === sted.stopId) { settSted(rolle, sted, l); _renderWhere(); }
+    }, () => {});
   };
   el.querySelectorAll('[data-fast-apne]').forEach(b => b.addEventListener('click', () => { _fasteÅpen = b.dataset.fastApne; _fasteFeil = null; el.innerHTML = ''; _renderProfilQ(Date.now()); }));
   el.querySelectorAll('[data-fast]').forEach(b => b.addEventListener('click', () => { const [rolle, i] = b.dataset.fast.split('|'); const s = fasteForslagFor(rolle, sagt, nær)[Number(i)]; if (s) lagre(rolle, s); }));

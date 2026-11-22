@@ -136,9 +136,9 @@ async function run(scheme) {
   const rute = () => page.evaluate(() => JSON.parse(localStorage.getItem('default::t.route') || 'null'));
   console.log(scheme, 'Rute før:', JSON.stringify(await rute()));
   await page.locator('.at-rad').first().click(); await page.waitForTimeout(1200);
-  await page.locator('[data-sv-apne]').first().click(); await page.waitForTimeout(500);
-  const valg = page.locator('[data-sv]'); console.log(scheme, 'avstigningsvalg:', await valg.count());
-  await valg.last().click(); await page.waitForTimeout(500);
+  if (process.env.VELG) { await page.locator('[data-sv-apne]').first().click(); await page.waitForTimeout(500);
+    const valg = page.locator('[data-sv]'); console.log(scheme, 'avstigningsvalg:', await valg.count());
+    await valg.nth(0).click(); await page.waitForTimeout(500); }
   await page.screenshot({ path: `scratchpad/shots/reis-detalj-${scheme}.png`, animations: 'disabled' });
   await page.locator('button', { hasText: 'reis →' }).first().click(); await page.waitForTimeout(1200);
   const r = await rute();

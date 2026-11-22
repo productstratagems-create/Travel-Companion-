@@ -146,7 +146,7 @@ async function run(scheme) {
   await page.fill('[data-fast-sok="hjem"]', 'Vos'); await page.waitForTimeout(900);
   console.log(scheme, 'søkeliste:', await page.locator('.faste-sugg').innerText().catch(() => '-'));
   await skudd('c-sok');
-  await page.locator('.faste-sugg button', { hasText: 'Voss skysstasjon' }).first().click(); await page.waitForTimeout(1500); await skudd('d-morgen-valgt');
+  await page.locator('.faste-sugg button', { hasText: 'Voss skysstasjon' }).first().click(); await page.waitForTimeout(250); await skudd('d-morgen-valgt');
   await page.click('[data-fast-apne="jobb"]'); await page.waitForTimeout(400);
   await page.fill('[data-fast-sok="jobb"]', 'Vos'); await page.waitForTimeout(900);
   await page.locator('.faste-sugg button', { hasText: 'Voss skysstasjon' }).first().click(); await page.waitForTimeout(800); await skudd('e-samme-stopp');

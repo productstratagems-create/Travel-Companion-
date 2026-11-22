@@ -37,6 +37,7 @@ function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f 
 import { reiseRader, kombiRader } from '../reiseTil.js';
 import { fraMerke } from '../ui/tavleRad.js';
 import { roPunkt } from '../roPunkt.js';
+import { bestillingFor } from '../api/bestilling.js';
 import { fastFørst, tilbyFasteStopp, fasteKandidater, fasteRo } from '../fasteStopp.js';
 import { målområder } from '../maalomrader.js';
 import { festLappRydding } from '../ui/lappPlass.js';
@@ -5955,6 +5956,14 @@ function _tegnAutoTavle(body) {
   const rader = [...del.ikke, ...del.rekker];
   // Stoppet ditt står på radene som går derfra også (v1.218.225, fraMerke).
   rader.forEach(x => { x.herNavn = _stop && _stop.name; });
+  // FLEKSIBLE LINJER (v1.218.256, src/api/bestilling.js): turer som må
+  // bestilles, merkes på raden. Per stopp (ditt og nabostoppenes), som probe.
+  rader.forEach(x => {
+    const sid = (x.call && x.call._fra && x.call._fra.id) || (_stop && _stop.id);
+    const sj = x.call && x.call.serviceJourney && x.call.serviceJourney.id;
+    const kart = sid && bestillingFor(sid, () => _renderBody());
+    x.bestill = (kart && sj && kart.get(sj)) || null;
+  });
   const kv = _autoTavle ? _kombiFor(_atRetning, here, nå) : null;
   const kombi = kv && Array.isArray(kv.tps) ? kombiRader(reiseRader(kv.tps, nå, null)).filter(r => r.gåOm >= 0).sort((a, b) => a.gåOm - b.gåOm) : [];
   // Si hva du ikke vet: leter, feilet — ikke stillhet.

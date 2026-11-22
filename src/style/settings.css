@@ -1176,3 +1176,4 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 .faste-stopp .faste-sp{flex-basis:100%;font-size:13px;color:var(--text-soft)}
 .faste-stopp .faste-valg{display:flex;flex-wrap:wrap;gap:.35rem;flex-basis:100%}
 .faste-stopp .faste-sok{flex-basis:100%;font:inherit;padding:.45rem .6rem;border-radius:8px;border:1px solid var(--line,#888);background:var(--surface-2);color:var(--text)}
+.at-bestill{flex-basis:100%;font-size:.8rem;color:var(--warn,#d97706);font-weight:600}

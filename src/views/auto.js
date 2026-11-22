@@ -1970,11 +1970,17 @@ export function ikkeNærmest(stopp, alle) {
   if (!stopp || !Number.isFinite(stopp.distM)) return false;
   return (alle || []).some(s => s && s.id !== stopp.id && Number.isFinite(s.distM) && s.distM < stopp.distM - 30);
 }
-let _listeRo = null, _listeValgt = null;
+let _listeRo = null, _listeValgt = null, _hurtigStraks = false;
 /* Avklaringen (v1.218.273): når første stopp kom, om det er låst, og hvilket stopp avgangene hører til. */
 let _avklar = { start: null, ferdig: false, dirsFor: null }, _sistMerkelapp = null;
 /** Margin på merkelappen (v1.218.273): «du er ved» står til du er MERKE_UT_M lenger unna enn grensen, så den ikke blafrer ved 120 m. */
 export const MERKE_UT_M = 30;
+/** «Beste» for hva (v1.218.274): med et hurtigvalg sier merkelappen retningen, med samme ord som knappen. */
+export function bestFor(merkelapp, retning, tekst) {
+  return merkelapp === 'beste stopp herfra' && retning && retning !== 'alle' && tekst
+    ? 'beste stopp ' + (/^(mot |hjemover)/.test(tekst) ? tekst : 'for ' + tekst) : merkelapp;
+}
+function beste_for(m) { return bestFor(m, _autoTavle ? _atRetning : 'alle', _retningTekst(_atRetning)); }
 export function merkelappMedRo(forrige, ny, avstandM, fart) {
   if (!fart && forrige === 'du er ved' && ny !== 'du er ved' && ny !== forrige
     && Number.isFinite(avstandM) && avstandM <= AT_STOP_M + MERKE_UT_M) return 'du er ved';
@@ -2019,10 +2025,13 @@ export function listeStoppKandidat(dirs, egetId, gangMin, nå, topp = LISTE_TOPP
  * Ro: bytt bare når kandidaten har minst 2 flere enn stoppet i overskriften,
  * har ledet i LISTE_RO_MS, og det er LISTE_MIN_MELLOM_MS siden sist. Ren.
  */
-export function listeStoppRo(forrige, kandidat, egetId, nå) {
+export function listeStoppRo(forrige, kandidat, egetId, nå, straks = false) {
   const f = forrige || { leder: null, siden: null, sistByttet: -Infinity, bytt: null };
   const klar = kandidat && kandidat.id !== egetId && kandidat.antall >= kandidat.eget + 2;
   if (!klar) return { ...f, leder: null, siden: null, bytt: null };
+  // ET TRYKK ER ET VALG (v1.218.274): etter et hurtigvalg svarer overskriften
+  // straks — ro-reglene er mot at appen bytter av seg selv, ikke mot svar.
+  if (straks) return { ...f, leder: kandidat.id, siden: nå, bytt: kandidat.id };
   const siden = f.leder === kandidat.id ? f.siden : nå;
   const bytt = nå - siden >= LISTE_RO_MS && nå - f.sistByttet >= LISTE_MIN_MELLOM_MS ? kandidat.id : null;
   return { ...f, leder: kandidat.id, siden, bytt };
@@ -2817,9 +2826,14 @@ function _renderWhere() {
   // høyt i lista … men pass på at dette stopper ikke byttes så ofte at appen
   // oppleves som ustabil.» Bytter bare når et annet stopp klart har flest av
   // de første avgangene du rekker, og har hatt det i LISTE_RO_MS.
-  if (!_stopPinned && !picked.changed && _stop && _dirs && _dirs.length) {
+  // HURTIGVALGET AVGJØR (v1.218.274): lista teller retningen du har valgt —
+  // samme _iRetning som radene, så overskriften og «fra …» er enige. Ikke
+  // når du står ved stoppet (≤ CLOSE_M).
+  const vedStoppet = _stop && Number.isFinite(_stop.distM) && _stop.distM <= CLOSE_M;
+  if (!_stopPinned && !picked.changed && _stop && _dirs && _dirs.length && !vedStoppet) {
     const gangId = id => { const s = list.find(x => x.id === id); const g = s && gangTil(s); return g ? g.mins : null; };
-    _listeRo = listeStoppRo(_listeRo, listeStoppKandidat(_dirs, _stop.id, gangId, nåW), _stop.id, nåW);
+    const straks = _hurtigStraks; _hurtigStraks = false;
+    _listeRo = listeStoppRo(_listeRo, listeStoppKandidat(_iRetning(_dirs, nåW), _stop.id, gangId, nåW), _stop.id, nåW, straks);
     if (_listeRo.bytt) {
       const ny = list.find(x => x.id === _listeRo.bytt);
       _listeRo = { ...(_listeRo), bytt: null, sistByttet: nåW };
@@ -2866,7 +2880,7 @@ function _renderWhere() {
     + fokusNavHtml(påLinja, nåW, r && r.dest) : '';
   // Foreløpig: «nærmeste stopp» (en påstand appen kan stå for) og én dempet linje.
   const merkelapp = foreløpig && !fart ? 'nærmeste stopp'
-    : merkelappMedRo(_sistMerkelapp, whereLabel(fart, picked.linjer, w ? w.dist : null, ikkeNærmest(_stop, _stops())), w ? w.dist : null, fart);
+    : beste_for(merkelappMedRo(_sistMerkelapp, whereLabel(fart, picked.linjer, w ? w.dist : null, ikkeNærmest(_stop, _stops())), w ? w.dist : null, fart));
   _sistMerkelapp = merkelapp;
   // På samme linje som merkelappen: når den forsvinner, flytter ingenting seg.
   const _html = (vn || '<div class="set-label">' + esc(merkelapp)
@@ -6161,7 +6175,7 @@ function _tegnAutoTavle(body) {
     if (_hjemHold.brukt) { _hjemHold.brukt = false; return; }   // langt trykk er ikke et valg
     // Uten stopp valgt er hjemover et spørsmål: hva er hjem? Svaret står i innstillinger.
     if (b.dataset.retning === 'hjem' && !hjemStopp().length) { tilHjemoverInnstilling(); return; }
-    _atRetning = b.dataset.retning; _lagreRetning(_atRetning); _atGrense = TAVLE_SIDE; _atRull = { vist: -1, tomme: 0 }; _renderBody();
+    _atRetning = b.dataset.retning; _lagreRetning(_atRetning); _atGrense = TAVLE_SIDE; _atRull = { vist: -1, tomme: 0 }; _hurtigStraks = true; _listeValgt = null; _renderBody(); _renderWhere();
   }));
   _hjemLangtTrykk(body);
   const det = body.querySelector('.at-ikke');

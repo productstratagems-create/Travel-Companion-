@@ -203,10 +203,9 @@ describe('fetchNearbyStops keeps the modes the narrow table left out', () => {
   it('uses the same radius as the list beside it', async () => {
     features = [];
     const { fetchNearbyStops } = await load();
-    const { STASJON_MAKS_M, NEAR_SIZE } = await import('../src/geo.js');
+    const { NEAR_STOP_MAX_M, NEAR_SIZE } = await import('../src/geo.js');
     await fetchNearbyStops(60.3894, 5.3327);
-    // v1.218.275: spør så langt en stasjon kan være; bussene filtreres til 850 m (rekkeviddeFor).
-    expect(lastUrl).toContain('boundary.circle.radius=' + (STASJON_MAKS_M / 1000));
+    expect(lastUrl).toContain('boundary.circle.radius=' + (NEAR_STOP_MAX_M / 1000));
     expect(lastUrl).toContain('size=' + NEAR_SIZE);
   });
 });

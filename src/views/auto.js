@@ -39,7 +39,7 @@ import { fraMerke } from '../ui/tavleRad.js';
 import { roPunkt } from '../roPunkt.js';
 import { velgSpørsmål, besvartIDag, merkBesvart } from '../sporsmal.js';
 import { bestillingFor } from '../api/bestilling.js';
-import { fastFørst, tilbyFasteStopp, fasteKandidater, fasteRo } from '../fasteStopp.js';
+import { fastFørst, tilbyFasteStopp, fasteKandidater, fasteForslagFor, fasteRo } from '../fasteStopp.js';
 import { målområder } from '../maalomrader.js';
 import { festLappRydding } from '../ui/lappPlass.js';
 import { omrProbe } from '../api/omrProbe.js';
@@ -2352,7 +2352,7 @@ function _tegnFasteStopp(el) {
   const valg = rolle => '<div class="faste-rad"><span class="faste-sp">' + (rolle === 'hjem' ? 'Om morgenen reiser jeg fra' : 'På vei hjem reiser jeg fra') + '</span>'
     + (sagt[rolle] ? '<b>' + esc(sagt[rolle].navn) + '</b>'
       : (_fasteÅpen === rolle
-        ? '<span class="faste-valg">' + nær.map((s, i) => '<button type="button" class="neste-ja faste-knapp" data-fast="' + rolle + '|' + i + '">' + esc(s.name) + '</button>').join('')
+        ? '<span class="faste-valg">' + fasteForslagFor(rolle, sagt, nær).map((s, i) => '<button type="button" class="neste-ja faste-knapp" data-fast="' + rolle + '|' + i + '">' + esc(s.name) + '</button>').join('')
           + '<input class="faste-sok" data-fast-sok="' + rolle + '" type="search" autocomplete="off" placeholder="annet stopp …"><div class="sugg-list faste-sugg" hidden></div></span>'
         : '<button type="button" class="neste-ja faste-knapp" data-fast-apne="' + rolle + '">velg</button>')) + '</div>';
   const html = '<div class="profil-q faste-stopp"><div class="set-label">dine faste stopp</div>'
@@ -2376,7 +2376,7 @@ function _tegnFasteStopp(el) {
     else ferdigLagret([]);
   };
   el.querySelectorAll('[data-fast-apne]').forEach(b => b.addEventListener('click', () => { _fasteÅpen = b.dataset.fastApne; el.innerHTML = ''; _renderProfilQ(Date.now()); }));
-  el.querySelectorAll('[data-fast]').forEach(b => b.addEventListener('click', () => { const [rolle, i] = b.dataset.fast.split('|'); const s = nær[Number(i)]; if (s) lagre(rolle, s); }));
+  el.querySelectorAll('[data-fast]').forEach(b => b.addEventListener('click', () => { const [rolle, i] = b.dataset.fast.split('|'); const s = fasteForslagFor(rolle, sagt, nær)[Number(i)]; if (s) lagre(rolle, s); }));
   el.querySelectorAll('[data-fast-sok]').forEach(inp => bindPlaceInput(inp, inp.nextElementSibling, q => geocodePlace(q), r => lagre(inp.dataset.fastSok, r)));
   const f = el.querySelector('[data-fast-ferdig]'); if (f) f.addEventListener('click', ferdig);
   return true;

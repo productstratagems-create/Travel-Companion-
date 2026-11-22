@@ -94,3 +94,20 @@ describe('forslagene bruker rangeringskonseptet (v1.218.252)', () => {
     expect(fasteRo(r, ['d'], {}, true, () => FASTE_RO_M + 1).liste).toEqual(['d']);
   });
 });
+
+import { fasteForslagFor } from '../src/fasteStopp.js';
+describe('stoppene nær deg gjelder bare én rolle (v1.218.265)', () => {
+  const nær = [{ id: 'NSR:StopPlace:10', name: 'Voss skysstasjon' }, { id: 'NSR:StopPlace:11', name: 'Voss stasjon' }];
+  it('før-bildet: «På vei hjem» fikk nærlista etter at morgenstoppet var valgt; nå bare søk', () => {
+    expect(fasteForslagFor('jobb', { hjem: { navn: 'Voss skysstasjon' } }, nær)).toEqual([]);
+    expect(fasteForslagFor('hjem', { jobb: { navn: 'Tromsø sentrum' } }, nær)).toEqual([]);
+  });
+  it('ingen besvart: nærlista til begge, den man velger først', () => {
+    expect(fasteForslagFor('hjem', {}, nær)).toBe(nær);
+    expect(fasteForslagFor('jobb', {}, nær)).toBe(nær);
+  });
+  it('kortet bruker regelen både for knappene og for valget', () => {
+    const a = readFileSync('src/views/auto.js', 'utf8');
+    expect((a.match(/fasteForslagFor\(rolle, sagt, nær\)/g) || []).length).toBe(2);
+  });
+});

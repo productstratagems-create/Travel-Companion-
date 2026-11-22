@@ -92,3 +92,19 @@ export function fasteRo(forrige, ny, pos, kjent, avstand) {
   if (flyttet || (kjent && !forrige.kjent)) return { liste: ny, pos, kjent };
   return forrige;
 }
+
+/**
+ * HVILKEN ROLLE FÅR STOPPENE NÆR DEG (v1.218.265). Rapportert: forslagene
+ * under «På vei hjem» «vil aldri være relevante». Begge rollene fikk samme
+ * nærliste, men de to stoppene ligger per definisjon på hvert sitt sted. Står
+ * du ved det ene, er nærlista svaret på det ene spørsmålet — aldri på begge.
+ * Og dette er onboarding: det finnes ingen historikk å foreslå fra.
+ *
+ * Så: nærlista gis bare så lenge den andre rollen er ubesvart. Er den besvart,
+ * står bare søket. Et stopp valgt for én rolle foreslås aldri for den andre. Ren.
+ */
+export function fasteForslagFor(rolle, sagt, nær) {
+  const annen = sagt && sagt[rolle === 'hjem' ? 'jobb' : 'hjem'];
+  if (annen) return [];
+  return nær || [];
+}

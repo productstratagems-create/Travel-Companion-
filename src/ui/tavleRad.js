@@ -39,6 +39,10 @@ export function tavleUtvalg(dirs, nå, kanRekke = () => true, perRetning = TAVLE
  * @param {(linjeId)=>Array} [meldinger] avvikene for en linje (byLine), så
  *   raden kan merke dem uten å lese global tilstand (v1.218.126)
  */
+/** Er «gå om» det store tallet på raden? Når du går, rekker den og den ikke er innstilt. Ren. */
+export function gåStort(x) {
+  return !!(x && x.rekker && !x.innstilt && Number.isFinite(x.gåOm) && x.gåOm < NEDTELLING_MAKS_MIN);
+}
 export function tavleRadHtml(x, nå, i, meldinger = () => []) {
   const l = (x.d.lines && x.d.lines[0]) || {};
   const avvik = (l.id && meldinger(l.id)) || [];
@@ -52,8 +56,14 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
       + (spor ? ', spor ' + spor : '') + (x.innstilt ? ', innstilt' : x.rekker ? '' : ', rekker ikke')
       + (rutetid ? ', etter rutetid' : '') + (tittel ? ', avvik: ' + tittel : '')) + '"'
     + (tittel ? ' title="' + esc(tittel) + '"' : '') + '>'
-    // Klokkeslett fra NEDTELLING_MAKS_MIN, som tavla (v1.218.111).
-    + (min >= NEDTELLING_MAKS_MIN
+    // FÆRRE MINUTT-TALL (v1.218.244). Rapportert: seks minutt-tall med fire
+    // betydninger på én skjerm. Det store tallet er HANDLINGEN når du går til
+    // stoppet — «gå om N min» / «gå nå» — klokkeslettet står til høyre.
+    // Uten gangtid (om bord, i fart) står nedtellingen til avgang som før.
+    + (gåStort(x)
+      ? '<span class="at-min at-min-gaa"><small>' + (x.gåOm <= 0 ? '' : 'gå om') + '</small>' + (x.gåOm <= 0 ? 'gå nå' : x.gåOm) + (x.gåOm <= 0 ? '' : '<small>min</small>') + '</span>'
+      // Klokkeslett fra NEDTELLING_MAKS_MIN, som tavla (v1.218.111).
+      : min >= NEDTELLING_MAKS_MIN
       ? '<span class="at-min at-min-klokke">' + esc(clk(x.ms)) + '</span>'
       : '<span class="at-min">' + (min < 1 ? 'nå' : min) + (min < 1 ? '' : '<small>min</small>') + '</span>')
     + '<span class="at-midt">' + merke + (avvik.length ? '<span class="at-avvik" aria-hidden="true">!</span>' : '')
@@ -67,11 +77,13 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     // tydelig nok visualisert på kortene — gitt at det kan være ulike
     // fra-stasjoner på ulike kort.» Hver rad bærer stoppet den går fra, som et
     // merke med stoppikon, i full tekstfarge — også når det er stoppet ditt.
-    + (() => { const n = !x.rekk && ((x.call && x.call._fra && x.call._fra.name) || x.herNavn); return n ? fraMerke(n, x.gang) : ''; })()
+    // Gangtiden står én gang — i overskriften for stoppet ditt (v1.218.244);
+    // på raden bare når den går fra et annet stopp.
+    + (() => { const fra = x.call && x.call._fra && x.call._fra.name; const n = !x.rekk && (fra || x.herNavn); return n ? fraMerke(n, fra && fra !== x.herNavn ? x.gang : null) : ''; })()
     // REKK DEN LENGER NED (v1.218.185): samme tekst som Rute.
     + (x.rekk ? '<span class="at-rekk">' + esc(rekkLinje(x.rekk, clk, (x.call && x.call._fra && x.call._fra.name) || x.herNavn)) + '</span>' : '')
     // NÅR DU MÅ GÅ (v1.218.171), til fots.
-    + (x.rekker && !x.innstilt && Number.isFinite(x.gåOm) ? '<span class="at-gaa-om">' + (x.gåOm <= 0 ? 'gå nå' : 'gå om ' + x.gåOm + ' min') + '</span>' : '')
+    + (!gåStort(x) && x.rekker && !x.innstilt && Number.isFinite(x.gåOm) ? '<span class="at-gaa-om">' + (x.gåOm <= 0 ? 'gå nå' : 'gå om ' + x.gåOm + ' min') + '</span>' : '')
     // «bak deg» står ikke lenger (v1.218.219): rapportert «hjelper ikke bruker».
     // Den sto på hver rad når du gikk bort fra stoppet — og sa ikke hva du skulle
     // gjøre. `x.bak` brukes fortsatt i rekkefølgen (tavleFrigjort).

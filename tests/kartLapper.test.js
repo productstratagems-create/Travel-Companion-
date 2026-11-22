@@ -14,7 +14,7 @@ describe('lappene i Auto-kartet', () => {
     expect(h).toMatch(/framme Lofsrud \d\d:35/);
   });
   it('ved stoppet: linjene herfra og den førstes «gå om»', () => {
-    expect(stoppLinjerLapp([b('76', 18, 'Helsfyr'), b('74', 14, 'Jernbanetorget')], 12, T)).toBe('<br><span class="stopp-linjer lapp-lang">74 gå om 2 min · også 76</span>');   // v1.218.230: 74 én gang
+    expect(stoppLinjerLapp([b('76', 18, 'Helsfyr'), b('74', 14, 'Jernbanetorget')], 12, T)).toBe('<br><span class="stopp-linjer lapp-lang">74 · 76</span>');   // v1.218.230: 74 én gang
     expect(stoppLinjerLapp([], 12, T)).toBe('');
   });
   it('bare den valgte (først) får lapp; de andre dempes', () => {
@@ -73,7 +73,7 @@ describe('samme lapp for alternativet (v1.218.238: Stenbråten som Mortensrud)',
     ];
     const a = avgangerFra(rader, 'Stb');
     expect(a.map(x => x.kode)).toEqual(['73', '72']);
-    expect(stoppLinjerLapp(a, 10, T)).toBe('<br><span class="stopp-linjer lapp-lang">73 gå om 2 min · også 72</span>');
+    expect(stoppLinjerLapp(a, 10, T)).toBe('<br><span class="stopp-linjer lapp-lang">73 · 72</span>');
   });
   it('alternativets lapp bruker samme definisjon', () => {
     expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/\+ stoppLinjerLapp\(_alt\.avganger \|\| \[\], _alt\.gangMin, Date\.now\(\)\)/);
@@ -88,7 +88,7 @@ describe('samme stopplapp i Rute-kartet (v1.218.239)', () => {
     const deps = [reise('73', 'Mrud', 14), reise('72', 'Mrud', 20), reise('74', 'Stb', 9), reise('71', 'Mrud', 5, { stopp: { id: 'Stb' }, ms: T + 6 * 60000 })];
     expect(ruteAvgangerFra(deps, 'Mrud').map(a => a.kode)).toEqual(['73', '72']);
     expect(ruteAvgangerFra(deps, 'Stb').map(a => a.kode)).toEqual(['74', '71']);
-    expect(stoppLinjerLapp(ruteAvgangerFra(deps, 'Mrud'), 12, T)).toBe('<br><span class="stopp-linjer lapp-lang">73 gå om 2 min · også 72</span>');
+    expect(stoppLinjerLapp(ruteAvgangerFra(deps, 'Mrud'), 12, T)).toBe('<br><span class="stopp-linjer lapp-lang">73 · 72</span>');
   });
   it('Rute-kartet bruker samme definisjon som Auto', () => {
     const b = readFileSync('src/views/board.js', 'utf8'), a = readFileSync('src/views/auto.js', 'utf8');

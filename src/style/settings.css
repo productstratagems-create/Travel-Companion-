@@ -1181,3 +1181,4 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 /* Lappenes plass (v1.218.233): kortform og skjult fra ryddKart. */
 .leaflet-tooltip.kort .lapp-lang{display:none}
 .lapp-skjult{visibility:hidden!important}
+.at-min.at-min-gaa small:first-child{display:block;white-space:nowrap;font-size:.4em;letter-spacing:.04em;text-transform:uppercase;opacity:.75}

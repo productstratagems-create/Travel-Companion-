@@ -99,7 +99,7 @@ import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, platt
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
 import { fraTider, settFraTid, fraDatoer, settFraDatoTid, KLOKKESLETT_VALG } from '../fraTider.js';
-import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest, annetHjemStopp, hjemGange } from '../hjemover.js';
+import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest, annetHjemStopp, hjemGange , hjemoverForslag, lagreHjemoverFra } from '../hjemover.js';
 import { navTo } from '../ui/nav.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
@@ -2385,6 +2385,7 @@ function _renderProfilQ(nå) {
   // andre spørsmål. Samme plass som intervjuet — ett sted for spørsmål.
   const valgt = _spørsmålNå(nå);
   if (valgt === 'faste' && _tegnFasteStopp(el)) return;
+  if (valgt === 'hjemover' && _tegnHjemover(el)) return;
   if (valgt !== 'avstigning' && valgt !== 'profil') { el.style.display = 'none'; if (el.innerHTML) el.innerHTML = ''; return; }
   const { p, m } = _profilNå();
   // VED UJEVNE MELLOMROM (v1.218.100, src/intervju.js): profilen først, så
@@ -2424,6 +2425,27 @@ function _renderProfilQ(nå) {
 /* ÉN SPØRSMÅLSPLASS (v1.218.257, src/sporsmal.js): faste stopp, avstigning,
    neste reise og profilen velges ett om gangen — høyst ett om dagen, aldri i
    fart, aldri før appen har sett reiser (unntatt faste stopp). */
+const HJEMOVER_AVVIST_KEY = 't.hjemoverForslagAvvist';
+function _hjemoverForslagNå() {
+  let avvist = null; try { avvist = storage.get(HJEMOVER_AVVIST_KEY); } catch { /* */ }
+  return hjemoverForslag(_profilNå().p, hjemStopp(), avvist);
+}
+/** «Hjemover = Mortensrud?» — ett trykk lagrer (v1.218.258, onboarding steg 3). */
+function _tegnHjemover(el) {
+  const h = _hjemoverForslagNå();
+  if (!h) return false;
+  const html = '<div class="profil-q"><div class="set-label">hjemover</div>'
+    + '<div class="profil-q-tekst">Skal «hjemover» bety reiser til ' + esc(h.navn) + '?</div>'
+    + '<div class="neste-grunn">Da viser hurtigvalget «hjemover» avgangene som tar deg dit.</div>'
+    + '<div class="neste-svar"><button type="button" class="neste-ja hjem-ja">ja</button>'
+    + '<button type="button" class="neste-nei hjem-nei">nei</button></div></div>';
+  el.style.display = '';
+  if (el.innerHTML === html) return true;
+  el.innerHTML = html;
+  el.querySelector('.hjem-ja').addEventListener('click', () => { lagreHjemoverFra(h); _spørsmålBesvart(); el.innerHTML = ''; _renderBody(); _renderProfilQ(Date.now()); });
+  el.querySelector('.hjem-nei').addEventListener('click', () => { try { storage.set(HJEMOVER_AVVIST_KEY, String(h.stopId)); } catch { /* */ } _spørsmålBesvart(); el.innerHTML = ''; _renderProfilQ(Date.now()); });
+  return true;
+}
 let _spørsmålPågår = null, _spørsmålMemo = { t: 0, kilde: null };
 function _nesteHypotese(nå) {
   const { p: prof, m: matr } = _profilNå();
@@ -2434,6 +2456,7 @@ function _spørsmålNå(nå) {
   const klare = new Set();
   let avvist = false; try { avvist = storage.get(FASTE_AVVIST_KEY) === '1'; } catch { /* */ }
   if (tilbyFasteStopp({ sagt: lesSagt(), avvist, tavleVist: (!!(_dirs && _dirs.length) && _autoTavle) || _fasteVist })) klare.add('faste');
+  if (_hjemoverForslagNå()) klare.add('hjemover');
   if (avstigningSpørsmål(venterAvstigning(nå)).some(x => !_profilSenere.has(x.nøkkel))) klare.add('avstigning');
   const h = _nesteHypotese(nå), nk = h ? h.toName + '|' + h.bucket + '|' + h.helg : null;
   if (nk && nk !== _nesteAvvist && nk !== _nesteBesvart && !erReiseStartet(state.jny, state.route, nå)) klare.add('neste');

@@ -9,7 +9,10 @@
 import { storage } from './storage.js';
 
 /** Rekkefølgen når flere er klare: onboarding, så det ferskeste, så profilen. */
-export const SPØRSMÅL_REKKEFØLGE = ['faste', 'avstigning', 'neste', 'profil'];
+/** «hjemover» (v1.218.258) rett etter de faste stoppene — begge er onboarding. */
+export const SPØRSMÅL_REKKEFØLGE = ['faste', 'hjemover', 'avstigning', 'neste', 'profil'];
+/** Kan spørres før appen har sett reiser: onboarding, ikke vaner. */
+export const UTEN_REISER = new Set(['faste', 'hjemover']);
 export const SPURT_DAG_KEY = 't.spurtDag';
 
 /** Lokal dato «2026-11-24». */
@@ -30,7 +33,7 @@ export function velgSpørsmål(klare, { iFart = false, harReiser = false, besvar
   if (iFart || !klare) return null;
   if (pågår && klare.has(pågår)) return pågår;
   if (besvartIDag) return null;
-  return SPØRSMÅL_REKKEFØLGE.find(k => klare.has(k) && (k === 'faste' || harReiser)) || null;
+  return SPØRSMÅL_REKKEFØLGE.find(k => klare.has(k) && (UTEN_REISER.has(k) || harReiser)) || null;
 }
 
 export function besvartIDag(nå) {

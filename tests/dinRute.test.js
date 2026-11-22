@@ -107,3 +107,38 @@ describe('«Din rute» hører til Rute (v1.218.263)', () => {
     expect(b).toMatch(/if \(!dir\._fraValgt && state\.nearestStation && state\.nearestStation\.name !== dir\.from\) \{ dir = nærmesteDir\(state\.nearestStation\); config\.dirs\[state\.dIdx\] = dir; \}/);
   });
 });
+
+import { profilRute, ruteUtenValg, profilForslag, erProfilRute } from '../src/dinRute.js';
+describe('svarene fra onboardingen gir Rute en rute (v1.218.264)', () => {
+  const H = { navn: 'Bodø stasjon', stopId: 'NSR:StopPlace:1', lat: 67.288, lon: 14.396 };
+  const J = { navn: 'Bodø lufthavn', stopId: 'NSR:StopPlace:2', lat: 67.268, lon: 14.365 };
+  const sagt = { hjem: H, jobb: J };
+  const kl = h => new Date(2026, 10, 23, h, 0).getTime();
+
+  it('før-bildet: uten rute og med svar ble det «Din rute» med tom «til»; nå hjem ↔ jobb', () => {
+    const r = ruteUtenValg(nærmesteDir(null), sagt, null, null, kl(8));
+    expect(erProfilRute(r)).toBe(true);
+    expect([r.from, r.to]).toEqual(['Bodø stasjon', 'Bodø lufthavn']);
+    expect(erEgenRute(r)).toBe(true);
+  });
+  it('retning følger hvor du står', () => {
+    expect(profilRute(sagt, { lat: 67.269, lon: 14.366 }, kl(8)).from).toBe('Bodø lufthavn');
+    expect(profilRute(sagt, { lat: 67.287, lon: 14.395 }, kl(17)).from).toBe('Bodø stasjon');
+  });
+  it('uten posisjon avgjør klokka', () => {
+    expect(profilRute(sagt, null, kl(8)).from).toBe('Bodø stasjon');
+    expect(profilRute(sagt, null, kl(17)).from).toBe('Bodø lufthavn');
+  });
+  it('et eget valg vinner alltid', () => {
+    const egen = { key: 'custom-out', from: 'Voss skysstasjon', to: 'Bergen' };
+    expect(ruteUtenValg(egen, sagt, null, null, kl(8))).toBe(egen);
+  });
+  it('bare ett svar: ingen rute, men stoppet er første forslag', () => {
+    expect(profilRute({ hjem: H }, null, kl(8))).toBeNull();
+    expect(profilForslag({ jobb: J })[0].name).toBe('Bodø lufthavn');
+  });
+  it('tavla utleder ruta før den henter', () => {
+    const b = readFileSync('src/views/board.js', 'utf8');
+    expect(b).toMatch(/ruteUtenValg\(før, lesSagt\(\)/);
+  });
+});

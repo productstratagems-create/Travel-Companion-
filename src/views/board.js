@@ -118,7 +118,8 @@ import { userLL } from '../geo.js';
 import { settStasjonAktiv, uthevAvgang } from '../ui/stasjonslag.js';
 import { tokens, alpha } from '../ui/themeTokens.js';
 import { closeSpectatePanel } from './spectate.js';
-import { nærmesteDir, erNærmeste, erEgenRute, dinRuteHtml, dinRuteForslag, dinRuteFra } from '../dinRute.js';
+import { lesSagt } from '../profil.js';
+import { ruteUtenValg, profilForslag, nærmesteDir, erNærmeste, erEgenRute, dinRuteHtml, dinRuteForslag, dinRuteFra } from '../dinRute.js';
 import { bindPlaceInput } from '../ui/suggest.js';
 import { loadFreq } from '../api/usage.js';
 import { newRecord, stage, showRecord, takeLookbackLost } from '../api/diagnose.js';
@@ -3102,7 +3103,7 @@ function renderDemoNote(tving) {
   }
   document.documentElement.classList.toggle('din-rute-apen', erNærmeste(dir));
   if (!erNærmeste(dir)) { el.style.display = 'none'; el.innerHTML = ''; el._sistKort = null; return; }
-  const forslag = dinRuteForslag(loadFreq('arr'), dir.from);
+  const forslag = dinRuteForslag([...profilForslag(lesSagt()), ...loadFreq('arr')], dir.from);
   const html = dinRuteHtml(dir, forslag);
   el.style.display = 'block';
   // Ikke tegn om mens brukeren skriver — da mister feltet fokus.
@@ -3859,6 +3860,10 @@ export function startBoard() {
   }
   if (intervals.board) clearInterval(intervals.board);
   // Ingen rute ennå: bare «Din rute»-kortet, ingen henting mot en tom «til».
+  // Svarene fra onboardingen gir en rute (v1.218.264): hjem ↔ jobb.
+  { const før = config.dirs[state.dIdx];
+    const nå = ruteUtenValg(før, lesSagt(), state.nearestStation, state.nearestStation || state.homeLL, Date.now());
+    if (nå !== før) { config.dirs[state.dIdx] = nå; window._updateHeader && window._updateHeader(); } }
   if (erNærmeste(config.dirs[state.dIdx])) { renderDemoNote(); return; }
   _fetchBoard();
   intervals.board = setInterval(_fetchBoard, config.boardRefreshMs);

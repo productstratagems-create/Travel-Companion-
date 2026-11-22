@@ -10,6 +10,7 @@ import { rekkTekst, rekkLinje } from '../rekkLengerNed.js';
  * aldri sier hvert sitt. Ren.
  */
 import { esc, clk, NEDTELLING_MAKS_MIN } from './fmt.js';
+import { bestillTekst } from '../api/bestilling.js';
 import { linjemerke } from './linjemerke.js';
 
 export const TAVLE_PER_RETNING = 3;
@@ -87,6 +88,8 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     // «bak deg» står ikke lenger (v1.218.219): rapportert «hjelper ikke bruker».
     // Den sto på hver rad når du gikk bort fra stoppet — og sa ikke hva du skulle
     // gjøre. `x.bak` brukes fortsatt i rekkefølgen (tavleFrigjort).
+    // MÅ BESTILLES (v1.218.256): fleksibel tur — hvordan og innen når.
+    + (x.bestill ? '<span class="at-bestill">' + esc(bestillTekst(x.bestill)) + '</span>' : '')
     // Hjemover med bytte (v1.218.151): hvor du bytter.
     + (x.bytte ? '<span class="at-fra">bytt på ' + esc(x.bytte) + '</span>' : '')
     + (x.rekker || x.innstilt ? '' : '<span class="at-merk">rekker ikke</span>') + '</span>'

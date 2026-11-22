@@ -211,3 +211,15 @@ export function fetchStoppLinjer(ids, nå = Date.now()) {
     .catch(() => null);
 }
 export function stoppLinjer(id) { return _linjer.get(id); }
+
+/**
+ * RETNING I RANGERINGEN (v1.218.241; felles fra v1.218.242). Når en retning
+ * gjelder — et retningsvalg i Auto-tavle, eller ruta selv i Rute — teller
+ * avgangene den veien (`telling`: id → antall neste time) i stedet for alle.
+ * Et stopp uten tall teller 0: vi vet ikke at noe går din vei. Uten telling:
+ * som før.
+ */
+export function retningsViktig(viktigAv, telling, idAv = s => s.id) {
+  if (!telling) return viktigAv;
+  return s => { const i = viktigAv(s); return i ? { ...i, avgangerNå: telling.get(idAv(s)) || 0 } : i; };
+}

@@ -36,7 +36,7 @@ import { fmtMins, esc, clk, clkDay, dayPrefix, countdownText, NEDTELLING_MAKS_MI
 import L from 'leaflet';
 import { fetchBysykkel } from '../api/bysykkel.js';
 import { fetchScooters }    from '../api/scooters.js';
-import { fetchNearbyStops, _resetNearbyCache, fetchStoppLinjer, stoppInfo, stoppInfoUtdatert, samletInfo, stoppLinjer, nærViktigFørst } from '../api/stops.js';
+import { fetchNearbyStops, _resetNearbyCache, fetchStoppLinjer, stoppInfo, stoppInfoUtdatert, samletInfo, retningsViktig, stoppLinjer, nærViktigFørst } from '../api/stops.js';
 import { lappMedLogo } from '../ui/tilbyderlogo.js';
 import { makeStopIcon, makeVehicleIcon, VEHICLE_MARKER_OPTS, makeRouteStopIcon, makeJourneyPointIcon, mapHalo, sideVehicleSvg, SIDE_VEHICLE_MAX_PX, mobilityCluster, vendorColour } from '../ui/mapIcons.js';
 import { livePosFeed, livePosition, _resetVehicleCache } from '../api/vehicles.js';
@@ -783,7 +783,14 @@ function renderBoardMap(pos, modes) {
       // De 2 viktigste innen gangavstand per transportmiddel (ellers nærmeste) —
       // ikke bare de 2 nærmeste. Den samme regelen som «du er ved» i auto-reise.
       // Hele klyngen (v1.218.240): linjene på alle plattformene, ikke bare den første.
-      const etterViktighet = clusters.slice().sort(nærViktigFørst(c => samletInfo([...new Set(c.map(x => String(x.id).split('|')[0]))]), c => c[0].dist));
+      // SAMME RANGERING SOM AUTO (v1.218.242): ruta er retningen — avgangene
+      // på ruta fra hvert stopp neste time teller (ruteTelling, retningsViktig).
+      const _kId = c => [...new Set(c.map(x => String(x.id).split('|')[0]))];
+      const _rt = ruteTelling(state.deps, dir && dir.stopId, Date.now());
+      const _kNøkkel = c => _kId(c).join(',');
+      const _kTelling = _rt && new Map(clusters.map(c => [_kNøkkel(c), _kId(c).reduce((n, id) => n + (_rt.get(id) || 0), 0)]));
+      const _vk = retningsViktig(c => samletInfo(_kId(c)), _kTelling, _kNøkkel);
+      const etterViktighet = clusters.slice().sort(nærViktigFørst(c => _vk(c), c => c[0].dist));
       // RUTEBEVISST (v1.218.177). Rapportert: Olasrudveien fikk fast lapp på
       // Rute-kartet uten å betjene ruta — nær deg og «viktig» i alminnelighet,
       // men uten noe å bidra med her. Fast lapp bare for et stopp ruta faktisk
@@ -1958,6 +1965,20 @@ function ruteStoppLapp(name, cluster, dir) {
   const c0 = cluster[0], w = walkMinsTo(c0);
   const avg = cluster.flatMap(s => ruteAvgangerFra(state.deps, String(s.id).split('|')[0], dir && dir.stopId));
   return esc(name) + (w ? ' · ' + (w.målt === false ? 'ca. ' : '') + w.mins + ' min' : '') + stoppLinjerLapp(avg, w ? w.mins : null, Date.now());
+}
+/** Rutas avganger per påstigningsstopp neste time; null uten reiser. Ren. */
+export function ruteTelling(deps, egetId, nå) {
+  if (!deps || !deps.length) return null;
+  const m = new Map();
+  deps.forEach(c => {
+    const kol = (c && c._legs || []).find(l => l && l.mode && l.mode !== 'foot');
+    const r = c && c._rekkLengerNed;
+    const id = r && r.stopp && r.stopp.id ? r.stopp.id : (kol && kol.fromPlace && kol.fromPlace.quay && kol.fromPlace.quay.stopPlace && kol.fromPlace.quay.stopPlace.id) || egetId;
+    const t = r ? r.ms : Date.parse((kol && (kol.expectedStartTime || kol.aimedStartTime)) || (c && (c.expectedDepartureTime || c.aimedDepartureTime)) || '');
+    if (!id || !Number.isFinite(t) || t < nå || t > nå + 3600_000) return;
+    m.set(String(id), (m.get(String(id)) || 0) + 1);
+  });
+  return m;
 }
 export function ruteStoppIder(dir, deps) {
   const ids = new Set();

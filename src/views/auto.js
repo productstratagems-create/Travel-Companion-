@@ -79,7 +79,7 @@ import { lastHånd } from '../haand.js';
 import { ankomstMs } from '../ankomst.js';
 import { hensikt, hensiktLinje, sammeTur, reiseKall } from '../hensikt.js';
 import { belegg, beleggTekst } from '../api/belegg.js';
-import { fetchStoppLinjer, stoppLinjer, stoppInfoUtdatert, stoppInfo, nærViktigFørst, fetchNearbyStops, viktighet, sammenlignViktighet } from '../api/stops.js';
+import { fetchStoppLinjer, stoppLinjer, stoppInfoUtdatert, stoppInfo, nærViktigFørst, fetchNearbyStops, viktighet, sammenlignViktighet, retningsViktig } from '../api/stops.js';
 import { kontekstNå, kontekstLinje, stedType, profil, vaneMatrise, hypoteseNå, nesteSpørsmål, settSted, avvisSted, svarReise } from '../profil.js';
 import { depUses, usesOf, loadFreq, glemSted } from '../api/usage.js';
 import { normMode } from '../api/stopCats.js';
@@ -1047,10 +1047,7 @@ function _stops() {
  * (fra tavlas egne avganger, per stopp) i stedet for alle. Et stopp tavla
  * ikke har avganger fra, teller 0 i retningen — vi vet ikke at noe går din vei.
  */
-export function retningsViktig(viktigAv, telling) {
-  if (!telling) return viktigAv;
-  return s => { const i = viktigAv(s); return i ? { ...i, avgangerNå: telling.get(s.id) || 0 } : i; };
-}
+export { retningsViktig } from '../api/stops.js';   // flyttet dit (v1.218.242): én definisjon for Auto og Rute
 /** Avganger per stopp i valgt retning, fra tavlas avganger; null uten retningsvalg. */
 function _retningTelling(nå = Date.now()) {
   if (!_autoTavle || _atRetning === 'alle' || !_dirs || !_dirs.length || !_stop) return null;

@@ -5,6 +5,7 @@
  * framme. Fakta på radene («ingen bytte», «minst gange»), ingen rangering —
  * «ingen dom» (docs/onboarding-forslag.md). Ren.
  */
+import { adaptTripPattern } from './api/adapt.js';
 const t = s => (s ? Date.parse(s) : NaN);
 const start = l => t(l.expectedStartTime || l.aimedStartTime);
 const slutt = l => t(l.expectedEndTime || l.aimedEndTime);
@@ -36,7 +37,9 @@ export function reiseRader(tps, nå, gangMin) {
     rader.push({ type: 'kollektiv', gåOm: Math.round((s0 - nå) / 60000), ank, linjer,
       fra: (kol[0].fromPlace && kol[0].fromPlace.name) || '', fraLL: kol[0].fromPlace && Number.isFinite(kol[0].fromPlace.latitude) ? { lat: kol[0].fromPlace.latitude, lon: kol[0].fromPlace.longitude, name: kol[0].fromPlace.name } : null,
       bytter: kol.length - 1, gangMin: Math.round(gang / 60000), fakta: [],
-      via: kol.length > 1 && kol[0].toPlace ? kol[0].toPlace.name || null : null });
+      via: kol.length > 1 && kol[0].toPlace ? kol[0].toPlace.name || null : null,
+      // Reisen selv (v1.218.272): raden skal kunne åpnes, ikke bare vises.
+      tp });
   }
   // Det som er gått, er gått: en reise du måtte ha gått for et minutt siden, står ikke.
   const ute = rader.filter(r => r.gåOm >= -1);
@@ -69,4 +72,28 @@ export function kombiRader(rader) {
     if (best == null) fakta.push('eneste vei dit');
     return { ...r, fakta };
   });
+}
+
+/**
+ * EN BYTTERAD SOM KALL (v1.218.272). Rapportert: «Forslag med bytter lar seg
+ * ikke velge.» Raden kastet reisen og kunne bare vise gangen på kartet. Nå:
+ * samme kall som Rute lager av en reise (adaptTripPattern — alle etappene,
+ * byttene), med `_dir` som en vanlig rad i Auto-tavle, så avgangsdetaljene,
+ * «reis →» og Rute virker uten egen kode. Ren.
+ * @returns kallet, eller null uten reise
+ */
+export function kombiKall(r) {
+  const tp = r && r.tp;
+  if (!tp || !tp.legs) return null;
+  const c = adaptTripPattern(tp);
+  if (!c || !c._legs || !c._legs.length) return null;
+  const kol = tp.legs.filter(l => l && l.mode && l.mode !== 'foot');
+  const f = kol[0].fromPlace || {}, siste = tp.legs[tp.legs.length - 1].toPlace || {};
+  const id = p => (p.quay && p.quay.stopPlace && p.quay.stopPlace.id) || (p.stopPlace && p.stopPlace.id) || null;
+  c._dir = { key: 'auto-tavle', from: f.name || '', stopId: id(f),
+    _fromLat: Number.isFinite(f.latitude) ? f.latitude : null, _fromLon: Number.isFinite(f.longitude) ? f.longitude : null,
+    to: siste.name || null, toStopId: id(siste),
+    _toLat: Number.isFinite(siste.latitude) ? siste.latitude : null, _toLon: Number.isFinite(siste.longitude) ? siste.longitude : null,
+    _målKjent: false };
+  return c;
 }

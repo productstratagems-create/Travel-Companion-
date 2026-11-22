@@ -34,7 +34,7 @@ let _gangTreLogg = '';
 /** Felles startpunkt (v1.218.208): første punkt på ruta til hovedstoppet —
  *  der rutetjenesten alt satte deg på veien — så alle ruter starter på samme vei. */
 function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f ? (Array.isArray(f) ? { lat: f[0], lon: f[1] } : f) : userLL(); }
-import { reiseRader, kombiRader } from '../reiseTil.js';
+import { reiseRader, kombiRader, kombiKall } from '../reiseTil.js';
 import { fraMerke } from '../ui/tavleRad.js';
 import { roPunkt } from '../roPunkt.js';
 import { velgSpørsmål, besvartIDag, merkBesvart } from '../sporsmal.js';
@@ -4864,7 +4864,7 @@ export function settFraValg(valg) {
   if (!_fraValg && _fraModus === 'ankomst') { /* ankomst uten tid: venter på tid */ }
   _fraMs = _fraValg ? fraTid(_fraValg, Date.now()) : null;
   _fraTidVed = _fraValg ? _fraSignatur(_fraValg) : null;
-  _dirs = []; _asked = false; _open = null; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false;
+  _dirs = []; _asked = false; _open = null; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false; _atRull = { vist: -1, tomme: 0 };
   _tegnFraValg();
   if (_stop) _load();
 }
@@ -5763,6 +5763,18 @@ export function settAutoTavle(på) {
 // Sidene du har rullet til, avgangene hentet utover første svar, og om
 // gruppen «rekker ikke» er åpen. Nullstilt når stoppet byttes.
 let _atGrense = TAVLE_SIDE, _atEkstra = [], _atStopp = null, _atHenter = false, _atSlutt = false, _atIkkeÅpen = false, _atObs = null;
+/* RULLING SOM IKKE GIR NOE (v1.218.272). Rapportert: «Forslag med bytter lar
+   seg ikke velge.» Målt: med «mot sentrum» skjuler filteret de fleste radene,
+   bunnvakten synes alltid, og lista ble utvidet og tegnet på nytt ~120 ganger
+   i sekundet — raden du trykket på var revet ut før trykket landet. Utvidelser
+   som ikke gir flere synlige rader telles; etter AT_TOM_MAKS stopper det til
+   stoppet eller filteret byttes. Ren regel i merEtterRulling. */
+export const AT_TOM_MAKS = 3;
+let _atRull = { vist: -1, tomme: 0 };
+export function merEtterRulling(forrige, vist) {
+  const tomme = vist > forrige.vist ? 0 : forrige.tomme + 1;
+  return { vist, tomme, fortsett: tomme < AT_TOM_MAKS };
+}
 /**
  * Gruppen en retning står i: 'mot' sentrum, ellers null («andre retninger»).
  * ÉN definisjon for Auto-reises seksjoner og Auto-tavlas filter (v1.218.131).
@@ -5964,7 +5976,7 @@ function _iRetning(dirs, nå = Date.now()) {
 }
 function _tegnAutoTavle(body) {
   const nå = Date.now();
-  if (!_stop || _atStopp !== _stop.id) { _atStopp = _stop && _stop.id; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false; _atIkkeÅpen = false; _atRetning = lagretRetning(); }
+  if (!_stop || _atStopp !== _stop.id) { _atStopp = _stop && _stop.id; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false; _atIkkeÅpen = false; _atRetning = lagretRetning(); _atRull = { vist: -1, tomme: 0 }; }
   const g = _stop ? gangTil(_stop) : null, gang = g ? g.mins : null;
   // Kartets filter (lag-panelet) gjelder lista også, og den sier det.
   const skjult = _skjulteModi();
@@ -6107,7 +6119,7 @@ function _tegnAutoTavle(body) {
     if (_hjemHold.brukt) { _hjemHold.brukt = false; return; }   // langt trykk er ikke et valg
     // Uten stopp valgt er hjemover et spørsmål: hva er hjem? Svaret står i innstillinger.
     if (b.dataset.retning === 'hjem' && !hjemStopp().length) { tilHjemoverInnstilling(); return; }
-    _atRetning = b.dataset.retning; _lagreRetning(_atRetning); _atGrense = TAVLE_SIDE; _renderBody();
+    _atRetning = b.dataset.retning; _lagreRetning(_atRetning); _atGrense = TAVLE_SIDE; _atRull = { vist: -1, tomme: 0 }; _renderBody();
   }));
   _hjemLangtTrykk(body);
   const det = body.querySelector('.at-ikke');
@@ -6116,6 +6128,9 @@ function _tegnAutoTavle(body) {
   body.querySelectorAll('.at-kombi').forEach(b => b.addEventListener('click', () => {
     const r = kombi[Number(b.dataset.kombi)];
     if (r && r.fraLL) { _atGangTil = { id: 'kombi:' + r.fraLL.name, name: r.fraLL.name, lat: r.fraLL.lat, lon: r.fraLL.lon }; _aKey = ''; _renderMap(); }
+    // ETT TRYKK → AVGANGSDETALJER, som de andre radene (v1.218.272).
+    const c = kombiKall(r);
+    if (c && typeof window !== 'undefined' && window.tap) window.tap(c);
   }));
   body.querySelectorAll('.at-rad').forEach(b => b.addEventListener('click', () => {
     const x = rader[Number(b.dataset.i)];
@@ -6140,6 +6155,9 @@ function _tegnAutoTavle(body) {
   if (!vakt || _atSlutt || typeof IntersectionObserver === 'undefined') return;
   _atObs = new IntersectionObserver(innslag => {
     if (!innslag.some(e => e.isIntersecting) || _atHenter) return;
+    const r = merEtterRulling(_atRull, body.querySelectorAll('.at-rad, .at-kombi').length);
+    _atRull = { vist: r.vist, tomme: r.tomme };
+    if (!r.fortsett) return;
     if (!del.tomForLokale) { _atGrense += TAVLE_SIDE; _renderBody(); return; }
     _atHenter = true; _renderBody();
     const fra = (del.sisteMs || Date.now()) + 1000, stopp = _stop;

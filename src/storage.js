@@ -46,6 +46,8 @@ const ALL_KEYS = [
   't.herBekreftet',
   // Onboarding steg 1 (v1.218.251): posisjonen forklart; kortet om faste stopp avvist.
   't.posForklart', 't.fasteStoppAvvist',
+  // Onboarding steg 2 (v1.218.257): dagen et spørsmål sist ble besvart.
+  't.spurtDag',
   // Klokkeslettene for «avganger etter …» (v1.218.132). Nivå 1.
   't.autoFraTider',
   // Fast dato for «avganger etter …» fra rullehjulene (v1.218.140). Nivå 1.

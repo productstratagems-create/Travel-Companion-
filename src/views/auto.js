@@ -37,6 +37,7 @@ function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f 
 import { reiseRader, kombiRader } from '../reiseTil.js';
 import { fraMerke } from '../ui/tavleRad.js';
 import { roPunkt } from '../roPunkt.js';
+import { velgSpørsmål, besvartIDag, merkBesvart } from '../sporsmal.js';
 import { bestillingFor } from '../api/bestilling.js';
 import { fastFørst, tilbyFasteStopp, fasteKandidater, fasteRo } from '../fasteStopp.js';
 import { målområder } from '../maalomrader.js';
@@ -2361,10 +2362,10 @@ function _tegnFasteStopp(el) {
   el.style.display = '';
   if (el.innerHTML === html) return true;
   el.innerHTML = html;
-  const ferdig = () => { try { storage.set(FASTE_AVVIST_KEY, '1'); } catch { /* */ } _fasteÅpen = null; el.innerHTML = ''; _renderProfilQ(Date.now()); };
+  const ferdig = () => { try { storage.set(FASTE_AVVIST_KEY, '1'); } catch { /* */ } _fasteÅpen = null; _spørsmålBesvart(); el.innerHTML = ''; _renderProfilQ(Date.now()); };
   const lagre = (rolle, s) => {
     const sted = { navn: s.name || s.label || s.navn, stopId: s.id ? String(s.id).split('|')[0] : null, lat: s.lat, lon: s.lon };
-    const ferdigLagret = nær2 => { settSted(rolle, sted, nær2); _fasteÅpen = null; _renderWhere(); _renderProfilQ(Date.now()); };
+    const ferdigLagret = nær2 => { settSted(rolle, sted, nær2); _fasteÅpen = null; const ss = lesSagt(); if (ss.hjem && ss.jobb) _spørsmålBesvart(); _renderWhere(); _renderProfilQ(Date.now()); };
     if (Number.isFinite(sted.lat)) fetchNearbyStops(sted.lat, sted.lon).then(l => ferdigLagret(l || []), () => ferdigLagret([]));
     else ferdigLagret([]);
   };
@@ -2382,7 +2383,9 @@ function _renderProfilQ(nå) {
   if (_følgerReise() && _lås || iFart(fartNå(nå)) || _følgerReise() && (_ombordDom(nå).kind || '').startsWith('ombord')) { el.style.display = 'none'; return; }
   // DINE FASTE STOPP (v1.218.251): tilbys én gang, etter første tavle, før
   // andre spørsmål. Samme plass som intervjuet — ett sted for spørsmål.
-  if (_tegnFasteStopp(el)) return;
+  const valgt = _spørsmålNå(nå);
+  if (valgt === 'faste' && _tegnFasteStopp(el)) return;
+  if (valgt !== 'avstigning' && valgt !== 'profil') { el.style.display = 'none'; if (el.innerHTML) el.innerHTML = ''; return; }
   const { p, m } = _profilNå();
   // VED UJEVNE MELLOMROM (v1.218.100, src/intervju.js): profilen først, så
   // reisene i innstillinger du ikke har svart på.
@@ -2397,7 +2400,7 @@ function _renderProfilQ(nå) {
   if (el.innerHTML === html) return;
   el.innerHTML = html;
   if (!q) return;
-  const ferdig = () => { _profilSenere.add(q.nøkkel); intervjuUtsett(Date.now()); _renderProfilQ(Date.now()); };
+  const ferdig = () => { _profilSenere.add(q.nøkkel); intervjuUtsett(Date.now()); _spørsmålBesvart(); _renderProfilQ(Date.now()); };
   el.querySelector('.profil-ja').addEventListener('click', () => {
     if (q.art === 'reise') { svarReise(q.celle, q.type, true); ferdig(); return; }
     if (q.art === 'mål') { lærNesteSvar(q.h, +1); ferdig(); return; }
@@ -2418,6 +2421,31 @@ function _renderProfilQ(nå) {
   el.querySelector('.profil-senere').addEventListener('click', ferdig);
 }
 
+/* ÉN SPØRSMÅLSPLASS (v1.218.257, src/sporsmal.js): faste stopp, avstigning,
+   neste reise og profilen velges ett om gangen — høyst ett om dagen, aldri i
+   fart, aldri før appen har sett reiser (unntatt faste stopp). */
+let _spørsmålPågår = null, _spørsmålMemo = { t: 0, kilde: null };
+function _nesteHypotese(nå) {
+  const { p: prof, m: matr } = _profilNå();
+  return kontekstNå(nå, _herSom(), prof, matr).neste || nesteReise({ nå, her: userLL(), rangering: at => destRanking(at), svar: nesteSvarFor });
+}
+function _spørsmålNå(nå) {
+  if (nå - _spørsmålMemo.t < 1000) return _spørsmålMemo.kilde;
+  const klare = new Set();
+  let avvist = false; try { avvist = storage.get(FASTE_AVVIST_KEY) === '1'; } catch { /* */ }
+  if (tilbyFasteStopp({ sagt: lesSagt(), avvist, tavleVist: (!!(_dirs && _dirs.length) && _autoTavle) || _fasteVist })) klare.add('faste');
+  if (avstigningSpørsmål(venterAvstigning(nå)).some(x => !_profilSenere.has(x.nøkkel))) klare.add('avstigning');
+  const h = _nesteHypotese(nå), nk = h ? h.toName + '|' + h.bucket + '|' + h.helg : null;
+  if (nk && nk !== _nesteAvvist && nk !== _nesteBesvart && !erReiseStartet(state.jny, state.route, nå)) klare.add('neste');
+  if (intervjuKlart(nå)) { const { p, m } = _profilNå(); if (nesteSpørsmål(p, m, nå, _profilSenere) || målSpørsmål(loadSmartHist(), nå).some(x => !_profilSenere.has(x.nøkkel))) klare.add('profil'); }
+  const iBevegelse = iFart(fartNå(nå)) || (_følgerReise() && (!!_lås || (_ombordDom(nå).kind || '').startsWith('ombord')));
+  const kilde = velgSpørsmål(klare, { iFart: iBevegelse, harReiser: loadSmartHist().length > 0, besvartIDag: besvartIDag(nå), pågår: _spørsmålPågår });
+  if (kilde) _spørsmålPågår = kilde;
+  _spørsmålMemo = { t: nå, kilde };
+  return kilde;
+}
+/** Et svar på spørsmålet som står: dagens er brukt. */
+function _spørsmålBesvart() { merkBesvart(Date.now()); _spørsmålPågår = null; _spørsmålMemo = { t: 0, kilde: null }; }
 function _renderNeste(nå) {
   const el = _el('auto-neste');
   if (!el) return;
@@ -2431,12 +2459,14 @@ function _renderNeste(nå) {
   const w = _stop ? gangTil(_stop) : null;
   const hit = h && _stop && tilstand(h, nå) === 'nær' ? vanligAvgang(_dirs, h, _stop.name, w ? w.mins : null, nå) : null;
   // Med en startet reise foreslås ikke andre (v1.218.90).
-  const html = erReiseStartet(state.jny, state.route, nå) ? '' : nøkkel && nøkkel === _nesteAvvist ? ''
+  // Spørsmålet bare når det er dets tur (v1.218.257); svaret ditt står som før.
+  const sinTur = (nøkkel && nøkkel === _nesteBesvart) || _spørsmålNå(nå) === 'neste';
+  const html = !sinTur || erReiseStartet(state.jny, state.route, nå) ? '' : nøkkel && nøkkel === _nesteAvvist ? ''
     : nesteReiseHtml(h, nøkkel && nøkkel === _nesteBesvart, { nå, hit, walkMins: w ? w.mins : null });
   el.style.display = html ? '' : 'none';
   if (el.innerHTML === html) return;
   el.innerHTML = html;
-  const svar = tegn => () => { if (h.kilde === 'profil') svarReise(h.celle, h.type, tegn > 0); else lærNesteSvar(h, tegn); _nesteBesvart = nøkkel; if (tegn < 0) _nesteAvvist = nøkkel; _renderNeste(Date.now()); };
+  const svar = tegn => () => { if (h.kilde === 'profil') svarReise(h.celle, h.type, tegn > 0); else lærNesteSvar(h, tegn); _nesteBesvart = nøkkel; if (tegn < 0) _nesteAvvist = nøkkel; _spørsmålBesvart(); _renderNeste(Date.now()); };
   const ja = el.querySelector('.neste-ja'), nei = el.querySelector('.neste-nei');
   if (ja) ja.addEventListener('click', svar(+1));
   if (nei) nei.addEventListener('click', svar(-1));

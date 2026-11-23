@@ -745,3 +745,112 @@ bredde.
 - usortert fase 2;
 - utfylling med kandidater uten nye linjer;
 - fase 2 før fase 1 er tom.
+
+### 4c: tynt tilbud og døgnoppslag (gjort)
+
+**Problemet.** Tretten tirsdag kl. 12 hadde bare buss 141 i vinduet på 60
+min, mens døgnet fra de samme stoppene har taxi 5035/5030/5031, buss 142,
+540–546 og 521. Om natta (Mortensrud kl. 01:30) manglet FB10, 70N og
+T-bane 2/3. Utforskeren skal skille **«ikke noe tilbud»** fra **«tilbud, men
+ikke i søkevinduet»**.
+
+**Bygget**
+- **Utløseren** (`tyntLR`, startverdi 5) gjelder *hele* ledd 1: færre enn 5
+  ulike linjeretninger. Et ledd 1 som feilet, er *ukjent*, ikke tynt, og
+  utløser ingenting.
+- **Døgnoppslaget** er ett ekstra kall med `boardGQL`: 24 t, høyst 1 avgang
+  per linjeretning, `døgnAvgangerMaks` 100, og planlagt stoppliste.
+- **Plassering** av hver linjeretning som ikke er i ledd 1, etter
+  `nesteAvgang` (*tidligste* avgang etter søketidspunktet, beregnet med min,
+  ikke etter rekkefølgen i svaret):
+
+  | når | vindu | konsekvens |
+  |---|---|---|
+  | innen horisonten | `ordinært` | det *er* i vinduet, bare utenfor ledd 1s tak |
+  | innen horisont × `utvidelse` (2) | `utvidet` | med i nettverket og kan åpne knutepunkter |
+  | senere | `senere` | se under |
+
+- **Senere tilbud:**
+  - `transport_offer` og destinasjoner registreres som opsjoner med
+    stien `nettverksutforsker:døgn`, `vindu: 'senere'` og `nesteAvgang`;
+  - veiene får grunnlaget «rutetilbud senere i døgnet»;
+  - de åpner **aldri** knutepunkter;
+  - de telles **ikke** i bredden (`struktur`), men i `vindu.senere` og
+    `kandidater.senere`.
+- **`not_now` settes på opsjonsnivå** etter sammenslåing, på tvers av alle
+  veier og tilgangspunkter. Én vei i ordinært eller utvidet vindu holder
+  opsjonen ute av `not_now`.
+- **Tidsforskyvningen skjules ikke.**
+  - Ledd 2 regnes fra nå. En vei i ledd 2 med inngang bare fra det utvidede
+    vinduet merkes `tidsforskyvning: 'inn fra utvidet vindu; ledd 2 regnet
+    fra nå — ikke tidskontrollert'` og `vindu: 'utvidet'`, også om
+    knutepunktets avgang var ordinær.
+  - Full tidsmessig kobling er ikke en del av 4c.
+- **`natt.døgntilbud`** inneholder:
+  - `utløst`, `ulikeLR` og `grense`;
+  - linjeretninger i døgnet, i vinduet, i det utvidede vinduet og senere;
+  - `førsteNesteAvgang`;
+  - **`begrenset`**: når et stopp når taket, står det i `ikkeUndersøkt` at
+    døgnet kan være ufullstendig og at fravær ikke er bevis.
+- **Ingen i vinduet, men senere:** `ikkeUndersøkt` sier «tilbud finnes senere
+  i døgnet, første avgang …», aldri «ingen muligheter».
+
+**Avvik fra planen**
+1. **Utløseren gjelder hele ledd 1, ikke hvert tilgangspunkt** (godkjent).
+   Per punkt ville utløst regelen i byen: Olasrudveien har 0 avganger.
+2. **Døgnoppslaget bruker `boardGQL`, ikke `stoppInfoGql`** (godkjent).
+   - `src/api/stops.js` drar inn `ui/`, så `stoppInfoGql` kan ikke importeres.
+   - `boardGQL` gir stopplister.
+   - Det koster ett kall, og bare ved tynt tilbud.
+3. **Tre trinn, ikke to:** avganger fra døgnoppslaget innen horisonten er
+   `ordinært`, ikke `utvidet`. Funnet i test: buss 141 kl. 12:54 var i
+   vinduet, men utenfor ledd 1s tak.
+4. **FB10 om natta (kl. 03:00, 90 min etter kl. 01:30) ble `utvidet`, ikke
+   `senere`.** Det følger regelen: dobbelt busshorisont er 120 min. Derfor
+   åpner FB10 knutepunkter, og 24 veier er merket med tidsforskyvning.
+
+**Målt** (opptak tatt 2026-11-23 for tirsdag 2026-11-24 kl. 12:00 og onsdag
+kl. 01:30, med og uten regelen, `tyntLR` 0 mot 5):
+
+| | Mortensrud | Nesttun | Ranheim | Tretten uten → med | Natt uten → med |
+|---|---|---|---|---|---|
+| utløst | nei | nei | nei (7 linjeretninger) | ja (2) | ja (3) |
+| kall: oppdagelse + gang | 4 + 1 | 4 + 1 | 4 + 1 | 4 + 1 → **5 + 1** | 4 + 1 → **5 + 1** |
+| bredde: linjeretninger / områder | 169 / 30 | 106 / 30 | 159 / 28 | 43 / 26 → 44 / 26 | 5 / 7 → 6 / 10 |
+| destinasjoner nå / tilbud nå | 1 531 / 19 | 1 155 / 20 | 1 325 / 3 | 567 / 2 → 568 / 7 | 42 / 7 → 77 / 10 |
+| senere: linjeretninger / destinasjoner / tilbud | — | — | — | → 23 / 56 / 13 | → 15 / 85 / 20 |
+| veier ordinært / utvidet / senere | uendret | uendret | uendret | 2 295 / – / – → 2 330 / 938 / 956 | 115 / – / – → 84 / 129 / 432 |
+| tidsforskjøvet (ledd 2 fra utvidet) | 0 | 0 | 0 | 909 | 24 |
+| første neste avgang | — | — | — | 13:02 (taxi 5035) | 03:00 (FB10) |
+| tid | 2,2 s | 1,2 s | 1,7 s | 2,3 s | 1,1 s |
+
+Byene er **identiske** med og uten regelen: veier, struktur og kall (testet).
+
+**Hva tallene representerer [Tolkning]**
+- **Tretten:** bredden nå endres knapt (+1 linjeretning). Gevinsten er
+  sannferdighet: 27 linjeretninger i døgnet mot 2 i vinduet.
+  - Fem tilbud kommer innen 2 t: taxi 5035 og buss 142.
+  - 13 tilbud kommer senere: 540, 542–546, 521, taxi 5030/5031 og 142 mot
+    Otta/Ringebu/Vinstra.
+  - Hvert tilbud har neste avgang.
+- **Natt:** FB10 i det utvidede vinduet åpner knutepunkter (områdene 7 →
+  10). Alt det står med tidsforskyvning, ikke som en gjennomførbar reise.
+
+**Tester:** 17 nye, 61 i alt. Ti mutasjoner er fanget:
+- vindusgrensen fjernet;
+- senere vei som inngang til knutepunkt;
+- utvidet merket ordinært;
+- `not_now` også der linjen går nå;
+- utløseren per tilgangspunkt;
+- `nesteAvgang` etter rekkefølgen i svaret (syntetisk test lagt til etter at
+  mutanten overlevde opptakene);
+- avgang før søket tatt med;
+- et feilet ledd 1 tolket som tynt;
+- begrenset døgnsvar ikke rapportert;
+- forskjøvet vei merket ordinær.
+
+**Kjente grenser**
+- **Tidsforskyvningen er merket, ikke løst.** Full tidsmessig kobling er ikke
+  en del av 4c.
+- **Opptakene ble tatt dagen før reisetidspunktet,** altså uten sanntid. Det
+  gjelder alle scenarioene.

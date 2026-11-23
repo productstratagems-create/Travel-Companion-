@@ -158,8 +158,9 @@ describe('budsjett, feil og cache', () => {
   it('oppdagelse og gang telles hver for seg; ingen bekreftelse i utforskeren', async () => {
     for (const n of SCENARIOER) {
       const { r, kall } = await kjør(n);
-      expect(r.rapport.kall).toEqual({ oppdagelse: 4, gang: 1, bekreftelse: 0 }); // geokoder, ledd 1, stoppinfo, ledd 2
-      expect(kall.length).toBe(5);
+      const tynt = r.natt.døgntilbud.utløst ? 1 : 0; // + døgnoppslag ved tynt tilbud (4c)
+      expect(r.rapport.kall).toEqual({ oppdagelse: 4 + tynt, gang: 1, bekreftelse: 0 }); // geokoder, ledd 1, stoppinfo, ledd 2
+      expect(kall.length).toBe(5 + tynt);
       expect(kall.filter(k => k.navn === 'ledd 2').length).toBe(1); // ett kall uansett antall knutepunkter
     }
   });
@@ -357,5 +358,163 @@ describe('4b.1: utfylling av ledig kapasitet', () => {
     const { r } = await kjør('ranheim_dag');
     expect(Math.max(...r.veier.map(v => v.ledd))).toBe(2);
     expect(r.veier.every(v => !v.knute || r.knutepunkter.spurt.includes(v.knute))).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ 4c */
+const tilbudAv = (r, re) => r.opsjoner.filter(o => o.type === 'transport_offer' && re.test(o.label));
+describe('4c: tynt tilbud og døgnoppslag', () => {
+  it('utløses bare ved tynt ledd 1 (samlet): Tretten og natt ja, byene nei', async () => {
+    const ut = {};
+    for (const n of SCENARIOER) ut[n] = (await kjør(n)).r.natt.døgntilbud;
+    expect(ut.tretten_dag.utløst).toBe(true);
+    expect(ut.mortensrud_natt.utløst).toBe(true);
+    for (const n of ['mortensrud_dag', 'nesttun_dag', 'ranheim_dag']) expect(ut[n]).toEqual({ utløst: false, ulikeLR: ut[n].ulikeLR, grense: PARAMETRE.tyntLR });
+  });
+  it('grensen er konfigurerbar: under, på og over (Ranheim har 7 linjeretninger i ledd 1)', async () => {
+    const lr = (await kjør('ranheim_dag')).r.natt.døgntilbud.ulikeLR; _tømCache();
+    expect(lr).toBe(7);
+    const utløst = async t => { _tømCache(); const a = avspiller(O.ranheim_dag, { endre: (n, s) => s }); const r = await utforsk({ ...O.ranheim_dag.scenario, parametre: { tyntLR: t } }, { hent: async (n, q) => (n === 'døgnoppslag' ? { data: {} } : a.hent(n, q)) }); return r.natt.døgntilbud.utløst; };
+    expect(await utløst(7)).toBe(false); // på grensen: «færre enn»
+    expect(await utløst(6)).toBe(false); // under
+    expect(await utløst(8)).toBe(true);  // over
+  });
+  it('byene er identiske med og uten regelen (tyntLR 0)', async () => {
+    for (const n of ['mortensrud_dag', 'nesttun_dag', 'ranheim_dag']) {
+      const med = (await kjør(n)).r; _tømCache();
+      const uten = (await kjør(n, {}, { parametre: { tyntLR: 0 } })).r; _tømCache();
+      expect(med.veier.map(v => v.id)).toEqual(uten.veier.map(v => v.id));
+      expect(med.rapport.struktur).toEqual(uten.rapport.struktur);
+      expect(med.rapport.kall).toEqual(uten.rapport.kall);
+    }
+  });
+  it('Tretten: taxi 5035 og 142 mot Lillehammer i utvidet vindu; 142 mot Otta/Ringebu og taxi 5030/5031 senere med not_now', async () => {
+    const { r } = await kjør('tretten_dag');
+    const lr = r.grupper.linjeretning;
+    const finn = re => Object.values(lr).filter(g => re.test(`${g.kode}>${g.retning}`));
+    expect(finn(/^5035>Årnes/).every(g => g.vindu.includes('utvidet'))).toBe(true);
+    expect(finn(/^142>Lillehammer$/).some(g => g.vindu.includes('utvidet'))).toBe(true);
+    for (const re of [/^142>Ringebu/, /^5030>/, /^5031>/]) expect(finn(re).length && finn(re).every(g => g.vindu.includes('senere'))).toBeTruthy();
+    for (const o of tilbudAv(r, /^taxi 503[01] /)) {
+      expect(o.timetable).toBe('not_now');
+      expect(tilgjengelighet(o, O.tretten_dag.scenario.tid)).toBe('in_timetable_not_now');
+      expect(o.provenance.every(p => p.vindu === 'senere' && p.nesteAvgang)).toBe(true);
+    }
+  });
+  it('natt: 70N og T-bane 3 senere i døgnet; døgntilbudet sier at tilbud finnes', async () => {
+    const { r } = await kjør('mortensrud_natt');
+    const d = r.natt.døgntilbud;
+    expect(d.senere).toBeGreaterThan(0);
+    expect(d.førsteNesteAvgang).toBeTruthy();
+    expect(tilbudAv(r, /^bus 70N /).every(o => o.timetable === 'not_now')).toBe(true);
+    expect(tilbudAv(r, /^metro 3 /).every(o => o.timetable === 'not_now')).toBe(true);
+    expect(tilbudAv(r, /^bus 70N /).length).toBeGreaterThan(0);
+  });
+  it('nesteAvgang er den tidligste etter søketidspunktet, uavhengig av rekkefølgen i svaret', async () => {
+    const snu = (n, s) => { if (n === 'døgnoppslag') for (const sp of Object.values(s.data)) sp.estimatedCalls.reverse(); return s; };
+    const a = (await kjør('tretten_dag')).r; _tømCache();
+    const b = (await kjør('tretten_dag', { endre: snu })).r;
+    const neste = r => Object.fromEntries(r.opsjoner.filter(o => o.type === 'transport_offer' && o.timetable === 'not_now').map(o => [o.id, o.provenance.map(p => p.nesteAvgang).sort()]));
+    expect(neste(b)).toEqual(neste(a));
+    const tid = Date.parse(O.tretten_dag.scenario.tid);
+    for (const v of Object.values(neste(a)).flat()) expect(Date.parse(v)).toBeGreaterThanOrEqual(tid);
+  });
+  it('senere veier åpner aldri knutepunkter', async () => {
+    for (const n of ['tretten_dag', 'mortensrud_natt']) {
+      const { r } = await kjør(n);
+      const senereLR = new Set(Object.entries(r.grupper.linjeretning).filter(([, g]) => g.vindu.length === 1 && g.vindu[0] === 'senere').map(([k]) => k));
+      expect(senereLR.size).toBeGreaterThan(0);
+      for (const k of r.knutepunkter.vurdert) for (const inn of k.inn) expect(senereLR.has(inn)).toBe(false);
+      expect(r.veier.filter(v => v.vindu === 'senere').every(v => v.ledd === 1 && !v.knute)).toBe(true);
+    }
+  });
+  it('vindu og grunnlag holdes adskilt; utvidet er aldri «avgang i søkevinduet»', async () => {
+    const { r } = await kjør('tretten_dag');
+    for (const v of r.veier) {
+      if (v.vindu === 'senere') expect(v.grunnlag).toBe('rutetilbud senere i døgnet');
+      if (v.vindu === 'utvidet') expect(['avgang i utvidet søkevindu', 'planlagt stoppsekvens']).toContain(v.grunnlag);
+      if (v.vindu === 'ordinært') expect(['avgang i søkevinduet', 'planlagt stoppsekvens']).toContain(v.grunnlag);
+    }
+    expect(r.veier.some(v => v.vindu === 'utvidet')).toBe(true);
+  });
+  it('not_now på opsjonsnivå: én vei i ordinært eller utvidet vindu holder opsjonen ute av not_now', async () => {
+    for (const n of ['tretten_dag', 'mortensrud_natt']) {
+      const { r } = await kjør(n);
+      const per = new Map(); for (const v of r.veier) (per.get(v.opsjon) || per.set(v.opsjon, new Set()).get(v.opsjon)).add(v.vindu);
+      for (const o of r.opsjoner) {
+        const vs = o.type === 'transport_offer' ? new Set(o.provenance.map(p => p.vindu)) : per.get(o.id);
+        expect(o.timetable === 'not_now').toBe([...vs].every(x => x === 'senere'));
+      }
+    }
+  });
+  it('ingen bekreftelse, ingen «nå»', async () => {
+    for (const n of ['tretten_dag', 'mortensrud_natt']) {
+      const { r } = await kjør(n);
+      for (const o of r.opsjoner) { expect(o.confirmations).toEqual([]); expect(tilgjengelighet(o, O[n].scenario.tid)).not.toBe('now'); }
+    }
+  });
+  it('senere tilbud blåser ikke opp bredden', async () => {
+    const { r } = await kjør('tretten_dag');
+    const nå = r.veier.filter(v => v.vindu !== 'senere');
+    expect(r.rapport.struktur.områder).toBe(new Set(nå.map(v => v.område).filter(Boolean)).size);
+    expect(r.rapport.struktur.linjeretninger).toBe(Object.values(r.grupper.linjeretning).filter(g => g.vindu.some(w => w !== 'senere')).length);
+    expect(r.rapport.kandidater.senere.destinasjoner).toBeGreaterThan(0);
+    expect(r.rapport.kandidater.destinasjoner + r.rapport.kandidater.senere.destinasjoner).toBe(r.opsjoner.filter(o => o.type === 'destination').length);
+  });
+  it('tidsforskyvningen skjules ikke: ledd 2 fra en utvidet inngang er merket', async () => {
+    const { r } = await kjør('tretten_dag');
+    const utv = new Set(Object.entries(r.grupper.linjeretning).filter(([, g]) => g.vindu.includes('utvidet')).map(([k]) => k));
+    const fra = r.veier.filter(v => v.ledd === 2 && utv.has(v.inn));
+    expect(fra.length).toBeGreaterThan(0);
+    // merket hvis og bare hvis inngangen ikke finnes i ordinært vindu
+    const ordinærInn = new Set(r.veier.filter(w => w.ledd === 1 && w.vindu === 'ordinært').map(w => w.directionId));
+    for (const v of r.veier.filter(v => v.ledd === 2)) expect(!!v.tidsforskyvning).toBe(!ordinærInn.has(v.inn));
+    for (const v of fra) { expect(v.tidsforskyvning).toMatch(/ikke tidskontrollert/); expect(v.vindu).toBe('utvidet'); }
+    expect(r.veier.filter(v => v.vindu === 'ordinært').every(v => !v.tidsforskyvning)).toBe(true);
+    expect(r.rapport.tidsforskjøvet).toBe(r.veier.filter(v => v.tidsforskyvning).length);
+  });
+  it('døgnoppslaget feiler: sagt eksplisitt, ledd 1 og 2 står', async () => {
+    const { r } = await kjør('tretten_dag', { kast: ['døgnoppslag'] });
+    expect(r.ikkeUndersøkt.some(x => x.hva === 'døgntilbud' && /svarte ikke/.test(x.grunn))).toBe(true);
+    expect(r.veier.some(v => v.ledd === 1)).toBe(true);
+    expect(r.veier.some(v => v.vindu === 'senere')).toBe(false);
+  });
+  it('begrenset døgnsvar rapporteres; fravær er ikke bevis', async () => {
+    const { r } = await kjør('tretten_dag', {}, { parametre: { døgnAvgangerMaks: 3 } });
+    expect(r.natt.døgntilbud.begrenset).toBe(true);
+    expect(r.ikkeUndersøkt.some(x => /taket på 3 avganger/.test(x.grunn) && /fravær er ikke bevis/.test(x.grunn))).toBe(true);
+  });
+  it('ingen i vinduet, men senere: sies som «tilbud finnes senere», aldri «ingen muligheter»', async () => {
+    const grense = Date.parse(O.tretten_dag.scenario.tid) + 2 * 60 * 60_000;
+    const tom = (n, s) => {
+      if (n === 'ledd 1') for (const sp of Object.values(s.data)) sp.estimatedCalls = [];
+      if (n === 'døgnoppslag') for (const sp of Object.values(s.data)) sp.estimatedCalls = sp.estimatedCalls.filter(c => Date.parse(c.expectedDepartureTime) > grense);
+      return s;
+    };
+    const { r } = await kjør('tretten_dag', { endre: tom });
+    expect(r.ikkeUndersøkt.some(x => x.hva === 'muligheter i søkevinduet' && /tilbud finnes senere i døgnet/.test(x.grunn))).toBe(true);
+    expect(r.ikkeUndersøkt.some(x => x.hva === 'muligheter')).toBe(false);
+  });
+  it('ledd 1 som feiler er ukjent, ikke tynt: intet døgnoppslag', async () => {
+    const { r, kall } = await kjør('tretten_dag', { kast: ['ledd 1'] });
+    expect(kall.some(k => k.navn === 'døgnoppslag')).toBe(false);
+    expect(r.natt.døgntilbud.utløst).toBe(false);
+  });
+});
+
+describe('4c: nesteAvgang (syntetisk)', () => {
+  it('velger tidligste avgang etter søketidspunktet når svaret har dem i omvendt rekkefølge', async () => {
+    const kallTil = (dir, t) => ({ quay: { id: 'Q:A' }, expectedDepartureTime: t, destinationDisplay: { frontText: dir }, serviceJourney: { id: 'SJ' + t, line: { id: 'L:S', publicCode: 'S', transportMode: 'bus' }, estimatedCalls: [{ quay: { id: 'Q:A', stopPlace: sted('NSR:StopPlace:1', 60, 10) } }, { quay: { id: 'Q:Y', stopPlace: sted('NSR:StopPlace:Y') } }] } });
+    const F = syntetisk({
+      geokoder: RING.opptak.geokoder.svar, 'gangtid tilgang': RING.opptak['gangtid tilgang'].svar,
+      'ledd 1': { data: { s0: { estimatedCalls: [kallTil('Nær', '2026-11-24T12:10:00+01:00')].map(c => ({ ...c, serviceJourney: { ...c.serviceJourney, line: { id: 'L:N', publicCode: 'N', transportMode: 'bus' } } })) } } },
+      døgnoppslag: { data: { s0: { estimatedCalls: [kallTil('Fjern', '2026-11-24T18:00:00+01:00'), kallTil('Fjern', '2026-11-24T16:00:00+01:00'), kallTil('Fjern', '2026-11-24T11:00:00+01:00')] } } },
+      stoppinfo: { data: { stopPlaces: [{ id: 'NSR:StopPlace:Y', name: 'Y', parent: null, quays: [] }] } },
+      'ledd 2': { data: {} },
+    });
+    const a = avspiller(F);
+    const r = await utforsk({ ...F.scenario, parametre: { ledd: 1 } }, { hent: a.hent });
+    const o = r.opsjoner.find(x => x.type === 'transport_offer' && x.timetable === 'not_now');
+    expect(o.provenance.map(p => p.nesteAvgang)).toEqual(['2026-11-24T16:00:00+01:00']); // ikke 18:00 (først i svaret), ikke 11:00 (før søket)
   });
 });

@@ -3,7 +3,7 @@
  * Entur via nettverksutforskeren (tests/fixtures/entur/) og syntetiske veier.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { grunnlag, tillatt, UTENFOR, velgRepresentativt, BREDDE, NÆR_DUBLETT_M, NÆR_DUBLETT_REGEL, avstandsbånd, AVSTANDSBÅND_KM, veibekreftelse, sammenlign, oppdagetSignatur, faktiskSignatur, sammeStopp } from '../src/reisebekreftelse.js';
+import { grunnlag, tillatt, UTENFOR, velgRepresentativt, BREDDE, NÆR_DUBLETT_M, NÆR_DUBLETT_REGEL, avstandsbånd, AVSTANDSBÅND_KM, veibekreftelse, sammenlign, oppdagetSignatur, faktiskSignatur, sammeStopp, bekreft, BEKREFT_MØNSTRE, REISESØK, medParent } from '../src/reisebekreftelse.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { SCENARIOER, lastOpptak, avspiller } from './fixtures/entur/avspilling.js';
 
@@ -660,5 +660,187 @@ describe('delsteg 3: parent-begrensningen (konservativ)', () => {
     const v = veibekreftelse(direkte, r, [uklart, uklart, uklart]);
     expect(v.undersøkt.mønstre.every(m => m.utfall === 'ukjent')).toBe(true);
     expect(v.påstand.utfall).toBe('ukjent');
+  });
+});
+
+/* ------------------------------------------------------------ delsteg 4 */
+const R = Object.fromEntries(SCENARIOER.map(n => [n, lastOpptak(n + '.reisesok')]));
+/** Avspilling av reisesøket: `endre(navn, svar)` kan bytte svaret; `kast` feiler et kall. */
+function reiseHent(n, { endre, kast = [] } = {}) {
+  const kall = [];
+  const hent = async (navn, req) => {
+    kall.push({ navn, req });
+    if (kast.includes(navn)) throw new Error('nettverksfeil (simulert)');
+    const o = R[n].opptak[navn];
+    if (!o && endre) return endre(navn, null, req);
+    if (!o) throw new Error('mangler i opptaket: ' + navn);
+    const svar = JSON.parse(JSON.stringify(o.svar));
+    return endre ? endre(navn, svar, req) : svar;
+  };
+  return { hent, kall };
+}
+async function kjørBekreft(n, valg = {}, budsjett = 10) {
+  const r = await resultat(n);
+  const u = velgRepresentativt(r, budsjett);
+  const a = reiseHent(n, valg);
+  const b = await bekreft(u, r, O[n].scenario, { hent: a.hent, klokke: () => Date.parse('2026-11-23T15:00:00Z') });
+  return { r, u, b, kall: a.kall, ops: new Map(r.opsjoner.map(o => [o.id, o])) };
+}
+const finnB = (k, navn) => k.b.bekreftelser.find(x => k.ops.get(x.opsjon).label === navn);
+const fjernParent = (navn, svar) => JSON.parse(JSON.stringify(svar, (key, v) => (key === 'parent' ? undefined : v)));
+
+describe('delsteg 4: reisesøket (opptak)', () => {
+  it('koden spør det samme som i opptaket, med parent som probe, tre mønstre og stoppesteds-ID-er', async () => {
+    for (const n of SCENARIOER) {
+      const { kall } = await kjørBekreft(n);
+      expect(kall.map(k => k.navn)).toEqual([REISESØK]);
+      expect(kall[0].req.body).toBe(R[n].opptak[REISESØK].forespørsel.body);
+      const q = JSON.parse(kall[0].req.body).query;
+      expect(q).toContain('stopPlace{id parent{id}}');
+      expect((q.match(/numTripPatterns:3 /g) || []).length).toBeGreaterThan(0);
+      expect(q).not.toMatch(/numTripPatterns:(?!3 )/);
+      expect(q).not.toMatch(/transportMode:air/);
+    }
+  });
+  it('deterministisk avspilling', async () => {
+    const a = await kjørBekreft('tretten_dag'); const b = await kjørBekreft('tretten_dag');
+    expect(b.b).toEqual(a.b);
+  });
+  it('et mønster som følger den oppdagede veien: bekreftet opsjon OG fulgt vei', async () => {
+    const k = await kjørBekreft('mortensrud_dag');
+    const x = finnB(k, 'Gjettum');
+    expect(x.opsjonsbekreftelse.state).toBe('confirmed');
+    expect(x.veibekreftelse.påstand.utfall).toBe('fulgt');
+  });
+  it('samme destinasjon, annen vei: opsjonen bekreftet, veien IKKE fulgt — to svar, ikke ett', async () => {
+    const k = await kjørBekreft('mortensrud_dag');
+    const x = finnB(k, 'Lofsrudhøgda');
+    expect(x.opsjonsbekreftelse.state).toBe('confirmed');
+    expect(x.veibekreftelse.påstand.utfall).toBe('ikke fulgt');
+    expect(x.veibekreftelse.påstand.begrunnelse).toMatch(/ikke at veien er umulig/);
+  });
+  it('opsjons- og veibekreftelse er adskilte objekter; vei-ID følger begge', async () => {
+    for (const n of SCENARIOER) {
+      const k = await kjørBekreft(n);
+      for (const x of k.b.bekreftelser) {
+        expect(Object.keys(x).sort()).toEqual(['opsjon', 'opsjonsbekreftelse', 'vei', 'veibekreftelse']);
+        expect(x.opsjonsbekreftelse.vei).toBe(x.vei);
+        expect(x.veibekreftelse.vei).toBe(x.vei);
+        expect(x.opsjonsbekreftelse).not.toHaveProperty('påstand');
+        expect(x.veibekreftelse).not.toHaveProperty('state');
+      }
+    }
+  });
+  it('opsjonsbekreftelsen følger opsjonsmodellens kontrakt og gjelder bare søkets reisetid', async () => {
+    const { gjelderFor } = await import('../src/opsjonsmodell.js');
+    const k = await kjørBekreft('ranheim_dag');
+    const tid = O.ranheim_dag.scenario.tid;
+    for (const x of k.b.bekreftelser) {
+      const c = x.opsjonsbekreftelse;
+      expect(c.request.travelTime).toBe(new Date(tid).toISOString());
+      expect(['confirmed', 'unknown']).toContain(c.state);
+      if (c.state === 'confirmed') expect(Date.parse(c.firstDeparture)).toBeGreaterThan(0);
+      expect(gjelderFor(c, tid, c.searchedAt)).toBe(true);
+      expect(gjelderFor(c, '2026-11-24T14:00:00+01:00', c.searchedAt)).toBe(false);
+    }
+  });
+  it('tomt reisesøk: unknown med grunn (aldri not_feasible), og veien er ukjent', async () => {
+    const k = await kjørBekreft('mortensrud_natt');
+    const tomme = k.b.bekreftelser.filter(x => x.opsjonsbekreftelse.state === 'unknown');
+    expect(tomme.length).toBeGreaterThan(0);
+    for (const x of tomme) {
+      expect(x.opsjonsbekreftelse.grunn).toMatch(/ikke bevis for at ingen finnes/);
+      expect(x.veibekreftelse.påstand.utfall).toBe('ukjent');
+    }
+    expect(k.b.bekreftelser.some(x => x.opsjonsbekreftelse.state === 'not_feasible')).toBe(false);
+  });
+  it('flere mønstre med ulike utfall: fulgt når ett av dem følger veien', async () => {
+    // Gjettum: bytt de to første mønstrene med et annet (feil linje) — det tredje følger fortsatt.
+    const k0 = await kjørBekreft('mortensrud_dag');
+    const i = k0.b.bekreftelser.findIndex(x => k0.ops.get(x.opsjon).label === 'Gjettum');
+    const k = await kjørBekreft('mortensrud_dag', { endre: (n, svar) => {
+      const t = svar.data['t' + i];
+      const feil = JSON.parse(JSON.stringify(t.tripPatterns[0]));
+      for (const l of feil.legs) if (l.serviceJourney && l.serviceJourney.line) l.serviceJourney.line.id = 'FEIL:Line:0';
+      t.tripPatterns = [feil, JSON.parse(JSON.stringify(feil)), t.tripPatterns[2]];
+      return svar;
+    } });
+    const x = finnB(k, 'Gjettum');
+    expect(x.veibekreftelse.undersøkt.mønstre.map(m => m.utfall)).toEqual(['ikke fulgt', 'ikke fulgt', 'fulgt']);
+    expect(x.veibekreftelse.påstand).toMatchObject({ utfall: 'fulgt', mønster: 2 });
+  });
+  it('grensen på tre mønstre: flere returnerte mønstre undersøkes ikke', async () => {
+    const k = await kjørBekreft('ranheim_dag', { endre: (n, svar) => {
+      for (const t of Object.values(svar.data)) if (t && t.tripPatterns && t.tripPatterns.length) t.tripPatterns = [...t.tripPatterns, ...t.tripPatterns, ...t.tripPatterns];
+      return svar;
+    } });
+    expect(BEKREFT_MØNSTRE).toBe(3);
+    for (const x of k.b.bekreftelser) expect(x.veibekreftelse.undersøkt.antallMønstre).toBeLessThanOrEqual(3);
+    expect(k.b.bekreftelser.some(x => x.veibekreftelse.undersøkt.antallMønstre === 3)).toBe(true);
+  });
+  it('parent-probe vellykket: understopp med kjent parent gir samsvar', async () => {
+    const k = await kjørBekreft('tretten_dag');
+    expect(k.b.rapport.parent).toBe('spurt');
+    const svar = R.tretten_dag.opptak[REISESØK].svar;
+    expect(JSON.stringify(svar)).toMatch(/"parent":/);
+    expect(k.b.rapport.vei.fulgt).toBeGreaterThan(0);
+  });
+  it('parent-probe avvist: reserve uten parent, sagt i notat; manglende parent gir ukjent — aldri flere «fulgt»', async () => {
+    const med = await kjørBekreft('mortensrud_dag');
+    const k = await kjørBekreft('mortensrud_dag', { endre: (navn, svar, req) => {
+      if (navn === REISESØK) return { errors: [{ message: 'Field parent is undefined' }] };
+      return fjernParent(navn, R.mortensrud_dag.opptak[REISESØK].svar); // reserven: samme svar uten parent
+    } });
+    expect(k.kall.map(x => x.navn)).toEqual([REISESØK, REISESØK + ' uten parent']);
+    expect(JSON.parse(k.kall[1].req.body).query).not.toContain('parent{id}');
+    expect(k.b.rapport.parent).toBe('avvist (reserve)');
+    expect(k.b.notater.join(' ')).toMatch(/parent avvist/);
+    const fulgtMed = new Set(med.b.bekreftelser.filter(x => x.veibekreftelse.påstand.utfall === 'fulgt').map(x => x.vei));
+    for (const x of k.b.bekreftelser) if (x.veibekreftelse.påstand.utfall === 'fulgt') expect(fulgtMed.has(x.vei)).toBe(true);
+    // opsjonsbekreftelsen påvirkes ikke av parent
+    expect(k.b.bekreftelser.map(x => x.opsjonsbekreftelse.state)).toEqual(med.b.bekreftelser.map(x => x.opsjonsbekreftelse.state));
+  });
+  it('manglende parent der ID-ene er ulike gir ukjent, ikke ikke fulgt og ikke fulgt', async () => {
+    const k = await kjørBekreft('tretten_dag', { endre: fjernParent });
+    const sjekker = k.b.bekreftelser.flatMap(x => x.veibekreftelse.undersøkt.mønstre.flatMap(m => m.sjekker));
+    const stopp = sjekker.filter(s => /samlestopp/.test(s.felt));
+    for (const s of stopp) if (s.faktisk && s.faktisk.id && s.faktisk.id !== s.oppdaget) expect(s.samsvar).toBe(null);
+    expect(stopp.some(s => s.samsvar === null)).toBe(true);
+  });
+  it('kallet feiler: alle unknown med grunn, ingen kandidat tapt, ingen vei fulgt', async () => {
+    const k = await kjørBekreft('ranheim_dag', { kast: [REISESØK] });
+    expect(k.b.bekreftelser).toHaveLength(k.u.valgt.length);
+    for (const x of k.b.bekreftelser) {
+      expect(x.opsjonsbekreftelse).toMatchObject({ state: 'unknown', grunn: 'reisesøket svarte ikke' });
+      expect(x.veibekreftelse.påstand.utfall).toBe('ukjent');
+    }
+  });
+  it('et alias mangler: den kandidaten er unknown «mangler i svaret», resten står', async () => {
+    const k = await kjørBekreft('ranheim_dag', { endre: (n, svar) => { delete svar.data.t0; return svar; } });
+    expect(k.b.bekreftelser[0].opsjonsbekreftelse.grunn).toBe('mangler i svaret');
+    expect(k.b.bekreftelser.slice(1).every(x => x.opsjonsbekreftelse.state === 'confirmed')).toBe(true);
+  });
+  it('ingen ukjent blir «fulgt»: fulgt krever et mønster der alle nødvendige sjekker er true', async () => {
+    for (const n of SCENARIOER) {
+      const k = await kjørBekreft(n);
+      for (const x of k.b.bekreftelser) {
+        if (x.opsjonsbekreftelse.state !== 'confirmed') expect(x.veibekreftelse.påstand.utfall).toBe('ukjent');
+        if (x.veibekreftelse.påstand.utfall === 'fulgt') {
+          const m = x.veibekreftelse.undersøkt.mønstre[x.veibekreftelse.påstand.mønster];
+          expect(m.sjekker.filter(s => s.nødvendig).every(s => s.samsvar === true)).toBe(true);
+        }
+      }
+    }
+  });
+  it('oppdagelsesresultatet og utvalget endres ikke', async () => {
+    const r = await resultat('nesttun_dag');
+    const u = velgRepresentativt(r, 10);
+    const før = JSON.stringify([r, u]);
+    await bekreft(u, r, O.nesttun_dag.scenario, { hent: reiseHent('nesttun_dag').hent });
+    expect(JSON.stringify([r, u])).toBe(før);
+  });
+  it('medParent endrer bare bekreftelsens spørring', () => {
+    expect(medParent('quay{id stopPlace{id}} x quay{id stopPlace{id}}')).toBe('quay{id stopPlace{id parent{id}}} x quay{id stopPlace{id parent{id}}}');
+    expect(medParent('quay{id stopPlace{id}}', false)).toBe('quay{id stopPlace{id}}');
   });
 });

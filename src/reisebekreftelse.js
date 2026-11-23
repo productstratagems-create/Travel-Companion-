@@ -16,8 +16,10 @@
  * Delsteg 1: bekreftelsesgrensen (`grunnlag`).
  * Delsteg 2: representativ utvelgelse (`velgRepresentativt`).
  * Delsteg 3: sammenligning av oppdaget vei mot faktisk reise (`veibekreftelse`).
+ * Delsteg 4: reisesøket (`bekreft`) — opsjonsbekreftelse og veibekreftelse adskilt.
  */
 import { metresBetween } from './haversine.js';
+import { tripGQL } from './api/queries.js';
 
 /** Gyldige vinduer fra utforskeren. Alt annet er ukjent tidsstatus. */
 const VINDUER = new Set(['ordinært', 'utvidet', 'senere']);
@@ -397,4 +399,94 @@ export function veibekreftelse(vei, resultat, mønstre) {
     undersøkt: { antallMønstre: liste.length, mønstre: per },
     påstand,
   };
+}
+
+/* ------------------------------------------------------------ delsteg 4 */
+/*
+ * REISESØKET. Kobler utvalget (delsteg 2) til faktiske reisemønstre og fører dem
+ * til den rene sammenligningen (delsteg 3). To svar per kandidat, aldri slått sammen:
+ *   opsjonsbekreftelse  fant reisesøket en reise til opsjonens destinasjon for tidspunktet?
+ *                       (kontrakten i src/opsjonsmodell.js: state, request, searchedAt, firstDeparture)
+ *   veibekreftelse      følger reisen den konkrete oppdagede veien? (veibekreftelse(), uendret)
+ * Ett aliasert kall. Nettet injiseres (`hent`); opptak spilles av i testene.
+ */
+
+/** Høyst så mange reisemønstre undersøkes per kandidat (4d-planen). */
+export const BEKREFT_MØNSTRE = 3;
+/** Navnet på kallet (opptak og telling). */
+export const REISESØK = 'reisesøk';
+const JP = 'https://api.entur.io/journey-planner/v3/graphql';
+
+/**
+ * PARENT SOM PROBE. tripGQL spør `quay{id stopPlace{id}}`; samlestoppet krever
+ * `parent`. Legges til i bekreftelsens egen spørring — tripGQL er uendret.
+ * Avvises feltet, spørres det uten (reserven): parent blir da `undefined`
+ * («ikke spurt»), og sammenligningen gir null der ID-ene ikke er like.
+ */
+export function medParent(q, på = true) {
+  return på ? q.split('quay{id stopPlace{id}}').join('quay{id stopPlace{id parent{id}}}') : q;
+}
+
+/** Én kandidats reisesøk, som alias. Fra posisjonen (gangdelen inngår), uten fly. */
+export function reisesøkGql(posisjon, destinasjon, tid, alias) {
+  const q = tripGQL({ lat: posisjon.lat, lon: posisjon.lon }, destinasjon, null, BEKREFT_MØNSTRE, 1.3, +new Date(tid), true, true, true, false, false, false, false, true);
+  return alias + ': ' + q.trim().replace(/^\{\s*/, '').replace(/\}\s*$/, '');
+}
+
+const førsteAvgang = mønstre => mønstre.map(p => ((p.legs || []).find(l => l && l.mode !== 'foot') || (p.legs || [])[0] || {}).expectedStartTime).filter(t => typeof t === 'string').sort()[0] || null;
+
+/**
+ * Reisesøk for de valgte kandidatene. `utvalg` er svaret fra velgRepresentativt.
+ * Endrer ikke `resultat`. Feil og tomme svar gir `unknown` med grunn — aldri
+ * `not_feasible`, og aldri «fulgt».
+ */
+export async function bekreft(utvalg, resultat, ktx, { hent, klokke = () => Date.now() }) {
+  const valgt = (utvalg && utvalg.valgt) || [];
+  const opsjoner = new Map(((resultat && resultat.opsjoner) || []).map(o => [o.id, o]));
+  const veier = new Map(((resultat && resultat.veier) || []).map(v => [v.id, v]));
+  const pos = ktx.posisjon, tid = new Date(ktx.tid).toISOString();
+  const t0 = klokke(), kall = [], notater = [];
+  const rapport = { kall: 0, ms: 0, parent: 'ikke spurt', opsjon: {}, vei: {} };
+  if (!valgt.length) return { bekreftelser: [], rapport: { ...rapport, ms: 0 }, notater };
+
+  const mål = valgt.map(v => ({ ...v, dest: (((opsjoner.get(v.opsjon) || {}).destinations || [])[0] || {}).id || null }));
+  const spørring = medP => '{' + mål.map((m, i) => (m.dest ? (medP ? medParent : x => x)(reisesøkGql(pos, m.dest, tid, 't' + i)) : '')).filter(Boolean).join(' ') + '}';
+  const spør = async (navn, q) => {
+    try { const j = await hent(navn, { url: JP, method: 'POST', body: JSON.stringify({ query: q }) }); kall.push({ navn, feil: (j && j.errors || []).map(e => e.message).slice(0, 2) }); return j; }
+    catch (e) { kall.push({ navn, feil: [String(e && e.message || e)] }); return null; }
+  };
+  let j = await spør(REISESØK, spørring(true));
+  rapport.parent = 'spurt';
+  if (j && j.errors && !j.data && JSON.stringify(j.errors).includes('parent')) {
+    notater.push('stopPlace.parent avvist i reisesøket — reserve uten parent; understopp med annen ID gir «ukjent»');
+    rapport.parent = 'avvist (reserve)';
+    j = await spør(REISESØK + ' uten parent', spørring(false));
+  }
+  const searchedAt = new Date(klokke()).toISOString();
+  const bekreftelser = mål.map((m, i) => {
+    const request = { from: { lat: pos.lat, lon: pos.lon }, to: m.dest, modes: 'som tavla (uten fly)', travelTime: tid, mønstre: BEKREFT_MØNSTRE };
+    const base = { state: 'unknown', request, searchedAt, vei: m.vei };
+    let ob, mønstre = [];
+    if (!m.dest) ob = { ...base, grunn: 'destinasjonen mangler samlestopp-ID' };
+    else if (!j) ob = { ...base, grunn: 'reisesøket svarte ikke' };
+    else {
+      const t = j.data && j.data['t' + i];
+      if (!t) ob = { ...base, grunn: j.errors ? `feil i svaret: ${j.errors.map(e => e.message)[0]}` : 'mangler i svaret' };
+      else {
+        mønstre = (t.tripPatterns || []).slice(0, BEKREFT_MØNSTRE);
+        ob = mønstre.length
+          ? { ...base, state: 'confirmed', firstDeparture: førsteAvgang(mønstre), antallMønstre: mønstre.length }
+          : { ...base, grunn: 'ingen reise i søket (ikke bevis for at ingen finnes)' };
+      }
+    }
+    const vb = veibekreftelse(veier.get(m.vei) || { id: m.vei, opsjon: m.opsjon }, resultat, mønstre);
+    if (!mønstre.length) vb.påstand = { utfall: 'ukjent', mønster: null, begrunnelse: `ingen mønstre å sammenligne (${ob.grunn})` };
+    return { opsjon: m.opsjon, vei: m.vei, opsjonsbekreftelse: ob, veibekreftelse: vb };
+  });
+  for (const b of bekreftelser) {
+    rapport.opsjon[b.opsjonsbekreftelse.state] = (rapport.opsjon[b.opsjonsbekreftelse.state] || 0) + 1;
+    rapport.vei[b.veibekreftelse.påstand.utfall] = (rapport.vei[b.veibekreftelse.påstand.utfall] || 0) + 1;
+  }
+  rapport.kall = kall.length; rapport.ms = klokke() - t0; rapport.feiledeKall = kall.filter(k => k.feil.length).map(k => `${k.navn}: ${k.feil.join(' | ')}`);
+  return { bekreftelser, rapport, notater };
 }

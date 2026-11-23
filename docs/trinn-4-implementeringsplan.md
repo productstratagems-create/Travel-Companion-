@@ -1823,3 +1823,113 @@ I tillegg:
 - antallsjekken fjernet.
 
 **Kode:** uendret. Bare tester og dokumentasjon er lagt til.
+
+### 4d delsteg 4: reisesøk med opptak (gjort)
+
+**Kobling, slik planen sier:** `bekreft(utvalg, resultat, ktx, { hent, klokke })`
+i `src/reisebekreftelse.js`.
+- **Input:** utvalget fra `velgRepresentativt` (delsteg 2), som allerede har
+  gått gjennom grensen (delsteg 1).
+- **Kall:** ett aliasert `tripGQL`-kall (`reisesøkGql`) med én alias per
+  valgt kandidat:
+  - fra **brukerens posisjon**, så gangdelen inngår;
+  - til destinasjonens samlestopp;
+  - reisetid `ktx.tid`;
+  - `numTripPatterns: 3` (`BEKREFT_MØNSTRE`), og høyst 3 mønstre brukes, også
+    om svaret har flere;
+  - stoppesteds-ID-er (`ider`), transportmidler som tavla, uten fly.
+- `tripGQL` er **uendret**.
+
+**To svar per kandidat, aldri slått sammen:**
+- **`opsjonsbekreftelse`** (kontrakten i opsjonsmodellen): `state`,
+  `request { from, to, modes, travelTime }`, `searchedAt`, `firstDeparture`
+  og `vei`.
+  - `confirmed` når søket fant minst ett mønster til destinasjonen.
+  - `unknown` med grunn når søket var tomt («ikke bevis for at ingen finnes»),
+    når aliaset manglet («mangler i svaret») eller når kallet feilet («reisesøket
+    svarte ikke»).
+  - Aldri `not_feasible`.
+- **`veibekreftelse`**: den uendrede funksjonen fra delsteg 3, med funnet /
+  undersøkt / påstand, på de høyst 3 mønstrene.
+  - Ingen mønstre gir `ukjent`.
+  - Sammenligningslogikken er ikke flyttet inn i reisesøket.
+
+**Parent-probe med reserve:**
+- `medParent` legger `parent{id}` inn i bekreftelsens egen spørring
+  (`quay{id stopPlace{id parent{id}}}`).
+- Avviser Entur feltet, spørres det på nytt uten (`reisesøk uten parent`).
+  Notatet og `rapport.parent: 'avvist (reserve)'` sier det.
+- Uten parent er `parent` `undefined` («ikke spurt»). Et understopp med annen
+  ID gir da `null` og veien `ukjent`, aldri `fulgt` eller `ikke fulgt`.
+- Målt: Entur **godtok** `parent` i alle fem opptakene.
+
+**Opptak:** `tests/fixtures/entur/<scenario>.reisesok.json.gz`, 62 kB, tatt med
+`scratchpad/opptakReisesok.mjs`.
+- Oppdagelsen *spilles av* fra de eksisterende opptakene, så utvalget og de
+  faste referansene fra 2.3 står.
+- Bare reisesøket hentes fra Entur.
+- Testene sjekker at koden sender nøyaktig samme spørring som i opptaket.
+
+**Målt på opptakene** (10 valgt per sted, 1 kall, 1,8–2,5 s):
+
+| | opsjon confirmed / unknown | vei fulgt / ikke fulgt / ukjent |
+|---|---|---|
+| Mortensrud | 10 / 0 | 4 / 6 / 0 |
+| Natt | 4 / 6 | 1 / 3 / 6 |
+| Nesttun | 10 / 0 | 5 / 5 / 0 |
+| Ranheim | 10 / 0 | 10 / 0 / 0 |
+| Tretten | 9 / 1 | 8 / 1 / 1 |
+
+Eksempler:
+- **Gjettum:** bekreftet og fulgt (T-bane 3 fra Mortensrud).
+- **Lofsrudhøgda:** bekreftet, men *ikke fulgt*. Reisesøket bruker en annen
+  linje og påstigning enn den oppdagede veien.
+- **Oslo lufthavn:** ikke fulgt på grunn av antall etapper. Reisesøket velger
+  en annen kombinasjon.
+- **Natt:** 6 tomme søk gir opsjonen `unknown` og veien `ukjent`. FB10 til
+  Oslo lufthavn kl. 03:00 er bekreftet og fulgt.
+- **Tretten bru:** et tilgangspunkt. Søket var tomt, så `unknown`.
+
+**Hva som fortsatt ikke kan bekreftes**
+- **Flerleddsveier:** de er utenfor grensen. **Tidsmessig kobling av
+  flerleddsreiser er ikke implementert.** Sammenligningen støtter dem
+  strukturelt.
+- **«Ikke fulgt i de 3 mønstrene»:** gjelder bare de returnerte mønstrene.
+  Den oppdagede veien kan finnes, men være tregere enn alternativene.
+- **Når Entur avviser `parent` (reserven):** understopp med annen ID gir
+  `ukjent`.
+- **Opptakene er tatt dagen før reisetidspunktet,** altså uten sanntid.
+
+**Tester:** 17 nye, 96 i alt.
+- samme spørring som opptaket (parent, `numTripPatterns:3`, uten fly);
+- deterministisk avspilling;
+- fulgt (Gjettum);
+- samme destinasjon, annen vei (Lofsrudhøgda: bekreftet og ikke fulgt);
+- opsjons- og veibekreftelse er adskilte objekter, og vei-ID følger begge;
+- kontrakten og `gjelderFor` bare for søkets reisetid;
+- tomt søk gir `unknown` og `ukjent`, aldri `not_feasible`;
+- flere mønstre med ulike utfall (fulgt i mønster 2);
+- grensen på tre mønstre (svar med 9 mønstre);
+- parent-probe vellykket;
+- parent avvist gir reserve, notat og ingen nye «fulgt»;
+- manglende parent med ulike ID-er gir `null`;
+- kallet feiler: alle `unknown`, ingen kandidat tapt;
+- alias mangler;
+- ingen ukjent blir «fulgt»;
+- resultatet og utvalget er uendret;
+- `medParent`.
+
+**Mutasjoner:** 10 av 10 fanget:
+- parent ikke spurt;
+- ingen reserve;
+- ingen grense på tre mønstre;
+- fem mønstre i søket;
+- tomt søk gir `confirmed`;
+- `unknown` blir `not_feasible`;
+- samme destinasjon regnes som fulgt vei;
+- vei-ID mistes;
+- uten stoppesteds-ID-er;
+- plattform i stedet for samlestopp (delsteg 3, nå mot ekte data).
+
+**Avvik:** ingen fra planen. Reisesøket er tatt opp i egne filer, så
+oppdagelsesopptakene og de faste referansene fra 2.3 er uendret.

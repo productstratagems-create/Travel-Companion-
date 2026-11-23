@@ -915,6 +915,11 @@ nå.
 
 ## Forslag til 4d: tre lag holdt adskilt (ikke implementert)
 
+> **Merk:** delene om bekreftelsesgrensen, utvelgelsen og eksempelet nedenfor
+> er **erstattet** av «Revidert 4d-forslag» lenger ned der de er uenige.
+> Særlig gjelder: flerleddsveier holdes utenfor, og utvidede direkte veier
+> slippes inn.
+
 | | 1. Oppdagelse | 2. Tidsmessig kobling | 3. Reisebekreftelse |
 |---|---|---|---|
 | Spørsmål | Hvilke muligheter finnes i nettverket? | Kan leddene i en oppdaget vei kobles, gitt forventet ankomst og overgangstid? | Finnes en konkret, sammenhengende reise for tidspunktet? |
@@ -1073,3 +1078,205 @@ Behandling:
 3. **Hvor reisesøket starter:** posisjonen (ekte gangtid, kan velge en annen
    vei, synlig via `følgerOppdagetVei`) eller tilgangspunktet på den valgte
    veien (følger veien, men uten gangdelen)?
+
+---
+
+## Revidert 4d-forslag (beslutninger etter 4c, ikke implementert)
+
+Tre representasjoner holdes adskilt, med kobling gjennom hele flyten:
+
+| representasjon | sier | hvor |
+|---|---|---|
+| **oppdaget vei** | nettverket har denne veien (vindu og grunnlag) | `resultat.veier[]` (lag 1) |
+| **opsjonsbekreftelse** | en konkret reise til opsjonens destinasjon finnes for tidspunktet | `opsjon.confirmations[]` (eksisterende kontrakt) med `vei` (id-en som ble valgt) |
+| **veibekreftelse** | den valgte oppdagede veien er faktisk fulgt av reisen | `veibekreftelser[] = { vei, opsjon, samsvar, mønster, etapper[] }` fra `reisebekreftelse.js` |
+
+En opsjon kan bekreftes uten at veien bekreftes. Koblingen opsjon ↔ vei ↔
+reise bevares med id-er.
+
+### Bekreftelsesgrensen: en eksplisitt tillatelsesregel
+
+**Konsekvens av 4c [Kode]:** ledd 2 regnes **fra nå**, ikke fra forventet
+ankomst etter ledd 1. Det gjelder bak *alle* innganger, også ordinære.
+- En flerleddsvei kan derfor ha uløst tidsforskyvning selv om vinduet er
+  `ordinært` og den ikke er merket med `tidsforskyvning`.
+- `vindu === 'ordinært'` er **ikke** bevis på tidsmessig kobling.
+- Merket `tidsforskyvning` fra 4c gjelder bare utvidede innganger og dekker
+  derfor ikke alle tilfeller.
+
+**Tillatelse (hvitliste).** Alt som ikke er eksplisitt tillatt, er utenfor,
+med grunn.
+
+| vei | tillatt i 4d? | betingelse | grunn hvis utenfor |
+|---|---|---|---|
+| direkte (ledd 1), `vindu` ordinært | **ja** | `avgang` finnes, opsjonen har ikke `not_now` | «mangler avgangstid» |
+| direkte (ledd 1), `vindu` utvidet | **ja** | som over | «mangler avgangstid» |
+| flerleddsvei (ledd 2), uansett inngang | **nei** | tillates først når *alle* overganger har `tidskobling.status === 'kontrollert'` (lag 2, finnes ikke i 4d) | «flere ledd uten tidsmessig kontroll av overgangen» |
+| senere / `not_now` | **nei** | — | «rutetilbud senere i døgnet (not_now)» |
+| manglende eller ukjent `vindu`, `ledd` eller tidsstatus | **nei** | — | «ukjent tidsstatus» |
+
+Når lag 2 finnes, kan flerleddsveier slippes inn på grunnlag av den
+kontrollen, ikke før.
+
+**Opsjon og vei**
+- En opsjon er kandidat hvis den har **minst én tillatt vei**.
+- Veier som ikke er tillatt, står i `utenfor` per vei, med grunn.
+- Opsjonen forkastes ikke fordi enkelte veier er utenfor. Den forsvinner
+  heller ikke fra oppdagelsesresultatet.
+
+### Utvelgelse: fast rekkefølge for bredde
+Grådig marginal dekning, bare over *tillatte* veier og med gruppe per vei.
+Ved likhet avgjør dimensjonene **etter tur**:
+1. geografisk område;
+2. linjeretning;
+3. destinasjon;
+4. transportform;
+5. tilgangspunkt;
+6. knutepunkt;
+7. konkret vei;
+8. til slutt id.
+
+- Det er ingen sum, ingen vekter og ingen relevansscore.
+- Nesten-dubletter (samme linjeretning og område, samlestopp innen
+  `NÆR_DUBLETT_M`) velges ikke mens noe i en annen transportform, et annet
+  område eller via et annet tilgangspunkt er uutforsket.
+- Resultatet er deterministisk og uavhengig av rekkefølgen.
+- `ikkeValgt` har grunn.
+
+### Reisesøket fra posisjonen
+- `tripGQL(posisjon, destinasjonens samlestopp, …)` med stoppesteds-id-er,
+  reisetid `ktx.tid`, ett aliasert kall og høyst `BEKREFT_MAKS` (10).
+- Gangdelen til tilgangspunktet inngår.
+- Svaret gir opsjonsbekreftelsen: `confirmations[]` med `request`,
+  `searchedAt`, `firstDeparture` og `vei`.
+- Sammenligningen under gir veibekreftelsen.
+
+### Sammenligningen oppdaget vei ↔ faktisk reise (etterprøvbar)
+
+**Den oppdagede veiens signatur** finnes i `resultat` [Kode]:
+- etapper `[{ linje, påstigning, avstigning, retning? }]`;
+- direkte vei: én etappe:
+  - `linje` = linjen i `vei.directionId`;
+  - `påstigning` = tilgangens samlestopp (`vei.tilgang`);
+  - `avstigning` = destinasjonens samlestopp (`vei.opsjon`);
+- `retning` (skiltet tekst fra `directionId`) er bare et supplement.
+
+Flerleddsveier sammenlignes ikke i 4d, fordi de ikke er tillatt.
+Sammenligningsfunksjonen skal likevel støtte dem, så lag 2 kan bruke den.
+Kravet er at avstigningen fra etappe *i* er lik påstigningen til etappe *i+1*,
+altså knutepunktet.
+
+**Den faktiske reisens signatur**, per mønster fra reisesøket:
+- kollektivetapper i rekkefølge (gange hoppes over), hver med:
+  - `linje` = `serviceJourney.line.id`;
+  - `påstigning` og `avstigning` = samlestoppet til
+    `fromPlace` og `toPlace` (`quay.stopPlace`);
+  - `retning` = `fromEstimatedCall.destinationDisplay.frontText`.
+- [Kode] `tripGQL` med stoppesteds-id-er gir `quay{id stopPlace{id}}`, men
+  ikke `parent`. Samlestopp krever `parent`. Det legges til som **probe med
+  reserve** i bekreftelsesmodulens spørring, på samme måte som
+  `medPlanlagteStopp`. `tripGQL` endres ikke.
+
+**Felt for felt: `true` (samsvar), `false` (motstrid), `null` (utilstrekkelige data).**
+
+| sjekk | primær identifikator | regel |
+|---|---|---|
+| antall kollektivetapper | — | likt → `true`, ulikt → `false` |
+| etappe *i*: linje | linje-ID | lik / ulik / mangler |
+| etappe *i*: påstigning | samlestopp-ID | lik / ulik / mangler (`parent` eller id avvist) |
+| etappe *i*: avstigning | samlestopp-ID | lik / ulik / mangler |
+| overgang *i → i+1* | avstigning *i* = påstigning *i+1* = knutepunkt | lik / ulik / mangler |
+| etappe *i*: retning (supplement) | skiltet tekst | lik / ulik / mangler. **Kan aldri alene gi `fulgt`.** |
+
+**Utfall per mønster**
+
+| utfall | betingelse |
+|---|---|
+| `fulgt` | **alle** nødvendige sjekker (antall, linje, påstigning, avstigning, overgang) er `true` |
+| `ikke fulgt` | minst én nødvendig sjekk er `false` |
+| `ukjent` | ingen er `false`, men minst én er `null`. Manglende informasjon blir **aldri** samsvar. |
+
+Et ulikt svar på retningssjekken alene gir en merknad, ikke `ikke fulgt`, når
+alle de primære sjekkene er `true`.
+
+**Utfall per vei**, over mønstrene i svaret:
+- `fulgt (mønster k)` hvis minst ett mønster er fulgt;
+- `ikke fulgt i de N mønstrene` hvis alle er `ikke fulgt`. Det betyr ikke at
+  veien ikke finnes, bare at den ikke var blant de returnerte mønstrene;
+- ellers `ukjent`.
+
+**Når sammenligning ikke er mulig**
+
+| tilfelle | opsjonsbekreftelse | veibekreftelse |
+|---|---|---|
+| reisesøket er tomt | `unknown` med grunn | `ukjent` |
+| aliaset mangler i svaret | `unknown`, «mangler i svaret» | `ukjent` |
+| hele kallet feiler | `unknown` for alle valgte | `ukjent` for alle, ingen kandidat tapt |
+| `parent` eller stoppesteds-id-er avvist | som svaret sier | påstigning og avstigning `null` → `ukjent`, med notat |
+
+**Lagres for etterprøving:**
+- `veibekreftelser[].etapper = [{ etappe, felt, oppdaget, faktisk, samsvar }]`;
+- `mønster` (indeks);
+- `request`;
+- `searchedAt`.
+
+En test kan rekonstruere utfallet fra disse dataene alene.
+
+### Eksempelet, revidert (Tretten, opptaket 4c, verifisert)
+
+`destination:NSR:StopPlace:14115` (Lillehammer skysstasjon), 58 veier:
+
+| veier | type | tillatt i 4d? |
+|---|---|---|
+| 2 | direkte, ordinært (buss 141) | **ja** |
+| 2 | direkte, utvidet (buss 142, 13:33/13:34) | **ja** |
+| 48 | flere ledd, ordinær inngang (141 → knutepunkt) | nei: flere ledd uten tidsmessig kontroll |
+| 2 | flere ledd, utvidet inngang (142), merket med tidsforskyvning | nei: flere ledd uten tidsmessig kontroll |
+| 4 | senere i døgnet | nei: `not_now` |
+
+- Opsjonen er kandidat via 4 tillatte veier. Utvelgelsen velger én konkret
+  vei, for eksempel 141 fra Tretten bru.
+- Bekreftelsen bærer `vei`.
+- Følger reisesøket 141 fra samme samlestopp til Lillehammer skysstasjon, er
+  veien `fulgt`. Velger det 142, er opsjonen bekreftet, men veien er
+  `ikke fulgt`, og begge deler står.
+
+### Tester og mutasjoner (tillegg til forslaget)
+
+**Tester**
+- Grensen:
+  - direkte ordinær og direkte utvidet er inne;
+  - **flere ledd med ordinær inngang er ute**;
+  - flere ledd med utvidet inngang er ute;
+  - senere og `not_now` er ute;
+  - manglende `vindu` eller `avgang` er ute med «ukjent tidsstatus»;
+  - en opsjon med blandede veier er inne via de tillatte;
+  - `resultat` er uendret.
+- Sammenligningen (syntetisk):
+  - samme linje, påstigning og avstigning gir `fulgt`;
+  - annen linje gir `ikke fulgt`;
+  - riktig linje, men annen avstigning gir `ikke fulgt`;
+  - manglende `parent` gir `ukjent`, aldri `fulgt`;
+  - bare retning ulik gir `fulgt` med merknad;
+  - to ledd mot ett gir `ikke fulgt`;
+  - flerleddsvei der overgangen ikke stemmer, gir `ikke fulgt`;
+  - ett fulgt mønster av tre gir `fulgt (mønster k)`.
+- Opsjonsbekreftet med veien ikke fulgt: `confirmed` og `ikke fulgt` samtidig.
+- Utvelgelsen: konstruert likhet på område avgjøres av linjeretning, og så
+  videre.
+
+**Mutasjoner som skal fanges**
+- grensen tillater flere ledd med ordinær inngang;
+- grensen bruker `vindu !== 'senere'` som tillatelse, slik at manglende vindu
+  slipper inn;
+- `null` behandles som `true`;
+- avstigning ikke sjekket;
+- avgjøres på retningstekst alene;
+- avgjøres på destinasjon alene;
+- rekkefølgen i utvelgelsen byttes.
+
+### Kjent begrensning
+`n = 3` mønstre kan gi `ikke fulgt i de N mønstrene` for en direkte utvidet
+vei når raskere alternativer finnes (for eksempel 142 kl. 13:33 mot 141
+kl. 12:54). Utfallet merkes ærlig. Å utvide søket (`searchWindow` eller
+via-søk) er ikke en del av 4d.

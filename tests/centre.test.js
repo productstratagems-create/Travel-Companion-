@@ -117,7 +117,9 @@ describe('to grupper: mot sentrum og andre retninger (v1.218.33)', () => {
   it('«fra sentrum» står under «andre retninger»', () => {
     // v1.218.131: regelen bor i retningGruppe, delt med Auto-tavlas filter.
     expect(src).toMatch(/const gruppe = i => side\.get\(i\);/);
-    expect(src).toMatch(/centreward\(here, stopsAhead\(.*_tavle\(\) && _tavle\(\)\.name, now\)\) === 'mot' \? 'mot' : null;/);   // v1.218.283: tavlas stopp
+    // v1.218.287: regelen bor i reiseoppgaven (src/reiseoppgaver.js); retningGruppe delegerer.
+    expect(src).toMatch(/return gårMotSentrum\(d, \{ her: here, gang: walkMins, nå: now, fraNavn: _tavle\(\) && _tavle\(\)\.name \}\) \? 'mot' : null;/);
+    expect(readFileSync('src/reiseoppgaver.js', 'utf8')).toMatch(/return centreward\(ktx\.her \|\| null, stoppVidere\(/);
     expect(src).toMatch(/groups\[rekke\.indexOf\(gruppeAR\(row\.i\)\)\]/);
     expect(src).not.toMatch(/\['fra', \[\]\]/);
   });

@@ -60,6 +60,8 @@ import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke
   from '../api/smart.js';
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
+import { canCatch, catchable } from '../reiseberegning.js';
+import { gårMotSentrum, hjemoverDom } from '../reiseoppgaver.js';
 import { plattformTekst } from '../bytte.js';
 import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, stoppFram, vedOgNeste, stoppEtterId, rangerKandidater } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
@@ -5266,13 +5268,8 @@ export function _minsUntil(ms, now) {
  * Carries the CALL, not just the time: the whole point is being able to ask
  * that departure what it passes on the way.
  */
-export function canCatch(ms, walkMins, now) {
-  if (!Number.isFinite(ms)) return false;
-  // No position, so no walk: everything counts. That is today's screen, and
-  // the rule `_timesHtml` already wrote for this case.
-  if (walkMins == null) return true;
-  return minsToLeave(ms, walkMins, now) >= 0;
-}
+// Flyttet til src/reiseberegning.js (v1.218.287) — felles, nøytral beregning.
+export { canCatch } from '../reiseberegning.js';
 
 /**
  * The same rule over a row's departures, carrying the call.
@@ -5282,16 +5279,7 @@ export function canCatch(ms, walkMins, now) {
  * `_timesHtml` renders `times`, and the arrival needs the call — and they
  * decide with one rule so the strike and the clock cannot disagree.
  */
-export function catchable(d, walkMins, now) {
-  const t = Number.isFinite(now) ? now : Date.now();
-  return ((d && d.calls) || [])
-    // Innstilt slås opp på kallet også, ikke bare på `x.innstilt`: en rad
-    // bygget et annet sted enn `groupDirections` har ikke det feltet, og
-    // regelen skal holde likevel.
-    .filter(x => x && !x.innstilt && !erInnstilt(x.call)
-      && x.ms >= t && canCatch(x.ms, walkMins, t))
-    .sort((a, b) => a.ms - b.ms);
-}
+export { catchable } from '../reiseberegning.js';
 
 /* BELEGG PÅ RADEN (v1.218.36): samme dom og ord som tavla (`belegg.js`), men
  * bare MÅLT — et anslag per rad i en liste på ti ville vært gjetting ti ganger. */
@@ -5881,8 +5869,8 @@ export function merEtterRulling(forrige, vist) {
  * Lest fra avgangen du rekker, så raden dømmes etter turen du faktisk tar.
  */
 export function retningGruppe(d, here, walkMins, now) {
-  const ride = catchable(d, walkMins, now)[0];
-  return centreward(here, stopsAhead((ride && ride.call) || d.call, _tavle() && _tavle().name, now)) === 'mot' ? 'mot' : null;
+  // Reiseoppgaven «mot sentrum» (src/reiseoppgaver.js, v1.218.287).
+  return gårMotSentrum(d, { her: here, gang: walkMins, nå: now, fraNavn: _tavle() && _tavle().name }) ? 'mot' : null;
 }
 /** Retningsfilteret i Auto-tavle: knappene i rekkefølge, med tekst. */
 export const AT_RETNINGER = ['alle', 'mot', 'hjem', 'andre'];
@@ -5909,12 +5897,9 @@ export function retningHjem(d, walkMins, now, liste) {
 }
 /** Med bytte (v1.218.151): { hjem, bytte }. Leser reisesøket for stoppet. */
 export function retningHjemDom(d, walkMins, now, liste) {
-  if (!liste || !liste.length) return { hjem: false, bytte: null };
-  const ride = catchable(d, walkMins, now)[0];
-  const fram = stopsAhead((ride && ride.call) || d.call, _tavle() && _tavle().name, now);
-  const s = _stop && _hjemSøk.get(_stop.id);
-  const l = (d.lines && d.lines[0]) || {};
-  return hjemDom(l.id, fram, liste, s && s.etapper, s && s.gange);
+  // Reiseoppgaven «hjemover» (src/reiseoppgaver.js, v1.218.287).
+  return hjemoverDom(d, { gang: walkMins, nå: now, hjemListe: liste, fraNavn: _tavle() && _tavle().name,
+    hjemSøk: (_stop && _hjemSøk.get(_stop.id)) || null });
 }
 /** «Gå hjem» når det er raskest (v1.218.158) — tavla og Auto-reise. */
 export function gåHjemHtml(hs, gangTilStopp) {

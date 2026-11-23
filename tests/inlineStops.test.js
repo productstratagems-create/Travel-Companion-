@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 /**
  * Dine egne stopp — nå som en blokk øverst, ikke innrykket per rad.
  *
@@ -86,8 +87,9 @@ describe('hvordan skjermen bruker dem nå', () => {
       src().indexOf('// WHERE YOU ARE GOING'));
     // v1.218.131: én gang via retningGruppe, som selv kaller stopsAhead én gang.
     expect((loop.match(/retningGruppe\(|stopsAhead\(/g) || []).length).toBe(1);
-    const i = src().indexOf('export function retningGruppe');
-    expect((src().slice(i, src().indexOf('\n}', i)).match(/stopsAhead\(/g) || []).length).toBe(1);
+    // v1.218.287: retningGruppe → gårMotSentrum → stoppVidere, som kaller stopsAhead én gang.
+    const r = readFileSync('src/reiseberegning.js', 'utf8'), i = r.indexOf('export function stoppVidere');
+    expect((r.slice(i, r.indexOf('\n}', i)).match(/stopsAhead\(/g) || []).length).toBe(1);
   });
 
   // Én vei videre for alle tre inngangene: blokka, nedtrekket og «ofte brukt».

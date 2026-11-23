@@ -117,7 +117,7 @@ describe('to grupper: mot sentrum og andre retninger (v1.218.33)', () => {
   it('«fra sentrum» står under «andre retninger»', () => {
     // v1.218.131: regelen bor i retningGruppe, delt med Auto-tavlas filter.
     expect(src).toMatch(/const gruppe = i => side\.get\(i\);/);
-    expect(src).toMatch(/centreward\(here, stopsAhead\([^)]*\)[^)]*\)\) === 'mot' \? 'mot' : null;/);
+    expect(src).toMatch(/centreward\(here, stopsAhead\(.*_tavle\(\) && _tavle\(\)\.name, now\)\) === 'mot' \? 'mot' : null;/);   // v1.218.283: tavlas stopp
     expect(src).toMatch(/groups\[rekke\.indexOf\(gruppeAR\(row\.i\)\)\]/);
     expect(src).not.toMatch(/\['fra', \[\]\]/);
   });

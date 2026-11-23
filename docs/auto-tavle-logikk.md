@@ -94,6 +94,12 @@ tidligst framme i Enturs reisesøk fra der du er (`besteFraReiser`,
 `src/reiseTil.js`) — slik Entur selv velger. Telleregelen over er
 reserven («hjemover», «alle», eller før reisesøket har svart).
 
+**Overskriften flyttes, tavla står** (v1.218.283): når overskriften flyttes
+til et stopp hvis avganger allerede er flettet inn (`byttUtenNyTavle`), hentes
+ingenting på nytt. Hurtigvalg, målområder, reisesøk og «fra …» regnes fra
+stoppet tavla ble hentet for (`_tavle()`), ikke fra overskriften — ellers
+endret et hurtigvalg sitt eget grunnlag, og knappene byttet under fingeren.
+
 **Om bord** (`velgStoppIFart`): overskriften blir neste stopp på linja.
 
 **Merkelappen** (`whereLabel`):

@@ -1971,6 +1971,19 @@ export function ikkeNærmest(stopp, alle) {
   return (alle || []).some(s => s && s.id !== stopp.id && Number.isFinite(s.distM) && s.distM < stopp.distM - 30);
 }
 let _listeRo = null, _listeValgt = null, _hurtigStraks = false;
+/* TAVLA STÅR NÅR OVERSKRIFTEN FLYTTES (v1.218.283). Rapportert med opptak:
+   «mot Holmlia» flyttet overskriften til Stenbråten, lista ble tom («henter
+   avganger …»), hurtigvalgene ble regnet på nytt fra det nye stoppet og byttet
+   under fingeren, og neste trykk flyttet den tilbake — ping-pong. Avgangene
+   derfra lå allerede i tavla. `_tavleStopp` er stoppet tavla ble hentet for;
+   hurtigvalg, målområder og reisesøk regnes fra det, ikke fra overskriften. */
+let _tavleStopp = null;
+const _tavle = () => _tavleStopp || _stop;
+/** Er stoppets avganger alt i tavla (flettet inn fra det)? Da er et bytte bare visning. Ren. */
+export function byttUtenNyTavle(id, dirs) {
+  if (!id) return false;
+  return (dirs || []).some(d => (d.calls || []).some(c => c && c.call && c.call._fra && c.call._fra.id === id));
+}
 /* Avklaringen (v1.218.273): når første stopp kom, om det er låst, og hvilket stopp avgangene hører til. */
 let _avklar = { start: null, ferdig: false, dirsFor: null }, _sistMerkelapp = null;
 /** Margin på merkelappen (v1.218.273): «du er ved» står til du er MERKE_UT_M lenger unna enn grensen, så den ikke blafrer ved 120 m. */
@@ -2551,7 +2564,7 @@ function _renderNeste(nå) {
   const nøkkel = h ? h.toName + '|' + h.bucket + '|' + h.helg : null;
   // Samme gangtid som lista bruker til «rekker du den?».
   const w = _stop ? gangTil(_stop) : null;
-  const hit = h && _stop && tilstand(h, nå) === 'nær' ? vanligAvgang(_dirs, h, _stop.name, w ? w.mins : null, nå) : null;
+  const hit = h && _stop && tilstand(h, nå) === 'nær' ? vanligAvgang(_dirs, h, _tavle().name, w ? w.mins : null, nå) : null;
   // Med en startet reise foreslås ikke andre (v1.218.90).
   // Spørsmålet bare når det er dets tur (v1.218.257); svaret ditt står som før.
   const sinTur = (nøkkel && nøkkel === _nesteBesvart) || _spørsmålNå(nå) === 'neste';
@@ -2836,7 +2849,7 @@ function _renderWhere() {
     // SOM ENTUR (v1.218.278): finnes reisesøket for retningen, er påstigningen
     // på reisen som er tidligst framme det beste stoppet — ikke den med flest
     // avganger. Telleregelen er reserven (hjemover, alle, uten svar).
-    const kv = _autoTavle && _atRetning !== 'alle' && _atRetning !== 'hjem' ? _kombi.get(_stop.id + '|' + _atRetning) : null;
+    const kv = _autoTavle && _atRetning !== 'alle' && _atRetning !== 'hjem' ? _kombi.get(_tavle().id + '|' + _atRetning) : null;
     const viaReise = kv && Array.isArray(kv.tps) ? besteFraReiser(kv.tps, nåW) : null;
     const kandidat = viaReise && list.some(x => x.id === viaReise.id)
       ? (viaReise.id === _stop.id ? null : { id: viaReise.id, antall: Infinity, eget: 0 })
@@ -2856,9 +2869,10 @@ function _renderWhere() {
   // the guard in renderAuto only refetches when _dirs is empty.
   // Under avklaring hentes avgangene bare for første kandidat; når valget er
   // avklart, hentes de på nytt bare om det endte på et annet stopp.
-  const nyTavle = foreløpig ? (picked.changed && _avklar.dirsFor == null)
-    : (picked.changed || (!!_stop && _avklar.dirsFor != null && _avklar.dirsFor !== _stop.id));
-  if (nyTavle) { _dirs = []; _open = null; _asked = false; _nextMs = undefined; _avklar.dirsFor = _stop ? _stop.id : null; }
+  const visning = !!_stop && _avklar.dirsFor != null && _stop.id !== _avklar.dirsFor && byttUtenNyTavle(_stop.id, _dirs);
+  const nyTavle = !visning && (foreløpig ? (picked.changed && _avklar.dirsFor == null)
+    : (picked.changed || (!!_stop && _avklar.dirsFor != null && _avklar.dirsFor !== _stop.id)));
+  if (nyTavle) { _dirs = []; _open = null; _asked = false; _nextMs = undefined; _avklar.dirsFor = _stop ? _stop.id : null; _tavleStopp = _stop; }
   if (!_stop) {
     el._sistHtml = null;
     el.innerHTML = '<div class="set-label">du er ved</div>'
@@ -4178,13 +4192,13 @@ function _renderMap() {
   // WHEN A DIRECTION IS OPEN THE MAP IS ABOUT THE LINE, NOT THE NEIGHBOURHOOD.
   // The list has moved on to the stops ahead; the alternatives it was offering
   // a moment ago belong to a question the reader has already answered.
-  const line = _open && _stop ? stopsAhead(_open.call, _stop.name) : null;
+  const line = _open && _stop ? stopsAhead(_open.call, _tavle().name) : null;
   /* «DIT DU OFTE SKAL» ER KARTETS TEMA når det finnes et kort og ingen
    * retning er åpen. En åpen retning er det du nettopp trykket på, og den
    * vinner. Rapportert: kortet sa «Jernbanetorget», kartet viste sju stopp
    * i nabolaget og ingen rute. */
   const kortLinje = (!_open && !_gåHitVis && _stop && _kortRute)
-    ? kortRuteStopp(_kortRute.call, _stop.name, { name: _kortRute.navn, id: _kortRute.id })
+    ? kortRuteStopp(_kortRute.call, _tavle().name, { name: _kortRute.navn, id: _kortRute.id })
     : null;
   // LITE ANNET: med en kortrute tegnes ikke de andre stoppene. De ligger
   // fortsatt bak «7 ▾» under «du er ved».
@@ -4298,8 +4312,8 @@ function _renderMap() {
   // kuttet til 4–8 og var et andre, usynlig filter ved siden av lag-panelet.
   // De står igjen som rene funksjoner (foldet, ikke slettet), men kalles ikke.
   // Gå hit alene på kartet (v1.218.144): beina rundt stoppet tegnes ikke da.
-  let bein = sentrert && _stop && !_gåHitVis ? edderkoppBein(_iRetning(_dirs), _stop.name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null,
-    Infinity, { teller: _beinTeller, stopId: _stop.id || null }) : [];
+  let bein = sentrert && _stop && !_gåHitVis ? edderkoppBein(_iRetning(_dirs), _tavle().name, Date.now(), _kortRute && _kortRute.navn, _gang ? _gang.mins : null,
+    Infinity, { teller: _beinTeller, stopId: _tavle().id || null }) : [];
   _meldManglendeBein(sentrert && !_gåHitVis, bein, _beinTeller);   // skjult med vilje er ikke «kan ikke tegnes»
   // AV/PÅ PER TRANSPORTMIDDEL (v1.218.67), fra alle beina før filteret.
   // FILTERET FRA ALLE RETNINGENE, IKKE BARE DE TEGNEDE (v1.218.117).
@@ -4568,7 +4582,7 @@ function _renderMap() {
      * manglet stykket fram til første stopp — og med bare ett stopp igjen
      * var det ingen linje i det hele tatt, bare to prikker. Sett i
      * nettleserprøven. */
-    const fra = _stop && _stop.lat != null ? [{ name: _stop.name, lat: _stop.lat, lon: _stop.lon }] : [];
+    const fra = _tavle() && _tavle().lat != null ? [{ name: _tavle().name, lat: _tavle().lat, lon: _tavle().lon }] : [];
     drawStopLine(_aLayer, fra.concat(kortLinje), {
       color, mode: normMode(mode),
       project: (ll) => _aMap.latLngToContainerPoint(ll),
@@ -4973,6 +4987,8 @@ function _tegnFraValg() {
 
 function _load() {
   if (!_stop) return;
+  // Tavla hentes for dette stoppet; hurtigvalgene regnes herfra til neste henting (v1.218.283).
+  _tavleStopp = _stop; _avklar.dirsFor = _stop.id;
   const body = _el('auto-body');
   if (body) body.innerHTML = '<div class="dest-prev-loading">henter avganger…</div>';
   // ETTER ET TIDSPUNKT (v1.218.130): hele knutepunktet hentes fra det.
@@ -5735,7 +5751,7 @@ function _maybeAdvance() {
   // read, and this is a plain shortcut.
   if (!atStop(_stop)) return false;
   const walk = gangTil(_stop);
-  const hit = nextRail(_dirs, _stop.name, Date.now(), walk && walk.mins);
+  const hit = nextRail(_dirs, _tavle().name, Date.now(), walk && walk.mins);
   if (!hit) return false;
   _open = hit;
   logMsg('auto: åpnet ' + hit.frontText
@@ -5858,7 +5874,7 @@ export function merEtterRulling(forrige, vist) {
  */
 export function retningGruppe(d, here, walkMins, now) {
   const ride = catchable(d, walkMins, now)[0];
-  return centreward(here, stopsAhead((ride && ride.call) || d.call, _stop && _stop.name, now)) === 'mot' ? 'mot' : null;
+  return centreward(here, stopsAhead((ride && ride.call) || d.call, _tavle() && _tavle().name, now)) === 'mot' ? 'mot' : null;
 }
 /** Retningsfilteret i Auto-tavle: knappene i rekkefølge, med tekst. */
 export const AT_RETNINGER = ['alle', 'mot', 'hjem', 'andre'];
@@ -5887,7 +5903,7 @@ export function retningHjem(d, walkMins, now, liste) {
 export function retningHjemDom(d, walkMins, now, liste) {
   if (!liste || !liste.length) return { hjem: false, bytte: null };
   const ride = catchable(d, walkMins, now)[0];
-  const fram = stopsAhead((ride && ride.call) || d.call, _stop && _stop.name, now);
+  const fram = stopsAhead((ride && ride.call) || d.call, _tavle() && _tavle().name, now);
   const s = _stop && _hjemSøk.get(_stop.id);
   const l = (d.lines && d.lines[0]) || {};
   return hjemDom(l.id, fram, liste, s && s.etapper, s && s.gange);
@@ -5958,10 +5974,10 @@ function _lagreRetning(v) { try { if (AT_RETNINGER.includes(v) || (v && v.starts
 let _atOmr = [], _atOmrNøkkel = '', _atOmrAv = new Map();
 const _omrNøkkel = d => (d.frontText || '') + '\0' + ((d.lines && d.lines[0] && (d.lines[0].id || d.lines[0].code)) || '');
 function _oppdaterOmråder(andre, here, nå) {
-  const sig = (_stop && _stop.id) + '|' + andre.map(_omrNøkkel).sort().join('|');
+  const sig = (_tavle() && _tavle().id) + '|' + andre.map(_omrNøkkel).sort().join('|');
   if (sig === _atOmrNøkkel) return;
   _atOmrNøkkel = sig;
-  _atOmr = målområder(andre, here, d => stopsAhead(d.call, _stop && _stop.name, nå), _omrNøkkel);
+  _atOmr = målområder(andre, here, d => stopsAhead(d.call, _tavle() && _tavle().name, nå), _omrNøkkel);
   _atOmrAv = new Map();
   _atOmr.forEach(o => o.nøkler.forEach(k => _atOmrAv.set(k, o.id)));
   // PROBEN (v1.218.214): hva Entur og Kartverket sier om områdene — til loggen.
@@ -5980,7 +5996,7 @@ function _kombiMål(valg, here) {
 }
 function _kombiFor(valg, here, nå) {
   if (!_stop || valg === 'alle' || valg === 'hjem') return null;
-  const k = _stop.id + '|' + valg, v = _kombi.get(k);
+  const k = _tavle().id + '|' + valg, v = _kombi.get(k);
   if (v && (v.tps === 'henter' || nå - v.t < KOMBI_GYLDIG_MS)) return v;
   const mål = _kombiMål(valg, here), fra = _gangFra();
   if (!mål || !fra) return null;
@@ -6058,15 +6074,17 @@ function _iRetning(dirs, nå = Date.now()) {
 /** Retningene ett hurtigvalg slipper gjennom — samme regel for lista og knappene (v1.218.282). */
 function _iValg(dirs, valg, nå = Date.now()) {
   if (valg === 'alle' || !dirs) return dirs;
-  const here = (_stop && _stop.lat != null) ? { lat: _stop.lat, lon: _stop.lon } : null;
-  const g = _stop ? gangTil(_stop) : null, gang = g ? g.mins : null;
+  const t = _tavle();
+  const here = (t && t.lat != null) ? { lat: t.lat, lon: t.lon } : null;
+  const g = t ? gangTil(t) : null, gang = g ? g.mins : null;
   const liste = hjemStopp();
   return filtrerRetning(dirs, valg, d => retningGruppe(d, here, gang, nå), d => retningHjem(d, gang, nå, liste), d => _atOmrAv.get(_omrNøkkel(d)) || null);
 }
 function _tegnAutoTavle(body) {
   const nå = Date.now();
-  if (!_stop || _atStopp !== _stop.id) { _atStopp = _stop && _stop.id; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false; _atIkkeÅpen = false; _atRetning = lagretRetning(); _atRull = { vist: -1, tomme: 0 }; }
-  const g = _stop ? gangTil(_stop) : null, gang = g ? g.mins : null;
+  if (!_stop || _atStopp !== _tavle().id) { _atStopp = _tavle() && _tavle().id; _atGrense = TAVLE_SIDE; _atEkstra = []; _atSlutt = false; _atIkkeÅpen = false; _atRetning = lagretRetning(); _atRull = { vist: -1, tomme: 0 }; }
+  // Gangtiden til tavlas stopp (v1.218.283): rader uten _fra går derfra, og retningene deles med den.
+  const g = _tavle() ? gangTil(_tavle()) : null, gang = g ? g.mins : null;
   // Kartets filter (lag-panelet) gjelder lista også, og den sier det.
   const skjult = _skjulteModi();
   const alleDirs = _atEkstra.length ? [..._dirs, ...groupDirections(_atEkstra, nå)] : _dirs;
@@ -6077,7 +6095,7 @@ function _tegnAutoTavle(body) {
   const sl = _skjulteLinjer();
   [...new Set(alleDirs.filter(d => !synlige.includes(d)).map(d => (d.lines && d.lines[0]) || {})
     .filter(l => sl.has(linjeNøkkel(l.id, l.code))).map(l => 'linje ' + l.code))].forEach(t => skjulteNavn.push(t));
-  const here = (_stop && _stop.lat != null) ? { lat: _stop.lat, lon: _stop.lon } : null;
+  const here = (_tavle() && _tavle().lat != null) ? { lat: _tavle().lat, lon: _tavle().lon } : null;
   const grp = new Map(synlige.map(d => [d, retningGruppe(d, here, gang, nå)]));
   // Knappene bare når valget betyr noe: noe går mot sentrum, og noe annet —
   // eller du har sagt hva hjemover er (v1.218.146).
@@ -6161,7 +6179,7 @@ function _tegnAutoTavle(body) {
   if (_atRetning === 'hjem') [...del.ikke, ...del.rekker].forEach(x => { x.bytte = retningHjemDom(x.d, gang, nå, hjemListe).bytte; });
   const rader = [...del.ikke, ...del.rekker];
   // Stoppet ditt står på radene som går derfra også (v1.218.225, fraMerke).
-  rader.forEach(x => { x.herNavn = _stop && _stop.name; });
+  rader.forEach(x => { x.herNavn = _tavle() && _tavle().name; });
   // FLEKSIBLE LINJER (v1.218.256, src/api/bestilling.js): turer som må
   // bestilles, merkes på raden. Per stopp (ditt og nabostoppenes), som probe.
   rader.forEach(x => {
@@ -6409,7 +6427,7 @@ function _renderBody() {
   // same clock time in two places is the fault this codebase spends most of
   // its time on.
   // Med det lange sporet når det finnes: retningen over minutter, ikke sekunder.
-  const dests = destinations(live, freq, walkMins, now, _stop && _stop.name,
+  const dests = destinations(live, freq, walkMins, now, _tavle() && _tavle().name,
     (state.posTrailLang && state.posTrailLang.length >= 2) ? state.posTrailLang : state.posTrail,
     { her: _stop, hist: loadSmartHist() }, _fraModus === 'ankomst' ? _fraMs : null);
   _kortNavnFra(dests);
@@ -6418,7 +6436,7 @@ function _renderBody() {
   const k0 = dests[0], o0 = k0 && k0.options && k0.options[0];
   // Koordinaten til målet følger med (v1.218.39), så «raskere å gå av» kan
   // spørre om turen du sitter på er på vei MOT det.
-  const mål0 = o0 ? stopsAhead(o0.call, _stop && _stop.name, now).find(st => (k0.id && st.id === k0.id) || stopKey(st.name) === stopKey(k0.name)) : null;
+  const mål0 = o0 ? stopsAhead(o0.call, _tavle() && _tavle().name, now).find(st => (k0.id && st.id === k0.id) || stopKey(st.name) === stopKey(k0.name)) : null;
   _kortRute = o0 ? { navn: k0.name, id: k0.id || null, d: o0.d, call: o0.call,
     lat: mål0 && Number.isFinite(mål0.lat) ? mål0.lat : null, lon: mål0 && Number.isFinite(mål0.lon) ? mål0.lon : null } : null;
   // TAVLAS VALG ER KARTETS TEMA (v1.218.85), foran vanekortet: den valgte
@@ -6434,7 +6452,7 @@ function _renderBody() {
         const sj = x.call.serviceJourney;
         if (h.styrke === 'reise' ? sammeTur(sj && sj.id, h.journeyId)
           : (catchable(d, walkMins, now).some(r => r.call === x.call)
-            && stopsAhead(x.call, _stop && _stop.name, now).some(st => stopKey(st.name) === stopKey(h.mål)))) funnet = { d, call: x.call };
+            && stopsAhead(x.call, _tavle() && _tavle().name, now).some(st => stopKey(st.name) === stopKey(h.mål)))) funnet = { d, call: x.call };
       }));
       // Avgangen er gått og står ikke lenger på tavla: reisens eget kall (v1.218.90).
       if (!funnet && h.styrke === 'reise') {
@@ -6443,7 +6461,7 @@ function _renderBody() {
           lines: [{ code: rk.serviceJourney.line.publicCode, colour: rk.serviceJourney.line.presentation.colour }] } };
       }
       if (funnet) {
-        const m = stopsAhead(funnet.call, _stop && _stop.name, now).find(st => stopKey(st.name) === stopKey(h.mål));
+        const m = stopsAhead(funnet.call, _tavle() && _tavle().name, now).find(st => stopKey(st.name) === stopKey(h.mål));
         _kortRute = { navn: h.mål, id: h.målId || (m && m.id) || null, d: funnet.d, call: funnet.call, hensikt: h.styrke,
           // Sanntid fra turen: hodet og mållappen sier samme ankomst (v1.218.86).
           ank: m && Number.isFinite(m.at) ? m.at : null,
@@ -6649,7 +6667,7 @@ function _renderBody() {
         // DIN AVGANG (v1.218.86): raden for tavlas valg merkes; den flyttes ikke.
         + (din ? '<span class="auto-din-merke">din avgang</span>' : '')
         // REKK DEN LENGER NED (v1.218.190): samme tekst som Rute og Auto-tavle.
-        + ((rk => rk ? '<span class="auto-rekk">' + esc(rekkLinje(rk, clk, _stop && _stop.name)) + '</span>' : '')(
+        + ((rk => rk ? '<span class="auto-rekk">' + esc(rekkLinje(rk, clk, _tavle() && _tavle().name)) + '</span>' : '')(
           _stop ? _retningRekkMålt(d, walkMins, now) : null))
         // Its own element, not part of the name: a long destination and the
         // platform on one line wrapped the row to two on a 414px screen —
@@ -7392,7 +7410,7 @@ export function renderAuto() {
 export function hasStop() { return !!_stop; }
 
 export function resetAuto() {
-  _askedFor = null; _stop = null; _stopPinned = false; _listeValgt = null; _listeRo = null; _dirs = []; _open = null; _alerts = [];
+  _askedFor = null; _tavleStopp = null; _stop = null; _stopPinned = false; _listeValgt = null; _listeRo = null; _dirs = []; _open = null; _alerts = [];
   _truncated = false; _asked = false; _nextMs = undefined;
   _resetAutoMap();
   _stopsShown = false; _jumpArmed = false; _openMsgs = new Set(); }

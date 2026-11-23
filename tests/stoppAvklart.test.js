@@ -26,6 +26,6 @@ describe('«beste stopp herfra» avklares før det låses (v1.218.273)', () => {
     expect(a).toMatch(/const foreløpig = !_avklar\.ferdig && !holdt;/);
     expect(a).toMatch(/foreløpig && !fart \? 'nærmeste stopp'/);
     expect(a).toMatch(/finner beste stopp …/);
-    expect(a).toMatch(/const nyTavle = foreløpig \? \(picked\.changed && _avklar\.dirsFor == null\)/);
+    expect(a).toMatch(/const nyTavle = !visning && \(foreløpig \? \(picked\.changed && _avklar\.dirsFor == null\)/);   // v1.218.283: et visningsbytte henter ikke
   });
 });

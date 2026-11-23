@@ -573,3 +573,92 @@ describe('delsteg 3: sammenligning per mønster og veibekreftelse', () => {
   });
 });
 const linjeretningLinje = d => d.slice(0, d.indexOf('>'));
+
+/* ------------------------------------------- delsteg 3, verifisering av flere ledd */
+describe('delsteg 3: flerleddsammenligning — hver sjekk isolert', () => {
+  // Oppdaget: L1 fra A til knutepunkt K, L2 fra K til D.
+  const fler = { etapper: [{ linje: 'L1', retning: null, påstigning: 'A', avstigning: 'K' }, { linje: 'L2', retning: null, påstigning: 'K', avstigning: 'D' }] };
+  const riktig = () => [etappe('L1', sted('A', null), sted('K', null)), etappe('L2', sted('K', null), sted('D', null))];
+  /** Nødvendige sjekker som ikke er true, som «etappe:felt=samsvar». */
+  const avvikende = m => sammenlign(fler, mønster(...m)).sjekker.filter(x => x.nødvendig && x.samsvar !== true).map(x => `${x.etappe}:${x.felt}=${x.samsvar}`);
+  const endre = (i, f) => { const l = riktig(); l[i] = f(l[i]); return l; };
+
+  it('1. begge etapper samsvarer: ingen avvik, fulgt — strukturelt, uten tidskontroll', () => {
+    expect(avvikende(riktig())).toEqual([]);
+    expect(sammenlign(fler, mønster(...riktig())).utfall).toBe('fulgt');
+    expect(sammenlign(fler, mønster(...riktig())).sjekker.map(x => x.felt)).not.toContain('tid'); // ingen tidsmessig sjekk i delsteg 3
+  });
+  it('2. feil linje i første etappe: bare linje-ID i etappe 1', () => {
+    expect(avvikende(endre(0, l => ({ ...l, serviceJourney: { line: { id: 'LX' } } })))).toEqual(['1:linje-ID=false']);
+  });
+  it('3. feil linje i andre etappe: bare linje-ID i etappe 2', () => {
+    expect(avvikende(endre(1, l => ({ ...l, serviceJourney: { line: { id: 'LX' } } })))).toEqual(['2:linje-ID=false']);
+  });
+  it('4a. feil påstigning i første etappe: bare påstigning i etappe 1', () => {
+    expect(avvikende(endre(0, l => ({ ...l, fromPlace: sted('X', null) })))).toEqual(['1:påstigning (samlestopp)=false']);
+  });
+  it('4b. feil avstigning i siste etappe (destinasjonen): bare avstigning i etappe 2', () => {
+    expect(avvikende(endre(1, l => ({ ...l, toPlace: sted('X', null) })))).toEqual(['2:avstigning (samlestopp)=false']);
+  });
+  it('6. feil overgang ved avstigning fra første etappe: avstigning 1 og overgangen', () => {
+    expect(avvikende(endre(0, l => ({ ...l, toPlace: sted('Z', null) })))).toEqual(['1:avstigning (samlestopp)=false', '2:overgang ved knutepunkt=false']);
+  });
+  it('7. feil overgang ved påstigning på andre etappe: påstigning 2 og overgangen', () => {
+    expect(avvikende(endre(1, l => ({ ...l, fromPlace: sted('Z', null) })))).toEqual(['2:påstigning (samlestopp)=false', '2:overgang ved knutepunkt=false']);
+  });
+  it('8. ukjent overgang (parent ikke spurt, annen ID): null — ukjent, aldri fulgt eller ikke fulgt', () => {
+    const m = endre(0, l => ({ ...l, toPlace: sted('K-barn') }));
+    expect(avvikende(m)).toEqual(['1:avstigning (samlestopp)=null', '2:overgang ved knutepunkt=null']);
+    expect(sammenlign(fler, mønster(...m)).utfall).toBe('ukjent');
+  });
+  it('8b. understopp med KJENT parent = knutepunktet: overgangen er true', () => {
+    expect(avvikende(endre(0, l => ({ ...l, toPlace: sted('K-barn', 'K') })))).toEqual([]);
+  });
+  it('9. ulikt antall kollektivetapper: bare antallet (etappene sammenlignes ikke)', () => {
+    expect(avvikende([riktig()[0]])).toEqual(['null:antall kollektivetapper=false']);
+    expect(avvikende([...riktig(), etappe('L3', sted('D', null), sted('E', null))])).toEqual(['null:antall kollektivetapper=false']);
+  });
+  it('overgangen er strukturelt avledet: den kan ikke feile uten at avstigning 1 eller påstigning 2 også feiler', () => {
+    // Overgangen sammenligner knutepunktet med de SAMME faktiske verdiene som avstigning 1 og påstigning 2,
+    // fordi den oppdagede signaturen har knutepunktet som begge. Den er en eksplisitt, lesbar sjekk av byttet,
+    // ikke en uavhengig kilde til motstrid. (Tidsmessig gjennomførbarhet er ikke en del av delsteg 3.)
+    for (const [a1, p2] of [['K', 'K'], ['Z', 'K'], ['K', 'Z'], ['Z', 'Z'], ['K-barn', 'K']]) {
+      const m = [etappe('L1', sted('A', null), a1 === 'K-barn' ? sted(a1) : sted(a1, null)), etappe('L2', sted(p2, null), sted('D', null))];
+      const x = sammenlign(fler, mønster(...m)).sjekker;
+      const v = felt => x.find(s => s.felt === felt && (felt === 'overgang ved knutepunkt' || true));
+      const av1 = x.find(s => s.etappe === 1 && s.felt === 'avstigning (samlestopp)').samsvar;
+      const på2 = x.find(s => s.etappe === 2 && s.felt === 'påstigning (samlestopp)').samsvar;
+      const ov = v('overgang ved knutepunkt').samsvar;
+      expect(ov).toBe(av1 === false || på2 === false ? false : av1 === true && på2 === true ? true : null);
+    }
+  });
+  it('den oppdagede flerleddssignaturen (ekte vei fra Tretten) binder etappene i samme knutepunkt', async () => {
+    const r = await resultat('tretten_dag');
+    for (const v of r.veier.filter(x => x.ledd === 2).slice(0, 50)) {
+      const sig = oppdagetSignatur(v, r);
+      expect(sig.etapper).toHaveLength(2);
+      expect(sig.etapper[0].avstigning).toBe(v.knute);
+      expect(sig.etapper[1].påstigning).toBe(v.knute);
+      expect(sig.etapper.every(e => e.linje)).toBe(true);
+    }
+  });
+});
+
+describe('delsteg 3: parent-begrensningen (konservativ)', () => {
+  it('undefined = ikke spurt, null = ingen parent — ulike tilstander', () => {
+    const f = faktiskSignatur(mønster(etappe('L1', sted('A'), sted('D', null))));
+    expect(f.etapper[0].påstigning.parent).toBe(undefined);
+    expect(f.etapper[0].avstigning.parent).toBe(null);
+  });
+  it('manglende parent er ikke motstrid: annen ID uten kjent parent gir null, ikke false', () => {
+    expect(sammeStopp('A', { id: 'B', parent: undefined })).toBe(null);
+    expect(sammeStopp('A', { id: 'B', parent: null })).toBe(false);
+  });
+  it('ukjent kan aldri bli fulgt — heller ikke over flere mønstre', async () => {
+    const { r, direkte } = await tretten();
+    const uklart = mønster(etappe(L141, sted('NSR:StopPlace:annet'), sted(DEST, null)));
+    const v = veibekreftelse(direkte, r, [uklart, uklart, uklart]);
+    expect(v.undersøkt.mønstre.every(m => m.utfall === 'ukjent')).toBe(true);
+    expect(v.påstand.utfall).toBe('ukjent');
+  });
+});

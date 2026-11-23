@@ -1762,3 +1762,64 @@ her.
 **Avvik:** ingen. Utvelgelsens oppslag fra plattform til samlestopp er
 trukket ut til `samlestoppAvPlattform`, med samme oppførsel (alle tester fra
 2–2.3 består).
+
+#### Verifisering av delsteg 3 (etter `e685605`)
+
+**Flerleddsammenligningen er strukturelt komplett [Kode]:**
+- antall kollektivetapper;
+- for **begge** etapper: linje-ID, påstigning og avstigning (samlestopp);
+- overgangen: avstigning fra etappe 1 og påstigning på etappe 2 mot det
+  oppdagede knutepunktet.
+
+Tidsmessig gjennomførbarhet er ikke en del av delsteg 3, og ingen sjekk
+handler om tid.
+
+**Funn: overgangssjekken er avledet, ikke selvstendig.**
+- Den oppdagede signaturen har knutepunktet både som avstigning i etappe 1 og
+  påstigning i etappe 2. Det er verifisert på 50 ekte flerleddsveier fra
+  Tretten.
+- Overgangen sammenligner derfor de *samme* faktiske verdiene som disse to
+  stoppsjekkene. Den kan ikke være `false` uten at én av dem også er det, og
+  er `true` eller `null` på samme vilkår. Det er bundet av en test over alle
+  kombinasjoner.
+- Overgangen er en eksplisitt, lesbar sjekk av byttet. Den legger ikke til
+  noen ny kilde til motstrid. Logikken er ikke endret.
+- Den gamle testen «overgangen alene» isolerer altså ikke overgangen. De nye
+  testene viser nøyaktig hvilke sjekker som slår ut.
+
+**Nye tester:** 15, isolert ved at de krever nøyaktig settet av ikke-sanne
+nødvendige sjekker.
+
+| tilfelle | sjekker som slår ut |
+|---|---|
+| begge etapper stemmer | ingen |
+| feil linje i etappe 1 | `1:linje-ID` |
+| feil linje i etappe 2 | `2:linje-ID` |
+| feil påstigning i etappe 1 | `1:påstigning` |
+| feil avstigning i etappe 2 | `2:avstigning` |
+| feil avstigning fra etappe 1 | `1:avstigning` og `2:overgang` |
+| feil påstigning på etappe 2 | `2:påstigning` og `2:overgang` |
+| ukjent overgang (`parent` ikke spurt) | `1:avstigning` og `2:overgang`, begge `null`; utfallet er `ukjent` |
+| understopp med kjent parent lik knutepunktet | ingen |
+| ulikt antall, for få eller for mange | bare antallet |
+
+I tillegg:
+- en test som binder overgangen til de to stoppsjekkene over alle
+  kombinasjoner;
+- en test av signaturen for ekte flerleddsveier fra Tretten;
+- tre tester av `parent`-begrensningen: `undefined` og `null` er adskilt,
+  annen ID uten kjent parent gir `null`, og ukjent blir aldri `fulgt`, heller
+  ikke over flere mønstre.
+
+**Mutasjoner:** 9 av 9 fanget:
+- linjesjekk bare i etappe 1;
+- linjesjekk bare i etappe 2;
+- påstigning bare i etappe 1;
+- avstigning bare i siste etappe;
+- overgangen uten avstigningssiden;
+- overgangen uten påstigningssiden;
+- overgang der `null` blir `true`;
+- overgangssjekken fjernet;
+- antallsjekken fjernet.
+
+**Kode:** uendret. Bare tester og dokumentasjon er lagt til.

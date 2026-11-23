@@ -519,3 +519,82 @@ Integrering i `mulighetsoppdagelse.js` og skjermen er **ikke** med i trinn 4.
    behov.
 8. **Committing:** én commit per trinn (4a–4f) på arbeidsgrenen. PR bare
    etter din instruks.
+
+---
+
+## Gjennomføring
+
+### 4a: skjelett, tilgangspunkter og ledd 1 (gjort)
+
+**Bygget**
+- `src/nettverksutforsker.js` med `utforsk(ktx, { hent, klokke })`.
+- Tilgangspunkter: romslig søk, gangtid fra ett aliasert reisesøk, og
+  klassifisering (`klassifiserTilgang`) i ordinær, alternativ og utenfor, med
+  grunn. Gangtiden beholdes også for stopp som er utenfor.
+- Ledd 1 i én spørring, samlestopp via `parent`, og
+  `transport_offer`- og `destination`-opsjoner.
+- Grupperingsindeks: `linjeretning`, `område` og `tilbud`.
+- `ikkeUndersøkt`, rapport (kall per type, tid og cachetreff) og cache.
+- Opptak og avspilling: `tests/fixtures/entur/*.json.gz` og `avspilling.js`.
+  Opptakene tas med `scratchpad/opptakEntur.mjs`, som er 5 scenarioer på til
+  sammen 107 kB.
+
+**Avvik fra planen**
+
+1. **Planlagt stoppliste som probe (nytt).**
+   - Målt 2026-11-24: Skyss-linjene 20, 16E, 70, 610, 29, 75 og 76 ved
+     Nesttun, og flybussen FB10 ved Mortensrud, ga turen uten
+     `serviceJourney.estimatedCalls`. Hele linjeretninger så tomme ut.
+   - `serviceJourney.quays` ga den planlagte rekkefølgen. Nesttun gikk fra 27
+     til 182 destinasjoner, og 13 av 15 linjeretninger trengte planen.
+   - Feltet legges til i utforskerens spørring (`medPlanlagteStopp`). Avviser
+     Entur feltet, spørres det uten, og det står i notatene.
+   - **Samme hull finnes trolig i tavla og demonstratoren,** som bare leser
+     `estimatedCalls` (`stoppVidere` i `reiseberegning.js`, `boardGQL`).
+     Hullet er ikke rettet der, bare meldt.
+2. **Søkehorisonten gjelder også ledd 1.** Et tilgangspunkt med tog,
+   ekspressbuss eller båt får 180 min. Én tabell for begge ledd. Et tog som
+   går hver time, ville ellers falt ut av ledd 1.
+3. **`gangUkjentLuftM` er en egen startverdi (400 m)**, ikke tavlas
+   `VIKTIG_GANG_M`. `src/api/stops.js` drar inn `config.js` og `ui/log.js`,
+   og ville brutt grensen mot UI. Det er også et annet faktum: en reserve når
+   gangtiden mangler.
+4. **Ingen `direction`-opsjoner.** Linjeretninger er gruppering
+   [Beslutning]. Demonstratoren laget dem, men utforskeren gjør det ikke.
+5. **Linjeretning som `directionId`.** `stiId` i modellen tar ikke med
+   `directionId`. To stier fra samme tilgangspunkt med samme linje i hver sin
+   retning til *samme* destinasjon slås derfor sammen i opsjonen, men begge
+   står i `grupper.linjeretning`. Det skjer bare med ringlinjer. Det er en
+   kjent grense, og modellen er ikke endret.
+6. **Avstandsbåndene er ikke skalert med stedet ennå** (R3). Faste bånd på
+   5/15/50/150 km.
+
+**Målt med opptakene** (tirsdag 2026-11-24 kl. 12:00 og natt til onsdag kl.
+01:30)
+
+| | Mortensrud dag | natt | Nesttun | Ranheim | Tretten |
+|---|---|---|---|---|---|
+| tilgangspunkter (ordinær/alternativ) | 7 | 7 | 4 | 2 (med Ranheim stasjon) | 4 |
+| utenfor, med gangtid | 8 (Hauketo 33 min) | 8 | 11 (Midtun 27 min) | 13 | 9 |
+| linjeretninger | 13 | 3 | 15 | 7 | 2 |
+| områder | 13 | 3 | 13 | 11 | 4 |
+| destinasjoner / tilbud | 117 / 19 | 17 / 7 | 182 / 20 | 66 / 3 | 28 / 3 |
+| kall: oppdagelse + gang | 3 + 1 | 3 + 1 | 3 + 1 | 3 + 1 | 3 + 1 |
+| tid | 1,3 s | 0,9 s | 0,7 s | 0,8 s | 0,6 s |
+
+- **Tretten tirsdag kl. 12–13:** bare buss 141. Bestillingstaxi 5031 og
+  VY710, som var med mandag, lå ikke i vinduet. Dette er det tynne tilbudet
+  4c skal håndtere. Et tomt resultat er ikke tolket som «ingenting».
+- **Geokoderens kategorier er grove.** Holmen bru er «bus», men betjenes også
+  av ekspressbuss. Regelen for alternativ tilgang (nye transportmidler) bruker
+  kategoriene og kan derfor undervurdere.
+
+**Tester:** `tests/nettverksutforsker.test.js` har 27 tester, og
+`tests/arkitektur.test.js` har fått en ny test. Sju mutasjoner ble fanget:
+- luftlinje avgjør nærhet;
+- ingen dedup på samlestopp;
+- uten planlagt stoppliste;
+- tomt = «ingen muligheter»;
+- cachen ignorerer flytting;
+- linjeretning i `lineId`;
+- alternativ tilgang uten nytt transportmiddel.

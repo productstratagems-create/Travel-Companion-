@@ -333,12 +333,13 @@ hverandre** med en Proven kartform, proporsjonale symboler:
 - **Navnelapper og tall er markører, ikke faste Leaflet-lapper.** Tavlas
   lapprydding (`ryddKart`, `src/ui/lappPlass.js`) skjuler lapper som krasjer,
   og den skjulte både tallene og «Helsfyr», som var alene (sett i
-  nettleseren). Ett bytte rydder sine egne: navn som ville krasje, slås sammen
-  til én lapp (`samleEtiketter`, `lappRekt`).
-
-**Kjent begrensning:** når tre knutepunkter står tett, får oversikten én samlet
-lapp («Oslo bussterminal · Nationaltheatret · Helsfyr»). Hvilket navn som
-hører til hvilken boble, ser du ved å trykke på boblen eller kortet.
+  nettleseren). Ett bytte rydder sine egne.
+- **Hvert knutepunkt har sitt eget navn ved boblen** (v1.218.293). Det står
+  helst under boblen (`plasserNavn`). Største boble plasseres først. Krasjer
+  navnet med et navn som alt står, eller med en annen boble, prøves neste plass
+  i `NAVN_PLASSER`: en linje ned (høyst tre linjer), så til høyre, så til
+  venstre. Er alt opptatt, vises navnet likevel rett under. Med et kort valgt
+  står de andre navnene dempet. Rammen har plass til navnene under boblene.
 
 ### Retningskortene (v1.218.291)
 
@@ -366,7 +367,8 @@ ny linje i `auto.js`.
 
 **Etiketter:** knutepunkter som står nærmere hverandre enn 48 px på skjermen,
 deler én etikett («Oslo bussterminal · Helsfyr · Nationaltheatret»).
-Knutepunktet med flest retninger bærer den (`samleEtiketter`). Etikettene
+Knutepunktet med flest retninger bar den. Erstattet i v1.218.293 av ett navn
+per boble, se «Knutepunktene som bobler». Etikettene
 regnes ut ved innrammingen, ikke på nytt når du zoomer.
 
 **Tilbakerulling:** sett `ETT_BYTTE = false` i

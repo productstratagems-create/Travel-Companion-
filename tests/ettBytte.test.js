@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ettByttePerRetning, RETNINGER } from '../src/ettBytte.js';
-import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, samleEtiketter, ETIKETT_PX, velgRetning, valgtRetning, KART_STEDER_VALGT } from '../src/views/ettBytteVisning.js';
+import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, plasserNavn, navnRekt, NAVN_NIVÅER, NAVN_PLASSER, velgRetning, valgtRetning, KART_STEDER_VALGT } from '../src/views/ettBytteVisning.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { metresBetween } from '../src/haversine.js';
 import { AT_RETNINGER } from '../src/views/auto.js';
@@ -190,9 +190,9 @@ describe('ett bytte: kartet', () => {
     expect(r.get(størst)).toBe(Math.max(...r.values()));
     expect(new Set(r.values()).size).toBeGreaterThan(1);
   });
-  it('rammen gir plass til største boble og navnelappen over den', () => {
-    expect(RAMME_VALG.paddingTopLeft[1]).toBeGreaterThanOrEqual(BOBLE_MAKS + 24);
-    expect(RAMME_VALG.paddingBottomRight[1]).toBeGreaterThanOrEqual(BOBLE_MAKS);
+  it('rammen gir plass til største boble og navnene under den', () => {
+    expect(RAMME_VALG.paddingTopLeft[1]).toBeGreaterThanOrEqual(BOBLE_MAKS);
+    expect(RAMME_VALG.paddingBottomRight[1]).toBeGreaterThanOrEqual(BOBLE_MAKS + NAVN_NIVÅER * 16); // navnene står under
     expect(Math.min(RAMME_VALG.paddingTopLeft[0], RAMME_VALG.paddingBottomRight[0])).toBeGreaterThanOrEqual(BOBLE_MAKS);
   });
   it('boblene: arealet følger antallet (radius ∝ √n), med et minste trykkbart mål', () => {
@@ -208,21 +208,48 @@ describe('ett bytte: kartet', () => {
     expect(rammeGrense(p, [nord(5), nord(6), nord(40)]) / 1000).toBeCloseTo(12, 0);
     expect(rammeGrense(p, [nord(30), nord(50)]) / 1000).toBeCloseTo(80, 0); // bygd: stor ramme
   });
-  it('etiketter: knuter tett på skjermen deler én, flest retninger bærer den', () => {
-    const k = (navn, x, n) => ({ navn, x, retninger: Array(n).fill('r') });
-    const px = q => ({ x: q.x, y: 0 });
-    const g = samleEtiketter([k('Helsfyr', 30, 1), k('Oslo bussterminal', 0, 4), k('Nationaltheatret', 20, 1), k('Lufthavn', 400, 1)], px);
-    expect(g.map(x => x.etikett)).toEqual(['Oslo bussterminal · Helsfyr · Nationaltheatret', 'Lufthavn']);
-    expect(g[0].bærer.navn).toBe('Oslo bussterminal');
-    expect(g[0].andre.map(x => x.navn)).toEqual(['Helsfyr', 'Nationaltheatret']);
-    // Akkurat på grensen er for langt unna.
-    expect(samleEtiketter([k('A', 0, 2), k('B', ETIKETT_PX, 1)], px)).toHaveLength(2);
-    // Langt fra hverandre, men lappene ville krasje (lange navn side om side): én lapp.
-    expect(samleEtiketter([k('Oslo bussterminal', 0, 2), k('Nationaltheatret', 100, 1)], px)).toHaveLength(1);
-    // Samme avstand, men den ene lappen høyt over den andre (stor boble): to lapper.
-    expect(samleEtiketter([k('Oslo bussterminal', 0, 2), k('Nationaltheatret', 100, 1)], q => ({ x: q.x, y: q.x === 0 ? 0 : 200 }))).toHaveLength(2);
-    // Uten projeksjon: hver knute sin etikett.
-    expect(samleEtiketter([k('A', 0, 2), k('B', 1, 1)], null)).toHaveLength(2);
+  it('navn ved hver boble: helst under, ned en linje, så til siden — aldri samlet, aldri oppå hverandre', () => {
+    const k = (navn, x, antall, y = 0) => ({ navn, x, y, antall });
+    const px = q => ({ x: q.x, y: q.y });
+    const a = k('Oslo bussterminal', 0, 254), b = k('Nationaltheatret', 40, 192), c = k('Helsfyr', 300, 71);
+    const n = plasserNavn([c, b, a], px, () => 10);
+    expect(n.size).toBe(3);                                   // hvert knutepunkt sitt navn
+    expect(n.get(a)).toEqual({ side: 'under', nivå: 0 });    // størst først, rett under
+    expect(n.get(b)).toEqual({ side: 'under', nivå: 1 });    // krasjet: en linje ned
+    expect(n.get(c)).toEqual({ side: 'under', nivå: 0 });    // langt unna: rett under
+    const ingenKrasj = xs => { const r = xs.map(x => navnRekt(px(x), x.navn, 10, n2.get(x))); for (let i = 0; i < r.length; i++) for (let j = i + 1; j < r.length; j++) expect(r[i].v < r[j].h && r[j].v < r[i].h && r[i].t < r[j].u && r[j].t < r[i].u).toBe(false); };
+    let n2 = n; ingenKrasj([a, b, c]);
+    // Mortensrud-tilfellet fra skjermbildet: tre bobler side om side, de små tett på de store.
+    const bt = k('Oslo bussterminal', 176, 242, 70), nt = k('Nationaltheatret', 155, 185, 68), hf = k('Helsfyr', 206, 71, 72);
+    const rad = q => bobleRadius(q.antall, 242);
+    n2 = plasserNavn([bt, nt, hf], px, rad);
+    expect(new Set([...n2.values()].map(p => p.side)).has('høyre') || new Set([...n2.values()].map(p => p.side)).has('venstre')).toBe(true);
+    const r = [bt, nt, hf].map(x => navnRekt(px(x), x.navn, rad(x), n2.get(x)));
+    for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) expect(r[i].v < r[j].h && r[j].v < r[i].h && r[i].t < r[j].u && r[j].t < r[i].u).toBe(false);
+    // Står en annen boble rett under, flyttes navnet forbi den.
+    const over = k('Over', 0, 10), under = k('Under', 0, 5, 30);
+    expect(plasserNavn([over, under], px, () => 8).get(over)).not.toEqual({ side: 'under', nivå: 0 });
+    // Uten projeksjon: alle rett under.
+    expect([...plasserNavn([a, b], null).values()]).toEqual([NAVN_PLASSER[0], NAVN_PLASSER[0]]);
+    // Alt opptatt: navnet vises likevel.
+    const mange = Array.from({ length: NAVN_PLASSER.length + 2 }, (_, i) => k('Samme sted ' + i, 0, 100 - i));
+    expect(plasserNavn(mange, px, () => 10).size).toBe(mange.length);
+  });
+  it('kartet: hvert knutepunkt har sitt eget navn — i oversikten og med et kort valgt (dempet)', async () => {
+    await klar();
+    const navnI = f => f.lagt[0].ting.filter(t => t.o && t.o.icon && /eb-kart-etikett/.test(t.o.icon.className));
+    const d = ettBytteKartData(pos);
+    const knuter = new Map(d.retninger.filter(r => r.knute).map(r => [r.knute.lat + ',' + r.knute.lon, r.knuteNavn]));
+    let f = falskL();
+    ettBytteKart(f.map, f.L, { aktiv: true, pos, ramme: () => {} });
+    expect(navnI(f).map(t => [t.ll.join(','), t.o.icon.html.replace(/<[^>]+>/g, '')]).sort()).toEqual([...knuter.entries()].sort());
+    expect(navnI(f).every(t => !/·/.test(t.o.icon.html))).toBe(true); // ingen samlet lapp
+    expect(navnI(f).every(t => /translate\(-50%,\d+px\)/.test(t.o.icon.html))).toBe(true); // under boblen
+    velgRetning('NØ');
+    f = falskL();
+    ettBytteKart(f.map, f.L, { aktiv: true, pos, ramme: () => {} });
+    expect(navnI(f)).toHaveLength(knuter.size);
+    expect(navnI(f).filter(t => !/dempet/.test(t.o.icon.className)).map(t => t.o.icon.html.replace(/<[^>]+>/g, ''))).toEqual(['Helsfyr']);
   });
   it('du står selv på kartet mens laget vises', async () => {
     await klar();

@@ -161,36 +161,49 @@ export const BOBLE_MAKS = 22, BOBLE_MIN = 6;
 export const bobleRadius = (n, maks) => (maks > 0 && n > 0 ? Math.max(BOBLE_MIN, BOBLE_MAKS * Math.sqrt(n / maks)) : BOBLE_MIN);
 
 /**
- * Rammen gir plass til den største boblen rundt punktene og navnelappen over den
+ * Rammen gir plass til den største boblen rundt punktene og navnene under den
  * (sett i skjermbildet: uten dette ble knutepunktnavnene kuttet i overkanten).
  */
-export const RAMME_VALG = Object.freeze({ paddingTopLeft: [BOBLE_MAKS + 8, BOBLE_MAKS + 30], paddingBottomRight: [BOBLE_MAKS + 8, BOBLE_MAKS + 8], maxZoom: 15, animate: false });
+export const RAMME_VALG = Object.freeze({ paddingTopLeft: [BOBLE_MAKS + 8, BOBLE_MAKS + 8], paddingBottomRight: [BOBLE_MAKS + 8, BOBLE_MAKS + 8 + 3 * 16], maxZoom: 15, animate: false });
 
-/** Knutepunkter nærmere hverandre enn dette på skjermen deler én etikett. */
-export const ETIKETT_PX = 48;
+/** Høyden på én navnelinje under en boble (px), og hvor mange linjer et navn kan flyttes ned. */
+export const NAVN_LINJE = 16, NAVN_NIVÅER = 3;
+/** Anslått bredde (px) for et navn i 11 px tekst med luft. */
+const navnBredde = tekst => 6.5 * tekst.length + 10;
 /**
- * Etiketter uten overlapp: knutepunktene (flest retninger først) samles grådig
- * til grupper der alle ligger innen ETIKETT_PX fra gruppens første. Gruppens
- * første bærer etiketten med alle navnene; de andre får navnet bare ved trykk.
- * `px` er skjermpunktet; uten (ingen projeksjon) blir hver knute sin egen gruppe.
+ * Anslått rektangel for et navn ved en boble (px). `plass` er
+ * { side: 'under', nivå } — under boblen, nivå linjer ned — eller
+ * { side: 'høyre' | 'venstre' } — ved siden av, midt på.
  */
-/** Anslått størrelse på en navnelapp (px): bred nok for 12 px tekst, med luft. */
-export const lappRekt = (p, tekst, r = 0) => { const b = 7 * tekst.length + 16, h = 20; return { v: p.x - b / 2, h: p.x + b / 2, t: p.y - r - 4 - h, u: p.y - r - 4 }; };
+export function navnRekt(p, tekst, r, plass) {
+  const b = navnBredde(tekst);
+  if (plass.side === 'høyre') return { v: p.x + r + 3, h: p.x + r + 3 + b, t: p.y - NAVN_LINJE / 2, u: p.y + NAVN_LINJE / 2 - 1 };
+  if (plass.side === 'venstre') return { v: p.x - r - 3 - b, h: p.x - r - 3, t: p.y - NAVN_LINJE / 2, u: p.y + NAVN_LINJE / 2 - 1 };
+  const t = p.y + r + 3 + plass.nivå * NAVN_LINJE;
+  return { v: p.x - b / 2, h: p.x + b / 2, t, u: t + NAVN_LINJE - 1 };
+}
+/** Plassene et navn prøver, i rekkefølge: under boblen (linje for linje), så til høyre, så til venstre. */
+export const NAVN_PLASSER = Object.freeze([...Array.from({ length: NAVN_NIVÅER }, (_, nivå) => ({ side: 'under', nivå })), { side: 'høyre' }, { side: 'venstre' }]);
 const krasjer = (a, b) => a.v < b.h && b.v < a.h && a.t < b.u && b.t < a.u;
-
-export function samleEtiketter(knuter, px, radius = () => 0) {
-  const rekke = knuter.slice().sort((a, b) => b.retninger.length - a.retninger.length || (a.navn < b.navn ? -1 : 1));
-  const grupper = [];
-  const tekst = g => g.knuter.map(k => k.navn).join(' · ');
-  for (const k of rekke) {
-    const p = px && px(k);
-    // Samme gruppe når knutepunktene står tett ELLER navnelappene ville krasje
-    // (sett i nettleseren: tre bobler med god avstand, to lapper oppå hverandre).
-    const g = p && grupper.find(x => x.p && (Math.hypot(x.p.x - p.x, x.p.y - p.y) < ETIKETT_PX
-      || krasjer(lappRekt(x.p, tekst(x), radius(x.knuter[0])), lappRekt(p, k.navn, radius(k)))));
-    if (g) g.knuter.push(k); else grupper.push({ p, knuter: [k] });
+/**
+ * Hvert knutepunkt får sitt eget navn ved boblen (Proven: stedsnavn ved
+ * symbolet, helst under). Størst boble først; krasjer navnet med et navn som
+ * alt står eller med en annen boble, prøves neste plass i NAVN_PLASSER. Er alle
+ * opptatt, får det den første: hvert navn vises. Uten projeksjon (`px` null)
+ * står alle rett under. Returnerer knute → plass.
+ */
+export function plasserNavn(knuter, px, radius = () => 0) {
+  const plass = new Map();
+  const bobler = px ? knuter.map(k => { const p = px(k), r = radius(k); return { k, v: p.x - r, h: p.x + r, t: p.y - r, u: p.y + r }; }) : [];
+  const tatt = [];
+  for (const k of knuter.slice().sort((a, b) => (b.antall || 0) - (a.antall || 0) || (a.navn < b.navn ? -1 : 1))) {
+    if (!px) { plass.set(k, NAVN_PLASSER[0]); continue; }
+    const p = px(k), r = radius(k);
+    const valgt = NAVN_PLASSER.find(pl => { const rekt = navnRekt(p, k.navn, r, pl); return !tatt.some(a => krasjer(a, rekt)) && !bobler.some(b => b.k !== k && krasjer(b, rekt)); }) || NAVN_PLASSER[0];
+    plass.set(k, valgt);
+    tatt.push(navnRekt(p, k.navn, r, valgt));
   }
-  return grupper.map(g => ({ bærer: g.knuter[0], etikett: tekst(g), andre: g.knuter.slice(1) }));
+  return plass;
 }
 
 /**
@@ -245,18 +258,18 @@ export function ettBytteKart(map, L, { aktiv, pos, ferdig, ramme: rammeInn = (b,
   for (const s of valgteSteder) L.circleMarker([s.lat, s.lon], { className: 'eb-kart-sted', radius: 4, weight: 1.5 }).bindTooltip(s.navn).addTo(lag);
   // Boblene: de dempede først, størst under minst, så små ikke skjules av store.
   const px = map.latLngToContainerPoint ? k => map.latLngToContainerPoint(k.fra) : null;
-  const navnFor = new Map();
-  for (const g of samleEtiketter(fremhevet, px, k => bobleRadius(k.antall, maks))) { navnFor.set(g.bærer, g.etikett); for (const k of g.andre) navnFor.set(k, null); }
+  const nivåFor = plasserNavn([...knuter.values()], px, k => bobleRadius(k.antall, maks));
   const rekke = [...knuter.values()].sort((a, b) => (b.dempet - a.dempet) || (b.antall - a.antall));
   for (const k of rekke) {
     const r = bobleRadius(k.antall, maks);
     const m = L.circleMarker(k.fra, { className: dempe('eb-kart-knute', k.dempet), radius: r, weight: 2 });
-    const navn = navnFor.get(k);
     m.bindTooltip(k.navn + ' · ' + k.antall + ' steder').addTo(lag); // ved trykk
-    // Navnet over boblen der det er plass (samleEtiketter). Som markør, ikke fast lapp:
+    // Navnet UNDER boblen, på linjen plasserNavn ga. Som markør, ikke fast lapp:
     // tavlas lapprydding (ryddKart) er laget for tavlas lapper og skjulte «Helsfyr»
     // selv når den stod alene (sett i nettleseren). Ett bytte rydder sine egne.
-    if (navn) L.marker(k.fra, { icon: L.divIcon({ className: 'eb-kart-etikett', html: '<span style="transform:translate(-50%,calc(-100% - ' + Math.round(r + 4) + 'px))">' + esc(navn) + '</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(lag);
+    const pl = nivåFor.get(k) || NAVN_PLASSER[0], av = Math.round(r + 3);
+    const flytt = pl.side === 'høyre' ? av + 'px,-50%' : pl.side === 'venstre' ? 'calc(-100% - ' + av + 'px),-50%' : '-50%,' + Math.round(av + pl.nivå * NAVN_LINJE) + 'px';
+    L.marker(k.fra, { icon: L.divIcon({ className: dempe('eb-kart-etikett', k.dempet), html: '<span style="transform:translate(' + flytt + ')">' + esc(k.navn) + '</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: k.dempet ? 0 : 1000 }).addTo(lag);
     // Kart → kort: trykk på en boble velger (første) retning den bærer.
     if (m.on) m.on('click', () => { if (_valgt !== k.retning) { velgRetning(k.retning); visKort(k.retning); } });
     // Tallet i boblen: antallet steder den betjener. En markør, ikke en lapp: kartets

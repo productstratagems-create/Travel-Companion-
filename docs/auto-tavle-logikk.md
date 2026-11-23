@@ -142,6 +142,9 @@ overskriften, og reisen vises som rad («fra Kantarellen · 15 min å gå»).
   unntatt «hjemover», som er veien til å velge hjemover-stopp (v1.218.282).
 - **Rekker / rekker ikke** (`tavleDel`, `canCatch`): gangtiden er til
   radens eget stopp. De du ikke rekker samles under lista.
+- **Reiseoppgavene** (v1.218.287): «mot sentrum» og «hjemover» beregnes i
+  `src/reiseoppgaver.js` (`motSentrum`, `hjemover`, `gårMotSentrum`,
+  `hjemoverDom`); felles regler som «rekker du den» i `src/reiseberegning.js`.
 - **Rekk den lenger ned** (v1.218.185): en avgang du ikke rekker her, men
   rekker på et senere stopp på samme tur, flyttes opp med det stoppets tid
   og gangtid.

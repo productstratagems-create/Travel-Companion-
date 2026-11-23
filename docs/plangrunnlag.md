@@ -263,13 +263,26 @@ hva brukeren faktisk kan gjøre med kollektivtilbudet**.
 
 | # | Tiltak | Status | Fase | Proven·Better·New | Belegg / merknad |
 |---|---|---|---|---|---|
-| 1 | Sentrum og hjemover som egne tjenester | **delvis** | før valg | Better | mot sentrum: reisesøk + by (v278, v282). Hjemover mangler reisesøk-basert påstigning. |
+| 1 | Sentrum og hjemover som egne tjenester | **gjort (v1.218.287)** | før valg | Better | `src/reiseoppgaver.js`: én inngang hver (`motSentrum`, `hjemover`); felles beregning i `src/reiseberegning.js`; dagens oppførsel bundet av `tests/reiseoppgaver.test.js`. Hjemover mangler fortsatt reisesøk-basert påstigning (`beste: null`). |
 | 2 | Felles opsjonsmodell | nytt | før valg | New | Målområder (v213), hurtigvalg-knapper (v282) er utgangspunktet. |
 | 3 | Lokal opsjonsoppdager | **delvis** | før valg | Better | Knutepunkt og nabostopp (v171), stasjoner ~1 km forsøkt (v275, tatt ut). Grensene i §1 må løses først. |
 | 4 | Regionale muligheter | nytt | før valg | New | Krever datakilde B. |
 | 5 | Nasjonale muligheter | nytt | før valg | New | Krever datakilde B og skillet «nå / venting / overgang / mulig». |
 | 6 | Koble til hurtigvalgene | nytt | før valg | Better | Må holde «Ro» og «alternativet på raden». |
 | — | Alle Enturs transportmidler | **finnes** | — | Proven | Bestillingstaxi i tavla og reisesøket (v279–280); tabell i `docs/auto-tavle-logikk.md`. |
+
+## Steg 1 — gjennomført (v1.218.287)
+
+| Kriterium | Hvor |
+|---|---|
+| Én tydelig inngang for «mot sentrum» og én for «hjemover» | `motSentrum(retninger, ktx)` og `hjemover(retninger, ktx)` i `src/reiseoppgaver.js` |
+| Tester som beskriver dagens oppførsel | `tests/reiseoppgaver.test.js`: flere avganger, ingen du rekker, annet stopp som beste påstigning, flere hjemreiser, tog og buss, Bergen og bygd |
+| Felles beregning uten kjennskap til oppgavene | `src/reiseberegning.js`: `canCatch`, `catchable`, `stoppVidere` (testen sjekker at koden ikke nevner sentrum/hjem) |
+| Ny oppdagelse endrer ikke de to | testen: flere retninger og målområder endrer ikke resultatet for mot/hjem |
+
+`views/auto.js` bygger konteksten (tavlas stopp, gangtid, hjemover-stopp,
+reisesøk) og viser resultatet; `retningGruppe`/`retningHjemDom` står igjen og
+delegerer, så alle kall og tester er uendret.
 
 ## Åpne spørsmål å avgjøre før steg 2
 

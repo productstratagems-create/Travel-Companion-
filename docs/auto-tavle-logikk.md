@@ -149,8 +149,11 @@ overskriften, og reisen vises som rad («fra Kantarellen · 15 min å gå»).
   «GÅ NÅ». Stopp bak deg sist.
 - **Reiser med bytte** (`kombiRader`): for «mot sentrum» og målområdene ett
   reisesøk per stopp og retning (gyldig `KOMBI_GYLDIG_MS = 3 min`, innenfor
-  et hentebudsjett). Med bytte vises de som er framme før beste direkte,
-  eller er eneste vei. Flettet inn etter «gå om».
+  et hentebudsjett). Med bytte vises de som er framme minst
+  `KOMBI_MIN_GEVINST_MIN = 3` min før den tidligste direkte raden du rekker
+  i lista (v1.218.285; uten ankomst i lista: før søkesvarets beste direkte),
+  eller er eneste vei. «N min raskere» måles mot det samme. Flettet inn etter
+  «gå om».
 - **Mer ved rulling**: `TAVLE_SIDE = 12` rader om gangen; tom lokal liste
   henter neste side. Stopper etter `AT_TOM_MAKS = 3` utvidelser som ikke
   gir flere synlige rader (v1.218.272).

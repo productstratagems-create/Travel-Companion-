@@ -61,11 +61,23 @@ export function reiseRader(tps, nå, gangMin) {
  * den beste direkte i samme svar («N min raskere»), eller er eneste vei.
  * Ingen kåring — et faktum på raden (AGENTS.md: alternativer på raden). Ren.
  */
-export function kombiRader(rader) {
+/** Så mye tidligere framme en reise med bytte må være for å vises (v1.218.285). */
+export const KOMBI_MIN_GEVINST_MIN = 3;
+/**
+ * @param o.besteAnk  tidligste ankomst blant de direkte radene du rekker i
+ *   lista (v1.218.285). Rapportert: «81 → 54 · 19 min å gå · ank. 11:44 · 2 min
+ *   raskere» over T-bane 3 framme 11:43 — «raskere» var målt mot søkesvarets
+ *   beste direkte, ikke mot radene på skjermen. Lista er målestokken når den
+ *   har en ankomst; ellers søkesvaret, som før.
+ */
+export function kombiRader(rader, o = {}) {
   const kol = (rader || []).filter(r => r.type === 'kollektiv');
   const direkte = kol.filter(r => r.bytter === 0);
-  const best = direkte.length ? Math.min(...direkte.map(r => r.ank)) : null;
-  return kol.filter(r => r.bytter >= 1 && (best == null || r.ank < best)).map(r => {
+  const iSvar = direkte.length ? Math.min(...direkte.map(r => r.ank)) : null;
+  const iLista = Number.isFinite(o.besteAnk) ? o.besteAnk : null;
+  const best = iLista != null ? (iSvar != null ? Math.min(iSvar, iLista) : iLista) : iSvar;
+  const krav = iLista != null ? KOMBI_MIN_GEVINST_MIN * 60000 : 0;
+  return kol.filter(r => r.bytter >= 1 && (best == null || r.ank <= best - Math.max(krav, 1))).map(r => {
     const raskere = best == null ? null : Math.round((best - r.ank) / 60000);
     const fakta = r.fakta.filter(f => f !== 'minst gange');
     if (raskere != null && raskere >= 1) fakta.push(raskere + ' min raskere');

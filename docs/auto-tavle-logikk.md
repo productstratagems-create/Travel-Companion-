@@ -313,6 +313,33 @@ Et nytt svar på samme sted flytter ikke kartet. Rører du kartet, er det ditt.
 Tavla regner kartet som «justert» mens laget vises, og får tilbake din egen
 tilstand når valget går av, så en justering du gjorde før, ikke slettes.
 
+### Knutepunktene som bobler (v1.218.292)
+
+Strekene fra knutepunkt til sted er fjernet. Knutepunktene **veies mot
+hverandre** med en Proven kartform, proporsjonale symboler:
+
+- **Én boble per knutepunkt.** Arealet følger antallet steder knutepunktet
+  betjener (summen over retningene det bærer), så radien er ∝ √antall
+  (`bobleRadius`). Den største er 22 px, og ingen er under 6 px, så alle kan
+  trykkes.
+- **Tallet står i boblen.**
+- **Oversikten** viser deg, en stiplet strek til hvert knutepunkt og boblene.
+  Steder vises ikke. Rammen er deg og knutepunktene, med plass til den største
+  boblen og navnelappen (`RAMME_VALG`).
+- **Trykk et kort:** knutepunktet fremheves, de andre boblene dempes, og
+  kortets steder vises som prikker (høyst 60, `KART_STEDER_VALGT`). Det er
+  stedene som betjenes fra det knutepunktet i den retningen.
+- **Trykk en boble:** den velger retningen den bærer.
+- **Navnelapper og tall er markører, ikke faste Leaflet-lapper.** Tavlas
+  lapprydding (`ryddKart`, `src/ui/lappPlass.js`) skjuler lapper som krasjer,
+  og den skjulte både tallene og «Helsfyr», som var alene (sett i
+  nettleseren). Ett bytte rydder sine egne: navn som ville krasje, slås sammen
+  til én lapp (`samleEtiketter`, `lappRekt`).
+
+**Kjent begrensning:** når tre knutepunkter står tett, får oversikten én samlet
+lapp («Oslo bussterminal · Nationaltheatret · Helsfyr»). Hvilket navn som
+hører til hvilken boble, ser du ved å trykke på boblen eller kortet.
+
 ### Retningskortene (v1.218.291)
 
 Hver rad er et **kort du kan trykke på**. Det er Proven: liste ↔ kart, som i

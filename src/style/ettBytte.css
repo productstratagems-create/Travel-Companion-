@@ -11,7 +11,7 @@
 .eb-kart-ut { stroke: var(--accent, #2a7de1); stroke-opacity: .35; fill: none; }
 .eb-kart-sted { stroke: var(--accent, #2a7de1); fill: rgb(var(--bg-rgb)); fill-opacity: 1; }
 .eb-kart-knute { stroke: var(--accent, #2a7de1); fill: rgb(var(--bg-rgb)); fill-opacity: 1; }
-.leaflet-tooltip.eb-kart-etikett { font-size: 12px; font-weight: 600; padding: 1px 6px; }
+.eb-kart-etikett span { display: inline-block; white-space: nowrap; font: 600 12px/1.3 system-ui, sans-serif; padding: 1px 6px; border-radius: 4px; background: rgb(var(--bg-rgb)); color: var(--text); border: 1px solid rgba(var(--border-rgb), .5); box-shadow: 0 1px 3px rgba(0,0,0,.25); pointer-events: none; }
 .eb-kart-deg { stroke: rgb(var(--bg-rgb)); fill: #2a7de1; fill-opacity: 1; }
 
 /* Retningskortene: klikkbare (Proven: liste ↔ kart). */
@@ -21,3 +21,9 @@
 /* Valgt kort: de andre retningene står, dempet. */
 .eb-kart-dempet { stroke: var(--text-muted) !important; stroke-opacity: .35 !important; }
 .eb-kart-sted.eb-kart-dempet, .eb-kart-knute.eb-kart-dempet { fill-opacity: .6 !important; }
+
+/* Knutepunktboblene (v1.218.292): areal ∝ steder betjent, tallet i midten. */
+.eb-kart-knute { fill: var(--accent, #2a7de1); fill-opacity: .22; }
+.eb-kart-knute.eb-kart-dempet { fill: var(--text-muted) !important; fill-opacity: .12 !important; }
+.eb-kart-tall span { display: inline-block; transform: translate(-50%, -50%); font: 700 11px/1 system-ui, sans-serif; color: var(--text); white-space: nowrap; pointer-events: none; }
+.eb-kart-tall.eb-kart-dempet span { color: var(--text-muted); }

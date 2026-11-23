@@ -854,3 +854,219 @@ Byene er **identiske** med og uten regelen: veier, struktur og kall (testet).
   en del av 4c.
 - **Opptakene ble tatt dagen før reisetidspunktet,** altså uten sanntid. Det
   gjelder alle scenarioene.
+
+---
+
+## Arkitekturgrense: tidsforskyvning og reisebekreftelse (beslutning etter 4c)
+
+**Beslutning (produkteier, etter 4c)**
+1. Ordinære veier kan inngå i bekreftelsesgrunnlaget.
+2. Utvidede veier kan inngå først når ledd 2 er undersøkt fra forventet
+   ankomsttid etter ledd 1, inkludert nødvendig overgangstid.
+3. Utvidede veier med uløst tidsforskyvning bevares som oppdagede muligheter,
+   men holdes utenfor reisebekreftelsen.
+4. Senere- og `not_now`-veier holdes utenfor reisebekreftelsen.
+5. Grensen fjerner ikke muligheter fra oppdagelsen og er ikke et
+   relevanssignal.
+6. Oppdagelse skal ikke presenteres som tidsmessig bekreftelse.
+
+**Begrunnelse:** et reisesøk for ledd 2 fra nåtid sier ikke om forbindelsen
+kan nås etter ledd 1. Det kan gi en teknisk gyldig, men tidsmessig umulig
+reise.
+
+Grensen er en arkitekturgrense, ikke en instruks om å bygge tidsmessig kobling
+nå.
+
+### Kallflyten i dag (verifisert på `d419259`)
+
+| spørsmål | funn | status |
+|---|---|---|
+| Finnes `src/reisebekreftelse.js`? | Nei. Ingen fil i `src/` har *bekreft*, *reisesøk* eller *confirm* i navnet. `src/nettverksutforsker.js:11–12` nevner modulen som planlagt ansvar. | **mangler** (planlagt i 4d) |
+| Finnes bekreftelseslogikk under et annet navn? | **Ikke for oppdagede opsjoner.** Reisesøk finnes i `src/api/entur.js` (`fetchTrip` l. 383, `fetchTripFra` l. 580, `fetchTripFraPos` l. 592, alle via `tripGQL` i `src/api/queries.js:118`). De kalles av tavla og Auto (`src/views/auto.js:2220, 2256, 5949, 6002` og `src/views/board.js:508, 3200`) med *egne* mål, ikke med utforskerens kandidater. | verifisert: eksisterer, men er ikke koblet |
+| Hvor sendes oppdagede kandidater til reisesøk? | **Ingen steder i produksjonen.** `src/nettverksutforsker.js` importeres bare av `tests/nettverksutforsker.test.js:9`, `tests/arkitektur.test.js:82` og `scratchpad/opptakEntur.mjs:10`. Utforskeren gjør ingen reisesøk (`rapport.kall.bekreftelse: 0`, l. 522). | verifisert |
+| Hvem velger kandidater, og hvem gjør reisesøk? | Bare **demonstratoren**: `scratchpad/nettverksprobe.mjs:220` velger med `velgForBekreftelse`, og `bekreft()` i l. 134 gjør ett aliasert `tripGQL`-kall og skriver `confirmations` og `realisations`. Demonstratoren bruker *sin egen* utforskning, ikke modulen (trinn 4f er ikke gjort), og kjenner ikke vindu eller tidsforskyvning. | verifisert: bare demonstrator |
+| Hvem bruker `velgForBekreftelse` (`src/opsjonsmodell.js:224`)? | `tests/opsjonsmodell.test.js` og `scratchpad/nettverksprobe.mjs:220`. Ingen produksjonskode. | verifisert |
+| Hvor er grunnlaget for grensen? | `src/nettverksutforsker.js` *merker* hver vei: `vindu` (`ordinært / utvidet / senere`, l. 288–290), `tidsforskyvning` (`TIDSFORSKYVNING` l. 129, satt i l. 460), `grunnlag` (`grunnlagFor` l. 123), og på opsjonen `timetable: 'not_now'` (l. 503). Alle veier står i `resultat.veier` (l. 520). | verifisert: merket, ikke avgrenset |
+
+**Konklusjon**
+- Det finnes ingen avgrensning til reisebekreftelse i dag, fordi det ikke
+  finnes noen kobling mellom oppdagelse og bekreftelse i produksjonen.
+- Grensen skal håndheves i 4d, i den nye bekreftelsesmodulen, **før
+  kandidatene velges**. Den skal ikke være et filter etter reisesøket.
+- Grensen hører **ikke** hjemme i opsjonsmodellen, som ikke kjenner veier,
+  vinduer eller tidsforskyvning. `velgForBekreftelse` står urørt, men skal
+  ikke brukes i 4d-flyten, fordi den ikke ser veinivået.
+
+### Opsjon og vei: hvem grensen gjelder
+
+- En opsjon kan ha flere veier. Noen kan være bekreftbare (ordinære, uten
+  tidsforskyvning), andre ikke (utvidet med tidsforskyvning, eller senere).
+- En opsjon forkastes **ikke** fordi én vei er ikke-bekreftbar. Den er kandidat
+  via sine bekreftbare veier.
+- Bekreftelsen beholder koblingen til den **konkrete veien** (`vei.id`) som ble
+  undersøkt.
+- En bekreftelse gjennom én vei gjelder **ikke** de andre veiene til samme
+  opsjon.
+- Har en opsjon ingen bekreftbare veier, holdes den utenfor bekreftelsen med
+  en forståelig grunn. Den står fortsatt i oppdagelsesresultatet, med alle
+  veier.
+
+---
+
+## Forslag til 4d: tre lag holdt adskilt (ikke implementert)
+
+| | 1. Oppdagelse | 2. Tidsmessig kobling | 3. Reisebekreftelse |
+|---|---|---|---|
+| Spørsmål | Hvilke muligheter finnes i nettverket? | Kan leddene i en oppdaget vei kobles, gitt forventet ankomst og overgangstid? | Finnes en konkret, sammenhengende reise for tidspunktet? |
+| Modul | `src/nettverksutforsker.js` (finnes) | **ikke i 4d**; senere egen modul | **ny** `src/reisebekreftelse.js` |
+| I 4d | uendret | ikke bygget; uløst tidsforskyvning holder veien ute | bygges |
+
+### Lag 1: oppdagelse (uendret)
+- **Ansvar:** finne veier og merke dem. Ingen bekreftelse og ingen relevans.
+- **Input:** posisjon og tid.
+- **Output:** `resultat`: `opsjoner`, `veier`, `grupper`, `knutepunkter`,
+  `ikkeUndersøkt` og `natt.døgntilbud`.
+- **Bevares:** for hver vei `vindu`, `grunnlag`, `stoppliste`, `avgang` eller
+  `nesteAvgang`, `tidsforskyvning`, `ledd`, `inn`, `knute` og `område`.
+- **Feil:** `ikkeUndersøkt` med grunn. Et tomt resultat betyr aldri «ingen
+  muligheter».
+
+### Lag 2: tidsmessig kobling (ikke i 4d, bare grensesnitt)
+- **Ansvar (senere):** for en vei med `tidsforskyvning`, finne ledd 2 fra
+  forventet ankomst på knutepunktet, pluss overgangstid. Er det en avgang
+  videre, blir veien *tidskoblet*. Hvis ikke, er den *ikke koblbar på dette
+  tidspunktet*.
+- **Input:** en vei, forventet ankomsttid fra ledd 1 og overgangstid.
+- **Output (planlagt):** en ny vei, eller en markering, med
+  `tidskobling: { status: 'koblet' | 'ikke koblbar' | 'ukjent', ankomst, nesteAvgang, overgang }`.
+  Den opprinnelige veien beholdes.
+- **I 4d:** laget finnes ikke. Fravær av tidskobling betyr «ikke undersøkt»,
+  ikke «ikke koblbar». Bekreftelsen tolker en vei med uløst
+  `tidsforskyvning` som **utenfor grunnlaget**, med grunnen «tidsforskyvning
+  ikke løst», og ikke som at den er umulig.
+
+### Lag 3: reisebekreftelse (`src/reisebekreftelse.js`, 4d)
+Rene funksjoner. Nettet injiseres. Overleveringen fra lag 1 er data: modulen
+importerer `opsjonsmodell.js` og `api/queries.js`, men **ikke**
+`nettverksutforsker.js`.
+
+1. **`grunnlag(resultat)`**: grensen, *før* utvelgelsen.
+   - En vei er bekreftbar ⇔ `vindu === 'ordinært'` og ikke `tidsforskyvning`.
+     Utvidede veier blir bekreftbare først når lag 2 har koblet dem (regel 2),
+     altså ikke i 4d.
+   - En opsjon er kandidat ⇔ minst én bekreftbar vei og ikke
+     `timetable: 'not_now'`.
+   - Output: `{ kandidater: [{ opsjon, veier: [bekreftbare vei-id-er] }], utenfor: [{ opsjon, grunn, veier }] }`.
+     Grunnen er en av:
+     - «bare utvidet vindu med uløst tidsforskyvning»;
+     - «bare utvidet vindu»;
+     - «bare rutetilbud senere i døgnet (not_now)»;
+     - «ingen veier».
+   - `resultat` endres ikke (testes med dyp likhet).
+2. **`velgRepresentativt(kandidater, resultat, n)`**: fordeler budsjettet.
+   Dette er representativitet, ikke relevans.
+   - Grådig dekning med marginal økning i nye områder, linjeretninger,
+     destinasjoner, transportformer, tilgangspunkter, knutepunkter og
+     nettverksveier. Bare *bekreftbare* veier telles, og gruppen avgjøres per
+     **vei**, ikke per opsjon.
+   - Fast uavgjortsrekkefølge, med bredde først: område → linjeretning →
+     destinasjon → transportform → tilgangspunkt → knutepunkt → veier. Antall
+     stier er sekundært.
+   - Nesten-dubletter (samme linjeretning og område, samlestopp innen
+     `NÆR_DUBLETT_M`) velges ikke mens noe uutforsket finnes.
+   - Resultatet er deterministisk og uavhengig av rekkefølgen.
+   - Output: `{ valgt: [{ opsjon, vei }], ikkeValgt: [{ opsjon, grunn }] }`.
+     Grunnen er «budsjett», «nær dublett av X» eller «gruppe dekket av X».
+     **Den valgte veien følger med.**
+3. **`bekreft(valgt, ktx, { hent })`**: ett aliasert `tripGQL`-kall for
+   høyst `BEKREFT_MAKS` (10), med reisetid `ktx.tid` og uten fly.
+   - Output per kandidat: en `confirmation` med `state`,
+     `request { from, to, modes, travelTime }`, `searchedAt`,
+     `firstDeparture` og **`vei`** (id-en som ble undersøkt), og
+     `realisations[]` fra svaret.
+   - `følgerOppdagetVei: true/false`: om reisesøkets etapper bruker en linje
+     fra den valgte veien. Reisesøket kan finne en annen vei, og det skal
+     synes, ikke skjules.
+   - Bytte i svaret gir en `connection`-opsjon, returnert **separat**.
+   - **Feil og manglende data:**
+     - et tomt svar gir `unknown` med grunn, aldri `not_feasible`;
+     - et alias som mangler, gir `unknown` med grunnen «mangler i svaret»;
+     - et kall som feiler helt, gir `unknown` for alle valgte med grunn, og
+       ingen kandidat forsvinner;
+     - kandidater uten budsjett beholdes som `not_checked` med grunn.
+4. **Videreformidling uten sammenblanding:** modulen returnerer
+   `{ grunnlag, valgt, ikkeValgt, bekreftelser, forbindelser, rapport }`.
+   - Oppdagelsesresultatet berøres ikke.
+   - `mulighetsoppdagelse.js` (relevans) får begge og kan se hvilke veier som
+     er oppdaget, hvilke som er bekreftet, og hvilke som holdes utenfor og
+     hvorfor.
+   - `rapport` har et eget budsjett: kall, tid, valgt, bekreftet, ukjent,
+     ikke valgt per grunn og utenfor grunnlaget per grunn.
+
+### Eksempel: én opsjon, blandede veier (Tretten, opptaket 4c)
+
+Opsjonen `destination:Lillehammer skysstasjon` har tre veier:
+- **A:** buss 141 fra Tretten bru kl. 11:59, `vindu: 'ordinært'`, uten
+  tidsforskyvning. **Bekreftbar.**
+- **B:** buss 142 mot Lillehammer fra Tretten sentrum kl. 13:33,
+  `vindu: 'utvidet'`, ledd 1. **Utenfor** i 4d, fordi det utvidede vinduet
+  ikke er tidskoblet (regel 2).
+- **C:** taxi 5035 → knutepunkt → videre, `vindu: 'utvidet'` med
+  `tidsforskyvning`. **Utenfor:** uløst tidsforskyvning.
+
+Behandling:
+- `grunnlag` gir `{ opsjon: Lillehammer, veier: [A] }` som kandidat. B og C
+  står i `utenfor` *for veiene*, men opsjonen er ikke forkastet.
+- Velges den, søkes det med reisetid kl. 12:00, og bekreftelsen bærer
+  `vei: A`.
+- **B og C er fortsatt bare oppdaget.** Bekreftelsen via A gjelder ikke B
+  eller C.
+- Finner reisesøket en annen linje enn 141, settes `følgerOppdagetVei: false`.
+
+### Tester (forslag)
+- **Grensen:**
+  - ordinær vei er inne;
+  - utvidet med og uten tidsforskyvning er ute, med riktig grunn;
+  - senere og `not_now` er ute;
+  - en opsjon med blandede veier er inne via de ordinære, og de andre veiene
+    står i `utenfor`;
+  - `resultat` er uendret.
+- **Utvelgelsen:**
+  - deterministisk ved stokking;
+  - bredde før veier;
+  - nesten-dubletter (Tretten: Solhjem/Solhjemslivegen);
+  - gruppe per vei (Nationaltheatret-feilen);
+  - `valgt + ikkeValgt = kandidater`.
+- **Bekreftelsen:**
+  - ett kall;
+  - tomt svar gir `unknown`;
+  - kall som feiler gir `unknown` for alle uten tap;
+  - `gjelderFor` bare for `travelTime`;
+  - `vei` på bekreftelsen;
+  - `følgerOppdagetVei`.
+- **Arkitektur:** `reisebekreftelse.js` når ikke `nettverksutforsker.js`,
+  `mulighetsoppdagelse.js`, `reiseoppgaver.js`, `views/`, `ui/` eller
+  `config.js`.
+- **Mutasjoner:**
+  - grensen slipper inn tidsforskjøvne veier;
+  - grensen slipper inn utvidede veier;
+  - grensen slipper inn `not_now`;
+  - opsjonen forkastes ved én ikke-bekreftbar vei;
+  - bekreftelsen mister `vei`;
+  - utvelgelsen avhenger av rekkefølgen;
+  - tomt svar gir `not_feasible`.
+- **Opptak:** `reisesøk` for de fem scenarioene, lagt til i
+  `tests/fixtures/entur/`.
+
+### Uavklart (krever produkteiers beslutning før 4d)
+1. **Utvidede veier i ledd 1 uten ledd 2**, for eksempel taxi 5035 kl. 13:02
+   direkte fra Tretten.
+   - De har ingen tidsforskyvning, fordi det ikke er noe ledd 2 å koble.
+   - Et reisesøk fra nå vil normalt finne avgangen.
+   - Forslaget holder dem **utenfor** i 4d (regel 2 strengt lest).
+   - Skal de i stedet regnes som bekreftbare?
+2. **Uavgjortsrekkefølgen** i utvelgelsen: bredde (område → linjeretning →
+   destinasjon → transportform) før tilgangspunkt, knutepunkt og veier.
+3. **Hvor reisesøket starter:** posisjonen (ekte gangtid, kan velge en annen
+   vei, synlig via `følgerOppdagetVei`) eller tilgangspunktet på den valgte
+   veien (følger veien, men uten gangdelen)?

@@ -1280,3 +1280,55 @@ En test kan rekonstruere utfallet fra disse dataene alene.
 vei når raskere alternativer finnes (for eksempel 142 kl. 13:33 mot 141
 kl. 12:54). Utfallet merkes ærlig. Å utvide søket (`searchWindow` eller
 via-søk) er ikke en del av 4d.
+
+### 4d delsteg 1: bekreftelsesgrensen (gjort)
+
+**Bygget:** `src/reisebekreftelse.js` med:
+- `tillatt(vei, opsjon)`: tillatelsesregelen som hvitliste;
+- `grunnlag(resultat)`: kandidater og utenfor, per opsjon og per vei;
+- `UTENFOR`: grunnene som én navngitt definisjon.
+
+Modulen er ren og gjør ingen kall. Den importerer ingenting fra
+utforskeren. Overleveringen er data.
+
+**Regelen slik den er implementert**
+- **Direkte** betyr `ledd === 1`, ingen `knute` og ingen `inn`.
+- **Flere ledd** betyr `ledd === 2` med `knute` og `inn`.
+- **Alt annet** er «ukjent tidsstatus».
+- **Tillatt:** en direkte vei med `vindu` `ordinært` eller `utvidet`, med
+  gyldig `avgang`, når opsjonen ikke har `not_now`.
+- **Flere ledd:** bare når `vei.tidskobling.status === 'kontrollert'`. Feltet
+  finnes ikke før lag 2, så i dag er ingen tillatt.
+- **Opsjonen er kandidat** når minst én vei er tillatt. Resten står per vei
+  med grunn.
+- `resultat` endres ikke.
+
+**Kodefunn for senere delsteg:** `vei.tilgang` er en plattformnøkkel
+(`plattform|modus|linje`), ikke samlestopp-id. Sammenligningen (delsteg 3)
+henter samlestoppet fra opsjonens `accessPoints` (`parentId`) eller
+`resultat.tilgang`. Det krever ingen kontraktsendring.
+
+**Målt** (opptak fra 4c):
+- **Lillehammer skysstasjon fra Tretten:** 4 veier er tillatt, 2 ordinære og
+  2 utvidede direkte. Utenfor: 50 med flere ledd (48 med ordinær og 2 med
+  utvidet inngang) og 4 senere.
+- **Mortensrud dag:** grunnlaget er nøyaktig de 392 veiene i ledd 1.
+  Utenfor: 7 153 med flere ledd.
+
+**Tester:** `tests/reisebekreftelse.test.js` har 12 tester, og arkitekturtesten
+har fått én ny.
+
+**Mutasjoner:** 9 av 9 fanget:
+- flere ledd med ordinær inngang slippes inn;
+- manglende vindu slipper inn;
+- `not_now` på opsjonen ignoreres;
+- en senere vei slipper inn;
+- ukjent leddtype slipper inn;
+- manglende avgang slipper inn;
+- enhver `tidskobling`-status godtas;
+- opsjonen forkastes ved én ikke-tillatt vei;
+- utvidede direkte veier utelukkes (den gamle regelen).
+
+**Avvik fra planen:** ingen. Én svakhet ble funnet i test og rettet før
+commit: rekkefølgen på veiene som er utenfor fulgte rekkefølgen i
+inndataene. De sorteres nå på id.

@@ -3,7 +3,7 @@
  * Entur via nettverksutforskeren (tests/fixtures/entur/) og syntetiske veier.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { grunnlag, tillatt, UTENFOR, velgRepresentativt, BREDDE, NÆR_DUBLETT_M, NÆR_DUBLETT_REGEL, avstandsbånd, AVSTANDSBÅND_KM } from '../src/reisebekreftelse.js';
+import { grunnlag, tillatt, UTENFOR, velgRepresentativt, BREDDE, NÆR_DUBLETT_M, NÆR_DUBLETT_REGEL, avstandsbånd, AVSTANDSBÅND_KM, veibekreftelse, sammenlign, oppdagetSignatur, faktiskSignatur, sammeStopp } from '../src/reisebekreftelse.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { SCENARIOER, lastOpptak, avspiller } from './fixtures/entur/avspilling.js';
 
@@ -417,3 +417,159 @@ describe('delsteg 2.3: destinasjon er identitet, ikke dekning', () => {
     expect(u.alternativeVeier.map(a => a.vei)).toEqual([u.valgt[0].vei === 'v1' ? 'v2' : 'v1']);
   });
 });
+
+/* ------------------------------------------------------------ delsteg 3 */
+// Faktiske reisemønstre i formen fra tripGQL med stoppesteds-ID-er (syntetiske; reisesøk tas ikke opp ennå).
+const sted = (id, parent) => ({ quay: { id: 'Q:' + id, stopPlace: parent === undefined ? { id } : { id, parent: parent === null ? null : { id: parent } } } });
+const etappe = (linje, fra, til, retning = null, o = {}) => ({ mode: 'bus', serviceJourney: { id: 'SJ', line: { id: linje } }, fromPlace: fra, toPlace: til, fromEstimatedCall: retning ? { destinationDisplay: { frontText: retning } } : {}, ...o });
+const gange = { mode: 'foot' };
+const mønster = (...legs) => ({ legs: [gange, ...legs, gange] });
+
+const TILG = 'NSR:StopPlace:12692', KNUTE = 'NSR:StopPlace:12523', DEST = 'NSR:StopPlace:14115', L141 = 'INN:Line:141';
+async function tretten() {
+  const r = await resultat('tretten_dag');
+  const direkte = r.veier.find(v => v.opsjon === `destination:${DEST}` && v.ledd === 1 && v.vindu === 'ordinært');
+  const fler = r.veier.find(v => v.opsjon === `destination:${DEST}` && v.ledd === 2 && v.knute === KNUTE);
+  return { r, direkte, fler };
+}
+
+describe('delsteg 3: oppdaget signatur (funnet)', () => {
+  it('direkte vei: linje fra linjeretningen, påstigning = tilgangens SAMLESTOPP (ikke plattform), avstigning = destinasjonen', async () => {
+    const { r, direkte } = await tretten();
+    expect(direkte.tilgang.startsWith('NSR:Quay:')).toBe(true);
+    const sig = oppdagetSignatur(direkte, r);
+    expect(sig.etapper).toEqual([{ linje: L141, retning: 'Lillehammer', påstigning: TILG, avstigning: DEST }]);
+    expect(sig.mangler).toEqual([]);
+  });
+  it('flerleddsvei: to etapper bundet sammen i knutepunktet', async () => {
+    const { r, fler } = await tretten();
+    const sig = oppdagetSignatur(fler, r);
+    expect(sig.etapper.map(e => [e.påstigning, e.avstigning])).toEqual([[TILG, KNUTE], [KNUTE, DEST]]);
+    expect(sig.knuter).toEqual([KNUTE]);
+  });
+  it('plattform som ikke finnes i tilgangspunktene gir null og står i mangler', async () => {
+    const { r, direkte } = await tretten();
+    const sig = oppdagetSignatur({ ...direkte, tilgang: 'NSR:Quay:ukjent|bus|X' }, r);
+    expect(sig.etapper[0].påstigning).toBe(null);
+    expect(sig.mangler[0]).toMatch(/tilgangens samlestopp/);
+  });
+});
+
+describe('delsteg 3: stoppsammenligning (treverdi)', () => {
+  it('samme StopPlace, plattform under samme StopPlace, eller understopp med kjent parent: true', () => {
+    expect(sammeStopp('A', { id: 'A', parent: undefined })).toBe(true);
+    expect(sammeStopp('A', { id: 'A-barn', parent: 'A' })).toBe(true);
+  });
+  it('ulik med kjent parent: false; ulik uten spurt parent: null (kan være understopp)', () => {
+    expect(sammeStopp('A', { id: 'B', parent: null })).toBe(false);
+    expect(sammeStopp('A', { id: 'B', parent: 'C' })).toBe(false);
+    expect(sammeStopp('A', { id: 'B', parent: undefined })).toBe(null);
+  });
+  it('manglende ID: null', () => {
+    expect(sammeStopp(null, { id: 'A' })).toBe(null);
+    expect(sammeStopp('A', { id: null })).toBe(null);
+  });
+});
+
+describe('delsteg 3: sammenligning per mønster og veibekreftelse', () => {
+  const direkteSig = { etapper: [{ linje: 'L1', retning: 'R', påstigning: 'A', avstigning: 'D' }] };
+  const flerSig = { etapper: [{ linje: 'L1', retning: 'R', påstigning: 'A', avstigning: 'K' }, { linje: 'L2', retning: 'S', påstigning: 'K', avstigning: 'D' }] };
+  const utfall = (sig, m) => sammenlign(sig, m).utfall;
+  it('fullstendig samsvar: fulgt (plattformer under samme StopPlace teller)', () => {
+    expect(utfall(direkteSig, mønster(etappe('L1', sted('A-plattform', 'A'), sted('D', null), 'R')))).toBe('fulgt');
+  });
+  it('ulik linje-ID: ikke fulgt', () => {
+    expect(utfall(direkteSig, mønster(etappe('L9', sted('A', null), sted('D', null), 'R')))).toBe('ikke fulgt');
+  });
+  it('ulik påstigning: ikke fulgt', () => {
+    expect(utfall(direkteSig, mønster(etappe('L1', sted('X', null), sted('D', null), 'R')))).toBe('ikke fulgt');
+  });
+  it('ulik avstigning (samme linje): ikke fulgt', () => {
+    expect(utfall(direkteSig, mønster(etappe('L1', sted('A', null), sted('Y', null), 'R')))).toBe('ikke fulgt');
+  });
+  it('flere ledd: riktig overgang gir fulgt; feil knutepunkt gir ikke fulgt', () => {
+    expect(utfall(flerSig, mønster(etappe('L1', sted('A', null), sted('K', null)), etappe('L2', sted('K', null), sted('D', null))))).toBe('fulgt');
+    const feil = sammenlign(flerSig, mønster(etappe('L1', sted('A', null), sted('Z', null)), etappe('L2', sted('Z', null), sted('D', null))));
+    expect(feil.utfall).toBe('ikke fulgt');
+    expect(feil.sjekker.find(x => x.felt === 'overgang ved knutepunkt').samsvar).toBe(false);
+  });
+  it('overgangen alene: riktige linjer og ender, men byttet skjer et annet sted → ikke fulgt', () => {
+    const m = mønster(etappe('L1', sted('A', null), sted('K', null)), etappe('L2', sted('K2', null), sted('D', null)));
+    const x = sammenlign(flerSig, m);
+    expect(x.sjekker.find(s => s.felt === 'overgang ved knutepunkt').samsvar).toBe(false);
+    expect(x.utfall).toBe('ikke fulgt');
+  });
+  it('ekstra etappe etter en ellers samsvarende etappe: ikke fulgt (antallet avgjør)', () => {
+    const x = sammenlign(direkteSig, mønster(etappe('L1', sted('A', null), sted('D', null)), etappe('L2', sted('D', null), sted('E', null))));
+    expect(x.sjekker.find(s => s.felt === 'antall kollektivetapper').samsvar).toBe(false);
+    expect(x.utfall).toBe('ikke fulgt');
+  });
+  it('ulikt antall etapper: ikke fulgt', () => {
+    expect(utfall(direkteSig, mønster(etappe('L1', sted('A', null), sted('K', null)), etappe('L2', sted('K', null), sted('D', null))))).toBe('ikke fulgt');
+  });
+  it('manglende StopPlace-ID eller linje-ID: ukjent — aldri fulgt', () => {
+    expect(utfall(direkteSig, mønster(etappe('L1', {}, sted('D', null), 'R')))).toBe('ukjent');
+    expect(utfall(direkteSig, mønster({ ...etappe('L1', sted('A', null), sted('D', null)), serviceJourney: {} }))).toBe('ukjent');
+    expect(utfall({ etapper: [{ linje: 'L1', retning: 'R', påstigning: null, avstigning: 'D' }] }, mønster(etappe('L1', sted('A', null), sted('D', null))))).toBe('ukjent');
+  });
+  it('delvis samsvar (alt true unntatt ett null) gir ukjent; parent ikke spurt og annen ID gir null', () => {
+    const x = sammenlign(direkteSig, mønster(etappe('L1', sted('A-barn'), sted('D', null), 'R')));
+    expect(x.sjekker.find(s => s.felt === 'påstigning (samlestopp)').samsvar).toBe(null);
+    expect(x.utfall).toBe('ukjent');
+    expect(x.begrunnelse).toMatch(/utilstrekkelige data/);
+  });
+  it('bare retningstekst avviker: fortsatt fulgt, med merknad; retning er aldri nødvendig', () => {
+    const x = sammenlign(direkteSig, mønster(etappe('L1', sted('A', null), sted('D', null), 'Annet')));
+    expect(x.utfall).toBe('fulgt');
+    expect(x.merknader[0]).toMatch(/retningstekst avviker/);
+    expect(x.sjekker.find(s => s.felt === 'retning (supplerende)').nødvendig).toBe(false);
+  });
+  it('samme destinasjon, annen vei: ikke fulgt', async () => {
+    const { r, direkte } = await tretten();
+    const annenLinje = mønster(etappe('INN:Line:142', sted(TILG, null), sted(DEST, null)));
+    const annenTilgang = mønster(etappe(L141, sted('NSR:StopPlace:12792', null), sted(DEST, null)));
+    expect(veibekreftelse(direkte, r, [annenLinje]).påstand.utfall).toBe('ikke fulgt');
+    expect(veibekreftelse(direkte, r, [annenTilgang]).påstand.utfall).toBe('ikke fulgt');
+  });
+  it('flere mønstre: fulgt i mønster 2; ikke fulgt i alle sier «ikke umulig»; ett ukjent hindrer «ikke fulgt»', async () => {
+    const { r, direkte } = await tretten();
+    const feil = mønster(etappe('INN:Line:142', sted(TILG, null), sted(DEST, null)));
+    const rett = mønster(etappe(L141, sted('NSR:StopPlace:12692-barn', TILG), sted(DEST, null)));
+    const uklart = mønster(etappe(L141, sted('NSR:StopPlace:annet'), sted(DEST, null)));
+    const a = veibekreftelse(direkte, r, [feil, feil, rett]);
+    expect(a.påstand).toMatchObject({ utfall: 'fulgt', mønster: 2 });
+    const b = veibekreftelse(direkte, r, [feil, feil]);
+    expect(b.påstand.utfall).toBe('ikke fulgt');
+    expect(b.påstand.begrunnelse).toMatch(/2 undersøkte mønstrene — det betyr ikke at veien er umulig/);
+    expect(veibekreftelse(direkte, r, [feil, uklart]).påstand.utfall).toBe('ukjent');
+  });
+  it('ingen mønstre: ukjent', async () => {
+    const { r, direkte } = await tretten();
+    expect(veibekreftelse(direkte, r, []).påstand).toEqual({ utfall: 'ukjent', mønster: null, begrunnelse: 'ingen mønstre å sammenligne' });
+  });
+  it('flerleddsvei fra opptaket: riktig mønster gir fulgt', async () => {
+    const { r, fler } = await tretten();
+    const inn = linjeretningLinje(fler.inn), ut = linjeretningLinje(fler.directionId);
+    const m = mønster(etappe(inn, sted(TILG, null), sted(KNUTE, null)), etappe(ut, sted(KNUTE, null), sted(DEST, null)));
+    expect(veibekreftelse(fler, r, [m]).påstand.utfall).toBe('fulgt');
+  });
+  it('svaret skiller funnet / undersøkt / påstand og er etterprøvbart', async () => {
+    const { r, direkte } = await tretten();
+    const v = veibekreftelse(direkte, r, [mønster(etappe(L141, sted(TILG, null), sted(DEST, null), 'Lillehammer'))]);
+    expect(Object.keys(v).sort()).toEqual(['funnet', 'opsjon', 'påstand', 'undersøkt', 'vei']);
+    expect(v.opsjon).toBe(direkte.opsjon); expect(v.vei).toBe(direkte.id);
+    const m = v.undersøkt.mønstre[0];
+    expect(m.mønster).toBe(0);
+    for (const x of m.sjekker) expect(Object.keys(x).sort()).toEqual(['etappe', 'faktisk', 'felt', 'nødvendig', 'oppdaget', 'samsvar']);
+    // rekonstruer utfallet fra sjekkene alene
+    const nød = m.sjekker.filter(x => x.nødvendig);
+    expect(nød.every(x => x.samsvar === true)).toBe(m.utfall === 'fulgt');
+  });
+  it('faktiskSignatur hopper over gange og holder «parent ikke spurt» adskilt fra «ingen parent»', () => {
+    const f = faktiskSignatur(mønster(etappe('L1', sted('A'), sted('D', null))));
+    expect(f.etapper).toHaveLength(1);
+    expect(f.etapper[0].påstigning).toEqual({ id: 'A', parent: undefined });
+    expect(f.etapper[0].avstigning).toEqual({ id: 'D', parent: null });
+  });
+});
+const linjeretningLinje = d => d.slice(0, d.indexOf('>'));

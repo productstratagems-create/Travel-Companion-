@@ -15,6 +15,7 @@
  *
  * Delsteg 1: bekreftelsesgrensen (`grunnlag`).
  * Delsteg 2: representativ utvelgelse (`velgRepresentativt`).
+ * Delsteg 3: sammenligning av oppdaget vei mot faktisk reise (`veibekreftelse`).
  */
 import { metresBetween } from './haversine.js';
 
@@ -104,6 +105,17 @@ export function grunnlag(resultat) {
   }
   const etterId = (a, b) => (a.opsjon < b.opsjon ? -1 : a.opsjon > b.opsjon ? 1 : 0);
   return { kandidater: kandidater.sort(etterId), utenfor: utenfor.sort(etterId), tellinger: { veier: alle, tillatteVeier: tillatte, utenforPerGrunn } };
+}
+
+/**
+ * Plattform (quay) → samlestopp (StopPlace-ID), fra opsjonenes tilgangspunkter.
+ * Én definisjon, brukt av utvelgelsen og sammenligningen. Plattformnøkkelen i
+ * `vei.tilgang` er aldri selv en StopPlace-ID.
+ */
+export function samlestoppAvPlattform(resultat) {
+  const m = new Map();
+  for (const o of (resultat && resultat.opsjoner) || []) for (const t of o.accessPoints || []) if (t.quayId && (t.parentId || t.stopPlaceId)) m.set(t.quayId, t.parentId || t.stopPlaceId);
+  return m;
 }
 
 /* ------------------------------------------------------------ delsteg 2 */
@@ -196,8 +208,7 @@ export function velgRepresentativt(resultat, n = BEKREFT_MAKS) {
   const g = grunnlag(resultat);
   const opsjoner = new Map(((resultat && resultat.opsjoner) || []).map(o => [o.id, o]));
   const veier = new Map(((resultat && resultat.veier) || []).map(v => [v.id, v]));
-  const samleAvQuay = new Map();
-  for (const o of opsjoner.values()) for (const t of o.accessPoints || []) if (t.quayId && (t.parentId || t.stopPlaceId)) samleAvQuay.set(t.quayId, t.parentId || t.stopPlaceId);
+  const samleAvQuay = samlestoppAvPlattform(resultat);
 
   const kand = [];
   for (const k of g.kandidater) for (const id of k.veier) {
@@ -259,5 +270,131 @@ export function velgRepresentativt(resultat, n = BEKREFT_MAKS) {
     utsatteVeier: [...utsatt.values()].sort((a, b) => (a.vei < b.vei ? -1 : a.vei > b.vei ? 1 : 0)),
     grunnlag: g,
     budsjett: { maks: n, brukt: valgt.length, kandidater: g.kandidater.length },
+  };
+}
+
+/* ------------------------------------------------------------ delsteg 3 */
+/*
+ * SAMMENLIGNING AV OPPDAGET VEI MOT FAKTISK REISE. Ren funksjon; ingen reisesøk.
+ * Tre nivåer holdes adskilt i svaret:
+ *   funnet     den oppdagede veien og dens signatur (hva vi fant)
+ *   undersøkt  hvilke mønstre og etapper som ble sammenlignet, med verdier (hva vi undersøkte)
+ *   påstand    utfallet med begrunnelse (hva undersøkelsen gir grunnlag for å hevde)
+ * Treverdilogikk per sjekk: true = samsvar dokumentert, false = motstrid
+ * dokumentert, null = utilstrekkelige data. «fulgt» krever at ALLE nødvendige
+ * sjekker er true; manglende data blir aldri samsvar. Samme destinasjon er
+ * ikke bevis på samme vei. Opsjonsbekreftelse hører til reisesøket, ikke hit.
+ */
+
+const linjeAv = dir => (typeof dir === 'string' && dir.includes('>') ? dir.slice(0, dir.indexOf('>')) || null : null);
+const retningAv = dir => (typeof dir === 'string' && dir.includes('>') ? dir.slice(dir.indexOf('>') + 1) || null : null);
+
+/** FUNNET: den oppdagede veiens etapper på samlestoppnivå. Ukjent → null + `mangler`. */
+export function oppdagetSignatur(vei, resultat) {
+  const opsjon = ((resultat && resultat.opsjoner) || []).find(o => o.id === (vei && vei.opsjon));
+  const mangler = [];
+  const quay = vei && typeof vei.tilgang === 'string' ? vei.tilgang.split('|')[0] : null;
+  const tilgang = (quay && samlestoppAvPlattform(resultat).get(quay)) || null;
+  if (!tilgang) mangler.push('tilgangens samlestopp (plattformen finnes ikke i opsjonens tilgangspunkter)');
+  const dest = (opsjon && opsjon.destinations && opsjon.destinations[0] && opsjon.destinations[0].id) || null;
+  if (!dest) mangler.push('destinasjonens samlestopp');
+  const etapper = [];
+  if (vei && vei.ledd === 1 && vei.knute == null && vei.inn == null) {
+    etapper.push({ linje: linjeAv(vei.directionId), retning: retningAv(vei.directionId), påstigning: tilgang, avstigning: dest });
+  } else if (vei && vei.ledd === 2 && vei.knute && vei.inn) {
+    etapper.push({ linje: linjeAv(vei.inn), retning: retningAv(vei.inn), påstigning: tilgang, avstigning: vei.knute });
+    etapper.push({ linje: linjeAv(vei.directionId), retning: retningAv(vei.directionId), påstigning: vei.knute, avstigning: dest });
+  } else mangler.push('ukjent leddtype');
+  etapper.forEach((e, i) => { if (!e.linje) mangler.push(`linje-ID i etappe ${i + 1}`); });
+  return { opsjon: vei ? vei.opsjon : null, vei: vei ? vei.id : null, etapper, knuter: vei && vei.knute ? [vei.knute] : [], mangler };
+}
+
+const stedAvPlass = p => {
+  const sp = p && p.quay && p.quay.stopPlace;
+  if (!sp || !sp.id) return { id: null, parent: undefined };
+  // parent: undefined = ikke spurt; null = stoppet har ingen parent; ellers id.
+  return { id: sp.id, parent: !('parent' in sp) ? undefined : (sp.parent && sp.parent.id) || null };
+};
+
+/** Det faktiske mønsterets kollektivetapper (gange hoppes over). */
+export function faktiskSignatur(mønster) {
+  const legs = ((mønster && mønster.legs) || []).filter(l => l && l.mode !== 'foot');
+  const mangler = [];
+  const etapper = legs.map((l, i) => {
+    const linje = (l.serviceJourney && l.serviceJourney.line && l.serviceJourney.line.id) || (l.line && l.line.id) || null;
+    if (!linje) mangler.push(`linje-ID i etappe ${i + 1}`);
+    const e = { linje, retning: (l.fromEstimatedCall && l.fromEstimatedCall.destinationDisplay && l.fromEstimatedCall.destinationDisplay.frontText) || null, påstigning: stedAvPlass(l.fromPlace), avstigning: stedAvPlass(l.toPlace) };
+    if (!e.påstigning.id) mangler.push(`påstigningens StopPlace-ID i etappe ${i + 1}`);
+    if (!e.avstigning.id) mangler.push(`avstigningens StopPlace-ID i etappe ${i + 1}`);
+    return e;
+  });
+  return { etapper, mangler };
+}
+
+/**
+ * Samme samlestopp? true/false/null. Samsvar når det oppdagede samlestoppet er
+ * stoppet selv eller dets parent (plattformer og understopp under samme
+ * StopPlace er samme sted). Motstrid bare når parent er KJENT. Er parent ikke
+ * spurt og id-ene ulike, kan stoppet være et understopp: null, ikke false.
+ */
+export function sammeStopp(oppdaget, faktisk) {
+  if (!oppdaget || !faktisk || !faktisk.id) return null;
+  if (faktisk.id === oppdaget || (faktisk.parent && faktisk.parent === oppdaget)) return true;
+  if (faktisk.parent === undefined) return null;
+  return false;
+}
+const sammeVerdi = (a, b) => (a == null || b == null ? null : a === b);
+
+/** UNDERSØKT for ett mønster: alle sjekker med verdier, og utfallet for mønsteret. */
+export function sammenlign(oppdaget, mønster, indeks = 0) {
+  const f = faktiskSignatur(mønster);
+  const sjekker = [];
+  const sjekk = (etappe, felt, o, fa, samsvar, nødvendig = true) => sjekker.push({ etappe, felt, oppdaget: o, faktisk: fa, samsvar, nødvendig });
+  const nO = oppdaget.etapper.length, nF = f.etapper.length;
+  sjekk(null, 'antall kollektivetapper', nO, nF, nO && nF ? nO === nF : null);
+  if (nO && nF && nO === nF) {
+    oppdaget.etapper.forEach((e, i) => {
+      const a = f.etapper[i];
+      sjekk(i + 1, 'linje-ID', e.linje, a.linje, sammeVerdi(e.linje, a.linje));
+      sjekk(i + 1, 'påstigning (samlestopp)', e.påstigning, a.påstigning, sammeStopp(e.påstigning, a.påstigning));
+      sjekk(i + 1, 'avstigning (samlestopp)', e.avstigning, a.avstigning, sammeStopp(e.avstigning, a.avstigning));
+      if (i > 0) { // overgangen: forrige avstigning og denne påstigningen er begge knutepunktet
+        const knute = oppdaget.etapper[i - 1].avstigning;
+        const av = sammeStopp(knute, f.etapper[i - 1].avstigning), på = sammeStopp(knute, a.påstigning);
+        sjekk(i + 1, 'overgang ved knutepunkt', knute, { avstigning: f.etapper[i - 1].avstigning, påstigning: a.påstigning }, av === false || på === false ? false : av === true && på === true ? true : null);
+      }
+      sjekk(i + 1, 'retning (supplerende)', e.retning, a.retning, sammeVerdi(e.retning, a.retning), false);
+    });
+  }
+  const nødvendige = sjekker.filter(x => x.nødvendig);
+  const utfall = nødvendige.some(x => x.samsvar === false) ? 'ikke fulgt'
+    : nødvendige.length && nødvendige.every(x => x.samsvar === true) ? 'fulgt' : 'ukjent';
+  const merknader = sjekker.filter(x => !x.nødvendig && x.samsvar === false).map(x => `retningstekst avviker i etappe ${x.etappe} (supplerende; påvirker ikke utfallet)`);
+  const begrunnelse = utfall === 'fulgt' ? 'alle nødvendige sjekker har dokumentert samsvar'
+    : utfall === 'ikke fulgt' ? `motstrid: ${nødvendige.filter(x => x.samsvar === false).map(x => (x.etappe ? `etappe ${x.etappe} ${x.felt}` : x.felt)).join(', ')}`
+    : `utilstrekkelige data: ${nødvendige.filter(x => x.samsvar === null).map(x => (x.etappe ? `etappe ${x.etappe} ${x.felt}` : x.felt)).join(', ')}`;
+  return { mønster: indeks, sjekker, utfall, begrunnelse, merknader, mangler: f.mangler };
+}
+
+/**
+ * VEIBEKREFTELSE: sammenligner én oppdaget vei med de undersøkte mønstrene.
+ * Svaret skiller funnet / undersøkt / påstand. «ikke fulgt» gjelder bare de
+ * undersøkte mønstrene — veien er ikke dermed umulig, og opsjonen finnes.
+ */
+export function veibekreftelse(vei, resultat, mønstre) {
+  const funnet = oppdagetSignatur(vei, resultat);
+  const liste = Array.isArray(mønstre) ? mønstre : [];
+  const per = liste.map((m, i) => sammenlign(funnet, m, i));
+  let påstand;
+  const fulgt = per.find(x => x.utfall === 'fulgt');
+  if (!liste.length) påstand = { utfall: 'ukjent', mønster: null, begrunnelse: 'ingen mønstre å sammenligne' };
+  else if (fulgt) påstand = { utfall: 'fulgt', mønster: fulgt.mønster, begrunnelse: `mønster ${fulgt.mønster} følger den oppdagede veien: ${fulgt.begrunnelse}` };
+  else if (per.every(x => x.utfall === 'ikke fulgt')) påstand = { utfall: 'ikke fulgt', mønster: null, begrunnelse: `ikke fulgt i de ${per.length} undersøkte mønstrene — det betyr ikke at veien er umulig eller ikke finnes` };
+  else påstand = { utfall: 'ukjent', mønster: null, begrunnelse: `ingen av de ${per.length} mønstrene kunne fastslås som fulgt; minst ett mangler data til en sikker sammenligning` };
+  return {
+    opsjon: funnet.opsjon, vei: funnet.vei,
+    funnet,
+    undersøkt: { antallMønstre: liste.length, mønstre: per },
+    påstand,
   };
 }

@@ -1647,3 +1647,118 @@ opsjons-ID-er, id avgjør ved lik dekning, og resultatet er deterministisk.
 - feil destinasjonsidentitet.
 
 **Avvik:** ingen.
+
+### 4d delsteg 3: sammenligning av oppdaget vei mot faktisk reise (gjort)
+
+Det er en ren funksjon, uten reisesøk og uten endring i `tripGQL`.
+Opsjonsbekreftelsen hører til reisesøket (neste delsteg) og er **ikke** med
+her.
+
+**Tre nivåer i svaret fra `veibekreftelse(vei, resultat, mønstre)`:**
+- **`funnet`** (hva vi fant): `oppdagetSignatur`, med etapper
+  `{ linje, retning, påstigning, avstigning }` på samlestoppnivå, knutepunkter
+  og `mangler`;
+- **`undersøkt`** (hva vi undersøkte): `{ antallMønstre, mønstre: [{ mønster,
+  sjekker: [{ etappe, felt, oppdaget, faktisk, samsvar, nødvendig }], utfall,
+  begrunnelse, merknader, mangler }] }`;
+- **`påstand`** (hva undersøkelsen gir grunnlag for å hevde): `{ utfall,
+  mønster, begrunnelse }`.
+
+**Datakontrakt**
+- **Oppdaget**
+  - Linjen kommer fra `directionId` og `inn` (`linje>retning`).
+  - Påstigningen er tilgangens **samlestopp** via
+    `samlestoppAvPlattform` (plattform → `accessPoints.parentId`). Det er én
+    felles definisjon, også brukt av utvelgelsen.
+  - Avstigningen er knutepunktet eller destinasjonens samlestopp.
+  - Plattformnøkkelen sammenlignes aldri med en StopPlace-ID.
+- **Faktisk** (formen fra `tripGQL` med stoppesteds-ID-er)
+  - Hver kollektivetappe gir `serviceJourney.line.id`,
+    `fromPlace/toPlace.quay.stopPlace.{id, parent}` og
+    `fromEstimatedCall.destinationDisplay.frontText`. Gange hoppes over.
+  - `parent` er `undefined` når feltet **ikke ble spurt**, og `null` når
+    stoppet **ikke har noen parent**. Det er to ulike ting.
+
+**Treverdilogikk.** Hver sjekk er `true` (samsvar dokumentert), `false`
+(motstrid dokumentert) eller `null` (utilstrekkelige data).
+- **Stopp** (`sammeStopp`):
+  - `true` når det oppdagede samlestoppet er stoppet selv eller dets
+    parent, altså plattformer eller understopp under samme StopPlace;
+  - `false` bare når parent er kjent og ingen av dem er like;
+  - `null` når parent ikke ble spurt og ID-ene er ulike (stoppet kan være et
+    understopp), og når noe mangler.
+- **Nødvendige sjekker:**
+  - antall kollektivetapper;
+  - per etappe linje-ID, påstigning og avstigning;
+  - **overgang ved knutepunkt** for flerleddsveier: avstigning *i* og
+    påstigning *i+1* er begge knutepunktet.
+- **Supplerende sjekk:** retningstekst. Den er aldri nødvendig, og et avvik
+  gir bare en merknad.
+- **Per mønster:**
+  - `fulgt` bare når **alle** nødvendige sjekker er `true`;
+  - `ikke fulgt` når minst én er `false`;
+  - ellers `ukjent`.
+
+  Delvis samsvar blir aldri positivt.
+- **Per vei:**
+  - `fulgt` med mønsterindeks hvis minst ett mønster er fulgt;
+  - «ikke fulgt i de N undersøkte mønstrene — det betyr ikke at veien er
+    umulig eller ikke finnes» hvis alle er `ikke fulgt`;
+  - ellers `ukjent`;
+  - ingen mønstre gir `ukjent`.
+
+**Hva som fortsatt ikke kan sammenlignes (datamangler)**
+1. **`stopPlace.parent` spørres ikke i `tripGQL`.**
+   - Når reisesøket returnerer et understopp med en annen ID enn det
+     oppdagede samlestoppet, blir sjekken `null`, og veien blir `ukjent`.
+   - Det løses i reisesøksdelsteget med `parent` som probe med reserve, uten
+     å endre `tripGQL`.
+   - Inntil da blir mange ellers riktige reiser *ukjent*, ikke *fulgt*. Det er
+     tilsiktet.
+2. **Destinasjoner fra ledd 2** er koblet til samlestopp bare når de var med i
+   stoppinfo fra ledd 1 (kjent fra 3.5). Ellers er de understopp-ID-er. Det
+   samme `parent`-unntaket gjelder da.
+3. **Flerleddsveier** er utenfor bekreftelsesgrensen (delsteg 1), men
+   sammenligningen støtter dem allerede, for lag 2.
+4. **Reisesøk er ikke tatt opp** i opptakene. De faktiske mønstrene i testene
+   er syntetiske i formen fra `tripGQL`. Den oppdagede siden bruker ekte veier
+   fra Tretten.
+
+**Tester:** 23 nye, 64 i alt.
+- signatur på samlestoppnivå, for direkte og flerleddsveier fra opptaket;
+- manglende samlestopp;
+- treverdien i `sammeStopp`;
+- fullstendig samsvar;
+- ulik linje, ulik påstigning og ulik avstigning;
+- riktig og feil overgang, og overgangen alene;
+- ekstra etappe og ulikt antall;
+- manglende StopPlace-ID og linje-ID;
+- delvis samsvar gir `ukjent`;
+- bare retningsavvik gir `fulgt` med merknad;
+- samme destinasjon, men annen linje eller annen tilgang, gir `ikke fulgt`;
+- flere mønstre: fulgt i mønster 2, ikke fulgt i alle («ikke umulig»), og
+  ett ukjent hindrer «ikke fulgt»;
+- ingen mønstre;
+- flerleddsvei fra opptaket;
+- svaret har strukturen funnet / undersøkt / påstand, og utfallet kan
+  rekonstrueres fra sjekkene;
+- `parent` ikke spurt holdes adskilt fra `parent: null`.
+
+**Mutasjoner:** 12 av 12 fanget:
+- linjesjekken fjernet;
+- påstigningssjekken fjernet;
+- avstigningssjekken fjernet;
+- overgangssjekken fjernet;
+- antallsjekken fjernet (overlevde først; en test med ekstra etappe etter en
+  ellers samsvarende etappe ble lagt til);
+- `null` behandlet som `true`;
+- plattform-ID i stedet for samlestopp;
+- retning gjort nødvendig;
+- `fulgt` ved minst én `true`;
+- `parent` ikke spurt behandlet som `false`;
+- parent ignorert;
+- «ikke fulgt» når ett mønster er ukjent.
+
+**Avvik:** ingen. Utvelgelsens oppslag fra plattform til samlestopp er
+trukket ut til `samlestoppAvPlattform`, med samme oppførsel (alle tester fra
+2–2.3 består).

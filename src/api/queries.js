@@ -111,7 +111,7 @@ export function transportModesGql(moduser, coach) {
   const alle = ['metro', 'bus', 'tram', 'rail', 'water'];
   const valgt = Array.isArray(moduser) ? alle.filter(m => moduser.includes(m)) : [];
   const liste = valgt.length ? valgt : alle;
-  const medCoach = coach && liste.includes('bus') ? [...liste, 'coach'] : liste;
+  const medCoach = coach && liste.includes('bus') ? [...liste, ...BUSS_FØLGER] : liste;
   return '[' + medCoach.map(m => '{transportMode:' + m + '}').join(',') + ']';
 }
 

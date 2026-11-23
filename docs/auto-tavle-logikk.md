@@ -1,6 +1,6 @@
 # Auto-tavle: hvordan appen velger stopp, linjer og avganger
 
-Gjelder v1.218.279. Tallene i dette dokumentet er bundet til koden av
+Gjelder v1.218.280. Tallene i dette dokumentet er bundet til koden av
 `tests/autoTavleLogikk.test.js`: endres et tall i koden uten at det endres
 her, faller testen. Les dette før du endrer utvalget i Auto-tavle.
 
@@ -181,9 +181,10 @@ Kristiansand, Moss, Sogndal, Gardermoen og Narvik).
 | `lift`, `trolleybus`, `monorail`, `snowAndIce`, `carpool` | 0 | — | nei | 1–4 | i skjemaet, uten linjer i dag |
 
 `BOARD_MODES_COACH` (`src/api/queries.js`) er lista som spørres om. Når
-buss er på, følger `BUSS_FØLGER = ['coach', 'taxi']` med. Reisesøket
-(`transportModesGql`) spør fortsatt om buss, T-bane, trikk, tog, båt og
-ekspressbuss — bestillingstaxi er ikke med der ennå.
+buss er på, følger `BUSS_FØLGER = ['coach', 'taxi']` med — både i
+avgangsspørringen og i reisesøket (`transportModesGql`, v1.218.280).
+Målt: fra Tretten sentrum til Tingberg ga reisesøket uten taxi bare buss
+141; med taxi kom bestillingstaxi 5030 og 5031 med.
 
 ## Hva du styrer selv
 
@@ -193,8 +194,6 @@ valgt tidspunkt · kartets filter for transportmiddel og linje.
 ## Kjente begrensninger
 
 - **Fly og taubane** hentes ikke som avganger (valg 2026-11-23).
-- **Reisesøket** (rader med bytte, «beste stopp mot …») tar ikke med
-  bestillingstaxi.
 
 - **850 m-grensen.** Finnes det holdeplasser innen 850 m, blir et stopp
   lenger unna aldri hentet — også en T-banestasjon på ~1 km (forsøkt

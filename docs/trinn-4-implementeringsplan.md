@@ -1003,24 +1003,27 @@ importerer `opsjonsmodell.js` og `api/queries.js`, men **ikke**
    - `rapport` har et eget budsjett: kall, tid, valgt, bekreftet, ukjent,
      ikke valgt per grunn og utenfor grunnlaget per grunn.
 
-### Eksempel: én opsjon, blandede veier (Tretten, opptaket 4c)
+### Eksempel: én opsjon, blandede veier (Tretten, opptaket 4c, verifisert)
 
-Opsjonen `destination:Lillehammer skysstasjon` har tre veier:
-- **A:** buss 141 fra Tretten bru kl. 11:59, `vindu: 'ordinært'`, uten
-  tidsforskyvning. **Bekreftbar.**
-- **B:** buss 142 mot Lillehammer fra Tretten sentrum kl. 13:33,
-  `vindu: 'utvidet'`, ledd 1. **Utenfor** i 4d, fordi det utvidede vinduet
-  ikke er tidskoblet (regel 2).
-- **C:** taxi 5035 → knutepunkt → videre, `vindu: 'utvidet'` med
-  `tidsforskyvning`. **Utenfor:** uløst tidsforskyvning.
+Opsjonen `destination:NSR:StopPlace:14115` (Lillehammer skysstasjon) har 58
+veier i opptaket:
+
+| veier | ledd | vindu | tidsforskyvning | linjeretning (inn) | i bekreftelsesgrunnlaget? |
+|---|---|---|---|---|---|
+| 2 | 1 | ordinært | – | buss 141 → Lillehammer | **ja** |
+| 48 | 2 | ordinært | – | inn med buss 141 → Lillehammer | **ja** |
+| 2 | 1 | utvidet | – | buss 142 → Lillehammer (13:33/13:34) | nei: utvidet vindu, ikke tidskoblet (regel 2) |
+| 2 | 2 | utvidet | **ja** | inn med buss 142 → Lillehammer | nei: uløst tidsforskyvning (regel 3) |
+| 2 + 2 | 1 | senere | – | 141 «o/Skarsmoen», 142 «Sykehuset» | nei: senere i døgnet (regel 4) |
 
 Behandling:
-- `grunnlag` gir `{ opsjon: Lillehammer, veier: [A] }` som kandidat. B og C
-  står i `utenfor` *for veiene*, men opsjonen er ikke forkastet.
-- Velges den, søkes det med reisetid kl. 12:00, og bekreftelsen bærer
-  `vei: A`.
-- **B og C er fortsatt bare oppdaget.** Bekreftelsen via A gjelder ikke B
-  eller C.
+- `grunnlag` gir opsjonen som **kandidat via de 50 ordinære veiene**. De 8
+  andre står i `utenfor` *for veiene*, men opsjonen er ikke forkastet.
+- `velgRepresentativt` velger én konkret vei, for eksempel buss 141 fra
+  Tretten bru. Reisesøket gjøres med reisetid kl. 12:00, og bekreftelsen bærer
+  `vei: <den veiens id>`.
+- **De 8 utvidede og senere veiene er fortsatt bare oppdaget.** Bekreftelsen
+  via 141 gjelder ikke 142-veiene.
 - Finner reisesøket en annen linje enn 141, settes `følgerOppdagetVei: false`.
 
 ### Tester (forslag)

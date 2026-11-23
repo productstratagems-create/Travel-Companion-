@@ -113,7 +113,7 @@ describe('boardGQL(id, n)', () => {
   });
 
   it('whitelists all supported transit modes (departure board)', () => {
-    expect(q).toContain('whiteListedModes:[metro,tram,bus,rail,water,coach]');
+    expect(q).toContain('whiteListedModes:[metro,tram,bus,rail,water,coach,taxi]');
   });
 
   it('requests estimatedCalls with quay and serviceJourney', () => {
@@ -363,7 +363,7 @@ describe('boardGQL — whiteListedModes', () => {
   // The fix: twenty metro departures instead of three metro and seventeen bus.
   it('asks for only what it was given', () => {
     expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['metro']))).toBe('metro');
-    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus', 'rail']))).toBe('bus,rail,coach');
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus', 'rail']))).toBe('bus,rail,coach,taxi');
   });
 
   // These go into the query as bare GraphQL enums, unquoted. Anything that is
@@ -378,9 +378,9 @@ describe('boardGQL — whiteListedModes', () => {
   // The reader's own call: an express coach belongs under "Buss". Asking for
   // buses asks for coaches; asking for the metro alone does not.
   it('adds coach when and only when bus was asked for', () => {
-    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus']))).toBe('bus,coach');
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus']))).toBe('bus,coach,taxi');
     expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['metro']))).toBe('metro');
-    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus', 'coach']))).toBe('bus,coach');
+    expect(modesIn(boardGQL('NSR:1', 20, null, true, null, ['bus', 'coach']))).toBe('bus,coach,taxi');
   });
 });
 

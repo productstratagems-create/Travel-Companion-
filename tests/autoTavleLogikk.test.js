@@ -44,7 +44,18 @@ describe('docs/auto-tavle-logikk.md sier det koden gjør', () => {
   it('søketrinnene og transportmiddelvektene', () => {
     expect(doc).toContain('`SØK_TRINN_KM = [0.85, 2, 5]`');
     expect(kode).toMatch(/SØK_TRINN_KM = \[NEAR_STOP_MAX_M \/ 1000, 2, 5\];/);
-    expect(kode).toMatch(/MODUS_VEKT = \{ rail: 4, metro: 4, tram: 3, bus: 2, coach: 2, water: 2,/);
+    expect(kode).toMatch(/MODUS_VEKT = \{ rail: 4, metro: 4, monorail: 4, tram: 3, bus: 2, coach: 2, trolleybus: 2, taxi: 2, water: 2,/);
+  });
+  it('transportmiddeltabellen dekker hele Enturs TransportMode (lest fra skjemaet 2026-11-23)', () => {
+    const ENTUR = ['air', 'bus', 'cableway', 'water', 'funicular', 'lift', 'rail', 'snowAndIce', 'metro', 'taxi', 'tram', 'trolleybus', 'monorail', 'coach', 'carpool'];
+    const tabell = doc.slice(doc.indexOf('## Transportmidlene'), doc.indexOf('## Hva du styrer selv'));
+    for (const m of ENTUR) expect(tabell).toContain('`' + m + '`');
+    const stops = readFileSync('src/api/stops.js', 'utf8');
+    for (const m of ENTUR) expect(stops).toMatch(new RegExp('MODUS_VEKT = \\{[^}]*\\b' + m + ':'));
+    const q = readFileSync('src/api/queries.js', 'utf8');
+    expect(q).toMatch(/BOARD_MODES_COACH = \[\.\.\.BOARD_MODES, 'coach', 'taxi'\];/);
+    expect(doc).toContain("`BUSS_FØLGER = ['coach', 'taxi']`");
+    expect(q).toMatch(/export const BUSS_FØLGER = \['coach', 'taxi'\];/);
   });
   it('AGENTS.md peker hit', () => {
     expect(readFileSync('AGENTS.md', 'utf8')).toContain('docs/auto-tavle-logikk.md');

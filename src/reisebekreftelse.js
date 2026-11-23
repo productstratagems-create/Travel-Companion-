@@ -14,7 +14,9 @@
  * presentasjon, ingen endring av opsjonsidentitet.
  *
  * Delsteg 1: bekreftelsesgrensen (`grunnlag`).
+ * Delsteg 2: representativ utvelgelse (`velgRepresentativt`).
  */
+import { metresBetween } from './haversine.js';
 
 /** Gyldige vinduer fra utforskeren. Alt annet er ukjent tidsstatus. */
 const VINDUER = new Set(['ordinært', 'utvidet', 'senere']);
@@ -102,4 +104,110 @@ export function grunnlag(resultat) {
   }
   const etterId = (a, b) => (a.opsjon < b.opsjon ? -1 : a.opsjon > b.opsjon ? 1 : 0);
   return { kandidater: kandidater.sort(etterId), utenfor: utenfor.sort(etterId), tellinger: { veier: alle, tillatteVeier: tillatte, utenforPerGrunn } };
+}
+
+/* ------------------------------------------------------------ delsteg 2 */
+
+/** Budsjett for reisesøk per bekreftelse (ett aliasert kall). Startverdi. */
+export const BEKREFT_MAKS = 10;
+/** Nesten-dublett: samme linjeretning og område, destinasjonene innen så mange meter. Startverdi. */
+export const NÆR_DUBLETT_M = 300;
+
+/**
+ * Prioriteringsrekkefølgen for bredde — sammenlignes ETTER TUR, aldri summert.
+ * Hver dimensjon spør: tilfører kandidaten en ny verdi utover det som alt er valgt?
+ */
+export const BREDDE = Object.freeze(['område', 'linjeretning', 'destinasjon', 'transportform', 'tilgangspunkt', 'knutepunkt', 'vei']);
+
+/** Dimensjonsverdiene for én tillatt vei — alt hentet fra oppdagelsesresultatet, ingenting gjettet. */
+function dimensjoner(vei, opsjon, samleAvQuay) {
+  const [quay, modus] = String(vei.tilgang || '').split('|');
+  return {
+    område: vei.område || null,
+    linjeretning: vei.directionId || null,
+    destinasjon: vei.opsjon,
+    transportform: modus || null,
+    tilgangspunkt: samleAvQuay.get(quay) || quay || null,
+    knutepunkt: vei.knute || 'direkte',
+    vei: vei.id,
+  };
+}
+
+/**
+ * REPRESENTATIV UTVELGELSE til reisesøk: fordeler budsjettet for BREDDE, ikke
+ * for hva brukeren vil foretrekke (det er relevansvurderingen, senere).
+ *
+ * Mottar oppdagelsesresultatet og bruker `grunnlag()` — den ene, autoritative
+ * grensen — for å finne tillatte veier. Ingen tillatelsesregler gjentas her.
+ *
+ * Grådig: hver runde velges den (opsjon, vei) som tilfører nye verdier i
+ * BREDDE-rekkefølgen, sammenlignet dimensjon for dimensjon (leksikografisk);
+ * likt hele veien → id. Høyst én vei per opsjon (ingen dupliserte opsjoner);
+ * opsjonens andre tillatte veier bevares som alternative veier.
+ *
+ * Nesten-dubletter (samme linjeretning og område som en valgt, destinasjon
+ * innen NÆR_DUBLETT_M) utsettes så lenge noe annet gjenstår — de fjernes ikke.
+ *
+ * Endrer verken resultatet eller grunnlaget. Alt som ikke velges står med grunn.
+ */
+export function velgRepresentativt(resultat, n = BEKREFT_MAKS) {
+  const g = grunnlag(resultat);
+  const opsjoner = new Map(((resultat && resultat.opsjoner) || []).map(o => [o.id, o]));
+  const veier = new Map(((resultat && resultat.veier) || []).map(v => [v.id, v]));
+  const samleAvQuay = new Map();
+  for (const o of opsjoner.values()) for (const t of o.accessPoints || []) if (t.quayId) samleAvQuay.set(t.quayId, t.parentId || t.stopPlaceId || t.quayId);
+
+  const kand = [];
+  for (const k of g.kandidater) for (const id of k.veier) {
+    const v = veier.get(id), o = opsjoner.get(k.opsjon);
+    if (!v || !o) continue;
+    kand.push({ opsjon: k.opsjon, vei: id, d: dimensjoner(v, o, samleAvQuay), sted: (o.destinations || [])[0] || null, nøkkel: `${k.opsjon}#${id}` });
+  }
+  const sett = Object.fromEntries(BREDDE.map(b => [b, new Set()]));
+  const valgt = [], valgteOpsjoner = new Set();
+  const nyhet = c => BREDDE.map(b => (c.d[b] != null && !sett[b].has(c.d[b]) ? 1 : 0));
+  const nærDublettAv = c => {
+    for (const s of valgt) {
+      if (s.d.linjeretning !== c.d.linjeretning || s.d.område !== c.d.område) continue;
+      if (s.sted && c.sted && Number.isFinite(s.sted.lat) && Number.isFinite(c.sted.lat) && metresBetween(s.sted, c.sted) <= NÆR_DUBLETT_M) return s;
+    }
+    return null;
+  };
+  const bedre = (a, b) => { // leksikografisk på nyhet, så nøkkel (id)
+    for (let i = 0; i < a.n.length; i++) if (a.n[i] !== b.n[i]) return a.n[i] > b.n[i];
+    return a.c.nøkkel < b.c.nøkkel;
+  };
+  const utsatt = new Map();
+  while (valgt.length < n) {
+    let best = null, bestDub = null;
+    for (const c of kand) {
+      if (valgteOpsjoner.has(c.opsjon)) continue;
+      const kandidat = { c, n: nyhet(c) };
+      const dub = nærDublettAv(c);
+      if (dub) { utsatt.set(c.nøkkel, dub); if (!bestDub || bedre(kandidat, bestDub)) bestDub = kandidat; continue; }
+      if (!best || bedre(kandidat, best)) best = kandidat;
+    }
+    const vinner = best || bestDub;
+    if (!vinner) break;
+    const c = vinner.c;
+    valgt.push({ ...c, rekkefølge: valgt.length + 1, nytt: Object.fromEntries(BREDDE.map((b, i) => [b, vinner.n[i] === 1])), nærDublett: !best });
+    valgteOpsjoner.add(c.opsjon);
+    for (const b of BREDDE) if (c.d[b] != null) sett[b].add(c.d[b]);
+  }
+  const valgtVei = new Map(valgt.map(v => [v.opsjon, v.vei]));
+  const ikkeValgt = [], alternativeVeier = [];
+  for (const k of g.kandidater) {
+    if (valgtVei.has(k.opsjon)) {
+      for (const id of k.veier) if (id !== valgtVei.get(k.opsjon)) alternativeVeier.push({ opsjon: k.opsjon, vei: id, grunn: `samme opsjon undersøkes via vei ${valgtVei.get(k.opsjon)}` });
+      continue;
+    }
+    const dub = k.veier.map(id => utsatt.get(`${k.opsjon}#${id}`)).find(Boolean);
+    ikkeValgt.push({ opsjon: k.opsjon, veier: k.veier, grunn: dub ? `budsjett (nær dublett av ${dub.opsjon}, utsatt)` : 'budsjett' });
+  }
+  return {
+    valgt: valgt.map(({ opsjon, vei, d, rekkefølge, nytt, nærDublett }) => ({ opsjon, vei, rekkefølge, dimensjoner: d, nytt, nærDublett })),
+    ikkeValgt, alternativeVeier,
+    grunnlag: g,
+    budsjett: { maks: n, brukt: valgt.length, kandidater: g.kandidater.length },
+  };
 }

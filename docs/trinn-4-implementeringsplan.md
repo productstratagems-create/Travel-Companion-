@@ -1332,3 +1332,93 @@ har fått én ny.
 **Avvik fra planen:** ingen. Én svakhet ble funnet i test og rettet før
 commit: rekkefølgen på veiene som er utenfor fulgte rekkefølgen i
 inndataene. De sorteres nå på id.
+
+### 4d delsteg 2: representativ utvelgelse (gjort)
+
+**Bygget:** `velgRepresentativt(resultat, n = BEKREFT_MAKS)` i
+`src/reisebekreftelse.js`, med konstantene `BREDDE`, `BEKREFT_MAKS` (10) og
+`NÆR_DUBLETT_M` (300).
+
+- **Én autoritativ grense:** funksjonen kaller `grunnlag()` fra delsteg 1 og
+  velger bare blant tillatte veier. Ingen tillatelsesregel gjentas.
+- **Dimensjoner per vei,** alle hentet fra oppdagelsesresultatet:
+
+  | dimensjon | kilde |
+  |---|---|
+  | område | `vei.område` |
+  | linjeretning | `vei.directionId` |
+  | destinasjon | `vei.opsjon` |
+  | transportform | fra `vei.tilgang` |
+  | tilgangspunkt | samlestoppet via `quayId` → `parentId` i opsjonens `accessPoints` |
+  | knutepunkt | `vei.knute`, eller «direkte» |
+  | vei | `vei.id` |
+
+- **Grådig, leksikografisk:** hver runde vinner kandidaten med nye verdier i
+  `BREDDE`-rekkefølgen, sammenlignet dimensjon for dimensjon:
+  1. område;
+  2. linjeretning;
+  3. destinasjon;
+  4. transportform;
+  5. tilgangspunkt;
+  6. knutepunkt;
+  7. vei;
+  8. til slutt id (`opsjon#vei`).
+
+  Det er ingen sum og ingen vekter. En mutant som summerer, fanges av testene.
+- **Høyst én vei per opsjon.** Opsjonens andre tillatte veier står i
+  `alternativeVeier` med grunnen «samme opsjon undersøkes via vei X».
+- **Nesten-dubletter** har samme linjeretning og område som en valgt, med
+  destinasjon innen 300 m. De **utsettes**, men fjernes ikke. De kan velges
+  når ingenting annet gjenstår, og står da med `nærDublett: true`. Hvis ikke,
+  står de i `ikkeValgt` med grunnen «budsjett (nær dublett av X, utsatt)».
+- **Svaret:** `{ valgt, ikkeValgt, alternativeVeier, grunnlag, budsjett }`.
+  Hver valgt har `rekkefølge`, `dimensjoner` og `nytt` (hvilke dimensjoner
+  den tilførte).
+- **Alle tillatte veier er gjort rede for:** valgt, alternativ eller ikke
+  valgt. `resultat` endres ikke.
+
+**Målt** (opptak fra 4c, 10 valgt per scenario, 3–16 ms):
+
+| | kandidater | alternative veier | ikke valgt (av dem utsatt som nesten-dublett) |
+|---|---|---|---|
+| Mortensrud | 117 | 25 | 107 (1) |
+| Nesttun | 182 | 13 | 172 (4) |
+| Ranheim | 66 | 3 | 56 (1) |
+| Tretten | 32 | 12 | 22 (0) |
+| Natt | 53 | 24 | 43 (0) |
+
+- **Tretten:** buss 141, taxi 5035 (to retninger og områder) og buss 142 kom
+  med i de tre-fire første.
+- **Ranheim:** tog R70 (tre retninger), buss 1 og buss 44, og områdene V, Ø,
+  SV, NV og NØ.
+- **De siste plassene ved Tretten** gikk til buss 141 mot Lillehammer i
+  samme område (`SØ|5–15`), men lenger enn 300 m fra hverandre. Det var
+  ingenting med ny bredde igjen, og budsjettet ble brukt i stedet for å stå
+  tomt.
+
+**Tester:** 9 nye, 21 i alt i `tests/reisebekreftelse.test.js`.
+- rekkefølgen dimensjon for dimensjon (konstruert);
+- transportform foran tilgangspunkt foran bare ny destinasjon;
+- id bare ved likhet;
+- deterministisk ved omvendt inndata (alle scenarioer);
+- nesten-dubletter utsatt, ikke fjernet;
+- én vei per opsjon, alternative veier bevart;
+- alt gjort rede for, og resultatet uendret;
+- ikke-tillatte veier slipper aldri inn;
+- nyhetsvektorene faller monotont (Tretten).
+
+**Mutasjoner:** 9 av 9 fanget:
+- område og linjeretning byttet;
+- transportform og tilgangspunkt byttet;
+- id-rekkefølgen snudd;
+- veier utenfor grensen slipper inn;
+- flere veier per opsjon velges;
+- nesten-dubletter utsettes ikke;
+- alternative veier forsvinner;
+- nesten-dubletter fjernes helt;
+- summert poeng i stedet for rekkefølge.
+
+**Avvik:** ingen i koden. Én test var feilformulert: den antok at ny
+linjeretning alltid kommer før gjentakelse, men område går foran. Den ble
+rettet til å sjekke det rekkefølgen faktisk lover: nyhetsvektorene faller
+leksikografisk.

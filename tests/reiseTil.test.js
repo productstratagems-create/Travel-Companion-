@@ -37,7 +37,7 @@ describe('«hva skal du?» er slettet (v1.218.250)', () => {
   it('ingen rester i Auto-tavle; reiseRader brukes fortsatt av kombinasjonsradene', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');
     expect(a).not.toMatch(/_hvaHtml|_velgSted|_velgÆrend|HVA_PÅ|aerend\.js/);
-    expect(a).toMatch(/kombiRader\(reiseRader\(kv\.tps, nå, null\)\)/);
+    expect(a).toMatch(/kombiRader\(reiseRader\(kv\.tps, nå, null\), \{ besteAnk:/);
   });
 });
 import { kombiRader } from '../src/reiseTil.js';
@@ -74,7 +74,7 @@ describe('kombinasjonene i Auto-tavle (v1.218.215)', () => {
     expect(a).toMatch(/if \(!budsjettTillater\(_søkLogg, nå, 1\)\) return v \|\| null;/);
   });
   it('radene fra kombiRader, flettet inn i lista; leter/feil sies', () => {
-    expect(a).toMatch(/kombiRader\(reiseRader\(kv\.tps, nå, null\)\)/);
+    expect(a).toMatch(/kombiRader\(reiseRader\(kv\.tps, nå, null\), \{ besteAnk:/);
     expect(a).toMatch(/ser etter reiser med bytte …/);
     expect(a).toMatch(/fant ikke reiser med bytte nå/);
   });

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 // docs/auto-tavle-logikk.md skal si det koden gjør. Hvert tall står to steder —
 // derfor binder denne testen dem: endres koden, faller testen til dokumentet følger.
 const doc = readFileSync('docs/auto-tavle-logikk.md', 'utf8');
-const kode = ['src/geo.js', 'src/position.js', 'src/api/stops.js', 'src/views/auto.js', 'src/ui/tavleRad.js', 'src/fasteStopp.js']
+const kode = ['src/geo.js', 'src/position.js', 'src/api/stops.js', 'src/views/auto.js', 'src/ui/tavleRad.js', 'src/fasteStopp.js', 'src/reiseTil.js']
   .map(f => readFileSync(f, 'utf8')).join('\n');
 
 // [navn, slik det står i dokumentet, slik det står i koden]
@@ -32,6 +32,7 @@ const TALL = [
   ['TAVLE_SIDE', '12', /TAVLE_SIDE = 12;/],
   ['AT_TOM_MAKS', '3', /AT_TOM_MAKS = 3;/],
   ['EDDERKOPP_STOPP', '6', /EDDERKOPP_STOPP = 6;/],
+  ['KOMBI_MIN_GEVINST_MIN', '3', /KOMBI_MIN_GEVINST_MIN = 3;/],
 ];
 
 describe('docs/auto-tavle-logikk.md sier det koden gjør', () => {

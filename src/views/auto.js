@@ -6197,7 +6197,9 @@ function _tegnAutoTavle(body) {
     x.bestill = (kart && sj && kart.get(sj)) || null;
   });
   const kv = _autoTavle ? _kombiFor(_atRetning, here, nå) : null;
-  const kombi = kv && Array.isArray(kv.tps) ? kombiRader(reiseRader(kv.tps, nå, null)).filter(r => r.gåOm >= 0).sort((a, b) => a.gåOm - b.gåOm) : [];
+  // Målestokken er lista selv (v1.218.285): tidligste ankomst blant direkte rader du rekker.
+  const listaAnk = del.rekker.map(x => x.ank && x.ank.ms).filter(Number.isFinite);
+  const kombi = kv && Array.isArray(kv.tps) ? kombiRader(reiseRader(kv.tps, nå, null), { besteAnk: listaAnk.length ? Math.min(...listaAnk) : null }).filter(r => r.gåOm >= 0).sort((a, b) => a.gåOm - b.gåOm) : [];
   // Si hva du ikke vet: leter, feilet — ikke stillhet.
   const kombiMerk = !kv ? '' : kv.tps === 'henter' ? '<div class="at-filter">ser etter reiser med bytte …</div>'
     : kv.tps === 'feil' ? '<div class="at-filter">fant ikke reiser med bytte nå</div>' : '';

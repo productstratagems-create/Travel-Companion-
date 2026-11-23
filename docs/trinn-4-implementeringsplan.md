@@ -1592,3 +1592,58 @@ tilgangspunkter og knutepunkter. Determinismen holdt i alle kjøringene.
 
 **Avvik:** ingen. Én syntetisk test var feilplassert, fordi 0,999 km falt i
 båndet 0,5–1. Den ble rettet.
+
+### 4d delsteg 2.3: destinasjon er identitet, ikke dekning (gjort)
+
+**Undersøkt [Kode + målt]**
+- `dimensjoner.destinasjon` er `vei.opsjon`, altså opsjonens ID.
+- Utvelgelsen gir én kandidat per opsjon og hopper over valgte opsjoner
+  (`valgteOpsjoner`).
+- Derfor er destinasjonen alltid ny. Målt: `nytt.destinasjon` er sann for
+  **hver** valgt kandidat i alle ti kjøringene (fem scenarioer, budsjett 10
+  og 50).
+- Dimensjonen skilte aldri. Den var identitet som så ut som dekning.
+
+**Endring:** én linje i algoritmen.
+- `BREDDE` er nå område → linjeretning → transportform → tilgangspunkt →
+  knutepunkt → avstandsbånd, og til slutt id.
+- `destinasjon` og `vei` står fortsatt i `dimensjoner` og i svaret, som
+  identitet og for sporbarhet.
+- Ellers er utvelgelsen uendret.
+
+**Målt før og etter:** alle ti kjøringene ga **identisk** utvalg (opsjon og
+vei i samme rekkefølge). Antall alternative og utsatte veier er også uendret.
+
+| | alternative veier, budsjett 10 / 50 | utsatte veier, budsjett 10 / 50 |
+|---|---|---|
+| Mortensrud | 25 / 112 | 1 / 10 |
+| Natt | 21 / 103 | 1 / 14 |
+| Nesttun | 13 / 77 | 4 / 12 |
+| Ranheim | 3 / 10 | 1 / 6 |
+| Tretten | 12 / 51 | 0 / 0 |
+
+Utsatte veier er her tellingen fra `utsatteVeier`, per vei. Det er ikke det
+samme som antall opsjoner merket som utsatt i tabellene for 2.1 og 2.2.
+
+**Tester:** 5 nye, 41 i alt.
+- `BREDDE` uten `destinasjon` og `vei`, med avstandsbånd sist;
+- utvalget er lik **faste referanselister** målt på `98f058d` (budsjett 10,
+  fem scenarioer). Listene er ikke generert fra koden som testes;
+- identiteten er bevart (`dimensjoner.destinasjon === opsjon`,
+  `dimensjoner.vei === vei`), og `nytt` har ikke disse feltene;
+- samme opsjon velges aldri to ganger, og de andre veiene til den spores som
+  alternative med riktig grunn og riktig antall (alle scenarioer, budsjett
+  50);
+- syntetisk: to veier til samme opsjon gir én valgt og én alternativ.
+
+Testene fra 2.2 står: avstandsbåndet skiller kandidater med ulike vei- og
+opsjons-ID-er, id avgjør ved lik dekning, og resultatet er deterministisk.
+
+**Mutasjoner:** 5 av 5 fanget:
+- destinasjon tilbake i `BREDDE`;
+- vei tilbake i `BREDDE`;
+- avstandsbåndet fjernet;
+- `valgteOpsjoner`-sjekken fjernet;
+- feil destinasjonsidentitet.
+
+**Avvik:** ingen.

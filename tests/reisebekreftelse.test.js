@@ -124,7 +124,7 @@ describe('delsteg 2: representativ utvelgelse', () => {
       { id: 'b', dest: 'B', område: 'S|5–15', lr: 'L1>R', lat: 63 },
     ]);
     expect(ider(velgRepresentativt(r, 4))).toEqual(['a', 'b', 'c', 'd']);
-    expect(BREDDE).toEqual(['område', 'linjeretning', 'destinasjon', 'transportform', 'tilgangspunkt', 'knutepunkt', 'avstandsbånd']); // vei-ID er identitet, ikke dekning (2.2)
+    expect(BREDDE).toEqual(['område', 'linjeretning', 'transportform', 'tilgangspunkt', 'knutepunkt', 'avstandsbånd']); // vei-ID (2.2) og destinasjon (2.3) er identitet, ikke dekning
   });
   it('ny transportform går foran nytt tilgangspunkt; nytt tilgangspunkt foran bare ny destinasjon', () => {
     const r = syntetiskResultat([
@@ -357,5 +357,63 @@ describe('delsteg 2.2: avstandsbånd som dekningsdimensjon', () => {
         expect(a.valgt.length + a.alternativeVeier.length + a.ikkeValgt.reduce((s, k) => s + k.veier.length, 0)).toBe(tillatte);
       }
     }
+  });
+});
+
+/* ------------------------------------------------------------ delsteg 2.3 */
+/**
+ * Faste referanser: opsjonene valgt ved budsjett 10, målt på koden FØR 2.3
+ * (commit 98f058d) mot opptakene. Ikke generert fra koden som testes — 2.3 er
+ * en ren semantisk endring og skal gi nøyaktig samme utvalg.
+ */
+const REFERANSE_10 = {
+  mortensrud_dag: ['4007', '5620', '5695', '5726', '5738', '58225', '4029', '5794', '5811', '58211'],
+  mortensrud_natt: ['5620', '5697', '5734', '5794', '5807', '58211', '5821', '5879', '5695', '58225'],
+  nesttun_dag: ['28881', '29815', '29359', '29172', '29431', '29830', '31275', '31438', '32120', '28911'],
+  ranheim_dag: ['144', '41715', '42376', '43682', '58790', '60047', '41800', '416', '42157', '58936'],
+  tretten_dag: ['12523', '12697', '12692', '12702', '13784', '13781', '12792', '12527', '12529', '12532'],
+};
+describe('delsteg 2.3: destinasjon er identitet, ikke dekning', () => {
+  it('BREDDE inneholder verken destinasjon eller vei', () => {
+    expect(BREDDE).not.toContain('destinasjon');
+    expect(BREDDE).not.toContain('vei');
+    expect(BREDDE[BREDDE.length - 1]).toBe('avstandsbånd');
+  });
+  it('utvalget er nøyaktig det samme som før 2.3 (faste referanser)', async () => {
+    for (const [n, ref] of Object.entries(REFERANSE_10)) {
+      const u = velgRepresentativt(await resultat(n), 10);
+      expect([n, u.valgt.map(v => v.opsjon)]).toEqual([n, ref.map(x => `destination:NSR:StopPlace:${x}`)]);
+    }
+  });
+  it('opsjons- og destinasjonsidentitet og vei-ID bevares i hver valgt kandidat', async () => {
+    const r = await resultat('nesttun_dag');
+    const veier = new Map(r.veier.map(v => [v.id, v]));
+    for (const v of velgRepresentativt(r, 10).valgt) {
+      expect(v.dimensjoner.destinasjon).toBe(v.opsjon);
+      expect(v.dimensjoner.vei).toBe(v.vei);
+      expect(veier.get(v.vei).opsjon).toBe(v.opsjon);
+      expect(v.nytt).not.toHaveProperty('destinasjon');
+      expect(v.nytt).not.toHaveProperty('vei');
+    }
+  });
+  it('samme opsjon velges aldri to ganger, og de andre veiene til den spores som alternative', async () => {
+    for (const n of SCENARIOER) {
+      const u = velgRepresentativt(await resultat(n), 50);
+      expect(new Set(u.valgt.map(v => v.opsjon)).size).toBe(u.valgt.length);
+      const valgtVei = new Map(u.valgt.map(v => [v.opsjon, v.vei]));
+      for (const a of u.alternativeVeier) {
+        expect(valgtVei.has(a.opsjon)).toBe(true);
+        expect(a.vei).not.toBe(valgtVei.get(a.opsjon));
+        expect(a.grunn).toBe(`samme opsjon undersøkes via vei ${valgtVei.get(a.opsjon)}`);
+      }
+      const forventet = u.grunnlag.kandidater.filter(k => valgtVei.has(k.opsjon)).reduce((s, k) => s + k.veier.length - 1, 0);
+      expect(u.alternativeVeier.length).toBe(forventet);
+    }
+  });
+  it('syntetisk: to veier til samme opsjon gir én valgt og én alternativ — ikke to valg', () => {
+    const r = syntetiskResultat([{ id: 'v1', dest: 'A' }, { id: 'v2', dest: 'A', quay: 'Q2', parent: 'P2', område: 'S|5–15' }]);
+    const u = velgRepresentativt(r, 5);
+    expect(u.valgt.map(v => v.opsjon)).toEqual(['destination:A']);
+    expect(u.alternativeVeier.map(a => a.vei)).toEqual([u.valgt[0].vei === 'v1' ? 'v2' : 'v1']);
   });
 });

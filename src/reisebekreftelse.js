@@ -125,14 +125,17 @@ export const NÆR_DUBLETT_REGEL = 'samme linjeretning, område og tilgangspunkt 
  * Prioriteringsrekkefølgen for bredde — sammenlignes ETTER TUR, aldri summert.
  * Hver dimensjon spør: tilfører kandidaten en ny verdi utover det som alt er valgt?
  */
-export const BREDDE = Object.freeze(['område', 'linjeretning', 'destinasjon', 'transportform', 'tilgangspunkt', 'knutepunkt', 'avstandsbånd']);
+export const BREDDE = Object.freeze(['område', 'linjeretning', 'transportform', 'tilgangspunkt', 'knutepunkt', 'avstandsbånd']);
 /*
- * Veiens ID er IDENTITET, ikke dekning (4d delsteg 2.2): den bevares i
- * `dimensjoner.vei` og i svaret, men er ikke en breddedimensjon — en unik ID
- * gjør hver kandidat «ny» og sier ingenting om nettverket. Det veien tilfører,
- * står allerede i linjeretning, tilgangspunkt og knutepunkt.
- * (Også `destinasjon` er alltid ny for en kandidat, fordi hver opsjon gir én;
- * den står fordi rekkefølgen er fastsatt, og skiller aldri — likt hoppes over.)
+ * IDENTITET ER IKKE DEKNING (4d delsteg 2.2 og 2.3). En dimensjon som alltid er
+ * unik for kandidaten, sier ingenting om nettverket — den gjør bare hver
+ * kandidat «ny», og utvelgelsen faller da i realiteten tilbake på identitet.
+ *   vei-ID       unik per vei                                       (ut i 2.2)
+ *   destinasjon  = opsjonens ID; én kandidat per opsjon, valgte      (ut i 2.3)
+ *                opsjoner hoppes over → alltid ny (målt: alle ti
+ *                kjøringer i docs/trinn-4-implementeringsplan.md)
+ * Begge bevares i `dimensjoner` og i svaret, for identitet og sporbarhet.
+ * BREDDE inneholder bare dimensjoner som kan uttrykke ny dekning.
  */
 
 /**
@@ -161,7 +164,7 @@ function dimensjoner(vei, opsjon, samleAvQuay) {
   return {
     område: vei.område || null,
     linjeretning: vei.directionId || null,
-    destinasjon: vei.opsjon,
+    destinasjon: vei.opsjon, // identitet, ikke i BREDDE (2.3)
     transportform: modus || null,
     // Samlestopp (StopPlace-ID fra opsjonens accessPoints.parentId), aldri plattformnøkkelen:
     // ulike plattformer ved samme StopPlace er samme tilgangspunkt. Ukjent → null (kan ikke likestilles).

@@ -24,9 +24,10 @@ describe('edderkoppkartet i auto-reise (v1.218.61)', () => {
     expect(b[0].stopp[0].name).toBe('Kolsås1');
   });
 
-  it('hopper over en retning med for få stopp å tegne', () => {
-    const b = edderkoppBein([...dirs, retning('Kort', '9', 1, 1)], 'Mortensrud', NÅ);
-    expect(b.map(x => x.kode)).not.toContain('9');
+  it('hopper over en retning uten stopp å tegne — men ett stopp er nok (v1.218.281, ferja B10)', () => {
+    const b = edderkoppBein([...dirs, retning('Ingen', '8', 1, 0), retning('Kort', '9', 1, 1)], 'Mortensrud', NÅ);
+    expect(b.map(x => x.kode)).not.toContain('8');
+    expect(b.map(x => x.kode)).toContain('9');
   });
 
   it('den foretrukne retningen (kortet) først', () => {

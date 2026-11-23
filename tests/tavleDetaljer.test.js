@@ -111,7 +111,7 @@ describe('rekk den lenger ned i Auto-reise (v1.218.190)', () => {
     expect(retningRekk(d(1, 30), MRUD, gang, null, T)).toBe(null);
   });
   it('raden sier det med samme tekst', () => {
-    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/'<span class="auto-rekk">' \+ esc\(rekkLinje\(rk, clk, _stop && _stop\.name\)\)/);
+    expect(readFileSync('src/views/auto.js', 'utf8')).toMatch(/'<span class="auto-rekk">' \+ esc\(rekkLinje\(rk, clk, _tavle\(\) && _tavle\(\)\.name\)\)/);
   });
 });
 

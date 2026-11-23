@@ -82,6 +82,12 @@ posisjonen er»). Dette er en allmenn app, ikke et ingeniørverktøy. «Si hva d
 ikke vet» betyr å si hva usikkerheten betyr for valget — ikke å beskrive
 sensoren. Grå prikk = ingen «rekker / rekker ikke» (`posGrå`, én definisjon).
 
+### Auto-tavles utvalg står i `docs/auto-tavle-logikk.md` (2026-11-23)
+
+Hvordan Auto-tavle velger stopp, overskrift, avganger, rader og streker —
+med tallene, bundet til koden av `tests/autoTavleLogikk.test.js`. Les det
+før du endrer utvalget, og oppdater det i samme commit.
+
 ### Kartene følger `docs/kartregler.md` (2026-11-20)
 
 Zoom og panorering har ett regelsett: ett tema per kart, fem navngitte

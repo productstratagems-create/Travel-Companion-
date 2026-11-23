@@ -33,3 +33,8 @@
 #v-auto .eb-lengst{color:var(--text-muted);font-size:.8rem}
 .eb-kart-ytter { stroke: var(--accent, #2a7de1); fill: var(--accent, #2a7de1); fill-opacity: 1; }
 .eb-kart-ytteretikett span { display: inline-block; white-space: nowrap; font: 600 11px/14px system-ui, sans-serif; padding: 0 4px; border-radius: 3px; background: rgba(var(--bg-rgb), .85); color: var(--text); pointer-events: none; }
+
+/* Stedstyper (forslag 2). */
+#v-auto .eb-typer{color:var(--text);font-weight:600}
+.eb-kart-sted.eb-kart-tog { fill: var(--accent, #2a7de1); fill-opacity: .85; }
+.eb-kart-sted.eb-kart-bat { fill: #1aa3a3; stroke: #1aa3a3; fill-opacity: .85; }

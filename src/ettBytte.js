@@ -18,6 +18,24 @@ export const RETNING_NAVN = Object.freeze({ N: 'nord', NØ: 'nordøst', Ø: 'øs
 export const EKSEMPLER = 3;
 
 /**
+ * STEDSTYPER (forslag 2): hvordan du kommer til stedet, lest fra linja som når
+ * det (ut-linjas transportmiddel). Ikke hva stedet ER — et sted toget når, er
+ * en togstasjon; en kai båten når, er en kai. Flyplass skilles ikke ut (det
+ * ville kreve gjetting på navn). Når flere linjer når samme sted, vinner den
+ * første i STEDSTYPE_REKKE: toget sier mer om reisen enn bussen.
+ */
+export const STEDSTYPE_REKKE = Object.freeze(['rail', 'water', 'metro', 'tram', 'coach', 'bus']);
+/** Typene som telles på kortet: de som inviterer til en reise ut. Buss er standarden og telles ikke. */
+export const STEDSTYPE_TELLES = Object.freeze({ rail: ['togstasjon', 'togstasjoner'], water: ['kai', 'kaier'] });
+export const velgStedstype = moduser => STEDSTYPE_REKKE.find(m => moduser.has(m)) || null;
+/** «3 togstasjoner · 1 kai» for et sett punkter med `type`. Tomt når ingen av dem er tog eller båt. */
+export function stedstypeTelling(punkter) {
+  // «13 tog» leses som avganger; det er steder, så: «13 togstasjoner», «1 kai».
+  return Object.entries(STEDSTYPE_TELLES).map(([m, ord]) => [ord, punkter.filter(p => p.type === m).length])
+    .filter(([, n]) => n > 0).map(([[en, flere], n]) => n + ' ' + (n === 1 ? en : flere)).join(' · ');
+}
+
+/**
  * LENGST DU KOMMER (forslag 1): det fjerneste stedet i retningen, med avstand
  * i hele km. `punkter` er sortert lengst unna først (ettByttePerRetning), så
  * det er det første. null uten steder eller posisjon.
@@ -52,9 +70,10 @@ export function ettByttePerRetning(resultat, posisjon) {
     const sektor = v.område.split('|')[0];
     if (!RETNINGER.includes(sektor)) continue; // sentrum («•») er ingen retning
     const s = per.get(sektor) || per.set(sektor, new Map()).get(sektor);
-    const g = s.get(v.knute) || s.set(v.knute, { områder: new Set(), dest: new Set(), inn: new Map(), ut: new Map() }).get(v.knute);
+    const g = s.get(v.knute) || s.set(v.knute, { områder: new Set(), dest: new Set(), inn: new Map(), ut: new Map(), moduser: new Map() }).get(v.knute);
     g.områder.add(v.område); g.dest.add(v.opsjon);
     const li = linje(resultat, v.inn), lu = linje(resultat, v.directionId);
+    (g.moduser.get(v.opsjon) || g.moduser.set(v.opsjon, new Set()).get(v.opsjon)).add(lu.modus);
     g.inn.set(li.kode + '|' + li.modus, li); g.ut.set(lu.kode + '|' + lu.modus, lu);
   }
   const rader = [];
@@ -63,12 +82,12 @@ export function ettByttePerRetning(resultat, posisjon) {
     if (!s) continue;
     const [knute, g] = [...s.entries()].sort(([ka, a], [kb, b]) => b.områder.size - a.områder.size || b.dest.size - a.dest.size || (ka < kb ? -1 : 1))[0];
     const steder = [...g.dest].map(id => opsjoner.get(id)).filter(o => o && o.destinations && o.destinations[0])
-      .map(o => ({ navn: o.label || o.destinations[0].name, lat: o.destinations[0].lat, lon: o.destinations[0].lon, m: posisjon ? metresBetween(posisjon, o.destinations[0]) : 0 }))
+      .map(o => ({ type: velgStedstype(g.moduser.get(o.id) || new Set()), navn: o.label || o.destinations[0].name, lat: o.destinations[0].lat, lon: o.destinations[0].lon, m: posisjon ? metresBetween(posisjon, o.destinations[0]) : 0 }))
       .sort((a, b) => b.m - a.m || (a.navn < b.navn ? -1 : 1));
     const navn = []; for (const x of steder) if (navn.length < EKSEMPLER && !navn.includes(x.navn)) navn.push(x.navn);
     // Knutepunktet er selv et sted ledd 1 når; koordinatene står der. Mangler de, tegnes ingen knute.
     const ko = opsjoner.get('destination:' + knute), kd = ko && ko.destinations && ko.destinations[0];
-    const punkter = steder.filter(x => Number.isFinite(x.lat)).map(({ navn: n, lat, lon }) => ({ navn: n, lat, lon }));
+    const punkter = steder.filter(x => Number.isFinite(x.lat)).map(({ navn: n, lat, lon, type }) => ({ navn: n, lat, lon, type }));
     rader.push({
       retning: sektor, retningNavn: RETNING_NAVN[sektor], knute, knuteNavn: knNavn.get(knute) || knute,
       inn: [...g.inn.values()].map(linjeTekst).sort(), ut: [...g.ut.values()].map(linjeTekst).sort(),
@@ -77,6 +96,7 @@ export function ettByttePerRetning(resultat, posisjon) {
       knuteLL: kd && Number.isFinite(kd.lat) ? { lat: kd.lat, lon: kd.lon } : null,
       punkter,
       ytterpunkt: ytterpunkt(punkter, posisjon),
+      typer: stedstypeTelling(punkter),
     });
   }
   return { rader, ingen: rader.length === 0, grunnlag: 'mulig med ett bytte — ikke sjekket mot reisesøket, og byttet er ikke tidskontrollert' };

@@ -63,7 +63,8 @@ export function ettBytteRadHtml(r, esc) {
     + (() => {
       // Ytterpunktet står alt i toppen («helt til …»): eksemplene er de neste.
       const eks = r.eksempler.filter(n => !r.ytterpunkt || n !== r.ytterpunkt.navn), vist = eks.length + (r.ytterpunkt ? 1 : 0);
-      return '<div class="eb-steder">' + esc(eks.join(', ')) + (r.antallSteder > vist ? (eks.length ? ' og ' : '') + (r.antallSteder - vist) + ' steder til' : '') + '</div>';
+      return '<div class="eb-steder">' + esc(eks.join(', ')) + (r.antallSteder > vist ? (eks.length ? ' og ' : '') + (r.antallSteder - vist) + ' steder til' : '')
+        + (r.typer ? ' <span class="eb-typer">· ' + esc(r.typer) + '</span>' : '') + '</div>';
     })()
     + '</button>';
 }
@@ -260,7 +261,11 @@ export function ettBytteKart(map, L, { aktiv, pos, ferdig, ramme: rammeInn = (b,
   // Kopi: Leaflet skriver selv i valgene (zoom).
   if (!rammet) { _kart.rammet = tema; rammeInn(ramme, { ...RAMME_VALG }); }
   // Stedene til det valgte kortet — under boblene, så knutepunktet ligger øverst.
-  for (const s of valgteSteder) L.circleMarker([s.lat, s.lon], { className: 'eb-kart-sted', radius: 4, weight: 1.5 }).bindTooltip(s.navn).addTo(lag);
+  // Stedstype (forslag 2): tog og båt er fylt og litt større — de inviterer til en reise ut.
+  for (const s of valgteSteder) {
+    const t = s.type === 'rail' ? ' eb-kart-tog' : s.type === 'water' ? ' eb-kart-bat' : '';
+    L.circleMarker([s.lat, s.lon], { className: 'eb-kart-sted' + t, radius: t ? 5 : 4, weight: 1.5 }).bindTooltip(s.navn + (t ? (s.type === 'rail' ? ' · tog' : ' · båt') : '')).addTo(lag);
+  }
   // Lengst du kommer: ytterpunktet i den valgte retningen får navnet sitt (det kan ligge utenfor rammen).
   const valgtRad = data.valgt && data.retninger.find(r => r.retning === data.valgt);
   const yp = valgtRad && valgtRad.ytterpunkt;

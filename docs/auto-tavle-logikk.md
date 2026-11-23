@@ -313,6 +313,17 @@ Et nytt svar på samme sted flytter ikke kartet. Rører du kartet, er det ditt.
 Tavla regner kartet som «justert» mens laget vises, og får tilbake din egen
 tilstand når valget går av, så en justering du gjorde før, ikke slettes.
 
+### Stedstyper (v1.218.295, forslag 2)
+
+Kortet teller stedene som inviterer til en reise ut: «· 13 togstasjoner ·
+1 kai». Typen er **transportmiddelet til linja som når stedet** (ut-linja,
+`velgStedstype`). Den sier hvordan du kommer dit, ikke hva stedet er.
+- Når flere linjer når samme sted, vinner tog, så båt, T-bane, trikk,
+  ekspressbuss og buss (`STEDSTYPE_REKKE`).
+- Buss telles ikke, den er standarden. Flyplass skilles ikke ut, fordi det
+  ville kreve gjetting på navn.
+- Med kortet valgt er tog- og båtstedene fylte, litt større prikker i kartet.
+
 ### Lengst du kommer (v1.218.294, forslag 1)
 
 Hvert kort sier hvor langt retningen når: «helt til Lillehammer stasjon ·

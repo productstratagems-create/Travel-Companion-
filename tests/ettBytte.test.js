@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ettByttePerRetning, RETNINGER, ytterpunkt } from '../src/ettBytte.js';
+import { ettByttePerRetning, RETNINGER, ytterpunkt, stedstypeTelling, velgStedstype, STEDSTYPE_REKKE } from '../src/ettBytte.js';
 import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, plasserNavn, navnRekt, NAVN_NIVÅER, NAVN_PLASSER, velgRetning, valgtRetning, KART_STEDER_VALGT } from '../src/views/ettBytteVisning.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { metresBetween } from '../src/haversine.js';
@@ -86,6 +86,50 @@ describe('ett bytte: lengst du kommer (forslag 1)', () => {
     const lapper = f.lagt[0].ting.filter(t => t.o && t.o.icon && /eb-kart-ytteretikett/.test(t.o.icon.className));
     expect(lapper).toHaveLength(1);
     expect(lapper[0].ll).toEqual([nø.ytterpunkt.lat, nø.ytterpunkt.lon]);
+  });
+});
+
+describe('ett bytte: stedstyper (forslag 2)', () => {
+  it('typen er transportmiddelet til linja som når stedet; tog før buss når flere når det', async () => {
+    const pos = O.mortensrud_dag.scenario.posisjon;
+    const r = await res('mortensrud_dag');
+    const { rader } = ettByttePerRetning(r, pos);
+    const alle = rader.flatMap(x => x.punkter);
+    expect(alle.every(p => p.type === null || STEDSTYPE_REKKE.includes(p.type))).toBe(true);
+    // Hvert punkts type er blant ut-linjenes transportmidler for veiene til det stedet.
+    const navnTilModi = new Map();
+    for (const v of r.veier.filter(v => v.ledd === 2 && v.vindu === 'ordinært')) {
+      const o = r.opsjoner.find(o => o.id === v.opsjon), g = r.grupper.linjeretning[v.directionId];
+      if (!o || !g) continue;
+      const n = o.label || o.destinations[0].name;
+      (navnTilModi.get(n) || navnTilModi.set(n, new Set()).get(n)).add(g.modus);
+    }
+    for (const p of alle.filter(p => p.type)) expect(navnTilModi.get(p.navn).has(p.type)).toBe(true);
+    expect(alle.some(p => p.type === 'rail')).toBe(true); // Mortensrud: tog via Nationaltheatret/Oslo
+    expect(velgStedstype(new Set(['bus', 'rail']))).toBe('rail');
+    expect(velgStedstype(new Set(['bus', 'water']))).toBe('water');
+    expect(velgStedstype(new Set())).toBeNull();
+  });
+  it('kortet teller tog og båt, ikke buss', () => {
+    const p = t => ({ type: t });
+    expect(stedstypeTelling([p('rail'), p('rail'), p('water'), p('bus'), p('metro')])).toBe('2 togstasjoner · 1 kai');
+    expect(stedstypeTelling([p('rail'), p('water'), p('water')])).toBe('1 togstasjon · 2 kaier');
+    expect(stedstypeTelling([p('bus'), p('tram')])).toBe('');
+    expect(stedstypeTelling([])).toBe('');
+  });
+  it('kortet og kartet bruker typen: «· N togstasjoner» på kortet, tog-prikker i kartet', async () => {
+    const pos = O.mortensrud_dag.scenario.posisjon;
+    const hent = avspiller(O.mortensrud_dag).hent, nå = Date.parse(O.mortensrud_dag.scenario.tid);
+    ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} }); await new Promise(r => setTimeout(r, 50));
+    const rader = ettByttePerRetning(await res('mortensrud_dag'), pos).rader;
+    const medTog = rader.find(r => r.typer);
+    expect(ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} })).toContain('<span class="eb-typer">· ' + medTog.typer + '</span>');
+    velgRetning(medTog.retning);
+    const f = falskL();
+    ettBytteKart(f.map, f.L, { aktiv: true, pos, ramme: () => {} });
+    const tog = f.lagt[0].ting.filter(t => t.o && /eb-kart-tog/.test(t.o.className));
+    const vist = ettBytteKartData(pos).retninger.find(r => r.retning === medTog.retning).steder.filter(s => s.type === 'rail');
+    expect(tog.length).toBe(vist.length);
   });
 });
 

@@ -110,8 +110,16 @@ export function grunnlag(resultat) {
 
 /** Budsjett for reisesøk per bekreftelse (ett aliasert kall). Startverdi. */
 export const BEKREFT_MAKS = 10;
-/** Nesten-dublett: samme linjeretning og område, destinasjonene innen så mange meter. Startverdi. */
+/** Nesten-dublett: destinasjonene innen så mange meter (sammen med vilkårene i NÆR_DUBLETT_REGEL). Startverdi. */
 export const NÆR_DUBLETT_M = 300;
+/**
+ * NESTEN-DUBLETT (4d delsteg 2.1): en vei er nesten-dublett av en valgt vei
+ * bare når ALLE vilkår holder — samme linjeretning, samme område, samme
+ * tilgangspunkt (samlestopp-/StopPlace-ID, ikke plattform) og destinasjoner
+ * innen NÆR_DUBLETT_M. En vei fra et annet tilgangspunkt er aldri dublett:
+ * alternative tilgangspunkter er nettopp mangfoldet utforskningen skal bevare.
+ */
+export const NÆR_DUBLETT_REGEL = 'samme linjeretning, område og tilgangspunkt (samlestopp); destinasjon innen 300 m';
 
 /**
  * Prioriteringsrekkefølgen for bredde — sammenlignes ETTER TUR, aldri summert.
@@ -127,7 +135,9 @@ function dimensjoner(vei, opsjon, samleAvQuay) {
     linjeretning: vei.directionId || null,
     destinasjon: vei.opsjon,
     transportform: modus || null,
-    tilgangspunkt: samleAvQuay.get(quay) || quay || null,
+    // Samlestopp (StopPlace-ID fra opsjonens accessPoints.parentId), aldri plattformnøkkelen:
+    // ulike plattformer ved samme StopPlace er samme tilgangspunkt. Ukjent → null (kan ikke likestilles).
+    tilgangspunkt: samleAvQuay.get(quay) || null,
     knutepunkt: vei.knute || 'direkte',
     vei: vei.id,
   };
@@ -145,8 +155,8 @@ function dimensjoner(vei, opsjon, samleAvQuay) {
  * likt hele veien → id. Høyst én vei per opsjon (ingen dupliserte opsjoner);
  * opsjonens andre tillatte veier bevares som alternative veier.
  *
- * Nesten-dubletter (samme linjeretning og område som en valgt, destinasjon
- * innen NÆR_DUBLETT_M) utsettes så lenge noe annet gjenstår — de fjernes ikke.
+ * Nesten-dubletter (NÆR_DUBLETT_REGEL, vurdert per vei) utsettes så lenge noe
+ * annet gjenstår — de fjernes ikke, og står i `utsatteVeier`.
  *
  * Endrer verken resultatet eller grunnlaget. Alt som ikke velges står med grunn.
  */
@@ -155,7 +165,7 @@ export function velgRepresentativt(resultat, n = BEKREFT_MAKS) {
   const opsjoner = new Map(((resultat && resultat.opsjoner) || []).map(o => [o.id, o]));
   const veier = new Map(((resultat && resultat.veier) || []).map(v => [v.id, v]));
   const samleAvQuay = new Map();
-  for (const o of opsjoner.values()) for (const t of o.accessPoints || []) if (t.quayId) samleAvQuay.set(t.quayId, t.parentId || t.stopPlaceId || t.quayId);
+  for (const o of opsjoner.values()) for (const t of o.accessPoints || []) if (t.quayId && (t.parentId || t.stopPlaceId)) samleAvQuay.set(t.quayId, t.parentId || t.stopPlaceId);
 
   const kand = [];
   for (const k of g.kandidater) for (const id of k.veier) {
@@ -166,10 +176,14 @@ export function velgRepresentativt(resultat, n = BEKREFT_MAKS) {
   const sett = Object.fromEntries(BREDDE.map(b => [b, new Set()]));
   const valgt = [], valgteOpsjoner = new Set();
   const nyhet = c => BREDDE.map(b => (c.d[b] != null && !sett[b].has(c.d[b]) ? 1 : 0));
+  /** Per vei: gir sammenligningen som gjør veien til nesten-dublett, eller null. */
   const nærDublettAv = c => {
     for (const s of valgt) {
       if (s.d.linjeretning !== c.d.linjeretning || s.d.område !== c.d.område) continue;
-      if (s.sted && c.sted && Number.isFinite(s.sted.lat) && Number.isFinite(c.sted.lat) && metresBetween(s.sted, c.sted) <= NÆR_DUBLETT_M) return s;
+      if (c.d.tilgangspunkt == null || s.d.tilgangspunkt !== c.d.tilgangspunkt) continue;
+      if (!(s.sted && c.sted && Number.isFinite(s.sted.lat) && Number.isFinite(c.sted.lat))) continue;
+      const m = metresBetween(s.sted, c.sted);
+      if (m <= NÆR_DUBLETT_M) return { vei: c.vei, opsjon: c.opsjon, sammenlignetMed: { vei: s.vei, opsjon: s.opsjon }, tilgangspunkt: c.d.tilgangspunkt, avstandM: Math.round(m), regel: NÆR_DUBLETT_REGEL };
     }
     return null;
   };
@@ -184,13 +198,13 @@ export function velgRepresentativt(resultat, n = BEKREFT_MAKS) {
       if (valgteOpsjoner.has(c.opsjon)) continue;
       const kandidat = { c, n: nyhet(c) };
       const dub = nærDublettAv(c);
-      if (dub) { utsatt.set(c.nøkkel, dub); if (!bestDub || bedre(kandidat, bestDub)) bestDub = kandidat; continue; }
+      if (dub) { if (!utsatt.has(c.nøkkel)) utsatt.set(c.nøkkel, dub); if (!bestDub || bedre(kandidat, bestDub)) bestDub = kandidat; continue; }
       if (!best || bedre(kandidat, best)) best = kandidat;
     }
     const vinner = best || bestDub;
     if (!vinner) break;
     const c = vinner.c;
-    valgt.push({ ...c, rekkefølge: valgt.length + 1, nytt: Object.fromEntries(BREDDE.map((b, i) => [b, vinner.n[i] === 1])), nærDublett: !best });
+    valgt.push({ ...c, rekkefølge: valgt.length + 1, nytt: Object.fromEntries(BREDDE.map((b, i) => [b, vinner.n[i] === 1])), nærDublett: !best, ...(!best ? { dublettAv: utsatt.get(c.nøkkel) } : {}) });
     valgteOpsjoner.add(c.opsjon);
     for (const b of BREDDE) if (c.d[b] != null) sett[b].add(c.d[b]);
   }
@@ -201,12 +215,16 @@ export function velgRepresentativt(resultat, n = BEKREFT_MAKS) {
       for (const id of k.veier) if (id !== valgtVei.get(k.opsjon)) alternativeVeier.push({ opsjon: k.opsjon, vei: id, grunn: `samme opsjon undersøkes via vei ${valgtVei.get(k.opsjon)}` });
       continue;
     }
-    const dub = k.veier.map(id => utsatt.get(`${k.opsjon}#${id}`)).find(Boolean);
-    ikkeValgt.push({ opsjon: k.opsjon, veier: k.veier, grunn: dub ? `budsjett (nær dublett av ${dub.opsjon}, utsatt)` : 'budsjett' });
+    // «utsatt som dublett» bare når HVER vei til opsjonen var dublett; ellers tapte den på budsjett.
+    const dubs = k.veier.map(id => utsatt.get(`${k.opsjon}#${id}`));
+    const dub = dubs.every(Boolean) ? dubs[0] : null;
+    ikkeValgt.push({ opsjon: k.opsjon, veier: k.veier, grunn: dub ? `budsjett (nær dublett av ${dub.sammenlignetMed.opsjon}, utsatt)` : 'budsjett' });
   }
   return {
-    valgt: valgt.map(({ opsjon, vei, d, rekkefølge, nytt, nærDublett }) => ({ opsjon, vei, rekkefølge, dimensjoner: d, nytt, nærDublett })),
+    valgt: valgt.map(({ opsjon, vei, d, rekkefølge, nytt, nærDublett, dublettAv }) => ({ opsjon, vei, rekkefølge, dimensjoner: d, nytt, nærDublett, ...(dublettAv ? { dublettAv } : {}) })),
     ikkeValgt, alternativeVeier,
+    // Sporbarhet: hver vei som ble utsatt som nesten-dublett, med hva den ble sammenlignet med og hvorfor.
+    utsatteVeier: [...utsatt.values()].sort((a, b) => (a.vei < b.vei ? -1 : a.vei > b.vei ? 1 : 0)),
     grunnlag: g,
     budsjett: { maks: n, brukt: valgt.length, kandidater: g.kandidater.length },
   };

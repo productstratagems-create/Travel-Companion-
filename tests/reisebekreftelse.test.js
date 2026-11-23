@@ -3,7 +3,7 @@
  * Entur via nettverksutforskeren (tests/fixtures/entur/) og syntetiske veier.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { grunnlag, tillatt, UTENFOR, velgRepresentativt, BREDDE, NÆR_DUBLETT_M } from '../src/reisebekreftelse.js';
+import { grunnlag, tillatt, UTENFOR, velgRepresentativt, BREDDE, NÆR_DUBLETT_M, NÆR_DUBLETT_REGEL } from '../src/reisebekreftelse.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { SCENARIOER, lastOpptak, avspiller } from './fixtures/entur/avspilling.js';
 
@@ -202,5 +202,85 @@ describe('delsteg 2: representativ utvelgelse', () => {
     // grådig og leksikografisk: nyhetsvektorene (i BREDDE-rekkefølge) faller aldri
     const vek = u.valgt.filter(v => !v.nærDublett).map(v => BREDDE.map(b => (v.nytt[b] ? 1 : 0)).join(''));
     expect(vek).toEqual([...vek].sort().reverse());
+  });
+});
+
+/* ------------------------------------------------------------ delsteg 2.1 */
+describe('delsteg 2.1: nesten-dublett krever samme tilgangspunkt (samlestopp)', () => {
+  // a velges først; n ligger 110 m unna på samme linjeretning og i samme område; f er 2 km unna (fyll).
+  const med = (nTilgang) => syntetiskResultat([
+    { id: 'a', dest: 'A', lat: 60, lon: 10, quay: 'Q1', parent: 'P1' },
+    { id: 'n', dest: 'N', lat: 60.001, lon: 10, ...nTilgang },
+    { id: 'f', dest: 'F', lat: 60.02, lon: 10, quay: 'Q1', parent: 'P1' },
+  ]);
+  it('samme linjeretning, område og nær destinasjon, men annet tilgangspunkt: ikke dublett', () => {
+    const u = velgRepresentativt(med({ quay: 'Q9', parent: 'P9' }), 3);
+    expect(u.utsatteVeier).toEqual([]);
+    expect(u.valgt.every(v => !v.nærDublett)).toBe(true);
+    expect(ider(u)).toContain('n');
+  });
+  it('samme tilgangspunkt og øvrige vilkår: dublett, med full sporbarhet', () => {
+    const u = velgRepresentativt(med({ quay: 'Q1', parent: 'P1' }), 2);
+    expect(ider(u)).toEqual(['a', 'f']);
+    expect(u.utsatteVeier).toEqual([{ vei: 'n', opsjon: 'destination:N', sammenlignetMed: { vei: 'a', opsjon: 'destination:A' }, tilgangspunkt: 'P1', avstandM: 111, regel: NÆR_DUBLETT_REGEL }]);
+  });
+  it('ulike plattformer ved samme StopPlace er samme tilgangspunkt', () => {
+    const u = velgRepresentativt(med({ quay: 'Q2', parent: 'P1' }), 2);
+    expect(ider(u)).toEqual(['a', 'f']);
+    expect(u.utsatteVeier.map(x => [x.vei, x.tilgangspunkt])).toEqual([['n', 'P1']]);
+  });
+  it('ukjent samlestopp likestilles aldri — ingen dublett på plattformnøkkel', () => {
+    // Begge veiene har ukjent samlestopp (samme plattformnøkkel): null = null skal IKKE gi dublett.
+    const r = med({ quay: 'Q1', parent: 'P1' });
+    for (const o of r.opsjoner) for (const t of o.accessPoints) { t.quayId = 'Q-ukjent'; t.parentId = undefined; }
+    for (const v of r.veier) v.tilgang = 'Q-ukjent|bus|L';
+    const u = velgRepresentativt(r, 3);
+    expect(u.valgt.every(v => v.dimensjoner.tilgangspunkt === null)).toBe(true);
+    expect(u.utsatteVeier).toEqual([]);
+  });
+  it('opsjon med både dublettvei og alternativ vei velges via den alternative', () => {
+    const r = syntetiskResultat([
+      { id: 'a', dest: 'A', lat: 60, lon: 10, quay: 'Q1', parent: 'P1' },
+      { id: 'n1', dest: 'N', lat: 60.001, lon: 10, quay: 'Q1', parent: 'P1' },   // dublett av a
+      { id: 'n2', dest: 'N', lat: 60.001, lon: 10, quay: 'Q9', parent: 'P9' },   // annet tilgangspunkt
+    ]);
+    const u = velgRepresentativt(r, 2);
+    expect(u.valgt.map(v => [v.opsjon, v.vei])).toEqual([['destination:A', 'a'], ['destination:N', 'n2']]);
+    expect(u.alternativeVeier).toEqual([{ opsjon: 'destination:N', vei: 'n1', grunn: 'samme opsjon undersøkes via vei n2' }]);
+    expect(u.utsatteVeier.map(x => x.vei)).toEqual(['n1']); // sporet, ikke slettet
+    expect(u.ikkeValgt).toEqual([]);
+  });
+  it('en opsjon står som «utsatt som dublett» bare når hver vei var dublett', () => {
+    const r = syntetiskResultat([
+      { id: 'a', dest: 'A', lat: 60, lon: 10, quay: 'Q1', parent: 'P1' },
+      { id: 'n1', dest: 'N', lat: 60.001, lon: 10, quay: 'Q1', parent: 'P1' },
+      { id: 'n2', dest: 'N', lat: 60.001, lon: 10, quay: 'Q9', parent: 'P9' },
+      { id: 'z', dest: 'Z', lat: 61, lon: 10, område: 'S|5–15', quay: 'Q8', parent: 'P8', modus: 'rail' },
+    ]);
+    const u = velgRepresentativt(r, 2);
+    expect(u.ikkeValgt).toEqual([{ opsjon: 'destination:N', veier: ['n1', 'n2'], grunn: 'budsjett' }]);
+  });
+  it('deterministisk uavhengig av inndatarekkefølge, også sporingen', async () => {
+    for (const n of SCENARIOER) {
+      const r = await resultat(n);
+      for (const nb of [10, 50]) {
+        const a = velgRepresentativt(r, nb);
+        const b = velgRepresentativt({ ...r, veier: [...r.veier].reverse(), opsjoner: [...r.opsjoner].reverse() }, nb);
+        expect(b.valgt).toEqual(a.valgt);
+        expect(b.utsatteVeier).toEqual(a.utsatteVeier);
+      }
+    }
+  });
+  it('alle utsatte veier i opptakene har samme tilgangspunkt som veien de ble sammenlignet med', async () => {
+    for (const n of SCENARIOER) {
+      const r = await resultat(n);
+      const u = velgRepresentativt(r, 50);
+      const valgt = new Map(u.valgt.map(v => [v.vei, v]));
+      for (const x of u.utsatteVeier) {
+        expect(valgt.get(x.sammenlignetMed.vei).dimensjoner.tilgangspunkt).toBe(x.tilgangspunkt);
+        expect(x.avstandM).toBeLessThanOrEqual(NÆR_DUBLETT_M);
+        expect(x.tilgangspunkt).toMatch(/^NSR:StopPlace:/);
+      }
+    }
   });
 });

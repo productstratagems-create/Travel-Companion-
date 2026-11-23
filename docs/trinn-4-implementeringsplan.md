@@ -1422,3 +1422,89 @@ inndataene. De sorteres nå på id.
 linjeretning alltid kommer før gjentakelse, men område går foran. Den ble
 rettet til å sjekke det rekkefølgen faktisk lover: nyhetsvektorene faller
 leksikografisk.
+
+### 4d delsteg 2.1: nesten-dublett krever samme tilgangspunkt (gjort)
+
+**Regelen (`NÆR_DUBLETT_REGEL`):** en vei er nesten-dublett av en valgt vei
+bare når *alle* vilkårene holder:
+- samme linjeretning;
+- samme område;
+- samme **tilgangspunkt**, det vil si samlestopp eller StopPlace-ID;
+- destinasjon innen 300 m.
+
+Kontrollen gjøres **per vei**.
+
+**Identifikasjonen er verifisert mot modellen [Kode].**
+- `accessPoints[].parentId` er StopPlace-ID-en tilgangen ble funnet med i
+  geokoderen, den samme som `resultat.tilgang[].id`.
+- Ulike plattformer ved samme StopPlace peker på samme ID. Mortensrud 58228
+  har 7 plattformer, og ingen plattform peker på to StopPlace.
+- Plattformnøkkelen brukes aldri.
+- Ukjent samlestopp gir `null`, og `null` likestilles aldri.
+
+**Sporbarhet:** `utsatteVeier[] = { vei, opsjon, sammenlignetMed: { vei,
+opsjon }, tilgangspunkt, avstandM, regel }`.
+- En valgt nesten-dublett bærer `dublettAv`.
+- En opsjon står som «utsatt som dublett» bare når **hver** vei var dublett.
+  Ellers tapte den på budsjett.
+- Oppdagelsesresultatet er uendret (testet).
+
+**Målt mot 2 (opptakene)**
+
+| | budsjett | utsatte før → etter | bredde (områder / linjeretninger / transportformer / tilgangspunkter) | valgte kandidater |
+|---|---|---|---|---|
+| Mortensrud | 10 | 1 → 0 | 10 / 9 / 2 / 6, uendret | uendret |
+| | 50 | 7 → 1 | 13 / 11 / 2 / 6, uendret | 4 byttet |
+| Natt | 10 | 0 → 0 | 8 / 4 / 1 / 5, uendret | uendret |
+| | 50 | 3 → 2 (8 → 0 *valgt som dublett*) | uendret | 9 byttet |
+| Nesttun | 10 | 4 → 0 | 10 / 9 / 2 / 4, uendret | uendret |
+| | 50 | 14 → 2 | 13 / 11 / 2 / 4, uendret | 7 byttet |
+| Ranheim | 10 | 1 → 1 | uendret | uendret |
+| | 50 | 6 → 6 | uendret | uendret |
+| Tretten | 10 / 50 | 0 → 0 | uendret | uendret |
+
+**Hva byttet ved budsjett 50 representerer [Observert, Tolkning]**
+- **Inn** kommer nærliggende stopp nådd via et *annet* tilgangspunkt enn den
+  valgte veien med samme linjeretning:
+  - Mortensrud: Kantarellen terrasse, Meklenborg, Dalsroa og Bratli;
+  - Nesttun: Øvsttun, Elveneset og Nøttveitlia.
+
+  Før ble de utsatt som dubletter.
+- **Ut** går destinasjoner lenger unna på linjeretninger som allerede var
+  dekket:
+  - Mortensrud: Kolsås, Oslo bussterminal og Jernbanetorget;
+  - Nesttun: Byparken, Nonneseter, Gamle Bergen og Handelshøyskolen.
+- Kandidatene som byttes, er **like på alle breddedimensjonene**, for
+  tilgangspunktet deres var allerede valgt via andre veier. Byttet avgjøres
+  derfor av **id**, ikke av bredde.
+- **Bredden målt i dimensjonene er uendret**, men utvalget er annerledes. 2.1
+  slutter å straffe alternative tilgangspunkter, slik det skal. Den gjør det
+  likevel ikke bredere: plassene som frigjøres, fylles etter id.
+- Det tilgangspunktet tilfører, er en ny *vei* til et kjent område, ikke en
+  ny dimensjonsverdi.
+- At Kolsås og Jernbanetorget (reiseavstand) erstattes av nærliggende
+  lokalstopp etter id, er et tegn på at dimensjonene ikke fanger **rekkevidde
+  innenfor et område**. Et `N|5–15`-område er stort i byen.
+
+**Tester:** 8 nye, 29 i alt.
+- annet tilgangspunkt er ikke dublett;
+- samme tilgangspunkt er dublett, med full sporing;
+- ulike plattformer ved samme StopPlace er samme tilgangspunkt;
+- ukjent samlestopp likestilles aldri;
+- en opsjon med dublettvei og alternativ vei velges via den alternative;
+- «utsatt som dublett» bare når hver vei er dublett;
+- deterministisk, også sporingen, ved budsjett 10 og 50;
+- alle utsatte veier i opptakene har samme StopPlace som veien de ble
+  sammenlignet med.
+
+**Mutasjoner:** 6 av 6 fanget:
+- tilgangspunktkravet fjernet;
+- plattformnøkkel i stedet for samlestopp;
+- ukjent samlestopp likestilles (overlevde først, og testen ble skjerpet
+  til at begge veier har ukjent samlestopp);
+- opsjonen merkes som dublett når én vei er det;
+- utsatte veier spores ikke;
+- områdekravet fjernet.
+
+**Avvik:** ingen. Prioriteringsrekkefølgen, budsjettet, identitetene og den
+øvrige utvelgelsen er uendret.

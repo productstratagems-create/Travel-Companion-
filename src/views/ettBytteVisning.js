@@ -57,9 +57,14 @@ export function ettBytteRadHtml(r, esc) {
   const ut = r.ut.slice(0, UT_VIST).join(', ') + (r.ut.length > UT_VIST ? ` +${r.ut.length - UT_VIST}` : '');
   return '<button type="button" class="eb-rad" data-eb-retning="' + esc(r.retning) + '" aria-pressed="' + (_valgt === r.retning) + '">'
     + '<div class="eb-topp"><span class="eb-retning">' + esc(r.retningNavn) + '</span>'
-    + '<span class="eb-via">via ' + esc(r.knuteNavn) + '</span></div>'
+    + '<span class="eb-via">via ' + esc(r.knuteNavn) + '</span>'
+    + (r.ytterpunkt ? '<span class="eb-lengst">helt til ' + esc(r.ytterpunkt.navn) + ' · ' + r.ytterpunkt.km + ' km</span>' : '') + '</div>'
     + '<div class="eb-linjer">' + esc(r.inn.join(' / ')) + ' → bytt til ' + esc(ut) + '</div>'
-    + '<div class="eb-steder">' + esc(r.eksempler.join(', ')) + (r.antallSteder > r.eksempler.length ? ' og ' + (r.antallSteder - r.eksempler.length) + ' steder til' : '') + '</div>'
+    + (() => {
+      // Ytterpunktet står alt i toppen («helt til …»): eksemplene er de neste.
+      const eks = r.eksempler.filter(n => !r.ytterpunkt || n !== r.ytterpunkt.navn), vist = eks.length + (r.ytterpunkt ? 1 : 0);
+      return '<div class="eb-steder">' + esc(eks.join(', ')) + (r.antallSteder > vist ? (eks.length ? ' og ' : '') + (r.antallSteder - vist) + ' steder til' : '') + '</div>';
+    })()
     + '</button>';
 }
 
@@ -129,7 +134,7 @@ export function ettBytteKartData(pos) {
     valgt,
     retninger: _tilstand.svar.rader.map(r => ({
       retning: r.retning, retningNavn: r.retningNavn, knuteNavn: r.knuteNavn, etikett: r.retningNavn + ' · via ' + r.knuteNavn,
-      knute: r.knuteLL, antall: r.antallSteder, steder: spredt(r.punkter, r.retning === valgt ? KART_STEDER_VALGT : KART_STEDER),
+      knute: r.knuteLL, antall: r.antallSteder, ytterpunkt: r.ytterpunkt, steder: spredt(r.punkter, r.retning === valgt ? KART_STEDER_VALGT : KART_STEDER),
       // Fremhev, ikke skjul: de andre retningene står, dempet.
       dempet: !!valgt && r.retning !== valgt,
     })),
@@ -256,6 +261,13 @@ export function ettBytteKart(map, L, { aktiv, pos, ferdig, ramme: rammeInn = (b,
   if (!rammet) { _kart.rammet = tema; rammeInn(ramme, { ...RAMME_VALG }); }
   // Stedene til det valgte kortet — under boblene, så knutepunktet ligger øverst.
   for (const s of valgteSteder) L.circleMarker([s.lat, s.lon], { className: 'eb-kart-sted', radius: 4, weight: 1.5 }).bindTooltip(s.navn).addTo(lag);
+  // Lengst du kommer: ytterpunktet i den valgte retningen får navnet sitt (det kan ligge utenfor rammen).
+  const valgtRad = data.valgt && data.retninger.find(r => r.retning === data.valgt);
+  const yp = valgtRad && valgtRad.ytterpunkt;
+  if (yp) {
+    L.circleMarker([yp.lat, yp.lon], { className: 'eb-kart-ytter', radius: 5, weight: 2 }).addTo(lag);
+    L.marker([yp.lat, yp.lon], { icon: L.divIcon({ className: 'eb-kart-ytteretikett', html: '<span style="transform:translate(-50%,8px)">' + esc(yp.navn + ' · ' + yp.km + ' km') + '</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: 900 }).addTo(lag);
+  }
   // Boblene: de dempede først, størst under minst, så små ikke skjules av store.
   const px = map.latLngToContainerPoint ? k => map.latLngToContainerPoint(k.fra) : null;
   const nivåFor = plasserNavn([...knuter.values()], px, k => bobleRadius(k.antall, maks));

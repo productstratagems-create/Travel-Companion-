@@ -17,6 +17,17 @@ export const RETNING_NAVN = Object.freeze({ N: 'nord', NØ: 'nordøst', Ø: 'øs
 /** Høyst så mange eksempelsteder per rad. */
 export const EKSEMPLER = 3;
 
+/**
+ * LENGST DU KOMMER (forslag 1): det fjerneste stedet i retningen, med avstand
+ * i hele km. `punkter` er sortert lengst unna først (ettByttePerRetning), så
+ * det er det første. null uten steder eller posisjon.
+ */
+export function ytterpunkt(punkter, posisjon) {
+  const p = punkter && punkter[0];
+  if (!p || !posisjon) return null;
+  return { navn: p.navn, lat: p.lat, lon: p.lon, km: Math.round(metresBetween(posisjon, p) / 1000) };
+}
+
 const linje = (resultat, dir) => {
   const g = resultat.grupper && resultat.grupper.linjeretning && resultat.grupper.linjeretning[dir];
   return g ? { kode: g.kode || '?', modus: g.modus || null } : { kode: '?', modus: null };
@@ -57,13 +68,15 @@ export function ettByttePerRetning(resultat, posisjon) {
     const navn = []; for (const x of steder) if (navn.length < EKSEMPLER && !navn.includes(x.navn)) navn.push(x.navn);
     // Knutepunktet er selv et sted ledd 1 når; koordinatene står der. Mangler de, tegnes ingen knute.
     const ko = opsjoner.get('destination:' + knute), kd = ko && ko.destinations && ko.destinations[0];
+    const punkter = steder.filter(x => Number.isFinite(x.lat)).map(({ navn: n, lat, lon }) => ({ navn: n, lat, lon }));
     rader.push({
       retning: sektor, retningNavn: RETNING_NAVN[sektor], knute, knuteNavn: knNavn.get(knute) || knute,
       inn: [...g.inn.values()].map(linjeTekst).sort(), ut: [...g.ut.values()].map(linjeTekst).sort(),
       eksempler: navn, antallSteder: g.dest.size, sjekket: false,
       // For kartet (src/views/ettBytteVisning.js): knutepunktet og stedene, lengst unna først.
       knuteLL: kd && Number.isFinite(kd.lat) ? { lat: kd.lat, lon: kd.lon } : null,
-      punkter: steder.filter(x => Number.isFinite(x.lat)).map(({ navn: n, lat, lon }) => ({ navn: n, lat, lon })),
+      punkter,
+      ytterpunkt: ytterpunkt(punkter, posisjon),
     });
   }
   return { rader, ingen: rader.length === 0, grunnlag: 'mulig med ett bytte — ikke sjekket mot reisesøket, og byttet er ikke tidskontrollert' };

@@ -313,6 +313,16 @@ Et nytt svar på samme sted flytter ikke kartet. Rører du kartet, er det ditt.
 Tavla regner kartet som «justert» mens laget vises, og får tilbake din egen
 tilstand når valget går av, så en justering du gjorde før, ikke slettes.
 
+### Lengst du kommer (v1.218.294, forslag 1)
+
+Hvert kort sier hvor langt retningen når: «helt til Lillehammer stasjon ·
+142 km». Det er det fjerneste stedet i retningen (`ytterpunkt` i
+`src/ettBytte.js`), og avstanden er luftlinje i hele km.
+- Eksempelstedene under er de *neste*. Ytterpunktet gjentas ikke, og «og N
+  steder til» regner det med.
+- Med kortet valgt får ytterpunktet en egen prikk og navnelapp i kartet, også
+  når det ligger utenfor rammen.
+
 ### Knutepunktene som bobler (v1.218.292)
 
 Strekene fra knutepunkt til sted er fjernet. Knutepunktene **veies mot

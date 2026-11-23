@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ettByttePerRetning, RETNINGER } from '../src/ettBytte.js';
+import { ettByttePerRetning, RETNINGER, ytterpunkt } from '../src/ettBytte.js';
 import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, plasserNavn, navnRekt, NAVN_NIVÅER, NAVN_PLASSER, velgRetning, valgtRetning, KART_STEDER_VALGT } from '../src/views/ettBytteVisning.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { metresBetween } from '../src/haversine.js';
@@ -53,6 +53,39 @@ describe('ett bytte: rader per himmelretning (ren)', () => {
     expect(e.grunnlag).toMatch(/ikke sjekket/);
     expect(e.grunnlag).toMatch(/ikke tidskontrollert/);
     for (const r of e.rader) { expect(r.sjekket).toBe(false); expect(Object.keys(r)).not.toEqual(expect.arrayContaining(['min', 'reisetid', 'avgang'])); }
+  });
+});
+
+describe('ett bytte: lengst du kommer (forslag 1)', () => {
+  it('ytterpunktet er det fjerneste stedet i retningen, i hele km', async () => {
+    const pos = O.mortensrud_dag.scenario.posisjon;
+    const { rader } = ettByttePerRetning(await res('mortensrud_dag'), pos);
+    for (const r of rader) {
+      const km = r.punkter.map(p => metresBetween(pos, p) / 1000);
+      expect(r.ytterpunkt.km).toBe(Math.round(Math.max(...km)));
+      expect(r.ytterpunkt.navn).toBe(r.punkter[km.indexOf(Math.max(...km))].navn);
+    }
+    expect(ytterpunkt([], pos)).toBeNull();
+    expect(ytterpunkt([{ navn: 'x', lat: 1, lon: 1 }], null)).toBeNull();
+  });
+  it('kortet sier «helt til X · N km»; valgt kort gir ytterpunktet en navnelapp i kartet', async () => {
+    const pos = O.mortensrud_dag.scenario.posisjon;
+    const hent = avspiller(O.mortensrud_dag).hent, nå = Date.parse(O.mortensrud_dag.scenario.tid);
+    ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} }); await new Promise(r => setTimeout(r, 50));
+    const nø = ettByttePerRetning(await res('mortensrud_dag'), pos).rader.find(r => r.retning === 'NØ');
+    expect(ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} })).toContain('helt til ' + esc(nø.ytterpunkt.navn) + ' · ' + nø.ytterpunkt.km + ' km');
+    // Ytterpunktet gjentas ikke blant eksemplene, og tellingen regner det med.
+    const kort = ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} }).split('data-eb-retning="NØ"')[1].split('</button>')[0];
+    const steder = kort.split('class="eb-steder">')[1].split('</div>')[0];
+    expect(steder).not.toContain(esc(nø.ytterpunkt.navn));
+    const vist = nø.eksempler.filter(n => n !== nø.ytterpunkt.navn).length + 1;
+    expect(steder).toContain((nø.antallSteder - vist) + ' steder til');
+    velgRetning('NØ');
+    const f = falskL();
+    ettBytteKart(f.map, f.L, { aktiv: true, pos, ramme: () => {} });
+    const lapper = f.lagt[0].ting.filter(t => t.o && t.o.icon && /eb-kart-ytteretikett/.test(t.o.icon.className));
+    expect(lapper).toHaveLength(1);
+    expect(lapper[0].ll).toEqual([nø.ytterpunkt.lat, nø.ytterpunkt.lon]);
   });
 });
 

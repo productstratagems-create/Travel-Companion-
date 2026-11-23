@@ -52,13 +52,18 @@ export function ettByttePerRetning(resultat, posisjon) {
     if (!s) continue;
     const [knute, g] = [...s.entries()].sort(([ka, a], [kb, b]) => b.områder.size - a.områder.size || b.dest.size - a.dest.size || (ka < kb ? -1 : 1))[0];
     const steder = [...g.dest].map(id => opsjoner.get(id)).filter(o => o && o.destinations && o.destinations[0])
-      .map(o => ({ navn: o.label || o.destinations[0].name, m: posisjon ? metresBetween(posisjon, o.destinations[0]) : 0 }))
+      .map(o => ({ navn: o.label || o.destinations[0].name, lat: o.destinations[0].lat, lon: o.destinations[0].lon, m: posisjon ? metresBetween(posisjon, o.destinations[0]) : 0 }))
       .sort((a, b) => b.m - a.m || (a.navn < b.navn ? -1 : 1));
     const navn = []; for (const x of steder) if (navn.length < EKSEMPLER && !navn.includes(x.navn)) navn.push(x.navn);
+    // Knutepunktet er selv et sted ledd 1 når; koordinatene står der. Mangler de, tegnes ingen knute.
+    const ko = opsjoner.get('destination:' + knute), kd = ko && ko.destinations && ko.destinations[0];
     rader.push({
       retning: sektor, retningNavn: RETNING_NAVN[sektor], knute, knuteNavn: knNavn.get(knute) || knute,
       inn: [...g.inn.values()].map(linjeTekst).sort(), ut: [...g.ut.values()].map(linjeTekst).sort(),
       eksempler: navn, antallSteder: g.dest.size, sjekket: false,
+      // For kartet (src/views/ettBytteVisning.js): knutepunktet og stedene, lengst unna først.
+      knuteLL: kd && Number.isFinite(kd.lat) ? { lat: kd.lat, lon: kd.lon } : null,
+      punkter: steder.filter(x => Number.isFinite(x.lat)).map(({ navn: n, lat, lon }) => ({ navn: n, lat, lon })),
     });
   }
   return { rader, ingen: rader.length === 0, grunnlag: 'mulig med ett bytte — ikke sjekket mot reisesøket, og byttet er ikke tidskontrollert' };

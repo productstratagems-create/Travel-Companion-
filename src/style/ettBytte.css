@@ -5,3 +5,11 @@
 #v-auto .eb-via{color:var(--text-muted);font-size:.85rem}
 #v-auto .eb-linjer{font-size:.85rem}
 #v-auto .eb-steder{font-size:.8rem;color:var(--text-muted)}
+
+/* Kartlaget (src/views/ettBytteVisning.js, ettBytteKart). */
+.eb-kart-inn { stroke: var(--text-muted); stroke-opacity: .7; fill: none; }
+.eb-kart-ut { stroke: var(--accent, #2a7de1); stroke-opacity: .35; fill: none; }
+.eb-kart-sted { stroke: var(--accent, #2a7de1); fill: rgb(var(--bg-rgb)); fill-opacity: 1; }
+.eb-kart-knute { stroke: var(--accent, #2a7de1); fill: rgb(var(--bg-rgb)); fill-opacity: 1; }
+.leaflet-tooltip.eb-kart-etikett { font-size: 12px; font-weight: 600; padding: 1px 6px; }
+.eb-kart-deg { stroke: rgb(var(--bg-rgb)); fill: #2a7de1; fill-opacity: 1; }

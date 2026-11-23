@@ -5,8 +5,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ettByttePerRetning, RETNINGER } from '../src/ettBytte.js';
-import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST } from '../src/views/ettBytteVisning.js';
+import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, samleEtiketter, ETIKETT_PX } from '../src/views/ettBytteVisning.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
+import { metresBetween } from '../src/haversine.js';
 import { AT_RETNINGER } from '../src/views/auto.js';
 import { SCENARIOER, lastOpptak, avspiller } from './fixtures/entur/avspilling.js';
 
@@ -85,11 +86,151 @@ describe('ett bytte: visningen', () => {
   });
 });
 
+// Et minimalt Leaflet: teller lag, tooltips og innramminger.
+const falskL = () => {
+  const lagt = [], rammer = [];
+  const lag = () => ({ ting: [], addTo(m) { (m.ting || lagt).push(this); return this; }, clearLayers() { this.ting.length = 0; } });
+  const L = {
+    layerGroup: () => { const g = lag(); g.addTo = m => { lagt.push(g); return g; }; return g; },
+    polyline: (ll, o) => ({ ll, o, addTo(g) { g.ting.push(this); return this; } }),
+    circleMarker: (ll, o) => ({ ll, o, bindTooltip(t, to) { this.t = t; this.to = to; return this; }, addTo(g) { g.ting.push(this); return this; } }),
+  };
+  const map = { fitBounds: (b, o) => rammer.push({ b, o }), removeLayer: g => { lagt.splice(lagt.indexOf(g), 1); } };
+  return { L, map, lagt, rammer };
+};
+
+describe('ett bytte: kartet', () => {
+  const pos = O.mortensrud_dag.scenario.posisjon;
+  const hent = avspiller(O.mortensrud_dag).hent;
+  const nå = Date.parse(O.mortensrud_dag.scenario.tid);
+  const klar = async () => { ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} }); await new Promise(r => setTimeout(r, 50)); };
+
+  it('ingenting tegnes før svaret er kommet', () => {
+    ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} });
+    expect(ettBytteKartData(pos)).toBeNull();
+  });
+  it('én knute per retning med navn, steder med koordinater, høyst KART_STEDER', async () => {
+    await klar();
+    const d = ettBytteKartData(pos);
+    const rader = ettByttePerRetning(await res('mortensrud_dag'), pos).rader;
+    expect(d.retninger.map(r => r.retning)).toEqual(rader.map(r => r.retning));
+    const nø = d.retninger.find(r => r.retning === 'NØ');
+    expect(nø.etikett).toBe('nordøst · via Helsfyr');
+    expect(nø.knute.lat).toBeCloseTo(59.913, 2);
+    for (const r of d.retninger) {
+      expect(r.steder.length).toBeGreaterThan(0);
+      expect(r.steder.length).toBeLessThanOrEqual(KART_STEDER);
+      expect(r.steder.every(s => Number.isFinite(s.lat) && Number.isFinite(s.lon))).toBe(true);
+    }
+  });
+  it('tegner, rammer inn én gang, og fjerner laget og gir kartet tilbake når valget går av', async () => {
+    await klar();
+    const { L, map, lagt, rammer } = falskL();
+    let tilbake = 0;
+    ettBytteKart(map, L, { aktiv: true, pos, ferdig: () => tilbake++ });
+    expect(lagt).toHaveLength(1);
+    const knuter = lagt[0].ting.filter(t => t.o.className === 'eb-kart-knute');
+    // Én prikk og én etikett per knutepunkt, selv om det bærer flere retninger.
+    const unike = new Set(ettBytteKartData(pos).retninger.filter(r => r.knute).map(r => r.knute.lat + ',' + r.knute.lon));
+    expect(unike.size).toBeLessThan(ettBytteKartData(pos).retninger.length); // Mortensrud: bussterminalen bærer flere
+    expect(knuter.length).toBe(unike.size);
+    expect(new Set(knuter.map(k => k.t)).size).toBe(knuter.length);
+    expect(knuter.every(k => k.to.permanent)).toBe(true);
+    expect(rammer).toHaveLength(1);
+    ettBytteKart(map, L, { aktiv: true, pos, ferdig: () => tilbake++ }); // ny tegning av tavla: samme lag, ingen ny ramme
+    expect(lagt).toHaveLength(1);
+    expect(rammer).toHaveLength(1);
+    ettBytteKart(map, L, { aktiv: false, pos, ferdig: () => tilbake++ });
+    expect(lagt).toHaveLength(0);
+    expect(tilbake).toBe(1);
+    ettBytteKart(map, L, { aktiv: false, pos, ferdig: () => tilbake++ }); // av og av: ingen ny innramming av tavla
+    expect(tilbake).toBe(1);
+  });
+  it('ny tegning av tavla tegner ikke om; nytt svar på samme sted flytter ikke kartet', async () => {
+    await klar();
+    const { L, map, lagt, rammer } = falskL();
+    ettBytteKart(map, L, { aktiv: true, pos });
+    const første = lagt[0].ting[0];
+    ettBytteKart(map, L, { aktiv: true, pos });
+    expect(lagt[0].ting[0]).toBe(første);
+    // Ti minutter senere: nytt svar, samme sted. Laget tegnes på nytt, rammen står.
+    ettBytteHtml(pos, { esc, hent, nå: nå + 11 * 60_000, rerender: () => {} });
+    await new Promise(r => setTimeout(r, 50));
+    ettBytteKart(map, L, { aktiv: true, pos });
+    expect(lagt[0].ting[0]).not.toBe(første);
+    expect(rammer).toHaveLength(1);
+  });
+  it('rammen er deg, knutepunktene og de nærmeste stedene — Måløy peker ut av kartet', async () => {
+    await klar();
+    const { L, map } = falskL();
+    let b = null;
+    ettBytteKart(map, L, { aktiv: true, pos, ramme: x => { b = x; } });
+    const d = ettBytteKartData(pos);
+    const knuter = new Set(d.retninger.filter(r => r.knute).map(r => r.knute.lat + ',' + r.knute.lon));
+    expect(b.length).toBeGreaterThan(1 + knuter.size); // og noen nære steder
+    expect(b.length).toBeLessThanOrEqual(1 + knuter.size + d.retninger.length * RAMME_NÆRMESTE);
+    const lengst = d.retninger.flatMap(r => r.steder.slice(0, 1));
+    const iRamme = new Set(b.map(p => p.join(',')));
+    expect(lengst.some(s => !iRamme.has(s.lat + ',' + s.lon))).toBe(true);
+    // Alle knutepunktene er med (Oslo lufthavn også); alt annet ligger innenfor grensen.
+    const kn = [...knuter].map(k => k.split(',').map(Number));
+    for (const k of kn) expect(iRamme.has(k.join(','))).toBe(true);
+    const g = rammeGrense(pos, kn.map(([lat, lon]) => ({ lat, lon })));
+    expect(g).toBeLessThan(40_000); // ikke dratt med av lufthavna
+    const andre = b.filter(p => !knuter.has(p.join(',')));
+    expect(andre.every(([lat, lon]) => metresBetween(pos, { lat, lon }) <= g)).toBe(true);
+  });
+  it('rammegrensen: median, ikke maks, og aldri under gulvet', () => {
+    const p = { lat: 60, lon: 10 }, nord = km => ({ lat: 60 + km / 111.2, lon: 10 });
+    expect(rammeGrense(p, [])).toBe(RAMME_MIN_M);
+    expect(rammeGrense(p, [nord(1)])).toBe(RAMME_MIN_M);
+    expect(rammeGrense(p, [nord(5), nord(6), nord(40)]) / 1000).toBeCloseTo(12, 0);
+    expect(rammeGrense(p, [nord(30), nord(50)]) / 1000).toBeCloseTo(80, 0); // bygd: stor ramme
+  });
+  it('etiketter: knuter tett på skjermen deler én, flest retninger bærer den', () => {
+    const k = (navn, x, n) => ({ navn, x, retninger: Array(n).fill('r') });
+    const px = q => ({ x: q.x, y: 0 });
+    const g = samleEtiketter([k('Helsfyr', 30, 1), k('Oslo bussterminal', 0, 4), k('Nationaltheatret', 20, 1), k('Lufthavn', 400, 1)], px);
+    expect(g.map(x => x.etikett)).toEqual(['Oslo bussterminal · Helsfyr · Nationaltheatret', 'Lufthavn']);
+    expect(g[0].bærer.navn).toBe('Oslo bussterminal');
+    expect(g[0].andre.map(x => x.navn)).toEqual(['Helsfyr', 'Nationaltheatret']);
+    // Akkurat på grensen er for langt unna.
+    expect(samleEtiketter([k('A', 0, 2), k('B', ETIKETT_PX, 1)], px)).toHaveLength(2);
+    // Uten projeksjon: hver knute sin etikett.
+    expect(samleEtiketter([k('A', 0, 2), k('B', 1, 1)], null)).toHaveLength(2);
+  });
+  it('du står selv på kartet mens laget vises', async () => {
+    await klar();
+    const { L, map, lagt } = falskL();
+    ettBytteKart(map, L, { aktiv: true, pos });
+    const deg = lagt[0].ting.filter(t => t.o && t.o.className === 'eb-kart-deg');
+    expect(deg).toHaveLength(1);
+    expect(deg[0].ll).toEqual([pos.lat, pos.lon]);
+  });
+  it('stedene på kartet spenner fra lengst unna til nærmest', async () => {
+    await klar();
+    const d = ettBytteKartData(pos);
+    const rader = ettByttePerRetning(await res('mortensrud_dag'), pos).rader;
+    for (const r of d.retninger) {
+      const alle = rader.find(x => x.retning === r.retning).punkter;
+      expect(r.steder[0]).toEqual(alle[0]);
+      expect(r.steder[r.steder.length - 1]).toEqual(alle[alle.length - 1]);
+    }
+  });
+  it('uten valget eller uten kart gjør laget ingenting', async () => {
+    await klar();
+    const { L, map, lagt } = falskL();
+    ettBytteKart(map, L, { aktiv: false, pos });
+    ettBytteKart(null, L, { aktiv: true, pos });
+    expect(lagt).toHaveLength(0);
+  });
+});
+
 describe('ett bytte: isolert og lett å rulle tilbake', () => {
   const a = readFileSync('src/views/auto.js', 'utf8');
-  it('alle krokene i auto.js er merket, og det er bare fem', () => {
+  it('alle krokene i auto.js er merket, og det er bare seks (fem for lista, én for kartet)', () => {
     const linjer = a.split('\n').filter(l => /ETT_BYTTE|ettBytte/.test(l));
-    expect(linjer.length).toBe(5);
+    expect(linjer.length).toBe(6);
     expect(linjer.every(l => /ETT BYTTE \(eksperiment\)/.test(l))).toBe(true);
   });
   it('valget huskes ikke: etter omlasting står tavla på et kjent valg', () => {

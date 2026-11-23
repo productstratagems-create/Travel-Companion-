@@ -63,7 +63,7 @@ import { erInnstilt } from '../innstilt.js';
 import { canCatch, catchable } from '../reiseberegning.js';
 import { gårMotSentrum, hjemoverDom, iSnarvei, SNARVEIER, MOT_SENTRUM } from '../reiseoppgaver.js';
 import { andreRetninger, områderFor, iOmråde, erOmrådeValg } from '../mulighetsoppdagelse.js';
-import { ETT_BYTTE, ETT_BYTTE_VALG, ETT_BYTTE_TEKST, ettBytteHtml } from './ettBytteVisning.js'; // ETT BYTTE (eksperiment)
+import { ETT_BYTTE, ETT_BYTTE_VALG, ETT_BYTTE_TEKST, ettBytteHtml, ettBytteKart } from './ettBytteVisning.js'; // ETT BYTTE (eksperiment)
 import { plattformTekst } from '../bytte.js';
 import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, stoppFram, vedOgNeste, stoppEtterId, rangerKandidater } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
@@ -6239,6 +6239,7 @@ function _tegnAutoTavle(body) {
       })() + '</div>' + ikkeHtml + bunn
     : merknad + hjemMerk + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : (_atRetning !== 'alle' ? 'ingen avganger ' + _retningTekst(_atRetning) + ' herfra nå' : 'ingen avganger herfra den nærmeste timen')) + '</div>');
   body.querySelectorAll('.at-raskest[data-pin]').forEach(b => b.addEventListener('click', () => { if (pinStop(b.dataset.pin)) _renderBody(); }));
+  if (ETT_BYTTE) ettBytteKart(_aMap, L, { aktiv: _atRetning === ETT_BYTTE_VALG, pos: here, ramme: (b, o) => { if (!('_ebFør' in _aMap)) _aMap._ebFør = _aUserMoved; _aUserMoved = true; _aMap.removeLayer(_aLayer); _aMap.fitBounds(b, o); }, ferdig: () => { if (!_aMap) return; if (!_aMap.hasLayer(_aLayer)) _aLayer.addTo(_aMap); if ('_ebFør' in _aMap) { _aUserMoved = _aMap._ebFør; delete _aMap._ebFør; } _aFitKey = ''; _aKey = ''; _renderMap(); } }); // ETT BYTTE (eksperiment)
   body.querySelectorAll('.at-retning [data-retning]').forEach(b => b.addEventListener('click', () => {
     if (_hjemHold.brukt) { _hjemHold.brukt = false; return; }   // langt trykk er ikke et valg
     // Uten stopp valgt er hjemover et spørsmål: hva er hjem? Svaret står i innstillinger.

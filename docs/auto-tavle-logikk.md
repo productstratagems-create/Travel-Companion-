@@ -285,10 +285,41 @@ byttet er ikke tidskontrollert».
 | ingen treff | «fant ingen bytter herfra nå — det betyr ikke at det ikke finnes» |
 
 **Valget huskes ikke.** Etter omlasting står tavla på et kjent valg. Avgangslista,
-kartet, «mot sentrum», «hjemover» og målområdene er uendret.
+«mot sentrum», «hjemover» og målområdene er uendret.
+
+### Kartet (v1.218.290)
+
+Når svaret er kommet, viser kartet det samme som radene
+(`ettBytteKart` i `src/views/ettBytteVisning.js`, eget Leaflet-lag):
+
+- **deg** som fylt prikk, og en stiplet strek til hvert **knutepunkt** (ring);
+- fra knutepunktet en tynn strek til hvert **sted** du når derfra. Høyst 8
+  steder per retning (`KART_STEDER`), jevnt fordelt fra lengst unna til
+  nærmest (`spredt`), så både nærområdet og rekkevidden vises;
+- strekene er **skjematiske** — rette linjer, ikke traséer.
+
+**Ett tema** (`docs/kartregler.md`): tavlas eget lag (stopp, linjer, lapper)
+skjules mens «ett bytte» vises, og kommer tilbake når valget går av.
+
+**Rammen**, én gang per sted mens valget står:
+- deg, alle knutepunktene og de 3 nærmeste stedene per retning
+  (`RAMME_NÆRMESTE`);
+- et sted tas bare med innenfor `rammeGrense`: 2 × medianavstanden til
+  knutepunktene, minst 5 km. Det skalerer med stedet, men ett fjernt
+  knutepunkt (Oslo lufthavn) drar ikke med seg Lesja. Langdistanse peker ut
+  av kartet som retninger.
+
+Et nytt svar på samme sted flytter ikke kartet. Rører du kartet, er det ditt.
+Tavla regner kartet som «justert» mens laget vises, og får tilbake din egen
+tilstand når valget går av, så en justering du gjorde før, ikke slettes.
+
+**Etiketter:** knutepunkter som står nærmere hverandre enn 48 px på skjermen,
+deler én etikett («Oslo bussterminal · Helsfyr · Nationaltheatret»).
+Knutepunktet med flest retninger bærer den (`samleEtiketter`). Etikettene
+regnes ut ved innrammingen, ikke på nytt når du zoomer.
 
 **Tilbakerulling:** sett `ETT_BYTTE = false` i
 `src/views/ettBytteVisning.js`. Alternativt fjerner du de to modulene,
-`src/style/ettBytte.css` og de fem linjene merket «ETT BYTTE (eksperiment)» i
-`src/views/auto.js`. Testen `tests/ettBytte.test.js` binder at det er nøyaktig
-fem slike linjer.
+`src/style/ettBytte.css` og de seks linjene merket «ETT BYTTE (eksperiment)» i
+`src/views/auto.js` (fem for lista, én for kartet). Testen
+`tests/ettBytte.test.js` binder at det er nøyaktig seks slike linjer.

@@ -34,7 +34,7 @@ let _gangTreLogg = '';
 /** Felles startpunkt (v1.218.208): første punkt på ruta til hovedstoppet —
  *  der rutetjenesten alt satte deg på veien — så alle ruter starter på samme vei. */
 function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f ? (Array.isArray(f) ? { lat: f[0], lon: f[1] } : f) : userLL(); }
-import { reiseRader, kombiRader, kombiKall } from '../reiseTil.js';
+import { reiseRader, kombiRader, kombiKall, besteFraReiser } from '../reiseTil.js';
 import { fraMerke } from '../ui/tavleRad.js';
 import { roPunkt } from '../roPunkt.js';
 import { velgSpørsmål, besvartIDag, merkBesvart } from '../sporsmal.js';
@@ -2833,8 +2833,19 @@ function _renderWhere() {
   if (!_stopPinned && !picked.changed && _stop && _dirs && _dirs.length && !vedStoppet) {
     const gangId = id => { const s = list.find(x => x.id === id); const g = s && gangTil(s); return g ? g.mins : null; };
     const straks = _hurtigStraks; _hurtigStraks = false;
-    _listeRo = listeStoppRo(_listeRo, listeStoppKandidat(_iRetning(_dirs, nåW), _stop.id, gangId, nåW), _stop.id, nåW, straks);
-    if (_listeRo.bytt) {
+    // SOM ENTUR (v1.218.278): finnes reisesøket for retningen, er påstigningen
+    // på reisen som er tidligst framme det beste stoppet — ikke den med flest
+    // avganger. Telleregelen er reserven (hjemover, alle, uten svar).
+    const kv = _autoTavle && _atRetning !== 'alle' && _atRetning !== 'hjem' ? _kombi.get(_stop.id + '|' + _atRetning) : null;
+    const viaReise = kv && Array.isArray(kv.tps) ? besteFraReiser(kv.tps, nåW) : null;
+    const kandidat = viaReise && list.some(x => x.id === viaReise.id)
+      ? (viaReise.id === _stop.id ? null : { id: viaReise.id, antall: Infinity, eget: 0 })
+      : (viaReise ? null : listeStoppKandidat(_iRetning(_dirs, nåW), _stop.id, gangId, nåW));
+    // Etter et trykk: venter reisesøket ennå, vent med svaret (ikke tell først
+    // og rett opp etterpå — det ville gitt to bytter).
+    if (straks && kv && kv.tps === 'henter') { _hurtigStraks = true; }
+    else _listeRo = listeStoppRo(_listeRo, kandidat, _stop.id, nåW, straks);
+    if (_listeRo && _listeRo.bytt) {
       const ny = list.find(x => x.id === _listeRo.bytt);
       _listeRo = { ...(_listeRo), bytt: null, sistByttet: nåW };
       if (ny) { logMsg('stopp etter lista: ' + _stop.name + ' → ' + ny.name); _stop = ny; _listeValgt = ny.id; picked.changed = true; }

@@ -97,3 +97,28 @@ export function kombiKall(r) {
     _målKjent: false };
   return c;
 }
+
+/**
+ * BESTE PÅSTIGNING SLIK ENTUR REGNER DEN (v1.218.278). Rapportert fra
+ * Trondheim: appen sa «beste stopp mot sentrum: Hansensvingen · 17 min å gå»,
+ * Entur sa Stibakken eller Saksevik. Appen talte avganger; Entur velger
+ * påstigningen på reisen som er tidligst framme, gangen medregnet. Blant
+ * reisene du rekker: tidligst ankomst, så minst gange. Ren.
+ * @returns {{ id, name, lat, lon, ank }|null}
+ */
+export function besteFraReiser(tps, nå) {
+  let best = null;
+  for (const tp of tps || []) {
+    const legs = (tp && tp.legs) || [];
+    const kol = legs.filter(l => l && l.mode && l.mode !== 'foot');
+    if (!kol.length) continue;
+    const s0 = start(legs[0]), ank = slutt(legs[legs.length - 1]);
+    if (!Number.isFinite(s0) || !Number.isFinite(ank) || s0 < nå - 60000) continue;
+    const gang = legs.filter(l => l.mode === 'foot').reduce((m, l) => m + Math.max(0, (slutt(l) - start(l)) || 0), 0);
+    const f = kol[0].fromPlace || {};
+    const id = (f.quay && f.quay.stopPlace && f.quay.stopPlace.id) || (f.stopPlace && f.stopPlace.id) || null;
+    if (!id) continue;
+    if (!best || ank < best.ank || (ank === best.ank && gang < best.gang)) best = { id, name: f.name || '', lat: f.latitude, lon: f.longitude, ank, gang };
+  }
+  return best ? { id: best.id, name: best.name, lat: best.lat, lon: best.lon, ank: best.ank } : null;
+}

@@ -38,3 +38,6 @@
 #v-auto .eb-typer{color:var(--text);font-weight:600}
 .eb-kart-sted.eb-kart-tog { fill: var(--accent, #2a7de1); fill-opacity: .85; }
 .eb-kart-sted.eb-kart-bat { fill: #1aa3a3; stroke: #1aa3a3; fill-opacity: .85; }
+
+/* Hvor ofte det går (forslag 4). */
+#v-auto .eb-frekvens{color:var(--text-muted);font-size:.78rem;white-space:nowrap}

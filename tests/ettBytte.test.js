@@ -4,7 +4,8 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ettByttePerRetning, RETNINGER, ytterpunkt, stedstypeTelling, velgStedstype, STEDSTYPE_REKKE, kommunerI, KOMMUNE_DEKNING } from '../src/ettBytte.js';
+import { ettByttePerRetning, RETNINGER, ytterpunkt, stedstypeTelling, velgStedstype, STEDSTYPE_REKKE, kommunerI, KOMMUNE_DEKNING, frekvensMin, frekvensTekst, SAMME_TUR_MIN } from '../src/ettBytte.js';
+import { PARAMETRE } from '../src/nettverksutforsker.js';
 import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, plasserNavn, navnRekt, NAVN_NIVÅER, NAVN_PLASSER, velgRetning, valgtRetning, KART_STEDER_VALGT } from '../src/views/ettBytteVisning.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { metresBetween } from '../src/haversine.js';
@@ -140,6 +141,12 @@ describe('ett bytte: kommuner, ikke stopp (forslag 3)', () => {
     expect(kommunerI([p('a'), p('b'), p('c'), p('d'), p('e')], k, 'Oslo')).toEqual(['Lillehammer', 'Ringsaker', 'Lillestrøm']);
     expect(kommunerI([p('d')], k, 'Oslo')).toEqual([]); // bare egen kommune
   });
+  it('kortet: «og 1 kommune til», «og 2 kommuner til»', () => {
+    const rad = n => ({ retning: 'N', retningNavn: 'nord', knuteNavn: 'K', inn: ['1'], ut: ['2'], eksempler: [], antallSteder: n, punkter: Array.from({ length: n }, (_, i) => p('s' + i)), ytterpunkt: null, typer: '' });
+    const kom = n => ({ kommuneAv: new Map(Array.from({ length: n }, (_, i) => ['s' + i, 'K' + i])), hjemme: 'Oslo' });
+    expect(ettBytteRadHtml(rad(4), esc, kom(4))).toContain('K0, K1, K2 og 1 kommune til');
+    expect(ettBytteRadHtml(rad(5), esc, kom(5))).toContain('K0, K1, K2 og 2 kommuner til');
+  });
   it('for lite kommunedata gir null — da står stoppene som før', () => {
     const k = new Map([['a', 'Lillehammer']]);
     const n = Math.ceil(1 / (KOMMUNE_DEKNING - 0.01));
@@ -177,6 +184,69 @@ describe('ett bytte: kommuner, ikke stopp (forslag 3)', () => {
     const uten = ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} });
     expect(uten).toMatch(/steder til/);
     expect(uten).not.toMatch(/kommuner til/);
+  });
+});
+
+describe('ett bytte: hvor ofte det går (forslag 4)', () => {
+  const t = min => new Date(Date.UTC(2026, 10, 24, 11, 0) + min * 60000).toISOString();
+  it('median av avstanden mellom ulike avganger; samme tur ved to plattformer er én', () => {
+    expect(frekvensMin([t(0), t(10), t(20)])).toBe(10);
+    expect(frekvensMin([t(20), t(0), t(10)])).toBe(10);                 // rekkefølgen spiller ingen rolle
+    expect(frekvensMin([t(0), t(1), t(10), t(11)])).toBe(10);           // samme tur, to plattformer
+    expect(frekvensMin([t(0), t(SAMME_TUR_MIN), t(15)])).toBe(2);       // akkurat på grensen er to turer
+    expect(frekvensMin([t(0)])).toBe(Infinity);
+    expect(frekvensMin([])).toBeNull();
+  });
+  it('lesbart og med «ca.»; én avgang sier ingenting', () => {
+    expect(frekvensTekst(7)).toBe('ca. hvert 7. min');
+    expect(frekvensTekst(13)).toBe('ca. hvert 15. min');
+    expect(frekvensTekst(44)).toBe('ca. hvert 45. min');
+    expect(frekvensTekst(59)).toBe('ca. hver time');
+    expect(frekvensTekst(83)).toBe('ca. hver time');
+    expect(frekvensTekst(120)).toBe('ca. hver 2. time');
+    expect(frekvensTekst(Infinity)).toBeNull();
+    expect(frekvensTekst(null)).toBeNull();
+  });
+  it('utforskeren tar vare på avgangene den alt har hentet: per linjeretning og stopp, bare ordinært vindu', async () => {
+    const r = await res('mortensrud_dag');
+    const lr = Object.values(r.grupper.linjeretning);
+    expect(lr.every(g => g.avgangerVed && typeof g.avgangerVed === 'object')).toBe(true);
+    const tider = lr.flatMap(g => Object.values(g.avgangerVed));
+    expect(tider.length).toBeGreaterThan(0);
+    // Høyst perLinje per skilt og stopp, sortert.
+    expect(tider.every(ts => ts.length <= PARAMETRE.perLinje * 2 && ts.every((x, i) => !i || ts[i - 1] <= x))).toBe(true);
+    // Ingen avganger fra «senere i døgnet» (natt): linjeretninger bare med senere-vindu har ingen tider.
+    const n = await res('mortensrud_natt');
+    for (const g of Object.values(n.grupper.linjeretning)) if (g.vindu.every(v => v === 'senere')) expect(Object.keys(g.avgangerVed)).toHaveLength(0);
+  });
+  it('ut-frekvensen gjelder ved knutepunktet, ikke ved et annet stopp linja også går fra', () => {
+    const resultat = {
+      veier: [{ ledd: 2, vindu: 'ordinært', knute: 'K', inn: 'L1>x', directionId: 'L2>y', område: 'N|5–15', opsjon: 'o1' }],
+      opsjoner: [{ id: 'o1', destinations: [{ id: 'S', name: 'Sted', lat: 60.2, lon: 10 }] }],
+      knutepunkter: { vurdert: [{ id: 'K', navn: 'Knute' }] },
+      grupper: { linjeretning: {
+        'L1>x': { kode: '1', modus: 'bus', avgangerVed: { A: [t(0), t(20)] } },
+        'L2>y': { kode: '2', modus: 'bus', avgangerVed: { K: [t(0), t(30)], A: [t(0), t(5), t(10)] } },
+      } },
+    };
+    const [rad] = ettByttePerRetning(resultat, { lat: 60, lon: 10 }).rader;
+    expect(rad.frekvens.ut).toEqual({ 2: 'ca. hvert 30. min' });   // ikke de 5 min ved A
+    expect(rad.frekvens.inn).toEqual({ 1: 'ca. hvert 20. min' });  // inn: ved tilgangsstoppet
+  });
+  it('kortet viser frekvensen ved linja: ut ved knutepunktet', async () => {
+    const pos = O.mortensrud_dag.scenario.posisjon;
+    const { rader } = ettByttePerRetning(await res('mortensrud_dag'), pos);
+    const nø = rader.find(r => r.retning === 'NØ');
+    expect(Object.keys(nø.frekvens.ut).length).toBeGreaterThan(0);
+    expect(Object.values(nø.frekvens.ut).every(f => /^ca\. hver/.test(f))).toBe(true);
+    const hent = avspiller(O.mortensrud_dag).hent, nå = Date.parse(O.mortensrud_dag.scenario.tid);
+    ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} }); await new Promise(r => setTimeout(r, 50));
+    // Én linje: det oftest gående inn og ut, ikke én frekvens per linje.
+    const kort = ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} }).split('data-eb-retning="NØ"')[1].split('</button>')[0];
+    const best = Object.values(nø.frekvens.ut).sort((a, b) => parseInt(a.replace(/\D/g, ''), 10) - parseInt(b.replace(/\D/g, ''), 10))[0];
+    expect(kort).toMatch(/<div class="eb-frekvens">går (inn ca\. [^·<]+ · )?ut /);
+    expect(kort).toContain('ut ' + esc(best));
+    expect((kort.match(/eb-frekvens/g) || []).length).toBe(1);
   });
 });
 
@@ -353,6 +423,14 @@ describe('ett bytte: kartet', () => {
     // Står en annen boble rett under, flyttes navnet forbi den.
     const over = k('Over', 0, 10), under = k('Under', 0, 5, 30);
     expect(plasserNavn([over, under], px, () => 8).get(over)).not.toEqual({ side: 'under', nivå: 0 });
+    // Fremhevet først: det valgte knutepunktet får beste plass selv om det er minst.
+    const stor = { ...k('Stor', 0, 300), dempet: true }, liten = { ...k('Liten', 5, 10), dempet: false };
+    expect(plasserNavn([stor, liten], px, () => 10).get(liten)).toEqual({ side: 'under', nivå: 0 });
+    // Ingen plass: merket tvunget.
+    const fullt = Array.from({ length: NAVN_PLASSER.length + 1 }, (_, i) => k('Navn ' + i, 0, 100 - i));
+    const pf = plasserNavn(fullt, px, () => 10);
+    expect([...pf.values()].some(p => p.tvunget)).toBe(true);
+    expect([...pf.values()].filter(p => !p.tvunget).length).toBe(NAVN_PLASSER.length);
     // Uten projeksjon: alle rett under.
     expect([...plasserNavn([a, b], null).values()]).toEqual([NAVN_PLASSER[0], NAVN_PLASSER[0]]);
     // Alt opptatt: navnet vises likevel.
@@ -374,6 +452,24 @@ describe('ett bytte: kartet', () => {
     ettBytteKart(f.map, f.L, { aktiv: true, pos, ramme: () => {} });
     expect(navnI(f)).toHaveLength(knuter.size);
     expect(navnI(f).filter(t => !/dempet/.test(t.o.icon.className)).map(t => t.o.icon.html.replace(/<[^>]+>/g, ''))).toEqual(['Helsfyr']);
+  });
+  it('med kort valgt: dempede navn uten plass droppes, det valgte står alltid', async () => {
+    await klar();
+    velgRetning('NØ');
+    const f = falskL();
+    f.map.latLngToContainerPoint = () => ({ x: 100, y: 100 }); // alle knutepunktene på samme sted
+    ettBytteKart(f.map, f.L, { aktiv: true, pos, ramme: () => {} });
+    const navn = f.lagt[0].ting.filter(t => t.o && t.o.icon && /eb-kart-etikett/.test(t.o.icon.className));
+    const bobler = f.lagt[0].ting.filter(t => t.o && /eb-kart-knute/.test(t.o.className || ''));
+    expect(navn.filter(t => !/dempet/.test(t.o.icon.className)).map(t => t.o.icon.html.replace(/<[^>]+>/g, ''))).toEqual(['Helsfyr']);
+    expect(navn.length).toBeLessThan(bobler.length);
+    // Oversikten: hvert navn vises, også uten plass.
+    velgRetning('NØ');
+    const g = falskL();
+    g.map.latLngToContainerPoint = () => ({ x: 100, y: 100 });
+    ettBytteKart(g.map, g.L, { aktiv: true, pos, ramme: () => {} });
+    expect(g.lagt[0].ting.filter(t => t.o && t.o.icon && /eb-kart-etikett/.test(t.o.icon.className)).length)
+      .toBe(g.lagt[0].ting.filter(t => t.o && /eb-kart-knute/.test(t.o.className || '')).length);
   });
   it('du står selv på kartet mens laget vises', async () => {
     await klar();

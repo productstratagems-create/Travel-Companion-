@@ -54,6 +54,42 @@ export function kommunerI(punkter, kommuneAv, hjemme = null) {
 }
 
 /**
+ * HVOR OFTE DET GÅR (forslag 4), fra avgangene utforskeren alt har hentet
+ * (`grupper.linjeretning[dir].avgangerVed[stopp]`, høyst perLinje per skilt).
+ * Medianen av avstanden mellom avgangene, rundet: «ca. hvert 5. min», «ca.
+ * hver 2. time». Færre enn to ulike avganger gir ingen tekst.
+ */
+/** Avganger nærmere enn dette er samme tur (to plattformer ved samme stopp, sett: «hvert minutt» for trikk 17). */
+export const SAMME_TUR_MIN = 2;
+/** Minutter mellom avgangene (median), eller null med færre enn to ulike avganger. */
+export function frekvensMin(tider) {
+  const ms = [...new Set((tider || []).map(t => Date.parse(t)).filter(Number.isFinite))].sort((a, b) => a - b);
+  const ulike = []; for (const t of ms) if (!ulike.length || t - ulike[ulike.length - 1] >= SAMME_TUR_MIN * 60000) ulike.push(t);
+  if (ulike.length < 2) return ulike.length ? Infinity : null;
+  const gap = ulike.slice(1).map((t, i) => (t - ulike[i]) / 60000).sort((a, b) => a - b);
+  return gap[Math.floor((gap.length - 1) / 2)];
+}
+/**
+ * Lesbart, ikke presist — et anslag fra to–tre avganger, derfor «ca.»: under
+ * 10 min eksakt, under 30 til nærmeste 5, under 60 til nærmeste 15, derfra hele
+ * timer. Én avgang gir INGEN tekst: med høyst perLinje avganger per skilt sier
+ * én avgang ikke at linja går sjelden (sett: buss 74 ved Oslo bussterminal,
+ * hvert 10. min, merket «sjelden»).
+ */
+/** Den oftest gående av et sett frekvenstekster (for «går ofte»-linja på kortet). */
+export function oftest(tekster) {
+  const min = f => { const n = parseInt(f.replace(/\D/g, ''), 10) || 1; return /time/.test(f) ? 60 * n : n; };
+  return (tekster || []).filter(Boolean).sort((a, b) => min(a) - min(b))[0] || null;
+}
+export function frekvensTekst(minutter) {
+  if (minutter == null || minutter === Infinity) return null;
+  const m = minutter < 10 ? Math.max(2, Math.round(minutter)) : minutter < 30 ? Math.round(minutter / 5) * 5 : minutter < 52.5 ? Math.round(minutter / 15) * 15 : null;
+  if (m != null && m < 60) return 'ca. hvert ' + m + '. min';
+  const t = Math.max(1, Math.round(minutter / 60));
+  return t === 1 ? 'ca. hver time' : 'ca. hver ' + t + '. time';
+}
+
+/**
  * LENGST DU KOMMER (forslag 1): det fjerneste stedet i retningen, med avstand
  * i hele km. `punkter` er sortert lengst unna først (ettByttePerRetning), så
  * det er det første. null uten steder eller posisjon.
@@ -68,6 +104,18 @@ const linje = (resultat, dir) => {
   const g = resultat.grupper && resultat.grupper.linjeretning && resultat.grupper.linjeretning[dir];
   return g ? { kode: g.kode || '?', modus: g.modus || null } : { kode: '?', modus: null };
 };
+/**
+ * Hvor ofte linja går: hver linjeretning (skilt) for seg, ved `stopp` (ut, ved
+ * knutepunktet) eller ved hvert tilgangsstopp (inn). Tider fra to skilt eller
+ * to stopp er ikke en frekvens. Den som går oftest, vinner.
+ */
+function frekvensVed(resultat, dirs, stopp) {
+  const lr = (resultat.grupper && resultat.grupper.linjeretning) || {};
+  const kandidater = [];
+  for (const d of dirs) for (const [sp, t] of Object.entries((lr[d] && lr[d].avgangerVed) || {})) if (!stopp || sp === stopp) kandidater.push(frekvensMin(t));
+  const best = kandidater.filter(m => m != null).sort((a, b) => a - b)[0];
+  return frekvensTekst(best == null ? null : best);
+}
 const linjeTekst = l => `${l.modus === 'metro' ? 'T-bane ' : l.modus === 'tram' ? 'trikk ' : l.modus === 'rail' ? 'tog ' : l.modus === 'water' ? 'båt ' : ''}${l.kode}`;
 
 /**
@@ -88,11 +136,13 @@ export function ettByttePerRetning(resultat, posisjon) {
     const sektor = v.område.split('|')[0];
     if (!RETNINGER.includes(sektor)) continue; // sentrum («•») er ingen retning
     const s = per.get(sektor) || per.set(sektor, new Map()).get(sektor);
-    const g = s.get(v.knute) || s.set(v.knute, { områder: new Set(), dest: new Set(), inn: new Map(), ut: new Map(), moduser: new Map() }).get(v.knute);
+    const g = s.get(v.knute) || s.set(v.knute, { områder: new Set(), dest: new Set(), inn: new Map(), ut: new Map(), moduser: new Map(), innDir: new Map(), utDir: new Map() }).get(v.knute);
     g.områder.add(v.område); g.dest.add(v.opsjon);
     const li = linje(resultat, v.inn), lu = linje(resultat, v.directionId);
     (g.moduser.get(v.opsjon) || g.moduser.set(v.opsjon, new Set()).get(v.opsjon)).add(lu.modus);
     g.inn.set(li.kode + '|' + li.modus, li); g.ut.set(lu.kode + '|' + lu.modus, lu);
+    (g.innDir.get(linjeTekst(li)) || g.innDir.set(linjeTekst(li), new Set()).get(linjeTekst(li))).add(v.inn);
+    (g.utDir.get(linjeTekst(lu)) || g.utDir.set(linjeTekst(lu), new Set()).get(linjeTekst(lu))).add(v.directionId);
   }
   const rader = [];
   for (const sektor of RETNINGER) {
@@ -115,6 +165,11 @@ export function ettByttePerRetning(resultat, posisjon) {
       punkter,
       ytterpunkt: ytterpunkt(punkter, posisjon),
       typer: stedstypeTelling(punkter),
+      // Hvor ofte (forslag 4): ut-linjene ved knutepunktet, inn-linjene ved stoppet du går til.
+      frekvens: {
+        inn: Object.fromEntries([...g.innDir].map(([t, dirs]) => [t, frekvensVed(resultat, dirs, null)]).filter(([, f]) => f)),
+        ut: Object.fromEntries([...g.utDir].map(([t, dirs]) => [t, frekvensVed(resultat, dirs, knute)]).filter(([, f]) => f)),
+      },
     });
   }
   return { rader, ingen: rader.length === 0, grunnlag: 'mulig med ett bytte — ikke sjekket mot reisesøket, og byttet er ikke tidskontrollert' };

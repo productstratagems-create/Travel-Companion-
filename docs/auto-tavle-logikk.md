@@ -313,6 +313,36 @@ Et nytt svar på samme sted flytter ikke kartet. Rører du kartet, er det ditt.
 Tavla regner kartet som «justert» mens laget vises, og får tilbake din egen
 tilstand når valget går av, så en justering du gjorde før, ikke slettes.
 
+### Hvor ofte det går (v1.218.297, forslag 4)
+
+Kortet har én linje: «går inn ca. hvert 15. min · ut ca. hvert 7. min». Den
+viser det oftest gående inn (ved stoppet du går til) og ut (ved
+knutepunktet).
+
+**Kilde:** avgangene utforskeren alt har hentet, uten ny spørring. Et rent
+tilleggsfelt i `src/nettverksutforsker.js` tar vare på dem:
+`grupper.linjeretning[dir].avgangerVed[stopp]`. Det gjelder bare det
+ordinære vinduet, og høyst `perLinje` per skilt.
+
+**Beregningen:** `frekvensMin` tar medianen av avstanden mellom ulike
+avganger. `frekvensTekst` runder den lesbart.
+- Avganger under 2 min fra hverandre er samme tur (`SAMME_TUR_MIN`). Sett:
+  trikk 17 ble «hvert minutt» fordi turen gikk fra to plattformer.
+- Hver linjeretning og hvert stopp regnes for seg. Tider fra to skilt eller to
+  stopp er ikke en frekvens.
+- Ut-frekvensen gjelder ved knutepunktet, ikke ved andre stopp linja går fra.
+- Teksten sier **«ca.»**. Det er et anslag fra 2–3 avganger.
+
+**Én avgang gir ingen tekst.** Med høyst to avganger per skilt sier én avgang
+ikke at linja går sjelden. Sett: buss 74 ved Oslo bussterminal, som går hvert
+10. minutt, ble merket «sjelden». Planens «1 avgang neste time» ble derfor
+ikke bygget. Av samme grunn finnes det ingen «ikke nå»: radene bruker bare
+veier i det ordinære vinduet.
+
+**Kartet:** med et kort valgt droppes et dempet knutepunktnavn som ikke har
+plass (`tvunget` i `plasserNavn`). Sett: fire knutepunkter i Oslo sentrum lå
+oppå hverandre. Det valgte navnet og alle navn i oversikten vises alltid.
+
 ### Kommuner, ikke stopp (v1.218.296, forslag 3)
 
 Entur gir **kommunen** til et stoppested, ikke tettstedet. Kortet sier derfor

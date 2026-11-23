@@ -10,7 +10,7 @@
  * «ETT BYTTE (eksperiment)» i src/views/auto.js.
  */
 import { utforsk } from '../nettverksutforsker.js';
-import { ettByttePerRetning, kommunerI } from '../ettBytte.js';
+import { ettByttePerRetning, kommunerI, oftest } from '../ettBytte.js';
 import { enturFetch } from '../api/http.js';
 import { metresBetween } from '../haversine.js';
 import '../style/ettBytte.css';
@@ -72,23 +72,33 @@ function bindKort() {
   });
 }
 
+/**
+ * Hvor ofte (forslag 4), som én linje under linjene: det oftest gående inn og ut.
+ * Én frekvens per linje i linjeraden ble uleselig (sett i nettleseren).
+ */
+export function frekvensLinje(r, esc) {
+  const f = r.frekvens || {}, inn = oftest(Object.values(f.inn || {})), ut = oftest(Object.values(f.ut || {}));
+  if (!inn && !ut) return '';
+  return '<div class="eb-frekvens">går ' + esc([inn && 'inn ' + inn, ut && 'ut ' + ut].filter(Boolean).join(' · ')) + '</div>';
+}
+
 /** Rad for én himmelretning. */
 export function ettBytteRadHtml(r, esc, kommuner = null) {
   // Kommuner bare når retningen når minst KOMMUNER_MIN andre kommuner: i byen blir
   // mange retninger i din egen kommune, og da sier stoppnavnene mer (målt: Bergen nord, 65 stopp, 0 andre kommuner).
   const kom0 = kommuner ? kommunerI(r.punkter, kommuner.kommuneAv, kommuner.hjemme) : null;
   const kom = kom0 && kom0.length >= KOMMUNER_MIN ? kom0 : null;
-  const ut = r.ut.slice(0, UT_VIST).join(', ') + (r.ut.length > UT_VIST ? ` +${r.ut.length - UT_VIST}` : '');
   return '<button type="button" class="eb-rad" data-eb-retning="' + esc(r.retning) + '" aria-pressed="' + (_valgt === r.retning) + '">'
     + '<div class="eb-topp"><span class="eb-retning">' + esc(r.retningNavn) + '</span>'
     + '<span class="eb-via">via ' + esc(r.knuteNavn) + '</span>'
     + (r.ytterpunkt ? '<span class="eb-lengst">helt til ' + esc(r.ytterpunkt.navn) + ' · ' + r.ytterpunkt.km + ' km</span>' : '') + '</div>'
-    + '<div class="eb-linjer">' + esc(r.inn.join(' / ')) + ' → bytt til ' + esc(ut) + '</div>'
+    + '<div class="eb-linjer">' + esc(r.inn.join(' / ')) + ' → bytt til ' + esc(r.ut.slice(0, UT_VIST).join(', ') + (r.ut.length > UT_VIST ? ` +${r.ut.length - UT_VIST}` : '')) + '</div>'
+    + frekvensLinje(r, esc)
     + (() => {
       // Kommuner (forslag 3): «Lillestrøm, Ullensaker og 9 kommuner til». Uten kommunedata: stoppene.
       if (kom) {
         const vis = kom.slice(0, EKSEMPLER_KOMMUNER);
-        return '<div class="eb-steder">' + esc(vis.join(', ')) + (kom.length > vis.length ? ' og ' + (kom.length - vis.length) + ' kommuner til' : '')
+        return '<div class="eb-steder">' + esc(vis.join(', ')) + (kom.length > vis.length ? ' og ' + (kom.length - vis.length) + (kom.length - vis.length === 1 ? ' kommune til' : ' kommuner til') : '')
           + (r.typer ? ' <span class="eb-typer">· ' + esc(r.typer) + '</span>' : '') + '</div>';
       }
       // Ytterpunktet står alt i toppen («helt til …»): eksemplene er de neste.
@@ -230,17 +240,21 @@ const krasjer = (a, b) => a.v < b.h && b.v < a.h && a.t < b.u && b.t < a.u;
  * Hvert knutepunkt får sitt eget navn ved boblen (Proven: stedsnavn ved
  * symbolet, helst under). Størst boble først; krasjer navnet med et navn som
  * alt står eller med en annen boble, prøves neste plass i NAVN_PLASSER. Er alle
- * opptatt, får det den første: hvert navn vises. Uten projeksjon (`px` null)
+ * opptatt, får det den første (`tvunget`): i oversikten vises hvert navn; med et
+ * kort valgt droppes et dempet navn uten plass (sett: fire knutepunkter i
+ * Oslo sentrum oppå hverandre). Uten projeksjon (`px` null)
  * står alle rett under. Returnerer knute → plass.
  */
 export function plasserNavn(knuter, px, radius = () => 0) {
   const plass = new Map();
   const bobler = px ? knuter.map(k => { const p = px(k), r = radius(k); return { k, v: p.x - r, h: p.x + r, t: p.y - r, u: p.y + r }; }) : [];
   const tatt = [];
-  for (const k of knuter.slice().sort((a, b) => (b.antall || 0) - (a.antall || 0) || (a.navn < b.navn ? -1 : 1))) {
+  // Det fremhevede (valgte kortets) knutepunktet først, så størst boble.
+  for (const k of knuter.slice().sort((a, b) => (!!a.dempet - !!b.dempet) || (b.antall || 0) - (a.antall || 0) || (a.navn < b.navn ? -1 : 1))) {
     if (!px) { plass.set(k, NAVN_PLASSER[0]); continue; }
     const p = px(k), r = radius(k);
-    const valgt = NAVN_PLASSER.find(pl => { const rekt = navnRekt(p, k.navn, r, pl); return !tatt.some(a => krasjer(a, rekt)) && !bobler.some(b => b.k !== k && krasjer(b, rekt)); }) || NAVN_PLASSER[0];
+    // Ingen ledig plass: første plass, merket `tvunget` — et dempet navn tegnes da ikke (navnet kommer ved trykk).
+    const valgt = NAVN_PLASSER.find(pl => { const rekt = navnRekt(p, k.navn, r, pl); return !tatt.some(a => krasjer(a, rekt)) && !bobler.some(b => b.k !== k && krasjer(b, rekt)); }) || { ...NAVN_PLASSER[0], tvunget: true };
     plass.set(k, valgt);
     tatt.push(navnRekt(p, k.navn, r, valgt));
   }
@@ -320,8 +334,9 @@ export function ettBytteKart(map, L, { aktiv, pos, ferdig, ramme: rammeInn = (b,
     // tavlas lapprydding (ryddKart) er laget for tavlas lapper og skjulte «Helsfyr»
     // selv når den stod alene (sett i nettleseren). Ett bytte rydder sine egne.
     const pl = nivåFor.get(k) || NAVN_PLASSER[0], av = Math.round(r + 3);
+    const navnVises = !(pl.tvunget && k.dempet);
     const flytt = pl.side === 'høyre' ? av + 'px,-50%' : pl.side === 'venstre' ? 'calc(-100% - ' + av + 'px),-50%' : '-50%,' + Math.round(av + pl.nivå * NAVN_LINJE) + 'px';
-    L.marker(k.fra, { icon: L.divIcon({ className: dempe('eb-kart-etikett', k.dempet), html: '<span style="transform:translate(' + flytt + ')">' + esc(k.navn) + '</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: k.dempet ? 0 : 1000 }).addTo(lag);
+    if (navnVises) L.marker(k.fra, { icon: L.divIcon({ className: dempe('eb-kart-etikett', k.dempet), html: '<span style="transform:translate(' + flytt + ')">' + esc(k.navn) + '</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: k.dempet ? 0 : 1000 }).addTo(lag);
     // Kart → kort: trykk på en boble velger (første) retning den bærer.
     if (m.on) m.on('click', () => { if (_valgt !== k.retning) { velgRetning(k.retning); visKort(k.retning); } });
     // Tallet i boblen: antallet steder den betjener. En markør, ikke en lapp: kartets

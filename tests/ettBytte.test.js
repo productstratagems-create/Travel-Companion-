@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ettByttePerRetning, RETNINGER } from '../src/ettBytte.js';
-import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, samleEtiketter, ETIKETT_PX } from '../src/views/ettBytteVisning.js';
+import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, samleEtiketter, ETIKETT_PX, velgRetning, valgtRetning, KART_STEDER_VALGT } from '../src/views/ettBytteVisning.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { metresBetween } from '../src/haversine.js';
 import { AT_RETNINGER } from '../src/views/auto.js';
@@ -223,6 +223,91 @@ describe('ett bytte: kartet', () => {
     ettBytteKart(map, L, { aktiv: false, pos });
     ettBytteKart(null, L, { aktiv: true, pos });
     expect(lagt).toHaveLength(0);
+  });
+});
+
+describe('ett bytte: klikkbare retningskort', () => {
+  const pos = O.mortensrud_dag.scenario.posisjon;
+  const hent = avspiller(O.mortensrud_dag).hent;
+  const nå = Date.parse(O.mortensrud_dag.scenario.tid);
+  let tegnet = 0;
+  const html = () => ettBytteHtml(pos, { esc, hent, nå, rerender: () => { tegnet++; } });
+  const klar = async () => { html(); await new Promise(r => setTimeout(r, 50)); tegnet = 0; };
+  const kartMed = () => { const f = falskL(); const rammer = []; ettBytteKart(f.map, f.L, { aktiv: true, pos, ramme: b => rammer.push(b) }); return { ...f, rammer }; };
+  const ting = f => f.lagt[0].ting;
+
+  it('kortene er knapper med aria-pressed; trykk velger, nytt trykk velger av, og tavla tegnes', async () => {
+    await klar();
+    expect(html()).toMatch(/<button type="button" class="eb-rad" data-eb-retning="NØ" aria-pressed="false">/);
+    velgRetning('NØ');
+    expect(valgtRetning()).toBe('NØ');
+    expect(tegnet).toBe(1);
+    expect(html()).toMatch(/data-eb-retning="NØ" aria-pressed="true"/);
+    expect((html().match(/aria-pressed="true"/g) || []).length).toBe(1);
+    velgRetning('NØ');
+    expect(valgtRetning()).toBeNull();
+    velgRetning('V'); velgRetning('NØ');
+    expect(valgtRetning()).toBe('NØ'); // et annet kort bytter valget
+  });
+  it('valgt retning i full styrke med etikett; de andre dempet og uten etikett', async () => {
+    await klar();
+    velgRetning('NØ');
+    const f = kartMed();
+    const d = ettBytteKartData(pos);
+    expect(d.valgt).toBe('NØ');
+    const nø = d.retninger.find(r => r.retning === 'NØ');
+    expect(nø.dempet).toBe(false);
+    expect(nø.steder.length).toBeGreaterThan(KART_STEDER);
+    expect(nø.steder.length).toBeLessThanOrEqual(KART_STEDER_VALGT);
+    expect(d.retninger.filter(r => r.retning !== 'NØ').every(r => r.dempet)).toBe(true);
+    const etiketter = ting(f).filter(t => t.to && t.to.permanent).map(t => t.t);
+    expect(etiketter).toEqual(['Helsfyr']);
+    const steder = ting(f).filter(t => t.o && /eb-kart-sted/.test(t.o.className));
+    const fulle = steder.filter(t => !/dempet/.test(t.o.className));
+    expect(fulle.length).toBe(nø.steder.length);
+    expect(steder.length - fulle.length).toBeGreaterThan(0); // de andre står, dempet
+    // Den valgte ligger oppå: alle fulle steder er tegnet etter alle dempede.
+    const iSted = steder.map(t => /dempet/.test(t.o.className));
+    expect(iSted.lastIndexOf(true)).toBeLessThan(iSted.indexOf(false));
+  });
+  it('rammen: deg, knutepunktet og retningens steder — ikke de andres; av gir oversikten', async () => {
+    await klar();
+    velgRetning('NØ');
+    const f = falskL(); const rammer = [];
+    const tegn = () => ettBytteKart(f.map, f.L, { aktiv: true, pos, ramme: b => rammer.push(b) });
+    tegn();
+    const d = ettBytteKartData(pos);
+    const nø = d.retninger.find(r => r.retning === 'NØ');
+    const b = new Set(rammer[0].map(p => p.join(',')));
+    expect(b.has(nø.knute.lat + ',' + nø.knute.lon)).toBe(true);
+    const andreSteder = d.retninger.filter(r => r.retning !== 'NØ').flatMap(r => r.steder).filter(s => !nø.steder.some(x => x.lat === s.lat && x.lon === s.lon));
+    expect(andreSteder.some(s => b.has(s.lat + ',' + s.lon))).toBe(false);
+    expect(rammer[0].length).toBeGreaterThan(2);
+    tegn(); expect(rammer).toHaveLength(1); // samme valg: ingen ny ramme
+    velgRetning('NØ'); tegn();
+    expect(rammer).toHaveLength(2); // av: oversikten rammes inn igjen
+    expect(rammer[1].length).not.toBe(rammer[0].length);
+  });
+  it('nytt svar på samme sted og samme valg flytter ikke kartet; nytt sted slipper valget', async () => {
+    await klar();
+    velgRetning('NØ');
+    const f = falskL(); const rammer = [];
+    ettBytteKart(f.map, f.L, { aktiv: true, pos, ramme: b => rammer.push(b) });
+    ettBytteHtml(pos, { esc, hent, nå: nå + 11 * 60_000, rerender: () => {} });
+    await new Promise(r => setTimeout(r, 50));
+    ettBytteKart(f.map, f.L, { aktiv: true, pos, ramme: b => rammer.push(b) });
+    expect(valgtRetning()).toBe('NØ');
+    expect(rammer).toHaveLength(1);
+    ettBytteHtml({ lat: pos.lat + 0.05, lon: pos.lon }, { esc, hent, nå, rerender: () => {} });
+    expect(valgtRetning()).toBeNull();
+  });
+  it('valget «ett bytte» av: kortvalget glemmes', async () => {
+    await klar();
+    velgRetning('NØ');
+    const f = falskL();
+    ettBytteKart(f.map, f.L, { aktiv: true, pos, ramme: () => {} });
+    ettBytteKart(f.map, f.L, { aktiv: false, pos, ferdig: () => {} });
+    expect(valgtRetning()).toBeNull();
   });
 });
 

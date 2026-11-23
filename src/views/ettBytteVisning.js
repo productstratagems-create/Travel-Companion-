@@ -26,17 +26,41 @@ const hentFraEntur = (_navn, req) => enturFetch(req.url, {
 }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
 
 let _tilstand = null; // { nøkkel, status: 'henter' | 'ok' | 'feil', svar }
-export function _nullstillEttBytte() { _tilstand = null; }
+/** Valgt retningskort ('NØ' …) eller null: kartet viser da den retningen. */
+let _valgt = null;
+let _rerender = null;
+export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _rerender = null; }
+export const valgtRetning = () => _valgt;
+
+/**
+ * Velg et retningskort (samme igjen = av). Kartet rammer inn retningen; av gir
+ * oversikten tilbake. Kalles av kortet, av kartet (trykk på et sted) og testene.
+ */
+export function velgRetning(retning) {
+  _valgt = _valgt === retning ? null : retning;
+  if (_rerender) _rerender();
+}
+
+// Én delegert lytter for kortene, bundet første gang lista tegnes: ingen ny krok i auto.js.
+let _lytter = false;
+function bindKort() {
+  if (_lytter || typeof document === 'undefined') return;
+  _lytter = true;
+  document.addEventListener('click', e => {
+    const k = e.target && e.target.closest && e.target.closest('#v-auto .eb-rad[data-eb-retning]');
+    if (k) velgRetning(k.dataset.ebRetning);
+  });
+}
 
 /** Rad for én himmelretning. */
 export function ettBytteRadHtml(r, esc) {
   const ut = r.ut.slice(0, UT_VIST).join(', ') + (r.ut.length > UT_VIST ? ` +${r.ut.length - UT_VIST}` : '');
-  return '<div class="eb-rad" data-eb-retning="' + esc(r.retning) + '">'
+  return '<button type="button" class="eb-rad" data-eb-retning="' + esc(r.retning) + '" aria-pressed="' + (_valgt === r.retning) + '">'
     + '<div class="eb-topp"><span class="eb-retning">' + esc(r.retningNavn) + '</span>'
     + '<span class="eb-via">via ' + esc(r.knuteNavn) + '</span></div>'
     + '<div class="eb-linjer">' + esc(r.inn.join(' / ')) + ' → bytt til ' + esc(ut) + '</div>'
     + '<div class="eb-steder">' + esc(r.eksempler.join(', ')) + (r.antallSteder > r.eksempler.length ? ' og ' + (r.antallSteder - r.eksempler.length) + ' steder til' : '') + '</div>'
-    + '</div>';
+    + '</button>';
 }
 
 /**
@@ -45,7 +69,9 @@ export function ettBytteRadHtml(r, esc) {
  */
 export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hentFraEntur } = {}) {
   if (!pos || !Number.isFinite(pos.lat)) return '<div class="at-filter">trenger en posisjon for å se bytter herfra</div>';
+  _rerender = rerender || null; bindKort();
   const nøkkel = pos.lat.toFixed(3) + ',' + pos.lon.toFixed(3);
+  if (_tilstand && _tilstand.nøkkel !== nøkkel) _valgt = null; // nytt sted: retningene er andre
   if (!_tilstand || _tilstand.nøkkel !== nøkkel || (_tilstand.status !== 'henter' && nå - _tilstand.tid > 10 * 60_000)) {
     _tilstand = { nøkkel, status: 'henter', tid: nå };
     const t = _tilstand;
@@ -57,7 +83,11 @@ export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hent
         t.status = feilet && t.svar.ingen ? 'feil' : 'ok';
       })
       .catch(() => { t.status = 'feil'; })
-      .finally(() => { if (_tilstand === t && rerender) rerender(); });
+      .finally(() => {
+        // Et valgt kort som ikke finnes i det nye svaret, slippes.
+        if (_tilstand === t && _valgt && !(t.svar && t.svar.rader.some(r => r.retning === _valgt))) _valgt = null;
+        if (_tilstand === t && rerender) rerender();
+      });
   }
   const s = _tilstand;
   if (s.status === 'henter') return '<div class="at-filter">ser etter hvor du kommer med ett bytte …</div>';
@@ -80,6 +110,8 @@ export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hent
  */
 /** Høyst så mange steder tegnes per retning (de lengst unna først). */
 export const KART_STEDER = 8;
+/** For den valgte retningen: flere steder, så kortets «og N steder til» får plass. */
+export const KART_STEDER_VALGT = 20;
 let _kart = null; // { map, lag, rammet }
 
 /** Høyst n av lista, jevnt fordelt fra første til siste (lengst unna → nærmest): både rekkevidden og nærområdet. */
@@ -89,11 +121,15 @@ export const spredt = (xs, n) => (xs.length <= n ? xs.slice() : Array.from({ len
 export function ettBytteKartData(pos) {
   if (!pos || !_tilstand || _tilstand.status !== 'ok' || !_tilstand.svar || _tilstand.svar.ingen) return null;
   if (_tilstand.nøkkel !== pos.lat.toFixed(3) + ',' + pos.lon.toFixed(3)) return null;
+  const valgt = _tilstand.svar.rader.some(r => r.retning === _valgt) ? _valgt : null;
   return {
-    nøkkel: _tilstand.nøkkel + '@' + _tilstand.tid,
+    nøkkel: _tilstand.nøkkel + '@' + _tilstand.tid + '#' + (valgt || ''),
+    valgt,
     retninger: _tilstand.svar.rader.map(r => ({
       retning: r.retning, retningNavn: r.retningNavn, knuteNavn: r.knuteNavn, etikett: r.retningNavn + ' · via ' + r.knuteNavn,
-      knute: r.knuteLL, steder: spredt(r.punkter, KART_STEDER),
+      knute: r.knuteLL, steder: spredt(r.punkter, r.retning === valgt ? KART_STEDER_VALGT : KART_STEDER),
+      // Fremhev, ikke skjul: de andre retningene står, dempet.
+      dempet: !!valgt && r.retning !== valgt,
     })),
   };
 }
@@ -140,41 +176,70 @@ export function ettBytteKart(map, L, { aktiv, pos, ferdig, ramme: rammeInn = (b,
   if (_kart && _kart.map !== map) _kart = null; // kartet er bygget på nytt; det gamle laget fulgte med ut
   const data = aktiv && map ? ettBytteKartData(pos) : null;
   if (!data) {
+    if (!aktiv) _valgt = null; // valget «ett bytte» av: neste gang starter på oversikten
     if (_kart && !aktiv) { _kart.map.removeLayer(_kart.lag); _kart = null; if (ferdig) ferdig(); }
     return;
   }
   if (_kart && _kart.nøkkel === data.nøkkel) return;
   const lag = _kart ? (_kart.lag.clearLayers(), _kart.lag) : L.layerGroup().addTo(map);
-  // Rammes inn én gang per sted mens valget står — et nytt svar på samme sted flytter ikke kartet.
-  const sted = data.nøkkel.split('@')[0], rammet = !!_kart && _kart.rammet === sted;
+  // Rammes inn når TEMAET endres — nytt sted eller nytt kort valgt / valgt av
+  // (docs/kartregler.md). Et nytt svar på samme sted og samme valg flytter ikke kartet.
+  const tema = data.nøkkel.split('@')[0] + '#' + (data.valgt || ''), rammet = !!_kart && _kart.rammet === tema;
   _kart = { map, lag, nøkkel: data.nøkkel, rammet: _kart && _kart.rammet };
   const ramme = [[pos.lat, pos.lon]];
+  const dempe = (kl, d) => (d ? kl + ' eb-kart-dempet' : kl);
   // Ett knutepunkt kan bære flere retninger (Oslo bussterminal: nord, sør, vest …):
   // én prikk og én etikett per knute, med retningene samlet — ikke fem lapper oppå hverandre.
-  const knuter = new Map(), nære = [];
-  for (const r of data.retninger) {
+  const knuter = new Map(), nære = [], valgteSteder = [];
+  // De dempede først, så den valgte retningen ligger oppå.
+  const rekke = data.retninger.filter(r => r.dempet).concat(data.retninger.filter(r => !r.dempet));
+  for (const r of rekke) {
     const fra = r.knute ? [r.knute.lat, r.knute.lon] : null;
     for (const s of r.steder) {
-      if (fra) L.polyline([fra, [s.lat, s.lon]], { className: 'eb-kart-ut', weight: 1.5, interactive: false }).addTo(lag);
-      L.circleMarker([s.lat, s.lon], { className: 'eb-kart-sted', radius: 4, weight: 1.5 }).bindTooltip(s.navn).addTo(lag);
+      if (fra) L.polyline([fra, [s.lat, s.lon]], { className: dempe('eb-kart-ut', r.dempet), weight: r.dempet ? 1 : 1.5, interactive: false }).addTo(lag);
+      const m = L.circleMarker([s.lat, s.lon], { className: dempe('eb-kart-sted', r.dempet), radius: r.dempet ? 3 : 4, weight: 1.5 }).bindTooltip(s.navn).addTo(lag);
+      // Kart → kort: trykk på et sted velger retningen det hører til.
+      if (m.on) m.on('click', () => { if (_valgt !== r.retning) { velgRetning(r.retning); visKort(r.retning); } });
     }
     nære.push(...r.steder.slice(-RAMME_NÆRMESTE)); // punkter er lengst unna først
-    if (fra) { const k = fra.join(','); (knuter.get(k) || knuter.set(k, { fra, navn: r.knuteNavn, retninger: [] }).get(k)).retninger.push(r.retningNavn); }
+    if (data.valgt === r.retning) valgteSteder.push(...r.steder);
+    if (fra) {
+      const k = fra.join(',');
+      const e = knuter.get(k) || knuter.set(k, { fra, navn: r.knuteNavn, retninger: [], dempet: true }).get(k);
+      e.retninger.push(r.retningNavn);
+      if (!r.dempet) e.dempet = false;
+    }
   }
   for (const k of knuter.values()) {
-    L.polyline([[pos.lat, pos.lon], k.fra], { className: 'eb-kart-inn', weight: 2, dashArray: '4 6', interactive: false }).addTo(lag);
-    ramme.push(k.fra);
+    L.polyline([[pos.lat, pos.lon], k.fra], { className: dempe('eb-kart-inn', k.dempet), weight: 2, dashArray: '4 6', interactive: false }).addTo(lag);
   }
-  for (const s of nære) if (metresBetween(pos, s) <= rammeGrense(pos, [...knuter.values()].map(k => ({ lat: k.fra[0], lon: k.fra[1] })))) ramme.push([s.lat, s.lon]);
+  const fremhevet = [...knuter.values()].filter(k => !k.dempet);
+  if (data.valgt) {
+    // Den valgte retningen: deg, knutepunktet og stedene innenfor grensen for DETTE knutepunktet.
+    const g = rammeGrense(pos, fremhevet.map(k => ({ lat: k.fra[0], lon: k.fra[1] })));
+    for (const k of fremhevet) ramme.push(k.fra);
+    for (const s of valgteSteder) if (metresBetween(pos, s) <= g) ramme.push([s.lat, s.lon]);
+  } else {
+    for (const k of knuter.values()) ramme.push(k.fra);
+    for (const s of nære) if (metresBetween(pos, s) <= rammeGrense(pos, [...knuter.values()].map(k => ({ lat: k.fra[0], lon: k.fra[1] })))) ramme.push([s.lat, s.lon]);
+  }
   // Uten animasjon: etikettene under måles mot rammen kartet ender i.
-  if (!rammet) { _kart.rammet = sted; rammeInn(ramme, { padding: [24, 24], maxZoom: 15, animate: false }); }
+  if (!rammet) { _kart.rammet = tema; rammeInn(ramme, { padding: [24, 24], maxZoom: 15, animate: false }); }
   // Etter rammen: da vet vi hvor tett knutepunktene står på skjermen.
   const px = map.latLngToContainerPoint ? k => map.latLngToContainerPoint(k.fra) : null;
-  for (const g of samleEtiketter([...knuter.values()], px)) {
+  // Med et kort valgt bærer bare dets knutepunkt etikett; de dempede får navnet ved trykk.
+  for (const k of knuter.values()) if (k.dempet) L.circleMarker(k.fra, { className: 'eb-kart-knute eb-kart-dempet', radius: 5, weight: 2 }).bindTooltip(k.navn).addTo(lag);
+  for (const g of samleEtiketter(fremhevet, px)) {
     L.circleMarker(g.bærer.fra, { className: 'eb-kart-knute', radius: 7, weight: 2.5 })
       .bindTooltip(g.etikett, { permanent: true, direction: 'top', className: 'eb-kart-etikett', offset: [0, -6] }).addTo(lag);
     for (const k of g.andre) L.circleMarker(k.fra, { className: 'eb-kart-knute', radius: 7, weight: 2.5 }).bindTooltip(k.navn).addTo(lag);
   }
   // Hvor er jeg: tavlas eget lag er skjult mens dette vises, så laget viser deg selv.
   L.circleMarker([pos.lat, pos.lon], { className: 'eb-kart-deg', radius: 7, weight: 3, interactive: false }).addTo(lag);
+}
+
+/** Etter et trykk i kartet: kortet rulles inn i synsfeltet (lista kan være lang). */
+function visKort(retning) {
+  if (typeof document === 'undefined') return;
+  setTimeout(() => { const k = document.querySelector('#v-auto .eb-rad[data-eb-retning="' + retning + '"]'); if (k && k.scrollIntoView) k.scrollIntoView({ block: 'nearest' }); }, 0);
 }

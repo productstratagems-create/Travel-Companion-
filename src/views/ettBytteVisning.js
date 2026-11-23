@@ -108,10 +108,12 @@ export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hent
  * retning; de lengste strekene peker ut av kartet, som retninger. Av igjen: laget fjernes og `ferdig()` ber tavla
  * ramme inn sitt eget tema igjen.
  */
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 /** Høyst så mange steder tegnes per retning (de lengst unna først). */
 export const KART_STEDER = 8;
 /** For den valgte retningen: flere steder, så kortets «og N steder til» får plass. */
-export const KART_STEDER_VALGT = 20;
+export const KART_STEDER_VALGT = 60;
 let _kart = null; // { map, lag, rammet }
 
 /** Høyst n av lista, jevnt fordelt fra første til siste (lengst unna → nærmest): både rekkevidden og nærområdet. */
@@ -127,7 +129,7 @@ export function ettBytteKartData(pos) {
     valgt,
     retninger: _tilstand.svar.rader.map(r => ({
       retning: r.retning, retningNavn: r.retningNavn, knuteNavn: r.knuteNavn, etikett: r.retningNavn + ' · via ' + r.knuteNavn,
-      knute: r.knuteLL, steder: spredt(r.punkter, r.retning === valgt ? KART_STEDER_VALGT : KART_STEDER),
+      knute: r.knuteLL, antall: r.antallSteder, steder: spredt(r.punkter, r.retning === valgt ? KART_STEDER_VALGT : KART_STEDER),
       // Fremhev, ikke skjul: de andre retningene står, dempet.
       dempet: !!valgt && r.retning !== valgt,
     })),
@@ -149,6 +151,21 @@ export function rammeGrense(pos, knuter) {
   const median = d.length ? (d.length % 2 ? d[(d.length - 1) / 2] : (d[d.length / 2 - 1] + d[d.length / 2]) / 2) : 0;
   return Math.max(RAMME_MIN_M, 2 * median);
 }
+/** Største og minste boble (px). */
+export const BOBLE_MAKS = 22, BOBLE_MIN = 6;
+/**
+ * Proporsjonal boble (Proven: kartets «mengde her»-symbol): ARELAET følger antallet
+ * steder knutepunktet betjener, så radius ∝ √antall. Det største får BOBLE_MAKS;
+ * ingen blir mindre enn BOBLE_MIN, så et lite knutepunkt fortsatt kan trykkes.
+ */
+export const bobleRadius = (n, maks) => (maks > 0 && n > 0 ? Math.max(BOBLE_MIN, BOBLE_MAKS * Math.sqrt(n / maks)) : BOBLE_MIN);
+
+/**
+ * Rammen gir plass til den største boblen rundt punktene og navnelappen over den
+ * (sett i skjermbildet: uten dette ble knutepunktnavnene kuttet i overkanten).
+ */
+export const RAMME_VALG = Object.freeze({ paddingTopLeft: [BOBLE_MAKS + 8, BOBLE_MAKS + 30], paddingBottomRight: [BOBLE_MAKS + 8, BOBLE_MAKS + 8], maxZoom: 15, animate: false });
+
 /** Knutepunkter nærmere hverandre enn dette på skjermen deler én etikett. */
 export const ETIKETT_PX = 48;
 /**
@@ -157,15 +174,23 @@ export const ETIKETT_PX = 48;
  * første bærer etiketten med alle navnene; de andre får navnet bare ved trykk.
  * `px` er skjermpunktet; uten (ingen projeksjon) blir hver knute sin egen gruppe.
  */
-export function samleEtiketter(knuter, px) {
+/** Anslått størrelse på en navnelapp (px): bred nok for 12 px tekst, med luft. */
+export const lappRekt = (p, tekst, r = 0) => { const b = 7 * tekst.length + 16, h = 20; return { v: p.x - b / 2, h: p.x + b / 2, t: p.y - r - 4 - h, u: p.y - r - 4 }; };
+const krasjer = (a, b) => a.v < b.h && b.v < a.h && a.t < b.u && b.t < a.u;
+
+export function samleEtiketter(knuter, px, radius = () => 0) {
   const rekke = knuter.slice().sort((a, b) => b.retninger.length - a.retninger.length || (a.navn < b.navn ? -1 : 1));
   const grupper = [];
+  const tekst = g => g.knuter.map(k => k.navn).join(' · ');
   for (const k of rekke) {
     const p = px && px(k);
-    const g = p && grupper.find(x => x.p && Math.hypot(x.p.x - p.x, x.p.y - p.y) < ETIKETT_PX);
+    // Samme gruppe når knutepunktene står tett ELLER navnelappene ville krasje
+    // (sett i nettleseren: tre bobler med god avstand, to lapper oppå hverandre).
+    const g = p && grupper.find(x => x.p && (Math.hypot(x.p.x - p.x, x.p.y - p.y) < ETIKETT_PX
+      || krasjer(lappRekt(x.p, tekst(x), radius(x.knuter[0])), lappRekt(p, k.navn, radius(k)))));
     if (g) g.knuter.push(k); else grupper.push({ p, knuter: [k] });
   }
-  return grupper.map(g => ({ bærer: g.knuter[0], etikett: g.knuter.map(k => k.navn).join(' · '), andre: g.knuter.slice(1) }));
+  return grupper.map(g => ({ bærer: g.knuter[0], etikett: tekst(g), andre: g.knuter.slice(1) }));
 }
 
 /**
@@ -188,51 +213,56 @@ export function ettBytteKart(map, L, { aktiv, pos, ferdig, ramme: rammeInn = (b,
   _kart = { map, lag, nøkkel: data.nøkkel, rammet: _kart && _kart.rammet };
   const ramme = [[pos.lat, pos.lon]];
   const dempe = (kl, d) => (d ? kl + ' eb-kart-dempet' : kl);
-  // Ett knutepunkt kan bære flere retninger (Oslo bussterminal: nord, sør, vest …):
-  // én prikk og én etikett per knute, med retningene samlet — ikke fem lapper oppå hverandre.
-  const knuter = new Map(), nære = [], valgteSteder = [];
-  // De dempede først, så den valgte retningen ligger oppå.
-  const rekke = data.retninger.filter(r => r.dempet).concat(data.retninger.filter(r => !r.dempet));
-  for (const r of rekke) {
-    const fra = r.knute ? [r.knute.lat, r.knute.lon] : null;
-    for (const s of r.steder) {
-      if (fra) L.polyline([fra, [s.lat, s.lon]], { className: dempe('eb-kart-ut', r.dempet), weight: r.dempet ? 1 : 1.5, interactive: false }).addTo(lag);
-      const m = L.circleMarker([s.lat, s.lon], { className: dempe('eb-kart-sted', r.dempet), radius: r.dempet ? 3 : 4, weight: 1.5 }).bindTooltip(s.navn).addTo(lag);
-      // Kart → kort: trykk på et sted velger retningen det hører til.
-      if (m.on) m.on('click', () => { if (_valgt !== r.retning) { velgRetning(r.retning); visKort(r.retning); } });
-    }
-    nære.push(...r.steder.slice(-RAMME_NÆRMESTE)); // punkter er lengst unna først
+  // Knutepunktene veies mot hverandre: én boble per knute, størrelse og tall =
+  // stedene den betjener (summen over retningene den bærer). Ingen streker ut —
+  // stedene vises bare for kortet du har valgt.
+  const knuter = new Map(), valgteSteder = [];
+  for (const r of data.retninger) {
     if (data.valgt === r.retning) valgteSteder.push(...r.steder);
-    if (fra) {
-      const k = fra.join(',');
-      const e = knuter.get(k) || knuter.set(k, { fra, navn: r.knuteNavn, retninger: [], dempet: true }).get(k);
-      e.retninger.push(r.retningNavn);
-      if (!r.dempet) e.dempet = false;
-    }
+    if (!r.knute) continue;
+    const fra = [r.knute.lat, r.knute.lon], k = fra.join(',');
+    const e = knuter.get(k) || knuter.set(k, { fra, navn: r.knuteNavn, retninger: [], antall: 0, dempet: true, retning: r.retning }).get(k);
+    e.retninger.push(r.retningNavn); e.antall += r.antall || 0;
+    if (!r.dempet) { e.dempet = false; e.retning = r.retning; }
   }
+  const maks = Math.max(0, ...[...knuter.values()].map(k => k.antall));
   for (const k of knuter.values()) {
     L.polyline([[pos.lat, pos.lon], k.fra], { className: dempe('eb-kart-inn', k.dempet), weight: 2, dashArray: '4 6', interactive: false }).addTo(lag);
   }
   const fremhevet = [...knuter.values()].filter(k => !k.dempet);
   if (data.valgt) {
-    // Den valgte retningen: deg, knutepunktet og stedene innenfor grensen for DETTE knutepunktet.
+    // Det valgte kortet: deg, knutepunktet og stedene innenfor grensen for DETTE knutepunktet.
     const g = rammeGrense(pos, fremhevet.map(k => ({ lat: k.fra[0], lon: k.fra[1] })));
     for (const k of fremhevet) ramme.push(k.fra);
     for (const s of valgteSteder) if (metresBetween(pos, s) <= g) ramme.push([s.lat, s.lon]);
   } else {
-    for (const k of knuter.values()) ramme.push(k.fra);
-    for (const s of nære) if (metresBetween(pos, s) <= rammeGrense(pos, [...knuter.values()].map(k => ({ lat: k.fra[0], lon: k.fra[1] })))) ramme.push([s.lat, s.lon]);
+    for (const k of knuter.values()) ramme.push(k.fra); // oversikten: deg og knutepunktene
   }
   // Uten animasjon: etikettene under måles mot rammen kartet ender i.
-  if (!rammet) { _kart.rammet = tema; rammeInn(ramme, { padding: [24, 24], maxZoom: 15, animate: false }); }
-  // Etter rammen: da vet vi hvor tett knutepunktene står på skjermen.
+  // Kopi: Leaflet skriver selv i valgene (zoom).
+  if (!rammet) { _kart.rammet = tema; rammeInn(ramme, { ...RAMME_VALG }); }
+  // Stedene til det valgte kortet — under boblene, så knutepunktet ligger øverst.
+  for (const s of valgteSteder) L.circleMarker([s.lat, s.lon], { className: 'eb-kart-sted', radius: 4, weight: 1.5 }).bindTooltip(s.navn).addTo(lag);
+  // Boblene: de dempede først, størst under minst, så små ikke skjules av store.
   const px = map.latLngToContainerPoint ? k => map.latLngToContainerPoint(k.fra) : null;
-  // Med et kort valgt bærer bare dets knutepunkt etikett; de dempede får navnet ved trykk.
-  for (const k of knuter.values()) if (k.dempet) L.circleMarker(k.fra, { className: 'eb-kart-knute eb-kart-dempet', radius: 5, weight: 2 }).bindTooltip(k.navn).addTo(lag);
-  for (const g of samleEtiketter(fremhevet, px)) {
-    L.circleMarker(g.bærer.fra, { className: 'eb-kart-knute', radius: 7, weight: 2.5 })
-      .bindTooltip(g.etikett, { permanent: true, direction: 'top', className: 'eb-kart-etikett', offset: [0, -6] }).addTo(lag);
-    for (const k of g.andre) L.circleMarker(k.fra, { className: 'eb-kart-knute', radius: 7, weight: 2.5 }).bindTooltip(k.navn).addTo(lag);
+  const navnFor = new Map();
+  for (const g of samleEtiketter(fremhevet, px, k => bobleRadius(k.antall, maks))) { navnFor.set(g.bærer, g.etikett); for (const k of g.andre) navnFor.set(k, null); }
+  const rekke = [...knuter.values()].sort((a, b) => (b.dempet - a.dempet) || (b.antall - a.antall));
+  for (const k of rekke) {
+    const r = bobleRadius(k.antall, maks);
+    const m = L.circleMarker(k.fra, { className: dempe('eb-kart-knute', k.dempet), radius: r, weight: 2 });
+    const navn = navnFor.get(k);
+    m.bindTooltip(k.navn + ' · ' + k.antall + ' steder').addTo(lag); // ved trykk
+    // Navnet over boblen der det er plass (samleEtiketter). Som markør, ikke fast lapp:
+    // tavlas lapprydding (ryddKart) er laget for tavlas lapper og skjulte «Helsfyr»
+    // selv når den stod alene (sett i nettleseren). Ett bytte rydder sine egne.
+    if (navn) L.marker(k.fra, { icon: L.divIcon({ className: 'eb-kart-etikett', html: '<span style="transform:translate(-50%,calc(-100% - ' + Math.round(r + 4) + 'px))">' + esc(navn) + '</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(lag);
+    // Kart → kort: trykk på en boble velger (første) retning den bærer.
+    if (m.on) m.on('click', () => { if (_valgt !== k.retning) { velgRetning(k.retning); visKort(k.retning); } });
+    // Tallet i boblen: antallet steder den betjener. En markør, ikke en lapp: kartets
+    // lapprydding (src/ui/lappPlass.js, ryddKart) skjuler lapper som krasjer, og
+    // tallene i bobler som overlapper skjulte da også navnet (sett i nettleseren).
+    L.marker(k.fra, { icon: L.divIcon({ className: dempe('eb-kart-tall', k.dempet), html: '<span>' + k.antall + '</span>', iconSize: null }), interactive: false, keyboard: false }).addTo(lag);
   }
   // Hvor er jeg: tavlas eget lag er skjult mens dette vises, så laget viser deg selv.
   L.circleMarker([pos.lat, pos.lon], { className: 'eb-kart-deg', radius: 7, weight: 3, interactive: false }).addTo(lag);

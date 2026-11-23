@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ettByttePerRetning, RETNINGER } from '../src/ettBytte.js';
-import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, samleEtiketter, ETIKETT_PX, velgRetning, valgtRetning, KART_STEDER_VALGT } from '../src/views/ettBytteVisning.js';
+import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, samleEtiketter, ETIKETT_PX, velgRetning, valgtRetning, KART_STEDER_VALGT } from '../src/views/ettBytteVisning.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { metresBetween } from '../src/haversine.js';
 import { AT_RETNINGER } from '../src/views/auto.js';
@@ -94,6 +94,8 @@ const falskL = () => {
     layerGroup: () => { const g = lag(); g.addTo = m => { lagt.push(g); return g; }; return g; },
     polyline: (ll, o) => ({ ll, o, addTo(g) { g.ting.push(this); return this; } }),
     circleMarker: (ll, o) => ({ ll, o, bindTooltip(t, to) { this.t = t; this.to = to; return this; }, addTo(g) { g.ting.push(this); return this; } }),
+    marker: (ll, o) => ({ ll, o, addTo(g) { g.ting.push(this); return this; } }),
+    divIcon: o => o,
   };
   const map = { fitBounds: (b, o) => rammer.push({ b, o }), removeLayer: g => { lagt.splice(lagt.indexOf(g), 1); } };
   return { L, map, lagt, rammer };
@@ -135,7 +137,9 @@ describe('ett bytte: kartet', () => {
     expect(unike.size).toBeLessThan(ettBytteKartData(pos).retninger.length); // Mortensrud: bussterminalen bærer flere
     expect(knuter.length).toBe(unike.size);
     expect(new Set(knuter.map(k => k.t)).size).toBe(knuter.length);
-    expect(knuter.every(k => k.to.permanent)).toBe(true);
+    // Navnelappene er markører, ikke faste lapper — tavlas lapprydding (ryddKart) rører dem ikke.
+    expect(lagt[0].ting.some(t => t.to && t.to.permanent)).toBe(false);
+    expect(lagt[0].ting.filter(t => t.o && t.o.icon && t.o.icon.className === 'eb-kart-etikett').length).toBeGreaterThan(0);
     expect(rammer).toHaveLength(1);
     ettBytteKart(map, L, { aktiv: true, pos, ferdig: () => tilbake++ }); // ny tegning av tavla: samme lag, ingen ny ramme
     expect(lagt).toHaveLength(1);
@@ -160,25 +164,42 @@ describe('ett bytte: kartet', () => {
     expect(lagt[0].ting[0]).not.toBe(første);
     expect(rammer).toHaveLength(1);
   });
-  it('rammen er deg, knutepunktene og de nærmeste stedene — Måløy peker ut av kartet', async () => {
+  it('oversikten: deg og knutepunktene som bobler — ingen streker ut og ingen steder', async () => {
     await klar();
     const { L, map } = falskL();
     let b = null;
-    ettBytteKart(map, L, { aktiv: true, pos, ramme: x => { b = x; } });
+    const f = falskL();
+    ettBytteKart(f.map, f.L, { aktiv: true, pos, ramme: x => { b = x; } });
     const d = ettBytteKartData(pos);
     const knuter = new Set(d.retninger.filter(r => r.knute).map(r => r.knute.lat + ',' + r.knute.lon));
-    expect(b.length).toBeGreaterThan(1 + knuter.size); // og noen nære steder
-    expect(b.length).toBeLessThanOrEqual(1 + knuter.size + d.retninger.length * RAMME_NÆRMESTE);
-    const lengst = d.retninger.flatMap(r => r.steder.slice(0, 1));
-    const iRamme = new Set(b.map(p => p.join(',')));
-    expect(lengst.some(s => !iRamme.has(s.lat + ',' + s.lon))).toBe(true);
-    // Alle knutepunktene er med (Oslo lufthavn også); alt annet ligger innenfor grensen.
-    const kn = [...knuter].map(k => k.split(',').map(Number));
-    for (const k of kn) expect(iRamme.has(k.join(','))).toBe(true);
-    const g = rammeGrense(pos, kn.map(([lat, lon]) => ({ lat, lon })));
-    expect(g).toBeLessThan(40_000); // ikke dratt med av lufthavna
-    const andre = b.filter(p => !knuter.has(p.join(',')));
-    expect(andre.every(([lat, lon]) => metresBetween(pos, { lat, lon }) <= g)).toBe(true);
+    expect(b.length).toBe(1 + knuter.size);
+    const t = f.lagt[0].ting;
+    expect(t.some(x => x.o && /eb-kart-ut/.test(x.o.className))).toBe(false);
+    expect(t.some(x => x.o && /eb-kart-sted/.test(x.o.className))).toBe(false);
+    // Tallet i hver boble = summen av stedene retningene via den knuten betjener.
+    const sum = new Map();
+    for (const r of d.retninger.filter(r => r.knute)) { const k = r.knute.lat + ',' + r.knute.lon; sum.set(k, (sum.get(k) || 0) + r.antall); }
+    // Tallet er en markør, ikke en lapp: kartets lapprydding (ryddKart) skal ikke kunne skjule det.
+    expect(t.some(x => x.to && /eb-kart-tall/.test(x.to.className))).toBe(false);
+    const tall = t.filter(x => x.o && x.o.icon && /eb-kart-tall/.test(x.o.icon.className)).map(x => [x.ll.join(','), +x.o.icon.html.replace(/\D/g, '')]);
+    expect(new Map(tall)).toEqual(sum);
+    // Størst antall → størst boble.
+    const bobler = t.filter(x => x.o && /eb-kart-knute/.test(x.o.className));
+    const størst = [...sum.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const r = new Map(bobler.map(x => [x.ll.join(','), x.o.radius]));
+    expect(r.get(størst)).toBe(Math.max(...r.values()));
+    expect(new Set(r.values()).size).toBeGreaterThan(1);
+  });
+  it('rammen gir plass til største boble og navnelappen over den', () => {
+    expect(RAMME_VALG.paddingTopLeft[1]).toBeGreaterThanOrEqual(BOBLE_MAKS + 24);
+    expect(RAMME_VALG.paddingBottomRight[1]).toBeGreaterThanOrEqual(BOBLE_MAKS);
+    expect(Math.min(RAMME_VALG.paddingTopLeft[0], RAMME_VALG.paddingBottomRight[0])).toBeGreaterThanOrEqual(BOBLE_MAKS);
+  });
+  it('boblene: arealet følger antallet (radius ∝ √n), med et minste trykkbart mål', () => {
+    expect(bobleRadius(100, 100)).toBe(BOBLE_MAKS);
+    expect(bobleRadius(25, 100)).toBeCloseTo(BOBLE_MAKS / 2, 6); // en firedel av stedene → halv radius
+    expect(bobleRadius(1, 1000)).toBe(BOBLE_MIN);
+    expect(bobleRadius(0, 0)).toBe(BOBLE_MIN);
   });
   it('rammegrensen: median, ikke maks, og aldri under gulvet', () => {
     const p = { lat: 60, lon: 10 }, nord = km => ({ lat: 60 + km / 111.2, lon: 10 });
@@ -196,6 +217,10 @@ describe('ett bytte: kartet', () => {
     expect(g[0].andre.map(x => x.navn)).toEqual(['Helsfyr', 'Nationaltheatret']);
     // Akkurat på grensen er for langt unna.
     expect(samleEtiketter([k('A', 0, 2), k('B', ETIKETT_PX, 1)], px)).toHaveLength(2);
+    // Langt fra hverandre, men lappene ville krasje (lange navn side om side): én lapp.
+    expect(samleEtiketter([k('Oslo bussterminal', 0, 2), k('Nationaltheatret', 100, 1)], px)).toHaveLength(1);
+    // Samme avstand, men den ene lappen høyt over den andre (stor boble): to lapper.
+    expect(samleEtiketter([k('Oslo bussterminal', 0, 2), k('Nationaltheatret', 100, 1)], q => ({ x: q.x, y: q.x === 0 ? 0 : 200 }))).toHaveLength(2);
     // Uten projeksjon: hver knute sin etikett.
     expect(samleEtiketter([k('A', 0, 2), k('B', 1, 1)], null)).toHaveLength(2);
   });
@@ -216,6 +241,12 @@ describe('ett bytte: kartet', () => {
       expect(r.steder[0]).toEqual(alle[0]);
       expect(r.steder[r.steder.length - 1]).toEqual(alle[alle.length - 1]);
     }
+  });
+  it('valgene til fitBounds kan skrives i (Leaflet legger til zoom — sett i nettleseren)', async () => {
+    await klar();
+    const f = falskL();
+    f.map.fitBounds = (b, o) => { o.zoom = 12; };
+    expect(() => ettBytteKart(f.map, f.L, { aktiv: true, pos })).not.toThrow();
   });
   it('uten valget eller uten kart gjør laget ingenting', async () => {
     await klar();
@@ -260,15 +291,16 @@ describe('ett bytte: klikkbare retningskort', () => {
     expect(nø.steder.length).toBeGreaterThan(KART_STEDER);
     expect(nø.steder.length).toBeLessThanOrEqual(KART_STEDER_VALGT);
     expect(d.retninger.filter(r => r.retning !== 'NØ').every(r => r.dempet)).toBe(true);
-    const etiketter = ting(f).filter(t => t.to && t.to.permanent).map(t => t.t);
+    const etiketter = ting(f).filter(t => t.o && t.o.icon && t.o.icon.className === 'eb-kart-etikett').map(t => t.o.icon.html.replace(/<[^>]+>/g, ''));
     expect(etiketter).toEqual(['Helsfyr']);
+    // Bare det valgte kortets steder vises, og de er de samme som kortet regner.
     const steder = ting(f).filter(t => t.o && /eb-kart-sted/.test(t.o.className));
-    const fulle = steder.filter(t => !/dempet/.test(t.o.className));
-    expect(fulle.length).toBe(nø.steder.length);
-    expect(steder.length - fulle.length).toBeGreaterThan(0); // de andre står, dempet
-    // Den valgte ligger oppå: alle fulle steder er tegnet etter alle dempede.
-    const iSted = steder.map(t => /dempet/.test(t.o.className));
-    expect(iSted.lastIndexOf(true)).toBeLessThan(iSted.indexOf(false));
+    expect(steder.length).toBe(nø.steder.length);
+    expect(steder.every(t => !/dempet/.test(t.o.className))).toBe(true);
+    // De andre knutepunktene står, dempet; Helsfyr fremhevet.
+    const bobler = ting(f).filter(t => t.o && /eb-kart-knute/.test(t.o.className));
+    expect(bobler.filter(t => !/dempet/.test(t.o.className)).map(t => t.ll.join(','))).toEqual([nø.knute.lat + ',' + nø.knute.lon]);
+    expect(bobler.some(t => /dempet/.test(t.o.className))).toBe(true);
   });
   it('rammen: deg, knutepunktet og retningens steder — ikke de andres; av gir oversikten', async () => {
     await klar();

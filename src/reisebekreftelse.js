@@ -125,7 +125,35 @@ export const NÆR_DUBLETT_REGEL = 'samme linjeretning, område og tilgangspunkt 
  * Prioriteringsrekkefølgen for bredde — sammenlignes ETTER TUR, aldri summert.
  * Hver dimensjon spør: tilfører kandidaten en ny verdi utover det som alt er valgt?
  */
-export const BREDDE = Object.freeze(['område', 'linjeretning', 'destinasjon', 'transportform', 'tilgangspunkt', 'knutepunkt', 'vei']);
+export const BREDDE = Object.freeze(['område', 'linjeretning', 'destinasjon', 'transportform', 'tilgangspunkt', 'knutepunkt', 'avstandsbånd']);
+/*
+ * Veiens ID er IDENTITET, ikke dekning (4d delsteg 2.2): den bevares i
+ * `dimensjoner.vei` og i svaret, men er ikke en breddedimensjon — en unik ID
+ * gjør hver kandidat «ny» og sier ingenting om nettverket. Det veien tilfører,
+ * står allerede i linjeretning, tilgangspunkt og knutepunkt.
+ * (Også `destinasjon` er alltid ny for en kandidat, fordi hver opsjon gir én;
+ * den står fordi rekkefølgen er fastsatt, og skiller aldri — likt hoppes over.)
+ */
+
+/**
+ * AVSTANDSBÅND (4d delsteg 2.2): geografisk rekkevidde fra brukerens
+ * utgangspunkt (`opsjon.origin`) til destinasjonen, i LUFTLINJE — det finnes
+ * ingen reisetid før reisesøket. Doblingsbånd fra 0,5 km: én stabil regel som
+ * gjelder fra bygd til storby, og grensene faller ikke sammen med områdebåndene
+ * (5/15/50/150 km), så de skiller rekkevidder innenfor et område. Beskrivende
+ * dekning — ikke en preferanse for korte eller lange reiser. Startverdi.
+ */
+export const AVSTANDSBÅND_KM = Object.freeze([0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256]);
+const km = x => String(x).replace('.', ',');
+/** Båndet for en avstand fra `origin` til `sted`; ukjent → null (aldri et eget bånd). */
+export function avstandsbånd(origin, sted) {
+  if (!origin || !sted || !Number.isFinite(origin.lat) || !Number.isFinite(origin.lon) || !Number.isFinite(sted.lat) || !Number.isFinite(sted.lon)) return null;
+  const d = metresBetween(origin, sted) / 1000;
+  if (!Number.isFinite(d)) return null;
+  const i = AVSTANDSBÅND_KM.findIndex(g => d < g);
+  if (i < 0) return `${km(AVSTANDSBÅND_KM[AVSTANDSBÅND_KM.length - 1])}+`;
+  return i === 0 ? `<${km(AVSTANDSBÅND_KM[0])}` : `${km(AVSTANDSBÅND_KM[i - 1])}–${km(AVSTANDSBÅND_KM[i])}`;
+}
 
 /** Dimensjonsverdiene for én tillatt vei — alt hentet fra oppdagelsesresultatet, ingenting gjettet. */
 function dimensjoner(vei, opsjon, samleAvQuay) {
@@ -139,7 +167,8 @@ function dimensjoner(vei, opsjon, samleAvQuay) {
     // ulike plattformer ved samme StopPlace er samme tilgangspunkt. Ukjent → null (kan ikke likestilles).
     tilgangspunkt: samleAvQuay.get(quay) || null,
     knutepunkt: vei.knute || 'direkte',
-    vei: vei.id,
+    avstandsbånd: avstandsbånd(opsjon.origin, (opsjon.destinations || [])[0]),
+    vei: vei.id, // identitet, ikke i BREDDE
   };
 }
 

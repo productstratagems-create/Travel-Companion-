@@ -1508,3 +1508,87 @@ opsjon }, tilgangspunkt, avstandM, regel }`.
 
 **Avvik:** ingen. Prioriteringsrekkefølgen, budsjettet, identitetene og den
 øvrige utvelgelsen er uendret.
+
+### 4d delsteg 2.2: avstandsbånd som dekningsdimensjon (gjort)
+
+**Bygget** i `src/reisebekreftelse.js`:
+- `AVSTANDSBÅND_KM = [0,5, 1, 2, 4, 8, 16, 32, 64, 128, 256]`;
+- `avstandsbånd(origin, sted)`;
+- `dimensjoner.avstandsbånd`.
+
+**`BREDDE`:** område → linjeretning → destinasjon → transportform →
+tilgangspunkt → knutepunkt → **avstandsbånd**, og til slutt id.
+
+**Avstandsbåndet**
+- **Kilde:** luftlinje fra `opsjon.origin` (brukerens posisjon) til
+  `opsjon.destinations[0]` [Kode]. Det finnes ingen reisetid før reisesøket.
+- **Doblingsbånd fra 0,5 km:** én stabil regel som gjelder fra bygd til
+  storby.
+  - Grensene faller ikke sammen med områdebåndene (5/15/50/150), så de skiller
+    rekkevidder innenfor et område.
+  - Grensene er startverdier, ikke tilpasset opptakene.
+- **Ukjent avstand** gir `null`. Det regnes aldri som et bånd og gir ikke ny
+  dekning.
+
+**Vei-ID er identitet, ikke dekning.**
+- `vei` er tatt ut av `BREDDE` og står bare i `dimensjoner.vei` og i svaret.
+- [Kode] Sammenligningen hopper over like verdier, så `vei` (alltid ny)
+  stoppet den ikke i praksis. Endringen er semantisk.
+- `destinasjon` er også alltid ny for en kandidat. Den står fordi rekkefølgen
+  er fastsatt, og skiller aldri.
+
+**Målt mot 2.1** (opptakene, budsjett 10 og 50, determinisme sjekket ved
+omvendt inndata):
+
+| | budsjett | bånd | lokale (< 2 km) | fjerne (≥ 16 km) | andre dimensjoner | inn / ut |
+|---|---|---|---|---|---|---|
+| Mortensrud | 10 | 7 → 7 | 4 → 3 | 2 → 2 | uendret | inn Nyjordet (2–4), ut Bjørnholt øvre (1–2) |
+| | 50 | 8 → 8 | 17 → 17 | 4 → 4 | uendret | ingen |
+| Natt | 10 | 6 → **7** | 5 → 4 | 1 → 1 | uendret | inn Bøler (4–8), ut Blakkens vei (0,5–1) |
+| | 50 | 7 → 7 | 14 → 14 | 1 → 1 | uendret | ingen |
+| Nesttun | 10 | 5 → **6** | 3 → 3 | 0 → **1** | uendret | inn Osøyro terminal (16–32), ut Kuven (8–16) |
+| | 50 | 7 → 7 | 18 → 18 | 1 → 1 | uendret | ingen |
+| Ranheim | 10 / 50 | uendret | uendret | uendret | uendret | ingen |
+| Tretten | 10 | 5 → **6** | 2 → 2 | 1 → 1 | uendret | inn Vike (2–4), ut Botterud (4–8) |
+| | 50 | 6 → 6 | 3 → 3 | 14 → 14 | uendret | ingen |
+
+Med «andre dimensjoner» menes områder, linjeretninger, transportformer,
+tilgangspunkter og knutepunkter. Determinismen holdt i alle kjøringene.
+
+**Vurdering [Tolkning]**
+- **Budsjett 10:** tre av fem steder får ett bånd til.
+  - Nesttun får en fjern mulighet (Osøyro terminal, 16–32 km) i stedet for et
+    stopp til i 8–16-båndet.
+  - Lokale muligheter er fortsatt representert overalt, med 2–4 per steder.
+  - Ingen annen dimensjon blir dårligere.
+- **Budsjett 50: ingen endring.**
+  - Alle bånd som finnes, er dekket tidlig, og deretter avgjør id igjen.
+  - Byttet fra 2.1 (Kolsås, Jernbanetorget og Oslo bussterminal ut) står
+    derfor fortsatt. Kolsås' bånd (16–32) var allerede dekket av andre.
+  - Avstandsbånd skiller bare så lenge det finnes bånd uten valgt kandidat.
+    Ved store budsjett er det et svakt verktøy.
+- **Flere bånd er ikke bedre i seg selv.** Gevinsten er at de første
+  plassene sprer seg på rekkevidde også innenfor et område, i stedet for å
+  avgjøres alfabetisk.
+
+**Tester:** 7 nye, 36 i alt.
+- grenser og `null`;
+- båndet regnes fra origin, ikke fra tilgangen (syntetisk tilgang 30 km
+  unna);
+- lik reell dekning og ulike vei-id-er: båndet avgjør;
+- samme bånd: id avgjør;
+- to ukjente: id avgjør, og `null` gir ikke dekning;
+- vei-id er identitet og ikke i `BREDDE`;
+- alle scenarioer ved budsjett 10 og 50: deterministisk, alt gjort rede for
+  og identitetene bevart.
+
+**Mutasjoner:** 6 av 6 fanget:
+- avstandsbånd før område;
+- avstand fra tilgangspunktet;
+- `null` regnet som eget bånd;
+- dimensjonen fjernet;
+- vei-id tilbake som dekning;
+- feil båndgrenser.
+
+**Avvik:** ingen. Én syntetisk test var feilplassert, fordi 0,999 km falt i
+båndet 0,5–1. Den ble rettet.

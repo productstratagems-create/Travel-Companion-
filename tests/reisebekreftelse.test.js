@@ -3,7 +3,7 @@
  * Entur via nettverksutforskeren (tests/fixtures/entur/) og syntetiske veier.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { grunnlag, tillatt, UTENFOR, velgRepresentativt, BREDDE, NÆR_DUBLETT_M, NÆR_DUBLETT_REGEL } from '../src/reisebekreftelse.js';
+import { grunnlag, tillatt, UTENFOR, velgRepresentativt, BREDDE, NÆR_DUBLETT_M, NÆR_DUBLETT_REGEL, avstandsbånd, AVSTANDSBÅND_KM } from '../src/reisebekreftelse.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { SCENARIOER, lastOpptak, avspiller } from './fixtures/entur/avspilling.js';
 
@@ -104,7 +104,7 @@ function syntetiskResultat(spes) {
   const opsjoner = new Map(), veier = [];
   for (const x of spes) {
     const oid = `destination:${x.dest}`;
-    const o = opsjoner.get(oid) || { id: oid, type: 'destination', label: x.dest, timetable: null, destinations: [{ id: x.dest, lat: x.lat ?? 60, lon: x.lon ?? 10 }], accessPoints: [] };
+    const o = opsjoner.get(oid) || { id: oid, type: 'destination', label: x.dest, timetable: null, origin: x.origin === undefined ? { lat: 60, lon: 10 } : x.origin, destinations: [{ id: x.dest, lat: x.lat ?? 60, lon: x.lon ?? 10 }], accessPoints: [] };
     o.accessPoints.push({ quayId: x.quay || 'Q1', parentId: x.parent || 'P1', mode: x.modus || 'bus' });
     opsjoner.set(oid, o);
     veier.push({ id: x.id, opsjon: oid, ledd: x.ledd ?? 1, knute: x.knute ?? null, inn: x.inn ?? null, vindu: x.vindu || 'ordinært', avgang: T,
@@ -124,7 +124,7 @@ describe('delsteg 2: representativ utvelgelse', () => {
       { id: 'b', dest: 'B', område: 'S|5–15', lr: 'L1>R', lat: 63 },
     ]);
     expect(ider(velgRepresentativt(r, 4))).toEqual(['a', 'b', 'c', 'd']);
-    expect(BREDDE).toEqual(['område', 'linjeretning', 'destinasjon', 'transportform', 'tilgangspunkt', 'knutepunkt', 'vei']);
+    expect(BREDDE).toEqual(['område', 'linjeretning', 'destinasjon', 'transportform', 'tilgangspunkt', 'knutepunkt', 'avstandsbånd']); // vei-ID er identitet, ikke dekning (2.2)
   });
   it('ny transportform går foran nytt tilgangspunkt; nytt tilgangspunkt foran bare ny destinasjon', () => {
     const r = syntetiskResultat([
@@ -280,6 +280,81 @@ describe('delsteg 2.1: nesten-dublett krever samme tilgangspunkt (samlestopp)', 
         expect(valgt.get(x.sammenlignetMed.vei).dimensjoner.tilgangspunkt).toBe(x.tilgangspunkt);
         expect(x.avstandM).toBeLessThanOrEqual(NÆR_DUBLETT_M);
         expect(x.tilgangspunkt).toMatch(/^NSR:StopPlace:/);
+      }
+    }
+  });
+});
+
+/* ------------------------------------------------------------ delsteg 2.2 */
+const nord = km => 60 + km / 111.2; // breddegrad km nord for (60, 10)
+describe('delsteg 2.2: avstandsbånd som dekningsdimensjon', () => {
+  it('doblingsbånd, ukjent → null (aldri et eget bånd)', () => {
+    const o = { lat: 60, lon: 10 };
+    expect(AVSTANDSBÅND_KM).toEqual([0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256]);
+    expect(avstandsbånd(o, { lat: nord(0.49), lon: 10 })).toBe('<0,5');
+    expect(avstandsbånd(o, { lat: nord(0.51), lon: 10 })).toBe('0,5–1');
+    expect(avstandsbånd(o, { lat: nord(20), lon: 10 })).toBe('16–32');
+    expect(avstandsbånd(o, { lat: nord(255), lon: 10 })).toBe('128–256');
+    expect(avstandsbånd(o, { lat: nord(257), lon: 10 })).toBe('256+');
+    expect(avstandsbånd(null, { lat: 60, lon: 10 })).toBe(null);
+    expect(avstandsbånd(o, { lat: undefined, lon: 10 })).toBe(null);
+  });
+  it('regnes fra brukerens utgangspunkt (opsjon.origin), ikke fra tilgangspunkt eller knutepunkt', () => {
+    // Tilgangen ligger 30 km unna origin; destinasjonen 1,5 km fra origin → båndet er 1–2, ikke 16–32/32–64.
+    const r = syntetiskResultat([{ id: 'a', dest: 'A', lat: nord(1.5), lon: 10 }]);
+    r.opsjoner[0].accessPoints[0] = { quayId: 'Q1', parentId: 'P1', mode: 'bus', lat: nord(30), lon: 10 };
+    r.veier[0].knute = null;
+    expect(velgRepresentativt(r, 1).valgt[0].dimensjoner.avstandsbånd).toBe('1–2');
+  });
+  it('lik reell dekning, ulike vei-ID-er: avstandsbåndet skiller — ikke ID', () => {
+    // a velges først; z (lav id) og y (høy id) er like på alt unntatt bånd; y har nytt bånd.
+    const r = syntetiskResultat([
+      { id: 'a', dest: 'A', lat: nord(1.5), lon: 10, område: 'N|0–5' },
+      { id: 'z', dest: 'B', lat: nord(1.6), lon: 10.01, område: 'N|0–5' },   // samme bånd som a (1–2)
+      { id: 'y', dest: 'C', lat: nord(3), lon: 10, område: 'N|0–5' },       // nytt bånd (2–4)
+    ]);
+    const u = velgRepresentativt(r, 2);
+    expect(ider(u)).toEqual(['a', 'y']);
+    expect(u.valgt[1].nytt.avstandsbånd).toBe(true);
+  });
+  it('samme bånd og ingen reell forskjell: ID avgjør deterministisk', () => {
+    const r = syntetiskResultat([
+      { id: 'a', dest: 'A', lat: nord(1), lon: 10 },
+      { id: 'q', dest: 'C', lat: nord(1.3), lon: 10.01 },
+      { id: 'p', dest: 'B', lat: nord(1.3), lon: 10.02 },
+    ]);
+    expect(ider(velgRepresentativt(r, 2))).toEqual(['a', 'p']); // destination:B < destination:C
+  });
+  it('ukjent avstand gir ikke ny dekning; ID avgjør mellom to ukjente', () => {
+    const r = syntetiskResultat([
+      { id: 'a', dest: 'A', lat: nord(1), lon: 10 },
+      { id: 'u', dest: 'B', lat: nord(1.2), lon: 10, origin: null },   // ukjent
+      { id: 'k', dest: 'C', lat: nord(3), lon: 10 },                   // kjent, nytt bånd
+      { id: 'v', dest: 'D', lat: nord(1.2), lon: 10, origin: null },   // ukjent
+    ]);
+    const u = velgRepresentativt(r, 4);
+    expect(ider(u)).toEqual(['a', 'k', 'u', 'v']);
+    expect(u.valgt[2].dimensjoner.avstandsbånd).toBe(null);
+    expect(u.valgt[2].nytt.avstandsbånd).toBe(false);
+  });
+  it('vei-ID bevares som identitet, men er ikke en dekningsdimensjon', async () => {
+    const r = await resultat('mortensrud_dag');
+    const u = velgRepresentativt(r, 10);
+    expect(BREDDE).not.toContain('vei');
+    for (const v of u.valgt) { expect(v.dimensjoner.vei).toBe(v.vei); expect(v.nytt).not.toHaveProperty('vei'); }
+  });
+  it('alle scenarioer, budsjett 10 og 50: deterministisk, alt gjort rede for, identiteter bevart', async () => {
+    for (const n of SCENARIOER) {
+      const r = await resultat(n);
+      const veiIder = new Set(r.veier.map(v => v.id)), opsIder = new Set(r.opsjoner.map(o => o.id));
+      for (const nb of [10, 50]) {
+        const a = velgRepresentativt(r, nb);
+        const b = velgRepresentativt({ ...r, veier: [...r.veier].reverse(), opsjoner: [...r.opsjoner].reverse() }, nb);
+        expect(b.valgt).toEqual(a.valgt);
+        expect(b.utsatteVeier).toEqual(a.utsatteVeier);
+        for (const v of a.valgt) { expect(veiIder.has(v.vei)).toBe(true); expect(opsIder.has(v.opsjon)).toBe(true); }
+        const tillatte = a.grunnlag.kandidater.reduce((s, k) => s + k.veier.length, 0);
+        expect(a.valgt.length + a.alternativeVeier.length + a.ikkeValgt.reduce((s, k) => s + k.veier.length, 0)).toBe(tillatte);
       }
     }
   });

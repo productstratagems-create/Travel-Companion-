@@ -18,6 +18,24 @@ export const SCENARIOER = {
   ranheim_dag: { posisjon: { lat: 63.4286, lon: 10.5248 }, tid: '2026-11-24T12:00:00+01:00' },
   tretten_dag: { posisjon: { lat: 61.3125, lon: 10.3005 }, tid: '2026-11-24T12:00:00+01:00' },
 };
+/**
+ * Opptakene trimmes for felt utforskeren ikke leser (avvik, sanntidsflagg,
+ * ankomsttider, plattformkoordinater), så fiksturene holder seg små. Formen
+ * på det den leser er urørt.
+ */
+const UBRUKT = new Set(['situations', 'presentation', 'occupancyStatus', 'realtime', 'cancellation', 'aimedDepartureTime', 'aimedArrivalTime', 'expectedArrivalTime']);
+function trim(x, iTur = false) {
+  if (Array.isArray(x)) return x.map(y => trim(y, iTur));
+  if (!x || typeof x !== 'object') return x;
+  const ut = {};
+  for (const [k, v] of Object.entries(x)) {
+    if (UBRUKT.has(k)) continue;
+    if (iTur && k === 'expectedDepartureTime') continue;
+    if (k === 'quay' && v && typeof v === 'object') { const { latitude, longitude, publicCode, name, ...q } = v; ut[k] = trim(q, iTur); continue; }
+    ut[k] = trim(v, iTur || k === 'serviceJourney');
+  }
+  return ut;
+}
 const HDR = { 'Content-Type': 'application/json', 'ET-Client-Name': 'travelcompanion-nettverksutforsker' };
 for (const navn of (process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(SCENARIOER))) {
   const opptak = {};
@@ -25,7 +43,7 @@ for (const navn of (process.argv.slice(2).length ? process.argv.slice(2) : Objec
   const hent = async (n, req) => {
     const r = await fetch(req.url, { method: req.method, headers: HDR, body: req.body });
     const j = await r.json();
-    opptak[n] = { forespørsel: req, svar: j };
+    opptak[n] = { forespørsel: req, svar: trim(j) };
     return j;
   };
   const res = await utforsk(SCENARIOER[navn], { hent });

@@ -598,3 +598,91 @@ Integrering i `mulighetsoppdagelse.js` og skjermen er **ikke** med i trinn 4.
 - cachen ignorerer flytting;
 - linjeretning i `lineId`;
 - alternativ tilgang uten nytt transportmiddel.
+
+### 4b: knutepunkter og ledd 2 (gjort)
+
+**Bygget**
+- **Knutepunktkandidater** er samlestopp som ledd 1 når. Linjene leses på
+  *samlestoppet* (`parent{quays{lines}}`). Målt: samlestoppets `quays` tar
+  med søskenstoppene. Helsfyr har 17 plattformer med T-bane, mens
+  understoppet 6071 har 11 uten. Dette bruker samme stoppinfo-kall som før,
+  så det koster ingen ekstra kall.
+- **Marginalt forhåndsvalg, uten kall.**
+  - Hvert valg tar knutepunktet med flest linjer som verken ledd 1 eller
+    knutepunktene som alt er valgt, dekker. Uavgjort avgjøres av nye
+    transportmidler, så id.
+  - Størrelse, popularitet og antall avganger brukes ikke. Et stort
+    knutepunkt med de samme linjene som et valgt gir 0.
+  - Høyst `knuteMaks` (15).
+  - Alle kandidater rapporteres med status og grunn. Grunnen er en av disse:
+    - «bare linjer som alt er sett i ledd 1»;
+    - «linjene dekkes av valgte knutepunkter (…)»;
+    - «utenfor knuteMaks». Den står også i `ikkeUndersøkt`.
+- **Ledd 2** spørres i én spørring for alle spurte knutepunkter, med
+  `horisontFor` knutepunktets transportmidler (180 min for tog, ekspressbuss
+  og båt) og planlagt stoppliste som reserve.
+- **Marginalt bidrag per spurt knutepunkt** (måling, ikke kutt):
+  - nye linjeretninger, nye områder og nye transportmidler;
+  - destinasjoner, nye destinasjoner og alternative veier (kjente
+    destinasjoner nådd på en ny vei);
+  - `duplikat` når det ikke ga noe nytt.
+- **Tre nivåer holdes adskilt.**
+
+  | nivå | hvor det står |
+  |---|---|
+  | i rutetabellen | knutepunktets linjer; `iRutetabellIkkeIVindu` lister dem som ikke gikk i vinduet |
+  | i søkevinduet | avganger og veier |
+  | bekreftet | bare reisesøk, i 4d |
+
+  Ingen opsjon har noen bekreftelse fra utforskeren.
+- **`veier`** er én post per konkret nettverksvei: tilgang → [linjeretning
+  inn → knutepunkt →] linjeretning → destinasjon.
+  - Hver vei bærer `grunnlag`: «planlagt stoppsekvens» eller «avgang i
+    søkevinduet».
+  - Hver vei bærer også `stoppliste`, `avgang` og `område`.
+  - Veiene er adskilt fra opsjonsidentiteten. En ringlinje i to retninger
+    til samme destinasjon er én opsjon, men to veier. Modellen er ikke
+    endret.
+
+**Avvik og presiseringer**
+1. Det første forhåndsvalget (rangert på «nye linjer» per knutepunkt) ga
+   mange duplikater: 8 av 15 ved Tretten (Lillehammer sentrum) og 5 i
+   Nesttun. Det ble erstattet med et marginalt valg før commit. Målt etter
+   endringen er tallene 1 duplikat av 4 spurte ved Tretten, 2 av 15 i
+   Nesttun og 0 av 15 ved Mortensrud.
+2. Opptakene trimmes for felt utforskeren ikke leser (avvik, sanntidsflagg,
+   ankomsttider). Opptakene ble 743 kB komprimert, ned fra 1,8 MB.
+3. Stopplister som mangler, er rettet i utforskeren (4a). Det samme hullet i
+   tavla er issue #771 og holdes utenfor trinn 4.
+
+**Målt med opptakene** (tirsdag kl. 12:00 og natt kl. 01:30)
+
+| | Mortensrud | natt | Nesttun | Ranheim | Tretten |
+|---|---|---|---|---|---|
+| knutepunkter vurdert / spurt / duplikat | 111 / 15 / 0 | 15 / 1 / 1 | 179 / 15 / 2 | 66 / 15 / 0 | 26 / 4 / 1 |
+| linjeretninger | 169 | 3 | 106 | 159 | 36 |
+| områder | 30 | 3 | 30 | 28 | 26 |
+| destinasjoner | 1 531 | 17 | 1 155 | 1 325 | 561 |
+| veier (ledd 1 / ledd 2) | 392 / 7 153 | 53 / 12 | 470 / 3 379 | 77 / 5 460 | 56 / 1 089 |
+| veier med planlagt stoppsekvens | 246 | 0 | 3 354 | 286 | 328 |
+| kall: oppdagelse + gang | 4 + 1 | 4 + 1 | 4 + 1 | 4 + 1 | 4 + 1 |
+| tid | 2,2 s | 0,8 s | 1,2 s | 1,6 s | 0,9 s |
+
+Funnet blant kjente mål:
+- Mortensrud: Kristiansand, Stavanger, Lillehammer, Oslo S, Ski og Lysaker.
+- Nesttun: Stavanger og Voss.
+- Ranheim: Trondheim S, Lillehammer, Oslo S og Røros.
+- Tretten: Lillehammer og Gjøvik.
+
+**Ikke funnet**
+- Bergen stasjon fra Nesttun: overgangen går trolig til fots (4e).
+- Natt: bare én knutepunktkandidat ga linjer utover ledd 1, og den var
+  duplikat. Den står som det, ikke som «ingenting».
+
+**Tester:** `tests/nettverksutforsker.test.js` har 39 tester. Fem mutasjoner
+ble fanget:
+- linjer lest på understoppet;
+- ikke-marginalt forhåndsvalg;
+- vei uten linjeretning (ringlinjen slås sammen);
+- taus feil i ledd 2;
+- planlagt stoppsekvens merket som avgang.

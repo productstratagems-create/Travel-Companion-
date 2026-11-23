@@ -21,7 +21,7 @@
 import { metresBetween } from './haversine.js';
 import { boardGQL } from './api/queries.js';
 import { STOP_MODE } from './api/stopCats.js';
-import { nyOpsjon, nyOppdagelse, samle, avvik } from './opsjonsmodell.js';
+import { nyOpsjon, nyOppdagelse, samle, avvik, tilgangsId } from './opsjonsmodell.js';
 
 /**
  * STARTVERDIER — ikke produktregler. Alle kan overstyres per kall og
@@ -49,6 +49,10 @@ export const PARAMETRE = Object.freeze({
   horisontMin: { standard: 60, rail: 180, coach: 180, water: 180, taxi: 120 },
   perLinje: 2,
   avgangerMaks: 60,
+  /** Høyst så mange knutepunkter i ledd 2 — ett kall uansett (målt 0,4–1,1 s for 15). Startverdi. */
+  knuteMaks: 15,
+  /** Nettverksledd. To er utgangspunktet; tre er ikke implementert. */
+  ledd: 2,
   /** Områder: 8 kompassretninger × avstandsbånd (km). Startverdi (3.5 §9). */
   områdeBåndKm: [5, 15, 50, 150],
   cache: { flyttM: 200, gyldigMs: 10 * 60_000 },
@@ -219,7 +223,8 @@ export async function utforsk(ktx, { hent, klokke = () => Date.now() }) {
   const info = new Map();
   if (videreIder.length) {
     const q = f => `{stopPlaces(ids:${JSON.stringify(videreIder)}){id name ${f} quays{lines{id transportMode}}}}`;
-    let j = await spør('stoppinfo', 'oppdagelse', gql(q('parent{id name latitude longitude}')));
+    // Samlestoppets quays inkluderer søskenstoppenes (målt: Helsfyr 17 mot understoppets 11, med T-bane).
+    let j = await spør('stoppinfo', 'oppdagelse', gql(q('parent{id name latitude longitude quays{lines{id transportMode}}}')));
     if (j && j.errors && !j.data) {
       notater.push('stopPlaces.parent avvist — deduplisering på understopp');
       j = await spør('stoppinfo uten parent', 'oppdagelse', gql(q('')));
@@ -230,33 +235,158 @@ export async function utforsk(ktx, { hent, klokke = () => Date.now() }) {
   const samleAv = id => { const s = info.get(id); return (s && s.parent && s.parent.id) || id; };
   const samleSted = v => { const s = info.get(v.id); const p = s && s.parent; return p ? { id: p.id, name: p.name, lat: p.latitude, lon: p.longitude } : { id: v.id, name: v.name, lat: v.lat, lon: v.lon }; };
 
-  /* kandidatopsjoner + grupperingsindeks */
-  const kand = [];
-  const grupper = { linjeretning: {}, område: {}, tilbud: {} };
-  const leggTil = (m, k, v) => { (m[k] = m[k] || new Set()).add(v); };
+  /* kandidatopsjoner, nettverksveier og grupperingsindeks.
+   * En OPSJON er hva du kan gjøre; en VEI er én konkret nettverksvei dit
+   * (tilgang → [linjeretning inn → knutepunkt →] linjeretning → destinasjon).
+   * Sammenslåing av opsjoner (samle) kan slå sammen stier med samme linje i
+   * hver sin retning (ringlinjer); `veier` beholder alle, med grunnlaget. */
+  const kand = [], veiMap = new Map();
   const lr = {}, omr = {}, tilb = {};
+  const leggTil = (m, k, v) => { (m[k] = m[k] || new Set()).add(v); };
+  const nyLR = (a, dir, ledd, knute) => {
+    lr[dir] = lr[dir] || { lineId: a.lineId, kode: a.kode, modus: a.mode, retning: a.retning, tilgang: new Set(), knuter: new Set(), ledd: new Set(), destinasjoner: new Set(), stoppliste: new Set() };
+    lr[dir].stoppliste.add(a.stoppliste); lr[dir].ledd.add(ledd);
+    if (knute) lr[dir].knuter.add(knute); else lr[dir].tilgang.add(a.fra.id);
+    return lr[dir];
+  };
+  const apAv = a => ({ parentId: a.fra.id, stopPlaceId: a.fra.id, quayId: a.quayId, mode: a.mode, lineId: a.lineId, distanceM: a.fra.luftM, walkMin: a.fra.gangMin });
+  /** Legg en destinasjon via én vei. Gir opsjons-id. */
+  const destinasjon = (sted, ap, sti, dir, vei) => {
+    const o = nyOpsjon({ type: 'destination', nøkkel: { destinasjon: sted.id }, label: sted.name, intent: 'reise til et sted', origin: pos, destinations: [sted], hubs: sti.hubs, accessPoints: [ap], discovery: disc, provenance: [sti] });
+    kand.push(o);
+    lr[dir].destinasjoner.add(o.id);
+    const område = områdeFor(pos, sted, P.områdeBåndKm);
+    if (område) { omr[område] = omr[område] || { destinasjoner: new Set(), linjeretninger: new Set() }; omr[område].destinasjoner.add(o.id); omr[område].linjeretninger.add(dir); }
+    const id = [vei.tilgang, vei.inn || '', vei.knute || '', dir, sted.id].join('#');
+    if (!veiMap.has(id)) veiMap.set(id, { id, opsjon: o.id, ledd: vei.ledd, tilgang: vei.tilgang, inn: vei.inn || null, knute: vei.knute || null, directionId: dir, stoppliste: vei.stoppliste, avgang: vei.avgang, område, grunnlag: vei.stoppliste === 'plan' ? 'planlagt stoppsekvens' : 'avgang i søkevinduet' });
+    return o.id;
+  };
+
+  /* ledd 1 */
   for (const a of avganger) {
     const dir = linjeretning(a.lineId, a.retning);
-    const ap = { parentId: a.fra.id, stopPlaceId: a.fra.id, quayId: a.quayId, mode: a.mode, lineId: a.lineId, distanceM: a.fra.luftM, walkMin: a.fra.gangMin };
-    const sti = { discoverer: 'nettverksutforsker:ledd1', oppdagelse: oppdagelse.id, accessPoint: ap, lineId: a.lineId, directionId: dir, hubs: [] };
+    const ap = apAv(a);
+    const sti = { discoverer: 'nettverksutforsker:ledd1', oppdagelse: oppdagelse.id, accessPoint: ap, lineId: a.lineId, directionId: dir, hubs: [], stoppliste: a.stoppliste };
     const tilbud = nyOpsjon({ type: 'transport_offer', nøkkel: { tilgang: a.fra.id, modus: a.mode, linje: a.lineId }, label: `${a.mode} ${a.kode || ''} fra ${a.fra.name}`.trim(), intent: 'bruke et tilbud i nærheten', origin: pos, accessPoints: [ap], discovery: disc, provenance: [sti], timetable: 'running' });
     kand.push(tilbud);
-    lr[dir] = lr[dir] || { lineId: a.lineId, kode: a.kode, modus: a.mode, retning: a.retning, tilgang: new Set(), knute: null, destinasjoner: new Set(), stoppliste: new Set() };
-    lr[dir].stoppliste.add(a.stoppliste);
-    lr[dir].tilgang.add(a.fra.id);
+    nyLR(a, dir, 1, null);
     leggTil(tilb, tilbud.id, dir);
     for (const v of a.videre) {
       const sted = samleSted(v);
       if (sted.id === samleAv(a.fra.id)) continue;
-      const o = nyOpsjon({ type: 'destination', nøkkel: { destinasjon: sted.id }, label: sted.name, intent: 'reise til et sted', origin: pos, destinations: [sted], accessPoints: [ap], discovery: disc, provenance: [sti] });
-      kand.push(o);
-      lr[dir].destinasjoner.add(o.id);
-      const område = områdeFor(pos, sted, P.områdeBåndKm);
-      if (område) { omr[område] = omr[område] || { destinasjoner: new Set(), linjeretninger: new Set() }; omr[område].destinasjoner.add(o.id); omr[område].linjeretninger.add(dir); }
+      destinasjon(sted, ap, sti, dir, { ledd: 1, tilgang: tilgangsId(ap), stoppliste: a.stoppliste, avgang: a.tid });
     }
   }
+
+  /* C. knutepunkter: samlestopp ledd 1 når, vurdert etter hva de kan tilføre */
+  const kjent = {
+    linjer: new Set(avganger.map(a => a.lineId)), modi: new Set(avganger.map(a => a.mode)),
+    lr: new Set(Object.keys(lr)), områder: new Set(Object.keys(omr)),
+    dest: new Set([...veiMap.values()].map(v => v.opsjon)),
+  };
+  const tilgangSamle = new Set(brukt.map(t => samleAv(t.id)));
+  const kn = new Map();
+  for (const [id, s] of info) {
+    const pid = samleAv(id);
+    if (tilgangSamle.has(pid)) continue;
+    const p = s.parent;
+    const e = kn.get(pid) || { id: pid, navn: (p && p.name) || s.name, lat: p ? p.latitude : null, lon: p ? p.longitude : null, linjer: new Map(), inn: new Map() };
+    for (const q of ((p && p.quays) || s.quays || [])) for (const l of q.lines || []) e.linjer.set(l.id, l.transportMode);
+    kn.set(pid, e);
+  }
+  for (const a of avganger) for (const v of a.videre) {
+    const e = kn.get(samleAv(v.id));
+    if (e) { const dir = linjeretning(a.lineId, a.retning); if (!e.inn.has(dir)) e.inn.set(dir, a); }
+  }
+  const vurdert = [...kn.values()].map(e => {
+    const linjer = [...e.linjer.keys()], moduser = [...new Set(e.linjer.values())];
+    return { e, id: e.id, navn: e.navn, linjer: linjer.length, nyeLinjer: linjer.filter(l => !kjent.linjer.has(l)).length, moduser, nyeModi: moduser.filter(m => !kjent.modi.has(m)), inn: [...e.inn.keys()].sort() };
+  });
+  // Marginalt forhåndsvalg (uten kall): hver gang det knutepunktet med flest linjer
+  // som verken ledd 1 eller allerede valgte knutepunkter dekker. Ikke størrelse:
+  // et stort knutepunkt med de samme linjene som et valgt gir 0.
+  const dekket = new Set(kjent.linjer), valgtAv = new Map();
+  let plass = P.knuteMaks, rekkefølge = 0;
+  const igjen = new Set(vurdert.filter(k => k.nyeLinjer > 0));
+  while (plass > 0 && igjen.size) {
+    let best = null, bestN = 0;
+    for (const k of igjen) {
+      const n = [...k.e.linjer.keys()].filter(l => !dekket.has(l)).length;
+      if (n > bestN || (n === bestN && n > 0 && (k.nyeModi.length > best.nyeModi.length || (k.nyeModi.length === best.nyeModi.length && k.id < best.id)))) { best = k; bestN = n; }
+    }
+    if (!best) break;
+    best.status = 'spurt'; best.rekkefølge = ++rekkefølge; best.marginaleLinjer = bestN;
+    best.grunn = `${bestN} linjer ikke dekket av ledd 1 eller tidligere valgte knutepunkter${best.nyeModi.length ? ', nye transportmidler: ' + best.nyeModi.join('/') : ''}`;
+    for (const l of best.e.linjer.keys()) { if (!dekket.has(l)) valgtAv.set(l, best.navn); dekket.add(l); }
+    igjen.delete(best); plass--;
+  }
+  for (const k of vurdert) {
+    if (k.status) continue;
+    k.status = 'ikke spurt';
+    if (!k.nyeLinjer) k.grunn = 'bare linjer som alt er sett i ledd 1';
+    else if ([...k.e.linjer.keys()].every(l => dekket.has(l))) k.grunn = `linjene dekkes av valgte knutepunkter (${[...new Set([...k.e.linjer.keys()].map(l => valgtAv.get(l)).filter(Boolean))].sort().join(', ')})`;
+    else { k.grunn = `utenfor knuteMaks ${P.knuteMaks}`; ikkeUndersøkt.push({ hva: `knutepunkt ${k.navn}`, grunn: k.grunn }); }
+  }
+  vurdert.sort((a, b) => (a.rekkefølge || 1e9) - (b.rekkefølge || 1e9) || b.nyeLinjer - a.nyeLinjer || (a.id < b.id ? -1 : 1));
+  const spurt = vurdert.filter(k => k.status === 'spurt');
+
+  /* D. ledd 2 fra knutepunktene, i én spørring */
+  const avganger2 = [];
+  if (P.ledd >= 2 && spurt.length) {
+    const q = '{' + spurt.map((k, i) => somAlias('s' + i, medPlanlagteStopp(boardGQL(k.id, P.avgangerMaks, tid, true, horisontFor(k.moduser, P.horisontMin), null, P.perLinje)))).join(' ') + '}';
+    const j = await spør('ledd 2', 'oppdagelse', gql(q));
+    spurt.forEach((k, i) => {
+      const sp = j && j.data && j.data['s' + i];
+      k.horisontMin = horisontFor(k.moduser, P.horisontMin);
+      if (!sp) { k.status = 'spurt, uten svar'; ikkeUndersøkt.push({ hva: `ledd 2 fra ${k.navn}`, grunn: j ? 'mangler i svaret' : 'ledd 2 svarte ikke' }); return; }
+      const iVindu = new Set();
+      for (const c of sp.estimatedCalls || []) {
+        const sj = c.serviceJourney || {}, line = sj.line || {};
+        const { videre, kilde } = stoppVidere(sj, c.quay && c.quay.id);
+        iVindu.add(line.id);
+        avganger2.push({ knute: k, quayId: c.quay && c.quay.id, tid: c.expectedDepartureTime, lineId: line.id, kode: line.publicCode, mode: line.transportMode, retning: c.destinationDisplay && c.destinationDisplay.frontText, videre, stoppliste: kilde });
+      }
+      // Tre nivåer holdes adskilt: i rutetabellen (quays.lines), i søkevinduet (avganger), bekreftet (reisesøk, ikke her).
+      k.iRutetabellIkkeIVindu = [...k.e.linjer.keys()].filter(l => !iVindu.has(l) && !kjent.linjer.has(l)).sort();
+    });
+  } else if (P.ledd >= 2 && !spurt.length && vurdert.length) {
+    ikkeUndersøkt.push({ hva: 'ledd 2', grunn: 'ingen knutepunkt med linjer utover ledd 1' });
+  }
+  for (const b of avganger2) {
+    const k = b.knute;
+    const dir = linjeretning(b.lineId, b.retning);
+    nyLR({ ...b, fra: { id: k.id } }, dir, 2, k.id);
+    for (const [inn, a] of k.e.inn) {
+      const ap = apAv(a);
+      const sti = { discoverer: 'nettverksutforsker:ledd2', oppdagelse: oppdagelse.id, accessPoint: ap, lineId: b.lineId, directionId: dir, inn, hubs: [k.id], stoppliste: b.stoppliste };
+      for (const v of b.videre) {
+        const sted = samleSted(v);
+        if (sted.id === k.id || tilgangSamle.has(sted.id)) continue;
+        destinasjon(sted, ap, sti, dir, { ledd: 2, tilgang: tilgangsId(ap), inn, knute: k.id, stoppliste: b.stoppliste, avgang: b.tid });
+      }
+    }
+  }
+  // Marginalt bidrag per knutepunkt, i vurderingsrekkefølge (måling, ikke kutt: alt som er hentet brukes).
+  const sett = { lr: new Set(kjent.lr), områder: new Set(kjent.områder), modi: new Set(kjent.modi), dest: new Set(kjent.dest) };
+  const veier = [...veiMap.values()];
+  for (const k of spurt) {
+    const mine = veier.filter(v => v.knute === k.id);
+    const lrs = new Set(mine.map(v => v.directionId)), oms = new Set(mine.map(v => v.område).filter(Boolean)), ds = new Set(mine.map(v => v.opsjon));
+    const modi = new Set(avganger2.filter(b => b.knute === k).map(b => b.mode));
+    k.bidrag = {
+      linjeretninger: lrs.size, nyeLinjeretninger: [...lrs].filter(x => !sett.lr.has(x)).length,
+      områder: oms.size, nyeOmråder: [...oms].filter(x => !sett.områder.has(x)).length,
+      nyeTransportmidler: [...modi].filter(x => !sett.modi.has(x)),
+      destinasjoner: ds.size, nyeDestinasjoner: [...ds].filter(x => !sett.dest.has(x)).length,
+      alternativeVeier: [...ds].filter(x => kjent.dest.has(x)).length,
+    };
+    k.duplikat = k.bidrag.nyeLinjeretninger === 0 && k.bidrag.nyeOmråder === 0 && k.bidrag.nyeDestinasjoner === 0;
+    lrs.forEach(x => sett.lr.add(x)); oms.forEach(x => sett.områder.add(x)); modi.forEach(x => sett.modi.add(x)); ds.forEach(x => sett.dest.add(x));
+  }
+  const knutepunkter = { vurdert: vurdert.map(({ e, ...k }) => k), spurt: spurt.map(k => k.id) };
+
   const tilListe = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Object.fromEntries(Object.entries(v).map(([a, b]) => [a, b instanceof Set ? [...b].sort() : b]))]));
-  grupper.linjeretning = tilListe(lr);
+  const grupper = { linjeretning: tilListe(lr) };
   grupper.område = tilListe(omr);
   grupper.tilbud = Object.fromEntries(Object.entries(tilb).map(([k, v]) => [k, { linjeretninger: [...v].sort() }]));
 
@@ -271,13 +401,15 @@ export async function utforsk(ktx, { hent, klokke = () => Date.now() }) {
     oppdagelse: { ...oppdagelse, kall },
     tilgang: tilgang.map(({ lat, lon, ...t }) => ({ ...t, lat, lon })),
     kanter: [],
-    knutepunkter: { valgt: [], vurdert: [] },
-    opsjoner, grupper, ikkeUndersøkt, natt: null,
+    knutepunkter,
+    opsjoner, veier, grupper, ikkeUndersøkt, natt: null,
     rapport: {
       kall: { oppdagelse: teller('oppdagelse'), gang: teller('gang'), bekreftelse: 0 },
       feiledeKall: kall.filter(k => k.feil.length).map(k => `${k.navn}: ${k.feil.join(' | ')}`),
       ms: klokke() - t0, cachetreff: false,
       kandidater: { opsjoner: opsjoner.length, destinasjoner: opsjoner.filter(o => o.type === 'destination').length, tilbud: opsjoner.filter(o => o.type === 'transport_offer').length },
+      knutepunkter: { vurdert: vurdert.length, spurt: spurt.length, duplikater: spurt.filter(k => k.duplikat).length, ikkeSpurt: vurdert.length - spurt.length },
+      veier: { totalt: veier.length, ledd1: veier.filter(v => v.ledd === 1).length, ledd2: veier.filter(v => v.ledd === 2).length, planlagt: veier.filter(v => v.stoppliste === 'plan').length },
       struktur: { linjeretninger: Object.keys(grupper.linjeretning).length, medPlanlagtStoppliste: Object.values(grupper.linjeretning).filter(g => g.stoppliste.includes('plan')).length, områder: Object.keys(grupper.område).length, tilgangspunkter: brukt.length },
       ikkeUndersøkt: ikkeUndersøkt.length, notater,
     },

@@ -158,8 +158,9 @@ describe('budsjett, feil og cache', () => {
   it('oppdagelse og gang telles hver for seg; ingen bekreftelse i utforskeren', async () => {
     for (const n of SCENARIOER) {
       const { r, kall } = await kjør(n);
-      expect(r.rapport.kall).toEqual({ oppdagelse: 3, gang: 1, bekreftelse: 0 });
-      expect(kall.length).toBe(4);
+      expect(r.rapport.kall).toEqual({ oppdagelse: 4, gang: 1, bekreftelse: 0 }); // geokoder, ledd 1, stoppinfo, ledd 2
+      expect(kall.length).toBe(5);
+      expect(kall.filter(k => k.navn === 'ledd 2').length).toBe(1); // ett kall uansett antall knutepunkter
     }
   });
   it('ledd 1 feiler helt: tomt resultat, men aldri «ingen muligheter»', async () => {
@@ -192,9 +193,9 @@ describe('budsjett, feil og cache', () => {
     let t = 0; const klokke = () => t;
     await kjør('ranheim_dag', { klokke });
     t = 11 * 60_000;
-    expect((await kjør('ranheim_dag', { klokke })).kall.length).toBe(4);
+    expect((await kjør('ranheim_dag', { klokke })).kall.length).toBe(5);
     const p = O.ranheim_dag.scenario.posisjon;
-    expect((await kjør('ranheim_dag', { klokke }, { posisjon: { lat: p.lat + 0.003, lon: p.lon } })).kall.length).toBe(4); // ~330 m
+    expect((await kjør('ranheim_dag', { klokke }, { posisjon: { lat: p.lat + 0.003, lon: p.lon } })).kall.length).toBe(5); // ~330 m
   });
 });
 
@@ -209,5 +210,107 @@ describe('tetthet: storby, mellomby og bygd', () => {
     }
     expect(tall.tretten_dag.linjeretninger).toBeLessThan(tall.mortensrud_dag.linjeretninger);
     expect(tall.mortensrud_natt.linjeretninger).toBeLessThan(tall.mortensrud_dag.linjeretninger);
+  });
+});
+
+/* ------------------------------------------------------------------ 4b */
+const syntetisk = svar => ({ scenario: { posisjon: { lat: 60, lon: 10 }, tid: '2026-11-24T12:00:00+01:00' }, opptak: Object.fromEntries(Object.entries(svar).map(([k, v]) => [k, { forespørsel: {}, svar: v }])) });
+const sted = (id, lat = 60.01, lon = 10.01) => ({ id, name: id, latitude: lat, longitude: lon });
+/** Ringlinje: linje R i to retninger fra A, begge innom X. */
+const RING = syntetisk({
+  geokoder: { features: [{ properties: { id: 'NSR:StopPlace:1', name: 'A', category: ['onstreetBus'] }, geometry: { coordinates: [10, 60] } }] },
+  'gangtid tilgang': { data: { g0: { tripPatterns: [{ duration: 60, walkDistance: 50 }] } } },
+  'ledd 1': { data: { s0: { estimatedCalls: ['med klokka', 'mot klokka'].map((r, i) => ({ quay: { id: 'Q:A' }, expectedDepartureTime: `2026-11-24T12:0${i}:00+01:00`, destinationDisplay: { frontText: r }, serviceJourney: { id: 'SJ' + i, line: { id: 'L:R', publicCode: 'R', transportMode: 'bus' }, estimatedCalls: [{ quay: { id: 'Q:A', stopPlace: sted('NSR:StopPlace:1', 60, 10) } }, { quay: { id: 'Q:X', stopPlace: sted('NSR:StopPlace:X') } }] } })) } } },
+  stoppinfo: { data: { stopPlaces: [{ id: 'NSR:StopPlace:X', name: 'X', parent: null, quays: [{ lines: [{ id: 'L:R', transportMode: 'bus' }] }] }] } },
+});
+
+describe('4b: veier og retninger bevares', () => {
+  it('ringlinje: to retninger til samme destinasjon er én opsjon, men to inspiserbare veier', async () => {
+    const a = avspiller(RING);
+    const r = await utforsk(RING.scenario, { hent: a.hent });
+    const x = r.opsjoner.find(o => o.id === 'destination:NSR:StopPlace:X');
+    expect(x).toBeTruthy();
+    const veier = r.veier.filter(v => v.opsjon === x.id);
+    expect(new Set(veier.map(v => v.directionId))).toEqual(new Set(['L:R>med klokka', 'L:R>mot klokka']));
+    expect(Object.keys(r.grupper.linjeretning).sort()).toEqual(['L:R>med klokka', 'L:R>mot klokka']);
+  });
+  it('ledd 2 tar ikke bort noen vei fra ledd 1', async () => {
+    const en = await kjør('mortensrud_dag', {}, { parametre: { ledd: 1 } });
+    _tømCache();
+    const to = await kjør('mortensrud_dag');
+    const ider = new Set(to.r.veier.map(v => v.id));
+    expect(en.r.veier.length).toBeGreaterThan(0);
+    for (const v of en.r.veier) expect(ider.has(v.id)).toBe(true);
+    expect(to.r.veier.filter(v => v.ledd === 2).every(v => v.knute && v.inn)).toBe(true);
+  });
+  it('en vei bærer grunnlaget: planlagt stoppsekvens eller avgang i søkevinduet — aldri «bekreftet»', async () => {
+    const { r } = await kjør('nesttun_dag');
+    expect(new Set(r.veier.map(v => v.grunnlag))).toEqual(new Set(['planlagt stoppsekvens', 'avgang i søkevinduet']));
+    expect(r.veier.filter(v => v.stoppliste === 'plan').every(v => v.grunnlag === 'planlagt stoppsekvens')).toBe(true);
+    for (const o of r.opsjoner) expect(o.confirmations).toEqual([]);
+  });
+});
+
+describe('4b: knutepunkter etter marginal nettverksdekning', () => {
+  it('alle kandidater rapporteres med status og grunn; høyst knuteMaks spørres', async () => {
+    for (const n of SCENARIOER) {
+      const { r } = await kjør(n);
+      expect(r.knutepunkter.vurdert.every(k => k.status && k.grunn)).toBe(true);
+      expect(r.knutepunkter.spurt.length).toBeLessThanOrEqual(PARAMETRE.knuteMaks);
+      expect(r.rapport.knutepunkter.vurdert).toBe(r.knutepunkter.vurdert.length);
+    }
+  });
+  it('linjene leses på samlestoppet: søskenstoppenes linjer er med', async () => {
+    const info = O.mortensrud_dag.opptak.stoppinfo.svar.data.stopPlaces.filter(Boolean);
+    const modi = qs => new Set((qs || []).flatMap(q => q.lines.map(l => l.transportMode)));
+    const { r } = await kjør('mortensrud_dag');
+    const vurdert = new Map(r.knutepunkter.vurdert.map(k => [k.id, k]));
+    // understopp som mangler et transportmiddel samlestoppet har, og der samlestoppet er vurdert
+    const søsken = info.filter(s => s.parent && vurdert.has(s.parent.id) && [...modi(s.parent.quays)].some(m => !modi(s.quays).has(m)));
+    expect(søsken.length).toBeGreaterThan(0);
+    for (const s of søsken) expect(new Set(vurdert.get(s.parent.id).moduser)).toEqual(modi(s.parent.quays));
+  });
+  it('forhåndsvalget er marginalt: hvert spurt knutepunkt tilførte linjer da det ble valgt', async () => {
+    for (const n of SCENARIOER) {
+      const { r } = await kjør(n);
+      const spurt = r.knutepunkter.vurdert.filter(k => k.status === 'spurt' || k.status === 'spurt, uten svar');
+      expect(spurt.every(k => k.marginaleLinjer > 0)).toBe(true);
+      expect(spurt.map(k => k.rekkefølge)).toEqual(spurt.map((_, i) => i + 1));
+    }
+  });
+  it('Tretten: sentrumsstoppene i Lillehammer med de samme linjene spørres ikke hver for seg', async () => {
+    const { r } = await kjør('tretten_dag');
+    const dekket = r.knutepunkter.vurdert.filter(k => /dekkes av valgte knutepunkter \(Lillehammer skysstasjon\)/.test(k.grunn));
+    expect(dekket.length).toBeGreaterThan(5);
+    expect(r.knutepunkter.spurt.length).toBeLessThan(PARAMETRE.knuteMaks);
+  });
+  it('bidrag per spurt knutepunkt: nye linjeretninger, områder, destinasjoner, alternative veier', async () => {
+    const { r } = await kjør('mortensrud_dag');
+    const spurt = r.knutepunkter.vurdert.filter(k => k.status === 'spurt');
+    for (const k of spurt) expect(Object.keys(k.bidrag).sort()).toEqual(['alternativeVeier', 'destinasjoner', 'linjeretninger', 'nyeDestinasjoner', 'nyeLinjeretninger', 'nyeOmråder', 'nyeTransportmidler', 'områder']);
+    expect(spurt.reduce((s, k) => s + k.bidrag.nyeOmråder, 0)).toBeGreaterThan(5);
+  });
+  it('tre nivåer: i rutetabellen men ikke i vinduet rapporteres per knutepunkt', async () => {
+    const { r } = await kjør('mortensrud_natt');
+    const k = r.knutepunkter.vurdert.filter(x => x.status === 'spurt');
+    expect(k.length).toBeGreaterThan(0);
+    expect(k.every(x => Array.isArray(x.iRutetabellIkkeIVindu))).toBe(true);
+    expect(k.some(x => x.iRutetabellIkkeIVindu.length > 0)).toBe(true);
+  });
+  it('natt: knutepunkter som ikke tilfører noe er merket duplikat — ikke skjult', async () => {
+    const { r } = await kjør('mortensrud_natt');
+    expect(r.rapport.knutepunkter.duplikater).toBeGreaterThan(0);
+    expect(r.knutepunkter.vurdert.find(k => k.duplikat)).toBeTruthy();
+  });
+  it('ledd 2 feiler: ledd 1 står, og det sies', async () => {
+    const { r } = await kjør('ranheim_dag', { kast: ['ledd 2'] });
+    expect(r.veier.every(v => v.ledd === 1)).toBe(true);
+    expect(r.veier.length).toBeGreaterThan(0);
+    expect(r.ikkeUndersøkt.some(x => /ledd 2 svarte ikke/.test(x.grunn))).toBe(true);
+  });
+  it('to ledd er grensen; ledd 2 bygger ikke et tredje', async () => {
+    const { r } = await kjør('ranheim_dag');
+    expect(Math.max(...r.veier.map(v => v.ledd))).toBe(2);
+    expect(r.veier.every(v => !v.knute || r.knutepunkter.spurt.includes(v.knute))).toBe(true);
   });
 });

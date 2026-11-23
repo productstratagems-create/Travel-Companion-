@@ -1980,6 +1980,8 @@ let _listeRo = null, _listeValgt = null, _hurtigStraks = false;
 let _tavleStopp = null;
 const _tavle = () => _tavleStopp || _stop;
 /** Er stoppets avganger alt i tavla (flettet inn fra det)? Da er et bytte bare visning. Ren. */
+/** Kan overskriften flyttes hit uten ny tavle? Tavlas eget stopp, eller et flettet inn. Ren. */
+export function kanVisesHer(id, tavleId, dirs) { return !!id && (id === tavleId || byttUtenNyTavle(id, dirs)); }
 export function byttUtenNyTavle(id, dirs) {
   if (!id) return false;
   return (dirs || []).some(d => (d.calls || []).some(c => c && c.call && c.call._fra && c.call._fra.id === id));
@@ -2017,7 +2019,9 @@ export const LISTE_MIN_MELLOM_MS = 5 * 60_000;
  * retninger; gangMin(id): gangtid til stoppet (null = ukjent → regnes ikke).
  * @returns { id, antall, eget } — eget: antallet fra stoppet i overskriften. Ren.
  */
-export function listeStoppKandidat(dirs, egetId, gangMin, nå, topp = LISTE_TOPP) {
+export function listeStoppKandidat(dirs, egetId, gangMin, nå, topp = LISTE_TOPP, hovedId = egetId) {
+  // egetId: stoppet tavla ble hentet for (kall uten _fra); hovedId: stoppet i
+  // overskriften, som kandidaten måles mot (v1.218.284 — de kan være ulike).
   const første = [];
   (dirs || []).forEach(d => {
     const x = (d.calls || []).find(c => {
@@ -2031,8 +2035,8 @@ export function listeStoppKandidat(dirs, egetId, gangMin, nå, topp = LISTE_TOPP
   const tell = new Map();
   første.slice(0, topp).forEach(f => tell.set(f.id, (tell.get(f.id) || 0) + 1));
   let best = null;
-  tell.forEach((n, id) => { if (!best || n > best.antall || (n === best.antall && id === egetId)) best = { id, antall: n }; });
-  return best ? { ...best, eget: tell.get(egetId) || 0 } : null;
+  tell.forEach((n, id) => { if (!best || n > best.antall || (n === best.antall && id === hovedId)) best = { id, antall: n }; });
+  return best ? { ...best, eget: tell.get(hovedId) || 0 } : null;
 }
 /**
  * Ro: bytt bare når kandidaten har minst 2 flere enn stoppet i overskriften,
@@ -2851,9 +2855,13 @@ function _renderWhere() {
     // avganger. Telleregelen er reserven (hjemover, alle, uten svar).
     const kv = _autoTavle && _atRetning !== 'alle' && _atRetning !== 'hjem' ? _kombi.get(_tavle().id + '|' + _atRetning) : null;
     const viaReise = kv && Array.isArray(kv.tps) ? besteFraReiser(kv.tps, nåW) : null;
-    const kandidat = viaReise && list.some(x => x.id === viaReise.id)
+    // BARE TIL STOPP I TAVLA (v1.218.284). Rapportert med opptak: «mot Oslo
+    // sentrum» flyttet overskriften til Kantarellen (15 min), som ikke var i
+    // tavla — ny tavle, nye knapper, valget borte, ping-pong. Ligger
+    // påstigningen utenfor, står overskriften; reisen står som rad.
+    const kandidat = viaReise && kanVisesHer(viaReise.id, _tavle() && _tavle().id, _dirs)
       ? (viaReise.id === _stop.id ? null : { id: viaReise.id, antall: Infinity, eget: 0 })
-      : (viaReise ? null : listeStoppKandidat(_iRetning(_dirs, nåW), _stop.id, gangId, nåW));
+      : (viaReise ? null : listeStoppKandidat(_iRetning(_dirs, nåW), _tavle().id, gangId, nåW, LISTE_TOPP, _stop.id));
     // Etter et trykk: venter reisesøket ennå, vent med svaret (ikke tell først
     // og rett opp etterpå — det ville gitt to bytter).
     if (straks && kv && kv.tps === 'henter') { _hurtigStraks = true; }

@@ -34,7 +34,7 @@ describe('hurtigvalget avgjør «beste stopp herfra» (v1.218.274)', () => {
   it('koblingen: lista teller _iRetning, trykket gir straks, ikke ved stoppet', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');
     // v1.218.278: telleregelen er reserven når reisesøket mangler; samme _iRetning.
-    expect(a).toMatch(/listeStoppKandidat\(_iRetning\(_dirs, nåW\), _stop\.id, gangId, nåW\)/);
+    expect(a).toMatch(/listeStoppKandidat\(_iRetning\(_dirs, nåW\), _tavle\(\)\.id, gangId, nåW, LISTE_TOPP, _stop\.id\)/);
     expect(a).toMatch(/_listeRo = listeStoppRo\(_listeRo, kandidat, _stop\.id, nåW, straks\);/);
     expect(a).toMatch(/_hurtigStraks = true; _listeValgt = null; _renderBody\(\); _renderWhere\(\);/);
     expect(a).toMatch(/!_stopPinned && !picked\.changed && _stop && _dirs && _dirs\.length && !vedStoppet/);

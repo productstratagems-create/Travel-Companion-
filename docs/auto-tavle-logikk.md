@@ -99,6 +99,9 @@ til et stopp hvis avganger allerede er flettet inn (`byttUtenNyTavle`), hentes
 ingenting på nytt. Hurtigvalg, målområder, reisesøk og «fra …» regnes fra
 stoppet tavla ble hentet for (`_tavle()`), ikke fra overskriften — ellers
 endret et hurtigvalg sitt eget grunnlag, og knappene byttet under fingeren.
+Et hurtigvalg flytter overskriften bare til stopp som er i tavla
+(`kanVisesHer`, v1.218.284); peker reisesøket på et stopp utenfor, står
+overskriften, og reisen vises som rad («fra Kantarellen · 15 min å gå»).
 
 **Om bord** (`velgStoppIFart`): overskriften blir neste stopp på linja.
 

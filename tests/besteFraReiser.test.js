@@ -36,7 +36,7 @@ describe('beste stopp mot … slik Entur regner det (v1.218.278)', () => {
   it('koblingen: reisesøket først, telleregelen som reserve, og et trykk venter på svaret', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');
     expect(a).toMatch(/const viaReise = kv && Array\.isArray\(kv\.tps\) \? besteFraReiser\(kv\.tps, nåW\) : null;/);
-    expect(a).toMatch(/: \(viaReise \? null : listeStoppKandidat\(_iRetning\(_dirs, nåW\), _stop\.id, gangId, nåW\)\);/);
+    expect(a).toMatch(/: \(viaReise \? null : listeStoppKandidat\(_iRetning\(_dirs, nåW\), _tavle\(\)\.id, gangId, nåW, LISTE_TOPP, _stop\.id\)\);/);   // v1.218.284: tavlas stopp + overskriften
     expect(a).toMatch(/if \(straks && kv && kv\.tps === 'henter'\) \{ _hurtigStraks = true; \}/);
   });
 });

@@ -252,7 +252,13 @@ export const BOARD_MODES = ['metro', 'tram', 'bus', 'rail', 'water'];
  * from `bus`. Opt-in for the same reason: the name cannot be checked from
  * here, and a rejected enum takes the stop board with it.
  */
-export const BOARD_MODES_COACH = [...BOARD_MODES, 'coach'];
+export const BOARD_MODES_COACH = [...BOARD_MODES, 'coach', 'taxi'];
+/* BESTILLINGSTAXI (v1.218.279). Målt mot Entur (TransportMode-skjemaet og
+ * `lines`): 97 linjer med transportMode `taxi` (communalTaxi — f.eks.
+ * Innlandstrafikk rundt Tretten), mest på bygda der det ofte er eneste tilbud.
+ * Tavla spurte bare om buss/ekspressbuss; på Tretten sentrum manglet 12 av 30
+ * avganger. Følger `bus` som ekspressbussene: er buss på, er taxi med. */
+export const BUSS_FØLGER = ['coach', 'taxi'];
 
 /**
  * @param {string[]} [modes] which modes to ask for. Defaults to all four.
@@ -359,7 +365,7 @@ export function boardGQL(id, n, now, basic, fwdMins, modes, perLine, innstilte) 
   const wl = (Array.isArray(modes) ? modes.filter(m => BOARD_MODES_COACH.includes(m)) : []);
   // Asking for `bus` means asking for the express coaches too. Transmodel
   // keeps them apart; a person does not, and that was the reader's call.
-  const withCoach = wl.length ? (wl.includes('bus') ? [...wl, 'coach'] : wl) : BOARD_MODES_COACH;
+  const withCoach = wl.length ? (wl.includes('bus') ? [...wl, ...BUSS_FØLGER] : wl) : BOARD_MODES_COACH;
   const modeList = [...new Set(withCoach)].join(',');
   // startTime/timeRange rather than a bare numberOfDepartures, for the same
   // reason as tripGQL above. These two argument names are already in

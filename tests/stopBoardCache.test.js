@@ -44,7 +44,7 @@ describe('stopBoardSummary', () => {
     await stopBoardSummary('NSR:B', ['metro', 'bus']);
     expect(calls).toHaveLength(2);
     // coach rides with bus (v1.86.0)
-    expect(modesOf(calls[1]).split(',').sort()).toEqual(['bus', 'coach', 'metro']);
+    expect(modesOf(calls[1]).split(',').sort()).toEqual(['bus', 'coach', 'metro', 'taxi']);
   });
 
   it('treats the same modes in another order as the same question', async () => {

@@ -1,6 +1,6 @@
 # Auto-tavle: hvordan appen velger stopp, linjer og avganger
 
-Gjelder v1.218.278. Tallene i dette dokumentet er bundet til koden av
+Gjelder v1.218.279. Tallene i dette dokumentet er bundet til koden av
 `tests/autoTavleLogikk.test.js`: endres et tall i koden uten at det endres
 her, faller testen. Les dette før du endrer utvalget i Auto-tavle.
 
@@ -59,7 +59,7 @@ Rekkefølgen, øverst vinner:
    `src/api/stops.js`). Gangbåndet skalerer med stedet:
    `båndFor(nærmeste) = max(VIKTIG_GANG_M, 1,5 × nærmeste)`,
    `VIKTIG_GANG_M = 400` m. Tilbud sammenlignes (`sammenlignViktighet`) på:
-   transportmiddel (`MODUS_VEKT`: tog/T-bane 4, trikk 3, buss/båt 2),
+   transportmiddel (`MODUS_VEKT`, se «Transportmidlene» under),
    avganger neste time, avganger i døgnet, linjer, plattformer.
 5. **Hurtigvalg** (v1.218.274): med et annet valg enn «alle» telles
    avganger neste time *i den retningen* i stedet for alle
@@ -159,12 +159,42 @@ reserven («hjemover», «alle», eller før reisesøket har svart).
 - **Innramming og zoom** følger `docs/kartregler.md`; har du rørt kartet,
   eier du det.
 
+## Transportmidlene
+
+Målt mot Enturs API 2026-11-23: `TransportMode` i skjemaet til Journey
+Planner v3, antall linjer per transportmiddel (`lines`), og kategoriene
+geokoderen gir holdeplasser (prøvd i Oslo, Bergen, Trondheim, Tromsø,
+Kristiansand, Moss, Sogndal, Gardermoen og Narvik).
+
+| Transportmiddel (Entur) | Linjer i dag | Holdeplassen finnes som | Avganger hentes | Vekt | Merknad |
+|---|---|---|---|---|---|
+| `bus` buss | 4117 | `onstreetBus`, `busStation` | ja | 2 | |
+| `coach` ekspressbuss | 48 | (som buss) | ja, følger buss | 2 | regnes som buss (`normMode`) |
+| `taxi` bestillingstransport | 97 | (vanlig holdeplass) | ja, følger buss (v1.218.279) | 2 | `communalTaxi`, mest på bygda; merkes «må bestilles» |
+| `water` båt og ferje | 248 | `ferryStop`, `harbourPort` | ja | 2 | |
+| `rail` tog | 45 | `railStation` | ja | 4 | |
+| `metro` T-bane | 5 | `metroStation` | ja | 4 | |
+| `tram` trikk og bybane | 9 | `onstreetTram`, `tramStation`, `tramStop` | ja | 3 | |
+| `air` fly | 97 | `airport` | nei | 1 | flyplassen finnes som stopp (for bussen dit), flyavganger vises ikke |
+| `cableway` taubane | 1 | — | nei | 1 | én linje (gondol, vinter) |
+| `funicular` kabelbane | 0 | `funicular` (Fløibanen) | nei | 1 | stoppet finnes, uten egne avganger i Entur |
+| `lift`, `trolleybus`, `monorail`, `snowAndIce`, `carpool` | 0 | — | nei | 1–4 | i skjemaet, uten linjer i dag |
+
+`BOARD_MODES_COACH` (`src/api/queries.js`) er lista som spørres om. Når
+buss er på, følger `BUSS_FØLGER = ['coach', 'taxi']` med. Reisesøket
+(`transportModesGql`) spør fortsatt om buss, T-bane, trikk, tog, båt og
+ekspressbuss — bestillingstaxi er ikke med der ennå.
+
 ## Hva du styrer selv
 
 Valgt sted · stopp valgt fra «N ▾» · hurtigvalg · faste stopp og hjemover ·
 valgt tidspunkt · kartets filter for transportmiddel og linje.
 
 ## Kjente begrensninger
+
+- **Fly og taubane** hentes ikke som avganger (valg 2026-11-23).
+- **Reisesøket** (rader med bytte, «beste stopp mot …») tar ikke med
+  bestillingstaxi.
 
 - **850 m-grensen.** Finnes det holdeplasser innen 850 m, blir et stopp
   lenger unna aldri hentet — også en T-banestasjon på ~1 km (forsøkt

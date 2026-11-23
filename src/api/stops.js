@@ -93,7 +93,8 @@ export function viktighet(s, info) {
  *   1. beste transportmiddel   tog/T-bane > trikk > buss/båt (MODUS_VEKT)
  *   2. avganger neste time     tilbudet nå (null = ukjent, teller som 0)
  *   3. linjer, 4. plattformer  som før */
-export const MODUS_VEKT = { rail: 4, metro: 4, tram: 3, bus: 2, coach: 2, water: 2, air: 1, cableway: 1, funicular: 1, lift: 1 };
+// Alle Enturs TransportMode (v1.218.279, lest fra skjemaet): taxi = bestillingstransport, som buss.
+export const MODUS_VEKT = { rail: 4, metro: 4, monorail: 4, tram: 3, bus: 2, coach: 2, trolleybus: 2, taxi: 2, water: 2, air: 1, cableway: 1, funicular: 1, lift: 1, snowAndIce: 1, carpool: 1 };
 export function modusVekt(moduser) {
   return Math.max(0, ...(moduser || []).map(m => MODUS_VEKT[m] || 1));
 }

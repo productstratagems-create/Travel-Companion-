@@ -54,6 +54,8 @@ export const TRANSIT_CATS = [...new Set([
   'ferryStop', 'harbourPort', 'GroupOfStopPlaces', 'StopPlace',
   // You can stand at an airport and want the bus. It is a stop.
   'airport',
+  // Målt i geokoderen (v1.218.279): Fløibanen har `funicular`, ved siden av `other`.
+  'funicular', 'other',
 ])];
 
 /**
@@ -75,6 +77,8 @@ export const STOP_MODE = {
   tramStop:    'tram',
   ferryStop:   'water',
   harbourPort: 'water',
+  // airport/funicular får ingen modus her: auto-reise har ingen fil for dem, og
+  // et stopp uten modus havner i «andre stopp» (som StopPlace).
 };
 
 /**

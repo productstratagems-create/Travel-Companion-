@@ -145,6 +145,10 @@ overskriften, og reisen vises som rad («fra Kantarellen · 15 min å gå»).
 - **Rekk den lenger ned** (v1.218.185): en avgang du ikke rekker her, men
   rekker på et senere stopp på samme tur, flyttes opp med det stoppets tid
   og gangtid.
+- **Tre tall med faste plasser** (v1.218.286): venstre «gå om N» (når du må
+  gå); høyre **«framme HH:MM»** når turen stopper ved et kjent mål, med «går
+  HH:MM» smått under; ellers avgangen. I en blandet liste står «går» over
+  avgangen, så tallet aldri leses som ankomst. Midten sier «til <mål>».
 - **Rekkefølge**: etter når du må gå (avgang − gange) — «gå om N» /
   «GÅ NÅ». Stopp bak deg sist.
 - **Reiser med bytte** (`kombiRader`): for «mot sentrum» og målområdene ett

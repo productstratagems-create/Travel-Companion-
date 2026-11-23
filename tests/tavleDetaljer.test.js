@@ -139,7 +139,9 @@ describe('ankomst på tavleraden (v1.218.193)', () => {
   it('uten vanlige mål: ingenting — aldri endestasjonen', () => {
     expect(radAnkomst(KALL, MRUD, [], T)).toBe(null);
   });
-  it('raden viser det med Rutes ord', () => {
-    expect(readFileSync('src/ui/tavleRad.js', 'utf8')).toMatch(/'<span class="at-ank">ank\. ' \+ esc\(x\.ank\.navn\) \+ ' ' \+ esc\(clk\(x\.ank\.ms\)\)/);
+  it('raden viser det: målet i midten, ankomsten til høyre (v1.218.286)', () => {
+    const t = readFileSync('src/ui/tavleRad.js', 'utf8');
+    expect(t).toMatch(/'<span class="at-ank">til ' \+ esc\(x\.ank\.navn\) \+ '<\/span>'/);
+    expect(t).toMatch(/<small class="at-klokke-ord">framme<\/small>' \+ esc\(clk\(x\.ank\.ms\)\)/);
   });
 });

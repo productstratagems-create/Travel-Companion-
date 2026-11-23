@@ -6017,13 +6017,23 @@ function _kombiFor(valg, here, nå) {
     .finally(() => _renderBody());
   return post;
 }
+/** Når første kollektivetappe på en bytterad går (ms), eller null. Ren. */
+export function kombiAvgang(r) {
+  const l = r && r.tp && (r.tp.legs || []).find(x => x && x.mode && x.mode !== 'foot');
+  const t = l && (l.expectedStartTime || l.aimedStartTime);
+  return t ? Date.parse(t) : null;
+}
 function _kombiRadHtml(r, i) {
   const merker = r.linjer.map(l => linjemerke({ kode: l.kode, farge: l.farge, tekst: l.tekst, modus: l.modus })).join('<span class="hva-pil">→</span>');
   return '<button type="button" class="at-kombi" data-kombi="' + i + '">'
     + '<span class="hva-tall"><small>gå om</small><b>' + Math.max(0, r.gåOm) + '</b><small>min</small></span>'
     + '<span class="hva-info"><span class="hva-l1">' + merker + (r.via ? ' via ' + esc(r.via) : '') + '</span>'
     + fraMerke(r.fra, r.gangMin)
-    + '<span class="hva-l3">ank. ' + _klokke(r.ank) + ' · ' + r.bytter + ' bytte' + r.fakta.filter(f => f !== 'ingen bytte').map(f => ' · ' + esc(f)).join('') + '</span></span></button>';
+    + '<span class="hva-l3">' + r.bytter + ' bytte' + r.fakta.filter(f => f !== 'ingen bytte').map(f => ' · ' + esc(f)).join('') + '</span></span>'
+    // Samme høyre kolonne som radene (v1.218.286): framme stort, avgangen smått.
+    + ((går => '<span class="at-klokke at-klokke-ank"><small class="at-klokke-ord">framme</small>' + _klokke(r.ank)
+      + (går ? '<small class="at-klokke-gaar">går ' + _klokke(går) + '</small>' : '') + '</span>')(kombiAvgang(r)))
+    + '</button>';
 }
 const _retningTekst = k => (k === 'mot' ? motSentrumTekst(sentrumFor(_stop && Number.isFinite(_stop.lat) ? { lat: _stop.lat, lon: _stop.lon } : null))
   : AT_RETNING_TEKST[k] || ((_atOmr.find(o => o.id === k) || {}).tekst) || 'dit');
@@ -6188,6 +6198,8 @@ function _tegnAutoTavle(body) {
   const rader = [...del.ikke, ...del.rekker];
   // Stoppet ditt står på radene som går derfra også (v1.218.225, fraMerke).
   rader.forEach(x => { x.herNavn = _tavle() && _tavle().name; });
+  // Blandet liste (v1.218.286): finnes «framme» på noen rader, sier de andre «går».
+  { const harAnk = rader.some(x => x.ank && Number.isFinite(x.ank.ms)); rader.forEach(x => { x.klokkeOrd = harAnk; }); }
   // FLEKSIBLE LINJER (v1.218.256, src/api/bestilling.js): turer som må
   // bestilles, merkes på raden. Per stopp (ditt og nabostoppenes), som probe.
   rader.forEach(x => {

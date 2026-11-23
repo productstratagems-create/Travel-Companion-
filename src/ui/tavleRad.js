@@ -52,8 +52,15 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
   const min = Math.floor((x.ms - nå) / 60_000);
   const spor = x.call && x.call.quay && x.call.quay.publicCode;
   const merke = linjemerke({ kode: l.code, farge: l.colour, tekst: l.tekst, linjeId: l.id, modus: l.mode });
+  // ANKOMSTEN TIL HØYRE (v1.218.286). Bestilt: «valg av hvilken avgang denne
+  // faktisk velger er … også avhengig av når ankomsten er. Det tallet kan være
+  // litt krevende å se.» Proven (Google, Citymapper, Ruter): ankomsten på fast
+  // plass, så den kan sammenlignes nedover. Venstre sier når du må gå; høyre
+  // når du er framme; avgangen smått under. Uten kjent mål: som før.
+  const medAnk = !!(x.ank && Number.isFinite(x.ank.ms) && !x.innstilt);
   return '<button type="button" class="at-rad' + (x.rekker ? '' : ' at-rekker-ikke') + (x.best ? ' at-best' : '') + (x.innstilt ? ' at-innstilt' : '') + '" data-i="' + i + '"'
     + ' aria-label="' + esc((l.code || '') + ' mot ' + (x.d.frontText || '') + ', ' + (min < 1 ? 'nå' : min >= NEDTELLING_MAKS_MIN ? 'kl. ' + clk(x.ms) : 'om ' + min + ' min')
+      + (medAnk ? ', framme ' + clk(x.ank.ms) : '')
       + (spor ? ', spor ' + spor : '') + (x.innstilt ? ', innstilt' : x.rekker ? '' : ', rekker ikke')
       + (rutetid ? ', etter rutetid' : '') + (tittel ? ', avvik: ' + tittel : '')) + '"'
     + (tittel ? ' title="' + esc(tittel) + '"' : '') + '>'
@@ -71,7 +78,7 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     + '<span class="at-front">' + esc(x.d.frontText || '') + '</span>'
     + (x.innstilt ? '<span class="at-merk">innstilt</span>' : '')
     // ANKOMST (v1.218.193): bare til et vanlig mål på turen — samme ord som Rute («ank.»).
-    + (x.ank && !x.innstilt ? '<span class="at-ank">ank. ' + esc(x.ank.navn) + ' ' + esc(clk(x.ank.ms)) + '</span>' : '')
+    + (medAnk ? '<span class="at-ank">til ' + esc(x.ank.navn) + '</span>' : '')
     // Fra et nabostopp i knutepunktet (v1.218.119): hvor du går om bord.
     // Rekkes den lenger ned, sier den linja hvor; «fra» ville sagt et sted du ikke går til.
     // FRA-STOPPET PÅ HVER RAD (v1.218.225). Rapportert: «Fra-stasjon er ikke
@@ -94,8 +101,13 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     + (x.bytte ? '<span class="at-fra">bytt på ' + esc(x.bytte) + '</span>' : '')
     + (x.rekker || x.innstilt ? '' : '<span class="at-merk">rekker ikke</span>') + '</span>'
     // Ikke samme klokkeslett to ganger: står det til venstre, er høyre tom.
-    + '<span class="at-klokke">' + (min >= NEDTELLING_MAKS_MIN ? '' : esc(clk(x.ms)))
-    + (rutetid ? '<small class="at-rutetid">rutetid</small>' : '') + '</span>'
+    + (medAnk
+      ? '<span class="at-klokke at-klokke-ank"><small class="at-klokke-ord">framme</small>' + esc(clk(x.ank.ms))
+        + '<small class="at-klokke-gaar">går ' + esc(clk(x.ms)) + '</small>'
+        + (rutetid ? '<small class="at-rutetid">rutetid</small>' : '') + '</span>'
+      // I en liste der andre rader viser «framme», sier denne «går» (v1.218.286).
+      : '<span class="at-klokke">' + (x.klokkeOrd && min < NEDTELLING_MAKS_MIN ? '<small class="at-klokke-ord">går</small>' : '') + (min >= NEDTELLING_MAKS_MIN ? '' : esc(clk(x.ms)))
+        + (rutetid ? '<small class="at-rutetid">rutetid</small>' : '') + '</span>')
     + '<span class="at-spor">' + (spor ? '<small>spor</small>' + esc(spor) : '') + '</span>'
     + '</button>';
 }

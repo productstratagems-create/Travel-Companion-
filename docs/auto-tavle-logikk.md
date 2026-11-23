@@ -245,3 +245,81 @@ valgt tidspunkt · kartets filter for transportmiddel og linje.
 | knutepunkt | stoppet i overskriften pluss nabostoppene som flettes inn |
 | edderkoppbein | strekene ut fra stoppet på kartet |
 | kombirad | en rad for en reise med bytte |
+
+## «Ett bytte» (eksperiment, v1.218.289)
+
+Et ekstra hurtigvalg, **«ett bytte»**, står sist blant hurtigvalgene når tavla
+har et stopp med posisjon. Det viser hvilke områder du når med **ett bytte**,
+én rad per **himmelretning**: nord, nordøst, øst, sørøst, sør, sørvest, vest og
+nordvest. Målet er så mange ulike retninger som mulig.
+
+**Kilde:** nettverksutforskeren (`src/nettverksutforsker.js`), som hentes
+først når valget trykkes. Den har sin egen cache på 10 min og 200 m, og koster
+5–6 kall første gang.
+
+**Utvalget** (`src/ettBytte.js`, `ettByttePerRetning`):
+- bare veier med **to ledd** i **ordinært** søkevindu, med et reelt bytte
+  (samme linje videre er ikke et bytte);
+- gruppert etter himmelretningen til destinasjonens område. Sentrum (under
+  1 km) er ingen retning;
+- **ett knutepunkt per retning:** det som når flest ulike områder i den
+  retningen, så flest steder, så id. Det er spredning, ikke relevans;
+- linjene inn og ut slås sammen per linje. Plattform- og skiltvarianter blir
+  ett valg. Høyst 4 linjer ut vises, resten som «+N»;
+- 3 eksempelsteder (de lengst unna) og antallet til.
+
+**Hva raden *ikke* sier:**
+- ingen reisetid;
+- ingen «rekker»;
+- ingen bekreftelse.
+
+Overskriften sier: «mulig med ett bytte — ikke sjekket mot reisesøket, og
+byttet er ikke tidskontrollert».
+
+**Når noe mangler:**
+
+| situasjon | teksten |
+|---|---|
+| utforskeren leter | «ser etter hvor du kommer med ett bytte …» |
+| nettfeil | «fant ikke svar på bytter herfra nå» |
+| ingen treff | «fant ingen bytter herfra nå — det betyr ikke at det ikke finnes» |
+
+**Valget huskes ikke.** Etter omlasting står tavla på et kjent valg. Avgangslista,
+«mot sentrum», «hjemover» og målområdene er uendret.
+
+### Kartet (v1.218.290)
+
+Når svaret er kommet, viser kartet det samme som radene
+(`ettBytteKart` i `src/views/ettBytteVisning.js`, eget Leaflet-lag):
+
+- **deg** som fylt prikk, og en stiplet strek til hvert **knutepunkt** (ring);
+- fra knutepunktet en tynn strek til hvert **sted** du når derfra. Høyst 8
+  steder per retning (`KART_STEDER`), jevnt fordelt fra lengst unna til
+  nærmest (`spredt`), så både nærområdet og rekkevidden vises;
+- strekene er **skjematiske** — rette linjer, ikke traséer.
+
+**Ett tema** (`docs/kartregler.md`): tavlas eget lag (stopp, linjer, lapper)
+skjules mens «ett bytte» vises, og kommer tilbake når valget går av.
+
+**Rammen**, én gang per sted mens valget står:
+- deg, alle knutepunktene og de 3 nærmeste stedene per retning
+  (`RAMME_NÆRMESTE`);
+- et sted tas bare med innenfor `rammeGrense`: 2 × medianavstanden til
+  knutepunktene, minst 5 km. Det skalerer med stedet, men ett fjernt
+  knutepunkt (Oslo lufthavn) drar ikke med seg Lesja. Langdistanse peker ut
+  av kartet som retninger.
+
+Et nytt svar på samme sted flytter ikke kartet. Rører du kartet, er det ditt.
+Tavla regner kartet som «justert» mens laget vises, og får tilbake din egen
+tilstand når valget går av, så en justering du gjorde før, ikke slettes.
+
+**Etiketter:** knutepunkter som står nærmere hverandre enn 48 px på skjermen,
+deler én etikett («Oslo bussterminal · Helsfyr · Nationaltheatret»).
+Knutepunktet med flest retninger bærer den (`samleEtiketter`). Etikettene
+regnes ut ved innrammingen, ikke på nytt når du zoomer.
+
+**Tilbakerulling:** sett `ETT_BYTTE = false` i
+`src/views/ettBytteVisning.js`. Alternativt fjerner du de to modulene,
+`src/style/ettBytte.css` og de seks linjene merket «ETT BYTTE (eksperiment)» i
+`src/views/auto.js` (fem for lista, én for kartet). Testen
+`tests/ettBytte.test.js` binder at det er nøyaktig seks slike linjer.

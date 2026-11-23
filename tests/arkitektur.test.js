@@ -71,6 +71,30 @@ describe('arkitekturgrensen: snarveier og andre muligheter (steg 1b)', () => {
     expect(kropp).toMatch(/iOmråde\(/);
     expect(kropp).not.toMatch(/=== 'mot'|=== 'hjem'|startsWith\('omr:'\)/);
   });
+  it('opsjonsmodellen (steg 2) når verken reiseoppgavene, mulighetsoppdagelsen eller presentasjonen', () => {
+    const n = navn(når(fil('opsjonsmodell.js')));
+    expect(n).not.toContain('reiseoppgaver.js');
+    expect(n).not.toContain('mulighetsoppdagelse.js');
+    expect(n.filter(x => x.startsWith('views/'))).toEqual([]);
+    expect(n.filter(x => x.startsWith('api/'))).toEqual([]); // ren modell: ingen API
+  });
+  it('nettverksutforskeren (trinn 4) når verken snarveier, relevans, presentasjon eller UI', () => {
+    const n = navn(når(fil('nettverksutforsker.js')));
+    expect(n).toContain('opsjonsmodell.js');
+    expect(n).not.toContain('reiseoppgaver.js');
+    expect(n).not.toContain('mulighetsoppdagelse.js');
+    expect(n.filter(x => x.startsWith('views/') || x.startsWith('ui/') || x === 'config.js')).toEqual([]);
+  });
+  it('reisebekreftelsen (4d) tar oppdagelsen som data: når verken utforskeren, snarveier, relevans eller UI', () => {
+    const n = navn(når(fil('reisebekreftelse.js')));
+    for (const x of ['nettverksutforsker.js', 'reiseoppgaver.js', 'mulighetsoppdagelse.js', 'config.js']) expect(n).not.toContain(x);
+    expect(n.filter(x => x.startsWith('views/') || x.startsWith('ui/'))).toEqual([]);
+  });
+  it('«ett bytte» (eksperiment) når verken snarveier, relevans eller presentasjon', () => {
+    const n = navn(når(fil('ettBytte.js')));
+    for (const x of ['reiseoppgaver.js', 'mulighetsoppdagelse.js', 'reisebekreftelse.js']) expect(n).not.toContain(x);
+    expect(n.filter(x => x.startsWith('views/') || x.startsWith('ui/'))).toEqual([]);
+  });
   // Måleinstrumentet selv: en innsmuglet import, direkte eller via en mellomfil, skal fanges.
   it('vakten fanger en import (mutasjon)', () => {
     const kilde = readFileSync(MUL, 'utf8');

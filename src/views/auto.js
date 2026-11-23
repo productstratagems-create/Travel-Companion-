@@ -63,6 +63,7 @@ import { erInnstilt } from '../innstilt.js';
 import { canCatch, catchable } from '../reiseberegning.js';
 import { gårMotSentrum, hjemoverDom, iSnarvei, SNARVEIER, MOT_SENTRUM } from '../reiseoppgaver.js';
 import { andreRetninger, områderFor, iOmråde, erOmrådeValg } from '../mulighetsoppdagelse.js';
+import { ETT_BYTTE, ETT_BYTTE_VALG, ETT_BYTTE_TEKST, ettBytteHtml, ettBytteKart } from './ettBytteVisning.js'; // ETT BYTTE (eksperiment)
 import { plattformTekst } from '../bytte.js';
 import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, stoppFram, vedOgNeste, stoppEtterId, rangerKandidater } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
@@ -6023,7 +6024,7 @@ function _kombiRadHtml(r, i) {
       + (går ? '<small class="at-klokke-gaar">går ' + _klokke(går) + '</small>' : '') + '</span>')(kombiAvgang(r)))
     + '</button>';
 }
-const _retningTekst = k => (k === 'mot' ? motSentrumTekst(sentrumFor(_stop && Number.isFinite(_stop.lat) ? { lat: _stop.lat, lon: _stop.lon } : null))
+const _retningTekst = k => (k === ETT_BYTTE_VALG ? ETT_BYTTE_TEKST /* ETT BYTTE (eksperiment) */ : k === 'mot' ? motSentrumTekst(sentrumFor(_stop && Number.isFinite(_stop.lat) ? { lat: _stop.lat, lon: _stop.lon } : null))
   : AT_RETNING_TEKST[k] || ((_atOmr.find(o => o.id === k) || {}).tekst) || 'dit');
 let _atRetning = lagretRetning();
 let _atRekke = [];      // forrige rekkefølge, for ro (v1.218.172)
@@ -6117,6 +6118,7 @@ function _tegnAutoTavle(body) {
   const linjerI = k => [...new Set((_iValg(synlige, k, nå) || []).map(d => d.lines && d.lines[0] && d.lines[0].code).filter(Boolean))];
   const knappValg = (_atOmr.length ? ['alle', 'mot', 'hjem', ..._atOmr.map(o => o.id)] : AT_RETNINGER)
     .filter(k => k === 'alle' || k === 'hjem' || linjerI(k).length > 0);
+  if (ETT_BYTTE && here) knappValg.push(ETT_BYTTE_VALG); // ETT BYTTE (eksperiment)
   if (!knappValg.includes(_atRetning)) _atRetning = 'alle';
   if (hjemListe.length) _hjemSøkOppdater(nå);
   const iRetning = _iRetning(synlige, nå);
@@ -6177,7 +6179,7 @@ function _tegnAutoTavle(body) {
   const retningKnapper = harBegge ? '<div class="auto-fra at-retning" role="group" aria-label="retning">'
     + knappValg.map(k => '<button type="button" class="auto-fra-knapp' + (k === _atRetning ? ' valgt' : '')
       + '" data-retning="' + k + '" aria-pressed="' + (k === _atRetning) + '"' + (k === 'hjem' ? ' title="hold for å velge stoppene"' : '') + '>' + esc(_retningTekst(k))
-      + ((l => k !== 'alle' && l.length ? '<small class="omr-linjer">' + esc(knappLinjer(l)) + '</small>' : '')(linjerI(k))) + '</button>').join('') + '</div>' : '';
+      + ((l => k !== 'alle' && l.length ? '<small class="omr-linjer">' + esc(knappLinjer(l)) + '</small>' : '')(k === ETT_BYTTE_VALG ? [] /* ETT BYTTE (eksperiment) */ : linjerI(k))) + '</button>').join('') + '</div>' : '';
   // Avvikene per linje, samme kilde som retningskortene (v1.218.126).
   const perLinje = byLine(_alerts);
   const meld = id => perLinje.get(id) || [];
@@ -6220,7 +6222,7 @@ function _tegnAutoTavle(body) {
       + del.ikke.map((x, i) => tavleRadHtml(x, nå, i, meld)).join('') + '</div></details>'
     : '';
   const bunn = '<div class="at-bunn">' + (_atSlutt ? 'ikke flere avganger herfra' : _atHenter ? 'henter flere …' : '') + '</div>';
-  body.innerHTML = retningKnapper + (rader.length
+  body.innerHTML = retningKnapper + (_atRetning === ETT_BYTTE_VALG ? ettBytteHtml(here, { esc, rerender: () => _renderBody() }) /* ETT BYTTE (eksperiment) */ : rader.length
     // FØRSTE KORT OVER KANTEN (v1.218.245): ingen «neste avganger herfra» —
     // lista sier det selv; «N avganger du ikke rekker» står under kortene.
     // Overskriften står når den sier noe: et valgt tidspunkt.
@@ -6237,6 +6239,7 @@ function _tegnAutoTavle(body) {
       })() + '</div>' + ikkeHtml + bunn
     : merknad + hjemMerk + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : (_atRetning !== 'alle' ? 'ingen avganger ' + _retningTekst(_atRetning) + ' herfra nå' : 'ingen avganger herfra den nærmeste timen')) + '</div>');
   body.querySelectorAll('.at-raskest[data-pin]').forEach(b => b.addEventListener('click', () => { if (pinStop(b.dataset.pin)) _renderBody(); }));
+  if (ETT_BYTTE) ettBytteKart(_aMap, L, { aktiv: _atRetning === ETT_BYTTE_VALG, pos: here, ramme: (b, o) => { if (!('_ebFør' in _aMap)) _aMap._ebFør = _aUserMoved; _aUserMoved = true; _aMap.removeLayer(_aLayer); _aMap.fitBounds(b, o); }, ferdig: () => { if (!_aMap) return; if (!_aMap.hasLayer(_aLayer)) _aLayer.addTo(_aMap); if ('_ebFør' in _aMap) { _aUserMoved = _aMap._ebFør; delete _aMap._ebFør; } _aFitKey = ''; _aKey = ''; _renderMap(); } }); // ETT BYTTE (eksperiment)
   body.querySelectorAll('.at-retning [data-retning]').forEach(b => b.addEventListener('click', () => {
     if (_hjemHold.brukt) { _hjemHold.brukt = false; return; }   // langt trykk er ikke et valg
     // Uten stopp valgt er hjemover et spørsmål: hva er hjem? Svaret står i innstillinger.

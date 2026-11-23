@@ -245,3 +245,50 @@ valgt tidspunkt · kartets filter for transportmiddel og linje.
 | knutepunkt | stoppet i overskriften pluss nabostoppene som flettes inn |
 | edderkoppbein | strekene ut fra stoppet på kartet |
 | kombirad | en rad for en reise med bytte |
+
+## «Ett bytte» (eksperiment, v1.218.289)
+
+Et ekstra hurtigvalg, **«ett bytte»**, står sist blant hurtigvalgene når tavla
+har et stopp med posisjon. Det viser hvilke områder du når med **ett bytte**,
+én rad per **himmelretning**: nord, nordøst, øst, sørøst, sør, sørvest, vest og
+nordvest. Målet er så mange ulike retninger som mulig.
+
+**Kilde:** nettverksutforskeren (`src/nettverksutforsker.js`), som hentes
+først når valget trykkes. Den har sin egen cache på 10 min og 200 m, og koster
+5–6 kall første gang.
+
+**Utvalget** (`src/ettBytte.js`, `ettByttePerRetning`):
+- bare veier med **to ledd** i **ordinært** søkevindu, med et reelt bytte
+  (samme linje videre er ikke et bytte);
+- gruppert etter himmelretningen til destinasjonens område. Sentrum (under
+  1 km) er ingen retning;
+- **ett knutepunkt per retning:** det som når flest ulike områder i den
+  retningen, så flest steder, så id. Det er spredning, ikke relevans;
+- linjene inn og ut slås sammen per linje. Plattform- og skiltvarianter blir
+  ett valg. Høyst 4 linjer ut vises, resten som «+N»;
+- 3 eksempelsteder (de lengst unna) og antallet til.
+
+**Hva raden *ikke* sier:**
+- ingen reisetid;
+- ingen «rekker»;
+- ingen bekreftelse.
+
+Overskriften sier: «mulig med ett bytte — ikke sjekket mot reisesøket, og
+byttet er ikke tidskontrollert».
+
+**Når noe mangler:**
+
+| situasjon | teksten |
+|---|---|
+| utforskeren leter | «ser etter hvor du kommer med ett bytte …» |
+| nettfeil | «fant ikke svar på bytter herfra nå» |
+| ingen treff | «fant ingen bytter herfra nå — det betyr ikke at det ikke finnes» |
+
+**Valget huskes ikke.** Etter omlasting står tavla på et kjent valg. Avgangslista,
+kartet, «mot sentrum», «hjemover» og målområdene er uendret.
+
+**Tilbakerulling:** sett `ETT_BYTTE = false` i
+`src/views/ettBytteVisning.js`. Alternativt fjerner du de to modulene,
+`src/style/ettBytte.css` og de fem linjene merket «ETT BYTTE (eksperiment)» i
+`src/views/auto.js`. Testen `tests/ettBytte.test.js` binder at det er nøyaktig
+fem slike linjer.

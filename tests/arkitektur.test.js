@@ -90,6 +90,11 @@ describe('arkitekturgrensen: snarveier og andre muligheter (steg 1b)', () => {
     for (const x of ['nettverksutforsker.js', 'reiseoppgaver.js', 'mulighetsoppdagelse.js', 'config.js']) expect(n).not.toContain(x);
     expect(n.filter(x => x.startsWith('views/') || x.startsWith('ui/'))).toEqual([]);
   });
+  it('«ett bytte» (eksperiment) når verken snarveier, relevans eller presentasjon', () => {
+    const n = navn(når(fil('ettBytte.js')));
+    for (const x of ['reiseoppgaver.js', 'mulighetsoppdagelse.js', 'reisebekreftelse.js']) expect(n).not.toContain(x);
+    expect(n.filter(x => x.startsWith('views/') || x.startsWith('ui/'))).toEqual([]);
+  });
   // Måleinstrumentet selv: en innsmuglet import, direkte eller via en mellomfil, skal fanges.
   it('vakten fanger en import (mutasjon)', () => {
     const kilde = readFileSync(MUL, 'utf8');

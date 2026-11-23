@@ -1,0 +1,7 @@
+/* ETT BYTTE (eksperiment). Fjernes sammen med src/views/ettBytteVisning.js. */
+#v-auto .eb-rad{display:flex;flex-direction:column;gap:.15rem;padding:.55rem .1rem;border-bottom:1px solid rgba(var(--border-rgb),.18)}
+#v-auto .eb-topp{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap}
+#v-auto .eb-retning{font-weight:600;text-transform:capitalize}
+#v-auto .eb-via{color:var(--text-muted);font-size:.85rem}
+#v-auto .eb-linjer{font-size:.85rem}
+#v-auto .eb-steder{font-size:.8rem;color:var(--text-muted)}

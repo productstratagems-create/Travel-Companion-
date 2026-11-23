@@ -313,6 +313,31 @@ Et nytt svar på samme sted flytter ikke kartet. Rører du kartet, er det ditt.
 Tavla regner kartet som «justert» mens laget vises, og får tilbake din egen
 tilstand når valget går av, så en justering du gjorde før, ikke slettes.
 
+### Kommuner, ikke stopp (v1.218.296, forslag 3)
+
+Entur gir **kommunen** til et stoppested, ikke tettstedet. Kortet sier derfor
+«kommuner», ikke «steder»: «Eidsvoll, Stange, Hamar og 2 kommuner til».
+
+**Proben (stigen fra planen):**
+1. Stoppestedsregisteret (`stop-places/v1`) svarer «Access not allowed».
+2. Geokoderens `layers=locality` gir tomt svar. Geokoderens
+   `place?ids=` med stopp-id-er gir `locality` = kommune. Det var 50 treff per
+   kall og 100 % dekning for Mortensrud, Nesttun og Tretten (målt
+   2026-11-24). Det koster 3–4 kall, hentet *etter* svaret, så kortene står med
+   stopp til kommunene kommer.
+3. Kommunen du står i, hentes med ett `reverse`-oppslag og telles ikke.
+
+**Når kommuner vises:**
+- Retningen må nå minst `KOMMUNER_MIN` (2) andre kommuner. I byen blir mange
+  retninger i din egen kommune (Bergen nord: 65 stopp, 0 andre kommuner), og
+  da sier stoppnavnene mer.
+- Mindre enn 80 % kommunedata (`KOMMUNE_DEKNING`) gir stoppene som før.
+- Når oppslaget feiler, står stoppene som før.
+
+**Boblene teller fortsatt stopp.** Med kommuner ville knutepunktene i Oslo
+krympe til nesten ingenting, og boblen ville svart på et annet spørsmål
+(«hvor mange kommuner», ikke «hvor mye nås herfra»).
+
 ### Stedstyper (v1.218.295, forslag 2)
 
 Kortet teller stedene som inviterer til en reise ut: «· 13 togstasjoner ·

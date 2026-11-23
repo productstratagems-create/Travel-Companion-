@@ -10,7 +10,7 @@
  * «ETT BYTTE (eksperiment)» i src/views/auto.js.
  */
 import { utforsk } from '../nettverksutforsker.js';
-import { ettByttePerRetning } from '../ettBytte.js';
+import { ettByttePerRetning, kommunerI } from '../ettBytte.js';
 import { enturFetch } from '../api/http.js';
 import { metresBetween } from '../haversine.js';
 import '../style/ettBytte.css';
@@ -25,7 +25,27 @@ const hentFraEntur = (_navn, req) => enturFetch(req.url, {
   method: req.method, body: req.body, headers: req.body ? { 'Content-Type': 'application/json' } : {},
 }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
 
-let _tilstand = null; // { nøkkel, status: 'henter' | 'ok' | 'feil', svar }
+let _tilstand = null; // { nøkkel, status: 'henter' | 'ok' | 'feil', svar, kommuner? }
+
+/* KOMMUNER (forslag 3): geocoderens place-oppslag i biter (målt: 50 treff per kall). */
+const GEO = 'https://api.entur.io/geocoder/v1';
+export const KOMMUNE_BIT = 50;
+/** Høyst så mange kommuner nevnes ved navn på kortet. */
+export const EKSEMPLER_KOMMUNER = 3;
+/** Kommuner vises i stedet for stopp først når retningen når så mange andre kommuner. */
+export const KOMMUNER_MIN = 2;
+const geoJson = url => enturFetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+/** Stopp-id → kommune, og kommunen du står i. Feiler stille: da står stoppene som før. */
+export async function hentKommunerFraEntur(ider, pos) {
+  const kommuneAv = new Map();
+  for (let i = 0; i < ider.length; i += KOMMUNE_BIT) {
+    const j = await geoJson(GEO + '/place?ids=' + ider.slice(i, i + KOMMUNE_BIT).map(encodeURIComponent).join(','));
+    for (const f of (j && j.features) || []) { const p = f.properties || {}; if (p.id && p.locality) kommuneAv.set(p.id, p.locality); }
+  }
+  const her = await geoJson(GEO + '/reverse?point.lat=' + pos.lat + '&point.lon=' + pos.lon + '&size=1&boundary.circle.radius=2');
+  const f = her && her.features && her.features[0];
+  return { kommuneAv, hjemme: (f && f.properties && f.properties.locality) || null };
+}
 /** Valgt retningskort ('NØ' …) eller null: kartet viser da den retningen. */
 let _valgt = null;
 let _rerender = null;
@@ -53,7 +73,11 @@ function bindKort() {
 }
 
 /** Rad for én himmelretning. */
-export function ettBytteRadHtml(r, esc) {
+export function ettBytteRadHtml(r, esc, kommuner = null) {
+  // Kommuner bare når retningen når minst KOMMUNER_MIN andre kommuner: i byen blir
+  // mange retninger i din egen kommune, og da sier stoppnavnene mer (målt: Bergen nord, 65 stopp, 0 andre kommuner).
+  const kom0 = kommuner ? kommunerI(r.punkter, kommuner.kommuneAv, kommuner.hjemme) : null;
+  const kom = kom0 && kom0.length >= KOMMUNER_MIN ? kom0 : null;
   const ut = r.ut.slice(0, UT_VIST).join(', ') + (r.ut.length > UT_VIST ? ` +${r.ut.length - UT_VIST}` : '');
   return '<button type="button" class="eb-rad" data-eb-retning="' + esc(r.retning) + '" aria-pressed="' + (_valgt === r.retning) + '">'
     + '<div class="eb-topp"><span class="eb-retning">' + esc(r.retningNavn) + '</span>'
@@ -61,6 +85,12 @@ export function ettBytteRadHtml(r, esc) {
     + (r.ytterpunkt ? '<span class="eb-lengst">helt til ' + esc(r.ytterpunkt.navn) + ' · ' + r.ytterpunkt.km + ' km</span>' : '') + '</div>'
     + '<div class="eb-linjer">' + esc(r.inn.join(' / ')) + ' → bytt til ' + esc(ut) + '</div>'
     + (() => {
+      // Kommuner (forslag 3): «Lillestrøm, Ullensaker og 9 kommuner til». Uten kommunedata: stoppene.
+      if (kom) {
+        const vis = kom.slice(0, EKSEMPLER_KOMMUNER);
+        return '<div class="eb-steder">' + esc(vis.join(', ')) + (kom.length > vis.length ? ' og ' + (kom.length - vis.length) + ' kommuner til' : '')
+          + (r.typer ? ' <span class="eb-typer">· ' + esc(r.typer) + '</span>' : '') + '</div>';
+      }
       // Ytterpunktet står alt i toppen («helt til …»): eksemplene er de neste.
       const eks = r.eksempler.filter(n => !r.ytterpunkt || n !== r.ytterpunkt.navn), vist = eks.length + (r.ytterpunkt ? 1 : 0);
       return '<div class="eb-steder">' + esc(eks.join(', ')) + (r.antallSteder > vist ? (eks.length ? ' og ' : '') + (r.antallSteder - vist) + ' steder til' : '')
@@ -73,7 +103,7 @@ export function ettBytteRadHtml(r, esc) {
  * HTML for hurtigvalget. `pos` er tavlas stopp; `rerender` kalles når svaret kommer.
  * `hent` kan injiseres (tester); ellers Entur via enturFetch.
  */
-export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hentFraEntur } = {}) {
+export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hentFraEntur, hentKommuner = hent === hentFraEntur ? hentKommunerFraEntur : null } = {}) {
   if (!pos || !Number.isFinite(pos.lat)) return '<div class="at-filter">trenger en posisjon for å se bytter herfra</div>';
   _rerender = rerender || null; bindKort();
   const nøkkel = pos.lat.toFixed(3) + ',' + pos.lon.toFixed(3);
@@ -93,6 +123,11 @@ export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hent
         // Et valgt kort som ikke finnes i det nye svaret, slippes.
         if (_tilstand === t && _valgt && !(t.svar && t.svar.rader.some(r => r.retning === _valgt))) _valgt = null;
         if (_tilstand === t && rerender) rerender();
+        // Kommunene etterpå: kortene står med stopp til de kommer, og blir stående om de ikke kommer.
+        if (t.status === 'ok' && !t.svar.ingen && hentKommuner) {
+          const ider = [...new Set(t.svar.rader.flatMap(r => r.punkter.map(p => p.id)).filter(Boolean))];
+          hentKommuner(ider, pos).then(k => { t.kommuner = k; if (_tilstand === t && _rerender) _rerender(); }).catch(() => {});
+        }
       });
   }
   const s = _tilstand;
@@ -100,7 +135,7 @@ export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hent
   if (s.status === 'feil') return '<div class="at-filter">fant ikke svar på bytter herfra nå — prøv igjen litt senere</div>';
   if (s.svar.ingen) return '<div class="at-filter">fant ingen bytter herfra nå — det betyr ikke at det ikke finnes</div>';
   return '<div class="at-filter">' + esc(s.svar.grunnlag) + '</div>'
-    + '<div class="at-liste eb-liste">' + s.svar.rader.map(r => ettBytteRadHtml(r, esc)).join('') + '</div>';
+    + '<div class="at-liste eb-liste">' + s.svar.rader.map(r => ettBytteRadHtml(r, esc, s.kommuner)).join('') + '</div>';
 }
 
 /* ── KARTET (eksperiment) ────────────────────────────────────────────────

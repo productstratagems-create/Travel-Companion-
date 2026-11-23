@@ -36,6 +36,24 @@ export function stedstypeTelling(punkter) {
 }
 
 /**
+ * KOMMUNER, IKKE STOPP (forslag 3). Entur gir kommunen (geocoderens
+ * `locality`), ikke tettstedet — derfor «kommuner», sagt rett ut. `kommuneAv`
+ * er stopp-id → kommune. Kommunen du står i (`hjemme`) telles ikke: den er
+ * ikke en retning ut. Lengst unna først, som punktene.
+ * null når for få av stedene har kommune (KOMMUNE_DEKNING): da står stoppene
+ * som før, heller enn en telling som later som den er hel.
+ */
+export const KOMMUNE_DEKNING = 0.8;
+export function kommunerI(punkter, kommuneAv, hjemme = null) {
+  if (!punkter || !punkter.length || !kommuneAv) return null;
+  const med = punkter.filter(p => kommuneAv.get(p.id));
+  if (med.length / punkter.length < KOMMUNE_DEKNING) return null;
+  const navn = [];
+  for (const p of med) { const k = kommuneAv.get(p.id); if (k !== hjemme && !navn.includes(k)) navn.push(k); }
+  return navn;
+}
+
+/**
  * LENGST DU KOMMER (forslag 1): det fjerneste stedet i retningen, med avstand
  * i hele km. `punkter` er sortert lengst unna først (ettByttePerRetning), så
  * det er det første. null uten steder eller posisjon.
@@ -82,12 +100,12 @@ export function ettByttePerRetning(resultat, posisjon) {
     if (!s) continue;
     const [knute, g] = [...s.entries()].sort(([ka, a], [kb, b]) => b.områder.size - a.områder.size || b.dest.size - a.dest.size || (ka < kb ? -1 : 1))[0];
     const steder = [...g.dest].map(id => opsjoner.get(id)).filter(o => o && o.destinations && o.destinations[0])
-      .map(o => ({ type: velgStedstype(g.moduser.get(o.id) || new Set()), navn: o.label || o.destinations[0].name, lat: o.destinations[0].lat, lon: o.destinations[0].lon, m: posisjon ? metresBetween(posisjon, o.destinations[0]) : 0 }))
+      .map(o => ({ id: o.destinations[0].id, type: velgStedstype(g.moduser.get(o.id) || new Set()), navn: o.label || o.destinations[0].name, lat: o.destinations[0].lat, lon: o.destinations[0].lon, m: posisjon ? metresBetween(posisjon, o.destinations[0]) : 0 }))
       .sort((a, b) => b.m - a.m || (a.navn < b.navn ? -1 : 1));
     const navn = []; for (const x of steder) if (navn.length < EKSEMPLER && !navn.includes(x.navn)) navn.push(x.navn);
     // Knutepunktet er selv et sted ledd 1 når; koordinatene står der. Mangler de, tegnes ingen knute.
     const ko = opsjoner.get('destination:' + knute), kd = ko && ko.destinations && ko.destinations[0];
-    const punkter = steder.filter(x => Number.isFinite(x.lat)).map(({ navn: n, lat, lon, type }) => ({ navn: n, lat, lon, type }));
+    const punkter = steder.filter(x => Number.isFinite(x.lat)).map(({ id, navn: n, lat, lon, type }) => ({ id, navn: n, lat, lon, type }));
     rader.push({
       retning: sektor, retningNavn: RETNING_NAVN[sektor], knute, knuteNavn: knNavn.get(knute) || knute,
       inn: [...g.inn.values()].map(linjeTekst).sort(), ut: [...g.ut.values()].map(linjeTekst).sort(),

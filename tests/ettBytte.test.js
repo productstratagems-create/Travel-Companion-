@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ettByttePerRetning, RETNINGER, ytterpunkt, stedstypeTelling, velgStedstype, STEDSTYPE_REKKE } from '../src/ettBytte.js';
+import { ettByttePerRetning, RETNINGER, ytterpunkt, stedstypeTelling, velgStedstype, STEDSTYPE_REKKE, kommunerI, KOMMUNE_DEKNING } from '../src/ettBytte.js';
 import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, plasserNavn, navnRekt, NAVN_NIVÅER, NAVN_PLASSER, velgRetning, valgtRetning, KART_STEDER_VALGT } from '../src/views/ettBytteVisning.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { metresBetween } from '../src/haversine.js';
@@ -130,6 +130,53 @@ describe('ett bytte: stedstyper (forslag 2)', () => {
     const tog = f.lagt[0].ting.filter(t => t.o && /eb-kart-tog/.test(t.o.className));
     const vist = ettBytteKartData(pos).retninger.find(r => r.retning === medTog.retning).steder.filter(s => s.type === 'rail');
     expect(tog.length).toBe(vist.length);
+  });
+});
+
+describe('ett bytte: kommuner, ikke stopp (forslag 3)', () => {
+  const p = (id, navn) => ({ id, navn });
+  it('slår sammen stopp i samme kommune, lengst unna først, uten din egen kommune', () => {
+    const k = new Map([['a', 'Lillehammer'], ['b', 'Ringsaker'], ['c', 'Ringsaker'], ['d', 'Oslo'], ['e', 'Lillestrøm']]);
+    expect(kommunerI([p('a'), p('b'), p('c'), p('d'), p('e')], k, 'Oslo')).toEqual(['Lillehammer', 'Ringsaker', 'Lillestrøm']);
+    expect(kommunerI([p('d')], k, 'Oslo')).toEqual([]); // bare egen kommune
+  });
+  it('for lite kommunedata gir null — da står stoppene som før', () => {
+    const k = new Map([['a', 'Lillehammer']]);
+    const n = Math.ceil(1 / (KOMMUNE_DEKNING - 0.01));
+    expect(kommunerI([p('a'), p('b')], k)).toBeNull();
+    expect(kommunerI(Array.from({ length: 5 }, (_, i) => p(i < 4 ? 'a' : 'x')), k)).toEqual(['Lillehammer']); // 80 %
+    expect(kommunerI([p('a')], null)).toBeNull();
+    expect(n).toBeGreaterThan(0);
+  });
+  it('kortet viser kommuner når de kommer, og stopp før og uten', async () => {
+    const pos = O.mortensrud_dag.scenario.posisjon;
+    const hent = avspiller(O.mortensrud_dag).hent, nå = Date.parse(O.mortensrud_dag.scenario.tid);
+    // Falsk kommuneoppslag: annenhver kommune etter id, «Oslo» hjemme.
+    let spurt = null, tegnet = 0;
+    const hentKommuner = async (ider, q) => { spurt = { ider, q }; return { kommuneAv: new Map(ider.map((id, i) => [id, i % 3 === 0 ? 'Oslo' : 'Kommune ' + (i % 7)])), hjemme: 'Oslo' }; };
+    ettBytteHtml(pos, { esc, hent, nå, hentKommuner, rerender: () => { tegnet++; } });
+    await new Promise(r => setTimeout(r, 80));
+    expect(tegnet).toBe(2);                    // svaret, så kommunene
+    expect(spurt.ider.length).toBeGreaterThan(0);
+    expect(new Set(spurt.ider).size).toBe(spurt.ider.length);
+    const html = ettBytteHtml(pos, { esc, hent, nå, hentKommuner, rerender: () => {} });
+    expect(html).toMatch(/kommuner til/);
+    expect(html).not.toMatch(/>Oslo[,<]/);     // hjemkommunen nevnes ikke
+    // Når en retning bare når én annen kommune (eller ingen), står stoppene: de sier mer.
+    _nullstillEttBytte(); _tømCache();
+    const én = async ider => ({ kommuneAv: new Map(ider.map(id => [id, 'Nabo'])), hjemme: 'Oslo' });
+    ettBytteHtml(pos, { esc, hent, nå, hentKommuner: én, rerender: () => {} });
+    await new Promise(r => setTimeout(r, 80));
+    const html1 = ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} });
+    expect(html1).not.toMatch(/kommuner til|>Nabo</);
+    expect(html1).toMatch(/steder til/);
+    // Feiler oppslaget: stoppene står.
+    _nullstillEttBytte(); _tømCache();
+    ettBytteHtml(pos, { esc, hent, nå, hentKommuner: async () => { throw new Error('nett'); }, rerender: () => {} });
+    await new Promise(r => setTimeout(r, 80));
+    const uten = ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} });
+    expect(uten).toMatch(/steder til/);
+    expect(uten).not.toMatch(/kommuner til/);
   });
 });
 

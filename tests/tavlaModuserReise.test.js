@@ -18,7 +18,7 @@ describe('reisesøket følger tavlas transportmidler', () => {
     expect(moduser(q([]))).toEqual(['metro', 'bus', 'tram', 'rail', 'water']);
   });
   it('bussekspress følger buss', () => {
-    expect(moduser(q(['bus'], true))).toEqual(['bus', 'coach']);
+    expect(moduser(q(['bus'], true))).toEqual(['bus', 'coach', 'taxi'])   // v1.218.280: bestillingstaxi følger buss også i reisesøket;
     expect(moduser(q(['metro'], true))).toEqual(['metro']);
     expect(transportModesGql(null, true)).toContain('coach');
   });
@@ -49,5 +49,13 @@ describe('både buss og bane (v1.218.95)', () => {
     expect(bareBane(svar('metro', 'bus'))).toBe(false);
     expect(bareBane(svar())).toBe(false);
     expect(bareBane({ data: { trip: { tripPatterns: [{ duration: 1 }] } } })).toBe(false);
+  });
+});
+
+describe('bestillingstaxi i reisesøket (v1.218.280)', () => {
+  it('før-bildet: reisesøket spurte ikke om taxi; nå følger det buss', () => {
+    expect(transportModesGql(['bus'], true)).toContain('{transportMode:taxi}');
+    expect(transportModesGql(['metro'], true)).not.toContain('taxi');
+    expect(transportModesGql(['bus'], false)).not.toContain('taxi');
   });
 });

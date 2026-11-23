@@ -56,6 +56,7 @@ describe('docs/auto-tavle-logikk.md sier det koden gjør', () => {
     expect(q).toMatch(/BOARD_MODES_COACH = \[\.\.\.BOARD_MODES, 'coach', 'taxi'\];/);
     expect(doc).toContain("`BUSS_FØLGER = ['coach', 'taxi']`");
     expect(q).toMatch(/export const BUSS_FØLGER = \['coach', 'taxi'\];/);
+    expect(q).toMatch(/const medCoach = coach && liste\.includes\('bus'\) \? \[\.\.\.liste, \.\.\.BUSS_FØLGER\] : liste;/);
   });
   it('AGENTS.md peker hit', () => {
     expect(readFileSync('AGENTS.md', 'utf8')).toContain('docs/auto-tavle-logikk.md');

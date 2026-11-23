@@ -106,6 +106,9 @@ skal svare likt på samme spørsmål. De gjorde det ikke. Se v1.189.0.
 
 ## Hva som står igjen
 
+> Felles plangrunnlag (2026-11-23): `docs/plangrunnlag.md` — reisemulighetsmotoren,
+> snarveiene og lokalt/regionalt/nasjonalt, med status per tiltak.
+
 Fire ting, ikke sju — men de hører ikke til samme spørsmål, og rekkefølgen
 under er satt av PULL, ikke av hvor interessante de er å bygge.
 

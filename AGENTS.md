@@ -51,6 +51,10 @@ Den bærer to rammeverk, og de svarer på hvert sitt spørsmål:
 
 Det første portvokter det andre. Et Better-tiltak uten pull er polering.
 
+Det felles plangrunnlaget for videre utvikling — fra smart avgangstavle til
+oversikt over reisemuligheter (lokalt, regionalt, nasjonalt), med status per
+tiltak — står i `docs/plangrunnlag.md`.
+
 ## Mønstre som er godkjent
 
 ### Alternativer hører hjemme på raden de gjelder (2026-11-20)

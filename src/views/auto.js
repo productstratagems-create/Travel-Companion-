@@ -61,7 +61,8 @@ import { predictDest, autoJumpDest, destRanking, vanestyrke, ferskhet, vaneMerke
 import { sistReist } from '../api/eventLog.js';
 import { erInnstilt } from '../innstilt.js';
 import { canCatch, catchable } from '../reiseberegning.js';
-import { gårMotSentrum, hjemoverDom } from '../reiseoppgaver.js';
+import { gårMotSentrum, hjemoverDom, iSnarvei, SNARVEIER, MOT_SENTRUM } from '../reiseoppgaver.js';
+import { andreRetninger, områderFor, iOmråde, erOmrådeValg } from '../mulighetsoppdagelse.js';
 import { plattformTekst } from '../bytte.js';
 import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, stoppFram, vedOgNeste, stoppEtterId, rangerKandidater } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
@@ -5884,11 +5885,13 @@ export function motSentrumTekst(c) { return c && c.by ? 'mot ' + c.by + ' sentru
 export const AT_RETNING_TEKST = { alle: 'alle', mot: 'mot sentrum', hjem: 'hjemover', andre: 'andre retninger' };
 /** Retningene filteret slipper gjennom. «Andre» er verken mot sentrum eller hjemover. */
 export function filtrerRetning(dirs, valg, gruppe, hjem = () => false, område = () => null) {
-  // MÅLOMRÅDENE (v1.218.213): «andre retninger» delt etter hvor linjene går.
-  if (typeof valg === 'string' && valg.startsWith('omr:')) return dirs.filter(d => område(d) === valg);
-  if (valg === 'mot') return dirs.filter(d => gruppe(d) === 'mot');
-  if (valg === 'hjem') return dirs.filter(d => hjem(d));
-  if (valg === 'andre') return dirs.filter(d => gruppe(d) !== 'mot' && !hjem(d));
+  // PRESENTASJONEN SETTER SAMMEN TO KILDER (v1.218.288, steg 1b): «dine
+  // snarveier» fra src/reiseoppgaver.js, «andre muligheter» fra
+  // src/mulighetsoppdagelse.js. Denne funksjonen eier ingen av domenene.
+  const erMot = d => gruppe(d) === MOT_SENTRUM, erHjem = d => !!hjem(d);
+  if (erOmrådeValg(valg)) return iOmråde(dirs, område, valg);
+  if (SNARVEIER.includes(valg)) return iSnarvei(dirs, valg, erMot, erHjem);
+  if (valg === 'andre') return andreRetninger(dirs, d => erMot(d) || erHjem(d));
   return dirs;
 }
 /** Går retningen hjemover (src/hjemover.js)? Lest fra avgangen du rekker, som sentrum. */
@@ -5970,7 +5973,7 @@ function _oppdaterOmråder(andre, here, nå) {
   const sig = (_tavle() && _tavle().id) + '|' + andre.map(_omrNøkkel).sort().join('|');
   if (sig === _atOmrNøkkel) return;
   _atOmrNøkkel = sig;
-  _atOmr = målområder(andre, here, d => stopsAhead(d.call, _tavle() && _tavle().name, nå), _omrNøkkel);
+  _atOmr = områderFor(andre, here, d => stopsAhead(d.call, _tavle() && _tavle().name, nå), _omrNøkkel);
   _atOmrAv = new Map();
   _atOmr.forEach(o => o.nøkler.forEach(k => _atOmrAv.set(k, o.id)));
   // PROBEN (v1.218.214): hva Entur og Kartverket sier om områdene — til loggen.

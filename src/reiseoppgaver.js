@@ -31,6 +31,19 @@ import { besteFraReiser } from './reiseTil.js';
 
 export const MOT_SENTRUM = 'mot';
 export const HJEMOVER = 'hjem';
+/** «Dine snarveier» — de personlige reiseoppgavene, i fast rekkefølge (steg 1b). */
+export const SNARVEIER = [MOT_SENTRUM, HJEMOVER];
+
+/**
+ * Retningene én snarvei slipper gjennom. Dommene kommer inn som funksjoner
+ * (gårMotSentrum/hjemoverDom bundet til konteksten i presentasjonslaget), så
+ * utvalget og beregningen er samme regel overalt. Ren.
+ */
+export function iSnarvei(retninger, valg, erMot, erHjem) {
+  if (valg === MOT_SENTRUM) return (retninger || []).filter(d => erMot(d));
+  if (valg === HJEMOVER) return (retninger || []).filter(d => erHjem(d));
+  return [];
+}
 
 /** Går retningen mot sentrum? Dømt etter turen du faktisk tar. */
 export function gårMotSentrum(d, ktx = {}) {

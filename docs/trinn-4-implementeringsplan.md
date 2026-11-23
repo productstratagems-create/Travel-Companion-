@@ -686,3 +686,62 @@ ble fanget:
 - vei uten linjeretning (ringlinjen slås sammen);
 - taus feil i ledd 2;
 - planlagt stoppsekvens merket som avgang.
+
+### 4b.1: utnytt kapasiteten i knutepunktutvelgelsen (gjort)
+
+**Beslutning:** bruk ledig kapasitet opp til 15. Undersøk et geografisk
+utslag, men ikke en reservert plass. Bredde går foran alternative veier.
+
+**Sammenligning** på opptakene og M1-målingen
+(`docs/knutepunktevaluering-4b.md`), dimensjon for dimensjon. Simuleringen
+ga samme utvalg som modulen.
+
+| | dagens | + utfylling til 15 | + utfylling og geografisk utslag |
+|---|---|---|---|
+| Mortensrud: linjeretninger / destinasjoner / veier | 169 / 1 554 / 432 | likt (fase 1 fyller 15) | **165 / 1 540 / 421** (Smestad byttet med Bekkelagshjemmet) |
+| Nesttun | 106 / 1 156 / 180 | likt | likt |
+| Ranheim | 159 / 1 327 / 291 | likt | likt |
+| Tretten | 36 / 563 / 49 (4 spurt) | **44 / 568 / 138** (15 spurt) | 43 / 568 / 136 |
+| Natt | 3 / 17 / 4 (1 spurt) | 3 / 17 / **20** (10 spurt) | likt utfylling |
+
+Områder og transportformer er like i alle tre variantene på alle steder.
+
+**Konklusjon [Observert]**
+- **Utfyllingen** gjør bredden større ved Tretten (+8 linjeretninger, +5
+  destinasjoner). Om natta gir den flere alternative veier (+16), men ikke
+  mer bredde. Den gjør aldri bredden mindre, og koster 0 kall, fordi ledd 2
+  er ett kall.
+- **Det geografiske utslaget** (knutepunktets eget område bryter uavgjort i
+  begge faser) gjør det dårligere ved Mortensrud og Tretten og bedre ingen
+  steder. Det er **ikke innført.**
+- **Skatval og Marienborg (Ranheim) velges ikke i noen variant.** Fase 1
+  fyller alle 15 plassene, og Skatval har bare 1 ny linje. Bare en reservert
+  plass ville fått dem med. Det er ikke innført, i tråd med beslutningen.
+  Hullet (områdene `NØ|15–50` og `V|5–15` sett fra knutepunktene) står åpent.
+
+**Bygget**
+- **Fase 2 i forhåndsvalget** (`P.knuteFyll`, påslått som startverdi).
+  - Kjører når fase 1 ikke finner flere nye linjer.
+  - Fyller opp til `knuteMaks` med kandidater som har linjer utover ledd 1.
+  - Rekkefølge: flest linjer utover ledd 1, så id.
+  - Ingen vekter og ingen poengsum.
+- **Rapportering:** knutepunktene får `fase: 1 | 2` og en grunn for fase 2
+  («utfylling: ledig kapasitet; linjene var dekket (…), men kan gå andre veier
+  herfra»). Rapporten teller `fase1` og `fase2`.
+- **Uendret:** veiene beholdes, og skillet mellom planlagt stoppsekvens og
+  avgang i søkevinduet står.
+
+**Målt med nye opptak:**
+- Tretten: 4 + 11 knutepunkter, 44 linjeretninger, 2 389 veier.
+- Natt: 1 + 9 knutepunkter, 131 veier.
+- Byene: 15 + 0. Kallene er uendret: 4 for oppdagelse og 1 for gangtid.
+
+**Fra datagrunnlaget, ikke algoritmen:** de 9 knutepunktene som fylles ut om
+natta har dagens rutelinjer, men få avganger i vinduet. De gir veier, ikke
+bredde.
+
+**Tester:** 5 nye, 44 i alt. Fire mutasjoner ble fanget:
+- ingen utfylling;
+- usortert fase 2;
+- utfylling med kandidater uten nye linjer;
+- fase 2 før fase 1 er tom.

@@ -51,6 +51,8 @@ export const PARAMETRE = Object.freeze({
   avgangerMaks: 60,
   /** Høyst så mange knutepunkter i ledd 2 — ett kall uansett (målt 0,4–1,1 s for 15). Startverdi. */
   knuteMaks: 15,
+  /** Fyll ledig plass under knuteMaks når fase 1 er tom for nye linjer (4b.1). */
+  knuteFyll: true,
   /** Nettverksledd. To er utgangspunktet; tre er ikke implementert. */
   ledd: 2,
   /** Områder: 8 kompassretninger × avstandsbånd (km). Startverdi (3.5 §9). */
@@ -318,7 +320,23 @@ export async function utforsk(ktx, { hent, klokke = () => Date.now() }) {
     best.status = 'spurt'; best.rekkefølge = ++rekkefølge; best.marginaleLinjer = bestN;
     best.grunn = `${bestN} linjer ikke dekket av ledd 1 eller tidligere valgte knutepunkter${best.nyeModi.length ? ', nye transportmidler: ' + best.nyeModi.join('/') : ''}`;
     for (const l of best.e.linjer.keys()) { if (!dekket.has(l)) valgtAv.set(l, best.navn); dekket.add(l); }
+    best.fase = 1;
     igjen.delete(best); plass--;
+  }
+  // Fase 2 — UTFYLLING (4b.1): ledd 2 er ett kall uansett, så ledig plass under
+  // knuteMaks koster ingenting. Kandidater med linjer utover ledd 1, som fase 1
+  // regnet som dekket av valgte knutepunkter, tas etter tur: flest linjer utover
+  // ledd 1, så id. Samme linje gjennom et annet knutepunkt kan gå i andre retninger
+  // (målt: Tretten +8 linjeretninger). Ingen vekter; geografisk utslag ble målt og
+  // valgt bort (docs/trinn-4-implementeringsplan.md, 4b.1).
+  if (P.knuteFyll) {
+    const fyll = [...igjen].sort((a, b) => b.nyeLinjer - a.nyeLinjer || (a.id < b.id ? -1 : 1));
+    for (const k of fyll) {
+      if (plass <= 0) break;
+      k.status = 'spurt'; k.fase = 2; k.rekkefølge = ++rekkefølge; k.marginaleLinjer = 0;
+      k.grunn = `utfylling: ledig kapasitet; linjene var dekket (${[...new Set([...k.e.linjer.keys()].map(l => valgtAv.get(l)).filter(Boolean))].sort().join(', ')}), men kan gå andre veier herfra`;
+      igjen.delete(k); plass--;
+    }
   }
   for (const k of vurdert) {
     if (k.status) continue;
@@ -408,7 +426,7 @@ export async function utforsk(ktx, { hent, klokke = () => Date.now() }) {
       feiledeKall: kall.filter(k => k.feil.length).map(k => `${k.navn}: ${k.feil.join(' | ')}`),
       ms: klokke() - t0, cachetreff: false,
       kandidater: { opsjoner: opsjoner.length, destinasjoner: opsjoner.filter(o => o.type === 'destination').length, tilbud: opsjoner.filter(o => o.type === 'transport_offer').length },
-      knutepunkter: { vurdert: vurdert.length, spurt: spurt.length, duplikater: spurt.filter(k => k.duplikat).length, ikkeSpurt: vurdert.length - spurt.length },
+      knutepunkter: { vurdert: vurdert.length, spurt: spurt.length, fase1: spurt.filter(k => k.fase === 1).length, fase2: spurt.filter(k => k.fase === 2).length, duplikater: spurt.filter(k => k.duplikat).length, ikkeSpurt: vurdert.length - spurt.length },
       veier: { totalt: veier.length, ledd1: veier.filter(v => v.ledd === 1).length, ledd2: veier.filter(v => v.ledd === 2).length, planlagt: veier.filter(v => v.stoppliste === 'plan').length },
       struktur: { linjeretninger: Object.keys(grupper.linjeretning).length, medPlanlagtStoppliste: Object.values(grupper.linjeretning).filter(g => g.stoppliste.includes('plan')).length, områder: Object.keys(grupper.område).length, tilgangspunkter: brukt.length },
       ikkeUndersøkt: ikkeUndersøkt.length, notater,

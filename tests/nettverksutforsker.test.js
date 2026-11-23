@@ -274,15 +274,60 @@ describe('4b: knutepunkter etter marginal nettverksdekning', () => {
     for (const n of SCENARIOER) {
       const { r } = await kjør(n);
       const spurt = r.knutepunkter.vurdert.filter(k => k.status === 'spurt' || k.status === 'spurt, uten svar');
-      expect(spurt.every(k => k.marginaleLinjer > 0)).toBe(true);
+      expect(spurt.filter(k => k.fase === 1).every(k => k.marginaleLinjer > 0)).toBe(true);
       expect(spurt.map(k => k.rekkefølge)).toEqual(spurt.map((_, i) => i + 1));
+      // fase 2 kommer bare etter at fase 1 er tom for nye linjer
+      const f = spurt.map(k => k.fase);
+      expect(f).toEqual([...f].sort());
     }
   });
   it('Tretten: sentrumsstoppene i Lillehammer med de samme linjene spørres ikke hver for seg', async () => {
     const { r } = await kjør('tretten_dag');
     const dekket = r.knutepunkter.vurdert.filter(k => /dekkes av valgte knutepunkter \(Lillehammer skysstasjon\)/.test(k.grunn));
-    expect(dekket.length).toBeGreaterThan(5);
-    expect(r.knutepunkter.spurt.length).toBeLessThan(PARAMETRE.knuteMaks);
+    expect(dekket.length).toBeGreaterThan(0);
+    expect(r.rapport.knutepunkter.fase1).toBeLessThan(6);
+  });
+});
+
+describe('4b.1: utfylling av ledig kapasitet', () => {
+  it('fyller opp til knuteMaks når fase 1 er tom — Tretten og natt — uten flere kall', async () => {
+    for (const n of ['tretten_dag', 'mortensrud_natt']) {
+      const { r, kall } = await kjør(n);
+      const kandidater = r.knutepunkter.vurdert.filter(k => k.nyeLinjer > 0).length;
+      expect(r.knutepunkter.spurt.length).toBe(Math.min(PARAMETRE.knuteMaks, kandidater));
+      expect(r.rapport.knutepunkter.fase2).toBeGreaterThan(0);
+      expect(kall.filter(k => k.navn === 'ledd 2').length).toBe(1);
+    }
+  });
+  it('byene: fase 1 bruker alle plassene, utfyllingen endrer ingenting', async () => {
+    for (const n of ['mortensrud_dag', 'nesttun_dag', 'ranheim_dag']) {
+      const { r } = await kjør(n);
+      expect(r.rapport.knutepunkter.fase2).toBe(0);
+    }
+  });
+  it('rekkefølgen i fase 2 er deterministisk: flest linjer utover ledd 1, så id', async () => {
+    const { r } = await kjør('tretten_dag');
+    const f2 = r.knutepunkter.vurdert.filter(k => k.fase === 2);
+    const sortert = [...f2].sort((a, b) => b.nyeLinjer - a.nyeLinjer || (a.id < b.id ? -1 : 1));
+    expect(f2.map(k => k.id)).toEqual(sortert.map(k => k.id));
+    expect(f2.every(k => /^utfylling: ledig kapasitet/.test(k.grunn))).toBe(true);
+  });
+  it('bredde går ikke ned med utfylling, og veiene beholdes', async () => {
+    for (const n of SCENARIOER) {
+      const uten = (await kjør(n, {}, { parametre: { knuteFyll: false } })).r; _tømCache();
+      const med = (await kjør(n)).r; _tømCache();
+      const m = x => ({ lr: Object.keys(x.grupper.linjeretning).length, omr: Object.keys(x.grupper.område).length, dest: x.rapport.kandidater.destinasjoner });
+      expect(m(med).lr).toBeGreaterThanOrEqual(m(uten).lr);
+      expect(m(med).omr).toBeGreaterThanOrEqual(m(uten).omr);
+      expect(m(med).dest).toBeGreaterThanOrEqual(m(uten).dest);
+      const ider = new Set(med.veier.map(v => v.id));
+      expect(uten.veier.every(v => ider.has(v.id))).toBe(true);
+    }
+  });
+  it('Tretten: utfyllingen gir nye linjeretninger', async () => {
+    const uten = (await kjør('tretten_dag', {}, { parametre: { knuteFyll: false } })).r; _tømCache();
+    const med = (await kjør('tretten_dag')).r;
+    expect(Object.keys(med.grupper.linjeretning).length).toBeGreaterThan(Object.keys(uten.grupper.linjeretning).length);
   });
   it('bidrag per spurt knutepunkt: nye linjeretninger, områder, destinasjoner, alternative veier', async () => {
     const { r } = await kjør('mortensrud_dag');

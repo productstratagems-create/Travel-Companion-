@@ -35,7 +35,6 @@ let _gangTreLogg = '';
  *  der rutetjenesten alt satte deg på veien — så alle ruter starter på samme vei. */
 function _gangFra() { const p = approachPoints(); const f = p && p[0]; return f ? (Array.isArray(f) ? { lat: f[0], lon: f[1] } : f) : userLL(); }
 import { reiseRader, kombiRader, kombiKall, besteFraReiser } from '../reiseTil.js';
-import { hentDelområde, områdeTekster } from '../api/omrade.js';
 import { fraMerke } from '../ui/tavleRad.js';
 import { roPunkt } from '../roPunkt.js';
 import { velgSpørsmål, besvartIDag, merkBesvart } from '../sporsmal.js';
@@ -5968,19 +5967,6 @@ function _oppdaterOmråder(andre, here, nå) {
   // PROBEN (v1.218.214): hva Entur og Kartverket sier om områdene — til loggen.
   if (_atOmr.length && _stop) omrProbe(_stop.id, _atOmr, t => logMsg(t)).catch(() => {});
   _atOmr.forEach(o => { o.linjer = [...new Set(andre.filter(d => o.nøkler.has(_omrNøkkel(d))).map(d => d.lines && d.lines[0] && d.lines[0].code).filter(Boolean))]; });
-  // DELOMRÅDENE (v1.218.283, src/api/omrade.js): «mot Rudene» i stedet for
-  // stoppnavn. Knappens id (og det lagrede valget) står; bare teksten byttes,
-  // og bare når hvert område får sitt eget navn.
-  const områder = _atOmr, stopp = _stop;
-  if (områder.length && stopp) {
-    Promise.all([hentDelområde(stopp), ...områder.map(o => hentDelområde(o.fjern))]).then(([her, ...navn]) => {
-      if (_atOmr !== områder) return;
-      const t = områdeTekster(områder, new Map(områder.map((o, i) => [o.id, navn[i]])), her);
-      let endret = false;
-      områder.forEach(o => { const ny = t.get(o.id); if (ny && ny !== o.tekst) { o.tekst = ny; endret = true; } });
-      if (endret) _renderBody();
-    });
-  }
 }
 /* KOMBINASJONER I VALGT OMRÅDE (v1.218.215, kombiRader i src/reiseTil.js).
    Ett reisesøk per valgt område (ikke «alle», ikke «hjemover», som har sitt

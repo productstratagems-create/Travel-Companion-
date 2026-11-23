@@ -71,6 +71,13 @@ describe('arkitekturgrensen: snarveier og andre muligheter (steg 1b)', () => {
     expect(kropp).toMatch(/iOmråde\(/);
     expect(kropp).not.toMatch(/=== 'mot'|=== 'hjem'|startsWith\('omr:'\)/);
   });
+  it('opsjonsmodellen (steg 2) når verken reiseoppgavene, mulighetsoppdagelsen eller presentasjonen', () => {
+    const n = navn(når(fil('opsjonsmodell.js')));
+    expect(n).not.toContain('reiseoppgaver.js');
+    expect(n).not.toContain('mulighetsoppdagelse.js');
+    expect(n.filter(x => x.startsWith('views/'))).toEqual([]);
+    expect(n.filter(x => x.startsWith('api/'))).toEqual([]); // ren modell: ingen API
+  });
   // Måleinstrumentet selv: en innsmuglet import, direkte eller via en mellomfil, skal fanges.
   it('vakten fanger en import (mutasjon)', () => {
     const kilde = readFileSync(MUL, 'utf8');

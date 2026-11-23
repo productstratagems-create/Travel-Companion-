@@ -13,3 +13,11 @@
 .eb-kart-knute { stroke: var(--accent, #2a7de1); fill: rgb(var(--bg-rgb)); fill-opacity: 1; }
 .leaflet-tooltip.eb-kart-etikett { font-size: 12px; font-weight: 600; padding: 1px 6px; }
 .eb-kart-deg { stroke: rgb(var(--bg-rgb)); fill: #2a7de1; fill-opacity: 1; }
+
+/* Retningskortene: klikkbare (Proven: liste ↔ kart). */
+#v-auto button.eb-rad{width:100%;text-align:left;background:none;border:0;border-bottom:1px solid rgba(var(--border-rgb),.18);color:inherit;font:inherit;cursor:pointer;border-left:3px solid transparent;padding-left:.45rem}
+#v-auto button.eb-rad[aria-pressed="true"]{background:rgba(var(--accent-rgb),.12);border-left-color:var(--accent)}
+#v-auto button.eb-rad:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+/* Valgt kort: de andre retningene står, dempet. */
+.eb-kart-dempet { stroke: var(--text-muted) !important; stroke-opacity: .35 !important; }
+.eb-kart-sted.eb-kart-dempet, .eb-kart-knute.eb-kart-dempet { fill-opacity: .6 !important; }

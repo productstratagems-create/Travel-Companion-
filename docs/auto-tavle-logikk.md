@@ -313,6 +313,30 @@ Et nytt svar på samme sted flytter ikke kartet. Rører du kartet, er det ditt.
 Tavla regner kartet som «justert» mens laget vises, og får tilbake din egen
 tilstand når valget går av, så en justering du gjorde før, ikke slettes.
 
+### Retningskortene (v1.218.291)
+
+Hver rad er et **kort du kan trykke på**. Det er Proven: liste ↔ kart, som i
+andre kartapper og som når en åpnet avgang rammer inn linja. Det nye er
+innholdet, ikke måten du trykker på.
+
+- **Trykk et kort:** kortet markeres (`aria-pressed`). Kartet viser den
+  retningen i full styrke, med opptil 20 steder (`KART_STEDER_VALGT`) og
+  knutepunktets navn. De andre retningene står igjen dempet og uten etikett:
+  fremhev, ikke skjul.
+- **Ny ramme:** deg, knutepunktet og retningens steder innenfor `rammeGrense`
+  for dette knutepunktet. Langdistanse peker fortsatt ut av kartet.
+- **Samme kort igjen** gir oversikten og oversiktsrammen tilbake. Et annet kort
+  bytter valget.
+- **Trykk på et sted i kartet** velger retningen det hører til, og ruller
+  kortet fram.
+- **Kortvalget glemmes** når du flytter deg (nytt sted), når valget «ett bytte»
+  går av, og når retningen ikke finnes i et nytt svar.
+- **Kartet flyttes bare når temaet endres** (nytt sted eller nytt kortvalg).
+  Et nytt svar med samme valg flytter ikke kartet.
+
+Kortene håndteres av én delegert lytter i `ettBytteVisning.js`. Det er ingen
+ny linje i `auto.js`.
+
 **Etiketter:** knutepunkter som står nærmere hverandre enn 48 px på skjermen,
 deler én etikett («Oslo bussterminal · Helsfyr · Nationaltheatret»).
 Knutepunktet med flest retninger bærer den (`samleEtiketter`). Etikettene

@@ -1933,3 +1933,76 @@ Eksempler:
 
 **Avvik:** ingen fra planen. Reisesøket er tatt opp i egne filer, så
 oppdagelsesopptakene og de faste referansene fra 2.3 er uendret.
+
+### 4d alternativ B: strukturell sammenligning av øvrige veier (gjort)
+
+**Beslutning:** de reisemønstrene som alt er hentet, sammenlignes også mot
+opsjonens øvrige oppdagede veier, flerleddsveier inkludert.
+
+**Uendret:**
+- grensen (`tillatt`/`grunnlag`) og utvelgelsen;
+- antall reisesøk (fortsatt 1 kall) og grensen på 3 mønstre;
+- `tripGQL`, parent-proben og reserven;
+- `sammenlign`/`veibekreftelse`;
+- opsjonsbekreftelsen og veibekreftelsen for den valgte veien.
+
+**Datakontrakt:** utvidet, ikke endret. Hver bekreftelse får
+`øvrigeVeier: [{ vei, ledd, vindu, grense, tidskobling, veibekreftelse }]`.
+- `veibekreftelse` er den uendrede funksjonen på **de samme** høyst 3
+  mønstrene.
+- `grense` sier hvorfor veien ikke selv var kandidat. For flerleddsveier er
+  det «flere ledd uten tidsmessig kontroll av overgangen».
+- `tidskobling` for flere ledd er `TIDSKOBLING_IKKE_KONTROLLERT`: «ikke
+  kontrollert av oss — strukturelt samsvar med et mønster Entur returnerte;
+  overgangen er ikke tidskontrollert av reisebekreftelsen». For én etappe er
+  det «ikke relevant».
+- Utfallene er de samme tre (`fulgt`, `ikke fulgt`, `ukjent`). Det finnes
+  ingen ny utfallsverdi og ingen tidsmessig påstand.
+- Et «fulgt» på en øvrig vei endrer **ikke** utfallet for den valgte veien.
+- `rapport.strukturelt` teller: sammenlignet, flerledd, fulgt, flerleddFulgt,
+  ikkeFulgt og ukjent.
+
+**Målt på opptakene** (10 valgte opsjoner per sted, samme kall):
+
+| | øvrige veier sammenlignet (av dem flerledd) | fulgt (av dem flerledd) | ikke fulgt | ukjent |
+|---|---|---|---|---|
+| Mortensrud | 190 (165) | 11 (**4**) | 179 | 0 |
+| Natt | 34 (0) | 5 (0) | 10 | 19 |
+| Nesttun | 43 (30) | 5 (**1**) | 38 | 0 |
+| Ranheim | 163 (160) | 2 (0) | 161 | 0 |
+| Tretten | 222 (158) | 8 (0) | 206 | 8 |
+
+- **Tidligere utelatte flerleddsveier som nå har strukturelt samsvar:**
+  - **Furuset skole** (Mortensrud): 4 veier, T-bane 3 + buss 110/300. Den
+    valgte direkte veien var «ikke fulgt», fordi antallet etapper ikke
+    stemte.
+  - **Osøyro terminal** (Nesttun): 1 vei, Bybanen 1 + buss 600.
+- **Gjenbruk:** hver øvrige vei er sammenlignet med nøyaktig de samme
+  mønstrene som den valgte, testet. Det er 652 sammenligninger fordelt på 5
+  kall, og 0 ekstra kall.
+
+**Tester:** 12 nye, 108 i alt.
+- opsjons- og valgt veibekreftelse er lik faste verdier fra `e456e0a`, med
+  fortsatt ett kall;
+- alle øvrige veier til den valgte opsjonen er med, ikke den valgte selv og
+  ikke andre opsjoners;
+- samme mønstre gjenbrukes;
+- direkte mot direkte;
+- flerledd mot to etapper (Furuset skole, overgangen er `true`);
+- ett mønster følger én vei, men ikke en annen;
+- flere mønstre med ulike utfall;
+- feil overgang gir `ikke fulgt` med overgangen som motstrid;
+- manglende parent gir aldri flere «fulgt»;
+- syntetisk flerledd med ukjent parent og ulike ID-er gir `ukjent`;
+- tidsmessig verifisering påstås ikke;
+- tomt søk gir alle øvrige `ukjent`.
+
+**Mutasjoner:** 6 av 6 fanget:
+- valgt vei tatt med blant de øvrige;
+- flerleddsveier utelatt;
+- tidskoblingen påstått kontrollert;
+- øvrige sammenlignes med færre mønstre;
+- bekreftet opsjon betyr at alle veier er fulgt;
+- «fulgt» på en øvrig vei smitter over på den valgte.
+
+**Avvik:** ingen.

@@ -435,6 +435,27 @@ export function reisesøkGql(posisjon, destinasjon, tid, alias) {
 
 const førsteAvgang = mønstre => mønstre.map(p => ((p.legs || []).find(l => l && l.mode !== 'foot') || (p.legs || [])[0] || {}).expectedStartTime).filter(t => typeof t === 'string').sort()[0] || null;
 
+/** Hva vår egen mekanisme har kontrollert av tid for en vei med flere ledd. */
+export const TIDSKOBLING_IKKE_KONTROLLERT = 'ikke kontrollert av oss — strukturelt samsvar med et mønster Entur returnerte; overgangen er ikke tidskontrollert av reisebekreftelsen';
+
+/**
+ * Strukturell sammenligning av én ØVRIG oppdaget vei mot mønstrene som alt er
+ * hentet for opsjonen. Bruker veibekreftelse() uendret. Påstår ingen
+ * tidsmessig verifisering: for flere ledd står `tidskobling` eksplisitt som
+ * ikke kontrollert. `grense` viser hvorfor veien ikke selv var kandidat.
+ */
+function strukturellVei(v, resultat, mønstre, ob) {
+  const vb = veibekreftelse(v, resultat, mønstre);
+  if (!mønstre.length) vb.påstand = { utfall: 'ukjent', mønster: null, begrunnelse: `ingen mønstre å sammenligne (${ob.grunn})` };
+  const t = tillatt(v, null);
+  return {
+    vei: v.id, ledd: v.ledd, vindu: v.vindu,
+    grense: t.tillatt ? 'tillatt (ikke valgt: samme opsjon undersøkes via en annen vei)' : t.grunn,
+    tidskobling: v.ledd === 1 ? 'ikke relevant (én etappe)' : TIDSKOBLING_IKKE_KONTROLLERT,
+    veibekreftelse: vb,
+  };
+}
+
 /**
  * Reisesøk for de valgte kandidatene. `utvalg` er svaret fra velgRepresentativt.
  * Endrer ikke `resultat`. Feil og tomme svar gir `unknown` med grunn — aldri
@@ -463,6 +484,9 @@ export async function bekreft(utvalg, resultat, ktx, { hent, klokke = () => Date
     j = await spør(REISESØK + ' uten parent', spørring(false));
   }
   const searchedAt = new Date(klokke()).toISOString();
+  const veierPerOpsjon = new Map();
+  for (const v of (resultat && resultat.veier) || []) (veierPerOpsjon.get(v.opsjon) || veierPerOpsjon.set(v.opsjon, []).get(v.opsjon)).push(v);
+  for (const l of veierPerOpsjon.values()) l.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const bekreftelser = mål.map((m, i) => {
     const request = { from: { lat: pos.lat, lon: pos.lon }, to: m.dest, modes: 'som tavla (uten fly)', travelTime: tid, mønstre: BEKREFT_MØNSTRE };
     const base = { state: 'unknown', request, searchedAt, vei: m.vei };
@@ -481,12 +505,24 @@ export async function bekreft(utvalg, resultat, ktx, { hent, klokke = () => Date
     }
     const vb = veibekreftelse(veier.get(m.vei) || { id: m.vei, opsjon: m.opsjon }, resultat, mønstre);
     if (!mønstre.length) vb.påstand = { utfall: 'ukjent', mønster: null, begrunnelse: `ingen mønstre å sammenligne (${ob.grunn})` };
-    return { opsjon: m.opsjon, vei: m.vei, opsjonsbekreftelse: ob, veibekreftelse: vb };
+    // ALTERNATIV B: de SAMME returnerte mønstrene sammenlignes strukturelt også mot opsjonens
+    // øvrige oppdagede veier — også flerleddsveier, som grensen holder utenfor KANDIDATENE.
+    // Ingen nye kall; grensen og utvelgelsen er uendret.
+    const øvrige = (veierPerOpsjon.get(m.opsjon) || []).filter(v => v.id !== m.vei).map(v => strukturellVei(v, resultat, mønstre, ob));
+    return { opsjon: m.opsjon, vei: m.vei, opsjonsbekreftelse: ob, veibekreftelse: vb, øvrigeVeier: øvrige };
   });
   for (const b of bekreftelser) {
     rapport.opsjon[b.opsjonsbekreftelse.state] = (rapport.opsjon[b.opsjonsbekreftelse.state] || 0) + 1;
     rapport.vei[b.veibekreftelse.påstand.utfall] = (rapport.vei[b.veibekreftelse.påstand.utfall] || 0) + 1;
   }
+  const øv = bekreftelser.flatMap(b => b.øvrigeVeier);
+  rapport.strukturelt = {
+    sammenlignet: øv.length, flerledd: øv.filter(x => x.ledd === 2).length,
+    fulgt: øv.filter(x => x.veibekreftelse.påstand.utfall === 'fulgt').length,
+    flerleddFulgt: øv.filter(x => x.ledd === 2 && x.veibekreftelse.påstand.utfall === 'fulgt').length,
+    ikkeFulgt: øv.filter(x => x.veibekreftelse.påstand.utfall === 'ikke fulgt').length,
+    ukjent: øv.filter(x => x.veibekreftelse.påstand.utfall === 'ukjent').length,
+  };
   rapport.kall = kall.length; rapport.ms = klokke() - t0; rapport.feiledeKall = kall.filter(k => k.feil.length).map(k => `${k.navn}: ${k.feil.join(' | ')}`);
   return { bekreftelser, rapport, notater };
 }

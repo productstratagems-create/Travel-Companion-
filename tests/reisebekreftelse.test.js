@@ -3,7 +3,7 @@
  * Entur via nettverksutforskeren (tests/fixtures/entur/) og syntetiske veier.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { grunnlag, tillatt, UTENFOR, velgRepresentativt, BREDDE, NÆR_DUBLETT_M, NÆR_DUBLETT_REGEL, avstandsbånd, AVSTANDSBÅND_KM, veibekreftelse, sammenlign, oppdagetSignatur, faktiskSignatur, sammeStopp, bekreft, BEKREFT_MØNSTRE, REISESØK, medParent } from '../src/reisebekreftelse.js';
+import { grunnlag, tillatt, UTENFOR, velgRepresentativt, BREDDE, NÆR_DUBLETT_M, NÆR_DUBLETT_REGEL, avstandsbånd, AVSTANDSBÅND_KM, veibekreftelse, sammenlign, oppdagetSignatur, faktiskSignatur, sammeStopp, bekreft, BEKREFT_MØNSTRE, REISESØK, medParent, TIDSKOBLING_IKKE_KONTROLLERT } from '../src/reisebekreftelse.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { SCENARIOER, lastOpptak, avspiller } from './fixtures/entur/avspilling.js';
 
@@ -723,7 +723,7 @@ describe('delsteg 4: reisesøket (opptak)', () => {
     for (const n of SCENARIOER) {
       const k = await kjørBekreft(n);
       for (const x of k.b.bekreftelser) {
-        expect(Object.keys(x).sort()).toEqual(['opsjon', 'opsjonsbekreftelse', 'vei', 'veibekreftelse']);
+        expect(Object.keys(x).sort()).toEqual(['opsjon', 'opsjonsbekreftelse', 'vei', 'veibekreftelse', 'øvrigeVeier']); // øvrigeVeier: alternativ B
         expect(x.opsjonsbekreftelse.vei).toBe(x.vei);
         expect(x.veibekreftelse.vei).toBe(x.vei);
         expect(x.opsjonsbekreftelse).not.toHaveProperty('påstand');
@@ -842,5 +842,117 @@ describe('delsteg 4: reisesøket (opptak)', () => {
   it('medParent endrer bare bekreftelsens spørring', () => {
     expect(medParent('quay{id stopPlace{id}} x quay{id stopPlace{id}}')).toBe('quay{id stopPlace{id parent{id}}} x quay{id stopPlace{id parent{id}}}');
     expect(medParent('quay{id stopPlace{id}}', false)).toBe('quay{id stopPlace{id}}');
+  });
+});
+
+/* ------------------------------------------- 4d alternativ B: øvrige veier, strukturelt */
+describe('4d alternativ B: de samme mønstrene mot opsjonens øvrige oppdagede veier', () => {
+  /** Faste verdier fra e456e0a (før B): opsjons- og valgt veibekreftelse skal være uendret. */
+  const FØR_B = {
+    mortensrud_dag: [{ confirmed: 10 }, { fulgt: 4, 'ikke fulgt': 6 }],
+    mortensrud_natt: [{ unknown: 6, confirmed: 4 }, { ukjent: 6, 'ikke fulgt': 3, fulgt: 1 }],
+    nesttun_dag: [{ confirmed: 10 }, { fulgt: 5, 'ikke fulgt': 5 }],
+    ranheim_dag: [{ confirmed: 10 }, { fulgt: 10 }],
+    tretten_dag: [{ confirmed: 9, unknown: 1 }, { fulgt: 8, 'ikke fulgt': 1, ukjent: 1 }],
+  };
+  it('opsjonsbekreftelsen og veibekreftelsen for valgt vei er uendret; fortsatt ett kall', async () => {
+    for (const n of SCENARIOER) {
+      const k = await kjørBekreft(n);
+      expect([n, k.b.rapport.opsjon, k.b.rapport.vei]).toEqual([n, ...FØR_B[n]]);
+      expect(k.kall.map(x => x.navn)).toEqual([REISESØK]);
+    }
+  });
+  it('alle øvrige oppdagede veier til den valgte opsjonen sammenlignes — ikke den valgte selv, ingen andre opsjoners', async () => {
+    for (const n of SCENARIOER) {
+      const k = await kjørBekreft(n);
+      for (const x of k.b.bekreftelser) {
+        const alle = k.r.veier.filter(v => v.opsjon === x.opsjon && v.id !== x.vei).map(v => v.id).sort();
+        expect(x.øvrigeVeier.map(y => y.vei)).toEqual(alle);
+        for (const y of x.øvrigeVeier) expect(y.veibekreftelse.opsjon).toBe(x.opsjon);
+      }
+    }
+  });
+  it('samme mønstre gjenbrukes: hver øvrige vei er sammenlignet med nøyaktig mønstrene til den valgte', async () => {
+    const k = await kjørBekreft('mortensrud_dag');
+    for (const x of k.b.bekreftelser) for (const y of x.øvrigeVeier)
+      expect(y.veibekreftelse.undersøkt.antallMønstre).toBe(x.veibekreftelse.undersøkt.antallMønstre);
+  });
+  it('direkte oppdaget vei mot direkte faktisk reise: øvrige direkte veier kan være fulgt', async () => {
+    const k = await kjørBekreft('mortensrud_dag');
+    const d = k.b.bekreftelser.flatMap(x => x.øvrigeVeier).filter(y => y.ledd === 1 && y.veibekreftelse.påstand.utfall === 'fulgt');
+    expect(d.length).toBeGreaterThan(0);
+    for (const y of d) expect(y.tidskobling).toBe('ikke relevant (én etappe)');
+  });
+  it('flerleddsvei mot faktisk reise med to etapper: Furuset skole fulgt strukturelt — uten påstand om tidskontroll', async () => {
+    const k = await kjørBekreft('mortensrud_dag');
+    const x = finnB(k, 'Furuset skole');
+    expect(x.veibekreftelse.påstand.utfall).toBe('ikke fulgt'); // den valgte direkte veien
+    const fler = x.øvrigeVeier.filter(y => y.ledd === 2 && y.veibekreftelse.påstand.utfall === 'fulgt');
+    expect(fler.length).toBeGreaterThan(0);
+    for (const y of fler) {
+      expect(y.tidskobling).toBe(TIDSKOBLING_IKKE_KONTROLLERT);
+      expect(y.grense).toBe(UTENFOR.flereLedd);
+      const m = y.veibekreftelse.undersøkt.mønstre[y.veibekreftelse.påstand.mønster];
+      expect(m.sjekker.find(s => s.felt === 'overgang ved knutepunkt').samsvar).toBe(true);
+      expect(JSON.stringify(y.veibekreftelse)).not.toMatch(/tidskontrollert|gjennomførbar/);
+    }
+    expect(k.b.rapport.strukturelt.flerleddFulgt).toBe(4);
+  });
+  it('ett mønster følger én oppdaget vei, men ikke en annen, innenfor samme opsjon', async () => {
+    const x = finnB(await kjørBekreft('mortensrud_dag'), 'Furuset skole');
+    const utfall = new Set(x.øvrigeVeier.map(y => y.veibekreftelse.påstand.utfall));
+    expect(utfall.has('fulgt') && utfall.has('ikke fulgt')).toBe(true);
+  });
+  it('flere mønstre med ulike utfall for samme øvrige vei', async () => {
+    const k = await kjørBekreft('mortensrud_dag');
+    const blandet = k.b.bekreftelser.flatMap(x => x.øvrigeVeier).find(y => new Set(y.veibekreftelse.undersøkt.mønstre.map(m => m.utfall)).size > 1);
+    expect(blandet).toBeTruthy();
+  });
+  it('flerleddsvei med feil overgang: byttestedet endres i reisen → ikke fulgt, med overgangen som motstrid', async () => {
+    const k0 = await kjørBekreft('mortensrud_dag');
+    const i = k0.b.bekreftelser.findIndex(x => k0.ops.get(x.opsjon).label === 'Furuset skole');
+    const k = await kjørBekreft('mortensrud_dag', { endre: (n, svar) => {
+      for (const p of svar.data['t' + i].tripPatterns) {
+        const kol = p.legs.filter(l => l.mode !== 'foot');
+        if (kol.length === 2) { kol[0].toPlace.quay.stopPlace = { id: 'NSR:StopPlace:FEIL', parent: null }; kol[1].fromPlace.quay.stopPlace = { id: 'NSR:StopPlace:FEIL', parent: null }; }
+      }
+      return svar;
+    } });
+    const fler = finnB(k, 'Furuset skole').øvrigeVeier.filter(y => y.ledd === 2);
+    expect(fler.every(y => y.veibekreftelse.påstand.utfall === 'ikke fulgt')).toBe(true);
+    const m = fler[0].veibekreftelse.undersøkt.mønstre.find(mm => mm.sjekker.some(s => s.felt === 'overgang ved knutepunkt'));
+    expect(m.sjekker.find(s => s.felt === 'overgang ved knutepunkt').samsvar).toBe(false);
+  });
+  it('flerleddsvei med manglende parent: aldri flere «fulgt», og ingen ukjent blir fulgt', async () => {
+    const med = await kjørBekreft('mortensrud_dag');
+    const uten = await kjørBekreft('mortensrud_dag', { endre: fjernParent });
+    const fulgt = k => new Set(k.b.bekreftelser.flatMap(x => x.øvrigeVeier).filter(y => y.veibekreftelse.påstand.utfall === 'fulgt').map(y => y.vei));
+    for (const v of fulgt(uten)) expect(fulgt(med).has(v)).toBe(true);
+    for (const y of uten.b.bekreftelser.flatMap(x => x.øvrigeVeier)) {
+      if (y.veibekreftelse.påstand.utfall !== 'fulgt') continue;
+      const m = y.veibekreftelse.undersøkt.mønstre[y.veibekreftelse.påstand.mønster];
+      expect(m.sjekker.filter(s => s.nødvendig).every(s => s.samsvar === true)).toBe(true);
+    }
+  });
+  it('flerleddsvei der parent mangler og ID-ene er ulike: ukjent, ikke ikke fulgt', () => {
+    const r = syntetiskResultat([{ id: 'v', dest: 'D', quay: 'Q1', parent: 'A' }]);
+    r.veier[0] = { ...r.veier[0], ledd: 2, knute: 'K', inn: 'L1>R', directionId: 'L2>S' };
+    const m = mønster(etappe('L1', sted('A', null), sted('K-barn')), etappe('L2', sted('K-barn'), sted('D', null)));
+    expect(veibekreftelse(r.veier[0], r, [m]).påstand.utfall).toBe('ukjent');
+  });
+  it('tidsmessig verifisering påstås ikke: ingen ny utfallsverdi, tidskobling eksplisitt for flere ledd', async () => {
+    for (const n of SCENARIOER) {
+      const k = await kjørBekreft(n);
+      for (const y of k.b.bekreftelser.flatMap(x => x.øvrigeVeier)) {
+        expect(['fulgt', 'ikke fulgt', 'ukjent']).toContain(y.veibekreftelse.påstand.utfall);
+        expect(Object.keys(y.veibekreftelse.påstand).sort()).toEqual(['begrunnelse', 'mønster', 'utfall']);
+        if (y.ledd === 2) expect(y.tidskobling).toBe(TIDSKOBLING_IKKE_KONTROLLERT);
+      }
+    }
+  });
+  it('når søket er tomt, er alle øvrige veier ukjent', async () => {
+    const k = await kjørBekreft('mortensrud_natt');
+    for (const x of k.b.bekreftelser.filter(b => b.opsjonsbekreftelse.state === 'unknown'))
+      for (const y of x.øvrigeVeier) expect(y.veibekreftelse.påstand.utfall).toBe('ukjent');
   });
 });

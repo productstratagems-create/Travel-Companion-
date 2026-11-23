@@ -3122,6 +3122,8 @@ export function openLine(dir) {
  */
 export const EDDERKOPP_MAKS = 5;
 export const EDDERKOPP_STOPP = 6;
+/** Stopp etter påstigningen et bein trenger: ett — streken går fra start til det (v1.218.281). */
+export const BEIN_MIN_STOPP = 1;
 /** Hvor duset linja er fra sjette stopp til endestoppet (v1.218.64). */
 export const EDDERKOPP_REST_OPASITET = 0.28;
 
@@ -3143,14 +3145,21 @@ export function edderkoppBein(dirs, stopName, now, foretrukket, walkMins = null,
     .map(x => {
       // NESTE AVGANG SOM HAR STOPPENE (v1.218.68): den første du rekker kan
       // mangle koordinater; samme retning, samme strek, en senere tur.
-      let alle = [], fant = false;
+      // ETT STOPP IGJEN ER OGSÅ EN LINJE (v1.218.281). Rapportert fra
+      // Nesoddtangen: «linjene herfra kan ikke tegnes nå». Fergen B10 har to
+      // stopp, Nesoddtangen og Aker brygge — ett etter påstigningen — og
+      // kravet var to. Det rammet alle direkte linjer: ferjer, ekspress,
+      // flybuss, og hver linje fra nest siste stopp. Streken er start → mål.
+      let alle = [], fant = false, reserve = null;
       for (const r of x.rides) {
         const a = stopsAhead(r.call, stopName, now, o.stopId || null);
         if (a.length) fant = true;
         alle = a.filter(st => st.lat != null && st.lon != null);
         if (alle.length >= 2) break;
+        if (alle.length === 1 && !reserve) reserve = alle;
       }
-      if (alle.length < 2) tell(fant ? 'utenKoord' : 'ikkeFunnet');
+      if (alle.length < 2 && reserve) alle = reserve;
+      if (alle.length < BEIN_MIN_STOPP) tell(fant ? 'utenKoord' : 'ikkeFunnet');
       return { ...x, ride: x.rides[0], alle };
     })
     .sort((a, b) => (b.først - a.først) || (a.ride.ms - b.ride.ms))
@@ -3171,7 +3180,7 @@ export function edderkoppBein(dirs, stopName, now, foretrukket, walkMins = null,
         tider: rides.slice(0, 3).map(r => r.ms),
         rester: rest.length >= 2 ? [rest] : [] };
     })
-    .filter(b => b.stopp.length >= 2)
+    .filter(b => b.stopp.length >= BEIN_MIN_STOPP)
     .reduce((acc, b) => slåSammenBein(acc, b), [])
     .slice(0, maks);
 }

@@ -16,6 +16,11 @@ export function stopsAhead(call, fromName, now, fraId = null) {
   const sjc = (call && call.serviceJourney && call.serviceJourney.estimatedCalls) || [];
   const norm = stopKey;   // was recipe C: the comma clause was missing
   const me = norm(fromName);
+  // PLATTFORMEN FØRST (v1.218.281). Tavla spør på samlestoppet («Hareid kai»),
+  // turen kaller ved understoppet («Hareid ferjekai») — verken id eller navn
+  // stemmer. Plattformen (quay-id) er den samme i begge. Målt mot Entur:
+  // Hareid, Tromsø Prostneset og Oslo lufthavn fikk ingen streker.
+  const quayId = call && !call._fra && call.quay && call.quay.id;
   let seen = false;
   const out = [];
   sjc.forEach(c => {
@@ -23,7 +28,7 @@ export function stopsAhead(call, fromName, now, fraId = null) {
     const name = (sp && sp.name) || '';
     // ID FØR NAVN (v1.218.68): «Mortensrud terminal» i kallet og «Mortensrud»
     // på skjermen er samme stoppested; ID-en sier det, navnet bommer.
-    if (!seen) { if ((fraId && sp && sp.id === fraId) || (me && norm(name) === me)) seen = true; return; }
+    if (!seen) { if ((quayId && c.quay.id === quayId) || (fraId && sp && sp.id === fraId) || (me && norm(name) === me)) seen = true; return; }
     const t = c.expectedArrivalTime || c.aimedArrivalTime;
     const ms = t ? new Date(t).getTime() : null;
     out.push({

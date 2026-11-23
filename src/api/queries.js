@@ -384,7 +384,7 @@ export function boardGQL(id, n, now, basic, fwdMins, modes, perLine, innstilte) 
     + 'destinationDisplay{frontText} quay{id publicCode name} '
     + 'serviceJourney{id line{id publicCode transportMode presentation{colour textColour}} '
     + sits + ' '
-    + 'estimatedCalls{quay{latitude longitude stopPlace{id name latitude longitude}} '
+    + 'estimatedCalls{quay{id latitude longitude stopPlace{id name latitude longitude}} '
     + 'aimedArrivalTime expectedArrivalTime aimedDepartureTime expectedDepartureTime}}'
     + '}'
     + '}}';

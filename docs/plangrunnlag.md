@@ -284,6 +284,21 @@ hva brukeren faktisk kan gjøre med kollektivtilbudet**.
 reisesøk) og viser resultatet; `retningGruppe`/`retningHjemDom` står igjen og
 delegerer, så alle kall og tester er uendret.
 
+## Steg 1b — grensen mellom snarveier og andre muligheter
+
+| Leveranse | Innhold | Skjermen | Status |
+|---|---|---|---|
+| 1b.1 | «Dine snarveier» (`reiseoppgaver.js`: `SNARVEIER`, `iSnarvei`) og «andre muligheter» (`mulighetsoppdagelse.js`: `andreRetninger`, `områderFor`, `iOmråde`) som to kilder; `filtrerRetning` i presentasjonen setter dem sammen og eier ingen av domenene | uendret | **gjort (v1.218.288)** |
+| 1b.2 | Arkitekturtest på faktiske, transitive import-er (`tests/arkitektur.test.js`); mønsteret i AGENTS.md | uendret | **gjort (v1.218.288)** |
+| 1b.3 | Målområdene beregnes uavhengig av mot sentrum/hjemover (av alle retninger) | potensielt | venter — produktbeslutning |
+| 1b.4 | Overlapp og presentasjon på skjermen | ja | venter |
+
+**Kobling som ikke lot seg isolere uten å endre skjermen:** «andre retninger»
+= verken mot sentrum eller hjemover, og målområdene bygges av dem. Den sendes
+nå inn som parameter (`erSnarvei`) fra presentasjonen, så
+mulighetsoppdagelsen vet ikke hva en snarvei er — men resultatet avhenger
+fortsatt av snarveiene. Det er 1b.3.
+
 ## Åpne spørsmål å avgjøre før steg 2
 
 1. **PULL:** hvem drar i regionalt/nasjonalt? `docs/produktretning.md` krever

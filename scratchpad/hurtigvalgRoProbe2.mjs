@@ -159,5 +159,5 @@ async function run(scheme) {
   await ctx.close();
 }
 fs.mkdirSync('scratchpad/shots', { recursive: true });
-await run('dark');
+await run('dark'); await run('light');
 await browser.close(); server.close();

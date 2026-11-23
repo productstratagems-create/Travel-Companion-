@@ -92,6 +92,32 @@ Hvordan Auto-tavle velger stopp, overskrift, avganger, rader og streker —
 med tallene, bundet til koden av `tests/autoTavleLogikk.test.js`. Les det
 før du endrer utvalget, og oppdater det i samme commit.
 
+### Snarveiene og de andre mulighetene er to produkter (2026-11-23)
+
+«Mot sentrum» og «hjemover» er personlige reiseoppgaver med et definert mål —
+ikke to kategorier i en generell algoritme for reisemuligheter. Den bredere
+oppdagelsen (andre retninger, målområder, senere lokalt/regionalt/nasjonalt)
+supplerer dem ved siden av.
+
+    src/reiseoppgaver.js        «dine snarveier»: motSentrum, hjemover
+    src/mulighetsoppdagelse.js  «andre muligheter»: andre retninger, målområder
+    src/reiseberegning.js       felles og nøytral: rekker du den, stoppene videre
+    src/views/auto.js           presentasjonen — det ENESTE stedet som setter dem sammen
+
+- **Avhengighetsretningen er regelen:** begge domenemodulene kan bruke
+  `reiseberegning.js`; ingen av dem importerer den andre; `reiseberegning.js`
+  importerer ingen av dem. Håndhevet via faktiske (transitive) import-er i
+  `tests/arkitektur.test.js` — ikke via tekstsøk.
+- **Felles søk er lov, felles oppgave er det ikke.** Reisesøket kan gjenbrukes;
+  søket bestemmer ikke hva en reiseoppgave er.
+- **En retning kan høre til flere sammenhenger** (mot sentrum *og* et område).
+  Overlapp avgjøres i presentasjonen — ikke ved å fjerne en relasjon i
+  datagrunnlaget.
+- **Kjent kobling som står (steg 1b.3):** «andre retninger» er i dag det som
+  verken er mot sentrum eller hjemover, og målområdene bygges av dem. Den
+  sendes inn som parameter fra presentasjonen. Å bygge områdene av alle
+  retninger endrer skjermen og er en egen produktbeslutning.
+
 ### Kartene følger `docs/kartregler.md` (2026-11-20)
 
 Zoom og panorering har ett regelsett: ett tema per kart, fem navngitte

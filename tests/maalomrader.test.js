@@ -45,7 +45,7 @@ describe('koblingen (v1.218.213)', () => {
   });
   it('knappene får områdene når «andre» kan deles', () => {
     const a = readFileSync('src/views/auto.js', 'utf8');
-    expect(a).toMatch(/const knappValg = _atOmr\.length \? \['alle', 'mot', 'hjem', \.\.\._atOmr\.map\(o => o\.id\)\] : AT_RETNINGER;/);
+    expect(a).toMatch(/const knappValg = \(_atOmr\.length \? \['alle', 'mot', 'hjem', \.\.\._atOmr\.map\(o => o\.id\)\] : AT_RETNINGER\)/);   // v1.218.282: valg uten linjer står ikke
     expect(a).toMatch(/d => _atOmrAv\.get\(_omrNøkkel\(d\)\) \|\| null\);/);
   });
 });

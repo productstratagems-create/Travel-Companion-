@@ -127,7 +127,10 @@ reserven («hjemover», «alle», eller før reisesøket har svart).
   nærmere byens sentrum, `sentrumFor`), «hjemover» (når turen et av
   hjemover-stoppene — eget valg, ellers morgenstoppet og stoppene rundt),
   målområder (hvor linjene ender, `src/maalomrader.js`) og «andre
-  retninger». Knappene vises bare når det finnes noe å skille.
+  retninger». Knappene vises bare når det finnes noe å skille. Hver knapp
+  viser linjene den gjelder (høyst fire, ellers «+N»), «mot sentrum» sier
+  byen («mot Bergen sentrum»), og et valg uten linjer herfra står ikke —
+  unntatt «hjemover», som er veien til å velge hjemover-stopp (v1.218.282).
 - **Rekker / rekker ikke** (`tavleDel`, `canCatch`): gangtiden er til
   radens eget stopp. De du ikke rekker samles under lista.
 - **Rekk den lenger ned** (v1.218.185): en avgang du ikke rekker her, men

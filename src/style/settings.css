@@ -1169,7 +1169,7 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
    valgt knapp står, så de tar minst mulig plass. */
 #v-auto .at-retning{flex-wrap:wrap}
 #v-auto .at-retning .auto-fra-knapp{white-space:nowrap}
-#v-auto .at-retning .auto-fra-knapp:not(.valgt) .omr-linjer{display:none}
+/* Linjene står på alle knappene (v1.218.282): du kjenner igjen bussen din uten å kjenne stedsnavnet. */
 
 .at-kombi .hva-pil{color:var(--text-soft);font-size:12px}
 /* Dine faste stopp (v1.218.251). */

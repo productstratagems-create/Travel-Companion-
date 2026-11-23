@@ -21,7 +21,7 @@ describe('retningsfilteret', () => {
     const src = readFileSync('src/views/auto.js', 'utf8');
     expect(src).toMatch(/side\.set\(i, retningGruppe\(d, here, walkMins, now\)\)/);
     expect(src).toMatch(/retningGruppe\(d, here, gang, nå\)/);
-    expect(src).toMatch(/filtrerRetning\(dirs, _atRetning/);   // via _iRetning (v1.218.134)
+    expect(src).toMatch(/filtrerRetning\(dirs, valg/);   // via _iRetning → _iValg (v1.218.282): samme regel for lista og knappene
   });
 });
 

@@ -5862,6 +5862,13 @@ export function retningGruppe(d, here, walkMins, now) {
 }
 /** Retningsfilteret i Auto-tavle: knappene i rekkefølge, med tekst. */
 export const AT_RETNINGER = ['alle', 'mot', 'hjem', 'andre'];
+/** Linjene på en hurtigvalgknapp: høyst fire, resten som «+N». Ren. */
+export function knappLinjer(koder) {
+  const l = (koder || []).filter(Boolean);
+  return l.slice(0, 4).join(' ') + (l.length > 4 ? ' +' + (l.length - 4) : '');
+}
+/** «mot Oslo sentrum» når byen er kjent (v1.218.282), ellers «mot sentrum». Ren. */
+export function motSentrumTekst(c) { return c && c.by ? 'mot ' + c.by + ' sentrum' : 'mot sentrum'; }
 export const AT_RETNING_TEKST = { alle: 'alle', mot: 'mot sentrum', hjem: 'hjemover', andre: 'andre retninger' };
 /** Retningene filteret slipper gjennom. «Andre» er verken mot sentrum eller hjemover. */
 export function filtrerRetning(dirs, valg, gruppe, hjem = () => false, område = () => null) {
@@ -5994,7 +6001,8 @@ function _kombiRadHtml(r, i) {
     + fraMerke(r.fra, r.gangMin)
     + '<span class="hva-l3">ank. ' + _klokke(r.ank) + ' · ' + r.bytter + ' bytte' + r.fakta.filter(f => f !== 'ingen bytte').map(f => ' · ' + esc(f)).join('') + '</span></span></button>';
 }
-const _retningTekst = k => AT_RETNING_TEKST[k] || ((_atOmr.find(o => o.id === k) || {}).tekst) || 'dit';
+const _retningTekst = k => (k === 'mot' ? motSentrumTekst(sentrumFor(_stop && Number.isFinite(_stop.lat) ? { lat: _stop.lat, lon: _stop.lon } : null))
+  : AT_RETNING_TEKST[k] || ((_atOmr.find(o => o.id === k) || {}).tekst) || 'dit');
 let _atRetning = lagretRetning();
 let _atRekke = [];      // forrige rekkefølge, for ro (v1.218.172)
 let _atGangTil = null;  // nabostoppet du trykket på (v1.218.172)
@@ -6044,11 +6052,16 @@ function _hjemLangtTrykk(body) {
  * Bestilt: «La kartet følge retningsfilteret også.» Bare i Auto-tavle.
  */
 function _iRetning(dirs, nå = Date.now()) {
-  if (!_autoTavle || _atRetning === 'alle' || !dirs) return dirs;
+  if (!_autoTavle) return dirs;
+  return _iValg(dirs, _atRetning, nå);
+}
+/** Retningene ett hurtigvalg slipper gjennom — samme regel for lista og knappene (v1.218.282). */
+function _iValg(dirs, valg, nå = Date.now()) {
+  if (valg === 'alle' || !dirs) return dirs;
   const here = (_stop && _stop.lat != null) ? { lat: _stop.lat, lon: _stop.lon } : null;
   const g = _stop ? gangTil(_stop) : null, gang = g ? g.mins : null;
   const liste = hjemStopp();
-  return filtrerRetning(dirs, _atRetning, d => retningGruppe(d, here, gang, nå), d => retningHjem(d, gang, nå, liste), d => _atOmrAv.get(_omrNøkkel(d)) || null);
+  return filtrerRetning(dirs, valg, d => retningGruppe(d, here, gang, nå), d => retningHjem(d, gang, nå, liste), d => _atOmrAv.get(_omrNøkkel(d)) || null);
 }
 function _tegnAutoTavle(body) {
   const nå = Date.now();
@@ -6074,7 +6087,12 @@ function _tegnAutoTavle(body) {
   // «Hjemover» står alltid (v1.218.147): uten stopp tar et trykk deg dit du velger dem.
   // «Andre retninger» delt i målområder når linjene herfra går flere veier.
   _oppdaterOmråder(synlige.filter(d => grp.get(d) !== 'mot' && !retningHjem(d, gang, nå, hjemListe)), here, nå);
-  const knappValg = _atOmr.length ? ['alle', 'mot', 'hjem', ..._atOmr.map(o => o.id)] : AT_RETNINGER;
+  // HURTIGVALG SOM SIER SEG SELV (v1.218.282): hver knapp viser linjene den
+  // gjelder, og et valg uten linjer herfra («andre», «mot sentrum») står ikke.
+  // «hjemover» står alltid — uten hjemover-stopp er den veien til å velge dem.
+  const linjerI = k => [...new Set((_iValg(synlige, k, nå) || []).map(d => d.lines && d.lines[0] && d.lines[0].code).filter(Boolean))];
+  const knappValg = (_atOmr.length ? ['alle', 'mot', 'hjem', ..._atOmr.map(o => o.id)] : AT_RETNINGER)
+    .filter(k => k === 'alle' || k === 'hjem' || linjerI(k).length > 0);
   if (!knappValg.includes(_atRetning)) _atRetning = 'alle';
   if (hjemListe.length) _hjemSøkOppdater(nå);
   const iRetning = _iRetning(synlige, nå);
@@ -6135,7 +6153,7 @@ function _tegnAutoTavle(body) {
   const retningKnapper = harBegge ? '<div class="auto-fra at-retning" role="group" aria-label="retning">'
     + knappValg.map(k => '<button type="button" class="auto-fra-knapp' + (k === _atRetning ? ' valgt' : '')
       + '" data-retning="' + k + '" aria-pressed="' + (k === _atRetning) + '"' + (k === 'hjem' ? ' title="hold for å velge stoppene"' : '') + '>' + esc(_retningTekst(k))
-      + ((o => o && o.linjer && o.linjer.length ? '<small class="omr-linjer">' + esc(o.linjer.slice(0, 4).join(' ')) + '</small>' : '')(_atOmr.find(o => o.id === k))) + '</button>').join('') + '</div>' : '';
+      + ((l => k !== 'alle' && l.length ? '<small class="omr-linjer">' + esc(knappLinjer(l)) + '</small>' : '')(linjerI(k))) + '</button>').join('') + '</div>' : '';
   // Avvikene per linje, samme kilde som retningskortene (v1.218.126).
   const perLinje = byLine(_alerts);
   const meld = id => perLinje.get(id) || [];

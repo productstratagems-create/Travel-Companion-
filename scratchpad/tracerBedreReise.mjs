@@ -117,7 +117,7 @@ function analyse(data) {
     if (minSpart != null) diff.push(minSpart);
     const ms = new Set(r[side].via.moduser || []);
     if (r[side].via.funnet && ms.size) tell(modus, ms.has('rail') ? 'tog' : ms.has('metro') ? 'T-bane' : ms.has('tram') ? 'trikk/bybane' : 'buss/annet', k);
-    if (k === 'samme, færre bytter') færre.push(her + ' → ' + r.mål);
+    if (k === 'samme, færre bytter') færre.push([her, r.mål]);
   }
   diff.sort((a, b) => a - b); const q = f => diff[Math.floor(f * (diff.length - 1))];
   console.log('sammenligninger', n);
@@ -125,10 +125,11 @@ function analyse(data) {
   console.log('tidsforskjell (min, + = alternativet tidligere): p10', q(0.1), 'p25', q(0.25), 'median', q(0.5), 'p75', q(0.75), 'p90', q(0.9), 'maks', diff[diff.length - 1]);
   for (const [t, m] of tid) console.log('  ' + t + ': ' + JSON.stringify(Object.fromEntries(m)));
   for (const [t, m] of modus) console.log('  alternativet med ' + t + ': ' + JSON.stringify(Object.fromEntries(m)));
-  console.log('samme tid, færre bytter:', færre.length, 'tilfeller,', new Set(færre).size, 'ulike mål');
+  // To tellinger: kombinasjoner (utgangspunkt + mål) og målnavn på tvers. Mål-id er ikke lagret i kjøring 1 og 2, så «ulike mål» hviler på navn.
+  console.log('samme tid, færre bytter:', færre.length, 'tilfeller,', new Set(færre.map(x => x.join(' → '))).size, 'kombinasjoner av utgangspunkt og mål,', new Set(færre.map(x => x[1])).size, 'ulike målnavn');
 }
 
-/** Representativt utvalg: per avstandsbånd fra midtpunktet, deterministisk (sortert på id). */
+/** Stratifisert, deterministisk utvalg (IKKE representativt): per avstandsbånd fra midtpunktet, sortert på NSR-id, hvert k-te. */
 async function utvalg(p) {
   const midt = { lat: (p.A.lat + p.B.lat) / 2, lon: (p.A.lon + p.B.lon) / 2 };
   const tid = TIDER[1][1].toISOString(); // oppdagelsen av mål: tirsdag kl. 12

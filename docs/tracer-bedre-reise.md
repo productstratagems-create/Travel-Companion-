@@ -87,7 +87,10 @@ høyeste verdi er +11 min (én gang).
   presentere et annet utgangspunkt som en generell snarvei.
 - **Det finnes enkelte reiser der brukeren kan bytte gangtid mot færre
   kollektivetapper eller færre bytter**, uten vesentlig senere ankomst.
-  Det gjelder 43 tilfeller, som er **20 ulike reisemål** fra 3 utgangspunkter.
+  Det gjelder 43 tilfeller, som er **20 kombinasjoner av utgangspunkt og
+  reisemål** fra 3 utgangspunkter. De har 20 ulike målnavn, og intet målnavn
+  går igjen hos flere utgangspunkter. Mål-id er ikke lagret, så at det er 20
+  ulike reisemål, hviler på navn.
   Mange av dem går igjen på flere tidspunkt.
 - **Det er en reell, men smalere produktmulighet:** en annen
   **reiseprofil**, ikke en raskere reise.
@@ -173,7 +176,8 @@ senere kjøringer.
      - NSR-id-rekkefølgen er administrativ. Den gir ingen sikret spredning i
        retning, transportmiddel eller stedstype.
      - Tre mål per bånd er for få til å anslå andeler med noen presisjon. En
-       andel på 12 % bygger på 43 tilfeller, men bare 20 ulike mål.
+       andel på 12 % bygger på 43 tilfeller, men bare 20 kombinasjoner av
+       utgangspunkt og mål.
      - Oppdagelsen er live, så samme skript kan gi et annet utvalg en annen dag.
    - **Samme mål på alle tidspunkt** innenfor en kjøring, men ikke mellom
      kjøringene (se over).
@@ -227,7 +231,10 @@ transportmidlene. Fordelingen kan skyldes rutetilbudet ved disse seks
 stedene, hvilke mål som kom med i utvalget, eller hvordan alternativet er
 konstruert (gange til et sted, så reisesøk derfra).
 
-**Konsentrasjon.** De 43 tilfellene er 20 ulike mål:
+**Konsentrasjon.** De 43 tilfellene er 20 kombinasjoner av utgangspunkt og
+mål. De har 20 ulike målnavn, og intet navn går igjen hos flere
+utgangspunkter. I hele utvalget forekommer ett navn i to par (Sagdalen
+stasjon), men ikke blant de 43:
 - 18 fra Mortensrud, 17 fra Helsfyr og 8 fra Paradis;
 - flere mål går igjen på alle fire tidspunkt: Ski, Eina og Lunner fra
   Mortensrud, Hokksund fra Helsfyr.
@@ -252,7 +259,8 @@ som står for nesten hele gevinsten. Det er ikke 43 uavhengige muligheter.
    Funksjonen ville nesten alltid ta feil, fordi reisesøket allerede velger
    utgangspunkt når målet er kjent.
 2. **Det som finnes, er en situasjonsbestemt avveining,** ikke en generell
-   anbefaling. Den gjelder ca. 12 % av sammenligningene og 20 ulike mål, og
+   anbefaling. Den gjelder ca. 12 % av sammenligningene og 20 kombinasjoner
+   av utgangspunkt og mål, og
    nesten bare fra et svakere sted mot en togstasjon eller et større
    knutepunkt.
    - Den passer som et alternativ **på reiseraden det gjelder**: «Du kan også

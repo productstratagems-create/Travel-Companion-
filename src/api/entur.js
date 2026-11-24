@@ -588,6 +588,27 @@ export function fetchTripFra(fraId, tilId, atMs, n) {
     .then(j => (j && j.data && j.data.trip && j.data.trip.tripPatterns) || []);
 }
 
+/**
+ * Reisesøket med bare disse linjene (v1.218.306): hele reisen for én bestemt
+ * avgang. Hjemsøket gir de beste reisene; en avgang utenfor dem hentes slik,
+ * med radens linje og linjene du bytter til.
+ */
+export function tripMedLinjerGQL(fraId, tilId, atMs, n, linjer, utenTurer = []) {
+  const walkSpeedMs = WALK_MPS[loadWalkSpeed()] || WALK_MPS.middels;
+  return tripGQL(fraId, tilId, null, n, walkSpeedMs, atMs, false, true, ..._tripFlagg())
+    // DE ANDRE AVGANGENE PÅ LINJA UTELATES. Ellers velger Entur en raskere avgang
+    // på samme linje (sett: 5 Vestli 18:49 fra Nydalen ble forbigått av 5 Ringen
+    // 18:55), og avgangen du trykket på er ikke med. Et smalt søkevindu holdt
+    // ikke: Entur svarte utenfor det, eller ingenting.
+    .replace('trip(', 'trip(whiteListed:{lines:' + JSON.stringify(linjer) + '} '
+      + (utenTurer.length ? 'banned:{serviceJourneys:' + JSON.stringify(utenTurer) + '} ' : ''));
+}
+export function fetchTripMedLinjer(fraId, tilId, atMs, n, linjer, utenTurer) {
+  return enturFetch(config.api.journeyPlanner, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: tripMedLinjerGQL(fraId, tilId, atMs, n, linjer, utenTurer) }) })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(j => (j && j.data && j.data.trip && j.data.trip.tripPatterns) || []);
+}
+
 /** Samme søk fra der du står (v1.218.143, «gå hit for å komme dit»). */
 export function fetchTripFraPos(pos, tilId, atMs, n) {
   return fetchTripFra({ lat: pos.lat, lon: pos.lon }, tilId, atMs, n);

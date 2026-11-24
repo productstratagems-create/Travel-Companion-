@@ -67,3 +67,41 @@ describe('hele reisen hjem', () => {
     expect(a).toMatch(/post\.reiser = hjemReiser\(alle\)/);
   });
 });
+
+describe('hjemover: avgang utenfor hjemsøket (v1.218.306)', () => {
+  it('videreLinjer: linjene du bytter til på samme sted, fra reisene søket alt har', async () => {
+    const { videreLinjer, hjemReiser } = await import('../src/hjemover.js');
+    const tps = lastOpptak('mortensrud_dag.reisesok').opptak['reisesøk'].svar.data.t1.tripPatterns;
+    const reiser = hjemReiser(tps);
+    const r = reiser[0];
+    const v = videreLinjer(reiser, r.bytte);
+    expect(v.length).toBeGreaterThan(0);
+    const kol = r.tp.legs.filter(l => l.mode !== 'foot');
+    expect(v).toContain(kol[1].serviceJourney.line.id);
+    expect(videreLinjer(reiser, 'Et sted som ikke finnes')).toEqual([]);
+  });
+  it('tripMedLinjerGQL: én trip-spørring, med bare radens linje og linjene videre', async () => {
+    const { tripMedLinjerGQL } = await import('../src/api/entur.js');
+    const q = tripMedLinjerGQL('NSR:StopPlace:1', 'NSR:StopPlace:2', Date.parse('2026-11-24T17:37:00Z'), 3, ['RUT:Line:5', 'RUT:Line:3'], ['RUT:ServiceJourney:b']);
+    expect((q.match(/trip\(/g) || []).length).toBe(1);
+    // Sett live (Nydalen → Mortensrud): uten å utelate de andre turene på linja svarte Entur med en raskere tur.
+    expect(q).toContain('trip(whiteListed:{lines:["RUT:Line:5","RUT:Line:3"]} banned:{serviceJourneys:["RUT:ServiceJourney:b"]} ');
+    expect(tripMedLinjerGQL('A', 'B', 0, 3, ['L'])).not.toContain('banned');
+  });
+  it('auto.js: rad med bytte uten treff henter reisen ved trykk, ellers åpnes den som før', () => {
+    const src = readFileSync('src/views/auto.js', 'utf8');
+    const i = src.indexOf('const hel = x.hjemReise'), j = src.indexOf('_hjemReiseVedTrykk(x, rader)', i), k = src.indexOf('_åpneRad(x);', j);
+    expect(i).toBeGreaterThan(0); expect(j).toBeGreaterThan(i); expect(k).toBeGreaterThan(j);
+    expect(src).toMatch(/fetchTripMedLinjer\(fra, m\.id, x\.ms - 60_000, 3, \[linje, \.\.\.videre\], uten\)/);
+    expect(src).toMatch(/reiseForTur\(svar\.flat\(\), sjId\)/);
+  });
+  it('reiseForTur: reisen som starter med akkurat den turen, ellers null', async () => {
+    const { reiseForTur } = await import('../src/hjemover.js');
+    const tps = lastOpptak('mortensrud_dag.reisesok').opptak['reisesøk'].svar.data.t1.tripPatterns;
+    const sj = tps.map(p => p.legs.find(l => l.mode !== 'foot').serviceJourney.id);
+    expect(reiseForTur(tps, sj[1]).tp).toBe(tps[1]);
+    expect(kombiKall(reiseForTur(tps, sj[1]))._legs.length).toBeGreaterThan(0);
+    expect(reiseForTur(tps, 'RUT:ServiceJourney:finnes-ikke')).toBeNull();
+    expect(reiseForTur(tps, null)).toBeNull();
+  });
+});

@@ -747,6 +747,61 @@ per fylke, slik at alle stedene i «ett bytte» får opplevelser uten nye kall.
 - dekningskartet for turrutebasen;
 - kjeden for universell utforming (§14).
 
+## 17. Prototype: opplevelseskort (25.11, ingen appendring)
+
+**Bakgrunn:** en ekstern vurdering anbefalte å vise muligheter og ikke
+POI-kategorier, med fire innganger og kollektivtilgang på kortet.
+
+**Filer:**
+- `scratchpad/prototype/opplevelseskort.html` (står alene, åpnes i nettleser);
+- `hentReiser.mjs` henter ekte data;
+- `lagSide.mjs` lager siden;
+- `data.json` er grunnlaget.
+
+**Data:** 12 opplevelser fra tracerens steder, spredt på fire
+utgangspunkter. Reisesøket er ekte (Entur, avreise 25.11 kl. 10), gangen er
+målt med Valhalla, og beskrivelsene kommer fra Wikidata. Ingen tall er
+oppdiktet.
+
+**Det prototypen viser:**
+- **Fire innganger** over de sju kategoriene (natur og friluftsliv,
+  severdigheter, kultur og historie, aktiviteter og rekreasjon). Et sted kan
+  høre til flere, for eksempel Sola ruinkirke og Operahuset.
+- **Underfiltre** bare inni valgt inngang. For natur er det for eksempel
+  gåtur, tur i skog og mark, tur til vannet og naturopplevelse.
+- **Aktivitet** er utledet fra kilden: fotrute gir gåtur, marka gir tur i
+  skog og mark, alpinsenter gir ski, museum gir museumsbesøk.
+- **Kortvarianter:**
+  - **A**, tett rad som i dag;
+  - **B**, kort med hva, hvorfor og hvordan;
+  - **C**, B pluss «enkel», «mulig» eller «krevende», med grunnlaget i
+    parentes.
+- **Kart:** en prikk velger samme kort.
+
+**Funn [Målt]:**
+- **«Hvorfor» er tynt.** Bare 5 av 12 har en beskrivelse i Wikidata, og 3 er
+  på norsk. Resten har bare kildens fakta («Svært viktig
+  friluftslivsområde», «nasjonal turrute · historisk ferdselsvei»), eller
+  ingenting, som Lilleputthammer. En kortversjon som krever en
+  beskrivelsestekst, blir halvtom.
+- **Kollektivtilgangen skiller stedene tydelig fra hverandre.**
+  - Nøstvetmarka: 43 min og 1 bytte, så 9 min gange.
+  - Moldøen: 7 t 25 min.
+  - Operahuset (fra Ranheim): 3 bytter, med fly.
+  - Pilegrimsleden ved Skogstadrampa: **ingen kollektivreise i søket**.
+    Gange hele veien tar 58 min, selv om stedet er 1,2 km unna i luftlinje.
+- **Ordene enkel, mulig og krevende** kan forklares fra dataene (reisetid,
+  bytter og målt gange), og grunnlaget står ved siden av. Grensene er satt
+  av meg: enkel er inntil 45 min, høyst 1 bytte og inntil 15 min gange. De
+  er ikke prøvd på brukere [Hypotese].
+- **Kartet over fire utgangspunkter blir hele landet.** I appen gjelder ett
+  utgangspunkt, så kartet blir regionalt.
+- **Gangtid:** målt for alle 12.
+
+**Vurdering [Anbefaling]:** variant B med C-ordene for tilgang. Teksten
+under navnet må tåle at beskrivelsen mangler: fakta og aktivitet bærer
+kortet, og beskrivelsen er et tillegg.
+
 ## Avgrensninger
 
 - **Utvalget:** 24 steder fra 4 utgangspunkter, én tid (Entur-opptakene). Det

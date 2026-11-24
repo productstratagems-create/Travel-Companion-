@@ -802,7 +802,7 @@ oppdiktet.
 under navnet må tåle at beskrivelsen mangler: fakta og aktivitet bærer
 kortet, og beskrivelsen er et tillegg.
 
-## 18. Implementeringsplan: opplevelseskort i «ett bytte» (til godkjenning)
+## 18. Implementeringsplan: opplevelseskort i «ett bytte» (godkjent 25.11 med presiseringer, kode venter på ny godkjenning)
 
 **Beslutninger 25.11:**
 1. Kortvariant B, med tilgangsordene fra C.
@@ -836,6 +836,18 @@ kortet, og beskrivelsen er et tillegg.
   fant ingen reise fordi neste buss gikk 13.25, **ikke fordi stedet er
   utilgjengelig**.
 
+### Presiseringer 25.11 (innarbeidet under)
+1. **Dato og klokkeslett** for reisesøket vises, ikke bare klokkeslett.
+2. **Regelen for «framme ca.»** er dokumentert under. Den bruker faktisk
+   ankomst fra reiseplanen, og legger bare til gangtid når den gjelder
+   samme stopp. Estimater merkes som omtrentlige.
+3. **Tilgangsordene** er justerbare hypoteser. Råverdiene er alltid synlige,
+   og ordene påvirker ikke utvalg eller rekkefølge.
+4. **Bestillingstransport** merkes som transport som krever bestilling, aldri
+   som ordinær buss.
+5. **Datagrunnlaget kontrolleres** før kortet lages: startpunkt, målestopp,
+   valgt reiseplan, søketidspunkt, transportmidler og type gangmåling.
+
 ### Hva som gjenbrukes (mekanismen endres ikke)
 - **Opplevelser:** `hentOpplevelser`, `opplevelserVed`, `velgVisning`,
   `fasiliteterVed` og `hentGang` (`src/api/opplevelserKilder.js`,
@@ -848,6 +860,40 @@ kortet, og beskrivelsen er et tillegg.
   før.
 - **Kart:** `ettBytteKart` og turrute-laget (av som standard).
   `docs/kartregler.md` gjelder.
+
+### Datagrunnlaget kortet leser (kontrolleres, `grunnlag()`)
+Kortet lager ingen egne søk mot Entur. Det leser oppslaget «ett bytte» alt
+har gjort per sted (`_sjekk` i `src/views/ettBytteVisning.js`):
+
+| felt | kilde i dag | kontroll |
+|---|---|---|
+| startpunkt | `t.pos`, utgangspunktet for «ett bytte», sendt til `reisesøkGql` | lagres på oppslaget (`fra: {lat, lon}`). Kortet sier «fra der du står» |
+| målestopp | `stedId` (samlestoppet i `destinations[0].id`) | siste kollektive etappe må ende ved samme samlestopp (`toPlace.quay.stopPlace.id` eller samlestoppet over det). Avviker den, vises ingen reiseverdi, bare «reisen ender et annet sted» |
+| valgt reiseplan | første kollektive rad fra `reiseRader(tps, nå)`, sortert etter ankomst | lagres som `tp` med id-en (`tp` og `reiseRader` finnes). Samme plan brukes i kort, rad og avgangsdetaljer |
+| søketidspunkt | `nå` på oppslaget (`s.tid`), som også er `dateTime` i spørringen | vises som dato og klokkeslett. Er det mer enn `SJEKK_GYLDIG_MS` (10 min) gammelt, hentes det på nytt, som i dag |
+| transportmidler | `transportModesGql`: metro, bus, tram, rail, water (+ coach) | kontrolleres i svaret: en etappe med `air` (eller noe utenfor listen) avviser planen. `taxi` gir bestillingstransport |
+| gangmåling | `hentGang` (Valhalla, lengden målt på linja) | `målt` (Valhalla), `luftlinje` (anslag) eller `ingen`. Typen står på kortet |
+
+`grunnlag(oppslag, sted)` er en ren funksjon som gir
+`{ ok, avvik: [...], fra, stopp, plan, søkt, moduser, gang }`. Avvik står i
+loggen og gjør verdien på kortet tom. Det gjetter aldri.
+
+### Regel for «framme ca.» (`samletTid`)
+1. **Ankomst ved stoppet** er siste etappes faktiske ankomst i reiseplanen
+   (`expectedEndTime`, ellers `aimedEndTime`), slik `reiseRader` alt leser
+   den (`ank`). Den regnes aldri ut fra reisetid.
+2. **Gangtiden** legges bare til når den er **målt** (`kilde: 'målt'`), og
+   bare når den gjelder **samme samlestopp** som reiseplanen ender ved
+   (kontrollert i `grunnlag`). Gangen må starte i stoppets punkt (samme
+   koordinater som `hentGang` brukte).
+3. Mangler eller avviker en del, fordi det ikke finnes noen reise, gangen ikke
+   er målt, eller planen ender ved et annet stopp, vises **ingen samlet
+   tid**. Delverdiene vises fortsatt hver for seg.
+4. Klokkeslettet er `ank + gang.min`, avrundet opp til nærmeste minutt, og
+   vises som **«framme ca. HH:MM»**. Det er et anslag, fordi gangen er målt
+   til stedets nærmeste punkt eller kant, ikke til en inngang.
+5. Reisetid og gangtid legges **aldri** sammen til ett tall i minutter. Bare
+   ankomsttidspunktet vises.
 
 ### Endringer i datamodellen (rene funksjoner i `src/opplevelser.js`)
 - **`INNGANGER`:** de fire inngangene over de sju kategoriene. Et sted kan
@@ -863,11 +909,12 @@ kortet, og beskrivelsen er et tillegg.
   - Mønstre med en etappe som ikke er tillatt (`air` og andre utenfor listen)
     avvises som et forsvar, selv om spørringen ikke ber om dem.
   - `bestilling` er sann når en etappe er `taxi`, altså bestillingstransport.
+    Linjen vises da som «bestillingstransport · må bestilles», aldri som
+    buss.
 - **`gangFraStopp`:** `{ m, min, kilde: 'målt' }` fra `hentGang`, eller
   `{ luftM, kilde: 'luftlinje' }`. Aldri en påstått gangtid.
-- **`samletTid(reise, gang)`:** bare når **begge** er kjente og målt. Da gir
-  den `{ framme: reise.framme + gang.min }`. Ellers `null`, og ingenting
-  summeres.
+- **`samletTid(grunnlag)`:** etter regelen over. Den gir `{ framme, omtrent:
+  true }` eller `null`.
 - **`TILGANG_GRENSER`:**
   `{ enkel: { reiseMin: 45, bytter: 1, gangMin: 15 }, mulig: { 120, 2, 25 } }`,
   merket som hypotese i koden og i rapporten.
@@ -891,15 +938,20 @@ opplevelseskort, som erstatter dagens linje fra v1.218.313. Hvert kort har:
 - **fasiliteter** fra turrutebasen;
 - **kilder.**
 
-**Tidsinformasjon:** én linje over lista: «reisetider fra søk kl. HH:MM». Den
-fornyes når reisene hentes på nytt (cache 10 min, som i dag).
+**Tidsinformasjon:** én linje over lista: «reisetider gjelder søk onsdag
+25.11. kl. 10.00 fra der du står». Den viser dato og klokkeslett, og
+fornyes når reisene hentes på nytt (cache 10 min, som i dag). Over
+midnatt eller neste dag viser datoen det.
 
-**Manglende reise:** «ingen kollektivreise i søket kl. HH:MM. Det betyr ikke
-at stedet ikke kan nås». Har Entur en verifisert gangrute (`directMode: foot`,
+**Manglende reise:** «ingen kollektivreise i søket onsdag 25.11. kl. 10.00.
+Det betyr ikke at stedet ikke kan nås». Har Entur en verifisert gangrute (`directMode: foot`,
 ett ekstra kall, bare i dette tilfellet), står også «gange hele veien: 58 min
 (3,4 km, Entur)».
 
-**Bestillingstransport:** merket «bestillingstransport · må bestilles».
+**Bestillingstransport:** merket «bestillingstransport · må bestilles» på
+kortet og i verdien «reise til stoppet». Den teller ikke som ordinær buss i
+tilgangsordet: det står «ukjent» når hele reisen bygger på
+bestillingstransport.
 
 **Innganger:** fire knapper over stedslista under et valgt kort, av som
 standard («alle»). Knappene filtrerer bare **hvilke opplevelser** som vises,
@@ -939,8 +991,78 @@ aldri **hvilke steder** eller kort «ett bytte» finner.
   - `velgVisning` gir samme rekkefølge med og uten tilgang (mutanttest).
 - **Kart og liste:** prikk → kort og kort → prikk bruker samme tilstand, og
   kartet flyttes ikke etter at brukeren har rørt det.
+- **Datagrunnlag (`grunnlag`):**
+  - planen ender ved et annet samlestopp: avvik «målestopp», og ingen
+    reiseverdi;
+  - planen har en `air`-etappe: avvik «transportmiddel», og planen avvises;
+  - oppslaget er eldre enn 10 min: nytt søk;
+  - fra-koordinatene på oppslaget er de samme som `reisesøkGql` fikk;
+  - samme `tp` brukes i kortet og i reiseraden (identitet).
+- **Framme ca.:**
+  - ankomsten er `expectedEndTime` fra planen, ikke starttid pluss varighet
+    (fikstur der de to er forskjellige);
+  - gange fra et annet stopp enn planens legges ikke til;
+  - luftlinje legges aldri til;
+  - teksten har alltid «ca.»;
+  - det finnes ikke noe samlet tall i minutter i HTML-en.
+- **Søketidspunkt:** dato og klokkeslett i norsk form, også over midnatt
+  (fikstur kl. 23.50 med ankomst neste dag).
+- **Bestillingstransport:** en `taxi`-etappe gir «bestillingstransport · må
+  bestilles», aldri ordet «buss», og tilgangsordet blir «ukjent».
 - **Uendret:** eksisterende tester for «ett bytte», reiserader, «hvor langt»
   og tidsvindu går gjennom.
+
+### Akseptansekriterier
+1. Et valgt «ett bytte»-kort gir de samme stedene og reiseradene som før.
+2. Hvert opplevelseskort viser reise til stoppet, gange fra stoppet (med
+   målingstype) og bare «framme ca.» når regelen tillater det.
+3. Søkets dato og klokkeslett står over lista.
+4. Ingen fly. Bestillingstransport står merket.
+5. «Ingen kollektivreise i søket …» står aldri som «utilgjengelig».
+6. Tilgangsordet står alltid med verdiene, og rekkefølgen er lik med og uten
+   ordet.
+7. Et trykk på en prikk ruller fram kortet, og et trykk på kortet fremhever
+   prikken. Kartet flyttes ikke etter at brukeren har rørt det.
+8. I nettleseren mot ekte Entur (Mortensrud og Tretten), lys og mørk modus,
+   390 px, uten feil i konsollen.
+
+### Filer
+| fil | endring |
+|---|---|
+| `src/opplevelser.js` | nye rene funksjoner (under). Ingen endring i dagens |
+| `src/api/opplevelserKilder.js` | Wikidata-spørringen får `schema:description`. Ingen nye kall |
+| `src/views/ettBytteVisning.js` | lagrer `fra`, `søkt` og `tp` på oppslaget, tegner kortene, prikker og valgt opplevelse |
+| `src/style/ettBytte.css` | kortstil, gjenbruker appens farger |
+| `tests/opplevelseskort.test.js` (ny) | testene over |
+| `tests/fixtures/opplevelser/` | to nye fiksturer: Skogstadrampa med fotrute og avganger, og en reiseplan med bestillingstransport (ekte svar) |
+| `docs/auto-tavle-logikk.md` | avsnittet om opplevelser oppdateres |
+
+**Rene funksjoner som legges til:**
+- `INNGANGER`
+- `innganger(o)`
+- `aktiviteter(o)`
+- `grunnlag(oppslag, sted)`
+- `reiseTilStoppet(plan)`
+- `gangFraStopp(gang, luft)`
+- `samletTid(grunnlag)`
+- `TILGANG_GRENSER`
+- `tilgang(reise, gang, grenser)`
+- `søkTekst(ms)` (dato og klokkeslett)
+- `kortData(o, grunnlag)` (alt kortet viser, uten HTML)
+
+**Dataflyt:**
+1. Kort velges → `velgRetning`.
+2. For hvert av de 8 stedene:
+   - `sjekkSted` kjører reisesøket som i dag, og lagrer `fra`, `søkt` og
+     `tp`;
+   - `hentOpplevelser` henter de tre kildene.
+3. `velgVisning` velger høyst 2 opplevelser.
+4. `hentGang` måler gangen for dem.
+5. `grunnlag` kontrollerer.
+6. `kortData` setter sammen.
+7. `opplevelseskortHtml` tegner lista, og `ettBytteKart` tegner prikker fra
+   samme `kortData`.
+8. Begge leser og skriver `_valgtOpplevelse`.
 - **I nettleseren:** mot ekte Entur fra Mortensrud og Tretten (tynt tilbud),
   i lys og mørk modus på 390 px.
 
@@ -953,6 +1075,7 @@ aldri **hvilke steder** eller kort «ett bytte» finner.
   funksjoner legges til.
 - **Grunnkartet** (Stadia). Turrute-laget forblir valgfritt.
 - **Fritid-skjermen** (`src/views/leisure.js`) og `src/api/places.js`.
+- **`velgVisning`, `erReisemål` og mappingen.** Tilgangsordet leses aldri der.
 
 ## Avgrensninger
 

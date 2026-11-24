@@ -935,3 +935,18 @@ html.din-rute-apen #dep-list{display:none}
 .sv-liste{margin-top:.4rem}
 .sv-tom{font-size:12px;color:var(--text-soft)}
 .sel-sving{text-align:center;font-size:14px;font-weight:600;color:var(--accent);margin-top:.2rem}
+
+/* HELE REISEN (v1.218.307): etappene i linjefarge, byttet som stiplet luke. */
+.js-rail-reise::before{display:none}
+.js-seg{position:absolute;top:10px;height:2px;border-radius:1px;opacity:.55}
+.js-rail-reise .js-done{z-index:1;height:3px;top:9.5px}
+.js-rail-reise .js-tick,.js-rail-reise .js-train,.js-bytte-merke{z-index:2}
+.js-gap{position:absolute;top:10px;height:0;border-top:2px dashed rgba(var(--text-muted-rgb),.6)}
+.js-bytte-merke{position:absolute;top:6px;width:2px;height:10px;margin-left:-1px;background:var(--text-muted)}
+.js-linjer{position:relative;height:14px;margin:.35rem 0 .1rem}
+.js-linje{position:absolute;transform:translateX(-50%);font:700 9px/14px "JetBrains Mono",ui-monospace,monospace;padding:0 .35em;border-radius:3px;white-space:nowrap}
+.js-ends-reise span{max-width:46%}
+.js-bytte{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:.2rem;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+.js-bytte b{color:var(--text);font-weight:600}
+.js-tider{margin-top:.05rem;color:var(--text-muted)}
+.js-tider span{max-width:40%}

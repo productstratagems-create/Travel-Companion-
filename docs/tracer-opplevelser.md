@@ -802,7 +802,7 @@ oppdiktet.
 under navnet må tåle at beskrivelsen mangler: fakta og aktivitet bærer
 kortet, og beskrivelsen er et tillegg.
 
-## 18. Implementeringsplan: opplevelseskort i «ett bytte» (godkjent 25.11 med presiseringer, kode venter på ny godkjenning)
+## 18. Implementeringsplan: opplevelseskort i «ett bytte» (godkjent 25.11, bygget i v1.218.314)
 
 **Beslutninger 25.11:**
 1. Kortvariant B, med tilgangsordene fra C.
@@ -818,6 +818,13 @@ kortet, og beskrivelsen er et tillegg.
   `coach` når den er tillatt. **Fly er ikke med i appen.** Flyet i prototypen
   kom fra mitt eget skript, som ikke satte `transportModes`. Feil i
   prototypen, ikke i appen.
+- **Rettet 25.11 under implementeringen:** reisesøket «ett bytte» bruker
+  (`reisesøkGql` → `tripGQL` med `coach: true`) **tar med `coach` og `taxi`**
+  (`BUSS_FØLGER`), altså også bestillingstransport. Det står i den innspilte
+  spørringen i `tests/fixtures/entur/mortensrud_dag.reisesok.json.gz`. En
+  tidligere påstand om at bestillingstransport ikke var med, var feil.
+  Skogstadrampa kl. 10 ga ingen reise fordi bestillingsavgangene (linje 5031)
+  først går om kvelden.
 - Nettverket bak «ett bytte» (`BOARD_MODES_COACH`) har også `taxi`, som er
   Enturs bestillingstransport (for eksempel linje 5031 ved Tretten).
   Bestillingstransport er kollektivtilbud, men må bestilles på forhånd, og

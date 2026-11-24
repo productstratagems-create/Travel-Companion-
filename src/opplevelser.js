@@ -143,9 +143,10 @@ export function slåSammen(kandidater, stopp) {
       if (luft < lik.luft) { lik.luft = luft; lik.lat = c.lat; lik.lon = c.lon; }
       lik.wikidata = lik.wikidata || c.wikidata || null; lik.sitelinks = Math.max(lik.sitelinks, c.sitelinks || 0);
       lik.rute = slåSammenRute(lik.rute, c.rute); lik.verdi = lik.verdi || c.verdi || null;
+      lik.beskrivelse = lik.beskrivelse || c.beskrivelse || null;
       continue;
     }
-    unike.push({ navn: c.navn, lat: c.lat, lon: c.lon, luft, flate: !!c.flate, kat: [...c.kat], kilder: [c], wikidata: c.wikidata || null, sitelinks: c.sitelinks || 0, rute: c.rute || null, verdi: c.verdi || null });
+    unike.push({ navn: c.navn, lat: c.lat, lon: c.lon, luft, flate: !!c.flate, kat: [...c.kat], kilder: [c], wikidata: c.wikidata || null, sitelinks: c.sitelinks || 0, rute: c.rute || null, verdi: c.verdi || null, beskrivelse: c.beskrivelse || null });
   }
   return unike;
 }
@@ -209,4 +210,152 @@ export function avstandTekst(o, gang) {
 /** Fasiliteter innen 300 m av opplevelsens punkt: «toalett · bålplass». Ren. */
 export function fasiliteterVed(o, punkter, maksM = 300) {
   return [...new Set((punkter || []).filter(p => TILRETTELEGGING[p.kode] && TILRETTELEGGING[p.kode].fasilitet && avstandM(o, p) <= maksM).map(p => TILRETTELEGGING[p.kode].navn))];
+}
+
+/* ── OPPLEVELSESKORT (v1.218.314) — docs/tracer-opplevelser.md §18 ────────
+ * Rene funksjoner: kortet leser reisesøket «ett bytte» alt har gjort, og
+ * kontrollerer det før det vises. Ingen egne søk, ingen gjetting. */
+
+/** Fire innganger over de sju kategoriene. Et sted kan høre til flere. */
+export const INNGANGER = Object.freeze({ natur: 'Natur og friluftsliv', severdighet: 'Severdigheter', kultur: 'Kultur og historie', aktivitet: 'Aktiviteter og rekreasjon' });
+const INNGANG_AV = { natur: 'natur', friluftsliv: 'natur', severdighet: 'severdighet', kultur: 'kultur', bading: 'aktivitet', park: 'aktivitet', attraksjon: 'aktivitet' };
+export const innganger = o => [...new Set((o.hoved || []).map(k => INNGANG_AV[k]).filter(Boolean))];
+
+/** Aktiviteter utledet fra kildene — aldri fritekst. Høyst tre. Ren. */
+export function aktiviteter(o) {
+  const u = (o.under || []).join(' ').toLowerCase(), b = ((o.beskrivelse && o.beskrivelse.tekst) || '').toLowerCase(), ut = [];
+  const t = o.rute && o.rute.type;
+  if (t === 'Fotrute' || t === 'AnnenRute') ut.push('gåtur');
+  if (t === 'Skiløype') ut.push('skitur');
+  if (t === 'Sykkelrute') ut.push('sykling');
+  if (/marka|turområde|utfart/.test(u)) ut.push('tur i skog og mark');
+  if (/\bvann\b|tjern/.test(u)) ut.push('tur til vannet');
+  if (/strand|badeplass|strandsone|baderampe/.test(u)) ut.push('bading og strand');
+  if (/naturreservat|landskapsvern|kvalitetsområde|utsikt/.test(u)) ut.push('naturopplevelse');
+  if (/skisenter|alpin/.test(u) || /alpinsenter/.test(b)) ut.push('ski');
+  if (/fornøyelsespark|dyrepark|akvarium/.test(u)) ut.push('familieaktivitet');
+  if (/museum|galleri/.test(u)) ut.push('museumsbesøk');
+  if (/ruin|borg|festning|kirke|kulturminne|herregård/.test(u)) ut.push('historisk sted');
+  if (/teater|kulturhus|kulturarena/.test(u)) ut.push('kulturopplevelse');
+  return [...new Set(ut)].slice(0, 3);
+}
+
+/** Transportmidlene reisesøket ber om (`transportModesGql`, src/api/queries.js) — og bestillingstransport. */
+export const TILLATTE_MODUSER = Object.freeze(['metro', 'bus', 'tram', 'rail', 'water', 'coach']);
+export const BESTILLING_MODUS = 'taxi';   // Enturs bestillingstransport (sett: linje 5031 ved Tretten)
+const _t = l => Date.parse(l && (l.expectedEndTime || l.aimedEndTime));
+const _s = l => Date.parse(l && (l.expectedStartTime || l.aimedStartTime));
+const _stoppId = p => (p && p.quay && p.quay.stopPlace && p.quay.stopPlace.id) || (p && p.stopPlace && p.stopPlace.id) || null;
+
+/**
+ * Reisen til stoppet fra den valgte reiseplanen (`tp`). Ankomst er siste
+ * etappes FAKTISKE ankomst — aldri start + varighet. Gange mellom etapper
+ * teller ikke som bytte. Ren.
+ * @returns {{ går, framme, min, bytter, linjer:[{kode,modus}], moduser, bestilling, ugyldig:[modus] }|null}
+ */
+export function reiseTilStoppet(tp) {
+  const legs = (tp && tp.legs) || [];
+  const kol = legs.filter(l => l && l.mode && l.mode !== 'foot');
+  if (!kol.length) return null;
+  const går = _s(legs[0]), framme = _t(legs[legs.length - 1]);
+  if (!Number.isFinite(går) || !Number.isFinite(framme)) return null;
+  const moduser = kol.map(l => l.mode);
+  return { går, framme, min: Math.round((framme - går) / 60000), bytter: kol.length - 1,
+    linjer: kol.map(l => ({ kode: (l.serviceJourney && l.serviceJourney.line && l.serviceJourney.line.publicCode) || (l.line && l.line.publicCode) || l.mode, modus: l.mode })),
+    moduser, bestilling: moduser.includes(BESTILLING_MODUS), ugyldig: moduser.filter(m => !TILLATTE_MODUSER.includes(m) && m !== BESTILLING_MODUS) };
+}
+
+/** Gange fra stoppet: målt (Valhalla, langs linja) eller bare luftlinje. Aldri en påstått gangtid. Ren. */
+export function gangFraStopp(gang, luftM) {
+  if (gang && Number.isFinite(gang.min) && Number.isFinite(gang.m)) return { kilde: 'målt', min: gang.min, m: gang.m };
+  if (Number.isFinite(luftM)) return { kilde: 'luftlinje', luftM: Math.round(luftM) };
+  return { kilde: 'ingen' };
+}
+
+/** Søkealder: eldre enn dette hentes reisen på nytt (samme som SJEKK_GYLDIG_MS i ett bytte). */
+export const GRUNNLAG_GYLDIG_MS = 10 * 60_000;
+/**
+ * KONTROLL AV DATAGRUNNLAGET (presisering 5, 25.11). Kortet leser oppslaget
+ * «ett bytte» alt har gjort for stedet og sjekker: startpunkt, målestopp,
+ * valgt reiseplan, søketidspunkt, transportmidler og type gangmåling. Avvik
+ * gir tom reiseverdi — aldri en gjetning. Ren.
+ * @param oppslag { status, søkt, fra:{lat,lon}, tps }  (lagret av sjekkSted)
+ * @param sted    { id, navn, lat, lon }
+ * @param plan    den valgte reiseraden ({ tp }) — samme som reiseraden viser
+ */
+export function grunnlag(oppslag, sted, plan, gang, nå = Date.now()) {
+  const avvik = [];
+  if (!oppslag || oppslag.status !== 'ok') return { ok: false, avvik: ['ingen søk'], reise: null, gang: gangFraStopp(null, null), søkt: null, fra: null };
+  if (!oppslag.fra || !Number.isFinite(oppslag.fra.lat)) avvik.push('startpunkt mangler');
+  if (!Number.isFinite(oppslag.søkt)) avvik.push('søketidspunkt mangler');
+  else if (nå - oppslag.søkt > GRUNNLAG_GYLDIG_MS) avvik.push('søket er gammelt');
+  let reise = plan && plan.tp ? reiseTilStoppet(plan.tp) : null;
+  if (reise) {
+    if (reise.ugyldig.length) { avvik.push('transportmiddel: ' + reise.ugyldig.join(', ')); reise = null; }
+  }
+  if (reise) {
+    // Målestopp: reisen må ende ved stedet den ble søkt til.
+    const legs = plan.tp.legs, siste = legs[legs.length - 1].toPlace || {};
+    const id = _stoppId(siste), navn = siste.name;
+    const samme = (id && id === sted.id) || (navn && normNavn(navn) === normNavn(sted.navn));
+    if (!samme && (id || navn)) { avvik.push('målestopp: ' + (navn || id)); reise = null; }
+  }
+  return { ok: avvik.length === 0, avvik, reise, gang, søkt: oppslag.søkt || null, fra: oppslag.fra || null, plan: plan || null };
+}
+
+/**
+ * FRAMME CA. (presisering 2): ankomst ved stoppet fra reiseplanen, pluss
+ * MÅLT gange fra det samme stoppet — rundet opp til hele minutter. Mangler
+ * eller avviker en del: null. Tallene summeres aldri til et antall minutter. Ren.
+ */
+export function samletTid(g) {
+  if (!g || !g.reise || !g.gang || g.gang.kilde !== 'målt') return null;
+  if (g.avvik && g.avvik.some(a => /^målestopp|^transportmiddel/.test(a))) return null;
+  const ms = g.reise.framme + g.gang.min * 60_000;
+  return { framme: Math.ceil(ms / 60_000) * 60_000, omtrent: true };
+}
+
+/** TILGANG (hypotese, presisering 3): justerbare grenser. Påvirker aldri utvalg eller rekkefølge. */
+export const TILGANG_GRENSER = Object.freeze({ enkel: Object.freeze({ reiseMin: 45, bytter: 1, gangMin: 15 }), mulig: Object.freeze({ reiseMin: 120, bytter: 2, gangMin: 25 }) });
+/** → { ord: 'enkel'|'mulig'|'krevende'|'ukjent', verdier: tekst }. Uten reise eller målt gange: «ukjent». Ren. */
+export function tilgang(reise, gang, grenser = TILGANG_GRENSER) {
+  if (!reise || !gang || gang.kilde !== 'målt') return { ord: 'ukjent', verdier: reise ? reiseVerdier(reise) + ', gange ikke målt' : 'ingen reise i søket' };
+  if (reise.bestilling) return { ord: 'ukjent', verdier: reiseVerdier(reise) + ', bestillingstransport' };
+  const v = reiseVerdier(reise) + ', ' + gang.min + ' min gange';
+  const innen = gr => reise.min <= gr.reiseMin && reise.bytter <= gr.bytter && gang.min <= gr.gangMin;
+  return { ord: innen(grenser.enkel) ? 'enkel' : innen(grenser.mulig) ? 'mulig' : 'krevende', verdier: v };
+}
+const reiseVerdier = r => varighet(r.min) + ', ' + (r.bytter === 0 ? 'uten bytte' : r.bytter + (r.bytter === 1 ? ' bytte' : ' bytter'));
+export const varighet = m => (m >= 60 ? Math.floor(m / 60) + ' t ' + (m % 60) + ' min' : m + ' min');
+
+const _oslo = (ms, o) => new Date(ms).toLocaleString('nb-NO', { timeZone: 'Europe/Oslo', ...o });
+export const klokke = ms => _oslo(ms, { hour: '2-digit', minute: '2-digit' }).replace(':', '.');
+/** Søketidspunktet med dato og klokkeslett (presisering 1): «onsdag 25.11. kl. 10.00». Ren. */
+export function søkTekst(ms) {
+  if (!Number.isFinite(ms)) return '';
+  const dag = _oslo(ms, { weekday: 'long' }), dato = _oslo(ms, { day: '2-digit', month: '2-digit' }).replace(/\.?$/, '.');
+  return dag + ' ' + dato + ' kl. ' + klokke(ms);
+}
+
+/**
+ * Alt kortet viser, uten HTML — liste og kart leser det samme. Ren.
+ * @param o  en opplevelse fra opplevelserVed (med beskrivelse når Wikidata har den)
+ */
+export function kortData(o, g, punkter = []) {
+  const reise = g && g.reise, gang = (g && g.gang) || gangFraStopp(null, o.luft);
+  return {
+    navn: o.navn, hva: hvaTekst(o), innganger: innganger(o), aktiviteter: aktiviteter(o),
+    // En beskrivelse som bare gjentar typen («park» under «park») sier ingenting.
+    beskrivelse: o.beskrivelse && normNavn(o.beskrivelse.tekst) !== normNavn(hvaTekst(o)) ? o.beskrivelse : null,
+    lat: o.lat, lon: o.lon,
+    reise: reise ? { tekst: varighet(reise.min) + ' · ' + (reise.bytter === 0 ? 'uten bytte' : reise.bytter + (reise.bytter === 1 ? ' bytte' : ' bytter')), bestilling: reise.bestilling } : null,
+    gang: gang.kilde === 'målt' ? { tekst: gang.min + ' min', type: 'målt' }
+      // Under 100 m i luftlinje: «ved stoppet» (sett: «ca. 0 m»).
+      : gang.kilde === 'luftlinje' ? (gang.luftM <= 100 ? { tekst: 'ved stoppet', type: 'luftlinje' } : { tekst: 'ca. ' + Math.round(gang.luftM / 50) * 50 + ' m', type: 'luftlinje' }) : { tekst: '–', type: 'ingen' },
+    framme: (t => (t ? 'framme ca. ' + klokke(t.framme) : null))(samletTid(g)),
+    tilgang: tilgang(reise, gang),
+    fasiliteter: fasiliteterVed(o, punkter),
+    kilder: [...new Set(o.kilder.map(c => ({ turrute: 'Kartverket', miljodir: 'Miljødirektoratet', wikidata: 'Wikidata' })[c.kilde] || c.kilde))],
+    avvik: (g && g.avvik) || [],
+  };
 }

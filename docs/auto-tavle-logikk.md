@@ -512,6 +512,42 @@ ferdselsvei · ved stoppet».
   Kartverkets WMS-tjeneste (`wms.friluftsruter2`) legges oppå dagens kart.
   Dagens kart beholdes (beslutning 24.11).
 
+### Stedet skilt fra reisen, og solgt (v1.218.315)
+
+Bestilt: «skille bedre på selve reisen til og severdigheten i nærheten av
+stoppestedet», og «severdigheten må selges mer».
+
+**Reisen og stedet:**
+- Hver stedsblokk har overskriften «reisen til <stopp>» med reiseraden.
+- Under står en egen del, «Ved <stopp> · N ting å oppleve», med innrykk og
+  egen bakgrunn.
+- Opplevelseskortet viser ikke reisen lenger. Den står i reiseraden, og
+  «Hele turen: <tilgang> (verdier) · framme ca.» står nederst på kortet, skilt
+  med strek.
+
+**Utprøvd kortmønster** (Google Maps, Tripadvisor, Airbnb, Komoot):
+- **Bilde først,** fra Wikimedia Commons (Wikidata `P18`), med «Foto: N.N. ·
+  lisens · Wikimedia Commons». **Aldri bilde uten fotograf og lisens**
+  (`parseBildeinfo`).
+- **Navn og kategori,** i inngangens farge.
+- **Én setning om hvorfor** (`hvorforTekst`), i rekkefølgen:
+  1. Wikipedia-ingress (Tekst: Wikipedia);
+  2. Wikidata-beskrivelse;
+  3. turrutebasens `informasjon`;
+  4. Miljødirektoratets områdebeskrivelse;
+  5. verdi.
+- **Faktaknapper:** aktiviteter, «N min å gå fra stoppet» og fasiliteter.
+- **Handlinger:** «Les mer» (Wikipedia) og «Vis på kart».
+
+**Henting:** bilde og ingress hentes bare for de viste (`hentBerikelse`, 2
+kall per opplevelse, cache per Wikidata-id i et døgn).
+
+**Turrutebasens `informasjon`** er ofte en setning. Navnet er det før « - »
+(`infoNavn`), og resten blir «hvorfor».
+
+Ikke med: lengden på turruter. Svaret dekker bare ± 800 m, så tallet ville
+vært misvisende.
+
 ### Opplevelseskort (v1.218.314)
 
 Plan og regler: `docs/tracer-opplevelser.md` §18. Linjen fra v1.218.313 er

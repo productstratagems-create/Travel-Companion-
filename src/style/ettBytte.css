@@ -84,3 +84,24 @@
 /* Lang «ingen kollektivreise i søket …»-tekst (v1.218.314): egen linje under navnet, ikke oppå det (sett: «Grovbakken»). */
 #v-auto button.eb-sjekk{flex-wrap:wrap}
 #v-auto .eb-sjekk-svar{flex:1 1 100%;text-align:left}
+/* STEDET SKILT FRA REISEN, OG SOLGT (v1.218.315) */
+#v-auto .eb-sted-navn small{color:var(--text-muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-right:.3rem}
+#v-auto .eb-ved{margin:.2rem .4rem .7rem 1.2rem;padding:.5rem .55rem .2rem;border-left:3px solid rgba(var(--border-rgb),.35);background:rgba(var(--accent-rgb),.04);border-radius:0 8px 8px 0}
+#v-auto .eb-ved-tittel{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 .4rem}
+#v-auto .eb-ved .eb-okort{margin:0 0 .6rem;overflow:hidden;padding:0;background:var(--surface,transparent)}
+#v-auto .eb-ved .eb-okort>*:not(figure){margin-left:.7rem;margin-right:.7rem}
+#v-auto .eb-okort-bilde{margin:0 0 .45rem;position:relative}
+#v-auto .eb-okort-bilde img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:rgba(var(--border-rgb),.15)}
+#v-auto .eb-okort-bilde figcaption{font-size:.62rem;color:var(--text-muted);padding:.15rem .7rem 0}
+#v-auto .eb-okort-bilde figcaption a{color:inherit}
+#v-auto .eb-okort-topp{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .5rem;margin-top:.55rem}
+#v-auto .eb-okort-topp .eb-okort-navn{font-size:1rem}
+#v-auto .eb-okort-kat{font-size:.66rem;font-weight:700;border-radius:999px;padding:.05rem .5rem;color:#fff}
+#v-auto .eb-kat-natur{background:#2e9e6e}#v-auto .eb-kat-severdighet{background:#b07a10}#v-auto .eb-kat-kultur{background:#8a5cd0}#v-auto .eb-kat-aktivitet{background:#2f78d8}
+#v-auto .eb-okort-fakta{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.4rem}
+#v-auto .eb-okort-fakta span{font-size:.7rem;border:1px solid rgba(var(--border-rgb),.3);border-radius:999px;padding:.05rem .5rem;color:var(--text)}
+#v-auto .eb-okort-handling{display:flex;gap:.8rem;align-items:center;margin-top:.45rem;font-size:.8rem}
+#v-auto .eb-okort-handling a,#v-auto button.eb-vis-kart{color:var(--accent);font-weight:600;background:none;border:0;padding:0;font:inherit;font-size:.8rem;cursor:pointer;text-decoration:none}
+#v-auto .eb-okort-tur{font-size:.74rem;color:var(--text-muted);margin-top:.5rem;padding:.35rem 0 .1rem;border-top:1px dashed rgba(var(--border-rgb),.3)}
+#v-auto .eb-okort-tur-tittel{font-weight:700;color:var(--text)}
+#v-auto .eb-okort>.eb-okort-kilde:last-child{margin-bottom:.55rem}

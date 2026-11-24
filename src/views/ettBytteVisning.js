@@ -17,8 +17,8 @@ import { enturFetch } from '../api/http.js';
 import { hentStedsinfo, hentHerInfo, KOMMUNE_BIT } from '../api/kommuner.js';
 import { rekkeviddeFor, tellRekkevidde } from '../rekkevidde.js';
 import { metresBetween } from '../haversine.js';
-import { hentOpplevelser, hentGang, gangHeleVeienGql, parseGangHeleVeien } from '../api/opplevelserKilder.js';
-import { velgVisning, grunnlag, gangFraStopp, kortData, søkTekst } from '../opplevelser.js';
+import { hentOpplevelser, hentGang, hentBerikelse, gangHeleVeienGql, parseGangHeleVeien } from '../api/opplevelserKilder.js';
+import { velgVisning, grunnlag, gangFraStopp, kortData, søkTekst, INNGANGER } from '../opplevelser.js';
 import { storage } from '../storage.js';
 import '../style/ettBytte.css';
 
@@ -166,14 +166,14 @@ export function sjekkReise(stedId, nå = Date.now()) {
 /* OPPLEVELSER PÅ STEDSRADENE (v1.218.313, steg 1 — docs/tracer-opplevelser.md §16).
    Hentes når kortet velges, for de samme stedene som reisene. stedId → { status, data, gang }. */
 const _oppl = new Map();
-let _hentOppl = hentOpplevelser, _hentGang = hentGang;
+let _hentOppl = hentOpplevelser, _hentGang = hentGang, _hentBerik = hentBerikelse;
 /** Tester: bytt ut kildene. */
-export function _settOpplevelseKilder(o, g) { _hentOppl = o || hentOpplevelser; _hentGang = g || hentGang; _oppl.clear(); }
+export function _settOpplevelseKilder(o, g, b) { _hentOppl = o || hentOpplevelser; _hentGang = g || hentGang; _hentBerik = b || hentBerikelse; _oppl.clear(); }
 export const OPPLEVELSER_VIST = 2;
 export const opplevelseStatus = id => _oppl.get(id) || null;
 function hentOpplevelserFor(p) {
   if (!p || !p.id || !Number.isFinite(p.lat) || _oppl.has(p.id)) return;
-  const e = { status: 'henter', data: null, gang: new Map() };
+  const e = { status: 'henter', data: null, gang: new Map(), berik: new Map() };
   _oppl.set(p.id, e);
   // Et svar som kommer etter at tilstanden er nullstilt (nytt sted, nytt svar), tegner ingenting.
   const gjelder = () => _oppl.get(p.id) === e;
@@ -181,6 +181,8 @@ function hentOpplevelserFor(p) {
     e.status = 'ok'; e.data = d;
     // Gangtid bare for det som vises (høyst OPPLEVELSER_VIST per sted).
     for (const o of velgVisning(d && d.liste, OPPLEVELSER_VIST)) {
+      // Bilde og ingress bare for det som vises (v1.218.315).
+      Promise.resolve(_hentBerik(o)).then(b => { if (b) { e.berik.set(o.navn, b); if (gjelder() && _rerender) _rerender(); } }).catch(() => {});
       if (o.luft <= 100) continue;
       Promise.resolve(_hentGang({ id: p.id, lat: p.lat, lon: p.lon }, o)).then(g => { if (g) { e.gang.set(o.navn, g); if (gjelder() && _rerender) _rerender(); } }).catch(() => {});
     }
@@ -209,32 +211,40 @@ export function kortFor(p, nå = Date.now()) {
   const plan = sjekkReise(p.id, nå);
   return velgVisning(e.data.liste, OPPLEVELSER_VIST).map(o => {
     const g = grunnlag(_sjekk.get(p.id), { id: p.id, navn: p.navn }, plan, gangFraStopp(e.gang.get(o.navn), o.luft), nå);
-    return { ...kortData(o, g, e.data.punkter), stedId: p.id };
+    return { ...kortData(o, g, e.data.punkter, e.berik.get(o.navn) || null), stedId: p.id };
   });
 }
-/** Opplevelseskortene under en stedsrad (variant B med tilgangsordene fra C). Ingenting funnet: ingenting. */
+/** Opplevelseskortene under en stedsrad — i en egen del, «Ved <stopp>», skilt fra reisen (v1.218.315).
+    Utprøvd kortmønster: bilde først, navn og kategori, én setning om hvorfor, faktaknapper, tydelige handlinger. */
 export function opplevelseHtml(p, esc, nå = Date.now()) {
   const id = typeof p === 'string' ? p : p && p.id;
   const e = _oppl.get(id);
   if (!e) return '';
-  if (e.status === 'henter') return '<div class="eb-oppl eb-oppl-henter">ser etter turer og steder …</div>';
+  if (e.status === 'henter') return '<div class="eb-ved"><div class="eb-oppl eb-oppl-henter">ser etter turer og steder …</div></div>';
   if (typeof p === 'string') return '';
-  return kortFor(p, nå).map(k => {
-    const valgt = !!(_valgtOppl && _valgtOppl.stedId === k.stedId && _valgtOppl.navn === k.navn);
-    return '<div class="eb-okort' + (valgt ? ' eb-okort-valgt' : '') + '" role="button" tabindex="0" aria-pressed="' + valgt + '" data-oppl="' + esc(k.stedId + '|' + k.navn) + '">'
-      + '<div class="eb-okort-navn">' + esc(k.navn) + '</div>'
-      + '<div class="eb-okort-hva">' + esc(k.hva) + (k.aktiviteter.length ? ' · ' + esc(k.aktiviteter.join(' · ')) : '') + '</div>'
-      + (k.beskrivelse ? '<div class="eb-okort-besk">' + esc(k.beskrivelse.tekst) + ' <span class="eb-okort-kilde">· Wikidata' + (k.beskrivelse.språk === 'en' ? ' (engelsk)' : '') + '</span></div>' : '')
-      + '<div class="eb-okort-tall">'
-      + '<span><b>' + esc(k.reise ? k.reise.tekst : '–') + '</b><small>' + (k.reise && k.reise.bestilling ? 'bestillingstransport · må bestilles' : 'reise til stoppet') + '</small></span>'
-      + '<span><b>' + esc(k.gang.tekst) + '</b><small>' + (k.gang.type === 'målt' ? 'gange fra stopp, målt' : k.gang.type === 'luftlinje' ? 'luftlinje, ikke gangtid' : 'gange ukjent') + '</small></span>'
-      + (k.framme ? '<span><b>' + esc(k.framme) + '</b><small>anslag</small></span>' : '')
-      + '</div>'
-      + '<div class="eb-okort-tilgang eb-t-' + k.tilgang.ord + '">' + esc(k.tilgang.ord) + ' <span>(' + esc(k.tilgang.verdier) + ')</span></div>'
-      + (k.fasiliteter.length ? '<div class="eb-okort-kilde">' + esc(k.fasiliteter.join(', ')) + ' ved</div>' : '')
-      + '<div class="eb-okort-kilde">kilder: ' + esc(k.kilder.join(', ')) + '</div>'
-      + '</div>';
-  }).join('');
+  const kort = kortFor(p, nå);
+  if (!kort.length) return '';
+  return '<div class="eb-ved"><div class="eb-ved-tittel">Ved ' + esc(p.navn) + ' · ' + kort.length + (kort.length === 1 ? ' ting' : ' ting') + ' å oppleve</div>'
+    + kort.map(k => {
+      const valgt = !!(_valgtOppl && _valgtOppl.stedId === k.stedId && _valgtOppl.navn === k.navn);
+      const kat = k.innganger[0];
+      const fakta = [...k.aktiviteter, k.gang.type === 'målt' ? k.gang.tekst + ' å gå fra stoppet' : k.gang.type === 'luftlinje' ? (k.gang.tekst === 'ved stoppet' ? 'ved stoppet' : k.gang.tekst + ' fra stoppet (luftlinje)') : null, ...k.fasiliteter.map(f => f + ' ved')].filter(Boolean);
+      return '<div class="eb-okort' + (valgt ? ' eb-okort-valgt' : '') + '" role="button" tabindex="0" aria-pressed="' + valgt + '" data-oppl="' + esc(k.stedId + '|' + k.navn) + '">'
+        + (k.bilde ? '<figure class="eb-okort-bilde"><img src="' + esc(k.bilde.url) + '" alt="' + esc(k.navn) + '" loading="lazy" decoding="async">'
+          + '<figcaption>Foto: ' + esc(k.bilde.fotograf) + ' · ' + (k.bilde.lisensUrl ? '<a href="' + esc(k.bilde.lisensUrl) + '" target="_blank" rel="noopener">' + esc(k.bilde.lisens) + '</a>' : esc(k.bilde.lisens)) + ' · Wikimedia Commons</figcaption></figure>' : '')
+        + '<div class="eb-okort-topp"><span class="eb-okort-navn">' + esc(k.navn) + '</span>'
+        + (kat ? '<span class="eb-okort-kat eb-kat-' + kat + '">' + esc(INNGANGER[kat]) + '</span>' : '') + '</div>'
+        + '<div class="eb-okort-hva">' + esc(k.hva) + '</div>'
+        + (k.hvorfor ? '<div class="eb-okort-besk">' + esc(k.hvorfor.tekst) + ' <span class="eb-okort-kilde">· ' + esc(k.hvorfor.kilde) + '</span></div>' : '')
+        + (fakta.length ? '<div class="eb-okort-fakta">' + fakta.map(f => '<span>' + esc(f) + '</span>').join('') + '</div>' : '')
+        + '<div class="eb-okort-handling">' + (k.lesMer ? '<a href="' + esc(k.lesMer) + '" target="_blank" rel="noopener">Les mer</a>' : '')
+        + '<button type="button" class="eb-vis-kart" data-oppl-kart="' + esc(k.stedId + '|' + k.navn) + '">Vis på kart</button></div>'
+        // Reisen hører til reisen: tilgang og «framme ca.» står som «hele turen», skilt fra stedet.
+        + '<div class="eb-okort-tur"><span class="eb-okort-tur-tittel">Hele turen:</span> <span class="eb-t-' + k.tilgang.ord + '">' + esc(k.tilgang.ord) + '</span> (' + esc(k.tilgang.verdier) + ')'
+        + (k.reise && k.reise.bestilling ? ' · bestillingstransport · må bestilles' : '') + (k.framme ? ' · ' + esc(k.framme) : '') + '</div>'
+        + '<div class="eb-okort-kilde">kilder: ' + esc(k.kilder.join(', ')) + '</div>'
+        + '</div>';
+    }).join('') + '</div>';
 }
 /* TURRUTER PÅ KARTET (valgfritt, av som standard — beslutning 24.11). Kartverkets WMS oppå dagens kart. */
 export const TURLAG_KEY = 't.turruteLag';
@@ -265,7 +275,7 @@ export function sjekkListeHtml(r, esc, radHtml = null, nå = Date.now()) {
     + steder.map(p => {
       const s = _sjekk.get(p.id);
       const rad = radHtml && sjekkReise(p.id, nå);
-      if (rad) return '<div class="eb-sted"><div class="eb-sted-navn">' + esc(p.navn) + '</div>' + radHtml(rad, 'eb:' + p.id) + opplevelseHtml(p, esc, nå) + '</div>';
+      if (rad) return '<div class="eb-sted"><div class="eb-sted-navn"><small>reisen til</small> ' + esc(p.navn) + '</div>' + radHtml(rad, 'eb:' + p.id) + opplevelseHtml(p, esc, nå) + '</div>';
       const svar = !s ? '<span class="eb-sjekk-knapp">sjekk</span>' : s.status === 'henter' ? '<span class="eb-sjekk-svar">sjekker …</span>'
         : '<span class="eb-sjekk-svar' + (s.utfall === 'annen vei' ? ' eb-annen' : '') + '">' + esc(radHtml && s.status === 'ok' ? ingenReiseTekst(s) : s.tekst) + '</span>';
       return '<button type="button" class="eb-sjekk" data-eb-sted="' + esc(p.id) + '"><span class="eb-sjekk-navn">' + esc(p.navn) + '</span>' + svar + '</button>' + opplevelseHtml(p, esc, nå);
@@ -298,6 +308,9 @@ function bindKort() {
   document.addEventListener('click', e => {
     const sj = e.target && e.target.closest && e.target.closest('#v-auto .eb-sjekk[data-eb-sted]');
     if (sj) { sjekkSted(sj.dataset.ebSted); return; }
+    if (e.target && e.target.closest && e.target.closest('#v-auto .eb-okort a')) return; // «Les mer» og lisens: bare lenken
+    const vk = e.target && e.target.closest && e.target.closest('#v-auto .eb-vis-kart[data-oppl-kart]');
+    if (vk) { const [sid, ...n] = vk.dataset.opplKart.split('|'); if (!(_valgtOppl && _valgtOppl.stedId === sid && _valgtOppl.navn === n.join('|'))) velgOpplevelse(sid, n.join('|')); const k = document.querySelector('#v-auto .leaflet-container'); if (k) k.scrollIntoView({ block: 'nearest' }); return; }
     const ok = e.target && e.target.closest && e.target.closest('#v-auto .eb-okort[data-oppl]');
     if (ok) { const [sid, ...n] = ok.dataset.oppl.split('|'); velgOpplevelse(sid, n.join('|')); return; }
     if (e.target && e.target.closest && e.target.closest('#v-auto .eb-turlag')) { try { storage.set(TURLAG_KEY, turLagPå() ? '0' : '1'); } catch (_) {} if (_kart) oppdaterTurLag(_kart.map, _kartL, !!_valgt && turLagPå()); if (_rerender) _rerender(); return; }

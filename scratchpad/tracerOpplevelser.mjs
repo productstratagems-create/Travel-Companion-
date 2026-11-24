@@ -119,7 +119,7 @@ async function tr(s) {
 const nærmest = (p, ruter) => Math.min(Infinity, ...(ruter || []).flatMap(r => r.pkt.map(q => metresBetween(p, q))));
 
 /* ── 3. Felles kategorimodell og mapping ───────────────────────────────── */
-import { KATEGORIER as KAT, klassifiserOsm, klassifiserWikidata, klassifiserKartverket, klassifiserFriluft, erReisemål, OSM_MAP, OSM_STØY } from '../src/opplevelser.js';
+import { slåSammen, KATEGORIER as KAT, klassifiserOsm, klassifiserWikidata, klassifiserKartverket, klassifiserFriluft, erReisemål, OSM_MAP, OSM_STØY } from '../src/opplevelser.js';
 
 /* ── 4. Per sted: kandidater fra alle kilder ───────────────────────────── */
 const normNavn = s => (s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9æøå ]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -191,18 +191,7 @@ for (const s of steder) {
 }
 console.log();
 
-// Slå sammen på tvers av kilder: samme normaliserte navn innen 400 m, eller OSM-wikidata-tagg = Wikidata-id.
-function slåSammen(rå, stopp) {
-  const unike = [];
-  for (const c of rå.filter(c => c.navn)) {
-    const n = normNavn(c.navn);
-    const lik = unike.find(u => (u.wikidata && c.kilde === 'wikidata' && u.wikidata === c.sid) || (c.wikidata && u.kilder.some(x => x.kilde === 'wikidata' && x.sid === c.wikidata))
-      || (normNavn(u.navn) === n && metresBetween(u, c) < 400));
-    if (lik) { lik.kilder.push(c); lik.kat.push(...c.kat); lik.luft = Math.min(lik.luft, c.luft); if (c.luft < metresBetween(stopp, lik)) { lik.lat = c.lat; lik.lon = c.lon; } lik.info = lik.info || c.info; lik.wikidata = lik.wikidata || c.wikidata; lik.sitelinks = Math.max(lik.sitelinks || 0, c.sitelinks || 0); lik.verdi = lik.verdi || c.verdi; continue; }
-    unike.push({ navn: c.navn, lat: c.lat, lon: c.lon, luft: c.luft, flate: !!c.flate, kat: [...c.kat], kilder: [c], info: c.info, wikidata: c.wikidata || null, sitelinks: c.sitelinks || 0, verdi: c.verdi || null, stopp: null });
-  }
-  return unike;
-}
+// Sammenslåing: src/opplevelser.js (én definisjon med appen).
 const RELEVANT_SITELINKS = 2;
 const sum = { steder: resultat.length, rå: 0, råMedNavn: 0, unike: 0, relevante: 0, tilgjengelige: 0, gangVerifisert: 0, borteRelevans: 0, borteGang: 0, duplikater: 0, flereKategorier: 0, flereKilder: 0,
   perKategori: {}, perKilde: {}, stederMedEn: 0, stederMedFlere: 0, nyttNavn: 0 };
@@ -255,10 +244,10 @@ for (const r of resultat) {
   sum.ruteInfoPunkter = (sum.ruteInfoPunkter || 0) + r.turruter.punkter.length;
   if (tilgj.length >= 1) sum.stederMedEn++;
   if (tilgj.length >= 2) sum.stederMedFlere++;
-  r.opplevelser = tilgj.map(u => ({ navn: u.navn, kategorier: u.kats.map(k => KAT[k]), under: [...new Set(u.kat.map(k => k.u))], kilder: [...new Set(u.kilder.map(c => c.kilde + ':' + c.sid))], luft: u.luft, gang: u.gang, gangbar: u.gangbar, flate: u.flate, sitelinks: u.sitelinks, verdi: u.verdi, merketRute: u.merketRute }));
+  r.opplevelser = tilgj.map(u => ({ navn: u.navn, kategorier: u.kats.map(k => KAT[k]), under: [...new Set(u.kat.map(k => k.u))], kilder: [...new Set(u.kilder.map(c => c.kilde + ':' + c.sid))], luft: Math.round(u.luft), gang: u.gang, gangbar: u.gangbar, flate: u.flate, sitelinks: u.sitelinks, verdi: u.verdi, merketRute: u.merketRute }));
 }
 const ut = { kjørt: new Date().toISOString(), parametre: { SCEN, PER_SCEN, RADIUS_M, GANG_MAKS_M, RELEVANT_SITELINKS }, sum,
-  steder: resultat.map(r => ({ sted: { navn: r.sted.navn, id: r.sted.id, fra: r.sted.fra, km: +r.sted.km.toFixed(1), type: r.sted.type, linjer: r.sted.linjer, iAlt: r.sted.iAlt }, kilder: r.kilder, rå: r.rå.length, turruter: { vedStopp: r.ruteVedStopp, navn: r.ruteNavn, typer: r.ruteTyper, betydning: r.ruteBetydning, gradering: r.ruteGradering, spesial: r.ruteSpesial, punkter: r.turruter.punkter.length, ok: r.turruter.ok }, opplevelser: r.opplevelser })),
+  steder: resultat.map(r => ({ sted: { navn: r.sted.navn, id: r.sted.id, lat: r.sted.lat, lon: r.sted.lon, fra: r.sted.fra, km: +r.sted.km.toFixed(1), type: r.sted.type, linjer: r.sted.linjer, iAlt: r.sted.iAlt }, kilder: r.kilder, rå: r.rå.length, turruter: { vedStopp: r.ruteVedStopp, navn: r.ruteNavn, typer: r.ruteTyper, betydning: r.ruteBetydning, gradering: r.ruteGradering, spesial: r.ruteSpesial, punkter: r.turruter.punkter.length, ok: r.turruter.ok }, opplevelser: r.opplevelser })),
   negative: negative.slice(0, 80) };
 fs.mkdirSync('scratchpad/data', { recursive: true });
 fs.writeFileSync('scratchpad/data/opplevelser-resultat.json', JSON.stringify(ut, null, 1));

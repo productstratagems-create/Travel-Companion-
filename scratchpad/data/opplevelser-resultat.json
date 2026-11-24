@@ -1,5 +1,5 @@
 {
- "kjørt": "2026-11-24T21:10:47.441Z",
+ "kjørt": "2026-11-24T21:36:46.439Z",
  "parametre": {
   "SCEN": [
    "mortensrud_dag",
@@ -54,6 +54,8 @@
    "sted": {
     "navn": "Nebbejordet",
     "id": "NSR:StopPlace:6717",
+    "lat": 59.843005,
+    "lon": 10.813076,
     "fra": "mortensrud_dag",
     "km": 1.1,
     "type": "bus",
@@ -165,6 +167,8 @@
    "sted": {
     "navn": "Oppegård stasjon",
     "id": "NSR:StopPlace:323",
+    "lat": 59.765454,
+    "lon": 10.812831,
     "fra": "mortensrud_dag",
     "km": 9.3,
     "type": "rail",
@@ -326,6 +330,8 @@
    "sted": {
     "navn": "Stasjonsveien",
     "id": "NSR:StopPlace:6284",
+    "lat": 59.950114,
+    "lon": 10.688828,
     "fra": "mortensrud_dag",
     "km": 13.7,
     "type": "bus",
@@ -380,6 +386,7 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 2,
+     "verdi": null,
      "merketRute": true
     },
     {
@@ -402,6 +409,7 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 3,
+     "verdi": null,
      "merketRute": false
     },
     {
@@ -454,6 +462,8 @@
    "sted": {
     "navn": "Asker stasjon",
     "id": "NSR:StopPlace:418",
+    "lat": 59.833343,
+    "lon": 10.434492,
     "fra": "mortensrud_dag",
     "km": 22.1,
     "type": "rail",
@@ -558,6 +568,7 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
+     "verdi": null,
      "merketRute": true
     },
     {
@@ -588,6 +599,8 @@
    "sted": {
     "navn": "Malmö Centralstation",
     "id": "NSR:StopPlace:57999",
+    "lat": 55.608554,
+    "lon": 13.00053,
     "fra": "mortensrud_dag",
     "km": 488.7,
     "type": "coach",
@@ -743,6 +756,7 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
+     "verdi": null,
      "merketRute": false
     },
     {
@@ -875,6 +889,7 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 4,
+     "verdi": null,
      "merketRute": false
     },
     {
@@ -1051,6 +1066,7 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
+     "verdi": null,
      "merketRute": false
     },
     {
@@ -1216,6 +1232,8 @@
    "sted": {
     "navn": "Hauketo stasjon",
     "id": "NSR:StopPlace:287",
+    "lat": 59.845877,
+    "lon": 10.802873,
     "fra": "mortensrud_dag",
     "km": 1.5,
     "type": "rail",
@@ -1272,6 +1290,7 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 1,
+     "verdi": null,
      "merketRute": true
     },
     {
@@ -1440,6 +1459,8 @@
    "sted": {
     "navn": "Sanddalskollen",
     "id": "NSR:StopPlace:31438",
+    "lat": 60.325955,
+    "lon": 5.368803,
     "fra": "nesttun_dag",
     "km": 1.1,
     "type": "bus",
@@ -1485,6 +1506,7 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 1,
+     "verdi": null,
      "merketRute": false
     },
     {
@@ -1560,6 +1582,8 @@
    "sted": {
     "navn": "Haakonsvern",
     "id": "NSR:StopPlace:31957",
+    "lat": 60.341246,
+    "lon": 5.219449,
     "fra": "nesttun_dag",
     "km": 7.8,
     "type": "bus",
@@ -1612,6 +1636,8 @@
    "sted": {
     "navn": "Tømmervågen",
     "id": "NSR:StopPlace:31012",
+    "lat": 60.441709,
+    "lon": 5.297095,
     "fra": "nesttun_dag",
     "km": 13.9,
     "type": "bus",
@@ -1786,6 +1812,8 @@
    "sted": {
     "navn": "Dorganeset",
     "id": "NSR:StopPlace:33865",
+    "lat": 60.229545,
+    "lon": 5.703964,
     "fra": "nesttun_dag",
     "km": 21.8,
     "type": "bus",
@@ -1815,6 +1843,8 @@
    "sted": {
     "navn": "Stavanger lufthavn",
     "id": "NSR:StopPlace:27243",
+    "lat": 58.882235,
+    "lon": 5.628825,
     "fra": "nesttun_dag",
     "km": 160.6,
     "type": "coach",
@@ -1892,6 +1922,8 @@
    "sted": {
     "navn": "Mårdalen",
     "id": "NSR:StopPlace:58540",
+    "lat": 60.30908,
+    "lon": 5.345004,
     "fra": "nesttun_dag",
     "km": 1.3,
     "type": "tram",
@@ -2044,6 +2076,8 @@
    "sted": {
     "navn": "Strindfjordvegen",
     "id": "NSR:StopPlace:60260",
+    "lat": 63.435254,
+    "lon": 10.505792,
     "fra": "ranheim_dag",
     "km": 1.2,
     "type": "bus",
@@ -2131,6 +2165,8 @@
    "sted": {
     "navn": "Furuhaugen",
     "id": "NSR:StopPlace:44001",
+    "lat": 63.376593,
+    "lon": 10.339427,
     "fra": "ranheim_dag",
     "km": 10.9,
     "type": "bus",
@@ -2206,6 +2242,8 @@
    "sted": {
     "navn": "Krekabakken",
     "id": "NSR:StopPlace:43327",
+    "lat": 63.190597,
+    "lon": 10.308494,
     "fra": "ranheim_dag",
     "km": 28.6,
     "type": "bus",
@@ -2259,6 +2297,8 @@
    "sted": {
     "navn": "Mære skole",
     "id": "NSR:StopPlace:45120",
+    "lat": 63.934895,
+    "lon": 11.431331,
     "fra": "ranheim_dag",
     "km": 71.9,
     "type": "bus",
@@ -2288,6 +2328,8 @@
    "sted": {
     "navn": "Oslo S",
     "id": "NSR:StopPlace:337",
+    "lat": 59.910925,
+    "lon": 10.753276,
     "fra": "ranheim_dag",
     "km": 391.3,
     "type": "rail",
@@ -2727,6 +2769,7 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 2,
+     "verdi": null,
      "merketRute": true
     },
     {
@@ -3629,6 +3672,7 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
+     "verdi": null,
      "merketRute": false
     },
     {
@@ -3959,6 +4003,7 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
+     "verdi": null,
      "merketRute": true
     },
     {
@@ -4169,6 +4214,8 @@
    "sted": {
     "navn": "Leangen stasjon",
     "id": "NSR:StopPlace:393",
+    "lat": 63.437548,
+    "lon": 10.461623,
     "fra": "ranheim_dag",
     "km": 3.3,
     "type": "rail",
@@ -4273,6 +4320,7 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
+     "verdi": null,
      "merketRute": false
     },
     {
@@ -4326,6 +4374,8 @@
    "sted": {
     "navn": "Skogstadrampa",
     "id": "NSR:StopPlace:12757",
+    "lat": 61.308281,
+    "lon": 10.321087,
     "fra": "tretten_dag",
     "km": 1.2,
     "type": "bus",
@@ -4361,6 +4411,8 @@
    "sted": {
     "navn": "Balberglia nord",
     "id": "NSR:StopPlace:14152",
+    "lat": 61.155941,
+    "lon": 10.411938,
     "fra": "tretten_dag",
     "km": 18.4,
     "type": "bus",
@@ -4396,6 +4448,8 @@
    "sted": {
     "navn": "Kinnlistua",
     "id": "NSR:StopPlace:13681",
+    "lat": 61.078178,
+    "lon": 10.359563,
     "fra": "tretten_dag",
     "km": 26.2,
     "type": "bus",
@@ -4448,6 +4502,8 @@
    "sted": {
     "navn": "Klebervegen",
     "id": "NSR:StopPlace:12377",
+    "lat": 61.823188,
+    "lon": 9.275366,
     "fra": "tretten_dag",
     "km": 78.5,
     "type": "bus",
@@ -4522,6 +4578,8 @@
    "sted": {
     "navn": "Torghopen Måløy kai",
     "id": "NSR:StopPlace:35044",
+    "lat": 61.934004,
+    "lon": 5.113031,
     "fra": "tretten_dag",
     "km": 282.6,
     "type": "coach",
@@ -4689,6 +4747,8 @@
    "sted": {
     "navn": "Øyer sentrum",
     "id": "NSR:StopPlace:12655",
+    "lat": 61.240685,
+    "lon": 10.438905,
     "fra": "tretten_dag",
     "km": 10.9,
     "type": "coach",
@@ -4737,8 +4797,8 @@
      ],
      "under": [
       "fornøyelsespark",
-      "park",
-      "attraksjon"
+      "attraksjon",
+      "park"
      ],
      "kilder": [
       "osm:way/273798788",
@@ -4752,6 +4812,7 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 6,
+     "verdi": null,
      "merketRute": true
     },
     {
@@ -4810,7 +4871,7 @@
    "navn": "Rugdeberget park",
    "hvorfor": "svakt signal: leisure=park",
    "kilde": "osm",
-   "luft": 130
+   "luft": 129.79485523781997
   },
   {
    "type": "svak",
@@ -4818,7 +4879,7 @@
    "navn": "Skovbakken barnepark",
    "hvorfor": "svakt signal: P31:kulturminne, P31:park",
    "kilde": "wikidata",
-   "luft": 1206
+   "luft": 1206.2148304949412
   },
   {
    "type": "svak",
@@ -4826,7 +4887,7 @@
    "navn": "Lerdal gård",
    "hvorfor": "svakt signal: P31:kulturminne",
    "kilde": "wikidata",
-   "luft": 849
+   "luft": 849.2279512377061
   },
   {
    "type": "svak",
@@ -4834,7 +4895,7 @@
    "navn": "Sloreåsen",
    "hvorfor": "svakt signal: P31:topp",
    "kilde": "wikidata",
-   "luft": 1073
+   "luft": 1073.1856424215866
   },
   {
    "type": "svak",
@@ -4842,7 +4903,7 @@
    "navn": "Rugdeberget/ Nebbejordet",
    "hvorfor": "svakt signal: friluft:Nærturterreng",
    "kilde": "miljodir",
-   "luft": 24
+   "luft": 23.51053881645832
   },
   {
    "type": "svak",
@@ -4850,7 +4911,7 @@
    "navn": "Sveaveien",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 558
+   "luft": 557.6989528313248
   },
   {
    "type": "svak",
@@ -4858,7 +4919,7 @@
    "navn": "Uteområde Prinsdal skole",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 584
+   "luft": 584.2112924658843
   },
   {
    "type": "svak",
@@ -4866,7 +4927,7 @@
    "navn": "Lekeområde Lofsrudhøgda",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 676
+   "luft": 676.0983038003523
   },
   {
    "type": "svak",
@@ -4874,7 +4935,7 @@
    "navn": "Lekeområde Kantarellen terrasse",
    "hvorfor": "svakt signal: friluft:Nærturterreng",
    "kilde": "miljodir",
-   "luft": 473
+   "luft": 473.19580738134187
   },
   {
    "type": "svak",
@@ -4882,7 +4943,7 @@
    "navn": "Munkerud",
    "hvorfor": "svakt signal: friluft:Nærturterreng",
    "kilde": "miljodir",
-   "luft": 763
+   "luft": 763.0262271941912
   },
   {
    "type": "svak",
@@ -4890,7 +4951,7 @@
    "navn": "Lekeområde Burud vest",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 202
+   "luft": 202.09960835383103
   },
   {
    "type": "svak",
@@ -4898,7 +4959,7 @@
    "navn": "Grøntområde Ljabruveien-Mortensrudveien",
    "hvorfor": "svakt signal: friluft:Nærturterreng",
    "kilde": "miljodir",
-   "luft": 531
+   "luft": 530.8146865106737
   },
   {
    "type": "svak",
@@ -4906,7 +4967,7 @@
    "navn": "\"Turvei E11\" Mortensrud",
    "hvorfor": "svakt signal: friluft:Nærturterreng",
    "kilde": "miljodir",
-   "luft": 446
+   "luft": 446.04922960243056
   },
   {
    "type": "svak",
@@ -4914,7 +4975,7 @@
    "navn": "Lerdalsveien-Sporstuveien sti",
    "hvorfor": "svakt signal: friluft:Grønnkorridor",
    "kilde": "miljodir",
-   "luft": 660
+   "luft": 659.7918835267002
   },
   {
    "type": "svak",
@@ -4922,7 +4983,7 @@
    "navn": "Gang- og sykkelvei langs Gjersrudbekken",
    "hvorfor": "svakt signal: friluft:Grønnkorridor",
    "kilde": "miljodir",
-   "luft": 226
+   "luft": 226.24734461894965
   },
   {
    "type": "svak",
@@ -4930,7 +4991,7 @@
    "navn": "Asperudåsen",
    "hvorfor": "svakt signal: friluft:Nærturterreng",
    "kilde": "miljodir",
-   "luft": 561
+   "luft": 560.954898172545
   },
   {
    "sted": "Oppegård stasjon",
@@ -4974,7 +5035,7 @@
    "navn": "Sætreskogparken",
    "hvorfor": "svakt signal: leisure=park",
    "kilde": "osm",
-   "luft": 574
+   "luft": 574.2762266818899
   },
   {
    "type": "svak",
@@ -4982,7 +5043,7 @@
    "navn": "Furusetåsen",
    "hvorfor": "svakt signal: P31:topp, friluft:Leke- og rekreasjonsområde",
    "kilde": "wikidata+miljodir",
-   "luft": 669
+   "luft": 669.3289832589295
   },
   {
    "type": "svak",
@@ -4990,7 +5051,7 @@
    "navn": "Vinebergåsen",
    "hvorfor": "svakt signal: P31:topp",
    "kilde": "wikidata",
-   "luft": 1126
+   "luft": 1125.5297829213782
   },
   {
    "type": "svak",
@@ -4998,7 +5059,7 @@
    "navn": "Delerudåsen",
    "hvorfor": "svakt signal: P31:topp",
    "kilde": "wikidata",
-   "luft": 873
+   "luft": 873.1006136271523
   },
   {
    "type": "svak",
@@ -5006,7 +5067,7 @@
    "navn": "Flåtestadåsen",
    "hvorfor": "svakt signal: P31:topp",
    "kilde": "wikidata",
-   "luft": 1484
+   "luft": 1483.637362230786
   },
   {
    "type": "svak",
@@ -5014,7 +5075,7 @@
    "navn": "Greverudlia",
    "hvorfor": "svakt signal: P31:topp",
    "kilde": "wikidata",
-   "luft": 697
+   "luft": 696.8317169383072
   },
   {
    "type": "svak",
@@ -5022,7 +5083,7 @@
    "navn": "Fossholtet",
    "hvorfor": "svakt signal: P31:topp",
    "kilde": "wikidata",
-   "luft": 1008
+   "luft": 1007.8949277222586
   },
   {
    "type": "svak",
@@ -5030,7 +5091,7 @@
    "navn": "Haugbruåsen",
    "hvorfor": "svakt signal: P31:topp",
    "kilde": "wikidata",
-   "luft": 1178
+   "luft": 1178.133869654666
   },
   {
    "type": "svak",
@@ -5038,7 +5099,7 @@
    "navn": "Nyjordåsen",
    "hvorfor": "svakt signal: P31:topp",
    "kilde": "wikidata",
-   "luft": 853
+   "luft": 853.0206840602845
   },
   {
    "type": "svak",
@@ -5046,7 +5107,7 @@
    "navn": "Tussestien / Mølleranga",
    "hvorfor": "svakt signal: friluft:Grønnkorridor",
    "kilde": "miljodir",
-   "luft": 494
+   "luft": 493.72280887865236
   },
   {
    "type": "svak",
@@ -5054,7 +5115,7 @@
    "navn": "Snarvei mellom Vellets vei og Bergstien",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 165
+   "luft": 164.93862378970528
   },
   {
    "type": "svak",
@@ -5062,7 +5123,7 @@
    "navn": "Sagstuskogen",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 794
+   "luft": 793.8131123376713
   },
   {
    "type": "svak",
@@ -5070,7 +5131,7 @@
    "navn": "Østre Greverud - vest for Kongeveien",
    "hvorfor": "svakt signal: friluft:Nærturterreng",
    "kilde": "miljodir",
-   "luft": 733
+   "luft": 733.3982424098118
   },
   {
    "type": "svak",
@@ -5078,7 +5139,7 @@
    "navn": "Dalskleiva vest",
    "hvorfor": "svakt signal: friluft:Nærturterreng",
    "kilde": "miljodir",
-   "luft": 569
+   "luft": 569.3518077314491
   },
   {
    "type": "svak",
@@ -5086,7 +5147,7 @@
    "navn": "Toppenhaug",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 145
+   "luft": 145.31766896514694
   },
   {
    "type": "svak",
@@ -5094,7 +5155,7 @@
    "navn": "Friområde sør for Rolf Presthusvei",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 751
+   "luft": 750.5381539379639
   },
   {
    "type": "svak",
@@ -5102,7 +5163,7 @@
    "navn": "Møllerveien",
    "hvorfor": "svakt signal: friluft:Grønnkorridor",
    "kilde": "miljodir",
-   "luft": 500
+   "luft": 500.4797283813442
   },
   {
    "type": "svak",
@@ -5110,7 +5171,7 @@
    "navn": "Slorene",
    "hvorfor": "svakt signal: friluft:Andre friluftslivsomrader",
    "kilde": "miljodir",
-   "luft": 500
+   "luft": 500.4797283813442
   },
   {
    "type": "svak",
@@ -5118,7 +5179,7 @@
    "navn": "Flåtestad skole",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 728
+   "luft": 727.5359724394451
   },
   {
    "type": "svak",
@@ -5126,7 +5187,7 @@
    "navn": "Sætreskogparken- vanntårnparken",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 576
+   "luft": 575.6690825182608
   },
   {
    "type": "svak",
@@ -5134,7 +5195,7 @@
    "navn": "Pinnåsen sør for Fløysbonn",
    "hvorfor": "svakt signal: friluft:Nærturterreng",
    "kilde": "miljodir",
-   "luft": 781
+   "luft": 780.7101608573657
   },
   {
    "type": "svak",
@@ -5142,7 +5203,7 @@
    "navn": "Gjersjøveien - fotballbane",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 439
+   "luft": 439.44353552937906
   },
   {
    "type": "svak",
@@ -5150,7 +5211,7 @@
    "navn": "Østre Greverud",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 542
+   "luft": 542.3117352641751
   },
   {
    "type": "svak",
@@ -5158,7 +5219,7 @@
    "navn": "Greverud skole",
    "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
    "kilde": "miljodir",
-   "luft": 301
+   "luft": 301.0920603971499
   },
   {
    "sted": "Stasjonsveien",

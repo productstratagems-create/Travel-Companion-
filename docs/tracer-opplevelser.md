@@ -709,7 +709,8 @@ kommer som et **valgfritt** tillegg når opplevelser og turer vises.
 - **Én definisjon:** all mapping fra kilde til kategori skjer i
   `src/opplevelser.js`.
 
-**Steg 1 – på stedsradene under et valgt «ett bytte»-kort:**
+**Steg 1 – på stedsradene under et valgt «ett bytte»-kort** (bygget i
+v1.218.313, se `docs/auto-tavle-logikk.md`):
 - **Innhold:** høyst to opplevelser per sted, for eksempel
   «Pilegrimsleden · nasjonal turrute · ved stoppet» og
   «Ringve Musikkmuseum · museum · 19 min å gå». Faktamerker fra §14, som

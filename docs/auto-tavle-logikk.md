@@ -470,6 +470,48 @@ tidskontrollert». «Sjekk denne» skiller nå tre svar:
   stemmer, paret gjør det ikke;
 - «Entur foreslår via X»: en annen vei.
 
+### Opplevelser på stedsradene (v1.218.313, steg 1)
+
+Grunnlaget: `docs/tracer-opplevelser.md` (§16, implementasjonsplanen).
+
+Når et kort velges, hentes opplevelsene for de samme 8 stedene som reisene.
+Det er tre åpne kilder uten nøkkel, i 3 kall per sted, cachet et døgn
+(`src/api/opplevelserKilder.js`):
+- Kartverkets turrutebase (alle rutetyper i ett WFS-kall);
+- Miljødirektoratets kartlagte friluftslivsområder;
+- Wikidata.
+
+Under hver stedsrad står **høyst to** linjer, for eksempel
+«Pilegrimsleden-Gudbrandsdalsleden · nasjonal turrute · historisk
+ferdselsvei · ved stoppet».
+
+**Regler** (`src/opplevelser.js`, én definisjon med traceren):
+- **Bare reisemål** (`erReisemål`), innen 1,5 km til stedets nærmeste punkt
+  eller kant.
+- **Ruteledd med samme navn er én rute** («Storkjølla» sto tre ganger før
+  regelen).
+- **Rekkefølge** (`velgVisning`):
+  1. nasjonal turrute (ikke sykkelrute);
+  2. regional turrute eller sterkt reisemål;
+  3. andre ruter og friluftsområder;
+  4. resten;
+  5. kirker.
+
+  Innen samme trinn kommer de med flest språkversjoner i Wikidata først,
+  deretter de nærmeste. Høyst én rute vises når det finnes noe annet.
+  Sykkelruter står ikke øverst: «Pilegrimsruta · nasjonal sykkelrute» sto ved
+  tre bystopp i Oslo.
+- **Avstand:** gangtid bare når Valhalla har målt den, ellers «ca. N m».
+  Aldri en påstått gangtid.
+- **Fasiliteter** fra turrutebasen innen 300 m står som fakta: «parkering,
+  benker ved».
+- **Uten funn:** ingen linje. Stedet står som før.
+- **Kilder:** «turruter © Kartverket · friluftsområder Miljødirektoratet ·
+  Wikidata» står under lista (CC BY 4.0).
+- **Turruter på kartet:** valgfritt og av som standard (`t.turruteLag`).
+  Kartverkets WMS-tjeneste (`wms.friluftsruter2`) legges oppå dagens kart.
+  Dagens kart beholdes (beslutning 24.11).
+
 ### Tidsvinduet (v1.218.310)
 
 Spurt: «Hva er tidsperspektivet for reisene i "ett bytte"?» Kortene bygges av

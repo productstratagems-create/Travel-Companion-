@@ -1,0 +1,5344 @@
+{
+ "kjørt": "2026-11-24T21:10:47.441Z",
+ "parametre": {
+  "SCEN": [
+   "mortensrud_dag",
+   "nesttun_dag",
+   "ranheim_dag",
+   "tretten_dag"
+  ],
+  "PER_SCEN": 7,
+  "RADIUS_M": 600,
+  "GANG_MAKS_M": 1500,
+  "RELEVANT_SITELINKS": 2
+ },
+ "sum": {
+  "steder": 24,
+  "rå": 2274,
+  "råMedNavn": 844,
+  "unike": 792,
+  "relevante": 189,
+  "tilgjengelige": 172,
+  "gangVerifisert": 172,
+  "borteRelevans": 477,
+  "borteGang": 21,
+  "duplikater": 52,
+  "flereKategorier": 25,
+  "flereKilder": 26,
+  "perKategori": {
+   "kultur": 95,
+   "natur": 15,
+   "friluftsliv": 25,
+   "park": 41,
+   "bading": 10,
+   "severdighet": 10,
+   "attraksjon": 2
+  },
+  "perKilde": {
+   "osm": 52,
+   "miljodir": 32,
+   "wikidata": 110,
+   "kartverket": 7
+  },
+  "stederMedEn": 20,
+  "stederMedFlere": 17,
+  "nyttNavn": 170,
+  "stopperMedMerketRute": 13,
+  "opplevelserMedMerketRute": 45,
+  "friluftNaturMedMerketRute": 15,
+  "friluftNatur": 35,
+  "ruteInfoPunkter": 16
+ },
+ "steder": [
+  {
+   "sted": {
+    "navn": "Nebbejordet",
+    "id": "NSR:StopPlace:6717",
+    "fra": "mortensrud_dag",
+    "km": 1.1,
+    "type": "bus",
+    "linjer": 1,
+    "iAlt": 1507
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 67,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Pilegrimsleden-Borgleden",
+     "Prinsdal"
+    ],
+    "typer": [
+     "Fotrute",
+     "Skiløype"
+    ],
+    "betydning": [
+     "3"
+    ],
+    "gradering": [
+     "I"
+    ],
+    "spesial": [
+     "HF"
+    ],
+    "punkter": 2,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Hauketo skysstasjon",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:way/253262644"
+     ],
+     "luft": 676,
+     "gang": {
+      "m": 800,
+      "min": 9
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Prinsdalsbekken",
+     "kategorier": [
+      "Natur og landskap",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "vann",
+      "leke- og rekreasjonsområde"
+     ],
+     "kilder": [
+      "osm:way/926023766",
+      "miljodir:FK00042028-0301"
+     ],
+     "luft": 517,
+     "gang": {
+      "m": 1454,
+      "min": 18
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": false
+    },
+    {
+     "navn": "Grønliåsen",
+     "kategorier": [
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "stort turområde med tilrettelegging"
+     ],
+     "kilder": [
+      "miljodir:FK00042037-0301"
+     ],
+     "luft": 24,
+     "gang": {
+      "m": 39,
+      "min": 0
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Oppegård stasjon",
+    "id": "NSR:StopPlace:323",
+    "fra": "mortensrud_dag",
+    "km": 9.3,
+    "type": "rail",
+    "linjer": 1,
+    "iAlt": 1507
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 53,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Pilegrimsleden-Borgleden",
+     "Sørmarka",
+     "Pilegrimsruta"
+    ],
+    "typer": [
+     "Fotrute",
+     "Skiløype",
+     "Sykkelrute"
+    ],
+    "betydning": [
+     "1"
+    ],
+    "gradering": [
+     "I"
+    ],
+    "spesial": [
+     "1",
+     "HF"
+    ],
+    "punkter": 5,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Myraparken",
+     "kategorier": [
+      "Parker og rekreasjon",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "park",
+      "leke- og rekreasjonsområde"
+     ],
+     "kilder": [
+      "osm:way/1479527647",
+      "miljodir:FK00038402-3207"
+     ],
+     "luft": 594,
+     "gang": {
+      "m": 812,
+      "min": 12
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": true
+    },
+    {
+     "navn": "Greverud kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q7590968"
+     ],
+     "luft": 1181,
+     "gang": {
+      "m": 1465,
+      "min": 18
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 4,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Tussetjern",
+     "kategorier": [
+      "Natur og landskap",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "vann",
+      "særlig kvalitetsområde"
+     ],
+     "kilder": [
+      "wikidata:Q133186093",
+      "miljodir:FK00038394-3207"
+     ],
+     "luft": 680,
+     "gang": {
+      "m": 803,
+      "min": 10
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 1,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
+    },
+    {
+     "navn": "Nøstvetmarka",
+     "kategorier": [
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "stort turområde med tilrettelegging"
+     ],
+     "kilder": [
+      "miljodir:FK00032455-3218"
+     ],
+     "luft": 543,
+     "gang": {
+      "m": 801,
+      "min": 9
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
+    },
+    {
+     "navn": "Tussetjern Øst",
+     "kategorier": [
+      "Bading og vannaktiviteter"
+     ],
+     "under": [
+      "strandsone med tilhørende sjø og vassdrag"
+     ],
+     "kilder": [
+      "miljodir:FK00038400-3207"
+     ],
+     "luft": 644,
+     "gang": {
+      "m": 776,
+      "min": 10
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Stasjonsveien",
+    "id": "NSR:StopPlace:6284",
+    "fra": "mortensrud_dag",
+    "km": 13.7,
+    "type": "bus",
+    "linjer": 1,
+    "iAlt": 1507
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 83,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Hoffselven-langs"
+    ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [
+     "3"
+    ],
+    "gradering": [
+     "B"
+    ],
+    "spesial": [
+     "NT"
+    ],
+    "punkter": 1,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Holmendammen",
+     "kategorier": [
+      "Natur og landskap"
+     ],
+     "under": [
+      "vann"
+     ],
+     "kilder": [
+      "osm:way/5035873",
+      "wikidata:Q11975685"
+     ],
+     "luft": 530,
+     "gang": {
+      "m": 728,
+      "min": 8
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 2,
+     "merketRute": true
+    },
+    {
+     "navn": "Emanuel Vigelands museum",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:way/1551792576",
+      "wikidata:Q17769549"
+     ],
+     "luft": 371,
+     "gang": {
+      "m": 577,
+      "min": 8
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 3,
+     "merketRute": false
+    },
+    {
+     "navn": "Ris kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q7335797"
+     ],
+     "luft": 757,
+     "gang": {
+      "m": 1018,
+      "min": 13
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Villa Stenersen",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q14375801"
+     ],
+     "luft": 1325,
+     "gang": {
+      "m": 1938,
+      "min": 23
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 4,
+     "verdi": null,
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Asker stasjon",
+    "id": "NSR:StopPlace:418",
+    "fra": "mortensrud_dag",
+    "km": 22.1,
+    "type": "rail",
+    "linjer": 7,
+    "iAlt": 1507
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 95,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Solvangrunden",
+     "Pilegrimsled i Vestfold (Tunsbergleden)",
+     "Risengarunden",
+     "Kystruta"
+    ],
+    "typer": [
+     "Fotrute",
+     "Sykkelrute"
+    ],
+    "betydning": [
+     "1"
+    ],
+    "gradering": [
+     "I"
+    ],
+    "spesial": [
+     "1",
+     "HF"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Galleri Trafo",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturhus"
+     ],
+     "kilder": [
+      "osm:way/92350484"
+     ],
+     "luft": 31,
+     "gang": {
+      "m": 193,
+      "min": 2
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Asker kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q7588955"
+     ],
+     "luft": 1117,
+     "gang": {
+      "m": 1271,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 4,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Bondivannet",
+     "kategorier": [
+      "Natur og landskap"
+     ],
+     "under": [
+      "vann"
+     ],
+     "kilder": [
+      "wikidata:Q11961875",
+      "kartverket:611741"
+     ],
+     "luft": 1093,
+     "gang": {
+      "m": 1363,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "merketRute": true
+    },
+    {
+     "navn": "Asker prestegård",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q26856864"
+     ],
+     "luft": 1322,
+     "gang": {
+      "m": 1504,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": true
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Malmö Centralstation",
+    "id": "NSR:StopPlace:57999",
+    "fra": "mortensrud_dag",
+    "km": 488.7,
+    "type": "coach",
+    "linjer": 2,
+    "iAlt": 1507
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 364,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Palladium",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "teater"
+     ],
+     "kilder": [
+      "osm:node/417994879"
+     ],
+     "luft": 496,
+     "gang": {
+      "m": 586,
+      "min": 7
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Sightseeing by boat",
+     "kategorier": [
+      "Severdigheter og landemerker"
+     ],
+     "under": [
+      "attraksjon"
+     ],
+     "kilder": [
+      "osm:node/1607415347"
+     ],
+     "luft": 313,
+     "gang": {
+      "m": 483,
+      "min": 6
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Teatermuseet",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:node/3414497893"
+     ],
+     "luft": 322,
+     "gang": {
+      "m": 553,
+      "min": 7
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Malmö Live Konserthus",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "teater"
+     ],
+     "kilder": [
+      "osm:node/4392221169"
+     ],
+     "luft": 453,
+     "gang": {
+      "m": 574,
+      "min": 7
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Form Design Center",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:node/6797013185"
+     ],
+     "luft": 458,
+     "gang": {
+      "m": 570,
+      "min": 7
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Malmö Stadsteater",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "teater",
+      "kulturarena"
+     ],
+     "kilder": [
+      "osm:node/9937628281",
+      "wikidata:Q18244214"
+     ],
+     "luft": 370,
+     "gang": {
+      "m": 536,
+      "min": 7
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "merketRute": false
+    },
+    {
+     "navn": "Galleri Ping-Pong",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "galleri"
+     ],
+     "kilder": [
+      "osm:node/11919745733"
+     ],
+     "luft": 731,
+     "gang": {
+      "m": 901,
+      "min": 11
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Expressteatern",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "teater"
+     ],
+     "kilder": [
+      "osm:node/11925305351"
+     ],
+     "luft": 720,
+     "gang": {
+      "m": 864,
+      "min": 11
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Rikstelefon",
+     "kategorier": [
+      "Severdigheter og landemerker"
+     ],
+     "under": [
+      "attraksjon"
+     ],
+     "kilder": [
+      "osm:node/12075550754"
+     ],
+     "luft": 368,
+     "gang": {
+      "m": 475,
+      "min": 6
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Moderna Museet",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:way/35724417"
+     ],
+     "luft": 688,
+     "gang": {
+      "m": 831,
+      "min": 10
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Länsresidenset Malmö",
+     "kategorier": [
+      "Severdigheter og landemerker"
+     ],
+     "under": [
+      "borg"
+     ],
+     "kilder": [
+      "osm:way/680764890"
+     ],
+     "luft": 167,
+     "gang": {
+      "m": 323,
+      "min": 4
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Ebbas hus",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:way/681243145",
+      "wikidata:Q10478963"
+     ],
+     "luft": 468,
+     "gang": {
+      "m": 615,
+      "min": 8
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 4,
+     "merketRute": false
+    },
+    {
+     "navn": "Bore",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:way/1513013759"
+     ],
+     "luft": 388,
+     "gang": {
+      "m": 491,
+      "min": 6
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "St. Paul's Church",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q889213"
+     ],
+     "luft": 1062,
+     "gang": {
+      "m": 1388,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 4,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Sankt Petri kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q2756744"
+     ],
+     "luft": 256,
+     "gang": {
+      "m": 334,
+      "min": 4
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 18,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Caroli Church",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q4992379"
+     ],
+     "luft": 403,
+     "gang": {
+      "m": 514,
+      "min": 6
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Rörsjöparken",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q7386697"
+     ],
+     "luft": 1126,
+     "gang": {
+      "m": 1393,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Kungsparken",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q59032"
+     ],
+     "luft": 827,
+     "gang": {
+      "m": 1055,
+      "min": 13
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 4,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Slottsparken",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q7541449"
+     ],
+     "luft": 952,
+     "gang": {
+      "m": 1265,
+      "min": 15
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Malmö museum",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "wikidata:Q10576120",
+      "wikidata:Q10576159"
+     ],
+     "luft": 915,
+     "gang": {
+      "m": 1364,
+      "min": 16
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "merketRute": false
+    },
+    {
+     "navn": "Malmøhus borg",
+     "kategorier": [
+      "Kultur og historie",
+      "Severdigheter og landemerker"
+     ],
+     "under": [
+      "museum",
+      "kulturminne",
+      "borg/ruin"
+     ],
+     "kilder": [
+      "wikidata:Q1810918"
+     ],
+     "luft": 909,
+     "gang": {
+      "m": 1210,
+      "min": 14
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 24,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Anna Lindhs plats",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q10412357"
+     ],
+     "luft": 250,
+     "gang": {
+      "m": 399,
+      "min": 5
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Technology and Maritime Museum",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "wikidata:Q10692063"
+     ],
+     "luft": 1167,
+     "gang": {
+      "m": 1378,
+      "min": 16
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Drottningtorget",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q5308622"
+     ],
+     "luft": 590,
+     "gang": {
+      "m": 765,
+      "min": 9
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Värnhemstorget",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q18334864"
+     ],
+     "luft": 1454,
+     "gang": {
+      "m": 1635,
+      "min": 21
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Trekongemøtet 1914",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q889355"
+     ],
+     "luft": 176,
+     "gang": {
+      "m": 335,
+      "min": 5
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Moderna Museet Malmö",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "wikidata:Q1718267"
+     ],
+     "luft": 720,
+     "gang": {
+      "m": 921,
+      "min": 11
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 10,
+     "verdi": null,
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Hauketo stasjon",
+    "id": "NSR:StopPlace:287",
+    "fra": "mortensrud_dag",
+    "km": 1.5,
+    "type": "rail",
+    "linjer": 4,
+    "iAlt": 1507
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 75,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Ljanselva-langs",
+     "Pilegrimsleden-Borgleden"
+    ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [
+     "3"
+    ],
+    "gradering": [
+     "B"
+    ],
+    "spesial": [
+     "HF",
+     "KT"
+    ],
+    "punkter": 4,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Sloreåsen",
+     "kategorier": [
+      "Natur og landskap"
+     ],
+     "under": [
+      "topp"
+     ],
+     "kilder": [
+      "osm:node/7807444906",
+      "wikidata:Q32206593"
+     ],
+     "luft": 466,
+     "gang": {
+      "m": 1014,
+      "min": 14
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 1,
+     "merketRute": true
+    },
+    {
+     "navn": "Hauketo skysstasjon",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:way/253262644"
+     ],
+     "luft": 232,
+     "gang": {
+      "m": 451,
+      "min": 6
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Prinsdalsbekken",
+     "kategorier": [
+      "Natur og landskap",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "vann",
+      "leke- og rekreasjonsområde"
+     ],
+     "kilder": [
+      "osm:way/926023766",
+      "miljodir:FK00042028-0301"
+     ],
+     "luft": 106,
+     "gang": {
+      "m": 142,
+      "min": 2
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": false
+    },
+    {
+     "navn": "Hauketo-Prinsdal kirke",
+     "kategorier": [
+      "Kultur og historie",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "kirke",
+      "leke- og rekreasjonsområde"
+     ],
+     "kilder": [
+      "wikidata:Q10297201",
+      "miljodir:FK00042026-0301"
+     ],
+     "luft": 579,
+     "gang": {
+      "m": 883,
+      "min": 12
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 4,
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": false
+    },
+    {
+     "navn": "Holmlia kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q10297235"
+     ],
+     "luft": 1226,
+     "gang": {
+      "m": 1614,
+      "min": 21
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Ljan kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q10356309"
+     ],
+     "luft": 1044,
+     "gang": {
+      "m": 1865,
+      "min": 24
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Nordstrand kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q10359282"
+     ],
+     "luft": 1478,
+     "gang": {
+      "m": 1604,
+      "min": 23
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Grønliåsen",
+     "kategorier": [
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "stort turområde med tilrettelegging"
+     ],
+     "kilder": [
+      "miljodir:FK00042037-0301"
+     ],
+     "luft": 630,
+     "gang": {
+      "m": 1137,
+      "min": 16
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Sanddalskollen",
+    "id": "NSR:StopPlace:31438",
+    "fra": "nesttun_dag",
+    "km": 1.1,
+    "type": "bus",
+    "linjer": 1,
+    "iAlt": 1095
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 75,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Myravatnet",
+     "kategorier": [
+      "Natur og landskap"
+     ],
+     "under": [
+      "vann"
+     ],
+     "kilder": [
+      "osm:way/92038974",
+      "wikidata:Q19369132",
+      "kartverket:566144"
+     ],
+     "luft": 771,
+     "gang": {
+      "m": 1527,
+      "min": 19
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 1,
+     "merketRute": false
+    },
+    {
+     "navn": "Rambjøra landskapsvernområde",
+     "kategorier": [
+      "Natur og landskap"
+     ],
+     "under": [
+      "naturreservat"
+     ],
+     "kilder": [
+      "osm:way/690053449"
+     ],
+     "luft": 537,
+     "gang": {
+      "m": 1260,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Birkeland kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q11961143"
+     ],
+     "luft": 1322,
+     "gang": {
+      "m": 1664,
+      "min": 19
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Myravatnet og Rambjøra",
+     "kategorier": [
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "særlig kvalitetsområde"
+     ],
+     "kilder": [
+      "miljodir:FK00012849-4601"
+     ],
+     "luft": 498,
+     "gang": {
+      "m": 1043,
+      "min": 14
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Haakonsvern",
+    "id": "NSR:StopPlace:31957",
+    "fra": "nesttun_dag",
+    "km": 7.8,
+    "type": "bus",
+    "linjer": 4,
+    "iAlt": 1095
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 40,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Kongshaugen",
+     "kategorier": [
+      "Natur og landskap"
+     ],
+     "under": [
+      "topp"
+     ],
+     "kilder": [
+      "osm:node/8269936407"
+     ],
+     "luft": 571,
+     "gang": {
+      "m": 1061,
+      "min": 19
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Tømmervågen",
+    "id": "NSR:StopPlace:31012",
+    "fra": "nesttun_dag",
+    "km": 13.9,
+    "type": "bus",
+    "linjer": 1,
+    "iAlt": 1095
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 47,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Kystruta"
+    ],
+    "typer": [
+     "Sykkelrute"
+    ],
+    "betydning": [
+     "1"
+    ],
+    "gradering": [],
+    "spesial": [
+     "1"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Helvetesvatnet",
+     "kategorier": [
+      "Natur og landskap",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "vann",
+      "leke- og rekreasjonsområde"
+     ],
+     "kilder": [
+      "osm:way/339428795",
+      "kartverket:323385",
+      "miljodir:FK00012767-4601"
+     ],
+     "luft": 579,
+     "gang": {
+      "m": 1722,
+      "min": 25
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Ikke verdisatt friluftslivsområde",
+     "merketRute": true
+    },
+    {
+     "navn": "Eidsvåg kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q11966724"
+     ],
+     "luft": 1170,
+     "gang": {
+      "m": 1837,
+      "min": 22
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 4,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Puddefjorden og sentrale deler av Byfjorden",
+     "kategorier": [
+      "Bading og vannaktiviteter"
+     ],
+     "under": [
+      "strandsone med tilhørende sjø og vassdrag"
+     ],
+     "kilder": [
+      "miljodir:FK00012439-4601"
+     ],
+     "luft": 122,
+     "gang": {
+      "m": 387,
+      "min": 4
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
+    },
+    {
+     "navn": "Sentrale Byfjell",
+     "kategorier": [
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "marka"
+     ],
+     "kilder": [
+      "miljodir:FK00012342-4601"
+     ],
+     "luft": 346,
+     "gang": {
+      "m": 888,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
+    },
+    {
+     "navn": "Tømmervågen og Lillevågen",
+     "kategorier": [
+      "Bading og vannaktiviteter"
+     ],
+     "under": [
+      "strandsone med tilhørende sjø og vassdrag"
+     ],
+     "kilder": [
+      "miljodir:FK00012287-4601"
+     ],
+     "luft": 173,
+     "gang": {
+      "m": 185,
+      "min": 2
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
+    },
+    {
+     "navn": "Storøya og Buskholmen",
+     "kategorier": [
+      "Bading og vannaktiviteter"
+     ],
+     "under": [
+      "strandsone med tilhørende sjø og vassdrag"
+     ],
+     "kilder": [
+      "miljodir:FK00012193-4601"
+     ],
+     "luft": 409,
+     "gang": {
+      "m": 418,
+      "min": 5
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Dorganeset",
+    "id": "NSR:StopPlace:33865",
+    "fra": "nesttun_dag",
+    "km": 21.8,
+    "type": "bus",
+    "linjer": 1,
+    "iAlt": 1095
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 16,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": []
+  },
+  {
+   "sted": {
+    "navn": "Stavanger lufthavn",
+    "id": "NSR:StopPlace:27243",
+    "fra": "nesttun_dag",
+    "km": 160.6,
+    "type": "coach",
+    "linjer": 1,
+    "iAlt": 1095
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 24,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Sola kapell",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q12001786"
+     ],
+     "luft": 1070,
+     "gang": {
+      "m": 1380,
+      "min": 18
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Sola ruinkirke",
+     "kategorier": [
+      "Kultur og historie",
+      "Severdigheter og landemerker"
+     ],
+     "under": [
+      "kirke",
+      "borg/ruin"
+     ],
+     "kilder": [
+      "wikidata:Q4581876"
+     ],
+     "luft": 1400,
+     "gang": {
+      "m": 1854,
+      "min": 24
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "verdi": null,
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Mårdalen",
+    "id": "NSR:StopPlace:58540",
+    "fra": "nesttun_dag",
+    "km": 1.3,
+    "type": "tram",
+    "linjer": 1,
+    "iAlt": 1095
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 84,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Kystruta"
+    ],
+    "typer": [
+     "Sykkelrute"
+    ],
+    "betydning": [
+     "1"
+    ],
+    "gradering": [],
+    "spesial": [
+     "1"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Skjold kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q12001062"
+     ],
+     "luft": 706,
+     "gang": {
+      "m": 798,
+      "min": 9
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Søråsen",
+     "kategorier": [
+      "Natur og landskap"
+     ],
+     "under": [
+      "topp"
+     ],
+     "kilder": [
+      "wikidata:Q4575566"
+     ],
+     "luft": 1197,
+     "gang": {
+      "m": 1302,
+      "min": 15
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Birkeland kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q11961143"
+     ],
+     "luft": 972,
+     "gang": {
+      "m": 1342,
+      "min": 15
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Skjoldabukta",
+     "kategorier": [
+      "Bading og vannaktiviteter"
+     ],
+     "under": [
+      "strand"
+     ],
+     "kilder": [
+      "wikidata:Q109704504"
+     ],
+     "luft": 1072,
+     "gang": {
+      "m": 1285,
+      "min": 14
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Tranevatnet",
+     "kategorier": [
+      "Natur og landskap",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "vann",
+      "nærturterreng"
+     ],
+     "kilder": [
+      "kartverket:384155",
+      "miljodir:FK00012611-4601"
+     ],
+     "luft": 711,
+     "gang": {
+      "m": 1092,
+      "min": 13
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Strindfjordvegen",
+    "id": "NSR:StopPlace:60260",
+    "fra": "ranheim_dag",
+    "km": 1.2,
+    "type": "bus",
+    "linjer": 2,
+    "iAlt": 1313
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 82,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Ranheimsrunden",
+     "Pilegrimsleden-Romboleden"
+    ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [
+     "3"
+    ],
+    "gradering": [],
+    "spesial": [
+     "HF",
+     "TR"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Grilstad Marina",
+     "kategorier": [
+      "Bading og vannaktiviteter",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "brygge",
+      "leke- og rekreasjonsområde"
+     ],
+     "kilder": [
+      "osm:node/3120283729",
+      "miljodir:FK00018819-5001"
+     ],
+     "luft": 247,
+     "gang": {
+      "m": 356,
+      "min": 4
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
+    },
+    {
+     "navn": "Strandsone Hitratangen",
+     "kategorier": [
+      "Bading og vannaktiviteter"
+     ],
+     "under": [
+      "strandsone med tilhørende sjø og vassdrag"
+     ],
+     "kilder": [
+      "miljodir:FK00018613-5001"
+     ],
+     "luft": 748,
+     "gang": {
+      "m": 939,
+      "min": 12
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Furuhaugen",
+    "id": "NSR:StopPlace:44001",
+    "fra": "ranheim_dag",
+    "km": 10.9,
+    "type": "bus",
+    "linjer": 1,
+    "iAlt": 1313
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 122,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Kolstad kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q6427896"
+     ],
+     "luft": 1338,
+     "gang": {
+      "m": 1816,
+      "min": 22
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Bymarka - Nærsone",
+     "kategorier": [
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "marka"
+     ],
+     "kilder": [
+      "miljodir:FK00018703-5001"
+     ],
+     "luft": 385,
+     "gang": {
+      "m": 756,
+      "min": 10
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Krekabakken",
+    "id": "NSR:StopPlace:43327",
+    "fra": "ranheim_dag",
+    "km": 28.6,
+    "type": "bus",
+    "linjer": 1,
+    "iAlt": 1313
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 13,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Flå kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q4573014"
+     ],
+     "luft": 568,
+     "gang": {
+      "m": 749,
+      "min": 9
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Mære skole",
+    "id": "NSR:StopPlace:45120",
+    "fra": "ranheim_dag",
+    "km": 71.9,
+    "type": "bus",
+    "linjer": 1,
+    "iAlt": 1313
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 16,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": []
+  },
+  {
+   "sted": {
+    "navn": "Oslo S",
+    "id": "NSR:StopPlace:337",
+    "fra": "ranheim_dag",
+    "km": 391.3,
+    "type": "rail",
+    "linjer": 1,
+    "iAlt": 1313
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 703,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "KyststiOslo",
+     "Rondanestien"
+    ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [
+     "1"
+    ],
+    "gradering": [],
+    "spesial": [
+     "AN",
+     "KY"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Dramatikkens hus",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "teater"
+     ],
+     "kilder": [
+      "osm:node/1022397184"
+     ],
+     "luft": 491,
+     "gang": {
+      "m": 888,
+      "min": 11
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Sentrum Scene",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "teater"
+     ],
+     "kilder": [
+      "osm:node/2036733124"
+     ],
+     "luft": 513,
+     "gang": {
+      "m": 580,
+      "min": 7
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Oslo Nye Centralteatret",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "teater"
+     ],
+     "kilder": [
+      "osm:node/2452107755"
+     ],
+     "luft": 679,
+     "gang": {
+      "m": 870,
+      "min": 11
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "22. juli-senteret",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:node/2785549850"
+     ],
+     "luft": 681,
+     "gang": {
+      "m": 986,
+      "min": 13
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Interkulturelt museum",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:node/3650497118"
+     ],
+     "luft": 604,
+     "gang": {
+      "m": 776,
+      "min": 9
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Kunsthall Oslo",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "galleri"
+     ],
+     "kilder": [
+      "osm:node/3729794925"
+     ],
+     "luft": 566,
+     "gang": {
+      "m": 693,
+      "min": 9
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Nedre Foss",
+     "kategorier": [
+      "Natur og landskap"
+     ],
+     "under": [
+      "foss"
+     ],
+     "kilder": [
+      "osm:node/4171862592"
+     ],
+     "luft": 1345,
+     "gang": {
+      "m": 1678,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Folketeatret",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "teater"
+     ],
+     "kilder": [
+      "osm:node/4637376887"
+     ],
+     "luft": 406,
+     "gang": {
+      "m": 519,
+      "min": 6
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Småflaskemuseet",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:node/6593517800"
+     ],
+     "luft": 569,
+     "gang": {
+      "m": 798,
+      "min": 10
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "FLOP museum",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:node/11556022918"
+     ],
+     "luft": 535,
+     "gang": {
+      "m": 668,
+      "min": 8
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Kösk",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "galleri"
+     ],
+     "kilder": [
+      "osm:node/11725390110"
+     ],
+     "luft": 543,
+     "gang": {
+      "m": 749,
+      "min": 9
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "VI, VII",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "galleri"
+     ],
+     "kilder": [
+      "osm:node/12409606131"
+     ],
+     "luft": 583,
+     "gang": {
+      "m": 803,
+      "min": 9
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Vaterlandsparken",
+     "kategorier": [
+      "Parker og rekreasjon",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "park",
+      "leke- og rekreasjonsområde"
+     ],
+     "kilder": [
+      "osm:way/4334996",
+      "miljodir:FK00043272-0301"
+     ],
+     "luft": 270,
+     "gang": {
+      "m": 431,
+      "min": 6
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
+    },
+    {
+     "navn": "Oslo Spektrum",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "teater"
+     ],
+     "kilder": [
+      "osm:way/10568134"
+     ],
+     "luft": 190,
+     "gang": {
+      "m": 381,
+      "min": 5
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Middelalderparken",
+     "kategorier": [
+      "Parker og rekreasjon",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "park",
+      "leke- og rekreasjonsområde"
+     ],
+     "kilder": [
+      "osm:way/31258136",
+      "miljodir:FK00042680-0301"
+     ],
+     "luft": 700,
+     "gang": {
+      "m": 864,
+      "min": 11
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Ikke verdisatt friluftslivsområde",
+     "merketRute": true
+    },
+    {
+     "navn": "Grev Wedels plass",
+     "kategorier": [
+      "Parker og rekreasjon",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "park",
+      "leke- og rekreasjonsområde"
+     ],
+     "kilder": [
+      "osm:way/33610051",
+      "miljodir:FK00043269-0301"
+     ],
+     "luft": 638,
+     "gang": {
+      "m": 768,
+      "min": 9
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
+    },
+    {
+     "navn": "Jødisk museum",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:way/112401084"
+     ],
+     "luft": 600,
+     "gang": {
+      "m": 786,
+      "min": 10
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Børshagen",
+     "kategorier": [
+      "Parker og rekreasjon",
+      "Kultur og historie"
+     ],
+     "under": [
+      "park",
+      "kulturminne"
+     ],
+     "kilder": [
+      "osm:way/435976947",
+      "wikidata:Q17761442"
+     ],
+     "luft": 321,
+     "gang": {
+      "m": 430,
+      "min": 5
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 2,
+     "merketRute": true
+    },
+    {
+     "navn": "Munchmuseet",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "osm:way/545260792"
+     ],
+     "luft": 537,
+     "gang": {
+      "m": 721,
+      "min": 9
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Operahuset i Oslo",
+     "kategorier": [
+      "Kultur og historie",
+      "Severdigheter og landemerker"
+     ],
+     "under": [
+      "teater",
+      "attraksjon"
+     ],
+     "kilder": [
+      "osm:way/810259696"
+     ],
+     "luft": 315,
+     "gang": {
+      "m": 340,
+      "min": 4
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Operastranda",
+     "kategorier": [
+      "Bading og vannaktiviteter"
+     ],
+     "under": [
+      "strand"
+     ],
+     "kilder": [
+      "osm:way/936040800"
+     ],
+     "luft": 444,
+     "gang": {
+      "m": 539,
+      "min": 7
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Akershus slott og festning",
+     "kategorier": [
+      "Kultur og historie",
+      "Severdigheter og landemerker"
+     ],
+     "under": [
+      "museum",
+      "kulturminne",
+      "borg/ruin"
+     ],
+     "kilder": [
+      "wikidata:Q644464"
+     ],
+     "luft": 1064,
+     "gang": {
+      "m": 1553,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 37,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Kontraskjæret",
+     "kategorier": [
+      "Kultur og historie",
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "kulturminne",
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q10547827"
+     ],
+     "luft": 925,
+     "gang": {
+      "m": 1231,
+      "min": 15
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 4,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Akershus fengselskirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q15077700"
+     ],
+     "luft": 1076,
+     "gang": {
+      "m": 1568,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Akershus slottskirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q10279749"
+     ],
+     "luft": 1076,
+     "gang": {
+      "m": 1568,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Piperviken småkirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q14366694"
+     ],
+     "luft": 1475,
+     "gang": {
+      "m": 1800,
+      "min": 23
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Nobels Fredssenter",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "wikidata:Q941120"
+     ],
+     "luft": 1287,
+     "gang": {
+      "m": 1630,
+      "min": 19
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 27,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Abelhaugen",
+     "kategorier": [
+      "Natur og landskap"
+     ],
+     "under": [
+      "topp"
+     ],
+     "kilder": [
+      "wikidata:Q17516063"
+     ],
+     "luft": 1344,
+     "gang": {
+      "m": 1608,
+      "min": 21
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Halfdan Kjerulfs plass",
+     "kategorier": [
+      "Kultur og historie",
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "kulturminne",
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q11973710"
+     ],
+     "luft": 1257,
+     "gang": {
+      "m": 1502,
+      "min": 18
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Nordraaks plass",
+     "kategorier": [
+      "Kultur og historie",
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "kulturminne",
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q11991913"
+     ],
+     "luft": 1406,
+     "gang": {
+      "m": 1598,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Universitetshagen",
+     "kategorier": [
+      "Kultur og historie",
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "kulturminne",
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q12008511"
+     ],
+     "luft": 1123,
+     "gang": {
+      "m": 1333,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Stortingsgata 16",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturminne",
+      "kulturarena"
+     ],
+     "kilder": [
+      "wikidata:Q25428083"
+     ],
+     "luft": 1009,
+     "gang": {
+      "m": 1122,
+      "min": 14
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Grotten",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q4588425"
+     ],
+     "luft": 1497,
+     "gang": {
+      "m": 1759,
+      "min": 22
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Nationaltheatret",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturarena"
+     ],
+     "kilder": [
+      "wikidata:Q565382"
+     ],
+     "luft": 1125,
+     "gang": {
+      "m": 1237,
+      "min": 16
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 29,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Historisk museum",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q1405469"
+     ],
+     "luft": 1180,
+     "gang": {
+      "m": 1373,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 7,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Kulturhistorisk museum",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "wikidata:Q3356148"
+     ],
+     "luft": 1189,
+     "gang": {
+      "m": 1399,
+      "min": 18
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 15,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Myntkabinettet",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "wikidata:Q11123349"
+     ],
+     "luft": 1180,
+     "gang": {
+      "m": 1373,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 4,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Nasjonalmuseet for kunst, arkitektur og design",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "wikidata:Q1132918"
+     ],
+     "luft": 1347,
+     "gang": {
+      "m": 1707,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 27,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Rådhusplassen",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q251078"
+     ],
+     "luft": 1153,
+     "gang": {
+      "m": 1508,
+      "min": 18
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 10,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "7. juni-plassen",
+     "kategorier": [
+      "Kultur og historie",
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "kulturminne",
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q4642932"
+     ],
+     "luft": 1376,
+     "gang": {
+      "m": 1558,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Slottsplassen",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q7541452"
+     ],
+     "luft": 1499,
+     "gang": {
+      "m": 1688,
+      "min": 21
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Fridtjof Nansens plass",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q11970225"
+     ],
+     "luft": 1070,
+     "gang": {
+      "m": 1400,
+      "min": 18
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Johan Svendsens plass",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q11978802"
+     ],
+     "luft": 1371,
+     "gang": {
+      "m": 1629,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Tordenskiolds plass",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q12006946"
+     ],
+     "luft": 1003,
+     "gang": {
+      "m": 1296,
+      "min": 16
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Rolf Strangers plass",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q19366525"
+     ],
+     "luft": 1043,
+     "gang": {
+      "m": 1386,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Brynjulf Bulls plass",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q19366581"
+     ],
+     "luft": 1300,
+     "gang": {
+      "m": 1679,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Kronprinsesse Märthas plass",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q19378277"
+     ],
+     "luft": 1161,
+     "gang": {
+      "m": 1434,
+      "min": 18
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Ragnar Kalheims plass",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q19386129"
+     ],
+     "luft": 1458,
+     "gang": {
+      "m": 1916,
+      "min": 23
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Stortings plass",
+     "kategorier": [
+      "Kultur og historie",
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "kulturminne",
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q15077667"
+     ],
+     "luft": 774,
+     "gang": {
+      "m": 852,
+      "min": 11
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Nisseberget",
+     "kategorier": [
+      "Natur og landskap"
+     ],
+     "under": [
+      "topp"
+     ],
+     "kilder": [
+      "wikidata:Q19383025"
+     ],
+     "luft": 1287,
+     "gang": {
+      "m": 1535,
+      "min": 19
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Karl Johan-monumentet",
+     "kategorier": [
+      "Severdigheter og landemerker"
+     ],
+     "under": [
+      "monument"
+     ],
+     "kilder": [
+      "wikidata:Q4882378"
+     ],
+     "luft": 1498,
+     "gang": {
+      "m": 1686,
+      "min": 21
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Haakon VII-statuen på 7. juni-plassen",
+     "kategorier": [
+      "Severdigheter og landemerker"
+     ],
+     "under": [
+      "monument"
+     ],
+     "kilder": [
+      "wikidata:Q11973595"
+     ],
+     "luft": 1377,
+     "gang": {
+      "m": 1554,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Stenersenmuseet",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "wikidata:Q1801421"
+     ],
+     "luft": 1366,
+     "gang": {
+      "m": 1622,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 8,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Oslo ladegård",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q3526084"
+     ],
+     "luft": 962,
+     "gang": {
+      "m": 1190,
+      "min": 15
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 4,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Gamlebyen kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q4580170"
+     ],
+     "luft": 1189,
+     "gang": {
+      "m": 1420,
+      "min": 18
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Grønland kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q5612884"
+     ],
+     "luft": 802,
+     "gang": {
+      "m": 1085,
+      "min": 13
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 7,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Korskirken",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q11981865"
+     ],
+     "luft": 1004,
+     "gang": {
+      "m": 1432,
+      "min": 18
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Studenterlunden",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q7627912",
+      "kartverket:144670"
+     ],
+     "luft": 1113,
+     "gang": {
+      "m": 1238,
+      "min": 15
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "merketRute": false
+    },
+    {
+     "navn": "Universitetsplassen",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q7894428"
+     ],
+     "luft": 1125,
+     "gang": {
+      "m": 1217,
+      "min": 15
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Festningsplassen",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q11968768"
+     ],
+     "luft": 969,
+     "gang": {
+      "m": 1234,
+      "min": 15
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Holbergs plass",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q11975622"
+     ],
+     "luft": 1404,
+     "gang": {
+      "m": 1693,
+      "min": 21
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Oslo Konserthus",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturarena"
+     ],
+     "kilder": [
+      "wikidata:Q1773297"
+     ],
+     "luft": 1334,
+     "gang": {
+      "m": 1525,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 8,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "«Abelmonumentet»",
+     "kategorier": [
+      "Severdigheter og landemerker"
+     ],
+     "under": [
+      "monument"
+     ],
+     "kilder": [
+      "wikidata:Q23868718"
+     ],
+     "luft": 1333,
+     "gang": {
+      "m": 1622,
+      "min": 21
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Skreddergården",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q2800982"
+     ],
+     "luft": 711,
+     "gang": {
+      "m": 824,
+      "min": 11
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Johanne Dybwads plass",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q11978841"
+     ],
+     "luft": 1181,
+     "gang": {
+      "m": 1303,
+      "min": 16
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Tullinløkka",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q13257527"
+     ],
+     "luft": 1125,
+     "gang": {
+      "m": 1297,
+      "min": 16
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Normandieplassen",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q19383715"
+     ],
+     "luft": 1086,
+     "gang": {
+      "m": 1341,
+      "min": 16
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Michael von Sundts plass",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q19698082"
+     ],
+     "luft": 983,
+     "gang": {
+      "m": 1228,
+      "min": 15
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Prinsessens plass",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q20112696"
+     ],
+     "luft": 839,
+     "gang": {
+      "m": 1085,
+      "min": 13
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Norges Hjemmefrontmuseum",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "wikidata:Q1781522"
+     ],
+     "luft": 1031,
+     "gang": {
+      "m": 1446,
+      "min": 18
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 11,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Nasjonale Festningsverk",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "wikidata:Q6972774"
+     ],
+     "luft": 1082,
+     "gang": {
+      "m": 1405,
+      "min": 18
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 2,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Grønlands park – Botsparken",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q11973058"
+     ],
+     "luft": 917,
+     "gang": {
+      "m": 1318,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Minneparken",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q11989578",
+      "kartverket:448691"
+     ],
+     "luft": 1014,
+     "gang": {
+      "m": 1252,
+      "min": 16
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "merketRute": true
+    },
+    {
+     "navn": "Chat Noir",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturarena"
+     ],
+     "kilder": [
+      "wikidata:Q2961487"
+     ],
+     "luft": 1205,
+     "gang": {
+      "m": 1346,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 10,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Johannes kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q10540495"
+     ],
+     "luft": 775,
+     "gang": {
+      "m": 1077,
+      "min": 13
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Forsvarsmuseet",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum"
+     ],
+     "kilder": [
+      "wikidata:Q4793001"
+     ],
+     "luft": 1000,
+     "gang": {
+      "m": 1151,
+      "min": 14
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 9,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Engebret Café",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q11967476"
+     ],
+     "luft": 662,
+     "gang": {
+      "m": 923,
+      "min": 11
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Mariakirken i Oslo",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q1133099"
+     ],
+     "luft": 966,
+     "gang": {
+      "m": 1306,
+      "min": 16
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Clemenskirken i Oslo",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q7587620"
+     ],
+     "luft": 1007,
+     "gang": {
+      "m": 1236,
+      "min": 15
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 5,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Nikolaikirken",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q15077542"
+     ],
+     "luft": 981,
+     "gang": {
+      "m": 1211,
+      "min": 15
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 4,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Gamle Logen",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q5520238"
+     ],
+     "luft": 799,
+     "gang": {
+      "m": 1037,
+      "min": 12
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 3,
+     "verdi": null,
+     "merketRute": true
+    },
+    {
+     "navn": "Bjørvika og Bispevika",
+     "kategorier": [
+      "Bading og vannaktiviteter"
+     ],
+     "under": [
+      "strandsone med tilhørende sjø og vassdrag"
+     ],
+     "kilder": [
+      "miljodir:FK00043279-0301"
+     ],
+     "luft": 318,
+     "gang": {
+      "m": 342,
+      "min": 4
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Leangen stasjon",
+    "id": "NSR:StopPlace:393",
+    "fra": "ranheim_dag",
+    "km": 3.3,
+    "type": "rail",
+    "linjer": 1,
+    "iAlt": 1313
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 114,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Pilegrimsleden-Romboleden"
+    ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [
+     "1"
+    ],
+    "gradering": [],
+    "spesial": [
+     "HF"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Leangen Gård",
+     "kategorier": [
+      "Kultur og historie",
+      "Parker og rekreasjon",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "herregård",
+      "park",
+      "kulturminne",
+      "leke- og rekreasjonsområde"
+     ],
+     "kilder": [
+      "osm:way/97240747",
+      "osm:way/1361947469",
+      "wikidata:Q4573824",
+      "miljodir:FK00018880-5001"
+     ],
+     "luft": 371,
+     "gang": {
+      "m": 582,
+      "min": 7
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 4,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
+    },
+    {
+     "navn": "Lade kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke"
+     ],
+     "kilder": [
+      "wikidata:Q6469357"
+     ],
+     "luft": 1491,
+     "gang": {
+      "m": 1759,
+      "min": 21
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 9,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Ringve botaniske hage",
+     "kategorier": [
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "park"
+     ],
+     "kilder": [
+      "wikidata:Q4998",
+      "kartverket:595755"
+     ],
+     "luft": 1282,
+     "gang": {
+      "m": 1644,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "merketRute": false
+    },
+    {
+     "navn": "Lade gård",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q11982915"
+     ],
+     "luft": 1427,
+     "gang": {
+      "m": 1667,
+      "min": 20
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 4,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Ringve Musikkmuseum",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "museum",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q960829"
+     ],
+     "luft": 1195,
+     "gang": {
+      "m": 1534,
+      "min": 19
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 12,
+     "verdi": null,
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Skogstadrampa",
+    "id": "NSR:StopPlace:12757",
+    "fra": "tretten_dag",
+    "km": 1.2,
+    "type": "bus",
+    "linjer": 1,
+    "iAlt": 560
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 5,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Pilegrimsleden-Gudbrandsdalsleden"
+    ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [
+     "HF"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": []
+  },
+  {
+   "sted": {
+    "navn": "Balberglia nord",
+    "id": "NSR:StopPlace:14152",
+    "fra": "tretten_dag",
+    "km": 18.4,
+    "type": "bus",
+    "linjer": 2,
+    "iAlt": 560
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 42,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Pilegrimsleden-Gudbrandsdalsleden"
+    ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [
+     "HF"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": []
+  },
+  {
+   "sted": {
+    "navn": "Kinnlistua",
+    "id": "NSR:StopPlace:13681",
+    "fra": "tretten_dag",
+    "km": 26.2,
+    "type": "bus",
+    "linjer": 1,
+    "iAlt": 560
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 4,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Vottestadhøgda",
+     "kategorier": [
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "stort turområde med tilrettelegging"
+     ],
+     "kilder": [
+      "miljodir:FK00016705-3405"
+     ],
+     "luft": 680,
+     "gang": {
+      "m": 730,
+      "min": 13
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Klebervegen",
+    "id": "NSR:StopPlace:12377",
+    "fra": "tretten_dag",
+    "km": 78.5,
+    "type": "bus",
+    "linjer": 1,
+    "iAlt": 560
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 5,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Veslefettjønn",
+     "kategorier": [
+      "Bading og vannaktiviteter"
+     ],
+     "under": [
+      "strandsone med tilhørende sjø og vassdrag"
+     ],
+     "kilder": [
+      "miljodir:FK00041987-3435"
+     ],
+     "luft": 256,
+     "gang": {
+      "m": 267,
+      "min": 3
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": false
+    },
+    {
+     "navn": "Bygdenært areal til grender i Vågå",
+     "kategorier": [
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "stort turområde med tilrettelegging"
+     ],
+     "kilder": [
+      "miljodir:FK00041985-3435"
+     ],
+     "luft": 256,
+     "gang": {
+      "m": 267,
+      "min": 3
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Torghopen Måløy kai",
+    "id": "NSR:StopPlace:35044",
+    "fra": "tretten_dag",
+    "km": 282.6,
+    "type": "coach",
+    "linjer": 1,
+    "iAlt": 560
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 43,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
+    "punkter": 0,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Måløy stadion",
+     "kategorier": [
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "leke- og rekreasjonsområde"
+     ],
+     "kilder": [
+      "osm:way/282003903",
+      "miljodir:FK00044211-4602"
+     ],
+     "luft": 450,
+     "gang": {
+      "m": 870,
+      "min": 16
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
+    },
+    {
+     "navn": "Lingeparken",
+     "kategorier": [
+      "Parker og rekreasjon",
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "park",
+      "leke- og rekreasjonsområde"
+     ],
+     "kilder": [
+      "osm:way/552129975",
+      "miljodir:FK00044217-4602"
+     ],
+     "luft": 316,
+     "gang": {
+      "m": 348,
+      "min": 5
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": false
+    },
+    {
+     "navn": "Sør-Vågsøy kirke",
+     "kategorier": [
+      "Kultur og historie"
+     ],
+     "under": [
+      "kirke",
+      "kulturminne"
+     ],
+     "kilder": [
+      "wikidata:Q12004821"
+     ],
+     "luft": 427,
+     "gang": {
+      "m": 580,
+      "min": 9
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 6,
+     "verdi": null,
+     "merketRute": false
+    },
+    {
+     "navn": "Veten-Blåfjell-Stallbrekka",
+     "kategorier": [
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "stort turområde med tilrettelegging"
+     ],
+     "kilder": [
+      "miljodir:FK00044247-4602"
+     ],
+     "luft": 641,
+     "gang": {
+      "m": 951,
+      "min": 19
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": true
+    },
+    {
+     "navn": "Moldøen",
+     "kategorier": [
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "særlig kvalitetsområde"
+     ],
+     "kilder": [
+      "miljodir:FK00044280-4602"
+     ],
+     "luft": 621,
+     "gang": {
+      "m": 738,
+      "min": 10
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
+    },
+    {
+     "navn": "Turvegnett rundt Måløy stadion",
+     "kategorier": [
+      "Friluftsliv og utfart"
+     ],
+     "under": [
+      "særlig kvalitetsområde"
+     ],
+     "kilder": [
+      "miljodir:FK00044241-4602"
+     ],
+     "luft": 412,
+     "gang": {
+      "m": 915,
+      "min": 17
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 0,
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
+    }
+   ]
+  },
+  {
+   "sted": {
+    "navn": "Øyer sentrum",
+    "id": "NSR:StopPlace:12655",
+    "fra": "tretten_dag",
+    "km": 10.9,
+    "type": "coach",
+    "linjer": 1,
+    "iAlt": 560
+   },
+   "kilder": {
+    "osm": "ok",
+    "wikidata": "ok",
+    "kartverket": "ok",
+    "miljodir": "ok"
+   },
+   "rå": 102,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Storkjølla",
+     "70 turer for store og små",
+     "Aronsvestranda"
+    ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [
+     "2",
+     "3"
+    ],
+    "gradering": [
+     "G",
+     "I"
+    ],
+    "spesial": [
+     "AN",
+     "NT",
+     "TR"
+    ],
+    "punkter": 4,
+    "ok": true
+   },
+   "opplevelser": [
+    {
+     "navn": "Lilleputthammer",
+     "kategorier": [
+      "Attraksjoner og opplevelser",
+      "Parker og rekreasjon"
+     ],
+     "under": [
+      "fornøyelsespark",
+      "park",
+      "attraksjon"
+     ],
+     "kilder": [
+      "osm:way/273798788",
+      "wikidata:Q3240893"
+     ],
+     "luft": 158,
+     "gang": {
+      "m": 176,
+      "min": 2
+     },
+     "gangbar": true,
+     "flate": true,
+     "sitelinks": 6,
+     "merketRute": true
+    },
+    {
+     "navn": "Hafjell",
+     "kategorier": [
+      "Attraksjoner og opplevelser"
+     ],
+     "under": [
+      "skisenter"
+     ],
+     "kilder": [
+      "wikidata:Q954639"
+     ],
+     "luft": 773,
+     "gang": {
+      "m": 1208,
+      "min": 15
+     },
+     "gangbar": true,
+     "flate": false,
+     "sitelinks": 13,
+     "verdi": null,
+     "merketRute": false
+    }
+   ]
+  }
+ ],
+ "negative": [
+  {
+   "sted": "Nebbejordet",
+   "navn": "Engersbråten SØ",
+   "hvorfor": "bare støy-tagg: tourism=information",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Nebbejordet",
+   "navn": "Bjørnerudveien S",
+   "hvorfor": "bare støy-tagg: tourism=information",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Nebbejordet",
+   "navn": "Bjørnerudveien",
+   "hvorfor": "bare støy-tagg: tourism=information",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Nebbejordet",
+   "navn": "Ballbinge",
+   "hvorfor": "bare støy-tagg: leisure=pitch",
+   "kilde": "osm"
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Rugdeberget park",
+   "hvorfor": "svakt signal: leisure=park",
+   "kilde": "osm",
+   "luft": 130
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Skovbakken barnepark",
+   "hvorfor": "svakt signal: P31:kulturminne, P31:park",
+   "kilde": "wikidata",
+   "luft": 1206
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Lerdal gård",
+   "hvorfor": "svakt signal: P31:kulturminne",
+   "kilde": "wikidata",
+   "luft": 849
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Sloreåsen",
+   "hvorfor": "svakt signal: P31:topp",
+   "kilde": "wikidata",
+   "luft": 1073
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Rugdeberget/ Nebbejordet",
+   "hvorfor": "svakt signal: friluft:Nærturterreng",
+   "kilde": "miljodir",
+   "luft": 24
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Sveaveien",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 558
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Uteområde Prinsdal skole",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 584
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Lekeområde Lofsrudhøgda",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 676
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Lekeområde Kantarellen terrasse",
+   "hvorfor": "svakt signal: friluft:Nærturterreng",
+   "kilde": "miljodir",
+   "luft": 473
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Munkerud",
+   "hvorfor": "svakt signal: friluft:Nærturterreng",
+   "kilde": "miljodir",
+   "luft": 763
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Lekeområde Burud vest",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 202
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Grøntområde Ljabruveien-Mortensrudveien",
+   "hvorfor": "svakt signal: friluft:Nærturterreng",
+   "kilde": "miljodir",
+   "luft": 531
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "\"Turvei E11\" Mortensrud",
+   "hvorfor": "svakt signal: friluft:Nærturterreng",
+   "kilde": "miljodir",
+   "luft": 446
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Lerdalsveien-Sporstuveien sti",
+   "hvorfor": "svakt signal: friluft:Grønnkorridor",
+   "kilde": "miljodir",
+   "luft": 660
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Gang- og sykkelvei langs Gjersrudbekken",
+   "hvorfor": "svakt signal: friluft:Grønnkorridor",
+   "kilde": "miljodir",
+   "luft": 226
+  },
+  {
+   "type": "svak",
+   "sted": "Nebbejordet",
+   "navn": "Asperudåsen",
+   "hvorfor": "svakt signal: friluft:Nærturterreng",
+   "kilde": "miljodir",
+   "luft": 561
+  },
+  {
+   "sted": "Oppegård stasjon",
+   "navn": "Haugbro",
+   "hvorfor": "bare støy-tagg: tourism=information",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Oppegård stasjon",
+   "navn": "Oppegård stasjon",
+   "hvorfor": "bare støy-tagg: tourism=information",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Oppegård stasjon",
+   "navn": "Greverud",
+   "hvorfor": "bare støy-tagg: tourism=information",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Oppegård stasjon",
+   "navn": "Oppegårdbanen",
+   "hvorfor": "bare støy-tagg: leisure=pitch",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Oppegård stasjon",
+   "navn": "Greverudhallen",
+   "hvorfor": "bare støy-tagg: leisure=sports_centre",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Oppegård stasjon",
+   "navn": "Durendalsbanen",
+   "hvorfor": "bare støy-tagg: leisure=pitch",
+   "kilde": "osm"
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Sætreskogparken",
+   "hvorfor": "svakt signal: leisure=park",
+   "kilde": "osm",
+   "luft": 574
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Furusetåsen",
+   "hvorfor": "svakt signal: P31:topp, friluft:Leke- og rekreasjonsområde",
+   "kilde": "wikidata+miljodir",
+   "luft": 669
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Vinebergåsen",
+   "hvorfor": "svakt signal: P31:topp",
+   "kilde": "wikidata",
+   "luft": 1126
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Delerudåsen",
+   "hvorfor": "svakt signal: P31:topp",
+   "kilde": "wikidata",
+   "luft": 873
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Flåtestadåsen",
+   "hvorfor": "svakt signal: P31:topp",
+   "kilde": "wikidata",
+   "luft": 1484
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Greverudlia",
+   "hvorfor": "svakt signal: P31:topp",
+   "kilde": "wikidata",
+   "luft": 697
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Fossholtet",
+   "hvorfor": "svakt signal: P31:topp",
+   "kilde": "wikidata",
+   "luft": 1008
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Haugbruåsen",
+   "hvorfor": "svakt signal: P31:topp",
+   "kilde": "wikidata",
+   "luft": 1178
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Nyjordåsen",
+   "hvorfor": "svakt signal: P31:topp",
+   "kilde": "wikidata",
+   "luft": 853
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Tussestien / Mølleranga",
+   "hvorfor": "svakt signal: friluft:Grønnkorridor",
+   "kilde": "miljodir",
+   "luft": 494
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Snarvei mellom Vellets vei og Bergstien",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 165
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Sagstuskogen",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 794
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Østre Greverud - vest for Kongeveien",
+   "hvorfor": "svakt signal: friluft:Nærturterreng",
+   "kilde": "miljodir",
+   "luft": 733
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Dalskleiva vest",
+   "hvorfor": "svakt signal: friluft:Nærturterreng",
+   "kilde": "miljodir",
+   "luft": 569
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Toppenhaug",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 145
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Friområde sør for Rolf Presthusvei",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 751
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Møllerveien",
+   "hvorfor": "svakt signal: friluft:Grønnkorridor",
+   "kilde": "miljodir",
+   "luft": 500
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Slorene",
+   "hvorfor": "svakt signal: friluft:Andre friluftslivsomrader",
+   "kilde": "miljodir",
+   "luft": 500
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Flåtestad skole",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 728
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Sætreskogparken- vanntårnparken",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 576
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Pinnåsen sør for Fløysbonn",
+   "hvorfor": "svakt signal: friluft:Nærturterreng",
+   "kilde": "miljodir",
+   "luft": 781
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Gjersjøveien - fotballbane",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 439
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Østre Greverud",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 542
+  },
+  {
+   "type": "svak",
+   "sted": "Oppegård stasjon",
+   "navn": "Greverud skole",
+   "hvorfor": "svakt signal: friluft:Leke- og rekreasjonsområde",
+   "kilde": "miljodir",
+   "luft": 301
+  },
+  {
+   "sted": "Stasjonsveien",
+   "navn": "Heming kunstgress",
+   "hvorfor": "bare støy-tagg: leisure=pitch",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Stasjonsveien",
+   "navn": "Heming kunstgress 9er",
+   "hvorfor": "bare støy-tagg: leisure=pitch",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Stasjonsveien",
+   "navn": "Heminghallen",
+   "hvorfor": "bare støy-tagg: leisure=sports_centre",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Stasjonsveien",
+   "navn": "Heming kunstgress 7er 2",
+   "hvorfor": "bare støy-tagg: leisure=pitch",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Stasjonsveien",
+   "navn": "Heming kunstgress 7er 1",
+   "hvorfor": "bare støy-tagg: leisure=pitch",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Asker stasjon",
+   "navn": "Asker sentrum",
+   "hvorfor": "bare støy-tagg: tourism=information, tourism=information",
+   "kilde": "osm+osm"
+  },
+  {
+   "sted": "Asker stasjon",
+   "navn": "Scandic Asker",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Asker stasjon",
+   "navn": "Asker karateklubb",
+   "hvorfor": "bare støy-tagg: leisure=sports_centre",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Asker stasjon",
+   "navn": "Føyka kunstgressbane",
+   "hvorfor": "bare støy-tagg: leisure=pitch",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Asker stasjon",
+   "navn": "Skateparken",
+   "hvorfor": "bare støy-tagg: leisure=pitch",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "First Hotel Garden",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "The Bishop’s Arms",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "The Mayfair Hotel tunneln",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Hotel Noble House",
+   "hvorfor": "bare støy-tagg: tourism=hotel, tourism=hotel",
+   "kilde": "osm+osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Scandic Stortorget",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Moment Hotels",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "First Hotel Jörgen Kock",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Best Western Hotel Royal",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Elite Hotel Savoy Malmö",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Elite Hotel Plaza",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Hotell Norrvalla",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Continental Hotel",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Scandic Sankt Jörgen",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Improv!",
+   "hvorfor": "bare støy-tagg: leisure=sports_centre",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Clarion Hotel Malmö Live",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Radisson Blu",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "MJs",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "S:t Petri kyrka",
+   "hvorfor": "bare støy-tagg: tourism=information",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Mäster Johan",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  },
+  {
+   "sted": "Malmö Centralstation",
+   "navn": "Comfort Hotel Malmö",
+   "hvorfor": "bare støy-tagg: tourism=hotel",
+   "kilde": "osm"
+  }
+ ]
+}

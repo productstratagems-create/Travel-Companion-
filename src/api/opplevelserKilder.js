@@ -77,9 +77,11 @@ export function parseFriluft(json, stopp) {
 }
 
 export function wikidataUrl(s) {
-  const q = `SELECT ?i ?iLabel (GROUP_CONCAT(DISTINCT ?tL; separator="|") AS ?typer) (MAX(?sl) AS ?sitelinks) (SAMPLE(?c) AS ?koord) WHERE {
+  // Beskrivelsen (schema:description) i samme kall (v1.218.314): norsk, ellers engelsk. Valgfri.
+  const q = `SELECT ?i ?iLabel (GROUP_CONCAT(DISTINCT ?tL; separator="|") AS ?typer) (MAX(?sl) AS ?sitelinks) (SAMPLE(?c) AS ?koord) (SAMPLE(?bnb) AS ?beskNb) (SAMPLE(?ben) AS ?beskEn) WHERE {
    SERVICE wikibase:around { ?i wdt:P625 ?c . bd:serviceParam wikibase:center "Point(${s.lon} ${s.lat})"^^geo:wktLiteral . bd:serviceParam wikibase:radius "1.5" }
    ?i wdt:P31 ?t . ?i wikibase:sitelinks ?sl . ?t rdfs:label ?tL . FILTER(LANG(?tL) = "nb" || LANG(?tL) = "en")
+   OPTIONAL { ?i schema:description ?bnb FILTER(LANG(?bnb) = "nb") } OPTIONAL { ?i schema:description ?ben FILTER(LANG(?ben) = "en") }
    SERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,en". } } GROUP BY ?i ?iLabel LIMIT 200`;
   return WD + '?format=json&query=' + encodeURIComponent(q);
 }
@@ -89,7 +91,8 @@ export function parseWikidata(json) {
     const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec((b.koord && b.koord.value) || '');
     const kat = klassifiserWikidata(b.typer && b.typer.value, +(b.sitelinks && b.sitelinks.value));
     if (!m || !kat.length || /^Q\d+$/.test(b.iLabel.value)) return null;
-    return { kilde: 'wikidata', sid: b.i.value.split('/').pop(), navn: b.iLabel.value, lat: +m[2], lon: +m[1], kat, sitelinks: +b.sitelinks.value };
+    const beskrivelse = b.beskNb ? { tekst: b.beskNb.value, språk: 'nb' } : b.beskEn ? { tekst: b.beskEn.value, språk: 'en' } : null;
+    return { kilde: 'wikidata', sid: b.i.value.split('/').pop(), navn: b.iLabel.value, lat: +m[2], lon: +m[1], kat, sitelinks: +b.sitelinks.value, beskrivelse };
   }).filter(Boolean);
 }
 
@@ -131,4 +134,16 @@ export function hentGang(stopp, o) {
     }).catch(() => null));
   }
   return _gang.get(k);
+}
+
+/* GANGE HELE VEIEN (v1.218.314): bare når reisesøket ikke fant noen kollektivreise.
+   Entur, kun gange (directMode: foot) — samme fra-punkt og tid som reisesøket. */
+export function gangHeleVeienGql(fra, stedId, tidIso) {
+  return '{ eb: trip(from:{coordinates:{latitude:' + fra.lat + ',longitude:' + fra.lon + '}} to:{place:"' + stedId + '"} dateTime:"' + tidIso + '" walkSpeed:1.3 modes:{directMode:foot}) { tripPatterns { duration walkDistance legs { mode } } } }';
+}
+/** → { m, min, kilde: 'entur' } eller null. Ren. */
+export function parseGangHeleVeien(json) {
+  const p = (((json && json.data && json.data.eb) || (json && json.data && json.data.trip) || {}).tripPatterns || [])[0];
+  if (!p || !(p.legs || []).every(l => l.mode === 'foot') || !Number.isFinite(p.duration)) return null;
+  return { m: Math.round(p.walkDistance), min: Math.round(p.duration / 60), kilde: 'entur' };
 }

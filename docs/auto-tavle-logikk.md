@@ -512,6 +512,49 @@ ferdselsvei · ved stoppet».
   Kartverkets WMS-tjeneste (`wms.friluftsruter2`) legges oppå dagens kart.
   Dagens kart beholdes (beslutning 24.11).
 
+### Opplevelseskort (v1.218.314)
+
+Plan og regler: `docs/tracer-opplevelser.md` §18. Linjen fra v1.218.313 er
+erstattet av kort (variant B, med tilgangsordene fra C). Mekanismen som
+finner stedene er uendret.
+
+- **Over lista:** «reisetider gjelder søk onsdag 25.11. kl. 12.30 fra der du
+  står», med dato og klokkeslett (`søkTekst`).
+- **Kortet:**
+  - navn, og hva · aktiviteter;
+  - beskrivelse fra Wikidata når den finnes og sier mer enn typen;
+  - tre verdier, hver med etikett:
+    - «reise til stoppet»: varighet og bytter fra den valgte reiseplanen;
+    - «gange fra stopp, målt» (Valhalla), eller «luftlinje, ikke gangtid»;
+    - «framme ca.», bare etter regelen;
+  - tilgangsordet med verdiene;
+  - fasiliteter og kilder.
+- **`grunnlag()`** kontrollerer det kortet leser:
+  - startpunkt og søketidspunkt (lagret på oppslaget i `sjekkSted`);
+  - målestopp (planen må ende ved stedet);
+  - valgt reiseplan (samme `tp` som reiseraden);
+  - transportmidler (fly eller annet utenfor søket avvises);
+  - gangmåling.
+
+  Ved avvik er verdien tom.
+- **«Framme ca.»** (`samletTid`) er planens faktiske ankomst pluss målt
+  gange fra samme stopp, rundet opp. Mangler en del, vises den ikke. Det står
+  aldri et samlet antall minutter.
+- **Tilgang** (`TILGANG_GRENSER`, hypotese): enkel er inntil 45 min, ≤ 1
+  bytte og ≤ 15 min gange. Mulig er inntil 120 min, ≤ 2 bytter og ≤ 25 min.
+  Ellers er den krevende, og uten reise eller målt gange er den «ukjent».
+  Tilgangen leses aldri i `velgVisning`.
+- **Bestillingstransport** (`taxi`, som reisesøket tar med via
+  `BUSS_FØLGER`) står som «bestillingstransport · må bestilles», og
+  tilgangen blir «ukjent».
+- **Ingen reise:** «ingen kollektivreise i søket <dato kl.> — det betyr ikke
+  at stedet ikke kan nås». Har Entur en gangrute, kommer «gange hele veien:
+  N min (X km, Entur)», med ett ekstra kall bare da.
+- **Kart og liste:** prikkene (`opplevelsePrikker`) og kortene leser de samme
+  kortdataene og én tilstand (`velgOpplevelse`). Et trykk på en prikk velger
+  kortet og ruller det fram, og kartet flyttes ikke. Nytt kort nullstiller
+  valget.
+
 ### Tidsvinduet (v1.218.310)
 
 Spurt: «Hva er tidsperspektivet for reisene i "ett bytte"?» Kortene bygges av

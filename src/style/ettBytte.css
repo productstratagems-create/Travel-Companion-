@@ -66,3 +66,21 @@
 #v-auto .eb-oppl-fot{display:flex;flex-wrap:wrap;gap:.3rem .7rem;align-items:center;padding:.45rem .6rem;font-size:.75rem;color:var(--text-muted)}
 #v-auto button.eb-turlag{background:none;border:1px solid rgba(var(--border-rgb),.35);border-radius:999px;color:var(--accent);font:inherit;font-size:.78rem;padding:.2rem .65rem;cursor:pointer}
 #v-auto button.eb-turlag[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+/* OPPLEVELSESKORT (v1.218.314): variant B med tilgangsordene fra C */
+#v-auto .eb-søkt{font-size:.75rem;color:var(--text-muted);padding:.45rem .6rem .1rem}
+#v-auto .eb-okort{margin:.15rem .6rem .5rem 3.4rem;padding:.55rem .7rem;border:1px solid rgba(var(--border-rgb),.25);border-radius:8px;cursor:pointer}
+#v-auto .eb-okort-valgt{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+#v-auto .eb-okort-navn{font-weight:700;font-size:.92rem;color:var(--text)}
+#v-auto .eb-okort-hva{font-size:.78rem;color:var(--text-muted)}
+#v-auto .eb-okort-besk{font-size:.82rem;color:var(--text);margin-top:.25rem}
+#v-auto .eb-okort-tall{display:flex;flex-wrap:wrap;gap:.3rem 1rem;margin-top:.4rem;border-top:1px solid rgba(var(--border-rgb),.18);padding-top:.35rem}
+#v-auto .eb-okort-tall span{display:flex;flex-direction:column}
+#v-auto .eb-okort-tall b{font-size:.9rem;color:var(--text)}
+#v-auto .eb-okort-tall small{font-size:.68rem;color:var(--text-muted)}
+#v-auto .eb-okort-tilgang{font-size:.78rem;font-weight:700;margin-top:.3rem}
+#v-auto .eb-okort-tilgang span{font-weight:400;color:var(--text-muted)}
+#v-auto .eb-t-enkel{color:#2e9e6e}#v-auto .eb-t-mulig{color:#b07a10}#v-auto .eb-t-krevende{color:#c0453b}#v-auto .eb-t-ukjent{color:var(--text-muted)}
+#v-auto .eb-okort-kilde{font-size:.68rem;color:var(--text-muted);margin-top:.2rem}
+/* Lang «ingen kollektivreise i søket …»-tekst (v1.218.314): egen linje under navnet, ikke oppå det (sett: «Grovbakken»). */
+#v-auto button.eb-sjekk{flex-wrap:wrap}
+#v-auto .eb-sjekk-svar{flex:1 1 100%;text-align:left}

@@ -1,0 +1,412 @@
+[
+ {
+  "navn": "Pilegrimsleden-Gudbrandsdalsleden",
+  "hva": "nasjonal turrute · historisk ferdselsvei",
+  "hoved": [
+   "friluftsliv"
+  ],
+  "under": [
+   "turrute"
+  ],
+  "kilder": [
+   "turrute:2be71930-d37a-4ea4-a359-b63e44554c97",
+   "turrute:0a8f6d45-8013-40d8-9678-af9a27a1a05e",
+   "turrute:678f7256-5cd8-420f-ac56-ff3e6f5c8bf2"
+  ],
+  "sitelinks": 0,
+  "rute": {
+   "type": "Fotrute",
+   "navn": "Pilegrimsleden-Gudbrandsdalsleden",
+   "betydning": "1",
+   "gradering": null,
+   "spesial": "HF",
+   "merket": "JA"
+  },
+  "verdi": null,
+  "lat": 61.308284,
+  "lon": 10.321076,
+  "luft": 1,
+  "stopp": {
+   "id": "NSR:StopPlace:12757",
+   "navn": "Skogstadrampa",
+   "lat": 61.308281,
+   "lon": 10.321087
+  },
+  "fra": {
+   "scenario": "tretten_dag",
+   "pos": {
+    "lat": 61.3125,
+    "lon": 10.3005
+   }
+  }
+ },
+ {
+  "navn": "Lilleputthammer",
+  "hva": "attraksjon",
+  "hoved": [
+   "attraksjon",
+   "park"
+  ],
+  "under": [
+   "attraksjon",
+   "park"
+  ],
+  "kilder": [
+   "wikidata:Q3240893"
+  ],
+  "sitelinks": 6,
+  "rute": null,
+  "verdi": null,
+  "lat": 61.2388,
+  "lon": 10.4391,
+  "luft": 210,
+  "stopp": {
+   "id": "NSR:StopPlace:12655",
+   "navn": "Øyer sentrum",
+   "lat": 61.240685,
+   "lon": 10.438905
+  },
+  "fra": {
+   "scenario": "tretten_dag",
+   "pos": {
+    "lat": 61.3125,
+    "lon": 10.3005
+   }
+  }
+ },
+ {
+  "navn": "Hafjell",
+  "hva": "skisenter",
+  "hoved": [
+   "attraksjon"
+  ],
+  "under": [
+   "skisenter"
+  ],
+  "kilder": [
+   "wikidata:Q954639"
+  ],
+  "sitelinks": 13,
+  "rute": null,
+  "verdi": null,
+  "lat": 61.235,
+  "lon": 10.447222222,
+  "luft": 773,
+  "stopp": {
+   "id": "NSR:StopPlace:12655",
+   "navn": "Øyer sentrum",
+   "lat": 61.240685,
+   "lon": 10.438905
+  },
+  "fra": {
+   "scenario": "tretten_dag",
+   "pos": {
+    "lat": 61.3125,
+    "lon": 10.3005
+   }
+  }
+ },
+ {
+  "navn": "Nøstvetmarka",
+  "hva": "stort turområde med tilrettelegging",
+  "hoved": [
+   "friluftsliv"
+  ],
+  "under": [
+   "stort turområde med tilrettelegging"
+  ],
+  "kilder": [
+   "miljodir:FK00032455-3218"
+  ],
+  "sitelinks": 0,
+  "rute": null,
+  "verdi": "Svært viktig friluftslivsområde",
+  "lat": 59.7622,
+  "lon": 10.8056,
+  "luft": 543,
+  "stopp": {
+   "id": "NSR:StopPlace:323",
+   "navn": "Oppegård stasjon",
+   "lat": 59.765454,
+   "lon": 10.812831
+  },
+  "fra": {
+   "scenario": "mortensrud_dag",
+   "pos": {
+    "lat": 59.8487,
+    "lon": 10.8291
+   }
+  }
+ },
+ {
+  "navn": "Tussetjern",
+  "hva": "særlig kvalitetsområde",
+  "hoved": [
+   "friluftsliv",
+   "natur"
+  ],
+  "under": [
+   "særlig kvalitetsområde",
+   "vann"
+  ],
+  "kilder": [
+   "miljodir:FK00038394-3207",
+   "wikidata:Q133186093"
+  ],
+  "sitelinks": 1,
+  "rute": null,
+  "verdi": "Svært viktig friluftslivsområde",
+  "lat": 59.7636,
+  "lon": 10.8244,
+  "luft": 680,
+  "stopp": {
+   "id": "NSR:StopPlace:323",
+   "navn": "Oppegård stasjon",
+   "lat": 59.765454,
+   "lon": 10.812831
+  },
+  "fra": {
+   "scenario": "mortensrud_dag",
+   "pos": {
+    "lat": 59.8487,
+    "lon": 10.8291
+   }
+  }
+ },
+ {
+  "navn": "Ringve Musikkmuseum",
+  "hva": "museum",
+  "hoved": [
+   "kultur"
+  ],
+  "under": [
+   "museum",
+   "kulturminne"
+  ],
+  "kilder": [
+   "wikidata:Q960829"
+  ],
+  "sitelinks": 12,
+  "rute": null,
+  "verdi": null,
+  "lat": 63.448,
+  "lon": 10.456,
+  "luft": 1195,
+  "stopp": {
+   "id": "NSR:StopPlace:393",
+   "navn": "Leangen stasjon",
+   "lat": 63.437548,
+   "lon": 10.461623
+  },
+  "fra": {
+   "scenario": "ranheim_dag",
+   "pos": {
+    "lat": 63.4286,
+    "lon": 10.5248
+   }
+  }
+ },
+ {
+  "navn": "Emanuel Vigelands museum",
+  "hva": "museum",
+  "hovedNavn": [
+   "Kultur og historie"
+  ],
+  "under": [
+   "museum"
+  ],
+  "kilder": [
+   "osm:way/1551792576",
+   "wikidata:Q17769549"
+  ],
+  "sitelinks": 3,
+  "verdi": null,
+  "luft": 371,
+  "gangTracer": {
+   "m": 577,
+   "min": 8
+  },
+  "stopp": {
+   "id": "NSR:StopPlace:6284",
+   "navn": "Stasjonsveien",
+   "lat": 59.950114,
+   "lon": 10.688828
+  },
+  "fra": {
+   "scenario": "mortensrud_dag",
+   "pos": {
+    "lat": 59.8487,
+    "lon": 10.8291
+   }
+  }
+ },
+ {
+  "navn": "Sentrale Byfjell",
+  "hva": "marka",
+  "hovedNavn": [
+   "Friluftsliv og utfart"
+  ],
+  "under": [
+   "marka"
+  ],
+  "kilder": [
+   "miljodir:FK00012342-4601"
+  ],
+  "sitelinks": 0,
+  "verdi": "Svært viktig friluftslivsområde",
+  "luft": 346,
+  "gangTracer": {
+   "m": 888,
+   "min": 17
+  },
+  "stopp": {
+   "id": "NSR:StopPlace:31012",
+   "navn": "Tømmervågen",
+   "lat": 60.441709,
+   "lon": 5.297095
+  },
+  "fra": {
+   "scenario": "nesttun_dag",
+   "pos": {
+    "lat": 60.3197,
+    "lon": 5.3537
+   }
+  }
+ },
+ {
+  "navn": "Moldøen",
+  "hva": "særlig kvalitetsområde",
+  "hovedNavn": [
+   "Friluftsliv og utfart"
+  ],
+  "under": [
+   "særlig kvalitetsområde"
+  ],
+  "kilder": [
+   "miljodir:FK00044280-4602"
+  ],
+  "sitelinks": 0,
+  "verdi": "Svært viktig friluftslivsområde",
+  "luft": 621,
+  "gangTracer": {
+   "m": 738,
+   "min": 10
+  },
+  "stopp": {
+   "id": "NSR:StopPlace:35044",
+   "navn": "Torghopen Måløy kai",
+   "lat": 61.934004,
+   "lon": 5.113031
+  },
+  "fra": {
+   "scenario": "tretten_dag",
+   "pos": {
+    "lat": 61.3125,
+    "lon": 10.3005
+   }
+  }
+ },
+ {
+  "navn": "Rambjøra landskapsvernområde",
+  "hva": "naturreservat",
+  "hovedNavn": [
+   "Natur og landskap"
+  ],
+  "under": [
+   "naturreservat"
+  ],
+  "kilder": [
+   "osm:way/690053449"
+  ],
+  "sitelinks": 0,
+  "verdi": null,
+  "luft": 537,
+  "gangTracer": {
+   "m": 1260,
+   "min": 17
+  },
+  "stopp": {
+   "id": "NSR:StopPlace:31438",
+   "navn": "Sanddalskollen",
+   "lat": 60.325955,
+   "lon": 5.368803
+  },
+  "fra": {
+   "scenario": "nesttun_dag",
+   "pos": {
+    "lat": 60.3197,
+    "lon": 5.3537
+   }
+  }
+ },
+ {
+  "navn": "Sola ruinkirke",
+  "hva": "kirke",
+  "hovedNavn": [
+   "Kultur og historie",
+   "Severdigheter og landemerker"
+  ],
+  "under": [
+   "kirke",
+   "borg/ruin"
+  ],
+  "kilder": [
+   "wikidata:Q4581876"
+  ],
+  "sitelinks": 5,
+  "verdi": null,
+  "luft": 1400,
+  "gangTracer": {
+   "m": 1854,
+   "min": 24
+  },
+  "stopp": {
+   "id": "NSR:StopPlace:27243",
+   "navn": "Stavanger lufthavn",
+   "lat": 58.882235,
+   "lon": 5.628825
+  },
+  "fra": {
+   "scenario": "nesttun_dag",
+   "pos": {
+    "lat": 60.3197,
+    "lon": 5.3537
+   }
+  }
+ },
+ {
+  "navn": "Operahuset i Oslo",
+  "hva": "teater",
+  "hovedNavn": [
+   "Kultur og historie",
+   "Severdigheter og landemerker"
+  ],
+  "under": [
+   "teater",
+   "attraksjon"
+  ],
+  "kilder": [
+   "osm:way/810259696"
+  ],
+  "sitelinks": 0,
+  "verdi": null,
+  "luft": 315,
+  "gangTracer": {
+   "m": 340,
+   "min": 4
+  },
+  "stopp": {
+   "id": "NSR:StopPlace:337",
+   "navn": "Oslo S",
+   "lat": 59.910925,
+   "lon": 10.753276
+  },
+  "fra": {
+   "scenario": "ranheim_dag",
+   "pos": {
+    "lat": 63.4286,
+    "lon": 10.5248
+   }
+  }
+ }
+]

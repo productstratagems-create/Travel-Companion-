@@ -24,7 +24,7 @@ Auto-tavle svarer på «hva kan jeg reise med herfra nå?» i sju trinn:
    nabostopp innen 8 min gange fra det, flettet til én liste — hver tur én
    gang.
 6. **Hvilke rader vises?** De du rekker, sortert etter når du må gå
-   («gå om N»); de du ikke rekker samlet under. Hurtigvalg filtrerer
+   («gå om N»); de du ikke rekker samlet **øverst, lukket** (v1.218.301). Hurtigvalg filtrerer
    retningen. Reiser med bytte som er raskere enn de direkte flettes inn.
 7. **Hva tegnes på kartet?** Én strek per retning fra stoppet, de første
    seks stoppene tydelig og resten dempet; gangveien til stoppet; lapper
@@ -141,7 +141,11 @@ overskriften, og reisen vises som rad («fra Kantarellen · 15 min å gå»).
   byen («mot Bergen sentrum»), og et valg uten linjer herfra står ikke —
   unntatt «hjemover», som er veien til å velge hjemover-stopp (v1.218.282).
 - **Rekker / rekker ikke** (`tavleDel`, `canCatch`): gangtiden er til
-  radens eget stopp. De du ikke rekker samles under lista.
+  radens eget stopp. De du ikke rekker samles i en lukket linje **over**
+  lista, «N avganger du ikke rekker» (v1.218.301). Bestilt: de er ofte innen
+  rekkevidde likevel, fordi du løper eller bussen er sen. v1.218.245 hadde
+  flyttet den under lista for å få første kort over kanten. Lukket er den én
+  linje, så det holder fortsatt.
 - **Reiseoppgavene** (v1.218.287): «mot sentrum» og «hjemover» beregnes i
   `src/reiseoppgaver.js` (`motSentrum`, `hjemover`, `gårMotSentrum`,
   `hjemoverDom`); felles regler som «rekker du den» i `src/reiseberegning.js`.
@@ -245,6 +249,44 @@ valgt tidspunkt · kartets filter for transportmiddel og linje.
 | knutepunkt | stoppet i overskriften pluss nabostoppene som flettes inn |
 | edderkoppbein | strekene ut fra stoppet på kartet |
 | kombirad | en rad for en reise med bytte |
+
+## «Gå lenger, færre bytter» (eksperiment, v1.218.302)
+
+**Bakgrunn:**
+- Tracer 2 (`docs/tracer-bedre-reise.md`) fant en avveining: gå til et annet
+  stopp og få færre bytter, med omtrent samme ankomst.
+- I brukertesten gikk grensen for gangtid ved 15–17 min.
+- Brukeren setter selv grensen i innstillinger: «gå lenger for færre bytter
+  · lengste gange», med valgene av, 10, 15 (standard), 20 og 25 min
+  (`t.gangAlternativ`).
+
+**Regelen** (`gangAlternativRader` og `medGangAlternativ` i
+`src/gangAlternativ.js`): reisesøket Auto-tavla alt gjør for et valgt område,
+uten nye kall. I tillegg til kombinasjonsradene vises en reise som
+- har **færre bytter** enn en kombinasjonsrad som **vises**;
+- starter fra et **annet stopp** enn den;
+- er fremme innenfor **± 5 min** (`SAMME_ANKOMST_MIN`);
+- har **gange til første stopp** innenfor brukerens grense.
+
+**Raden** har samme form som kombinasjonsradene og sier hva den sammenlignes
+med: «fra Helsfyr T · 1 min å gå · uten bytte · 3 min senere enn 3 → L1». Den
+sier aldri «bedre». Ett minutt regnes som «samme ankomst». Raden står bare én
+gang, selv om den også er en kombinasjonsrad. Kombinasjonsradene sier nå
+«2 bytter», ikke «2 bytte».
+
+**Hva ekte data viste** (2026-11-24, appens egne funksjoner mot Entur):
+- Tracerens tilfelle, 24 min gange til Hauketo og så L2, kom **ikke** i
+  reisesøket. Entur valgte buss 73X og så L2.
+- Over 33 søk (Mortensrud, Helsfyr, Nesttun; tre tidspunkt) ga 2 en
+  avveiningsrad, begge med kort gange: buss 100 direkte fra Helsfyr T mot
+  T-bane og tog til Lillestrøm.
+- Raden er altså **sjelden**, og avveiningen er oftere «direkte, litt senere»
+  enn «gå lenger». Den er ikke sett i tavla, fordi Helsfyr ikke tilbød
+  Lillestrøm som valg den dagen.
+
+**Tilbakerulling:** sett `GANG_ALTERNATIV = false`, eller fjern modulen, de
+to linjene merket «GÅ LENGER (eksperiment)» i `src/views/auto.js` og
+innstillingen. Testen binder at det er nøyaktig to linjer.
 
 ## «Ett bytte» (eksperiment, v1.218.289)
 

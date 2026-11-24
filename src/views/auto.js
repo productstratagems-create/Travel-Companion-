@@ -64,6 +64,7 @@ import { canCatch, catchable } from '../reiseberegning.js';
 import { gårMotSentrum, hjemoverDom, iSnarvei, SNARVEIER, MOT_SENTRUM } from '../reiseoppgaver.js';
 import { andreRetninger, områderFor, iOmråde, erOmrådeValg } from '../mulighetsoppdagelse.js';
 import { ETT_BYTTE, ETT_BYTTE_VALG, ETT_BYTTE_TEKST, ettBytteHtml, ettBytteKart } from './ettBytteVisning.js'; // ETT BYTTE (eksperiment)
+import { GANG_ALTERNATIV, medGangAlternativ, lastGangTak } from '../gangAlternativ.js'; // GÅ LENGER (eksperiment)
 import { plattformTekst } from '../bytte.js';
 import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, stoppFram, vedOgNeste, stoppEtterId, rangerKandidater } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
@@ -6018,7 +6019,7 @@ function _kombiRadHtml(r, i) {
     + '<span class="hva-tall"><small>gå om</small><b>' + Math.max(0, r.gåOm) + '</b><small>min</small></span>'
     + '<span class="hva-info"><span class="hva-l1">' + merker + (r.via ? ' via ' + esc(r.via) : '') + '</span>'
     + fraMerke(r.fra, r.gangMin)
-    + '<span class="hva-l3">' + r.bytter + ' bytte' + r.fakta.filter(f => f !== 'ingen bytte').map(f => ' · ' + esc(f)).join('') + '</span></span>'
+    + '<span class="hva-l3">' + (r.bytter ? r.bytter + (r.bytter === 1 ? ' bytte' : ' bytter') : 'uten bytte') + r.fakta.filter(f => f !== 'ingen bytte').map(f => ' · ' + esc(f)).join('') + '</span></span>'
     // Samme høyre kolonne som radene (v1.218.286): framme stort, avgangen smått.
     + ((går => '<span class="at-klokke at-klokke-ank"><small class="at-klokke-ord">framme</small>' + _klokke(r.ank)
       + (går ? '<small class="at-klokke-gaar">går ' + _klokke(går) + '</small>' : '') + '</span>')(kombiAvgang(r)))
@@ -6201,7 +6202,7 @@ function _tegnAutoTavle(body) {
   const kv = _autoTavle ? _kombiFor(_atRetning, here, nå) : null;
   // Målestokken er lista selv (v1.218.285): tidligste ankomst blant direkte rader du rekker.
   const listaAnk = del.rekker.map(x => x.ank && x.ank.ms).filter(Number.isFinite);
-  const kombi = kv && Array.isArray(kv.tps) ? kombiRader(reiseRader(kv.tps, nå, null), { besteAnk: listaAnk.length ? Math.min(...listaAnk) : null }).filter(r => r.gåOm >= 0).sort((a, b) => a.gåOm - b.gåOm) : [];
+  const kombi = kv && Array.isArray(kv.tps) ? (GANG_ALTERNATIV ? r => medGangAlternativ(r, reiseRader(kv.tps, nå, null), lastGangTak()) : r => r)(kombiRader(reiseRader(kv.tps, nå, null), { besteAnk: listaAnk.length ? Math.min(...listaAnk) : null })) /* GÅ LENGER (eksperiment) */.filter(r => r.gåOm >= 0).sort((a, b) => a.gåOm - b.gåOm) : [];
   // Si hva du ikke vet: leter, feilet — ikke stillhet.
   const kombiMerk = !kv ? '' : kv.tps === 'henter' ? '<div class="at-filter">ser etter reiser med bytte …</div>'
     : kv.tps === 'feil' ? '<div class="at-filter">fant ikke reiser med bytte nå</div>' : '';
@@ -6224,10 +6225,12 @@ function _tegnAutoTavle(body) {
   const bunn = '<div class="at-bunn">' + (_atSlutt ? 'ikke flere avganger herfra' : _atHenter ? 'henter flere …' : '') + '</div>';
   body.innerHTML = retningKnapper + (_atRetning === ETT_BYTTE_VALG ? ettBytteHtml(here, { esc, rerender: () => _renderBody() }) /* ETT BYTTE (eksperiment) */ : rader.length
     // FØRSTE KORT OVER KANTEN (v1.218.245): ingen «neste avganger herfra» —
-    // lista sier det selv; «N avganger du ikke rekker» står under kortene.
+    // lista sier det selv. «N avganger du ikke rekker» står OVER kortene, lukket
+    // (v1.218.301, bestilt): de er ofte innen rekkevidde likevel — du løper, bussen
+    // er sen. Lukket er den én linje, så første kort er fortsatt over kanten.
     // Overskriften står når den sier noe: et valgt tidspunkt.
     ? (Number.isFinite(_fraMs) ? '<div class="set-label">avganger ' + esc(fraTidTekst(_fraMs, nå)) + '</div>' : '') + merknad + hjemMerk
-      + kombiMerk + '<div class="at-liste">' + (() => {
+      + kombiMerk + ikkeHtml + '<div class="at-liste">' + (() => {
         // Flettet inn etter «gå om» blant de direkte radene — en rad i lista, ikke en boks.
         const ut = [], k = kombi.slice();
         del.rekker.forEach((x, i) => {
@@ -6236,7 +6239,7 @@ function _tegnAutoTavle(body) {
         });
         k.forEach(r => ut.push(_kombiRadHtml(r, kombi.indexOf(r))));
         return ut.join('');
-      })() + '</div>' + ikkeHtml + bunn
+      })() + '</div>' + bunn
     : merknad + hjemMerk + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : (_atRetning !== 'alle' ? 'ingen avganger ' + _retningTekst(_atRetning) + ' herfra nå' : 'ingen avganger herfra den nærmeste timen')) + '</div>');
   body.querySelectorAll('.at-raskest[data-pin]').forEach(b => b.addEventListener('click', () => { if (pinStop(b.dataset.pin)) _renderBody(); }));
   if (ETT_BYTTE) ettBytteKart(_aMap, L, { aktiv: _atRetning === ETT_BYTTE_VALG, pos: here, ramme: (b, o) => { if (!('_ebFør' in _aMap)) _aMap._ebFør = _aUserMoved; _aUserMoved = true; _aMap.removeLayer(_aLayer); _aMap.fitBounds(b, o); }, ferdig: () => { if (!_aMap) return; if (!_aMap.hasLayer(_aLayer)) _aLayer.addTo(_aMap); if ('_ebFør' in _aMap) { _aUserMoved = _aMap._ebFør; delete _aMap._ebFør; } _aFitKey = ''; _aKey = ''; _renderMap(); } }); // ETT BYTTE (eksperiment)

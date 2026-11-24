@@ -23,7 +23,8 @@ const ALL_KEYS = [
   // the reader made, so it travels with the profile like the rest.
   't.autoSort',
   't.autoKartSkjult',
-  't.hånd',            // v1.218.73: høyre- eller venstrehendt (kartknappenes hjørne)   // v1.218.67: skjulte transportmidler i auto-reise-kartet
+  't.hånd',
+  't.gangAlternativ',  // v1.218.302: lengste gange til et annet stopp for færre bytter (min, 0 = av)            // v1.218.73: høyre- eller venstrehendt (kartknappenes hjørne)   // v1.218.67: skjulte transportmidler i auto-reise-kartet
   // Om kartet i auto-reise er skjult (v1.218.4).
   't.autoKart',
   't.autoKartForm',

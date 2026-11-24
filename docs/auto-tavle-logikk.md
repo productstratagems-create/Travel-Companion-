@@ -24,7 +24,7 @@ Auto-tavle svarer på «hva kan jeg reise med herfra nå?» i sju trinn:
    nabostopp innen 8 min gange fra det, flettet til én liste — hver tur én
    gang.
 6. **Hvilke rader vises?** De du rekker, sortert etter når du må gå
-   («gå om N»); de du ikke rekker samlet under. Hurtigvalg filtrerer
+   («gå om N»); de du ikke rekker samlet **øverst, lukket** (v1.218.301). Hurtigvalg filtrerer
    retningen. Reiser med bytte som er raskere enn de direkte flettes inn.
 7. **Hva tegnes på kartet?** Én strek per retning fra stoppet, de første
    seks stoppene tydelig og resten dempet; gangveien til stoppet; lapper
@@ -141,7 +141,11 @@ overskriften, og reisen vises som rad («fra Kantarellen · 15 min å gå»).
   byen («mot Bergen sentrum»), og et valg uten linjer herfra står ikke —
   unntatt «hjemover», som er veien til å velge hjemover-stopp (v1.218.282).
 - **Rekker / rekker ikke** (`tavleDel`, `canCatch`): gangtiden er til
-  radens eget stopp. De du ikke rekker samles under lista.
+  radens eget stopp. De du ikke rekker samles i en lukket linje **over**
+  lista, «N avganger du ikke rekker» (v1.218.301). Bestilt: de er ofte innen
+  rekkevidde likevel, fordi du løper eller bussen er sen. v1.218.245 hadde
+  flyttet den under lista for å få første kort over kanten. Lukket er den én
+  linje, så det holder fortsatt.
 - **Reiseoppgavene** (v1.218.287): «mot sentrum» og «hjemover» beregnes i
   `src/reiseoppgaver.js` (`motSentrum`, `hjemover`, `gårMotSentrum`,
   `hjemoverDom`); felles regler som «rekker du den» i `src/reiseberegning.js`.

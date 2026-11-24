@@ -6224,10 +6224,12 @@ function _tegnAutoTavle(body) {
   const bunn = '<div class="at-bunn">' + (_atSlutt ? 'ikke flere avganger herfra' : _atHenter ? 'henter flere …' : '') + '</div>';
   body.innerHTML = retningKnapper + (_atRetning === ETT_BYTTE_VALG ? ettBytteHtml(here, { esc, rerender: () => _renderBody() }) /* ETT BYTTE (eksperiment) */ : rader.length
     // FØRSTE KORT OVER KANTEN (v1.218.245): ingen «neste avganger herfra» —
-    // lista sier det selv; «N avganger du ikke rekker» står under kortene.
+    // lista sier det selv. «N avganger du ikke rekker» står OVER kortene, lukket
+    // (v1.218.301, bestilt): de er ofte innen rekkevidde likevel — du løper, bussen
+    // er sen. Lukket er den én linje, så første kort er fortsatt over kanten.
     // Overskriften står når den sier noe: et valgt tidspunkt.
     ? (Number.isFinite(_fraMs) ? '<div class="set-label">avganger ' + esc(fraTidTekst(_fraMs, nå)) + '</div>' : '') + merknad + hjemMerk
-      + kombiMerk + '<div class="at-liste">' + (() => {
+      + kombiMerk + ikkeHtml + '<div class="at-liste">' + (() => {
         // Flettet inn etter «gå om» blant de direkte radene — en rad i lista, ikke en boks.
         const ut = [], k = kombi.slice();
         del.rekker.forEach((x, i) => {
@@ -6236,7 +6238,7 @@ function _tegnAutoTavle(body) {
         });
         k.forEach(r => ut.push(_kombiRadHtml(r, kombi.indexOf(r))));
         return ut.join('');
-      })() + '</div>' + ikkeHtml + bunn
+      })() + '</div>' + bunn
     : merknad + hjemMerk + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : (_atRetning !== 'alle' ? 'ingen avganger ' + _retningTekst(_atRetning) + ' herfra nå' : 'ingen avganger herfra den nærmeste timen')) + '</div>');
   body.querySelectorAll('.at-raskest[data-pin]').forEach(b => b.addEventListener('click', () => { if (pinStop(b.dataset.pin)) _renderBody(); }));
   if (ETT_BYTTE) ettBytteKart(_aMap, L, { aktiv: _atRetning === ETT_BYTTE_VALG, pos: here, ramme: (b, o) => { if (!('_ebFør' in _aMap)) _aMap._ebFør = _aUserMoved; _aUserMoved = true; _aMap.removeLayer(_aLayer); _aMap.fitBounds(b, o); }, ferdig: () => { if (!_aMap) return; if (!_aMap.hasLayer(_aLayer)) _aLayer.addTo(_aMap); if ('_ebFør' in _aMap) { _aUserMoved = _aMap._ebFør; delete _aMap._ebFør; } _aFitKey = ''; _aKey = ''; _renderMap(); } }); // ETT BYTTE (eksperiment)

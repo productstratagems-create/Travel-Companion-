@@ -13,9 +13,14 @@ describe('første kort over kanten', () => {
     expect(kortStedsnavn('Hauketo')).toBe('Hauketo');
   });
   const a = readFileSync('src/views/auto.js', 'utf8'), css = readFileSync('src/style/settings.css', 'utf8');
-  it('ingen «neste avganger herfra»; «avganger du ikke rekker» under kortene', () => {
+  it('ingen «neste avganger herfra»; «avganger du ikke rekker» OVER kortene, kollapset (v1.218.301)', () => {
     expect(a).not.toMatch(/'neste avganger herfra'\) \+ '<\/div>'/);
-    expect(a).toMatch(/\+ '<\/div>' \+ ikkeHtml \+ bunn/);
+    // Bestilt: de du ikke rekker er ofte innen rekkevidde likevel (du løper, bussen er sen),
+    // så de står over lista — som før v1.218.245 — men lukket, så første kort fortsatt er over kanten.
+    expect(a).toMatch(/kombiMerk \+ ikkeHtml \+ '<div class="at-liste">'/);
+    expect(a).not.toMatch(/\+ '<\/div>' \+ ikkeHtml \+ bunn/);
+    expect(a).toMatch(/_atIkkeÅpen = false/);                               // lukket som standard
+    expect(a).toMatch(/'<details class="at-ikke"' \+ \(_atIkkeÅpen \? ' open' : ''\)/);
   });
   it('linja om holdeplasser med samme linjer er av; filterknappene bryter linja (v1.218.269)', () => {
     expect(a).toMatch(/flere\.hidden = !LIKE_LINJE_PÅ \|\| !like\.length;/);

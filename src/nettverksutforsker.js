@@ -523,6 +523,8 @@ export async function utforsk(ktx, { hent, klokke = () => Date.now() }) {
     tilgang: tilgang.map(({ lat, lon, ...t }) => ({ ...t, lat, lon })),
     kanter: [],
     knutepunkter,
+    // Søkevinduet per tilgangsstopp i ledd 1 (v1.218.310): så skjermen kan si hvilket tidsrom svaret gjelder.
+    tilgangHorisontMin: brukt.map(t => horisontFor(t.moduser, P.horisontMin)),
     opsjoner, veier, grupper, ikkeUndersøkt, natt: { døgntilbud },
     rapport: {
       kall: { oppdagelse: teller('oppdagelse'), gang: teller('gang'), bekreftelse: 0 },

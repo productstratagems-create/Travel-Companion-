@@ -250,6 +250,28 @@ valgt tidspunkt · kartets filter for transportmiddel og linje.
 | edderkoppbein | strekene ut fra stoppet på kartet |
 | kombirad | en rad for en reise med bytte |
 
+## Hjemover: hele reisen i to etapper (v1.218.303)
+
+Hjemover-raden viste første etappe og hvor du bytter: «23 · bytt på
+Brynseng T». Den viste ikke hva du bytter til eller når du er hjemme, selv
+om reisesøket hjem hadde svart (skjermbilde fra Økern, hjem = Mortensrud).
+Nå står hele reisen når søket har akkurat denne avgangen:
+
+    bytt på Brynseng T til T-bane 3 · hjemme 18:04
+
+- **Kilde:** reisesøket hjem som alt kjøres (`_hjemSøkOppdater`, uten nye
+  kall). `hjemReiser` tar vare på alle reisene i svaret, én per avgang.
+- **Treff** (`hjemReiseFor`): samme linje, samme byttested og avgang innen
+  1 min (`HJEM_SAMME_AVGANG_MS`). Senere avganger enn de søket dekker står
+  som før, «bytt på Brynseng T», uten påstått ankomst.
+- **Bare nøyaktig ett bytte** gir «til …». Ellers ville «til» hoppet over et
+  bytte.
+- **Ikke en løfte om byttet:** byttet er planlagt av Entur, og raden sier
+  ikke at det rekkes.
+- **Uendret regel:** hva som regnes som hjemover (`hjemDom`, «bare gode
+  forslag») er det samme.
+- **Én tekst** (`byttTekst` / `byttTillegg`) for tavla og Auto-reise.
+
 ## «Gå lenger, færre bytter» (eksperiment, v1.218.302)
 
 **Bakgrunn:**

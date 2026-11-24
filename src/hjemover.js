@@ -113,9 +113,17 @@ function _etappe(p) {
     linjeId: linje.id, kode: linje.publicCode || '',
     mot: (l.fromEstimatedCall && l.fromEstimatedCall.destinationDisplay && l.fromEstimatedCall.destinationDisplay.frontText) || '',
     bytte: kol.length > 1 ? ((l.toPlace && l.toPlace.name) || null) : null,
+    // Etappen etter byttet (v1.218.303): hva du bytter TIL. Bare med nøyaktig ett bytte.
+    videre: kol.length === 2 ? etappeLinje(kol[1]) : null,
     fraId: (fra.quay && fra.quay.stopPlace && fra.quay.stopPlace.id) || null, fraNavn: fra.name || '',
     går: _t(l, 'StartTime'), gangMin: Math.round(gangMs / 60_000), framme: _ende(p),
   };
+}
+/** En etappes linje slik radene skriver den: «T-bane 3», «tog L2», «trikk 12», «79». */
+function etappeLinje(l) {
+  const k = (l.serviceJourney && l.serviceJourney.line && l.serviceJourney.line.publicCode) || '';
+  if (!k) return null;
+  return (l.mode === 'metro' ? 'T-bane ' : l.mode === 'rail' ? 'tog ' : l.mode === 'tram' ? 'trikk ' : l.mode === 'water' ? 'båt ' : '') + k;
 }
 /** De gode forslagene, raskest først. */
 function _gode(mønstre) {
@@ -210,4 +218,35 @@ export function lagreHjemoverFra(h) {
   leggTilHjem({ id: String(h.stopId).split('|')[0], name: h.navn });
   (h.nær || []).forEach(n => { if (n && n.stopId && n.navn) leggTilHjem({ id: String(n.stopId).split('|')[0], name: n.navn }); });
   return hjemStopp();
+}
+
+/**
+ * HELE REISEN HJEM (v1.218.303). Skjermbilde fra Økern: «23 · bytt på Brynseng T»
+ * — men ikke hva du bytter til eller når du er hjemme, selv om reisesøket hjem
+ * hadde svart. Alle reisene i svaret, én per avgang (ikke slått sammen per
+ * linje som hjemFørsteEtapper), så en rad kan finne SIN reise. Rent.
+ */
+export function hjemReiser(mønstre) {
+  // ALLE reisene, ikke bare de «gode» (_gode, HJEM_SLAKK_MIN): den regelen avgjør hva som er
+  // hjemover; her slår en rad opp når SIN avgang er hjemme, også om den er senere enn den raskeste.
+  return (mønstre || []).map(_etappe).filter(e => e && e.bytte && e.videre && Number.isFinite(e.går) && Number.isFinite(e.framme))
+    .sort((a, b) => a.går - b.går);
+}
+/** Avgangen raden står for, i reisesøket hjem: samme linje, samme bytte og avgang innen HJEM_SAMME_AVGANG_MS. */
+export const HJEM_SAMME_AVGANG_MS = 60_000;
+export function hjemReiseFor(reiser, linjeId, avgangMs, bytte) {
+  if (!Number.isFinite(avgangMs) || !linjeId || !bytte) return null;
+  return (reiser || []).find(e => e.linjeId === linjeId && stopKey(e.bytte) === stopKey(bytte) && Math.abs(e.går - avgangMs) <= HJEM_SAMME_AVGANG_MS) || null;
+}
+/**
+ * Teksten på raden. Med reisen: «bytt på Brynseng T til T-bane 3 · hjemme 17:58».
+ * Uten: som før, «bytt på Brynseng T» — ingen påstått ankomst. Rent.
+ */
+export function byttTekst(bytte, reise, klokke) {
+  if (!bytte) return '';
+  return 'bytt på ' + bytte + byttTillegg(reise, klokke);
+}
+/** Resten av reisen etter «bytt på X»: « til T-bane 3 · hjemme 17:58», eller tomt. Rent. */
+export function byttTillegg(reise, klokke) {
+  return reise ? ' til ' + reise.videre + ' · hjemme ' + klokke(reise.framme) : '';
 }

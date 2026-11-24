@@ -98,7 +98,8 @@ export function tavleRadHtml(x, nå, i, meldinger = () => []) {
     // MÅ BESTILLES (v1.218.256): fleksibel tur — hvordan og innen når.
     + (x.bestill ? '<span class="at-bestill">' + esc(bestillTekst(x.bestill)) + '</span>' : '')
     // Hjemover med bytte (v1.218.151): hvor du bytter.
-    + (x.bytte ? '<span class="at-fra">bytt på ' + esc(x.bytte) + '</span>' : '')
+    // Med hele reisen (v1.218.303): «bytt på Brynseng T til T-bane 3 · hjemme 17:58».
+    + (x.bytte ? '<span class="at-fra">' + esc(x.byttTekst || 'bytt på ' + x.bytte) + '</span>' : '')
     + (x.rekker || x.innstilt ? '' : '<span class="at-merk">rekker ikke</span>') + '</span>'
     // Ikke samme klokkeslett to ganger: står det til venstre, er høyre tom.
     + (medAnk

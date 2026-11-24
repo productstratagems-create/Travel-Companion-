@@ -10,7 +10,8 @@
  * «ETT BYTTE (eksperiment)» i src/views/auto.js.
  */
 import { utforsk } from '../nettverksutforsker.js';
-import { ettByttePerRetning } from '../ettBytte.js';
+import { ettByttePerRetning, kommunerI, oftest, reiseSammendrag } from '../ettBytte.js';
+import { reisesøkGql } from '../reisebekreftelse.js';
 import { enturFetch } from '../api/http.js';
 import { metresBetween } from '../haversine.js';
 import '../style/ettBytte.css';
@@ -25,11 +26,72 @@ const hentFraEntur = (_navn, req) => enturFetch(req.url, {
   method: req.method, body: req.body, headers: req.body ? { 'Content-Type': 'application/json' } : {},
 }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
 
-let _tilstand = null; // { nøkkel, status: 'henter' | 'ok' | 'feil', svar }
+let _tilstand = null; // { nøkkel, status: 'henter' | 'ok' | 'feil', svar, kommuner? }
+
+/* KOMMUNER (forslag 3): geocoderens place-oppslag i biter (målt: 50 treff per kall). */
+const GEO = 'https://api.entur.io/geocoder/v1';
+export const KOMMUNE_BIT = 50;
+/** Høyst så mange kommuner nevnes ved navn på kortet. */
+export const EKSEMPLER_KOMMUNER = 3;
+/** Kommuner vises i stedet for stopp først når retningen når så mange andre kommuner. */
+export const KOMMUNER_MIN = 2;
+const geoJson = url => enturFetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+/** Stopp-id → kommune, og kommunen du står i. Feiler stille: da står stoppene som før. */
+export async function hentKommunerFraEntur(ider, pos) {
+  const kommuneAv = new Map();
+  for (let i = 0; i < ider.length; i += KOMMUNE_BIT) {
+    const j = await geoJson(GEO + '/place?ids=' + ider.slice(i, i + KOMMUNE_BIT).map(encodeURIComponent).join(','));
+    for (const f of (j && j.features) || []) { const p = f.properties || {}; if (p.id && p.locality) kommuneAv.set(p.id, p.locality); }
+  }
+  const her = await geoJson(GEO + '/reverse?point.lat=' + pos.lat + '&point.lon=' + pos.lon + '&size=1&boundary.circle.radius=2');
+  const f = her && her.features && her.features[0];
+  return { kommuneAv, hjemme: (f && f.properties && f.properties.locality) || null };
+}
 /** Valgt retningskort ('NØ' …) eller null: kartet viser da den retningen. */
 let _valgt = null;
 let _rerender = null;
-export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _rerender = null; }
+let _hent = null;
+/* SJEKK DENNE (forslag 5): reisesøk per sted, bare på trykk. stedId → { status, tekst, tid }. */
+const _sjekk = new Map();
+export const SJEKK_GYLDIG_MS = 10 * 60_000;
+/** Høyst så mange steder står i lista under det valgte kortet. */
+export const SJEKK_STEDER = 8;
+export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _rerender = null; _hent = null; _sjekk.clear(); }
+export const sjekkStatus = id => _sjekk.get(id) || null;
+
+/**
+ * Sjekk ett sted: ett reisesøk fra posisjonen (samme spørring som
+ * reisebekreftelsen, `reisesøkGql`). Svaret caches i SJEKK_GYLDIG_MS.
+ */
+export function sjekkSted(stedId, { nå = Date.now() } = {}) {
+  const t = _tilstand;
+  if (!t || !t.svar || !_hent) return;
+  const gammel = _sjekk.get(stedId);
+  if (gammel && (gammel.status === 'henter' || nå - gammel.tid < SJEKK_GYLDIG_MS)) return;
+  const rad = t.svar.rader.find(r => r.punkter.some(p => p.id === stedId));
+  const [lat, lon] = t.nøkkel.split(',').map(Number);
+  const s = { status: 'henter', tid: nå };
+  _sjekk.set(stedId, s);
+  const q = '{' + reisesøkGql({ lat: t.pos ? t.pos.lat : lat, lon: t.pos ? t.pos.lon : lon }, stedId, new Date(nå).toISOString(), 'eb') + '}';
+  _hent('ett bytte: sjekk', { url: 'https://api.entur.io/journey-planner/v3/graphql', method: 'POST', body: JSON.stringify({ query: q }) })
+    .then(j => { const sv = reiseSammendrag(j && j.data && j.data.eb && j.data.eb.tripPatterns, rad && rad.knuteNavn); s.status = 'ok'; s.tekst = sv.tekst; s.utfall = sv.utfall; })
+    .catch(() => { s.status = 'feil'; s.tekst = 'fikk ikke svar — prøv igjen'; s.tid = 0; })
+    .finally(() => { if (_rerender) _rerender(); });
+  if (_rerender) _rerender();
+}
+
+/** Lista under det valgte kortet: stedene, lengst unna først, hvert med «sjekk» eller svaret. */
+export function sjekkListeHtml(r, esc) {
+  const steder = spredt(r.punkter.filter(p => p.id), SJEKK_STEDER);
+  if (!steder.length) return '';
+  return '<div class="eb-sjekkliste" data-eb-liste="' + esc(r.retning) + '">'
+    + steder.map(p => {
+      const s = _sjekk.get(p.id);
+      const svar = !s ? '<span class="eb-sjekk-knapp">sjekk</span>' : s.status === 'henter' ? '<span class="eb-sjekk-svar">sjekker …</span>'
+        : '<span class="eb-sjekk-svar' + (s.utfall === 'annen vei' ? ' eb-annen' : '') + '">' + esc(s.tekst) + '</span>';
+      return '<button type="button" class="eb-sjekk" data-eb-sted="' + esc(p.id) + '"><span class="eb-sjekk-navn">' + esc(p.navn) + '</span>' + svar + '</button>';
+    }).join('') + '</div>';
+}
 export const valgtRetning = () => _valgt;
 
 /**
@@ -47,19 +109,47 @@ function bindKort() {
   if (_lytter || typeof document === 'undefined') return;
   _lytter = true;
   document.addEventListener('click', e => {
+    const sj = e.target && e.target.closest && e.target.closest('#v-auto .eb-sjekk[data-eb-sted]');
+    if (sj) { sjekkSted(sj.dataset.ebSted); return; }
     const k = e.target && e.target.closest && e.target.closest('#v-auto .eb-rad[data-eb-retning]');
     if (k) velgRetning(k.dataset.ebRetning);
   });
 }
 
+/**
+ * Hvor ofte (forslag 4), som én linje under linjene: det oftest gående inn og ut.
+ * Én frekvens per linje i linjeraden ble uleselig (sett i nettleseren).
+ */
+export function frekvensLinje(r, esc) {
+  const f = r.frekvens || {}, inn = oftest(Object.values(f.inn || {})), ut = oftest(Object.values(f.ut || {}));
+  if (!inn && !ut) return '';
+  return '<div class="eb-frekvens">går ' + esc([inn && 'inn ' + inn, ut && 'ut ' + ut].filter(Boolean).join(' · ')) + '</div>';
+}
+
 /** Rad for én himmelretning. */
-export function ettBytteRadHtml(r, esc) {
-  const ut = r.ut.slice(0, UT_VIST).join(', ') + (r.ut.length > UT_VIST ? ` +${r.ut.length - UT_VIST}` : '');
+export function ettBytteRadHtml(r, esc, kommuner = null) {
+  // Kommuner bare når retningen når minst KOMMUNER_MIN andre kommuner: i byen blir
+  // mange retninger i din egen kommune, og da sier stoppnavnene mer (målt: Bergen nord, 65 stopp, 0 andre kommuner).
+  const kom0 = kommuner ? kommunerI(r.punkter, kommuner.kommuneAv, kommuner.hjemme) : null;
+  const kom = kom0 && kom0.length >= KOMMUNER_MIN ? kom0 : null;
   return '<button type="button" class="eb-rad" data-eb-retning="' + esc(r.retning) + '" aria-pressed="' + (_valgt === r.retning) + '">'
     + '<div class="eb-topp"><span class="eb-retning">' + esc(r.retningNavn) + '</span>'
-    + '<span class="eb-via">via ' + esc(r.knuteNavn) + '</span></div>'
-    + '<div class="eb-linjer">' + esc(r.inn.join(' / ')) + ' → bytt til ' + esc(ut) + '</div>'
-    + '<div class="eb-steder">' + esc(r.eksempler.join(', ')) + (r.antallSteder > r.eksempler.length ? ' og ' + (r.antallSteder - r.eksempler.length) + ' steder til' : '') + '</div>'
+    + '<span class="eb-via">via ' + esc(r.knuteNavn) + '</span>'
+    + (r.ytterpunkt ? '<span class="eb-lengst">helt til ' + esc(r.ytterpunkt.navn) + ' · ' + r.ytterpunkt.km + ' km</span>' : '') + '</div>'
+    + '<div class="eb-linjer">' + esc(r.inn.join(' / ')) + ' → bytt til ' + esc(r.ut.slice(0, UT_VIST).join(', ') + (r.ut.length > UT_VIST ? ` +${r.ut.length - UT_VIST}` : '')) + '</div>'
+    + frekvensLinje(r, esc)
+    + (() => {
+      // Kommuner (forslag 3): «Lillestrøm, Ullensaker og 9 kommuner til». Uten kommunedata: stoppene.
+      if (kom) {
+        const vis = kom.slice(0, EKSEMPLER_KOMMUNER);
+        return '<div class="eb-steder">' + esc(vis.join(', ')) + (kom.length > vis.length ? ' og ' + (kom.length - vis.length) + (kom.length - vis.length === 1 ? ' kommune til' : ' kommuner til') : '')
+          + (r.typer ? ' <span class="eb-typer">· ' + esc(r.typer) + '</span>' : '') + '</div>';
+      }
+      // Ytterpunktet står alt i toppen («helt til …»): eksemplene er de neste.
+      const eks = r.eksempler.filter(n => !r.ytterpunkt || n !== r.ytterpunkt.navn), vist = eks.length + (r.ytterpunkt ? 1 : 0);
+      return '<div class="eb-steder">' + esc(eks.join(', ')) + (r.antallSteder > vist ? (eks.length ? ' og ' : '') + (r.antallSteder - vist) + ' steder til' : '')
+        + (r.typer ? ' <span class="eb-typer">· ' + esc(r.typer) + '</span>' : '') + '</div>';
+    })()
     + '</button>';
 }
 
@@ -67,13 +157,14 @@ export function ettBytteRadHtml(r, esc) {
  * HTML for hurtigvalget. `pos` er tavlas stopp; `rerender` kalles når svaret kommer.
  * `hent` kan injiseres (tester); ellers Entur via enturFetch.
  */
-export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hentFraEntur } = {}) {
+export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hentFraEntur, hentKommuner = hent === hentFraEntur ? hentKommunerFraEntur : null } = {}) {
   if (!pos || !Number.isFinite(pos.lat)) return '<div class="at-filter">trenger en posisjon for å se bytter herfra</div>';
-  _rerender = rerender || null; bindKort();
+  _rerender = rerender || null; _hent = hent; bindKort();
   const nøkkel = pos.lat.toFixed(3) + ',' + pos.lon.toFixed(3);
   if (_tilstand && _tilstand.nøkkel !== nøkkel) _valgt = null; // nytt sted: retningene er andre
   if (!_tilstand || _tilstand.nøkkel !== nøkkel || (_tilstand.status !== 'henter' && nå - _tilstand.tid > 10 * 60_000)) {
-    _tilstand = { nøkkel, status: 'henter', tid: nå };
+    _tilstand = { nøkkel, status: 'henter', tid: nå, pos: { lat: pos.lat, lon: pos.lon } };
+    _sjekk.clear(); // nytt sted eller nytt svar: gamle reisesøk gjelder ikke
     const t = _tilstand;
     utforsk({ posisjon: { lat: pos.lat, lon: pos.lon }, tid: new Date(nå).toISOString() }, { hent })
       .then(res => {
@@ -87,6 +178,11 @@ export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hent
         // Et valgt kort som ikke finnes i det nye svaret, slippes.
         if (_tilstand === t && _valgt && !(t.svar && t.svar.rader.some(r => r.retning === _valgt))) _valgt = null;
         if (_tilstand === t && rerender) rerender();
+        // Kommunene etterpå: kortene står med stopp til de kommer, og blir stående om de ikke kommer.
+        if (t.status === 'ok' && !t.svar.ingen && hentKommuner) {
+          const ider = [...new Set(t.svar.rader.flatMap(r => r.punkter.map(p => p.id)).filter(Boolean))];
+          hentKommuner(ider, pos).then(k => { t.kommuner = k; if (_tilstand === t && _rerender) _rerender(); }).catch(() => {});
+        }
       });
   }
   const s = _tilstand;
@@ -94,7 +190,7 @@ export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hent
   if (s.status === 'feil') return '<div class="at-filter">fant ikke svar på bytter herfra nå — prøv igjen litt senere</div>';
   if (s.svar.ingen) return '<div class="at-filter">fant ingen bytter herfra nå — det betyr ikke at det ikke finnes</div>';
   return '<div class="at-filter">' + esc(s.svar.grunnlag) + '</div>'
-    + '<div class="at-liste eb-liste">' + s.svar.rader.map(r => ettBytteRadHtml(r, esc)).join('') + '</div>';
+    + '<div class="at-liste eb-liste">' + s.svar.rader.map(r => ettBytteRadHtml(r, esc, s.kommuner) + (r.retning === _valgt ? sjekkListeHtml(r, esc) : '')).join('') + '</div>';
 }
 
 /* ── KARTET (eksperiment) ────────────────────────────────────────────────
@@ -129,7 +225,7 @@ export function ettBytteKartData(pos) {
     valgt,
     retninger: _tilstand.svar.rader.map(r => ({
       retning: r.retning, retningNavn: r.retningNavn, knuteNavn: r.knuteNavn, etikett: r.retningNavn + ' · via ' + r.knuteNavn,
-      knute: r.knuteLL, antall: r.antallSteder, steder: spredt(r.punkter, r.retning === valgt ? KART_STEDER_VALGT : KART_STEDER),
+      knute: r.knuteLL, antall: r.antallSteder, ytterpunkt: r.ytterpunkt, steder: spredt(r.punkter, r.retning === valgt ? KART_STEDER_VALGT : KART_STEDER),
       // Fremhev, ikke skjul: de andre retningene står, dempet.
       dempet: !!valgt && r.retning !== valgt,
     })),
@@ -189,17 +285,21 @@ const krasjer = (a, b) => a.v < b.h && b.v < a.h && a.t < b.u && b.t < a.u;
  * Hvert knutepunkt får sitt eget navn ved boblen (Proven: stedsnavn ved
  * symbolet, helst under). Størst boble først; krasjer navnet med et navn som
  * alt står eller med en annen boble, prøves neste plass i NAVN_PLASSER. Er alle
- * opptatt, får det den første: hvert navn vises. Uten projeksjon (`px` null)
+ * opptatt, får det den første (`tvunget`): i oversikten vises hvert navn; med et
+ * kort valgt droppes et dempet navn uten plass (sett: fire knutepunkter i
+ * Oslo sentrum oppå hverandre). Uten projeksjon (`px` null)
  * står alle rett under. Returnerer knute → plass.
  */
 export function plasserNavn(knuter, px, radius = () => 0) {
   const plass = new Map();
   const bobler = px ? knuter.map(k => { const p = px(k), r = radius(k); return { k, v: p.x - r, h: p.x + r, t: p.y - r, u: p.y + r }; }) : [];
   const tatt = [];
-  for (const k of knuter.slice().sort((a, b) => (b.antall || 0) - (a.antall || 0) || (a.navn < b.navn ? -1 : 1))) {
+  // Det fremhevede (valgte kortets) knutepunktet først, så størst boble.
+  for (const k of knuter.slice().sort((a, b) => (!!a.dempet - !!b.dempet) || (b.antall || 0) - (a.antall || 0) || (a.navn < b.navn ? -1 : 1))) {
     if (!px) { plass.set(k, NAVN_PLASSER[0]); continue; }
     const p = px(k), r = radius(k);
-    const valgt = NAVN_PLASSER.find(pl => { const rekt = navnRekt(p, k.navn, r, pl); return !tatt.some(a => krasjer(a, rekt)) && !bobler.some(b => b.k !== k && krasjer(b, rekt)); }) || NAVN_PLASSER[0];
+    // Ingen ledig plass: første plass, merket `tvunget` — et dempet navn tegnes da ikke (navnet kommer ved trykk).
+    const valgt = NAVN_PLASSER.find(pl => { const rekt = navnRekt(p, k.navn, r, pl); return !tatt.some(a => krasjer(a, rekt)) && !bobler.some(b => b.k !== k && krasjer(b, rekt)); }) || { ...NAVN_PLASSER[0], tvunget: true };
     plass.set(k, valgt);
     tatt.push(navnRekt(p, k.navn, r, valgt));
   }
@@ -255,7 +355,20 @@ export function ettBytteKart(map, L, { aktiv, pos, ferdig, ramme: rammeInn = (b,
   // Kopi: Leaflet skriver selv i valgene (zoom).
   if (!rammet) { _kart.rammet = tema; rammeInn(ramme, { ...RAMME_VALG }); }
   // Stedene til det valgte kortet — under boblene, så knutepunktet ligger øverst.
-  for (const s of valgteSteder) L.circleMarker([s.lat, s.lon], { className: 'eb-kart-sted', radius: 4, weight: 1.5 }).bindTooltip(s.navn).addTo(lag);
+  // Stedstype (forslag 2): tog og båt er fylt og litt større — de inviterer til en reise ut.
+  for (const s of valgteSteder) {
+    const t = s.type === 'rail' ? ' eb-kart-tog' : s.type === 'water' ? ' eb-kart-bat' : '';
+    const sm = L.circleMarker([s.lat, s.lon], { className: 'eb-kart-sted' + t, radius: t ? 5 : 4, weight: 1.5 }).bindTooltip(s.navn + (t ? (s.type === 'rail' ? ' · tog' : ' · båt') : '')).addTo(lag);
+    // Sjekk denne (forslag 5): trykk på et sted i kartet kjører reisesøket for det.
+    if (sm.on && s.id) sm.on('click', () => sjekkSted(s.id));
+  }
+  // Lengst du kommer: ytterpunktet i den valgte retningen får navnet sitt (det kan ligge utenfor rammen).
+  const valgtRad = data.valgt && data.retninger.find(r => r.retning === data.valgt);
+  const yp = valgtRad && valgtRad.ytterpunkt;
+  if (yp) {
+    L.circleMarker([yp.lat, yp.lon], { className: 'eb-kart-ytter', radius: 5, weight: 2 }).addTo(lag);
+    L.marker([yp.lat, yp.lon], { icon: L.divIcon({ className: 'eb-kart-ytteretikett', html: '<span style="transform:translate(-50%,8px)">' + esc(yp.navn + ' · ' + yp.km + ' km') + '</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: 900 }).addTo(lag);
+  }
   // Boblene: de dempede først, størst under minst, så små ikke skjules av store.
   const px = map.latLngToContainerPoint ? k => map.latLngToContainerPoint(k.fra) : null;
   const nivåFor = plasserNavn([...knuter.values()], px, k => bobleRadius(k.antall, maks));
@@ -268,8 +381,9 @@ export function ettBytteKart(map, L, { aktiv, pos, ferdig, ramme: rammeInn = (b,
     // tavlas lapprydding (ryddKart) er laget for tavlas lapper og skjulte «Helsfyr»
     // selv når den stod alene (sett i nettleseren). Ett bytte rydder sine egne.
     const pl = nivåFor.get(k) || NAVN_PLASSER[0], av = Math.round(r + 3);
+    const navnVises = !(pl.tvunget && k.dempet);
     const flytt = pl.side === 'høyre' ? av + 'px,-50%' : pl.side === 'venstre' ? 'calc(-100% - ' + av + 'px),-50%' : '-50%,' + Math.round(av + pl.nivå * NAVN_LINJE) + 'px';
-    L.marker(k.fra, { icon: L.divIcon({ className: dempe('eb-kart-etikett', k.dempet), html: '<span style="transform:translate(' + flytt + ')">' + esc(k.navn) + '</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: k.dempet ? 0 : 1000 }).addTo(lag);
+    if (navnVises) L.marker(k.fra, { icon: L.divIcon({ className: dempe('eb-kart-etikett', k.dempet), html: '<span style="transform:translate(' + flytt + ')">' + esc(k.navn) + '</span>', iconSize: null }), interactive: false, keyboard: false, zIndexOffset: k.dempet ? 0 : 1000 }).addTo(lag);
     // Kart → kort: trykk på en boble velger (første) retning den bærer.
     if (m.on) m.on('click', () => { if (_valgt !== k.retning) { velgRetning(k.retning); visKort(k.retning); } });
     // Tallet i boblen: antallet steder den betjener. En markør, ikke en lapp: kartets

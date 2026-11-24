@@ -313,6 +313,104 @@ Et nytt svar på samme sted flytter ikke kartet. Rører du kartet, er det ditt.
 Tavla regner kartet som «justert» mens laget vises, og får tilbake din egen
 tilstand når valget går av, så en justering du gjorde før, ikke slettes.
 
+### Sjekk denne (v1.218.298, forslag 5)
+
+Under det valgte kortet står en liste med opptil 8 steder (`SJEKK_STEDER`),
+fra lengst unna til nærmest. Hvert sted har «sjekk». Et trykk på «sjekk», eller
+på stedet i kartet, kjører **ett reisesøk** fra posisjonen til stedet. Det er
+samme spørring som reisebekreftelsen bruker (`reisesøkGql`,
+`src/reisebekreftelse.js`). Svaret står på raden i radens språk
+(`reiseSammendrag`):
+- «fremme 13.07 · bytt på Helsfyr»: Entur bytter der vi oppdaget byttet;
+- «fremme 12.45 · Entur foreslår via Hauketo stasjon og Oslo S»: Entur velger
+  en annen vei. Det sies, og det er nyttig, ikke en feil;
+- «uten bytte», «til fots» og «fant ingen reise nå».
+
+Mønsteret som er fremme først, brukes. Søket gjøres bare på trykk, og bare for
+det ene stedet. Svaret caches i 10 min. Feil gir «fikk ikke svar — prøv
+igjen», og kan prøves igjen med en gang. Nytt sted eller nytt svar tømmer
+svarene.
+
+Dette er broen fra «mulig, ikke sjekket» til en reise. Raden sier ikke
+«rekker» og påstår ingen tidskontroll av byttet. Den gjengir det Entur
+svarte.
+
+### Hvor ofte det går (v1.218.297, forslag 4)
+
+Kortet har én linje: «går inn ca. hvert 15. min · ut ca. hvert 7. min». Den
+viser det oftest gående inn (ved stoppet du går til) og ut (ved
+knutepunktet).
+
+**Kilde:** avgangene utforskeren alt har hentet, uten ny spørring. Et rent
+tilleggsfelt i `src/nettverksutforsker.js` tar vare på dem:
+`grupper.linjeretning[dir].avgangerVed[stopp]`. Det gjelder bare det
+ordinære vinduet, og høyst `perLinje` per skilt.
+
+**Beregningen:** `frekvensMin` tar medianen av avstanden mellom ulike
+avganger. `frekvensTekst` runder den lesbart.
+- Avganger under 2 min fra hverandre er samme tur (`SAMME_TUR_MIN`). Sett:
+  trikk 17 ble «hvert minutt» fordi turen gikk fra to plattformer.
+- Hver linjeretning og hvert stopp regnes for seg. Tider fra to skilt eller to
+  stopp er ikke en frekvens.
+- Ut-frekvensen gjelder ved knutepunktet, ikke ved andre stopp linja går fra.
+- Teksten sier **«ca.»**. Det er et anslag fra 2–3 avganger.
+
+**Én avgang gir ingen tekst.** Med høyst to avganger per skilt sier én avgang
+ikke at linja går sjelden. Sett: buss 74 ved Oslo bussterminal, som går hvert
+10. minutt, ble merket «sjelden». Planens «1 avgang neste time» ble derfor
+ikke bygget. Av samme grunn finnes det ingen «ikke nå»: radene bruker bare
+veier i det ordinære vinduet.
+
+**Kartet:** med et kort valgt droppes et dempet knutepunktnavn som ikke har
+plass (`tvunget` i `plasserNavn`). Sett: fire knutepunkter i Oslo sentrum lå
+oppå hverandre. Det valgte navnet og alle navn i oversikten vises alltid.
+
+### Kommuner, ikke stopp (v1.218.296, forslag 3)
+
+Entur gir **kommunen** til et stoppested, ikke tettstedet. Kortet sier derfor
+«kommuner», ikke «steder»: «Eidsvoll, Stange, Hamar og 2 kommuner til».
+
+**Proben (stigen fra planen):**
+1. Stoppestedsregisteret (`stop-places/v1`) svarer «Access not allowed».
+2. Geokoderens `layers=locality` gir tomt svar. Geokoderens
+   `place?ids=` med stopp-id-er gir `locality` = kommune. Det var 50 treff per
+   kall og 100 % dekning for Mortensrud, Nesttun og Tretten (målt
+   2026-11-24). Det koster 3–4 kall, hentet *etter* svaret, så kortene står med
+   stopp til kommunene kommer.
+3. Kommunen du står i, hentes med ett `reverse`-oppslag og telles ikke.
+
+**Når kommuner vises:**
+- Retningen må nå minst `KOMMUNER_MIN` (2) andre kommuner. I byen blir mange
+  retninger i din egen kommune (Bergen nord: 65 stopp, 0 andre kommuner), og
+  da sier stoppnavnene mer.
+- Mindre enn 80 % kommunedata (`KOMMUNE_DEKNING`) gir stoppene som før.
+- Når oppslaget feiler, står stoppene som før.
+
+**Boblene teller fortsatt stopp.** Med kommuner ville knutepunktene i Oslo
+krympe til nesten ingenting, og boblen ville svart på et annet spørsmål
+(«hvor mange kommuner», ikke «hvor mye nås herfra»).
+
+### Stedstyper (v1.218.295, forslag 2)
+
+Kortet teller stedene som inviterer til en reise ut: «· 13 togstasjoner ·
+1 kai». Typen er **transportmiddelet til linja som når stedet** (ut-linja,
+`velgStedstype`). Den sier hvordan du kommer dit, ikke hva stedet er.
+- Når flere linjer når samme sted, vinner tog, så båt, T-bane, trikk,
+  ekspressbuss og buss (`STEDSTYPE_REKKE`).
+- Buss telles ikke, den er standarden. Flyplass skilles ikke ut, fordi det
+  ville kreve gjetting på navn.
+- Med kortet valgt er tog- og båtstedene fylte, litt større prikker i kartet.
+
+### Lengst du kommer (v1.218.294, forslag 1)
+
+Hvert kort sier hvor langt retningen når: «helt til Lillehammer stasjon ·
+142 km». Det er det fjerneste stedet i retningen (`ytterpunkt` i
+`src/ettBytte.js`), og avstanden er luftlinje i hele km.
+- Eksempelstedene under er de *neste*. Ytterpunktet gjentas ikke, og «og N
+  steder til» regner det med.
+- Med kortet valgt får ytterpunktet en egen prikk og navnelapp i kartet, også
+  når det ligger utenfor rammen.
+
 ### Knutepunktene som bobler (v1.218.292)
 
 Strekene fra knutepunkt til sted er fjernet. Knutepunktene **veies mot

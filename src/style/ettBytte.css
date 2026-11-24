@@ -28,3 +28,24 @@
 .eb-kart-knute.eb-kart-dempet { fill: var(--text-muted) !important; fill-opacity: .12 !important; }
 .eb-kart-tall span { display: inline-block; transform: translate(-50%, -50%); font: 700 11px/1 system-ui, sans-serif; color: var(--text); white-space: nowrap; pointer-events: none; }
 .eb-kart-tall.eb-kart-dempet span { color: var(--text-muted); }
+
+/* Lengst du kommer (forslag 1). */
+#v-auto .eb-lengst{color:var(--text-muted);font-size:.8rem}
+.eb-kart-ytter { stroke: var(--accent, #2a7de1); fill: var(--accent, #2a7de1); fill-opacity: 1; }
+.eb-kart-ytteretikett span { display: inline-block; white-space: nowrap; font: 600 11px/14px system-ui, sans-serif; padding: 0 4px; border-radius: 3px; background: rgba(var(--bg-rgb), .85); color: var(--text); pointer-events: none; }
+
+/* Stedstyper (forslag 2). */
+#v-auto .eb-typer{color:var(--text);font-weight:600}
+.eb-kart-sted.eb-kart-tog { fill: var(--accent, #2a7de1); fill-opacity: .85; }
+.eb-kart-sted.eb-kart-bat { fill: #1aa3a3; stroke: #1aa3a3; fill-opacity: .85; }
+
+/* Hvor ofte det går (forslag 4). */
+#v-auto .eb-frekvens{color:var(--text-muted);font-size:.78rem;white-space:nowrap}
+
+/* Sjekk denne (forslag 5): lista under det valgte kortet. */
+#v-auto .eb-sjekkliste{display:flex;flex-direction:column;border-left:3px solid var(--accent);background:rgba(var(--accent-rgb),.06);margin-bottom:.4rem}
+#v-auto button.eb-sjekk{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid rgba(var(--border-rgb),.12);color:inherit;font:inherit;font-size:.85rem;padding:.45rem .6rem;cursor:pointer}
+#v-auto .eb-sjekk-navn{flex:1 1 auto;min-width:0}
+#v-auto .eb-sjekk-knapp{color:var(--accent);font-weight:600;white-space:nowrap}
+#v-auto .eb-sjekk-svar{color:var(--text);font-size:.8rem;text-align:right}
+#v-auto .eb-sjekk-svar.eb-annen{color:var(--text-muted)}

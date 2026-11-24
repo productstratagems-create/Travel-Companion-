@@ -322,8 +322,14 @@ export async function utforsk(ktx, { hent, klokke = () => Date.now() }) {
   const lr = {}, omr = {}, tilb = {};
   const leggTil = (m, k, v) => { (m[k] = m[k] || new Set()).add(v); };
   const nyLR = (a, dir, ledd, knute) => {
-    lr[dir] = lr[dir] || { lineId: a.lineId, kode: a.kode, modus: a.mode, retning: a.retning, tilgang: new Set(), knuter: new Set(), ledd: new Set(), destinasjoner: new Set(), stoppliste: new Set(), vindu: new Set() };
+    lr[dir] = lr[dir] || { lineId: a.lineId, kode: a.kode, modus: a.mode, retning: a.retning, tilgang: new Set(), knuter: new Set(), ledd: new Set(), destinasjoner: new Set(), stoppliste: new Set(), vindu: new Set(), avgangerVed: {} };
     lr[dir].stoppliste.add(a.stoppliste); lr[dir].ledd.add(ledd); lr[dir].vindu.add(a.vindu || 'ordinært');
+    // Avgangstidene vi alt har fått, per stopp, i det ordinære vinduet (tillegg, «ett bytte» forslag 4:
+    // hvor ofte det går). Høyst perLinje per linje og skilt; ingen ny spørring.
+    if (a.tid && (a.vindu || 'ordinært') === 'ordinært' && a.fra && a.fra.id) {
+      const t = lr[dir].avgangerVed[a.fra.id] = lr[dir].avgangerVed[a.fra.id] || [];
+      if (!t.includes(a.tid)) { t.push(a.tid); t.sort(); }
+    }
     if (knute) lr[dir].knuter.add(knute); else lr[dir].tilgang.add(a.fra.id);
     return lr[dir];
   };

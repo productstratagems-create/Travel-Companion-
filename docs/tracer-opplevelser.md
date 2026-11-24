@@ -527,15 +527,52 @@ Etter spørsmålet ditt om kartverket.no/api-og-data/friluftsliv.
 | Øyer sentrum | fot | 2, 3 | AN, NT, TR | Storkjølla, 70 turer for store og små |
 | Skogstadrampa, Balberglia nord | fot | – | HF | Pilegrimsleden – Gudbrandsdalsleden |
 
-**Tolkning av kodene [Hypotese]:** kodelisten i produktspesifikasjonen er
-ikke lest herfra. Mønsteret i dataene peker likevel tydelig:
-- `rutebetydning` 1/2/3 er trolig nasjonal, regional og lokal. 1 står på
-  Pilegrimsleden, Kystruta og Rondanestien.
-- `spesialFotrutetype` HF er trolig historisk ferdselsvei (alle
-  pilegrimsledene), KY er kyststi og NT er natursti.
-- `gradering` G og B er trolig grønn og blå etter DNT-skalaen.
+**Kodene [Fakta]**, fra produktspesifikasjonen (`register.geonorge.no`, Tur-
+og friluftsruter 20171210, PDF) og skjemaet i WFS-tjenesten:
+- **`rutebetydning`:** 1 = nasjonal, 2 = regional, 3 = lokal betydning,
+  «etter hvor brukerne av ruta i hovedsak kommer fra», vurdert av den som
+  har ansvar for vedlikehold. 1 står på Pilegrimsleden, Kystruta og
+  Rondanestien.
+- **`gradering`:** G = enkel (grønn), B = middels (blå), R = krevende (rød),
+  S = ekspert (svart), I = ikke gradert. Se Merkehåndboka.
+- **`spesialFotrutetype`:**
+  - HF = historisk ferdselsvei («pilgrimsled, gammel kongevei, postveger,
+    barnevandringsstier og rallarveier»);
+  - KY = kyststi;
+  - KT = kultursti;
+  - NT = natursti;
+  - TR = trimløype;
+  - AN = annet.
+- **`rutetype`:** 1 = hovedrute, 2 = forgreningsrute, 3 = materute.
+- **`tilrettelegging`** (punktene i `RuteInfoPunkt`):
 
-Hvis dette bekreftes, kobler `rutebetydning` turrutene direkte til «hvor
+  | type | koder |
+  |---|---|
+  | utstyr på stedet | 4 benker/bord · 5 bro · 6 brygge · 7 bål-/grillplass · 8 båtutsettingsrampe |
+  | hytter og overnatting | 12 hytte · 32 teltplass · 42 betjent hytte · 43 selvbetjent hytte · 44 ubetjent hytte · 45 gapahuk |
+  | service | 13 infotavle · 14 kiosk/servering · 22 parkering · 35 toalett · 52 trimpost/turkasse |
+  | bading | 30 stupebrett/badetrapp · 38 baderampe · 41 badeplass |
+  | opplevelse | 46 utsiktspunkt · 50 severdighet · 51 kulturminne |
+  | annet | 18 markbearbeiding · 28 skitrekk · 40 annen tilrettelegging |
+
+  I traceren var det 8 parkeringsplasser (22), 6 infotavler (13), 1 gapahuk
+  (45) og 1 benk (4). Parkeringsplassene er turstarter, og et naturlig
+  adkomstpunkt for et område.
+
+**Nedlasting [Fakta]** (`nedlasting.geonorge.no/api/capabilities/d1422d17-…`):
+åpen, uten innlogging og uten e-postvarsling. Hele landet («0000») kan lastes
+ned i GML, GPX, FGDB, SOSI og PostGIS, i blant annet WGS84 (4326). Hver
+kommune finnes for seg (369 områder). Det gjør et forhåndsberegnet datasett
+per stopp mulig, uten kall ved hvert trykk.
+
+**Placepoint** (`docs.placepoint.no/v1/data/turrutebasen`) er en kommersiell
+tjeneste som videreformidler det samme datasettet fra Kartverket via
+Geonorge. Den bekrefter innholdet: turruter, skiløyper, sykkelruter og
+tilrettelegging (rasteplasser, gapahuker, badeplasser, utsiktspunkter), og
+nevner **Markagrensen** for Oslomarka som en tilgrensende kilde. Placepoint er
+ikke et åpent API og brukes ikke. Kilden er Kartverket direkte.
+
+Med kodene bekreftet kobler `rutebetydning` turrutene direkte til «hvor
 langt» (v1.218.308). En nasjonal rute er et nasjonalt turmål, selv om den går
 forbi et lokalt busstopp.
 
@@ -544,9 +581,8 @@ forbi et lokalt busstopp.
   er et turmål i seg selv, som Pilegrimsleden. En merket rute innen 200 m av
   et friluftsområde viser også at stedet har en vei inn. Det er sterkere enn
   Valhallas gangvei til kanten.
-- **`RuteInfoPunkt` er tynt.** 16 punkter på 24 stopp. Koden for
-  tilrettelegging (for eksempel «22») må slås opp i SOSI-kodelisten før den
-  kan brukes [Ubekreftet].
+- **`RuteInfoPunkt` er tynt.** 16 punkter på 24 stopp, og mest parkering og
+  infotavler. Kodene er nå slått opp, se over.
 - **Navn mangler eller er «Ukjent»** på en del ruteledd, og de tas ut.
 - **Kategorien er friluftsliv og utfart,** med underkategori «turrute»
   (fot, sykkel og annet). Mapping legges i `src/opplevelser.js` når den tas i

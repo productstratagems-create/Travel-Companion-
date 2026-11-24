@@ -24,7 +24,8 @@
  * type er ikke sikret. Arver utforskerens grenser (ett bytte, ordinært vindu, ≤ 15
  * knutepunkter). Samme mål på alle tidspunkt i en kjøring.
  * Merk: reisesøket starter LOOKBACK_MINS (2 min) før oppgitt tid — gir B ≤ 2 min fordel.
- * Utfall per mål: B bedre / A bedre / ubetydelig / ingen reise fra noen / bare én.
+ * Utfall per mål: kategori() — raskere / samme tid (færre, like mange, flere bytter) /
+ * langsommere / uavklart (ingen fra noen, bare herfra, bare via alternativet, feil).
  */
 import { utforsk, områdeFor, PARAMETRE } from '../src/nettverksutforsker.js';
 import { ettByttVeier } from '../src/ettBytte.js';
@@ -146,7 +147,7 @@ async function utvalg(p) {
     const b = (områdeFor(midt, s, PARAMETRE.områdeBåndKm) || '').split('|')[1];
     if (b) (bånd.get(b) || bånd.set(b, []).get(b)).push(s);
   }
-  // Spredt i retning innen båndet: sortert på id (stabilt), så hvert k-te.
+  // Sortert på NSR-id (stabilt, men administrativt — gir IKKE sikret spredning i retning), så hvert k-te.
   return [...bånd.entries()].flatMap(([b, xs]) => { xs.sort((a, c) => (a.id < c.id ? -1 : 1)); const k = Math.max(1, Math.floor(xs.length / MÅL_PER_BÅND)); return xs.filter((_, i) => i % k === 0).slice(0, MÅL_PER_BÅND).map(s => ({ ...s, bånd: b })); });
 }
 

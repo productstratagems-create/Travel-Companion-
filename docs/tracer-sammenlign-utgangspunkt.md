@@ -71,6 +71,14 @@ observert, og det som mangler, er «76 → 76». Det stemmer med skriptet.
 - **«Sjekk denne»** må fortsatt leses som «Entur foreslår en reise via ett av
   kortets knutepunkter». Det bekrefter ikke det konkrete linjeparet.
 
+**Rettet i v1.218.300** (`docs/auto-tavle-logikk.md`, «Linjeparene»):
+- linjeparet er et felt;
+- kortet viser par når listene ville villedet;
+- «sjekk denne» sier «samme linjer som kortet» eller «med andre linjer».
+
+Effekten er målt med `scratchpad/tracerLinjepar.mjs --etter`: **0 %** påståtte
+og ikke observerte par i alle opptak og fasetter.
+
 ---
 
 ## Del B — to utgangspunkter

@@ -10,7 +10,7 @@
  * «ETT BYTTE (eksperiment)» i src/views/auto.js.
  */
 import { utforsk } from '../nettverksutforsker.js';
-import { ettByttePer, kommunerI, oftest, reiseSammendrag, FASETTER, FASETT_NAVN } from '../ettBytte.js';
+import { ettByttePer, kommunerI, oftest, reiseSammendrag, FASETTER, FASETT_NAVN, listerHolder } from '../ettBytte.js';
 import { reisesøkGql } from '../reisebekreftelse.js';
 import { enturFetch } from '../api/http.js';
 import { metresBetween } from '../haversine.js';
@@ -96,7 +96,7 @@ export function sjekkSted(stedId, { nå = Date.now() } = {}) {
   _sjekk.set(stedId, s);
   const q = '{' + reisesøkGql({ lat: t.pos ? t.pos.lat : lat, lon: t.pos ? t.pos.lon : lon }, stedId, new Date(nå).toISOString(), 'eb') + '}';
   _hent('ett bytte: sjekk', { url: 'https://api.entur.io/journey-planner/v3/graphql', method: 'POST', body: JSON.stringify({ query: q }) })
-    .then(j => { const rs = reiseSammendrag(j && j.data && j.data.eb && j.data.eb.tripPatterns, rad && rad.knuteNavn, rad && rad.knuterDetalj && rad.knuterDetalj.map(k => k.navn)); s.status = 'ok'; s.tekst = rs.tekst; s.utfall = rs.utfall; })
+    .then(j => { const rs = reiseSammendrag(j && j.data && j.data.eb && j.data.eb.tripPatterns, rad && rad.knuteNavn, rad && rad.knuterDetalj && rad.knuterDetalj.map(k => k.navn), rad && rad.linjepar); s.status = 'ok'; s.tekst = rs.tekst; s.utfall = rs.utfall; })
     .catch(() => { s.status = 'feil'; s.tekst = 'fikk ikke svar — prøv igjen'; s.tid = 0; })
     .finally(() => { if (_rerender) _rerender(); });
   if (_rerender) _rerender();
@@ -151,6 +151,22 @@ export function frekvensLinje(r, esc) {
   return '<div class="eb-frekvens">går ' + esc([inn && 'inn ' + inn, ut && 'ut ' + ut].filter(Boolean).join(' · ')) + '</div>';
 }
 
+/** Høyst så mange linjepar vises på et kort når listene ville villedet. */
+export const PAR_VIST = 3;
+/**
+ * Linjene på kortet. To lister bare når hver kombinasjon er observert (listerHolder);
+ * ellers de observerte parene: «T-bane 3 → 300 på Helsfyr · 74 → tog R14 på Oslo S · +N reiseruter».
+ * Parene er sett i avgangene nå — ikke en tidsbekreftet overgang (grunnlagslinja sier det).
+ */
+export function linjerHtml(r, esc) {
+  if (!r.linjepar || listerHolder(r)) {
+    return '<div class="eb-linjer">' + esc(r.inn.join(' / ')) + ' → bytt til ' + esc(r.ut.slice(0, UT_VIST).join(', ') + (r.ut.length > UT_VIST ? ` +${r.ut.length - UT_VIST}` : '')) + '</div>';
+  }
+  const vis = r.linjepar.slice(0, PAR_VIST), rest = r.linjepar.length - vis.length;
+  return '<div class="eb-linjer eb-par">' + vis.map(p => esc(p.inn + ' → ' + p.ut) + ' <span class="eb-par-knute">på ' + esc(p.knuteNavn) + '</span>').join(' · ')
+    + (rest > 0 ? ' · +' + rest + (rest === 1 ? ' reiserute' : ' reiseruter') : '') + '</div>';
+}
+
 /** Rad for én himmelretning. */
 export function ettBytteRadHtml(r, esc, kommuner = null) {
   // Kommuner bare når retningen når minst KOMMUNER_MIN andre kommuner: i byen blir
@@ -162,7 +178,7 @@ export function ettBytteRadHtml(r, esc, kommuner = null) {
     + '<div class="eb-topp"><span class="eb-retning' + (r.fasett && r.fasett !== 'retning' ? ' eb-tittel' : '') + '">' + esc(r.retningNavn) + '</span>'
     + '<span class="eb-via">' + esc(r.undertittel || 'via ' + r.knuteNavn) + '</span>'
     + (r.ytterpunkt ? '<span class="eb-lengst">helt til ' + esc(r.ytterpunkt.navn) + ' · ' + r.ytterpunkt.km + ' km</span>' : '') + '</div>'
-    + '<div class="eb-linjer">' + esc(r.inn.join(' / ')) + ' → bytt til ' + esc(r.ut.slice(0, UT_VIST).join(', ') + (r.ut.length > UT_VIST ? ` +${r.ut.length - UT_VIST}` : '')) + '</div>'
+    + linjerHtml(r, esc)
     + frekvensLinje(r, esc)
     + (() => {
       // Kommuner (forslag 3): «Lillestrøm, Ullensaker og 9 kommuner til». Uten kommunedata: stoppene.

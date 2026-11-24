@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ettByttePerRetning, RETNINGER, ytterpunkt, stedstypeTelling, velgStedstype, STEDSTYPE_REKKE, kommunerI, KOMMUNE_DEKNING, frekvensMin, frekvensTekst, SAMME_TUR_MIN, reiseSammendrag, ettByttePer, ettByttVeier, FASETTER } from '../src/ettBytte.js';
+import { ettByttePerRetning, RETNINGER, ytterpunkt, stedstypeTelling, velgStedstype, STEDSTYPE_REKKE, kommunerI, KOMMUNE_DEKNING, frekvensMin, frekvensTekst, SAMME_TUR_MIN, reiseSammendrag, ettByttePer, ettByttVeier, FASETTER, listerHolder } from '../src/ettBytte.js';
 import { PARAMETRE } from '../src/nettverksutforsker.js';
 import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, plasserNavn, navnRekt, NAVN_NIVÅER, NAVN_PLASSER, velgRetning, valgtRetning, KART_STEDER_VALGT, sjekkSted, sjekkStatus, SJEKK_STEDER, velgFasett, valgtFasett, GRUPPER_VIST } from '../src/views/ettBytteVisning.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
@@ -262,6 +262,15 @@ describe('ett bytte: sjekk denne (forslag 5)', () => {
       .toEqual({ utfall: 'funnet', fremme: '13.40', tekst: 'fremme 13.40 · bytt på Helsfyr' });
     expect(reiseSammendrag([{ legs: [leg('metro', 'Oslo S', T + '10:00+01:00'), leg('rail', 'Mål', T + '50:00+01:00')] }], 'Helsfyr'))
       .toEqual({ utfall: 'annen vei', fremme: '13.50', tekst: 'fremme 13.50 · Entur foreslår via Oslo S' });
+    // Linjeparet: samme linjer som kortet, eller andre linjer på samme byttested.
+    const etappe = (mode, kode, til, slutt) => ({ mode, serviceJourney: { line: { publicCode: kode } }, toPlace: { name: til }, expectedEndTime: slutt });
+    const par = [{ inn: 'T-bane 3', ut: '300', knuteNavn: 'Helsfyr' }];
+    const m = (a, b) => [{ legs: [leg('foot', 'X', T + '01:00+01:00'), etappe('metro', a, 'Helsfyr', T + '10:00+01:00'), etappe('bus', b, 'Mål', T + '40:00+01:00')] }];
+    expect(reiseSammendrag(m('3', '300'), 'Helsfyr', null, par)).toMatchObject({ utfall: 'funnet', linjer: 'samme', tekst: 'fremme 13.40 · bytt på Helsfyr · samme linjer som kortet' });
+    expect(reiseSammendrag(m('2', '300'), 'Helsfyr', null, par)).toMatchObject({ utfall: 'funnet', linjer: 'andre', tekst: 'fremme 13.40 · bytt på Helsfyr, med andre linjer (T-bane 2 → 300)' });
+    expect(reiseSammendrag(m('3', '300'), 'Oslo S', null, par).utfall).toBe('annen vei');
+    // Samme linjer, men byttet et annet sted enn paret sier: ikke «samme».
+    expect(reiseSammendrag(m('3', '300'), 'Helsfyr', null, [{ inn: 'T-bane 3', ut: '300', knuteNavn: 'Oslo S' }]).linjer).toBe('andre');
     // Et kort med flere knutepunkt (fasettene): bytter Entur på ett av dem, er det vår vei.
     expect(reiseSammendrag([{ legs: [leg('metro', 'Oslo S', T + '10:00+01:00'), leg('rail', 'Mål', T + '50:00+01:00')] }], 'Helsfyr', ['Helsfyr', 'Oslo S']).utfall).toBe('funnet');
     // Det mønsteret som er fremme først, uansett rekkefølge.
@@ -413,6 +422,68 @@ describe('ett bytte: se etter — reiseruter med noe til felles', () => {
     const tall = g.lagt[0].ting.filter(t => t.o && t.o.icon && /eb-kart-tall/.test(t.o.icon.className));
     for (const t of tall) expect(+t.o.icon.html.replace(/\D/g, '')).toBeLessThanOrEqual(fasit.get(t.ll.join(',')));
     velgFasett('retning');
+  });
+});
+
+describe('ett bytte: linjeparene — kortet påstår bare observerte par', () => {
+  // Observerte par for et kort, regnet uavhengig av appen: veiene bak kortet (samme knutepunkt, sted og linjer).
+  const lt = (r, d) => { const g = r.grupper.linjeretning[d] || {}; return (g.modus === 'metro' ? 'T-bane ' : g.modus === 'tram' ? 'trikk ' : g.modus === 'rail' ? 'tog ' : g.modus === 'water' ? 'båt ' : '') + g.kode; };
+  const observert = (r, rad) => {
+    const knuter = new Set(rad.knuterDetalj.map(k => k.id)), steder = new Set(rad.punkter.map(p => p.id));
+    const sted = v => ((r.opsjoner.find(o => o.id === v.opsjon) || {}).destinations || [])[0];
+    return new Set(ettByttVeier(r).filter(v => knuter.has(v.knute) && sted(v) && steder.has(sted(v).id) && rad.inn.includes(lt(r, v.inn)) && rad.ut.includes(lt(r, v.directionId)))
+      .map(v => lt(r, v.inn) + ' → ' + lt(r, v.directionId)));
+  };
+  it('parene på kortet er observerte veier (linje inn → knutepunkt → linje ut), og reiseruter = antall par', async () => {
+    const r = await res('mortensrud_dag');
+    const veier = ettByttVeier(r);
+    for (const f of ['linje', 'transport', 'knute']) {
+      for (const rad of ettByttePer(r, O.mortensrud_dag.scenario.posisjon, f).rader) {
+        expect(rad.reiseruter).toBe(rad.linjepar.length);
+        for (const p of rad.linjepar.slice(0, 5)) expect(veier.some(v => v.knute === p.knute && lt(r, v.inn) === p.inn && lt(r, v.directionId) === p.ut), f + ' ' + p.inn + '→' + p.ut).toBe(true);
+      }
+    }
+  });
+  it('samme linjepar via to knutepunkt er to reiseruter, hver med sitt byttested', () => {
+    const v = (knute, opsjon) => ({ ledd: 2, vindu: 'ordinært', knute, inn: 'L1>x', directionId: 'L2>y', område: 'N|5–15', opsjon });
+    const resultat = {
+      veier: [v('K1', 'o1'), v('K2', 'o2'), v('K2', 'o3')],
+      opsjoner: ['o1', 'o2', 'o3'].map((id, i) => ({ id, destinations: [{ id: 'S' + i, name: 'Sted ' + i, lat: 60.1 + i / 100, lon: 10 }] })),
+      knutepunkter: { vurdert: [{ id: 'K1', navn: 'Knute 1' }, { id: 'K2', navn: 'Knute 2' }] },
+      grupper: { linjeretning: { 'L1>x': { kode: '1', modus: 'bus', avgangerVed: {} }, 'L2>y': { kode: '2', modus: 'bus', avgangerVed: {} } } },
+    };
+    const [rad] = ettByttePer(resultat, { lat: 60, lon: 10 }, 'linje').rader;
+    expect(rad.reiseruter).toBe(2);
+    expect(rad.linjepar.map(p => [p.knuteNavn, p.steder])).toEqual([['Knute 2', 2], ['Knute 1', 1]]);
+  });
+  it('retning og knutepunkt beholder listene der de holder; linje og transport viser par der de ikke gjør', async () => {
+    const r = await res('mortensrud_dag'), pos = O.mortensrud_dag.scenario.posisjon;
+    const lister = f => ettByttePer(r, pos, f).rader.filter(listerHolder).length / ettByttePer(r, pos, f).rader.length;
+    expect(lister('retning')).toBeGreaterThan(0.5);
+    expect(lister('knute')).toBeGreaterThan(0.5);
+    const t3 = ettByttePer(r, pos, 'linje').rader.find(x => x.retningNavn === 'T-bane 3');
+    expect(listerHolder(t3)).toBe(false);
+    const html = ettBytteRadHtml(t3, esc);
+    expect(html).toMatch(/class="eb-linjer eb-par">/);
+    expect(html).toContain(esc(t3.linjepar[0].inn + ' → ' + t3.linjepar[0].ut) + ' <span class="eb-par-knute">på ' + esc(t3.linjepar[0].knuteNavn) + '</span>');
+    expect(html).toMatch(new RegExp('\\+' + (t3.linjepar.length - 3) + ' reiseruter'));
+    // «74 → 74» er ikke et bytte: én linje både inn og ut ødelegger ikke listene.
+    expect(listerHolder({ inn: ['74'], ut: ['74', '100'], linjepar: [{ inn: '74', ut: '100' }] })).toBe(true);
+    expect(listerHolder({ inn: ['74', '76'], ut: ['100'], linjepar: [{ inn: '74', ut: '100' }] })).toBe(false);
+  });
+  it('i alle opptak og fasetter: et kort som viser lister, har observert hver kombinasjon (unntatt samme linje)', async () => {
+    for (const n of SCENARIOER) {
+      const r = await res(n);
+      for (const f of ['retning', 'knute', 'linje', 'transport']) {
+        for (const rad of ettByttePer(r, O[n].scenario.posisjon, f).rader) {
+          const html = ettBytteRadHtml(rad, esc);
+          if (/class="eb-linjer eb-par"/.test(html)) continue; // viser par, ikke lister
+          const obs = observert(r, rad);
+          const mangler = rad.inn.flatMap(i => rad.ut.filter(u => u !== i).map(u => i + ' → ' + u)).filter(p => !obs.has(p));
+          expect(mangler, n + ' ' + f + ' ' + rad.retningNavn).toEqual([]);
+        }
+      }
+    }
   });
 });
 

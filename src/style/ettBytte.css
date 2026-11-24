@@ -57,3 +57,4 @@
 #v-auto button.eb-fasett[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 #v-auto button.eb-vis-alle{background:none;border:0;color:var(--accent);font:inherit;font-size:.85rem;padding:.5rem .1rem;cursor:pointer}
 #v-auto .eb-retning.eb-tittel{text-transform:none}
+#v-auto .eb-par-knute{color:var(--text-muted)}

@@ -17,6 +17,9 @@ import { enturFetch } from '../api/http.js';
 import { hentStedsinfo, hentHerInfo, KOMMUNE_BIT } from '../api/kommuner.js';
 import { rekkeviddeFor, tellRekkevidde } from '../rekkevidde.js';
 import { metresBetween } from '../haversine.js';
+import { hentOpplevelser, hentGang } from '../api/opplevelserKilder.js';
+import { velgVisning, hvaTekst, avstandTekst, fasiliteterVed } from '../opplevelser.js';
+import { storage } from '../storage.js';
 import '../style/ettBytte.css';
 
 export const ETT_BYTTE = true;
@@ -107,7 +110,7 @@ const _sjekk = new Map();
 export const SJEKK_GYLDIG_MS = 10 * 60_000;
 /** Høyst så mange steder står i lista under det valgte kortet. */
 export const SJEKK_STEDER = 8;
-export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _fasett = 'retning'; _visAlle = false; _rerender = null; _hent = null; _sjekk.clear(); _rekkevidde = null; }
+export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _fasett = 'retning'; _visAlle = false; _rerender = null; _hent = null; _sjekk.clear(); _rekkevidde = null; _oppl.clear(); }
 export const sjekkStatus = id => _sjekk.get(id) || null;
 /** Tester: glem ett steds svar. */
 export const _nullstillSjekk = id => _sjekk.delete(id);
@@ -153,6 +156,55 @@ export function sjekkReise(stedId, nå = Date.now()) {
   return r;
 }
 
+/* OPPLEVELSER PÅ STEDSRADENE (v1.218.313, steg 1 — docs/tracer-opplevelser.md §16).
+   Hentes når kortet velges, for de samme stedene som reisene. stedId → { status, data, gang }. */
+const _oppl = new Map();
+let _hentOppl = hentOpplevelser, _hentGang = hentGang;
+/** Tester: bytt ut kildene. */
+export function _settOpplevelseKilder(o, g) { _hentOppl = o || hentOpplevelser; _hentGang = g || hentGang; _oppl.clear(); }
+export const OPPLEVELSER_VIST = 2;
+export const opplevelseStatus = id => _oppl.get(id) || null;
+function hentOpplevelserFor(p) {
+  if (!p || !p.id || !Number.isFinite(p.lat) || _oppl.has(p.id)) return;
+  const e = { status: 'henter', data: null, gang: new Map() };
+  _oppl.set(p.id, e);
+  // Et svar som kommer etter at tilstanden er nullstilt (nytt sted, nytt svar), tegner ingenting.
+  const gjelder = () => _oppl.get(p.id) === e;
+  Promise.resolve(_hentOppl({ id: p.id, lat: p.lat, lon: p.lon })).then(d => {
+    e.status = 'ok'; e.data = d;
+    // Gangtid bare for det som vises (høyst OPPLEVELSER_VIST per sted).
+    for (const o of velgVisning(d && d.liste, OPPLEVELSER_VIST)) {
+      if (o.luft <= 100) continue;
+      Promise.resolve(_hentGang({ id: p.id, lat: p.lat, lon: p.lon }, o)).then(g => { if (g) { e.gang.set(o.navn, g); if (gjelder() && _rerender) _rerender(); } }).catch(() => {});
+    }
+  }).catch(() => { e.status = 'feil'; }).finally(() => { if (gjelder() && _rerender) _rerender(); });
+}
+/** Linjene under en stedsrad. Ingenting funnet: ingen linje (stedet står som før). Ren mot _oppl. */
+export function opplevelseHtml(stedId, esc) {
+  const e = _oppl.get(stedId);
+  if (!e) return '';
+  if (e.status === 'henter') return '<div class="eb-oppl eb-oppl-henter">ser etter turer og steder …</div>';
+  const vis = e.status === 'ok' ? velgVisning(e.data && e.data.liste, OPPLEVELSER_VIST) : [];
+  return vis.map(o => {
+    const fas = fasiliteterVed(o, e.data.punkter);
+    return '<div class="eb-oppl"><span class="eb-oppl-navn">' + esc(o.navn) + '</span>'
+      + [hvaTekst(o), avstandTekst(o, e.gang.get(o.navn)), fas.length ? fas.join(', ') + ' ved' : ''].filter(Boolean).map(t => ' · ' + esc(t)).join('') + '</div>';
+  }).join('');
+}
+/* TURRUTER PÅ KARTET (valgfritt, av som standard — beslutning 24.11). Kartverkets WMS oppå dagens kart. */
+export const TURLAG_KEY = 't.turruteLag';
+export const turLagPå = () => { try { return storage.get(TURLAG_KEY) === '1'; } catch { return false; } };
+export const TURLAG_WMS = 'https://wms.geonorge.no/skwms1/wms.friluftsruter2';
+export const TURLAG_LAG = 'Fotrute,Skiloype,Sykkelrute,Ruteinfopunkt';
+let _turLag = null;
+function oppdaterTurLag(map, L, vis) {
+  if (_turLag && (_turLag.map !== map || !vis)) { try { _turLag.map.removeLayer(_turLag.lag); } catch (_) {} _turLag = null; }
+  if (vis && map && L && !_turLag) {
+    const lag = L.tileLayer.wms(TURLAG_WMS, { layers: TURLAG_LAG, format: 'image/png', transparent: true, version: '1.3.0', attribution: 'turruter © <a href="https://www.kartverket.no/" target="_blank" rel="noopener">Kartverket</a>' }).addTo(map);
+    _turLag = { map, lag };
+  }
+}
+
 /**
  * Lista under det valgte kortet: stedene, lengst unna først. Hvert sted er en
  * overskrift og reisen dit som rad (`radHtml`, Auto-tavlas egen radtegning),
@@ -165,11 +217,15 @@ export function sjekkListeHtml(r, esc, radHtml = null, nå = Date.now()) {
     + steder.map(p => {
       const s = _sjekk.get(p.id);
       const rad = radHtml && sjekkReise(p.id, nå);
-      if (rad) return '<div class="eb-sted"><div class="eb-sted-navn">' + esc(p.navn) + '</div>' + radHtml(rad, 'eb:' + p.id) + '</div>';
+      if (rad) return '<div class="eb-sted"><div class="eb-sted-navn">' + esc(p.navn) + '</div>' + radHtml(rad, 'eb:' + p.id) + opplevelseHtml(p.id, esc) + '</div>';
       const svar = !s ? '<span class="eb-sjekk-knapp">sjekk</span>' : s.status === 'henter' ? '<span class="eb-sjekk-svar">sjekker …</span>'
         : '<span class="eb-sjekk-svar' + (s.utfall === 'annen vei' ? ' eb-annen' : '') + '">' + esc(radHtml && s.status === 'ok' ? 'ingen reise funnet i søket' : s.tekst) + '</span>';
-      return '<button type="button" class="eb-sjekk" data-eb-sted="' + esc(p.id) + '"><span class="eb-sjekk-navn">' + esc(p.navn) + '</span>' + svar + '</button>';
-    }).join('') + '</div>';
+      return '<button type="button" class="eb-sjekk" data-eb-sted="' + esc(p.id) + '"><span class="eb-sjekk-navn">' + esc(p.navn) + '</span>' + svar + '</button>' + opplevelseHtml(p.id, esc);
+    }).join('')
+    // Kildene står der opplevelsene står (CC BY 4.0 krever «© Kartverket»), og turrutene kan legges på kartet.
+    + (steder.some(p => _oppl.has(p.id)) ? '<div class="eb-oppl-fot"><button type="button" class="eb-turlag" aria-pressed="' + turLagPå() + '">' + (turLagPå() ? 'skjul turruter på kartet' : 'vis turruter på kartet') + '</button>'
+      + '<span class="eb-oppl-kilde">turruter © Kartverket · friluftsområder Miljødirektoratet · Wikidata</span></div>' : '')
+    + '</div>';
 }
 export const valgtRetning = () => _valgt;
 
@@ -181,7 +237,7 @@ export function velgRetning(retning) {
   _valgt = _valgt === retning ? null : retning;
   // Reisene hentes med en gang (v1.218.305): stedene står som rader, ikke som «sjekk».
   const t = _tilstand, rad = _valgt && t && t.svar && aktuelle(t).rader.find(x => x.retning === _valgt);
-  if (rad) spredt(rad.punkter.filter(p => p.id), SJEKK_STEDER).forEach(p => sjekkSted(p.id, { stille: true })); // én tegning for alle
+  if (rad) spredt(rad.punkter.filter(p => p.id), SJEKK_STEDER).forEach(p => { sjekkSted(p.id, { stille: true }); hentOpplevelserFor(p); }); // én tegning for alle
   if (_rerender) _rerender();
 }
 
@@ -193,6 +249,7 @@ function bindKort() {
   document.addEventListener('click', e => {
     const sj = e.target && e.target.closest && e.target.closest('#v-auto .eb-sjekk[data-eb-sted]');
     if (sj) { sjekkSted(sj.dataset.ebSted); return; }
+    if (e.target && e.target.closest && e.target.closest('#v-auto .eb-turlag')) { try { storage.set(TURLAG_KEY, turLagPå() ? '0' : '1'); } catch (_) {} if (_kart) oppdaterTurLag(_kart.map, _kartL, !!_valgt && turLagPå()); if (_rerender) _rerender(); return; }
     const fa = e.target && e.target.closest && e.target.closest('#v-auto [data-eb-fasett]');
     if (fa) { velgFasett(fa.dataset.ebFasett); return; }
     if (e.target && e.target.closest && e.target.closest('#v-auto .eb-vis-alle')) { _visAlle = true; if (_rerender) _rerender(); return; }
@@ -266,7 +323,7 @@ export function ettBytteHtml(pos, { esc, rerender, radHtml = null, nå = Date.no
   if (_tilstand && _tilstand.nøkkel !== nøkkel) _valgt = null; // nytt sted: retningene er andre
   if (!_tilstand || _tilstand.nøkkel !== nøkkel || (_tilstand.status !== 'henter' && nå - _tilstand.tid > 10 * 60_000)) {
     _tilstand = { nøkkel, status: 'henter', tid: nå, pos: { lat: pos.lat, lon: pos.lon } };
-    _sjekk.clear(); // nytt sted eller nytt svar: gamle reisesøk gjelder ikke
+    _sjekk.clear(); _oppl.clear(); // nytt sted eller nytt svar: gamle reisesøk og opplevelser gjelder ikke
     const t = _tilstand;
     utforsk({ posisjon: { lat: pos.lat, lon: pos.lon }, tid: new Date(nå).toISOString() }, { hent })
       .then(res => {
@@ -425,7 +482,10 @@ export function plasserNavn(knuter, px, radius = () => 0) {
  * Tegn eller fjern laget. `aktiv` = hurtigvalget er valgt. `ferdig` kalles når
  * laget nettopp ble fjernet, så tavla kan ramme inn sitt eget tema igjen.
  */
+let _kartL = null;
 export function ettBytteKart(map, L, { aktiv, pos, ferdig, ramme: rammeInn = (b, o) => map.fitBounds(b, o) } = {}) {
+  _kartL = L || _kartL;
+  oppdaterTurLag(map, L, !!(aktiv && _valgt && turLagPå()));
   if (_kart && _kart.map !== map) _kart = null; // kartet er bygget på nytt; det gamle laget fulgte med ut
   const data = aktiv && map ? ettBytteKartData(pos) : null;
   if (!data) {

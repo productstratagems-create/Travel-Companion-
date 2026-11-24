@@ -59,3 +59,10 @@
 #v-auto .eb-retning.eb-tittel{text-transform:none}
 #v-auto .eb-par-knute{color:var(--text-muted)}
 #v-auto .eb-sted{border-bottom:1px solid rgba(var(--border-rgb),.12)}#v-auto .eb-sted-navn{font-size:.85rem;padding:.45rem .6rem 0;color:var(--text)}#v-auto .eb-sted .at-kombi{border-bottom:0}
+/* OPPLEVELSER PÅ STEDSRADENE (v1.218.313) */
+#v-auto .eb-oppl{font-size:.8rem;color:var(--text-muted);padding:0 .6rem .4rem 3.4rem;line-height:1.35}
+#v-auto .eb-oppl-navn{color:var(--text);font-weight:600}
+#v-auto .eb-oppl-henter{font-style:italic}
+#v-auto .eb-oppl-fot{display:flex;flex-wrap:wrap;gap:.3rem .7rem;align-items:center;padding:.45rem .6rem;font-size:.75rem;color:var(--text-muted)}
+#v-auto button.eb-turlag{background:none;border:1px solid rgba(var(--border-rgb),.35);border-radius:999px;color:var(--accent);font:inherit;font-size:.78rem;padding:.2rem .65rem;cursor:pointer}
+#v-auto button.eb-turlag[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}

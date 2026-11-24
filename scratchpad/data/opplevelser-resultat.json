@@ -1,5 +1,5 @@
 {
- "kjørt": "2026-11-24T20:58:55.513Z",
+ "kjørt": "2026-11-24T21:07:03.144Z",
  "parametre": {
   "SCEN": [
    "mortensrud_dag",
@@ -42,7 +42,12 @@
   },
   "stederMedEn": 20,
   "stederMedFlere": 17,
-  "nyttNavn": 170
+  "nyttNavn": 170,
+  "stopperMedMerketRute": 13,
+  "opplevelserMedMerketRute": 45,
+  "friluftNaturMedMerketRute": 15,
+  "friluftNatur": 35,
+  "ruteInfoPunkter": 16
  },
  "steder": [
   {
@@ -62,6 +67,15 @@
     "miljodir": "ok"
    },
    "rå": 67,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Pilegrimsleden-Borgleden",
+     "Ukjent"
+    ],
+    "punkter": 2,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Hauketo skysstasjon",
@@ -82,7 +96,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Prinsdalsbekken",
@@ -106,7 +121,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Viktig friluftslivsområde"
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": false
     },
     {
      "navn": "Grønliåsen",
@@ -127,7 +143,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
     }
    ]
   },
@@ -148,6 +165,16 @@
     "miljodir": "ok"
    },
    "rå": 53,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Ukjent",
+     "Pilegrimsleden-Borgleden",
+     "Pilegrimsruta"
+    ],
+    "punkter": 5,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Myraparken",
@@ -171,7 +198,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Viktig friluftslivsområde"
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": true
     },
     {
      "navn": "Greverud kirke",
@@ -192,7 +220,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 4,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Tussetjern",
@@ -216,7 +245,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 1,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
     },
     {
      "navn": "Nøstvetmarka",
@@ -237,7 +267,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
     },
     {
      "navn": "Tussetjern Øst",
@@ -258,7 +289,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
     }
    ]
   },
@@ -279,6 +311,14 @@
     "miljodir": "ok"
    },
    "rå": 83,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Hoffselven-langs"
+    ],
+    "punkter": 1,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Holmendammen",
@@ -299,7 +339,8 @@
      },
      "gangbar": true,
      "flate": true,
-     "sitelinks": 2
+     "sitelinks": 2,
+     "merketRute": true
     },
     {
      "navn": "Emanuel Vigelands museum",
@@ -320,7 +361,8 @@
      },
      "gangbar": true,
      "flate": true,
-     "sitelinks": 3
+     "sitelinks": 3,
+     "merketRute": false
     },
     {
      "navn": "Ris kirke",
@@ -341,7 +383,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Villa Stenersen",
@@ -362,7 +405,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 4,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     }
    ]
   },
@@ -383,6 +427,17 @@
     "miljodir": "ok"
    },
    "rå": 95,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Solvangrunden",
+     "Pilegrimsled i Vestfold (Tunsbergleden)",
+     "Risengarunden",
+     "Kystruta"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Galleri Trafo",
@@ -403,7 +458,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Asker kirke",
@@ -425,7 +481,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 4,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Bondivannet",
@@ -446,7 +503,8 @@
      },
      "gangbar": true,
      "flate": false,
-     "sitelinks": 2
+     "sitelinks": 2,
+     "merketRute": true
     },
     {
      "navn": "Asker prestegård",
@@ -467,7 +525,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     }
    ]
   },
@@ -488,6 +547,12 @@
     "miljodir": "ok"
    },
    "rå": 364,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Palladium",
@@ -508,7 +573,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Sightseeing by boat",
@@ -529,7 +595,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Teatermuseet",
@@ -550,7 +617,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Malmö Live Konserthus",
@@ -571,7 +639,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Form Design Center",
@@ -592,7 +661,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Malmö Stadsteater",
@@ -614,7 +684,8 @@
      },
      "gangbar": true,
      "flate": false,
-     "sitelinks": 5
+     "sitelinks": 5,
+     "merketRute": false
     },
     {
      "navn": "Galleri Ping-Pong",
@@ -635,7 +706,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Expressteatern",
@@ -656,7 +728,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Rikstelefon",
@@ -677,7 +750,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Moderna Museet",
@@ -698,7 +772,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Länsresidenset Malmö",
@@ -719,7 +794,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Ebbas hus",
@@ -740,7 +816,8 @@
      },
      "gangbar": true,
      "flate": true,
-     "sitelinks": 4
+     "sitelinks": 4,
+     "merketRute": false
     },
     {
      "navn": "Bore",
@@ -761,7 +838,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "St. Paul's Church",
@@ -782,7 +860,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 4,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Sankt Petri kirke",
@@ -803,7 +882,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 18,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Caroli Church",
@@ -824,7 +904,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Rörsjöparken",
@@ -845,7 +926,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Kungsparken",
@@ -866,7 +948,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 4,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Slottsparken",
@@ -887,7 +970,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Malmö museum",
@@ -908,7 +992,8 @@
      },
      "gangbar": true,
      "flate": false,
-     "sitelinks": 3
+     "sitelinks": 3,
+     "merketRute": false
     },
     {
      "navn": "Malmøhus borg",
@@ -932,7 +1017,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 24,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Anna Lindhs plats",
@@ -953,7 +1039,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Technology and Maritime Museum",
@@ -974,7 +1061,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Drottningtorget",
@@ -995,7 +1083,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Värnhemstorget",
@@ -1016,7 +1105,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Trekongemøtet 1914",
@@ -1037,7 +1127,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Moderna Museet Malmö",
@@ -1058,7 +1149,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 10,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     }
    ]
   },
@@ -1079,6 +1171,16 @@
     "miljodir": "ok"
    },
    "rå": 75,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Ljanselva-langs",
+     "Ukjent",
+     "Pilegrimsleden-Borgleden"
+    ],
+    "punkter": 4,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Sloreåsen",
@@ -1099,7 +1201,8 @@
      },
      "gangbar": true,
      "flate": false,
-     "sitelinks": 1
+     "sitelinks": 1,
+     "merketRute": true
     },
     {
      "navn": "Hauketo skysstasjon",
@@ -1120,7 +1223,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Prinsdalsbekken",
@@ -1144,7 +1248,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Viktig friluftslivsområde"
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": false
     },
     {
      "navn": "Hauketo-Prinsdal kirke",
@@ -1168,7 +1273,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 4,
-     "verdi": "Viktig friluftslivsområde"
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": false
     },
     {
      "navn": "Holmlia kirke",
@@ -1189,7 +1295,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Ljan kirke",
@@ -1210,7 +1317,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Nordstrand kirke",
@@ -1231,7 +1339,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Grønliåsen",
@@ -1252,7 +1361,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
     }
    ]
   },
@@ -1273,6 +1383,12 @@
     "miljodir": "ok"
    },
    "rå": 75,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Myravatnet",
@@ -1294,7 +1410,8 @@
      },
      "gangbar": true,
      "flate": true,
-     "sitelinks": 1
+     "sitelinks": 1,
+     "merketRute": false
     },
     {
      "navn": "Rambjøra landskapsvernområde",
@@ -1315,7 +1432,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Birkeland kirke",
@@ -1337,7 +1455,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Myravatnet og Rambjøra",
@@ -1358,7 +1477,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
     }
    ]
   },
@@ -1379,6 +1499,12 @@
     "miljodir": "ok"
    },
    "rå": 40,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Kongshaugen",
@@ -1399,7 +1525,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     }
    ]
   },
@@ -1420,6 +1547,14 @@
     "miljodir": "ok"
    },
    "rå": 47,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Kystruta"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Helvetesvatnet",
@@ -1444,7 +1579,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Ikke verdisatt friluftslivsområde"
+     "verdi": "Ikke verdisatt friluftslivsområde",
+     "merketRute": true
     },
     {
      "navn": "Eidsvåg kirke",
@@ -1465,7 +1601,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 4,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Puddefjorden og sentrale deler av Byfjorden",
@@ -1486,7 +1623,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
     },
     {
      "navn": "Sentrale Byfjell",
@@ -1507,7 +1645,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
     },
     {
      "navn": "Tømmervågen og Lillevågen",
@@ -1528,7 +1667,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
     },
     {
      "navn": "Storøya og Buskholmen",
@@ -1549,7 +1689,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
     }
    ]
   },
@@ -1570,6 +1711,12 @@
     "miljodir": "ok"
    },
    "rå": 16,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": []
   },
   {
@@ -1589,6 +1736,12 @@
     "miljodir": "ok"
    },
    "rå": 24,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Sola kapell",
@@ -1610,7 +1763,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Sola ruinkirke",
@@ -1633,7 +1787,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     }
    ]
   },
@@ -1654,6 +1809,14 @@
     "miljodir": "ok"
    },
    "rå": 84,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Kystruta"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Skjold kirke",
@@ -1674,7 +1837,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Søråsen",
@@ -1695,7 +1859,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Birkeland kirke",
@@ -1717,7 +1882,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Skjoldabukta",
@@ -1738,7 +1904,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Tranevatnet",
@@ -1762,7 +1929,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
     }
    ]
   },
@@ -1783,6 +1951,15 @@
     "miljodir": "ok"
    },
    "rå": 82,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Ranheimsrunden",
+     "Pilegrimsleden-Romboleden"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Grilstad Marina",
@@ -1806,7 +1983,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
     },
     {
      "navn": "Strandsone Hitratangen",
@@ -1827,7 +2005,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
     }
    ]
   },
@@ -1848,6 +2027,12 @@
     "miljodir": "ok"
    },
    "rå": 122,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Kolstad kirke",
@@ -1869,7 +2054,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Bymarka - Nærsone",
@@ -1890,7 +2076,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
     }
    ]
   },
@@ -1911,6 +2098,12 @@
     "miljodir": "ok"
    },
    "rå": 13,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Flå kirke",
@@ -1932,7 +2125,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     }
    ]
   },
@@ -1953,6 +2147,12 @@
     "miljodir": "ok"
    },
    "rå": 16,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": []
   },
   {
@@ -1972,6 +2172,15 @@
     "miljodir": "ok"
    },
    "rå": 703,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "KyststiOslo",
+     "Rondanestien"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Dramatikkens hus",
@@ -1992,7 +2201,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Sentrum Scene",
@@ -2013,7 +2223,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Oslo Nye Centralteatret",
@@ -2034,7 +2245,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "22. juli-senteret",
@@ -2055,7 +2267,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Interkulturelt museum",
@@ -2076,7 +2289,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Kunsthall Oslo",
@@ -2097,7 +2311,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Nedre Foss",
@@ -2118,7 +2333,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Folketeatret",
@@ -2139,7 +2355,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Småflaskemuseet",
@@ -2160,7 +2377,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "FLOP museum",
@@ -2181,7 +2399,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Kösk",
@@ -2202,7 +2421,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "VI, VII",
@@ -2223,7 +2443,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Vaterlandsparken",
@@ -2247,7 +2468,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
     },
     {
      "navn": "Oslo Spektrum",
@@ -2268,7 +2490,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Middelalderparken",
@@ -2292,7 +2515,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Ikke verdisatt friluftslivsområde"
+     "verdi": "Ikke verdisatt friluftslivsområde",
+     "merketRute": true
     },
     {
      "navn": "Grev Wedels plass",
@@ -2316,7 +2540,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
     },
     {
      "navn": "Jødisk museum",
@@ -2337,7 +2562,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Børshagen",
@@ -2360,7 +2586,8 @@
      },
      "gangbar": true,
      "flate": true,
-     "sitelinks": 2
+     "sitelinks": 2,
+     "merketRute": true
     },
     {
      "navn": "Munchmuseet",
@@ -2381,7 +2608,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Operahuset i Oslo",
@@ -2404,7 +2632,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Operastranda",
@@ -2425,7 +2654,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Akershus slott og festning",
@@ -2449,7 +2679,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 37,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Kontraskjæret",
@@ -2472,7 +2703,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 4,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Akershus fengselskirke",
@@ -2494,7 +2726,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Akershus slottskirke",
@@ -2515,7 +2748,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Piperviken småkirke",
@@ -2537,7 +2771,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Nobels Fredssenter",
@@ -2558,7 +2793,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 27,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Abelhaugen",
@@ -2579,7 +2815,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Halfdan Kjerulfs plass",
@@ -2602,7 +2839,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Nordraaks plass",
@@ -2625,7 +2863,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Universitetshagen",
@@ -2648,7 +2887,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Stortingsgata 16",
@@ -2670,7 +2910,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Grotten",
@@ -2691,7 +2932,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Nationaltheatret",
@@ -2712,7 +2954,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 29,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Historisk museum",
@@ -2734,7 +2977,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 7,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Kulturhistorisk museum",
@@ -2755,7 +2999,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 15,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Myntkabinettet",
@@ -2776,7 +3021,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 4,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Nasjonalmuseet for kunst, arkitektur og design",
@@ -2797,7 +3043,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 27,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Rådhusplassen",
@@ -2818,7 +3065,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 10,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "7. juni-plassen",
@@ -2841,7 +3089,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Slottsplassen",
@@ -2862,7 +3111,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Fridtjof Nansens plass",
@@ -2883,7 +3133,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Johan Svendsens plass",
@@ -2904,7 +3155,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Tordenskiolds plass",
@@ -2925,7 +3177,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Rolf Strangers plass",
@@ -2946,7 +3199,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Brynjulf Bulls plass",
@@ -2967,7 +3221,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Kronprinsesse Märthas plass",
@@ -2988,7 +3243,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Ragnar Kalheims plass",
@@ -3009,7 +3265,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Stortings plass",
@@ -3032,7 +3289,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Nisseberget",
@@ -3053,7 +3311,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Karl Johan-monumentet",
@@ -3074,7 +3333,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Haakon VII-statuen på 7. juni-plassen",
@@ -3095,7 +3355,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Stenersenmuseet",
@@ -3116,7 +3377,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 8,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Oslo ladegård",
@@ -3137,7 +3399,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 4,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Gamlebyen kirke",
@@ -3158,7 +3421,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Grønland kirke",
@@ -3179,7 +3443,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 7,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Korskirken",
@@ -3201,7 +3466,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Studenterlunden",
@@ -3222,7 +3488,8 @@
      },
      "gangbar": true,
      "flate": false,
-     "sitelinks": 5
+     "sitelinks": 5,
+     "merketRute": false
     },
     {
      "navn": "Universitetsplassen",
@@ -3243,7 +3510,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Festningsplassen",
@@ -3264,7 +3532,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Holbergs plass",
@@ -3285,7 +3554,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Oslo Konserthus",
@@ -3306,7 +3576,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 8,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "«Abelmonumentet»",
@@ -3327,7 +3598,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Skreddergården",
@@ -3348,7 +3620,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Johanne Dybwads plass",
@@ -3369,7 +3642,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Tullinløkka",
@@ -3390,7 +3664,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Normandieplassen",
@@ -3411,7 +3686,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Michael von Sundts plass",
@@ -3432,7 +3708,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Prinsessens plass",
@@ -3453,7 +3730,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Norges Hjemmefrontmuseum",
@@ -3474,7 +3752,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 11,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Nasjonale Festningsverk",
@@ -3495,7 +3774,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 2,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Grønlands park – Botsparken",
@@ -3516,7 +3796,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Minneparken",
@@ -3537,7 +3818,8 @@
      },
      "gangbar": true,
      "flate": false,
-     "sitelinks": 6
+     "sitelinks": 6,
+     "merketRute": true
     },
     {
      "navn": "Chat Noir",
@@ -3558,7 +3840,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 10,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Johannes kirke",
@@ -3580,7 +3863,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Forsvarsmuseet",
@@ -3601,7 +3885,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 9,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Engebret Café",
@@ -3622,7 +3907,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Mariakirken i Oslo",
@@ -3644,7 +3930,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Clemenskirken i Oslo",
@@ -3666,7 +3953,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 5,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Nikolaikirken",
@@ -3688,7 +3976,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 4,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Gamle Logen",
@@ -3709,7 +3998,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 3,
-     "verdi": null
+     "verdi": null,
+     "merketRute": true
     },
     {
      "navn": "Bjørvika og Bispevika",
@@ -3730,7 +4020,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
     }
    ]
   },
@@ -3751,6 +4042,14 @@
     "miljodir": "ok"
    },
    "rå": 114,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Pilegrimsleden-Romboleden"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Leangen Gård",
@@ -3779,7 +4078,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 4,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": true
     },
     {
      "navn": "Lade kirke",
@@ -3800,7 +4100,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 9,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Ringve botaniske hage",
@@ -3821,7 +4122,8 @@
      },
      "gangbar": true,
      "flate": false,
-     "sitelinks": 6
+     "sitelinks": 6,
+     "merketRute": false
     },
     {
      "navn": "Lade gård",
@@ -3842,7 +4144,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 4,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Ringve Musikkmuseum",
@@ -3864,7 +4167,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 12,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     }
    ]
   },
@@ -3885,6 +4189,14 @@
     "miljodir": "ok"
    },
    "rå": 5,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Pilegrimsleden-Gudbrandsdalsleden"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": []
   },
   {
@@ -3904,6 +4216,14 @@
     "miljodir": "ok"
    },
    "rå": 42,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Pilegrimsleden-Gudbrandsdalsleden"
+    ],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": []
   },
   {
@@ -3923,6 +4243,12 @@
     "miljodir": "ok"
    },
    "rå": 4,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Vottestadhøgda",
@@ -3943,7 +4269,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Viktig friluftslivsområde"
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": false
     }
    ]
   },
@@ -3964,6 +4291,12 @@
     "miljodir": "ok"
    },
    "rå": 5,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Veslefettjønn",
@@ -3984,7 +4317,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Viktig friluftslivsområde"
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": false
     },
     {
      "navn": "Bygdenært areal til grender i Vågå",
@@ -4005,7 +4339,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
     }
    ]
   },
@@ -4026,6 +4361,12 @@
     "miljodir": "ok"
    },
    "rå": 43,
+   "turruter": {
+    "vedStopp": false,
+    "navn": [],
+    "punkter": 0,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Måløy stadion",
@@ -4047,7 +4388,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
     },
     {
      "navn": "Lingeparken",
@@ -4071,7 +4413,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Viktig friluftslivsområde"
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": false
     },
     {
      "navn": "Sør-Vågsøy kirke",
@@ -4093,7 +4436,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 6,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     },
     {
      "navn": "Veten-Blåfjell-Stallbrekka",
@@ -4114,7 +4458,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Viktig friluftslivsområde"
+     "verdi": "Viktig friluftslivsområde",
+     "merketRute": true
     },
     {
      "navn": "Moldøen",
@@ -4135,7 +4480,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
     },
     {
      "navn": "Turvegnett rundt Måløy stadion",
@@ -4156,7 +4502,8 @@
      "gangbar": true,
      "flate": true,
      "sitelinks": 0,
-     "verdi": "Svært viktig friluftslivsområde"
+     "verdi": "Svært viktig friluftslivsområde",
+     "merketRute": false
     }
    ]
   },
@@ -4177,6 +4524,16 @@
     "miljodir": "ok"
    },
    "rå": 102,
+   "turruter": {
+    "vedStopp": true,
+    "navn": [
+     "Storkjølla",
+     "70 turer for store og små",
+     "Aronsvestranda"
+    ],
+    "punkter": 4,
+    "ok": true
+   },
    "opplevelser": [
     {
      "navn": "Lilleputthammer",
@@ -4200,7 +4557,8 @@
      },
      "gangbar": true,
      "flate": true,
-     "sitelinks": 6
+     "sitelinks": 6,
+     "merketRute": true
     },
     {
      "navn": "Hafjell",
@@ -4221,7 +4579,8 @@
      "gangbar": true,
      "flate": false,
      "sitelinks": 13,
-     "verdi": null
+     "verdi": null,
+     "merketRute": false
     }
    ]
   }

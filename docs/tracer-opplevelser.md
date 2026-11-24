@@ -37,6 +37,9 @@ brukeren aldri sett dem. Noen eksempler (§8):
 - **Boligstrøk og bygd gir få eller ingen treff.** 4 av 24 steder fikk 0:
   Dorganeset, Mære skole, Skogstadrampa og Balberglia. Kategorien må derfor
   **supplere** og ikke erstatte, slik oppdraget sier.
+- **Kartverkets turrutebase løfter bygda** (§13). Pilegrimsleden går forbi
+  to av de fire tomme stoppene, Skogstadrampa og Balberglia nord. Med
+  turrutene får **22 av 24** steder noe å gjøre.
 - **Ingen kilde alene er nok.** Miljødirektoratet er best for friluftsliv,
   Wikidata (antall språkversjoner) for kultur og severdigheter, og OSM for
   attraksjoner, utsikt og bading. Kartverket bekrefter navn og type, men er
@@ -121,10 +124,8 @@ Alle 96 kildekall svarte (`kilder` i resultatfila).
   produksjonsvei (se §11).
 - **UT.no/DNT:** ikke undersøkt. Verten var ikke tillatt, og om det finnes et
   åpent API er **[Ubekreftet]**.
-- **Kartverkets turruter** (`wfs.geonorge.no/skwms1/wfs.turogfriluftsruter`)
-  svarer, med typene `Fotrute`, `Sykkelrute`, `AnnenRute`, `RuteInfoPunkt`
-  og `Skil`. Eksempel: «Blåmerket sti Nordmarka», merket, vedlikeholdt av DNT
-  og Bymiljøetaten. Den er ikke tatt med i tellingen.
+- **Kartverkets turrutebase** er tatt med etter første rapport. Den står i
+  §13, og telles der for seg.
 
 ---
 
@@ -138,7 +139,7 @@ Alle 96 kildekall svarte (`kilder` i resultatfila).
 | identitet | `node/way/<id>` (stabil, men kan endres) | `Q-id` (stabil) | `stedsnummer` | `id` (FK…) | `place_id` og OSM-id i `datasource.raw` |
 | andel av relevante treff [Målt] | 52 | 110 | 7 | 32 | ikke prøvd |
 | i appen i dag | ja (Overpass, mat og butikk) | nei | ja (`stedNavn.js`) | nei | ja (mat og butikk) |
-| lisens | ODbL, kreditering | CC0 | CC BY 4.0 **[Ubekreftet]** | NLOD/CC BY 4.0 **[Ubekreftet]** | kommersielle vilkår **[Ubekreftet]** |
+| lisens | ODbL, kreditering | CC0 | **CC BY 4.0, «© Kartverket»** [Fakta, kartverket.no/api-og-data/vilkar-for-bruk] | NLOD/CC BY 4.0 **[Ubekreftet]** | kommersielle vilkår **[Ubekreftet]** |
 | rolle [Anbefaling] | attraksjoner, utsikt, bading, naturtagger | kultur og severdigheter, og relevans | navn og bekreftelse | **friluftsliv og utfart** | mulig erstatning for OSM i nettleseren |
 
 Tallene for «andel av relevante treff» teller hver kilde som bidro til et
@@ -407,6 +408,10 @@ Den skal være egen og ved siden av opsjonen. Den skal ikke ligge i
 
 ## 12. Anbefaling
 
+**Avklart med produkteier 24.11:** bare åpne API-er, uten nøkkel og uten
+betalte lisenser. Åpne lisenser med krav om kreditering (CC BY, ODbL) er
+greit, men krediteringen må vises.
+
 **Svar på spørsmålene:**
 1. **Gir kategorien en reell forbedring?** Ja, der stoppnavnet ikke sier noe:
    by- og forstadsstopp, og regionale knutepunkter som Øyer og Leangen. Den
@@ -418,8 +423,9 @@ Den skal være egen og ved siden av opsjonen. Den skal ikke ligge i
 3. **Holder dagens Geoapify- og Overpass-integrasjoner?** Nei, ikke uten
    endring. De spør bare om mat og butikk. OSM-delen kan utvides med taggene
    i `OSM_MAP`. Geoapify er ikke prøvd.
-4. **Hvilke kilder bør prioriteres?** Miljødirektoratet og Wikidata. Deretter
-   Kartverkets turruter og `RuteInfoPunkt` for adkomst.
+4. **Hvilke kilder bør prioriteres?** Miljødirektoratet, Wikidata og
+   **Kartverkets turrutebase**. Alle er åpne og uten nøkkel. Turrutebasen gir
+   både navngitte ruter (et turmål i seg selv) og merket adkomst.
 5. **Hvilken kategorimodell?** De sju i `src/opplevelser.js`, med kirke som
    egen lavvektet underkategori. Severdighet og attraksjon kan slås sammen i
    første versjon.
@@ -438,12 +444,12 @@ Den skal være egen og ved siden av opsjonen. Den skal ikke ligge i
 - **Nå:**
   - kategorimodellen (gjort, `src/opplevelser.js`, med tester);
   - et lite oppslag på trykk for et valgt kort, med Miljødirektoratet og
-    Wikidata (to åpne kilder uten nøkkel). Opplevelsen vises som linje på
+    Wikidata, i tillegg til turrutebasen (tre åpne kilder uten nøkkel). Opplevelsen vises som linje på
     stedsraden;
   - mål på ekte bruk.
 - **Neste:**
-  - OSM-taggene gjennom eksisterende `places.js`, eller Geoapify med nye
-    kategorier;
+  - OSM-taggene gjennom eksisterende `places.js` (Overpass). Geoapify tas
+    ikke med: bare åpne API-er, avklart 24.11;
   - kategori som dimensjon og filter sammen med «hvor langt»;
   - adkomst fra Kartverkets turruter.
 - **Senere:**
@@ -451,6 +457,54 @@ Den skal være egen og ved siden av opsjonen. Den skal ikke ligge i
   - UT.no/DNT, hvis vilkårene tillater det;
   - sesong og åpningstider;
   - en bildekilde.
+
+## 13. Tillegg: Kartverkets turrutebase
+
+Etter spørsmålet ditt om kartverket.no/api-og-data/friluftsliv.
+
+**Fakta fra Kartverket:**
+- «Nasjonal database for turruter» har fotruter, skiløyper, sykkelruter,
+  ro- og padleruter, og hytter, parkering, toalett og utsiktspunkt knyttet til
+  rutene. Rutene har et **definert vedlikeholdsansvar**: de er merket eller
+  skiltet.
+- Turforslag er ikke med. Ut.no henter stier og ruter herfra.
+- Den finnes som WFS:
+  `wfs.geonorge.no/skwms1/wfs.turogfriluftsruter`, med typene `Fotrute`,
+  `Sykkelrute`, `AnnenRute`, `RuteInfoPunkt` og `Skil`.
+- Den oppdateres ukentlig (kartkatalogen, sist 23.11.2026).
+- Lisensen er **CC BY 4.0**, gratis også for kommersiell bruk, med «©
+  Kartverket» og en lenke der det er mulig.
+
+**Målt** (WFS, ± 800 m rundt hvert av de 24 stoppene):
+
+| | antall |
+|---|---|
+| stopp med merket turrute innen 500 m | **13 / 24** |
+| opplevelser med merket rute innen 200 m av stedets punkt | 45 av 172 |
+| av dem friluftsliv eller natur | 15 av 35 |
+| `RuteInfoPunkt` funnet | 16, på 5 stopp |
+
+**Hva den avdekker som de andre kildene ikke gjør:**
+- **Skogstadrampa og Balberglia nord** (Tretten) hadde **0** opplevelser.
+  Begge ligger på **Pilegrimsleden – Gudbrandsdalsleden**.
+- **Øyer sentrum:** «Storkjølla», «Aronsvestranda» og «70 turer for store og
+  små».
+- **Oslo S:** «Rondanestien» og «KyststiOslo».
+- **Asker stasjon:** «Kystruta», «Solvangrunden» og «Risengarunden».
+- **Strindfjordvegen:** «Ranheimsrunden» og «Pilegrimsleden – Romboleden».
+
+**Vurdering:**
+- **Rutene er både reisemål og adkomst [Hypotese].** En navngitt, merket rute
+  er et turmål i seg selv, som Pilegrimsleden. En merket rute innen 200 m av
+  et friluftsområde viser også at stedet har en vei inn. Det er sterkere enn
+  Valhallas gangvei til kanten.
+- **`RuteInfoPunkt` er tynt.** 16 punkter på 24 stopp. Koden for
+  tilrettelegging (for eksempel «22») må slås opp i SOSI-kodelisten før den
+  kan brukes [Ubekreftet].
+- **Navn mangler eller er «Ukjent»** på en del ruteledd, og de tas ut.
+- **Kategorien er friluftsliv og utfart,** med underkategori «turrute»
+  (fot, sykkel og annet). Mapping legges i `src/opplevelser.js` når den tas i
+  bruk.
 
 ## Avgrensninger
 

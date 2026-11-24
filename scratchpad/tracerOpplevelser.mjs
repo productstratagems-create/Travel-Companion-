@@ -94,6 +94,30 @@ const md = s => hentCachet('md-' + s.id, () => json('https://kart.miljodirektora
   geometry: s.lon + ',' + s.lat, geometryType: 'esriGeometryPoint', inSR: '4326', distance: '800', units: 'esriSRUnit_Meter', spatialRel: 'esriSpatialRelIntersects',
   outFields: 'id,omraadenavn,omraadetype_beskrivelse,omraadeverdi_beskrivelse,kommune_navn,brukerfrekvens_beskrivelse,tilrettelegging_beskrivelse', returnGeometry: 'true', outSR: '4326', maxAllowableOffset: '0.0005', f: 'json' })));
 
+/* Kartverkets turrutebase (Nasjonal database for turruter, CC BY 4.0, «© Kartverket»):
+   merkede ruter med vedlikeholdsansvar. Brukes som ADKOMST, ikke som reisemål. */
+const TR_TYPER = ['Fotrute', 'Sykkelrute', 'AnnenRute', 'RuteInfoPunkt'];
+async function tr(s) {
+  const b = bbox(s, 800).split(',').map(Number); // lon1,lat1,lon2,lat2
+  const ut = {};
+  for (const t of TR_TYPER) {
+    const r = await hentCachet('tr-' + t + '-' + s.id, async () => {
+      const x = await fetch('https://wfs.geonorge.no/skwms1/wfs.turogfriluftsruter?service=WFS&version=2.0.0&request=GetFeature&typeNames=app:' + t + '&count=200&bbox=' + [b[1], b[0], b[3], b[2]].join(',') + ',urn:ogc:def:crs:EPSG::4326', { headers: UA });
+      if (!x.ok) throw new Error('HTTP ' + x.status);
+      const xml = await x.text();
+      return [...xml.matchAll(new RegExp('<app:' + t + '[ >][\\s\\S]*?</app:' + t + '>', 'g'))].map(m => {
+        const f = m[0], v = k => ((new RegExp('<app:' + k + '>([^<]*)</app:' + k + '>')).exec(f) || [])[1] || null;
+        const tall = [...f.matchAll(/<gml:(?:posList|pos)[^>]*>([^<]+)</g)].flatMap(p => p[1].trim().split(/\s+/).map(Number));
+        const pkt = []; for (let i = 0; i + 1 < tall.length; i += 2) pkt.push({ lat: tall[i], lon: tall[i + 1] });
+        return { navn: v('rutenavn'), nr: v('rutenummer'), merket: v('merking'), ansvar: v('vedlikeholdsansvarlig'), tilrettelegging: v('tilrettelegging'), pkt };
+      });
+    });
+    ut[t] = r.ok ? r.svar : null;
+  }
+  return ut;
+}
+const nærmest = (p, ruter) => Math.min(Infinity, ...(ruter || []).flatMap(r => r.pkt.map(q => metresBetween(p, q))));
+
 /* ── 3. Felles kategorimodell og mapping ───────────────────────────────── */
 import { KATEGORIER as KAT, klassifiserOsm, klassifiserWikidata, klassifiserKartverket, klassifiserFriluft, erReisemål, OSM_MAP, OSM_STØY } from '../src/opplevelser.js';
 
@@ -158,10 +182,11 @@ async function gang(s, p) {
 /* ── 6. Kjør ──────────────────────────────────────────────────────────── */
 const resultat = [];
 for (const s of steder) {
-  const [o, w, k, m] = [await osm(s), await wd(s), await kv(s), await md(s)];
+  const [o, w, k, m, t] = [await osm(s), await wd(s), await kv(s), await md(s), await tr(s)];
   const rå = [...(o.ok ? osmKandidater(s, o.svar) : []), ...(w.ok ? wdKandidater(w.svar) : []), ...(k.ok ? kvKandidater(k.svar) : []), ...(m.ok ? mdKandidater(s, m.svar) : [])]
     .map(c => ({ ...c, luft: Math.round(metresBetween(s, c)) }));
-  resultat.push({ sted: s, kilder: { osm: o.ok ? 'ok' : o.feil, wikidata: w.ok ? 'ok' : w.feil, kartverket: k.ok ? 'ok' : k.feil, miljodir: m.ok ? 'ok' : m.feil }, rå });
+  const ruter = [...(t.Fotrute || []), ...(t.Sykkelrute || []), ...(t.AnnenRute || [])];
+  resultat.push({ sted: s, turruter: { ruter, punkter: t.RuteInfoPunkt || [], ok: Object.values(t).every(Boolean) }, kilder: { osm: o.ok ? 'ok' : o.feil, wikidata: w.ok ? 'ok' : w.feil, kartverket: k.ok ? 'ok' : k.feil, miljodir: m.ok ? 'ok' : m.feil }, rå });
   process.stdout.write('.');
 }
 console.log();
@@ -204,6 +229,10 @@ for (const r of resultat) {
     u.gang = g;
     u.gangbar = g ? (g.m <= 2000 && g.m <= Math.max(3 * u.luft, u.luft + 600)) : null;
   }
+  const ruterHer = r.turruter.ruter;
+  for (const u of vurdert) u.merketRute = nærmest(u, ruterHer) <= 200;
+  r.ruteVedStopp = nærmest(s, ruterHer) <= 500;
+  r.ruteNavn = [...new Set(ruterHer.filter(x => x.navn && nærmest(s, [x]) <= 500).map(x => x.navn))].slice(0, 5);
   const tilgj = vurdert.filter(u => u.gangbar !== false);
   if (vurdert.some(u => u.gangbar === false)) sum.borteGang += vurdert.filter(u => u.gangbar === false).length;
   sum.relevante += vurdert.length; sum.tilgjengelige += tilgj.length; sum.gangVerifisert += tilgj.filter(u => u.gangbar === true).length;
@@ -214,12 +243,17 @@ for (const r of resultat) {
     if (new Set(u.kilder.map(c => c.kilde)).size > 1) sum.flereKilder++;
     if (!u.sammeSomStopp && !normNavn(s.navn).includes(normNavn(u.navn)) && !normNavn(u.navn).includes(normNavn(s.navn))) sum.nyttNavn++;
   }
+  sum.stopperMedMerketRute = (sum.stopperMedMerketRute || 0) + (r.ruteVedStopp ? 1 : 0);
+  sum.opplevelserMedMerketRute = (sum.opplevelserMedMerketRute || 0) + tilgj.filter(u => u.merketRute).length;
+  sum.friluftNaturMedMerketRute = (sum.friluftNaturMedMerketRute || 0) + tilgj.filter(u => u.merketRute && u.kats.some(k => k === 'friluftsliv' || k === 'natur')).length;
+  sum.friluftNatur = (sum.friluftNatur || 0) + tilgj.filter(u => u.kats.some(k => k === 'friluftsliv' || k === 'natur')).length;
+  sum.ruteInfoPunkter = (sum.ruteInfoPunkter || 0) + r.turruter.punkter.length;
   if (tilgj.length >= 1) sum.stederMedEn++;
   if (tilgj.length >= 2) sum.stederMedFlere++;
-  r.opplevelser = tilgj.map(u => ({ navn: u.navn, kategorier: u.kats.map(k => KAT[k]), under: [...new Set(u.kat.map(k => k.u))], kilder: [...new Set(u.kilder.map(c => c.kilde + ':' + c.sid))], luft: u.luft, gang: u.gang, gangbar: u.gangbar, flate: u.flate, sitelinks: u.sitelinks, verdi: u.verdi }));
+  r.opplevelser = tilgj.map(u => ({ navn: u.navn, kategorier: u.kats.map(k => KAT[k]), under: [...new Set(u.kat.map(k => k.u))], kilder: [...new Set(u.kilder.map(c => c.kilde + ':' + c.sid))], luft: u.luft, gang: u.gang, gangbar: u.gangbar, flate: u.flate, sitelinks: u.sitelinks, verdi: u.verdi, merketRute: u.merketRute }));
 }
 const ut = { kjørt: new Date().toISOString(), parametre: { SCEN, PER_SCEN, RADIUS_M, GANG_MAKS_M, RELEVANT_SITELINKS }, sum,
-  steder: resultat.map(r => ({ sted: { navn: r.sted.navn, id: r.sted.id, fra: r.sted.fra, km: +r.sted.km.toFixed(1), type: r.sted.type, linjer: r.sted.linjer, iAlt: r.sted.iAlt }, kilder: r.kilder, rå: r.rå.length, opplevelser: r.opplevelser })),
+  steder: resultat.map(r => ({ sted: { navn: r.sted.navn, id: r.sted.id, fra: r.sted.fra, km: +r.sted.km.toFixed(1), type: r.sted.type, linjer: r.sted.linjer, iAlt: r.sted.iAlt }, kilder: r.kilder, rå: r.rå.length, turruter: { vedStopp: r.ruteVedStopp, navn: r.ruteNavn, punkter: r.turruter.punkter.length, ok: r.turruter.ok }, opplevelser: r.opplevelser })),
   negative: negative.slice(0, 80) };
 fs.mkdirSync('scratchpad/data', { recursive: true });
 fs.writeFileSync('scratchpad/data/opplevelser-resultat.json', JSON.stringify(ut, null, 1));

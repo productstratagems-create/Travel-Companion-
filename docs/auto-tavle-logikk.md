@@ -356,6 +356,37 @@ kort.
 - kombinerte fasetter (tog **og** via Helsfyr);
 - ruter i det utvidede vinduet. «Ett bytte» bruker bare det ordinære.
 
+### Linjeparene — kortet påstår bare det som er observert (v1.218.300)
+
+**Bakgrunn:** tracer del A (`docs/tracer-sammenlign-utgangspunkt.md`) viste at
+to lister med linjer inn og ut antyder kombinasjoner som ikke er observert:
+18–70 % i fasettene linje og transport. Listene lagde forbindelser
+datagrunnlaget ikke dokumenterer.
+
+**Linjeparet er førsteklasses** (`linjepar` i hver rad,
+`src/ettBytte.js`): linje inn → knutepunkt → linje ut, med antall steder.
+`reiseruter` er antallet par. Én definisjon.
+
+**Én regel, avgjort av dataene** (`listerHolder`):
+- **Listene vises** bare når hver kombinasjon av en inn-linje og en annen
+  ut-linje er observert: «FB10 → bytt til 100, 110 …». «74 → 74» er ikke et
+  bytte og telles ikke.
+- **Ellers vises parene:** «T-bane 3 → 100 på Helsfyr · T-bane 3 → 31 på
+  Jernbanetorget · +89 reiseruter». Høyst 3 vises (`PAR_VIST`), de med flest
+  steder.
+- **Effekt** målt med `scratchpad/tracerLinjepar.mjs --etter`: 0 % påståtte
+  og ikke observerte par i alle fem opptak og fire fasetter, mot 0–70 % før.
+  Testen «kortet påstår bare observerte par» binder dette.
+
+**Observert er ikke bekreftet.** Et par er sett i avgangene nå. Det er ikke
+en tidsbekreftet overgang, og grunnlagslinja sier fortsatt «ikke
+tidskontrollert». «Sjekk denne» skiller nå tre svar:
+- «bytt på Helsfyr · **samme linjer som kortet**»: Entur bekrefter paret,
+  med linje og byttested;
+- «bytt på Helsfyr, **med andre linjer** (T-bane 2 → 300)»: byttestedet
+  stemmer, paret gjør det ikke;
+- «Entur foreslår via X»: en annen vei.
+
 ### Sjekk denne (v1.218.298, forslag 5)
 
 Under det valgte kortet står en liste med opptil 8 steder (`SJEKK_STEDER`),

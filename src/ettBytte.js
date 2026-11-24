@@ -96,8 +96,13 @@ export function frekvensTekst(minutter) {
  * ikke en feil. Tidene skrives i norsk tid.
  * @returns {{ utfall: 'funnet'|'annen vei'|'ingen', tekst: string, fremme?: string }}
  */
+/** En reiseetappes linje i kortenes skrivemåte (som linjeTekst): «T-bane 3», «tog R14», «300». */
+const etappeLinje = l => {
+  const k = (l.serviceJourney && l.serviceJourney.line && l.serviceJourney.line.publicCode) || (l.line && l.line.publicCode) || '?';
+  return (l.mode === 'metro' ? 'T-bane ' : l.mode === 'tram' ? 'trikk ' : l.mode === 'rail' ? 'tog ' : l.mode === 'water' ? 'båt ' : '') + k;
+};
 const klokke = iso => new Date(iso).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo' }).replace(':', '.');
-export function reiseSammendrag(mønstre, knuteNavn, knuteNavnene = null) {
+export function reiseSammendrag(mønstre, knuteNavn, knuteNavnene = null, linjepar = null) {
   const m = (mønstre || []).filter(p => p && (p.legs || []).length)
     .sort((a, b) => Date.parse(a.legs[a.legs.length - 1].expectedEndTime) - Date.parse(b.legs[b.legs.length - 1].expectedEndTime))[0];
   if (!m) return { utfall: 'ingen', tekst: 'fant ingen reise nå' };
@@ -109,6 +114,14 @@ export function reiseSammendrag(mønstre, knuteNavn, knuteNavnene = null) {
   // Våre knutepunkt: kortets (i fasettene kan et kort ha flere).
   const våre = new Set([knuteNavn, ...(knuteNavnene || [])].filter(Boolean));
   const vår = bytter.some(b => våre.has(b));
+  // Linjeparet (ett bytte): er Enturs to linjer et par kortet har observert på det byttestedet?
+  // Observert kombinasjon ≠ bekreftet reise; dette er stedet der de to møtes.
+  if (vår && linjepar && reise.length === 2) {
+    const [a, b] = reise.map(etappeLinje), bytte = bytter[0];
+    const samme = linjepar.some(p => p.inn === a && p.ut === b && p.knuteNavn === bytte);
+    return { utfall: 'funnet', linjer: samme ? 'samme' : 'andre', fremme,
+      tekst: 'fremme ' + fremme + ' · bytt på ' + bytte + (samme ? ' · samme linjer som kortet' : ', med andre linjer (' + a + ' → ' + b + ')') };
+  }
   return vår
     ? { utfall: 'funnet', fremme, tekst: 'fremme ' + fremme + ' · bytt på ' + bytter.join(' og ') }
     : { utfall: 'annen vei', fremme, tekst: 'fremme ' + fremme + ' · Entur foreslår via ' + bytter.join(' og ') };
@@ -171,7 +184,7 @@ export function ettByttVeier(resultat) {
 function radAv(resultat, posisjon, veier, meta) {
   const opsjoner = new Map(((resultat && resultat.opsjoner) || []).map(o => [o.id, o]));
   const knNavn = new Map((((resultat && resultat.knutepunkter) || {}).vurdert || []).map(k => [k.id, k.navn]));
-  const dest = new Set(), moduser = new Map(), inn = new Map(), ut = new Map(), innDir = new Map(), utPar = new Map(), perKnute = new Map(), ruter = new Set();
+  const dest = new Set(), moduser = new Map(), inn = new Map(), ut = new Map(), innDir = new Map(), utPar = new Map(), perKnute = new Map(), par = new Map();
   for (const v of veier) {
     dest.add(v.opsjon);
     const li = linje(resultat, v.inn), lu = linje(resultat, v.directionId);
@@ -180,7 +193,9 @@ function radAv(resultat, posisjon, veier, meta) {
     (innDir.get(linjeTekst(li)) || innDir.set(linjeTekst(li), new Set()).get(linjeTekst(li))).add(v.inn);
     (utPar.get(linjeTekst(lu)) || utPar.set(linjeTekst(lu), []).get(linjeTekst(lu))).push([v.directionId, v.knute]);
     (perKnute.get(v.knute) || perKnute.set(v.knute, new Set()).get(v.knute)).add(v.opsjon);
-    ruter.add(linjeTekst(li) + '→' + v.knute + '→' + linjeTekst(lu));
+    // Linjeparet: linje inn → knutepunkt → linje ut, med stedene det når. Førsteklasses, ikke bare en telling.
+    const pk = linjeTekst(li) + '|' + v.knute + '|' + linjeTekst(lu);
+    (par.get(pk) || par.set(pk, { inn: linjeTekst(li), knute: v.knute, ut: linjeTekst(lu), steder: new Set() }).get(pk)).steder.add(v.opsjon);
   }
   const steder = [...dest].map(id => opsjoner.get(id)).filter(o => o && o.destinations && o.destinations[0])
     .map(o => ({ id: o.destinations[0].id, type: velgStedstype(moduser.get(o.id) || new Set()), navn: o.label || o.destinations[0].name, lat: o.destinations[0].lat, lon: o.destinations[0].lon, m: posisjon ? metresBetween(posisjon, o.destinations[0]) : 0 }))
@@ -193,10 +208,13 @@ function radAv(resultat, posisjon, veier, meta) {
     return { id, navn: knNavn.get(id) || id, ll: kd && Number.isFinite(kd.lat) ? { lat: kd.lat, lon: kd.lon } : null, steder: [...ops].map(o => sted(opsjoner.get(o))).filter(Boolean).map(d => d.id).sort() };
   });
   const knute = knuterDetalj[0].id;
+  const kNavn = new Map(knuterDetalj.map(k => [k.id, k.navn]));
+  const linjepar = [...par.values()].map(p => ({ inn: p.inn, knute: p.knute, knuteNavn: kNavn.get(p.knute) || p.knute, ut: p.ut, steder: p.steder.size }))
+    .sort((a, b) => b.steder - a.steder || (a.inn + a.ut + a.knute < b.inn + b.ut + b.knute ? -1 : 1));
   const punkter = steder.filter(x => Number.isFinite(x.lat)).map(({ id, navn: n, lat, lon, type }) => ({ id, navn: n, lat, lon, type }));
   return {
     retning: meta.retning, retningNavn: meta.tittel, undertittel: meta.undertittel || null, fasett: meta.fasett,
-    knute, knuteNavn: knuterDetalj[0].navn, knuterDetalj, reiseruter: ruter.size,
+    knute, knuteNavn: knuterDetalj[0].navn, knuterDetalj, linjepar, reiseruter: linjepar.length,
     inn: [...inn.values()].map(linjeTekst).sort(), ut: [...ut.values()].map(linjeTekst).sort(),
     eksempler: navn, antallSteder: dest.size, sjekket: false,
     // For kartet (src/views/ettBytteVisning.js): knutepunktet og stedene, lengst unna først.
@@ -216,6 +234,18 @@ function frekvensPar(resultat, par) {
   const lr = (resultat.grupper && resultat.grupper.linjeretning) || {};
   const m = par.map(([d, k]) => frekvensMin(((lr[d] && lr[d].avgangerVed) || {})[k] || [])).filter(x => x != null).sort((a, b) => a - b)[0];
   return frekvensTekst(m == null ? null : m);
+}
+
+ /**
+ * LINJEPARENE (tracer del A): kortet kan vise linjer inn og ut som to lister bare
+ * når HVER kombinasjon av en inn-linje og en annen ut-linje er observert. Ellers
+ * antyder listene par nettverket ikke har vist oss (målt: 18–70 % i fasettene
+ * linje og transport), og kortet skal vise parene i stedet. Samme linje inn og ut
+ * («74 → 74») er ikke et bytte og telles ikke. Én regel, avgjort av dataene.
+ */
+export function listerHolder(rad) {
+  const obs = new Set((rad.linjepar || []).map(p => p.inn + '|' + p.ut));
+  return rad.inn.every(i => rad.ut.every(u => u === i || obs.has(i + '|' + u)));
 }
 
 const GRUNNLAG = 'mulig med ett bytte — ikke sjekket mot reisesøket, og byttet er ikke tidskontrollert';

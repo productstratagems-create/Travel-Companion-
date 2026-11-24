@@ -41,3 +41,11 @@
 
 /* Hvor ofte det går (forslag 4). */
 #v-auto .eb-frekvens{color:var(--text-muted);font-size:.78rem;white-space:nowrap}
+
+/* Sjekk denne (forslag 5): lista under det valgte kortet. */
+#v-auto .eb-sjekkliste{display:flex;flex-direction:column;border-left:3px solid var(--accent);background:rgba(var(--accent-rgb),.06);margin-bottom:.4rem}
+#v-auto button.eb-sjekk{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid rgba(var(--border-rgb),.12);color:inherit;font:inherit;font-size:.85rem;padding:.45rem .6rem;cursor:pointer}
+#v-auto .eb-sjekk-navn{flex:1 1 auto;min-width:0}
+#v-auto .eb-sjekk-knapp{color:var(--accent);font-weight:600;white-space:nowrap}
+#v-auto .eb-sjekk-svar{color:var(--text);font-size:.8rem;text-align:right}
+#v-auto .eb-sjekk-svar.eb-annen{color:var(--text-muted)}

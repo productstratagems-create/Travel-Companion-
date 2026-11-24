@@ -10,7 +10,8 @@
  * «ETT BYTTE (eksperiment)» i src/views/auto.js.
  */
 import { utforsk } from '../nettverksutforsker.js';
-import { ettByttePerRetning, kommunerI, oftest } from '../ettBytte.js';
+import { ettByttePerRetning, kommunerI, oftest, reiseSammendrag } from '../ettBytte.js';
+import { reisesøkGql } from '../reisebekreftelse.js';
 import { enturFetch } from '../api/http.js';
 import { metresBetween } from '../haversine.js';
 import '../style/ettBytte.css';
@@ -49,7 +50,48 @@ export async function hentKommunerFraEntur(ider, pos) {
 /** Valgt retningskort ('NØ' …) eller null: kartet viser da den retningen. */
 let _valgt = null;
 let _rerender = null;
-export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _rerender = null; }
+let _hent = null;
+/* SJEKK DENNE (forslag 5): reisesøk per sted, bare på trykk. stedId → { status, tekst, tid }. */
+const _sjekk = new Map();
+export const SJEKK_GYLDIG_MS = 10 * 60_000;
+/** Høyst så mange steder står i lista under det valgte kortet. */
+export const SJEKK_STEDER = 8;
+export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _rerender = null; _hent = null; _sjekk.clear(); }
+export const sjekkStatus = id => _sjekk.get(id) || null;
+
+/**
+ * Sjekk ett sted: ett reisesøk fra posisjonen (samme spørring som
+ * reisebekreftelsen, `reisesøkGql`). Svaret caches i SJEKK_GYLDIG_MS.
+ */
+export function sjekkSted(stedId, { nå = Date.now() } = {}) {
+  const t = _tilstand;
+  if (!t || !t.svar || !_hent) return;
+  const gammel = _sjekk.get(stedId);
+  if (gammel && (gammel.status === 'henter' || nå - gammel.tid < SJEKK_GYLDIG_MS)) return;
+  const rad = t.svar.rader.find(r => r.punkter.some(p => p.id === stedId));
+  const [lat, lon] = t.nøkkel.split(',').map(Number);
+  const s = { status: 'henter', tid: nå };
+  _sjekk.set(stedId, s);
+  const q = '{' + reisesøkGql({ lat: t.pos ? t.pos.lat : lat, lon: t.pos ? t.pos.lon : lon }, stedId, new Date(nå).toISOString(), 'eb') + '}';
+  _hent('ett bytte: sjekk', { url: 'https://api.entur.io/journey-planner/v3/graphql', method: 'POST', body: JSON.stringify({ query: q }) })
+    .then(j => { const sv = reiseSammendrag(j && j.data && j.data.eb && j.data.eb.tripPatterns, rad && rad.knuteNavn); s.status = 'ok'; s.tekst = sv.tekst; s.utfall = sv.utfall; })
+    .catch(() => { s.status = 'feil'; s.tekst = 'fikk ikke svar — prøv igjen'; s.tid = 0; })
+    .finally(() => { if (_rerender) _rerender(); });
+  if (_rerender) _rerender();
+}
+
+/** Lista under det valgte kortet: stedene, lengst unna først, hvert med «sjekk» eller svaret. */
+export function sjekkListeHtml(r, esc) {
+  const steder = spredt(r.punkter.filter(p => p.id), SJEKK_STEDER);
+  if (!steder.length) return '';
+  return '<div class="eb-sjekkliste" data-eb-liste="' + esc(r.retning) + '">'
+    + steder.map(p => {
+      const s = _sjekk.get(p.id);
+      const svar = !s ? '<span class="eb-sjekk-knapp">sjekk</span>' : s.status === 'henter' ? '<span class="eb-sjekk-svar">sjekker …</span>'
+        : '<span class="eb-sjekk-svar' + (s.utfall === 'annen vei' ? ' eb-annen' : '') + '">' + esc(s.tekst) + '</span>';
+      return '<button type="button" class="eb-sjekk" data-eb-sted="' + esc(p.id) + '"><span class="eb-sjekk-navn">' + esc(p.navn) + '</span>' + svar + '</button>';
+    }).join('') + '</div>';
+}
 export const valgtRetning = () => _valgt;
 
 /**
@@ -67,6 +109,8 @@ function bindKort() {
   if (_lytter || typeof document === 'undefined') return;
   _lytter = true;
   document.addEventListener('click', e => {
+    const sj = e.target && e.target.closest && e.target.closest('#v-auto .eb-sjekk[data-eb-sted]');
+    if (sj) { sjekkSted(sj.dataset.ebSted); return; }
     const k = e.target && e.target.closest && e.target.closest('#v-auto .eb-rad[data-eb-retning]');
     if (k) velgRetning(k.dataset.ebRetning);
   });
@@ -115,11 +159,12 @@ export function ettBytteRadHtml(r, esc, kommuner = null) {
  */
 export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hentFraEntur, hentKommuner = hent === hentFraEntur ? hentKommunerFraEntur : null } = {}) {
   if (!pos || !Number.isFinite(pos.lat)) return '<div class="at-filter">trenger en posisjon for å se bytter herfra</div>';
-  _rerender = rerender || null; bindKort();
+  _rerender = rerender || null; _hent = hent; bindKort();
   const nøkkel = pos.lat.toFixed(3) + ',' + pos.lon.toFixed(3);
   if (_tilstand && _tilstand.nøkkel !== nøkkel) _valgt = null; // nytt sted: retningene er andre
   if (!_tilstand || _tilstand.nøkkel !== nøkkel || (_tilstand.status !== 'henter' && nå - _tilstand.tid > 10 * 60_000)) {
-    _tilstand = { nøkkel, status: 'henter', tid: nå };
+    _tilstand = { nøkkel, status: 'henter', tid: nå, pos: { lat: pos.lat, lon: pos.lon } };
+    _sjekk.clear(); // nytt sted eller nytt svar: gamle reisesøk gjelder ikke
     const t = _tilstand;
     utforsk({ posisjon: { lat: pos.lat, lon: pos.lon }, tid: new Date(nå).toISOString() }, { hent })
       .then(res => {
@@ -145,7 +190,7 @@ export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hent
   if (s.status === 'feil') return '<div class="at-filter">fant ikke svar på bytter herfra nå — prøv igjen litt senere</div>';
   if (s.svar.ingen) return '<div class="at-filter">fant ingen bytter herfra nå — det betyr ikke at det ikke finnes</div>';
   return '<div class="at-filter">' + esc(s.svar.grunnlag) + '</div>'
-    + '<div class="at-liste eb-liste">' + s.svar.rader.map(r => ettBytteRadHtml(r, esc, s.kommuner)).join('') + '</div>';
+    + '<div class="at-liste eb-liste">' + s.svar.rader.map(r => ettBytteRadHtml(r, esc, s.kommuner) + (r.retning === _valgt ? sjekkListeHtml(r, esc) : '')).join('') + '</div>';
 }
 
 /* ── KARTET (eksperiment) ────────────────────────────────────────────────
@@ -313,7 +358,9 @@ export function ettBytteKart(map, L, { aktiv, pos, ferdig, ramme: rammeInn = (b,
   // Stedstype (forslag 2): tog og båt er fylt og litt større — de inviterer til en reise ut.
   for (const s of valgteSteder) {
     const t = s.type === 'rail' ? ' eb-kart-tog' : s.type === 'water' ? ' eb-kart-bat' : '';
-    L.circleMarker([s.lat, s.lon], { className: 'eb-kart-sted' + t, radius: t ? 5 : 4, weight: 1.5 }).bindTooltip(s.navn + (t ? (s.type === 'rail' ? ' · tog' : ' · båt') : '')).addTo(lag);
+    const sm = L.circleMarker([s.lat, s.lon], { className: 'eb-kart-sted' + t, radius: t ? 5 : 4, weight: 1.5 }).bindTooltip(s.navn + (t ? (s.type === 'rail' ? ' · tog' : ' · båt') : '')).addTo(lag);
+    // Sjekk denne (forslag 5): trykk på et sted i kartet kjører reisesøket for det.
+    if (sm.on && s.id) sm.on('click', () => sjekkSted(s.id));
   }
   // Lengst du kommer: ytterpunktet i den valgte retningen får navnet sitt (det kan ligge utenfor rammen).
   const valgtRad = data.valgt && data.retninger.find(r => r.retning === data.valgt);

@@ -90,6 +90,29 @@ export function frekvensTekst(minutter) {
 }
 
 /**
+ * SJEKK DENNE (forslag 5): ett reisesøk for ett sted, oppsummert i radens språk.
+ * Mønsteret som er fremme først. «bytt på X» er Enturs bytte; er knutepunktet
+ * vårt ikke blant byttene, sies det («Entur foreslår via X») — det er nyttig,
+ * ikke en feil. Tidene skrives i norsk tid.
+ * @returns {{ utfall: 'funnet'|'annen vei'|'ingen', tekst: string, fremme?: string }}
+ */
+const klokke = iso => new Date(iso).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo' }).replace(':', '.');
+export function reiseSammendrag(mønstre, knuteNavn) {
+  const m = (mønstre || []).filter(p => p && (p.legs || []).length)
+    .sort((a, b) => Date.parse(a.legs[a.legs.length - 1].expectedEndTime) - Date.parse(b.legs[b.legs.length - 1].expectedEndTime))[0];
+  if (!m) return { utfall: 'ingen', tekst: 'fant ingen reise nå' };
+  const reise = m.legs.filter(l => l.mode !== 'foot');
+  const fremme = klokke(m.legs[m.legs.length - 1].expectedEndTime);
+  const bytter = reise.slice(0, -1).map(l => l.toPlace && l.toPlace.name).filter(Boolean);
+  if (!reise.length) return { utfall: 'funnet', fremme, tekst: 'fremme ' + fremme + ' · til fots' };
+  if (!bytter.length) return { utfall: 'funnet', fremme, tekst: 'fremme ' + fremme + ' · uten bytte' };
+  const vår = knuteNavn && bytter.includes(knuteNavn);
+  return vår
+    ? { utfall: 'funnet', fremme, tekst: 'fremme ' + fremme + ' · bytt på ' + bytter.join(' og ') }
+    : { utfall: 'annen vei', fremme, tekst: 'fremme ' + fremme + ' · Entur foreslår via ' + bytter.join(' og ') };
+}
+
+/**
  * LENGST DU KOMMER (forslag 1): det fjerneste stedet i retningen, med avstand
  * i hele km. `punkter` er sortert lengst unna først (ettByttePerRetning), så
  * det er det første. null uten steder eller posisjon.

@@ -313,6 +313,28 @@ Et nytt svar på samme sted flytter ikke kartet. Rører du kartet, er det ditt.
 Tavla regner kartet som «justert» mens laget vises, og får tilbake din egen
 tilstand når valget går av, så en justering du gjorde før, ikke slettes.
 
+### Sjekk denne (v1.218.298, forslag 5)
+
+Under det valgte kortet står en liste med opptil 8 steder (`SJEKK_STEDER`),
+fra lengst unna til nærmest. Hvert sted har «sjekk». Et trykk på «sjekk», eller
+på stedet i kartet, kjører **ett reisesøk** fra posisjonen til stedet. Det er
+samme spørring som reisebekreftelsen bruker (`reisesøkGql`,
+`src/reisebekreftelse.js`). Svaret står på raden i radens språk
+(`reiseSammendrag`):
+- «fremme 13.07 · bytt på Helsfyr»: Entur bytter der vi oppdaget byttet;
+- «fremme 12.45 · Entur foreslår via Hauketo stasjon og Oslo S»: Entur velger
+  en annen vei. Det sies, og det er nyttig, ikke en feil;
+- «uten bytte», «til fots» og «fant ingen reise nå».
+
+Mønsteret som er fremme først, brukes. Søket gjøres bare på trykk, og bare for
+det ene stedet. Svaret caches i 10 min. Feil gir «fikk ikke svar — prøv
+igjen», og kan prøves igjen med en gang. Nytt sted eller nytt svar tømmer
+svarene.
+
+Dette er broen fra «mulig, ikke sjekket» til en reise. Raden sier ikke
+«rekker» og påstår ingen tidskontroll av byttet. Den gjengir det Entur
+svarte.
+
 ### Hvor ofte det går (v1.218.297, forslag 4)
 
 Kortet har én linje: «går inn ca. hvert 15. min · ut ca. hvert 7. min». Den

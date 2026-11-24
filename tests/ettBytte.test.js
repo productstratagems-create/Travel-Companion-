@@ -4,9 +4,9 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ettByttePerRetning, RETNINGER, ytterpunkt, stedstypeTelling, velgStedstype, STEDSTYPE_REKKE, kommunerI, KOMMUNE_DEKNING, frekvensMin, frekvensTekst, SAMME_TUR_MIN } from '../src/ettBytte.js';
+import { ettByttePerRetning, RETNINGER, ytterpunkt, stedstypeTelling, velgStedstype, STEDSTYPE_REKKE, kommunerI, KOMMUNE_DEKNING, frekvensMin, frekvensTekst, SAMME_TUR_MIN, reiseSammendrag } from '../src/ettBytte.js';
 import { PARAMETRE } from '../src/nettverksutforsker.js';
-import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, plasserNavn, navnRekt, NAVN_NIVÅER, NAVN_PLASSER, velgRetning, valgtRetning, KART_STEDER_VALGT } from '../src/views/ettBytteVisning.js';
+import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, plasserNavn, navnRekt, NAVN_NIVÅER, NAVN_PLASSER, velgRetning, valgtRetning, KART_STEDER_VALGT, sjekkSted, sjekkStatus, SJEKK_STEDER } from '../src/views/ettBytteVisning.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { metresBetween } from '../src/haversine.js';
 import { AT_RETNINGER } from '../src/views/auto.js';
@@ -247,6 +247,62 @@ describe('ett bytte: hvor ofte det går (forslag 4)', () => {
     expect(kort).toMatch(/<div class="eb-frekvens">går (inn ca\. [^·<]+ · )?ut /);
     expect(kort).toContain('ut ' + esc(best));
     expect((kort.match(/eb-frekvens/g) || []).length).toBe(1);
+  });
+});
+
+describe('ett bytte: sjekk denne (forslag 5)', () => {
+  const RS = lastOpptak('mortensrud_dag.reisesok');
+  const mønstre = Object.values(RS.opptak['reisesøk'].svar.data).map(x => x.tripPatterns);
+  const leg = (mode, til, slutt) => ({ mode, toPlace: { name: til }, expectedEndTime: slutt });
+  it('oppsummerer reisen i radens språk: fremme, og hvor du bytter', () => {
+    const T = '2026-11-24T13:';
+    expect(reiseSammendrag([], 'Helsfyr')).toEqual({ utfall: 'ingen', tekst: 'fant ingen reise nå' });
+    expect(reiseSammendrag([{ legs: [leg('foot', 'A', T + '05:00+01:00'), leg('metro', 'B', T + '20:00+01:00')] }], 'Helsfyr').tekst).toBe('fremme 13.20 · uten bytte');
+    expect(reiseSammendrag([{ legs: [leg('metro', 'Helsfyr', T + '10:00+01:00'), leg('bus', 'Mål', T + '40:00+01:00')] }], 'Helsfyr'))
+      .toEqual({ utfall: 'funnet', fremme: '13.40', tekst: 'fremme 13.40 · bytt på Helsfyr' });
+    expect(reiseSammendrag([{ legs: [leg('metro', 'Oslo S', T + '10:00+01:00'), leg('rail', 'Mål', T + '50:00+01:00')] }], 'Helsfyr'))
+      .toEqual({ utfall: 'annen vei', fremme: '13.50', tekst: 'fremme 13.50 · Entur foreslår via Oslo S' });
+    // Det mønsteret som er fremme først, uansett rekkefølge.
+    const sen = { legs: [leg('bus', 'Mål', T + '59:00+01:00')] }, tidlig = { legs: [leg('bus', 'Mål', T + '30:00+01:00')] };
+    expect(reiseSammendrag([sen, tidlig], null).fremme).toBe('13.30');
+  });
+  it('ekte opptak: hvert opptatt reisesøk gir en tekst med «fremme»', () => {
+    for (const m of mønstre) expect(reiseSammendrag(m, 'Helsfyr').tekst).toMatch(/^fremme \d\d\.\d\d · /);
+  });
+  it('under det valgte kortet: steder med «sjekk»; trykk gir ett reisesøk, så svaret; caches; feil kan prøves igjen', async () => {
+    const pos = O.mortensrud_dag.scenario.posisjon, nå = Date.parse(O.mortensrud_dag.scenario.tid);
+    const av = avspiller(O.mortensrud_dag);
+    const sjekker = [];
+    let svar = { data: { eb: { tripPatterns: mønstre[0] } } };
+    const hent = async (navn, req) => { if (navn === 'ett bytte: sjekk') { sjekker.push(req); if (svar instanceof Error) throw svar; return svar; } return av.hent(navn, req); };
+    ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} }); await new Promise(r => setTimeout(r, 50));
+    expect(ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} })).not.toMatch(/eb-sjekkliste/); // ingen liste uten valgt kort
+    velgRetning('NØ');
+    let html = ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} });
+    const knapper = [...html.matchAll(/class="eb-sjekk" data-eb-sted="([^"]+)"/g)].map(m => m[1]);
+    expect(knapper.length).toBeGreaterThan(0);
+    expect(knapper.length).toBeLessThanOrEqual(SJEKK_STEDER);
+    expect(html).toMatch(/eb-sjekk-knapp">sjekk</);
+    const id = knapper[0];
+    sjekkSted(id, { nå });
+    expect(sjekkStatus(id).status).toBe('henter');
+    expect(ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} })).toMatch(/sjekker …/);
+    await new Promise(r => setTimeout(r, 10));
+    expect(sjekker).toHaveLength(1);
+    expect(JSON.parse(sjekker[0].body).query).toContain('to:{place:"' + id + '"}');
+    expect(sjekkStatus(id).tekst).toMatch(/^fremme /);
+    expect(ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} })).toContain(esc(sjekkStatus(id).tekst));
+    sjekkSted(id, { nå: nå + 60_000 }); // innen 10 min: ingen nytt søk
+    expect(sjekker).toHaveLength(1);
+    // Feil: «fikk ikke svar», og kan prøves igjen med en gang.
+    svar = new Error('nett');
+    const id2 = knapper[1];
+    sjekkSted(id2, { nå }); await new Promise(r => setTimeout(r, 10));
+    expect(sjekkStatus(id2).tekst).toMatch(/fikk ikke svar/);
+    svar = { data: { eb: { tripPatterns: mønstre[1] } } };
+    sjekkSted(id2, { nå }); await new Promise(r => setTimeout(r, 10));
+    expect(sjekkStatus(id2).tekst).toMatch(/^fremme /);
+    expect(sjekker).toHaveLength(3);
   });
 });
 

@@ -272,6 +272,13 @@ Nå står hele reisen når søket har akkurat denne avgangen:
   forslag») er det samme.
 - **Én tekst** (`byttTekst` / `byttTillegg`) for tavla og Auto-reise.
 
+**Hele reisen i avgangsdetaljer (v1.218.304).** En hjemover-rad med treff
+(den som sier «… · hjemme HH:MM») åpner hele reisen, ikke bare første
+avgang: `hjemReiser` tar vare på reisemønsteret (`tp`), og klikket sender
+`kombiKall(x.hjemReise)`, slik kombinasjonsradene gjør. Detaljene viser da
+begge etappene, byttet og ankomst hjemme. En rad uten treff åpner som før.
+Auto-reise er uendret: raden der åpner stopplista, ikke avgangsdetaljer.
+
 ## «Gå lenger, færre bytter» (eksperiment, v1.218.302)
 
 **Bakgrunn:**

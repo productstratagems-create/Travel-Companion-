@@ -229,7 +229,9 @@ export function lagreHjemoverFra(h) {
 export function hjemReiser(mønstre) {
   // ALLE reisene, ikke bare de «gode» (_gode, HJEM_SLAKK_MIN): den regelen avgjør hva som er
   // hjemover; her slår en rad opp når SIN avgang er hjemme, også om den er senere enn den raskeste.
-  return (mønstre || []).map(_etappe).filter(e => e && e.bytte && e.videre && Number.isFinite(e.går) && Number.isFinite(e.framme))
+  // `tp`: selve reisen, så raden kan åpne HELE turen i avgangsdetaljene (v1.218.304, kombiKall).
+  return (mønstre || []).map(p => { const e = _etappe(p); return e && { ...e, tp: p }; })
+    .filter(e => e && e.bytte && e.videre && Number.isFinite(e.går) && Number.isFinite(e.framme))
     .sort((a, b) => a.går - b.går);
 }
 /** Avgangen raden står for, i reisesøket hjem: samme linje, samme bytte og avgang innen HJEM_SAMME_AVGANG_MS. */

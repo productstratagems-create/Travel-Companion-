@@ -12,6 +12,7 @@
 import { utforsk } from '../nettverksutforsker.js';
 import { ettByttePer, kommunerI, oftest, reiseSammendrag, FASETTER, FASETT_NAVN, listerHolder } from '../ettBytte.js';
 import { reisesøkGql } from '../reisebekreftelse.js';
+import { reiseRader } from '../reiseTil.js';
 import { enturFetch } from '../api/http.js';
 import { metresBetween } from '../haversine.js';
 import '../style/ettBytte.css';
@@ -78,12 +79,14 @@ export const SJEKK_GYLDIG_MS = 10 * 60_000;
 export const SJEKK_STEDER = 8;
 export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _fasett = 'retning'; _visAlle = false; _rerender = null; _hent = null; _sjekk.clear(); }
 export const sjekkStatus = id => _sjekk.get(id) || null;
+/** Tester: glem ett steds svar. */
+export const _nullstillSjekk = id => _sjekk.delete(id);
 
 /**
  * Sjekk ett sted: ett reisesøk fra posisjonen (samme spørring som
  * reisebekreftelsen, `reisesøkGql`). Svaret caches i SJEKK_GYLDIG_MS.
  */
-export function sjekkSted(stedId, { nå = Date.now() } = {}) {
+export function sjekkSted(stedId, { nå = Date.now(), stille = false } = {}) {
   const t = _tilstand;
   if (!t || !t.svar || !_hent) return;
   const sv = aktuelle(t);
@@ -96,21 +99,45 @@ export function sjekkSted(stedId, { nå = Date.now() } = {}) {
   _sjekk.set(stedId, s);
   const q = '{' + reisesøkGql({ lat: t.pos ? t.pos.lat : lat, lon: t.pos ? t.pos.lon : lon }, stedId, new Date(nå).toISOString(), 'eb') + '}';
   _hent('ett bytte: sjekk', { url: 'https://api.entur.io/journey-planner/v3/graphql', method: 'POST', body: JSON.stringify({ query: q }) })
-    .then(j => { const rs = reiseSammendrag(j && j.data && j.data.eb && j.data.eb.tripPatterns, rad && rad.knuteNavn, rad && rad.knuterDetalj && rad.knuterDetalj.map(k => k.navn), rad && rad.linjepar); s.status = 'ok'; s.tekst = rs.tekst; s.utfall = rs.utfall; })
+    .then(j => { const rs = reiseSammendrag(j && j.data && j.data.eb && j.data.eb.tripPatterns, rad && rad.knuteNavn, rad && rad.knuterDetalj && rad.knuterDetalj.map(k => k.navn), rad && rad.linjepar); s.status = 'ok'; s.tekst = rs.tekst; s.utfall = rs.utfall; s.linjer = rs.linjer; s.tps = (j && j.data && j.data.eb && j.data.eb.tripPatterns) || []; })
     .catch(() => { s.status = 'feil'; s.tekst = 'fikk ikke svar — prøv igjen'; s.tid = 0; })
     .finally(() => { if (_rerender) _rerender(); });
-  if (_rerender) _rerender();
+  if (_rerender && !stille) _rerender();
 }
 
-/** Lista under det valgte kortet: stedene, lengst unna først, hvert med «sjekk» eller svaret. */
-export function sjekkListeHtml(r, esc) {
+/**
+ * REISENE SOM RADER (v1.218.305). Bestilt: «Hver enkelt reise under seksjonen
+ * bør listes som de andre reiseforslagene under Auto-tavle.» Første reise per
+ * sted fra reisesøket, som en rad av samme slag som kombinasjonsradene
+ * (`reiseRader`). Går Entur en annen vei enn kortet, står det på raden. Ren.
+ */
+export function sjekkReise(stedId, nå = Date.now()) {
+  const s = _sjekk.get(stedId);
+  if (!s || s.status !== 'ok') return null;
+  const r = reiseRader(s.tps, nå, null).find(x => x.type === 'kollektiv');
+  if (!r) return null;
+  // Én rad per sted: «minst gange» ville sammenlignet med reiser som ikke vises.
+  r.fakta = r.fakta.filter(f => f !== 'minst gange');
+  if (s.utfall === 'annen vei') r.fakta.push('andre byttested enn kortet');
+  else if (s.linjer === 'andre') r.fakta.push('andre linjer enn kortet');
+  return r;
+}
+
+/**
+ * Lista under det valgte kortet: stedene, lengst unna først. Hvert sted er en
+ * overskrift og reisen dit som rad (`radHtml`, Auto-tavlas egen radtegning),
+ * eller hva appen ikke vet ennå: «henter», «ingen reise funnet», «fikk ikke svar».
+ */
+export function sjekkListeHtml(r, esc, radHtml = null, nå = Date.now()) {
   const steder = spredt(r.punkter.filter(p => p.id), SJEKK_STEDER);
   if (!steder.length) return '';
   return '<div class="eb-sjekkliste" data-eb-liste="' + esc(r.retning) + '">'
     + steder.map(p => {
       const s = _sjekk.get(p.id);
+      const rad = radHtml && sjekkReise(p.id, nå);
+      if (rad) return '<div class="eb-sted"><div class="eb-sted-navn">' + esc(p.navn) + '</div>' + radHtml(rad, 'eb:' + p.id) + '</div>';
       const svar = !s ? '<span class="eb-sjekk-knapp">sjekk</span>' : s.status === 'henter' ? '<span class="eb-sjekk-svar">sjekker …</span>'
-        : '<span class="eb-sjekk-svar' + (s.utfall === 'annen vei' ? ' eb-annen' : '') + '">' + esc(s.tekst) + '</span>';
+        : '<span class="eb-sjekk-svar' + (s.utfall === 'annen vei' ? ' eb-annen' : '') + '">' + esc(radHtml && s.status === 'ok' ? 'ingen reise funnet i søket' : s.tekst) + '</span>';
       return '<button type="button" class="eb-sjekk" data-eb-sted="' + esc(p.id) + '"><span class="eb-sjekk-navn">' + esc(p.navn) + '</span>' + svar + '</button>';
     }).join('') + '</div>';
 }
@@ -122,6 +149,9 @@ export const valgtRetning = () => _valgt;
  */
 export function velgRetning(retning) {
   _valgt = _valgt === retning ? null : retning;
+  // Reisene hentes med en gang (v1.218.305): stedene står som rader, ikke som «sjekk».
+  const t = _tilstand, rad = _valgt && t && t.svar && aktuelle(t).rader.find(x => x.retning === _valgt);
+  if (rad) spredt(rad.punkter.filter(p => p.id), SJEKK_STEDER).forEach(p => sjekkSted(p.id, { stille: true })); // én tegning for alle
   if (_rerender) _rerender();
 }
 
@@ -199,7 +229,7 @@ export function ettBytteRadHtml(r, esc, kommuner = null) {
  * HTML for hurtigvalget. `pos` er tavlas stopp; `rerender` kalles når svaret kommer.
  * `hent` kan injiseres (tester); ellers Entur via enturFetch.
  */
-export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hentFraEntur, hentKommuner = hent === hentFraEntur ? hentKommunerFraEntur : null } = {}) {
+export function ettBytteHtml(pos, { esc, rerender, radHtml = null, nå = Date.now(), hent = hentFraEntur, hentKommuner = hent === hentFraEntur ? hentKommunerFraEntur : null } = {}) {
   if (!pos || !Number.isFinite(pos.lat)) return '<div class="at-filter">trenger en posisjon for å se bytter herfra</div>';
   _rerender = rerender || null; _hent = hent; bindKort();
   const nøkkel = pos.lat.toFixed(3) + ',' + pos.lon.toFixed(3);
@@ -240,7 +270,7 @@ export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hent
     // SE ETTER: hva rutene skal ha til felles. Én fasett om gangen.
     + '<div class="eb-fasetter" role="group" aria-label="se etter"><span class="eb-fasett-tittel">se etter</span>'
     + fasetter.map(f => '<button type="button" class="eb-fasett" data-eb-fasett="' + f + '" aria-pressed="' + (sv.fasett === f) + '">' + esc(FASETT_NAVN[f]) + '</button>').join('') + '</div>'
-    + '<div class="at-liste eb-liste">' + vist.map(r => ettBytteRadHtml(r, esc, s.kommuner) + (r.retning === _valgt ? sjekkListeHtml(r, esc) : '')).join('') + '</div>'
+    + '<div class="at-liste eb-liste">' + vist.map(r => ettBytteRadHtml(r, esc, s.kommuner) + (r.retning === _valgt ? sjekkListeHtml(r, esc, radHtml, nå) : '')).join('') + '</div>'
     + (vist.length < sv.rader.length ? '<button type="button" class="eb-vis-alle">vis alle ' + sv.rader.length + ' (de neste har færre steder)</button>' : '');
 }
 

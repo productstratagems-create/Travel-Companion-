@@ -6,11 +6,12 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { ettByttePerRetning, RETNINGER, ytterpunkt, stedstypeTelling, velgStedstype, STEDSTYPE_REKKE, kommunerI, KOMMUNE_DEKNING, frekvensMin, frekvensTekst, SAMME_TUR_MIN, reiseSammendrag, ettByttePer, ettByttVeier, FASETTER, listerHolder } from '../src/ettBytte.js';
 import { PARAMETRE } from '../src/nettverksutforsker.js';
-import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, plasserNavn, navnRekt, NAVN_NIVÅER, NAVN_PLASSER, velgRetning, valgtRetning, KART_STEDER_VALGT, sjekkSted, sjekkStatus, SJEKK_STEDER, velgFasett, valgtFasett, GRUPPER_VIST } from '../src/views/ettBytteVisning.js';
+import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, plasserNavn, navnRekt, NAVN_NIVÅER, NAVN_PLASSER, velgRetning, valgtRetning, KART_STEDER_VALGT, sjekkSted, sjekkStatus, sjekkReise, _nullstillSjekk, SJEKK_STEDER, velgFasett, valgtFasett, GRUPPER_VIST } from '../src/views/ettBytteVisning.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { metresBetween } from '../src/haversine.js';
 import { AT_RETNINGER } from '../src/views/auto.js';
 import { SCENARIOER, lastOpptak, avspiller } from './fixtures/entur/avspilling.js';
+import { kombiKall } from '../src/reiseTil.js';
 
 const O = Object.fromEntries(SCENARIOER.map(n => [n, lastOpptak(n)]));
 const res = async n => { _tømCache(); return utforsk(O[n].scenario, { hent: avspiller(O[n]).hent }); };
@@ -288,32 +289,45 @@ describe('ett bytte: sjekk denne (forslag 5)', () => {
     const hent = async (navn, req) => { if (navn === 'ett bytte: sjekk') { sjekker.push(req); if (svar instanceof Error) throw svar; return svar; } return av.hent(navn, req); };
     ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} }); await new Promise(r => setTimeout(r, 50));
     expect(ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} })).not.toMatch(/eb-sjekkliste/); // ingen liste uten valgt kort
-    velgRetning('NØ');
+    velgRetning('NØ'); // v1.218.305: velger du kortet, hentes reisene med en gang
     let html = ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} });
     const knapper = [...html.matchAll(/class="eb-sjekk" data-eb-sted="([^"]+)"/g)].map(m => m[1]);
     expect(knapper.length).toBeGreaterThan(0);
     expect(knapper.length).toBeLessThanOrEqual(SJEKK_STEDER);
-    expect(html).toMatch(/eb-sjekk-knapp">sjekk</);
+    expect(html).toMatch(/sjekker …/);
+    expect(html).not.toMatch(/eb-sjekk-knapp">sjekk</);
     const id = knapper[0];
-    sjekkSted(id, { nå });
     expect(sjekkStatus(id).status).toBe('henter');
-    expect(ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} })).toMatch(/sjekker …/);
     await new Promise(r => setTimeout(r, 10));
-    expect(sjekker).toHaveLength(1);
+    expect(sjekker).toHaveLength(knapper.length);
     expect(JSON.parse(sjekker[0].body).query).toContain('to:{place:"' + id + '"}');
     expect(sjekkStatus(id).tekst).toMatch(/^fremme /);
     expect(ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} })).toContain(esc(sjekkStatus(id).tekst));
     sjekkSted(id, { nå: nå + 60_000 }); // innen 10 min: ingen nytt søk
-    expect(sjekker).toHaveLength(1);
+    expect(sjekker).toHaveLength(knapper.length);
+    // Med Auto-tavlas radtegning: hvert sted er en overskrift og reisen som rad, «eb:<sted>».
+    const rader = [];
+    const medRad = ettBytteHtml(pos, { esc, hent, nå, rerender: () => {}, radHtml: (r, k) => { rader.push(r); return '<button class="at-kombi" data-kombi="' + k + '"></button>'; } });
+    expect(medRad).toContain('data-kombi="eb:' + id + '"');
+    expect(rader.length).toBe(knapper.length);
+    expect(sjekkReise(id, nå).tp.legs.length).toBeGreaterThan(0);
+    expect(rader.flatMap(r => r.fakta)).not.toContain('minst gange'); // sammenligner ikke med reiser som ikke vises
+    expect(kombiKall(sjekkReise(id, nå))._legs.length).toBeGreaterThan(0);
     // Feil: «fikk ikke svar», og kan prøves igjen med en gang.
     svar = new Error('nett');
+    _nullstillSjekk(knapper[1]);
     const id2 = knapper[1];
     sjekkSted(id2, { nå }); await new Promise(r => setTimeout(r, 10));
     expect(sjekkStatus(id2).tekst).toMatch(/fikk ikke svar/);
     svar = { data: { eb: { tripPatterns: mønstre[1] } } };
     sjekkSted(id2, { nå }); await new Promise(r => setTimeout(r, 10));
     expect(sjekkStatus(id2).tekst).toMatch(/^fremme /);
-    expect(sjekker).toHaveLength(3);
+    expect(sjekker).toHaveLength(knapper.length + 2);
+  });
+  it('auto.js: stedenes rader tegnes med _kombiRadHtml og åpner hele reisen', () => {
+    const src = readFileSync('src/views/auto.js', 'utf8');
+    expect(src).toContain('radHtml: _kombiRadHtml');
+    expect(src).toMatch(/startsWith\('eb:'\)\) \{ const e = kombiKall\(sjekkReise\(/);
   });
 });
 

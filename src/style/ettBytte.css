@@ -58,3 +58,4 @@
 #v-auto button.eb-vis-alle{background:none;border:0;color:var(--accent);font:inherit;font-size:.85rem;padding:.5rem .1rem;cursor:pointer}
 #v-auto .eb-retning.eb-tittel{text-transform:none}
 #v-auto .eb-par-knute{color:var(--text-muted)}
+#v-auto .eb-sted{border-bottom:1px solid rgba(var(--border-rgb),.12)}#v-auto .eb-sted-navn{font-size:.85rem;padding:.45rem .6rem 0;color:var(--text)}#v-auto .eb-sted .at-kombi{border-bottom:0}

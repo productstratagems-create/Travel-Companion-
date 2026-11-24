@@ -96,7 +96,7 @@ const md = s => hentCachet('md-' + s.id, () => json('https://kart.miljodirektora
 
 /* Kartverkets turrutebase (Nasjonal database for turruter, CC BY 4.0, «© Kartverket»):
    merkede ruter med vedlikeholdsansvar. Brukes som ADKOMST, ikke som reisemål. */
-const TR_TYPER = ['Fotrute', 'Sykkelrute', 'AnnenRute', 'RuteInfoPunkt'];
+const TR_TYPER = ['Fotrute', 'Skiløype', 'Sykkelrute', 'AnnenRute', 'RuteInfoPunkt'];
 async function tr(s) {
   const b = bbox(s, 800).split(',').map(Number); // lon1,lat1,lon2,lat2
   const ut = {};
@@ -109,7 +109,7 @@ async function tr(s) {
         const f = m[0], v = k => ((new RegExp('<app:' + k + '>([^<]*)</app:' + k + '>')).exec(f) || [])[1] || null;
         const tall = [...f.matchAll(/<gml:(?:posList|pos)[^>]*>([^<]+)</g)].flatMap(p => p[1].trim().split(/\s+/).map(Number));
         const pkt = []; for (let i = 0; i + 1 < tall.length; i += 2) pkt.push({ lat: tall[i], lon: tall[i + 1] });
-        return { navn: v('rutenavn'), nr: v('rutenummer'), merket: v('merking'), ansvar: v('vedlikeholdsansvarlig'), tilrettelegging: v('tilrettelegging'), pkt };
+        return { type: t, navn: v('rutenavn'), nr: v('rutenummer'), betydning: v('rutebetydning'), gradering: v('gradering'), spesial: v('spesialFotrutetype') || v('spesialSkiløypetype') || v('spesialSykkelrutetype') || v('spesialAnnenrutetype'), merket: v('merking'), ansvar: v('vedlikeholdsansvarlig'), tilrettelegging: v('tilrettelegging'), pkt };
       });
     });
     ut[t] = r.ok ? r.svar : null;
@@ -185,7 +185,7 @@ for (const s of steder) {
   const [o, w, k, m, t] = [await osm(s), await wd(s), await kv(s), await md(s), await tr(s)];
   const rå = [...(o.ok ? osmKandidater(s, o.svar) : []), ...(w.ok ? wdKandidater(w.svar) : []), ...(k.ok ? kvKandidater(k.svar) : []), ...(m.ok ? mdKandidater(s, m.svar) : [])]
     .map(c => ({ ...c, luft: Math.round(metresBetween(s, c)) }));
-  const ruter = [...(t.Fotrute || []), ...(t.Sykkelrute || []), ...(t.AnnenRute || [])];
+  const ruter = [...(t.Fotrute || []), ...(t.Skiløype || []), ...(t.Sykkelrute || []), ...(t.AnnenRute || [])];
   resultat.push({ sted: s, turruter: { ruter, punkter: t.RuteInfoPunkt || [], ok: Object.values(t).every(Boolean) }, kilder: { osm: o.ok ? 'ok' : o.feil, wikidata: w.ok ? 'ok' : w.feil, kartverket: k.ok ? 'ok' : k.feil, miljodir: m.ok ? 'ok' : m.feil }, rå });
   process.stdout.write('.');
 }
@@ -232,7 +232,12 @@ for (const r of resultat) {
   const ruterHer = r.turruter.ruter;
   for (const u of vurdert) u.merketRute = nærmest(u, ruterHer) <= 200;
   r.ruteVedStopp = nærmest(s, ruterHer) <= 500;
-  r.ruteNavn = [...new Set(ruterHer.filter(x => x.navn && nærmest(s, [x]) <= 500).map(x => x.navn))].slice(0, 5);
+  const nær = ruterHer.filter(x => nærmest(s, [x]) <= 500);
+  r.ruteNavn = [...new Set(nær.filter(x => x.navn && x.navn !== 'Ukjent').map(x => x.navn))].slice(0, 6);
+  r.ruteTyper = [...new Set(nær.map(x => x.type))];
+  r.ruteBetydning = [...new Set(nær.map(x => x.betydning).filter(Boolean))].sort();
+  r.ruteGradering = [...new Set(nær.map(x => x.gradering).filter(Boolean))].sort();
+  r.ruteSpesial = [...new Set(nær.map(x => x.spesial).filter(Boolean))].sort();
   const tilgj = vurdert.filter(u => u.gangbar !== false);
   if (vurdert.some(u => u.gangbar === false)) sum.borteGang += vurdert.filter(u => u.gangbar === false).length;
   sum.relevante += vurdert.length; sum.tilgjengelige += tilgj.length; sum.gangVerifisert += tilgj.filter(u => u.gangbar === true).length;
@@ -253,7 +258,7 @@ for (const r of resultat) {
   r.opplevelser = tilgj.map(u => ({ navn: u.navn, kategorier: u.kats.map(k => KAT[k]), under: [...new Set(u.kat.map(k => k.u))], kilder: [...new Set(u.kilder.map(c => c.kilde + ':' + c.sid))], luft: u.luft, gang: u.gang, gangbar: u.gangbar, flate: u.flate, sitelinks: u.sitelinks, verdi: u.verdi, merketRute: u.merketRute }));
 }
 const ut = { kjørt: new Date().toISOString(), parametre: { SCEN, PER_SCEN, RADIUS_M, GANG_MAKS_M, RELEVANT_SITELINKS }, sum,
-  steder: resultat.map(r => ({ sted: { navn: r.sted.navn, id: r.sted.id, fra: r.sted.fra, km: +r.sted.km.toFixed(1), type: r.sted.type, linjer: r.sted.linjer, iAlt: r.sted.iAlt }, kilder: r.kilder, rå: r.rå.length, turruter: { vedStopp: r.ruteVedStopp, navn: r.ruteNavn, punkter: r.turruter.punkter.length, ok: r.turruter.ok }, opplevelser: r.opplevelser })),
+  steder: resultat.map(r => ({ sted: { navn: r.sted.navn, id: r.sted.id, fra: r.sted.fra, km: +r.sted.km.toFixed(1), type: r.sted.type, linjer: r.sted.linjer, iAlt: r.sted.iAlt }, kilder: r.kilder, rå: r.rå.length, turruter: { vedStopp: r.ruteVedStopp, navn: r.ruteNavn, typer: r.ruteTyper, betydning: r.ruteBetydning, gradering: r.ruteGradering, spesial: r.ruteSpesial, punkter: r.turruter.punkter.length, ok: r.turruter.ok }, opplevelser: r.opplevelser })),
   negative: negative.slice(0, 80) };
 fs.mkdirSync('scratchpad/data', { recursive: true });
 fs.writeFileSync('scratchpad/data/opplevelser-resultat.json', JSON.stringify(ut, null, 1));

@@ -493,6 +493,52 @@ Etter spørsmålet ditt om kartverket.no/api-og-data/friluftsliv.
 - **Asker stasjon:** «Kystruta», «Solvangrunden» og «Risengarunden».
 - **Strindfjordvegen:** «Ranheimsrunden» og «Pilegrimsleden – Romboleden».
 
+**Fra metadataen i kartkatalogen** (`kartkatalog.geonorge.no/metadata/turrutebasen/d1422d17-…`) [Fakta]:
+- **Tilgang og lisens:** «Åpne data», CC BY 4.0.
+- **Fullstendighet varierer:** innsamlingen bygger «stort sett på
+  innmeldinger fra lag, foreninger og privatpersoner via "Rett i kartet"», og
+  dataene kontrolleres manuelt mot FKB og N50. Et stopp uten rute betyr derfor
+  ikke at det ikke finnes tur der.
+- **Dekningskart:** det finnes et dekningskart (GeoJSON) for fullstendighet,
+  og det kan brukes til å si hva appen ikke vet.
+- **Nedlasting:** FGDB, GML, **GPX** og PostGIS, per fylke, kommune eller
+  hele landet. Det er grunnlaget for et forhåndsberegnet datasett, uten kall
+  per trykk. `nedlasting.geonorge.no` er ikke prøvd, fordi verten ikke er
+  tillatt.
+- **Begreper:** sti, turrute og turforslag er forskjellige ting. En turrute er
+  «tilrettelagt med merking og/eller skilting og hvor noen har et
+  vedlikeholdsansvar». Turforslag forvaltes ikke av Kartverket.
+
+**Fra skjemaet** (`DescribeFeatureType`) [Fakta]:
+- Typene er `Fotrute`, `Skiløype`, `Sykkelrute`, `AnnenRute` og
+  `RuteInfoPunkt`. `Skiløype` manglet i første kjøring, og er nå med.
+- Feltene som betyr noe for oppdagelse er `rutenavn`, `rutebetydning`,
+  `gradering`, `spesialFotrutetype` (og tilsvarende for andre rutetyper),
+  `merking`, `sesong`, `preparering`, `belysning` og `vedlikeholdsansvarlig`.
+
+**Målt** (andre kjøring, med skiløyper):
+
+| stopp | rutetyper | betydning | spesialtype | ruter |
+|---|---|---|---|---|
+| Oppegård stasjon | fot, ski, sykkel | 1 | HF | Pilegrimsleden – Borgleden, Sørmarka |
+| Asker stasjon | fot, sykkel | 1 | HF | Pilegrimsled i Vestfold, Kystruta |
+| Oslo S | fot | 1 | AN, KY | KyststiOslo, Rondanestien |
+| Leangen stasjon | fot | 1 | HF | Pilegrimsleden – Romboleden |
+| Øyer sentrum | fot | 2, 3 | AN, NT, TR | Storkjølla, 70 turer for store og små |
+| Skogstadrampa, Balberglia nord | fot | – | HF | Pilegrimsleden – Gudbrandsdalsleden |
+
+**Tolkning av kodene [Hypotese]:** kodelisten i produktspesifikasjonen er
+ikke lest herfra. Mønsteret i dataene peker likevel tydelig:
+- `rutebetydning` 1/2/3 er trolig nasjonal, regional og lokal. 1 står på
+  Pilegrimsleden, Kystruta og Rondanestien.
+- `spesialFotrutetype` HF er trolig historisk ferdselsvei (alle
+  pilegrimsledene), KY er kyststi og NT er natursti.
+- `gradering` G og B er trolig grønn og blå etter DNT-skalaen.
+
+Hvis dette bekreftes, kobler `rutebetydning` turrutene direkte til «hvor
+langt» (v1.218.308). En nasjonal rute er et nasjonalt turmål, selv om den går
+forbi et lokalt busstopp.
+
 **Vurdering:**
 - **Rutene er både reisemål og adkomst [Hypotese].** En navngitt, merket rute
   er et turmål i seg selv, som Pilegrimsleden. En merket rute innen 200 m av

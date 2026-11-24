@@ -1,5 +1,5 @@
 {
- "kjørt": "2026-11-24T21:07:03.144Z",
+ "kjørt": "2026-11-24T21:10:47.441Z",
  "parametre": {
   "SCEN": [
    "mortensrud_dag",
@@ -71,7 +71,20 @@
     "vedStopp": true,
     "navn": [
      "Pilegrimsleden-Borgleden",
-     "Ukjent"
+     "Prinsdal"
+    ],
+    "typer": [
+     "Fotrute",
+     "Skiløype"
+    ],
+    "betydning": [
+     "3"
+    ],
+    "gradering": [
+     "I"
+    ],
+    "spesial": [
+     "HF"
     ],
     "punkter": 2,
     "ok": true
@@ -168,9 +181,24 @@
    "turruter": {
     "vedStopp": true,
     "navn": [
-     "Ukjent",
      "Pilegrimsleden-Borgleden",
+     "Sørmarka",
      "Pilegrimsruta"
+    ],
+    "typer": [
+     "Fotrute",
+     "Skiløype",
+     "Sykkelrute"
+    ],
+    "betydning": [
+     "1"
+    ],
+    "gradering": [
+     "I"
+    ],
+    "spesial": [
+     "1",
+     "HF"
     ],
     "punkter": 5,
     "ok": true
@@ -316,6 +344,18 @@
     "navn": [
      "Hoffselven-langs"
     ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [
+     "3"
+    ],
+    "gradering": [
+     "B"
+    ],
+    "spesial": [
+     "NT"
+    ],
     "punkter": 1,
     "ok": true
    },
@@ -435,6 +475,20 @@
      "Risengarunden",
      "Kystruta"
     ],
+    "typer": [
+     "Fotrute",
+     "Sykkelrute"
+    ],
+    "betydning": [
+     "1"
+    ],
+    "gradering": [
+     "I"
+    ],
+    "spesial": [
+     "1",
+     "HF"
+    ],
     "punkter": 0,
     "ok": true
    },
@@ -550,6 +604,10 @@
    "turruter": {
     "vedStopp": false,
     "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
     "punkter": 0,
     "ok": true
    },
@@ -1175,8 +1233,20 @@
     "vedStopp": true,
     "navn": [
      "Ljanselva-langs",
-     "Ukjent",
      "Pilegrimsleden-Borgleden"
+    ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [
+     "3"
+    ],
+    "gradering": [
+     "B"
+    ],
+    "spesial": [
+     "HF",
+     "KT"
     ],
     "punkter": 4,
     "ok": true
@@ -1386,6 +1456,10 @@
    "turruter": {
     "vedStopp": false,
     "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
     "punkter": 0,
     "ok": true
    },
@@ -1502,6 +1576,10 @@
    "turruter": {
     "vedStopp": false,
     "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
     "punkter": 0,
     "ok": true
    },
@@ -1551,6 +1629,16 @@
     "vedStopp": true,
     "navn": [
      "Kystruta"
+    ],
+    "typer": [
+     "Sykkelrute"
+    ],
+    "betydning": [
+     "1"
+    ],
+    "gradering": [],
+    "spesial": [
+     "1"
     ],
     "punkter": 0,
     "ok": true
@@ -1714,6 +1802,10 @@
    "turruter": {
     "vedStopp": false,
     "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
     "punkter": 0,
     "ok": true
    },
@@ -1739,6 +1831,10 @@
    "turruter": {
     "vedStopp": false,
     "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
     "punkter": 0,
     "ok": true
    },
@@ -1813,6 +1909,16 @@
     "vedStopp": true,
     "navn": [
      "Kystruta"
+    ],
+    "typer": [
+     "Sykkelrute"
+    ],
+    "betydning": [
+     "1"
+    ],
+    "gradering": [],
+    "spesial": [
+     "1"
     ],
     "punkter": 0,
     "ok": true
@@ -1957,6 +2063,17 @@
      "Ranheimsrunden",
      "Pilegrimsleden-Romboleden"
     ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [
+     "3"
+    ],
+    "gradering": [],
+    "spesial": [
+     "HF",
+     "TR"
+    ],
     "punkter": 0,
     "ok": true
    },
@@ -2030,6 +2147,10 @@
    "turruter": {
     "vedStopp": false,
     "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
     "punkter": 0,
     "ok": true
    },
@@ -2101,6 +2222,10 @@
    "turruter": {
     "vedStopp": false,
     "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
     "punkter": 0,
     "ok": true
    },
@@ -2150,6 +2275,10 @@
    "turruter": {
     "vedStopp": false,
     "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
     "punkter": 0,
     "ok": true
    },
@@ -2177,6 +2306,17 @@
     "navn": [
      "KyststiOslo",
      "Rondanestien"
+    ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [
+     "1"
+    ],
+    "gradering": [],
+    "spesial": [
+     "AN",
+     "KY"
     ],
     "punkter": 0,
     "ok": true
@@ -4047,6 +4187,16 @@
     "navn": [
      "Pilegrimsleden-Romboleden"
     ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [
+     "1"
+    ],
+    "gradering": [],
+    "spesial": [
+     "HF"
+    ],
     "punkter": 0,
     "ok": true
    },
@@ -4194,6 +4344,14 @@
     "navn": [
      "Pilegrimsleden-Gudbrandsdalsleden"
     ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [
+     "HF"
+    ],
     "punkter": 0,
     "ok": true
    },
@@ -4221,6 +4379,14 @@
     "navn": [
      "Pilegrimsleden-Gudbrandsdalsleden"
     ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [
+     "HF"
+    ],
     "punkter": 0,
     "ok": true
    },
@@ -4246,6 +4412,10 @@
    "turruter": {
     "vedStopp": false,
     "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
     "punkter": 0,
     "ok": true
    },
@@ -4294,6 +4464,10 @@
    "turruter": {
     "vedStopp": false,
     "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
     "punkter": 0,
     "ok": true
    },
@@ -4364,6 +4538,10 @@
    "turruter": {
     "vedStopp": false,
     "navn": [],
+    "typer": [],
+    "betydning": [],
+    "gradering": [],
+    "spesial": [],
     "punkter": 0,
     "ok": true
    },
@@ -4530,6 +4708,22 @@
      "Storkjølla",
      "70 turer for store og små",
      "Aronsvestranda"
+    ],
+    "typer": [
+     "Fotrute"
+    ],
+    "betydning": [
+     "2",
+     "3"
+    ],
+    "gradering": [
+     "G",
+     "I"
+    ],
+    "spesial": [
+     "AN",
+     "NT",
+     "TR"
     ],
     "punkter": 4,
     "ok": true

@@ -254,8 +254,9 @@ const GRUNNLAG = 'mulig med ett bytte — ikke sjekket mot reisesøket, og bytte
  * Kortene for én fasett. `kommuneAv` (stopp-id → kommune) trengs for «kommune».
  * @returns {{ rader: object[], ingen: boolean, grunnlag: string, fasett: string }}
  */
-export function ettByttePer(resultat, posisjon, fasett = 'retning', { kommuneAv = null } = {}) {
-  const veier = ettByttVeier(resultat);
+export function ettByttePer(resultat, posisjon, fasett = 'retning', { kommuneAv = null, behold = null } = {}) {
+  // `behold(opsjonId)`: hvilke steder som er med (hvor langt, v1.218.308). Avgjøres av presentasjonen.
+  const veier = ettByttVeier(resultat).filter(v => !behold || behold(v.opsjon));
   const opsjoner = new Map(((resultat && resultat.opsjoner) || []).map(o => [o.id, o]));
   const knNavn = new Map((((resultat && resultat.knutepunkter) || {}).vurdert || []).map(k => [k.id, k.navn]));
   const rader = [];

@@ -63,7 +63,9 @@ import { erInnstilt } from '../innstilt.js';
 import { canCatch, catchable } from '../reiseberegning.js';
 import { gårMotSentrum, hjemoverDom, iSnarvei, SNARVEIER, MOT_SENTRUM } from '../reiseoppgaver.js';
 import { andreRetninger, områderFor, iOmråde, erOmrådeValg } from '../mulighetsoppdagelse.js';
-import { ETT_BYTTE, ETT_BYTTE_VALG, ETT_BYTTE_TEKST, ettBytteHtml, ettBytteKart, sjekkReise } from './ettBytteVisning.js'; // ETT BYTTE (eksperiment)
+import { REKKEVIDDER, REKKEVIDDE_TEKST, rekkeviddeFor, tellRekkevidde } from '../rekkevidde.js';
+import { hentStedsinfo, hentHerInfo } from '../api/kommuner.js';
+import { ETT_BYTTE, ETT_BYTTE_VALG, ETT_BYTTE_TEKST, ettBytteHtml, ettBytteKart, sjekkReise, settRekkevidde, ettBytteRekkevidde } from './ettBytteVisning.js'; // ETT BYTTE (eksperiment)
 import { GANG_ALTERNATIV, medGangAlternativ, lastGangTak } from '../gangAlternativ.js'; // GÅ LENGER (eksperiment)
 import { plattformTekst } from '../bytte.js';
 import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, stoppFram, vedOgNeste, stoppEtterId, rangerKandidater } from '../api/ombord.js';
@@ -5986,6 +5988,45 @@ function _hjemSøkOppdater(nå) {
    mot sentrum, hjemover og andre retninger.» Lagret valg gjelder fra start og
    ved hvert nytt stopp; finnes ikke valget på et stopp (ingen hjemover-stopp,
    bare én retning), vises «alle» der — uten at valget ditt glemmes. */
+/* HVOR LANGT (v1.218.308, src/rekkevidde.js): lokalt · regionalt · nasjonalt
+   som et lag utenpå kategoriene — bare for de som oppdager muligheter (alle,
+   målområdene, ett bytte), ikke for reiseoppgavene mot sentrum og hjemover. */
+export const REKKEVIDDE_KEY = 't.rekkevidde';
+export function lagretRekkevidde() { try { const v = storage.get(REKKEVIDDE_KEY); return REKKEVIDDER.includes(v) ? v : null; } catch { return null; } }
+let _rekkevidde = lagretRekkevidde();
+/** Kategoriene raden vises for. Ren. */
+export const harRekkevidde = valg => valg === 'alle' || valg === ETT_BYTTE_VALG || erOmrådeValg(valg); // ETT BYTTE (eksperiment)
+const _stedsinfo = new Map();   // stopp-id → { kommune, fylke } (eller null: spurt, uten svar)
+let _herInfo = null, _herHenter = null;
+/** Kommune og fylke for endestoppene og der du står, hentet én gang og husket. */
+function _sikreStedsinfo(ider, here) {
+  const nye = [...new Set(ider)].filter(id => id && !_stedsinfo.has(id));
+  if (nye.length) {
+    nye.forEach(id => _stedsinfo.set(id, null));
+    hentStedsinfo(nye).then(({ kommuneAv, fylkeAv }) => { nye.forEach(id => _stedsinfo.set(id, { kommune: kommuneAv.get(id) || null, fylke: fylkeAv.get(id) || null })); _renderBody(); }).catch(() => {});
+  }
+  const nøkkel = here && Number.isFinite(here.lat) ? here.lat.toFixed(2) + ',' + here.lon.toFixed(2) : null;
+  if (nøkkel && (!_herInfo || _herInfo.n !== nøkkel) && _herHenter !== nøkkel) {
+    _herHenter = nøkkel;
+    hentHerInfo(here).then(h => { _herInfo = { n: nøkkel, ...h }; _renderBody(); }).catch(() => {}).finally(() => { if (_herHenter === nøkkel) _herHenter = null; });
+  }
+}
+/** Endestoppet til en avgang: siste kall på turen. Ren. */
+export function endestopp(call) {
+  const ec = call && call.serviceJourney && call.serviceJourney.estimatedCalls;
+  const q = ec && ec.length && ec[ec.length - 1].quay;
+  const sp = q && q.stopPlace;
+  return sp ? { id: sp.id, lat: sp.latitude, lon: sp.longitude } : null;
+}
+/** Raden «hvor langt»: knapp per rekkevidde med tallet, dempet når den er tom. Ren. */
+export function rekkeviddeRadHtml(valgt, t) {
+  if (!t) return '';
+  const knapp = r => '<button type="button" class="auto-fra-knapp' + (valgt === r ? ' valgt' : '') + (t[r] ? '' : ' at-tom') + '" data-rekkevidde="' + r + '" aria-pressed="' + (valgt === r) + '"'
+    + (t[r] ? '' : ' title="ingen herfra nå"') + '>' + esc(REKKEVIDDE_TEKST[r]) + '<small class="omr-linjer">' + t[r] + '</small></button>';
+  const merk = [t.anslått ? t.anslått + ' anslått etter avstand (kommunen er ikke kjent)' : '', t.ukjent ? t.ukjent + ' uten kjent sted' : ''].filter(Boolean).join(' · ');
+  return '<div class="auto-fra at-retning at-rekkevidde" role="group" aria-label="hvor langt"><span class="at-rekkevidde-tittel">hvor langt</span>' + REKKEVIDDER.map(knapp).join('') + '</div>'
+    + (merk ? '<div class="at-filter">' + esc(merk) + '</div>' : '');
+}
 export const AT_RETNING_KEY = 't.autoTavleRetning';
 export function lagretRetning() {
   try { const v = storage.get(AT_RETNING_KEY); return AT_RETNINGER.includes(v) || (v && v.startsWith('omr:')) ? v : 'alle'; } catch { return 'alle'; }
@@ -6216,6 +6257,16 @@ function _tegnAutoTavle(body) {
     x.hjemReise = hs && hjemReiseFor(hs.reiser, x.d.lines && x.d.lines[0] && x.d.lines[0].id, x.ms, x.bytte);
     x.byttTekst = byttTekst(x.bytte, x.hjemReise, _klokke);
   });
+  // HVOR LANGT (v1.218.308): avgangene etter endestoppet, når kategorien oppdager muligheter.
+  let rekkeTall = null;
+  if (harRekkevidde(_atRetning) && _atRetning !== ETT_BYTTE_VALG) { // ETT BYTTE (eksperiment): ett bytte teller sine egne steder
+    const alle = [...del.ikke, ...del.rekker];
+    _sikreStedsinfo(alle.map(x => (endestopp(x.call) || {}).id), here);
+    const her = here && { lat: here.lat, lon: here.lon, kommune: _herInfo && _herInfo.kommune, fylke: _herInfo && _herInfo.fylke };
+    alle.forEach(x => { const e = endestopp(x.call); const i = e && _stedsinfo.get(e.id); x.rekkevidde = e && her ? rekkeviddeFor(her, { ...e, kommune: i && i.kommune, fylke: i && i.fylke }) : { r: 'ukjent', anslått: false }; });
+    rekkeTall = tellRekkevidde(alle.map(x => x.rekkevidde));
+    if (_rekkevidde) { const med = x => x.rekkevidde.r === _rekkevidde; del.ikke = del.ikke.filter(med); del.rekker = del.rekker.filter(med); }
+  }
   const rader = [...del.ikke, ...del.rekker];
   // Stoppet ditt står på radene som går derfra også (v1.218.225, fraMerke).
   rader.forEach(x => { x.herNavn = _tavle() && _tavle().name; });
@@ -6253,7 +6304,8 @@ function _tegnAutoTavle(body) {
       + del.ikke.map((x, i) => tavleRadHtml(x, nå, i, meld)).join('') + '</div></details>'
     : '';
   const bunn = '<div class="at-bunn">' + (_atSlutt ? 'ikke flere avganger herfra' : _atHenter ? 'henter flere …' : '') + '</div>';
-  body.innerHTML = retningKnapper + (_atRetning === ETT_BYTTE_VALG ? ettBytteHtml(here, { esc, rerender: () => _renderBody(), radHtml: _kombiRadHtml }) /* ETT BYTTE (eksperiment) */ : rader.length
+  settRekkevidde(_rekkevidde); const ebHtml = _atRetning === ETT_BYTTE_VALG ? ettBytteHtml(here, { esc, rerender: () => _renderBody(), radHtml: _kombiRadHtml }) : ''; if (_atRetning === ETT_BYTTE_VALG) rekkeTall = ettBytteRekkevidde(); // ETT BYTTE (eksperiment)
+  body.innerHTML = retningKnapper + (harRekkevidde(_atRetning) ? rekkeviddeRadHtml(_rekkevidde, rekkeTall) : '') + (_atRetning === ETT_BYTTE_VALG ? ebHtml /* ETT BYTTE (eksperiment) */ : rader.length
     // FØRSTE KORT OVER KANTEN (v1.218.245): ingen «neste avganger herfra» —
     // lista sier det selv. «N avganger du ikke rekker» står OVER kortene, lukket
     // (v1.218.301, bestilt): de er ofte innen rekkevidde likevel — du løper, bussen
@@ -6270,9 +6322,14 @@ function _tegnAutoTavle(body) {
         k.forEach(r => ut.push(_kombiRadHtml(r, kombi.indexOf(r))));
         return ut.join('');
       })() + '</div>' + bunn
-    : merknad + hjemMerk + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : (_atRetning !== 'alle' ? 'ingen avganger ' + _retningTekst(_atRetning) + ' herfra nå' : 'ingen avganger herfra den nærmeste timen')) + '</div>');
+    : merknad + hjemMerk + '<div class="dest-prev-empty">' + (skjulteNavn.length && _dirs.length ? 'alt herfra er skjult i kartets filter' : rekkeTall && _rekkevidde ? 'ingen avganger herfra går ' + (_rekkevidde === 'lokalt' ? 'bare nært' : _rekkevidde) + ' nå — trykk «' + REKKEVIDDE_TEKST[_rekkevidde] + '» igjen for alle' : (_atRetning !== 'alle' ? 'ingen avganger ' + _retningTekst(_atRetning) + ' herfra nå' : 'ingen avganger herfra den nærmeste timen')) + '</div>');
   body.querySelectorAll('.at-raskest[data-pin]').forEach(b => b.addEventListener('click', () => { if (pinStop(b.dataset.pin)) _renderBody(); }));
   if (ETT_BYTTE) ettBytteKart(_aMap, L, { aktiv: _atRetning === ETT_BYTTE_VALG, pos: here, ramme: (b, o) => { if (!('_ebFør' in _aMap)) _aMap._ebFør = _aUserMoved; _aUserMoved = true; _aMap.removeLayer(_aLayer); _aMap.fitBounds(b, o); }, ferdig: () => { if (!_aMap) return; if (!_aMap.hasLayer(_aLayer)) _aLayer.addTo(_aMap); if ('_ebFør' in _aMap) { _aUserMoved = _aMap._ebFør; delete _aMap._ebFør; } _aFitKey = ''; _aKey = ''; _renderMap(); } }); // ETT BYTTE (eksperiment)
+  body.querySelectorAll('[data-rekkevidde]').forEach(b => b.addEventListener('click', () => {
+    _rekkevidde = _rekkevidde === b.dataset.rekkevidde ? null : b.dataset.rekkevidde;
+    try { storage.set(REKKEVIDDE_KEY, _rekkevidde || ''); } catch (_) {}
+    _atRull = { vist: -1, tomme: 0 }; _renderBody();
+  }));
   body.querySelectorAll('.at-retning [data-retning]').forEach(b => b.addEventListener('click', () => {
     if (_hjemHold.brukt) { _hjemHold.brukt = false; return; }   // langt trykk er ikke et valg
     // Uten stopp valgt er hjemover et spørsmål: hva er hjem? Svaret står i innstillinger.

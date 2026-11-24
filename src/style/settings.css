@@ -1208,3 +1208,8 @@ html[data-theme="light"] .at-min-klokke{color:var(--text-muted)}
 
 /* «finner beste stopp …» (v1.218.273): dempet, én linje, ingen spinner. */
 .set-label .avklar-linje{color:var(--text-soft);text-transform:none;letter-spacing:.02em}
+
+/* HVOR LANGT (v1.218.308): en rad under kategoriene. */
+.at-rekkevidde{align-items:center}
+.at-rekkevidde-tittel{color:var(--text-muted);font-size:.8rem;margin-right:.15rem}
+.at-rekkevidde .at-tom{opacity:.45}

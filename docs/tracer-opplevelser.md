@@ -588,6 +588,112 @@ forbi et lokalt busstopp.
   (fot, sykkel og annet). Mapping legges i `src/opplevelser.js` når den tas i
   bruk.
 
+## 14. Tilpasning: alder, barnefamilier og universell utforming
+
+**Hva kildene har [Målt, 24.11]:**
+
+| kilde | felt | dekning i stikkprøven |
+|---|---|---|
+| turrutebasen `tilpasning` | G gående · B barnevogn · R rullestol · S sykkel · A annet | **0 av om lag 1 170 fotruter** (Oslo, Trondheim, Bergen, Lillehammer) |
+| turrutebasen `gradering` | G grønn · B blå · R rød · S svart · I ikke gradert | Oslo 237/482, Bergen 226/225, Lillehammer 94/264, Trondheim 0/203 |
+| turrutebasen `underlagstype` | koder 1–3 | bare Bergen (204/225) |
+| turrutebasen `belysning` | sann/usann | delvis (Bergen 160, Oslo 33) |
+| turrutebasen-punkter | toalett 35 · kiosk 14 · bål 7 · badeplass 41 · baderampe 38 · benker 4 · gapahuk 45 | tynt: 16 punkter på 24 stopp |
+| turrutebasen skiløype | `spesialSkiløypetype` HL: «tilrettelagt for blant annet funksjonshemmede» | ikke telt |
+| Miljødirektoratet | `egnethet`, `tilgjengelighet`, `tilrettelegging` (generelle, ikke for alder) | utfylt i Oslo og Lillehammer, stort sett tomt i Trondheim |
+| appen i dag | trinnfri adkomst fra stoppestedsregisteret (`src/api/stoppested.js`) og ♿ fra OSM `wheelchair` (`src/ui/fmt.js:171`) | i bruk |
+| ikke prøvd | OSM `wheelchair`, `surface` og `sac_scale`; Valhallas rullestolprofil; Kartverkets høydeprofil-API | – |
+
+Graderingstallene teller alle segmenter med verdi. Bergen har derfor flere
+verdier enn ruter.
+
+**Prinsipper [Anbefaling]:**
+1. **Vis fakta, ikke dommer.** Merkene hentes rett fra kilden: «grønn rute ·
+   lysløype · toalett og bålplass ved turstart». Ingen kilde sier «egnet for
+   barn», så appen sier det heller ikke.
+2. **Barnefamilie er et utledet filter, og merket som utledet.** «Passer for
+   små bein» bygger på grønn gradering eller kort rute med lite stigning, på
+   toalett, badeplass eller bålplass i nærheten, og på trinnfri adkomst.
+   Raden sier hva det bygger på. Ruter uten gradering vises fortsatt, med
+   «gradering ikke registrert».
+3. **Universell utforming er en kjede, ikke ett merke.** Stopp trinnfritt
+   (stoppestedsregisteret), gangvei uten trapp (Valhallas rullestolprofil) og
+   stedet tilgjengelig (OSM `wheelchair`, og turrutebasens `tilpasning` R når
+   den er utfylt). Hvert ledd vises, og det ukjente sies: «stoppet trinnfritt
+   · gangvei og sted ikke kjent». Kjeden blir aldri ett grønt merke når ett
+   ledd mangler.
+4. **Dekningen sies høyt.** Der et felt mangler for hele området, sier appen
+   det én gang: «tilpasning er lite registrert her».
+
+**Rekkefølge:**
+- **Med steg 1:** gradering, lysløype, punktene ved ruta og trinnfri adkomst
+  til stoppet.
+- **Neste:** prøveløp med OSM `wheelchair` og `surface`, og Valhallas
+  rullestolprofil, på de 24 stoppene i traceren.
+- **Senere:** filteret «passer for små bein» med høydeprofil, bare hvis
+  prøveløpet viser nok data.
+
+## 15. Skal Kartverkets kart erstatte kartene i appen?
+
+**Spørsmål:** kan kartgrunnlaget på
+kartverket.no/api-og-data/kartgrunnlag-fastlands-norge erstatte dagens kart?
+
+**Dagens kart [Fakta]** (`src/ui/map.js`):
+- Stadia Maps «Alidade Smooth», lys og mørk, med OpenMapTiles og OSM. Valgt
+  som nøytral bakgrunn, så appens egne farger er det eneste mettede på kartet.
+- Stadia godkjenner på registrert domene, med `VITE_STADIA_KEY` som reserve.
+  Det er gratis innenfor en kvote, men det **er ikke et åpent API uten
+  konto**, slik du nå ønsker.
+- Oppå ligger OpenRailwayMap (spor ved zoom 16 og høyere).
+
+**Hva siden er [Fakta]:** N50–N5000 Kartdata, altså **rådata for nedlasting**
+(vektor og raster, FGDB, PostGIS, SOSI og GML). Det er ikke ferdige fliser til
+et nettkart. Å bruke dem direkte krever egen kartproduksjon og egen server.
+FKB, de mest detaljerte dataene, er ikke åpne.
+
+**Det ferdige alternativet** er Kartverkets flistjeneste, prøvd 24.11:
+- `cache.kartverket.no/v1/wmts/1.0.0/{lag}/default/webmercator/{z}/{y}/{x}.png`
+- Lagene er `topo`, `topograatone` og `toporaster` (og `sjokartraster`).
+- Den er åpen, uten nøkkel, under CC BY 4.0 med «© Kartverket».
+- Den virker med Leaflet, som appen alt bruker.
+- Skjermbilde: `scratchpad/kartverketProbe.mjs`.
+
+**Funn:**
+
+| | Kartverket | dagens Stadia |
+|---|---|---|
+| åpent, uten konto | **ja** | nei (konto og domene) |
+| kartinnhold i Norge | **svært godt**: stier, høydekurver, stedsnavn, terreng | godt i byen, tynt i marka |
+| nøytral bakgrunn | `topograatone`: ja, grå. `topo`: nei, fargerik | ja |
+| mørk modus | **finnes ikke** | ja |
+| utenfor Norge | **helt tomt** (Malmö: grått) | hele verden |
+| turrute-laget fra Kartverket oppå | passer pent sammen (Sognsvann) | går også |
+
+**Vurdering [Anbefaling]:** ikke erstatt hele kartet nå. Tre grunner:
+1. **Mørk modus:** appen er bygget for begge modusene, og det finnes ingen
+   mørk Kartverket-variant. Å invertere flisene med CSS gir feil farger på
+   vann, skog og veier.
+2. **Utenfor Norge:** «ett bytte» når Malmö, Stockholm og København, og de
+   kartene ville blitt tomme.
+3. **Nøytral bakgrunn:** fargerik `topo` bryter med valget i `src/ui/map.js`,
+   der appens egne farger er det eneste mettede.
+
+**Derimot:**
+- **Turrute-laget** (`wms.geonorge.no/skwms1/wms.friluftsruter2`, lagene
+  `Fotrute`, `Skiloype`, `Sykkelrute` og `Ruteinfopunkt`) bør brukes **oppå**
+  dagens kart når opplevelser vises (steg 2). Det er åpent, uten nøkkel, og
+  ser riktig ut på grå bakgrunn.
+- **Kartverket som valgfritt «turkart»:** appens lagvelger (knappen øverst
+  til høyre på kartet) kan få et turkart med `topograatone` og turrutene i
+  lys modus i Norge. Utenfor Norge og i mørk modus brukes dagens kart. Det er
+  et produktvalg, ikke en erstatning.
+- **Hvis kartet uansett skal være helt åpent uten konto:** da må dagens
+  Stadia byttes. De realistiske åpne alternativene for hele verden og mørk
+  modus er egen drift av OSM-fliser eller vektorfliser, for eksempel
+  OpenFreeMap eller Protomaps (ikke prøvd). OSMs egne fliser
+  (`tile.openstreetmap.org`) er ikke ment for apper i drift. Det er en egen
+  avgjørelse, og en egen tracer.
+
 ## Avgrensninger
 
 - **Utvalget:** 24 steder fra 4 utgangspunkter, én tid (Entur-opptakene). Det

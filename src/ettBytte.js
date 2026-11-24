@@ -249,6 +249,25 @@ export function listerHolder(rad) {
 }
 
 const GRUNNLAG = 'mulig med ett bytte — ikke sjekket mot reisesøket, og byttet er ikke tidskontrollert';
+/**
+ * TIDSVINDUET (v1.218.310). Spurt: «Hva er tidsperspektivet for reisene i
+ * "ett bytte"?» Avgangstavlene hentes fra NÅ, med et vindu per transportmiddel
+ * (`horisontMin`: 60 min buss/T-bane, 180 min tog/ekspressbuss/båt) — også
+ * fra knutepunktene, ikke fra når du er framme der. Overskriften sier det.
+ * Minste og største vindu blant tilgangsstoppene og knutepunktene som ble
+ * spurt. Null når svaret ikke har dem. Ren.
+ */
+export function vinduTekst(resultat) {
+  const k = ((resultat && resultat.knutepunkter && resultat.knutepunkter.vurdert) || []).filter(x => x.status === 'spurt').map(x => x.horisontMin);
+  const alle = [...((resultat && resultat.tilgangHorisontMin) || []), ...k].filter(m => Number.isFinite(m) && m > 0);
+  if (!alle.length) return null;
+  const lo = Math.min(...alle), hi = Math.max(...alle);
+  const t = m => (m % 60 === 0 ? String(m / 60) : (m / 60).toFixed(1).replace('.', ','));
+  if (hi < 60) return 'avganger fra nå og ' + (lo === hi ? hi : lo + '–' + hi) + ' min fram';
+  if (lo === hi) return 'avganger fra nå og ' + t(hi) + (hi === 60 ? ' time' : ' timer') + ' fram';
+  return 'avganger fra nå og ' + (lo < 60 ? lo + ' min' : t(lo)) + '–' + t(hi) + ' timer fram';
+}
+const grunnlagFor = resultat => (v => v ? 'mulig med ett bytte · ' + v + ' — ikke sjekket mot reisesøket, og byttet er ikke tidskontrollert' : GRUNNLAG)(vinduTekst(resultat));
 
 /**
  * Kortene for én fasett. `kommuneAv` (stopp-id → kommune) trengs for «kommune».
@@ -276,7 +295,7 @@ export function ettByttePer(resultat, posisjon, fasett = 'retning', { kommuneAv 
       const [knute, g] = [...s.entries()].sort(([ka, a], [kb, b]) => b.områder.size - a.områder.size || b.dest.size - a.dest.size || (ka < kb ? -1 : 1))[0];
       rader.push(radAv(resultat, posisjon, g.veier, { retning: sektor, tittel: RETNING_NAVN[sektor], fasett, undertittel: 'via ' + (knNavn.get(knute) || knute) }));
     }
-    return { rader, ingen: rader.length === 0, grunnlag: GRUNNLAG, fasett };
+    return { rader, ingen: rader.length === 0, grunnlag: grunnlagFor(resultat), fasett };
   }
   // Nøkkel(er) per vei for fasetten, med tittel.
   const nøkler = v => {
@@ -303,7 +322,7 @@ export function ettByttePer(resultat, posisjon, fasett = 'retning', { kommuneAv 
     rader.push(r);
   }
   rader.sort((a, b) => b.antallSteder - a.antallSteder || (a.retningNavn < b.retningNavn ? -1 : 1));
-  return { rader, ingen: rader.length === 0, grunnlag: GRUNNLAG, fasett };
+  return { rader, ingen: rader.length === 0, grunnlag: grunnlagFor(resultat), fasett };
 }
 
 /** Rader per himmelretning (dagens kort). Uendret oppførsel: `ettByttePer(…, 'retning')`. */

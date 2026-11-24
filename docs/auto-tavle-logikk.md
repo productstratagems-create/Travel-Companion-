@@ -470,6 +470,17 @@ tidskontrollert». «Sjekk denne» skiller nå tre svar:
   stemmer, paret gjør det ikke;
 - «Entur foreslår via X»: en annen vei.
 
+### Tidsvinduet (v1.218.310)
+
+Spurt: «Hva er tidsperspektivet for reisene i "ett bytte"?» Kortene bygges av
+avgangstavler hentet fra **nå**, med vindu per transportmiddel
+(`PARAMETRE.horisontMin`): 60 min for buss, T-bane og trikk, og 180 min for
+tog, ekspressbuss og båt. Det gjelder også knutepunktene, så etappe 2 regnes
+fra nå og ikke fra når du er framme der. Overskriften sier vinduet, regnet av
+svaret (`vinduTekst`): «mulig med ett bytte · avganger fra nå og 1–3 timer
+fram — …». Radene under et valgt kort er ekte reisesøk fra nå, og de er
+tidskontrollert.
+
 ### Sjekk denne (v1.218.298, forslag 5)
 
 Under det valgte kortet står en liste med opptil 8 steder (`SJEKK_STEDER`),

@@ -802,6 +802,158 @@ oppdiktet.
 under navnet må tåle at beskrivelsen mangler: fakta og aktivitet bærer
 kortet, og beskrivelsen er et tillegg.
 
+## 18. Implementeringsplan: opplevelseskort i «ett bytte» (til godkjenning)
+
+**Beslutninger 25.11:**
+1. Kortvariant B, med tilgangsordene fra C.
+2. Beskrivelsen er valgfri.
+3. Grensene for tilgang er foreløpige hypoteser.
+4. Fritid-skjermen forblir egen, for mat og handel.
+
+### Avklaringene
+
+**1. Transportmiddel [Fakta, lest og målt]**
+- Appens reisesøk (`tripGQL` i `src/api/queries.js`, brukt av «ett bytte»
+  via `reisesøkGql`) spør bare om `metro, bus, tram, rail, water`, og
+  `coach` når den er tillatt. **Fly er ikke med i appen.** Flyet i prototypen
+  kom fra mitt eget skript, som ikke satte `transportModes`. Feil i
+  prototypen, ikke i appen.
+- Nettverket bak «ett bytte» (`BOARD_MODES_COACH`) har også `taxi`, som er
+  Enturs bestillingstransport (for eksempel linje 5031 ved Tretten).
+  Bestillingstransport er kollektivtilbud, men må bestilles på forhånd, og
+  kortet skal si det.
+- **Gange** er alltid en egen etappe på kortet (`mode: foot`), aldri en del av
+  «kollektiv».
+
+**2. Manglende reise, undersøkt ved Skogstadrampa [Målt]**
+- **Startpunktet** er opptakets utgangspunkt på Tretten (61.3125, 10.3005).
+  **Endepunktet** er plattformen NSR:Quay:21850 ved E6-rampa.
+- **Ruten:** Entur sier 3 431 m og 58 min, og Valhalla sier 3 385 m og 60 min,
+  langs Sør-Trettenvegen opp lia. De to ruterne er enige. **1,2 km i
+  luftlinje var misvisende**, og gangtiden er reell.
+- **Avganger:** holdeplassen har tre bussavganger den dagen (linje 543 kl.
+  07.55, 13.25 og 14.59) og bestillingstransport om kvelden. Søket kl. 10
+  fant ingen reise fordi neste buss gikk 13.25, **ikke fordi stedet er
+  utilgjengelig**.
+
+### Hva som gjenbrukes (mekanismen endres ikke)
+- **Opplevelser:** `hentOpplevelser`, `opplevelserVed`, `velgVisning`,
+  `fasiliteterVed` og `hentGang` (`src/api/opplevelserKilder.js`,
+  `src/opplevelser.js`). Kildene og reglene er de samme.
+- **Reisen til stoppet:** det reisesøket «ett bytte» alt gjør per sted
+  (`sjekkSted` → `sjekkReise`, med radene fra `reiseRader` i
+  `src/reiseTil.js`: gå om, linjer, bytter og framme). Opplevelseskortet
+  **leser** denne reisen, og spør ikke på nytt. Én definisjon.
+- **Stedene:** 8 per valgt kort (`SJEKK_STEDER`). «Ett bytte» finner dem som
+  før.
+- **Kart:** `ettBytteKart` og turrute-laget (av som standard).
+  `docs/kartregler.md` gjelder.
+
+### Endringer i datamodellen (rene funksjoner i `src/opplevelser.js`)
+- **`INNGANGER`:** de fire inngangene over de sju kategoriene. Et sted kan
+  høre til flere.
+- **`aktiviteter(o)`:** utledet fra kildene, som i prototypen. Fotrute gir
+  gåtur, skiløype gir skitur, marka gir tur i skog og mark, museum gir
+  museumsbesøk og så videre. Aldri fritekst.
+- **`beskrivelse`:** Wikidatas `schema:description`, på norsk og ellers
+  engelsk merket «(engelsk)», i samme SPARQL-kall. Valgfri.
+- **`reiseTilStoppet(rad, søkt)`:**
+  `{ min, går, framme, bytter, linjer, moduser, søkt, bestilling }`.
+  - `moduser` er bare kollektive etapper.
+  - Mønstre med en etappe som ikke er tillatt (`air` og andre utenfor listen)
+    avvises som et forsvar, selv om spørringen ikke ber om dem.
+  - `bestilling` er sann når en etappe er `taxi`, altså bestillingstransport.
+- **`gangFraStopp`:** `{ m, min, kilde: 'målt' }` fra `hentGang`, eller
+  `{ luftM, kilde: 'luftlinje' }`. Aldri en påstått gangtid.
+- **`samletTid(reise, gang)`:** bare når **begge** er kjente og målt. Da gir
+  den `{ framme: reise.framme + gang.min }`. Ellers `null`, og ingenting
+  summeres.
+- **`TILGANG_GRENSER`:**
+  `{ enkel: { reiseMin: 45, bytter: 1, gangMin: 15 }, mulig: { 120, 2, 25 } }`,
+  merket som hypotese i koden og i rapporten.
+- **`tilgang(reise, gang, grenser)`** gir `{ ord, verdier }`.
+  - Ordet er avledet fra verdiene, og verdiene vises alltid ved siden av.
+  - Uten reise eller gange blir ordet aldri «krevende»: da står «ukjent».
+  - **Tilgangsordet påvirker aldri rekkefølge eller utvalg.** `velgVisning`
+    rører det ikke.
+
+### Presentasjonen (`src/views/ettBytteVisning.js` og `src/style/ettBytte.css`)
+Under hver stedsrad står dagens reiserad, **uendret**. Under den står høyst to
+opplevelseskort, som erstatter dagens linje fra v1.218.313. Hvert kort har:
+- **navn**, og **hva** (underkategori) · **aktiviteter** som merker;
+- **beskrivelse** når den finnes, med kilde. Mangler den, står ingenting, ikke
+  «ingen beskrivelse»;
+- **tre verdier, hver med etikett:**
+  - «reise til stoppet»: 43 min · 1 bytte (linjene står i reiseraden over);
+  - «gange fra stopp»: 9 min, målt, eller «ca. 600 m i luftlinje»;
+  - «framme ca.» klokkeslett, bare når `samletTid` finnes;
+- **tilgangsordet med verdiene:** «enkel (43 min, 1 bytte, 9 min gange)»;
+- **fasiliteter** fra turrutebasen;
+- **kilder.**
+
+**Tidsinformasjon:** én linje over lista: «reisetider fra søk kl. HH:MM». Den
+fornyes når reisene hentes på nytt (cache 10 min, som i dag).
+
+**Manglende reise:** «ingen kollektivreise i søket kl. HH:MM. Det betyr ikke
+at stedet ikke kan nås». Har Entur en verifisert gangrute (`directMode: foot`,
+ett ekstra kall, bare i dette tilfellet), står også «gange hele veien: 58 min
+(3,4 km, Entur)».
+
+**Bestillingstransport:** merket «bestillingstransport · må bestilles».
+
+**Innganger:** fire knapper over stedslista under et valgt kort, av som
+standard («alle»). Knappene filtrerer bare **hvilke opplevelser** som vises,
+aldri **hvilke steder** eller kort «ett bytte» finner.
+
+### Kart og liste: samme valgte opplevelse
+- **Én tilstand:** `_valgtOpplevelse = { stedId, navn }` i
+  `ettBytteVisning.js`.
+- **Prikker:** når et kort er valgt, får opplevelsene (de viste, høyst 16)
+  prikker i inngangens farge på kartet, sammen med dagens steder.
+- **Trykk på en prikk** setter tilstanden, tegner lista og ruller kortet inn
+  i bildet (`scrollIntoView`, nærmeste).
+- **Trykk på et kort** setter tilstanden og fremhever prikken. Kartet
+  **flyttes ikke** hvis brukeren har rørt det (`docs/kartregler.md`). Ellers
+  panoreres det bare hvis prikken er utenfor bildet.
+- **Nullstilling:** nytt kort, nytt sted eller av-valg nullstiller tilstanden.
+
+### Tester
+- **Kollektivtransport:**
+  - spørringen inneholder bare tillatte transportmidler og aldri `air`;
+  - et mønster med en `air`-etappe avvises;
+  - `taxi` gir «bestillingstransport».
+- **Gange:**
+  - målt gange vises som «N min», luftlinje som «ca. N m»;
+  - Skogstadrampa-fiksturen (Entur 3 431 m og 58 min, Valhalla 3 385 m) gir
+    «gange hele veien: 58 min» bare når kollektivreise mangler.
+- **Bytter:** antall bytter er antall kollektive etapper minus 1. Gange mellom
+  etapper teller ikke.
+- **Tid:**
+  - `samletTid` er `null` når gange ikke er målt eller reise mangler;
+  - klokkeslettet er stoppets framme pluss målt gange;
+  - søketidspunktet vises.
+- **Tilgang:**
+  - grensene leses fra `TILGANG_GRENSER`;
+  - verdiene står alltid ved siden av ordet;
+  - uten data blir ordet «ukjent», ikke «krevende»;
+  - `velgVisning` gir samme rekkefølge med og uten tilgang (mutanttest).
+- **Kart og liste:** prikk → kort og kort → prikk bruker samme tilstand, og
+  kartet flyttes ikke etter at brukeren har rørt det.
+- **Uendret:** eksisterende tester for «ett bytte», reiserader, «hvor langt»
+  og tidsvindu går gjennom.
+- **I nettleseren:** mot ekte Entur fra Mortensrud og Tretten (tynt tilbud),
+  i lys og mørk modus på 390 px.
+
+### Hva som uttrykkelig ikke endres
+- **Mekanismen som finner steder:** `utforsk`, `ettByttePer`, fasettene,
+  «hvor langt», tidsvinduet, `SJEKK_STEDER` og reisesøket (`reisesøkGql` og
+  `tripGQL`, inkludert transportmidlene).
+- **Reiseraden** (`_kombiRadHtml`) og klikket som åpner avgangsdetaljene.
+- **Kildene, mappingen og relevansreglene** i `src/opplevelser.js`. Bare nye
+  funksjoner legges til.
+- **Grunnkartet** (Stadia). Turrute-laget forblir valgfritt.
+- **Fritid-skjermen** (`src/views/leisure.js`) og `src/api/places.js`.
+
 ## Avgrensninger
 
 - **Utvalget:** 24 steder fra 4 utgangspunkter, én tid (Entur-opptakene). Det

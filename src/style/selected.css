@@ -364,3 +364,10 @@ body.app-nav-visible.jny-chip-visible #s-ctas > .cta-row{
   padding:.35rem .6rem;border-radius:6px;border:1px solid rgba(var(--border-rgb),.3);
   background:var(--bg);color:var(--accent);font:inherit;font-size:11px;letter-spacing:.06em;cursor:pointer}
 .sel-map-alt[hidden]{display:none}
+
+/* IKKE NOK PLASS I BREDDEN (v1.218.309). Rapportert med skjermbilder:
+   73 → L2 → RE11 → 360 med operatørlogoer skjøv siden sidelengs, både i
+   avgangsdetaljene og på Underveis. Raden brytes i stedet for å stikke ut:
+   merkene på første linje så langt de rekker, resten under. */
+.train-chip,.train-bar{flex-wrap:wrap;row-gap:.4rem;min-width:0;max-width:100%}
+.train-chip .tc-dest,.train-bar .tb-dest{min-width:7rem}

@@ -104,7 +104,7 @@ import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, platt
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
 import { fraTider, settFraTid, fraDatoer, settFraDatoTid, KLOKKESLETT_VALG } from '../fraTider.js';
-import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest, annetHjemStopp, hjemGange , hjemoverForslag, søkHjemStopp, lagreHjemoverFra } from '../hjemover.js';
+import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest, annetHjemStopp, hjemGange , hjemoverForslag, søkHjemStopp, lagreHjemoverFra, hjemReiser, hjemReiseFor, byttTekst, byttTillegg } from '../hjemover.js';
 import { navTo } from '../ui/nav.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
@@ -5954,6 +5954,7 @@ function _hjemSøkOppdater(nå) {
       if (svar.every(x => x == null)) { post.feil = true; return; }
       const alle = svar.flatMap(x => x || []);
       post.etapper = hjemFørsteEtapper(alle);
+      post.reiser = hjemReiser(alle);   // hele reisen per avgang (v1.218.303)
       post.raskest = hjemRaskest(alle);
       post.gange = hjemGange(alle);
     });
@@ -6185,7 +6186,12 @@ function _tegnAutoTavle(body) {
   const perLinje = byLine(_alerts);
   const meld = id => perLinje.get(id) || [];
   // «Bytt på X» på radene når hjemover er valgt (v1.218.151).
-  if (_atRetning === 'hjem') [...del.ikke, ...del.rekker].forEach(x => { x.bytte = retningHjemDom(x.d, gang, nå, hjemListe).bytte; });
+  if (_atRetning === 'hjem') [...del.ikke, ...del.rekker].forEach(x => {
+    x.bytte = retningHjemDom(x.d, gang, nå, hjemListe).bytte;
+    // Hele reisen (v1.218.303): hva du bytter til og når du er hjemme — når reisesøket hjem har akkurat denne avgangen.
+    const hs = _stop && _hjemSøk.get(_stop.id);
+    x.byttTekst = byttTekst(x.bytte, hs && hjemReiseFor(hs.reiser, x.d.lines && x.d.lines[0] && x.d.lines[0].id, x.ms, x.bytte), _klokke);
+  });
   const rader = [...del.ikke, ...del.rekker];
   // Stoppet ditt står på radene som går derfra også (v1.218.225, fraMerke).
   rader.forEach(x => { x.herNavn = _tavle() && _tavle().name; });
@@ -6679,7 +6685,8 @@ function _renderBody() {
         + msg.mark
         + '</span>'
         + '<span class="nearby-name">mot ' + esc(d.frontText)
-        + (hjemAR.get(i) && hjemAR.get(i).bytte ? '<span class="auto-bytte">bytt på ' + esc(hjemAR.get(i).bytte) + '</span>' : '') + '</span>'
+        + (hjemAR.get(i) && hjemAR.get(i).bytte ? '<span class="auto-bytte">bytt på ' + esc(hjemAR.get(i).bytte) + esc(byttTillegg((hs => hs && hjemReiseFor(hs.reiser, d.lines && d.lines[0] && d.lines[0].id,
+          Date.parse((d.call && (d.call.expectedDepartureTime || d.call.aimedDepartureTime)) || ''), hjemAR.get(i).bytte))(_stop && _hjemSøk.get(_stop.id)), _klokke)) + '</span>' : '') + '</span>'
         // DIN AVGANG (v1.218.86): raden for tavlas valg merkes; den flyttes ikke.
         + (din ? '<span class="auto-din-merke">din avgang</span>' : '')
         // REKK DEN LENGER NED (v1.218.190): samme tekst som Rute og Auto-tavle.

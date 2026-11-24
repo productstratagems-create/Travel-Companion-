@@ -144,9 +144,12 @@ export function slåSammen(kandidater, stopp) {
       lik.wikidata = lik.wikidata || c.wikidata || null; lik.sitelinks = Math.max(lik.sitelinks, c.sitelinks || 0);
       lik.rute = slåSammenRute(lik.rute, c.rute); lik.verdi = lik.verdi || c.verdi || null;
       lik.beskrivelse = lik.beskrivelse || c.beskrivelse || null;
+      lik.bildeFil = lik.bildeFil || c.bildeFil || null; lik.wikiTittel = lik.wikiTittel || c.wikiTittel || null; lik.omraade = lik.omraade || c.omraade || null; lik.info = lik.info || c.info || null;
+      if (c.kilde === 'wikidata' && !lik.qid) lik.qid = c.sid;
       continue;
     }
-    unike.push({ navn: c.navn, lat: c.lat, lon: c.lon, luft, flate: !!c.flate, kat: [...c.kat], kilder: [c], wikidata: c.wikidata || null, sitelinks: c.sitelinks || 0, rute: c.rute || null, verdi: c.verdi || null, beskrivelse: c.beskrivelse || null });
+    unike.push({ navn: c.navn, lat: c.lat, lon: c.lon, luft, flate: !!c.flate, kat: [...c.kat], kilder: [c], wikidata: c.wikidata || null, sitelinks: c.sitelinks || 0, rute: c.rute || null, verdi: c.verdi || null, beskrivelse: c.beskrivelse || null,
+      bildeFil: c.bildeFil || null, wikiTittel: c.wikiTittel || null, omraade: c.omraade || null, info: c.info || null, qid: c.kilde === 'wikidata' ? c.sid : null });
   }
   return unike;
 }
@@ -341,12 +344,15 @@ export function søkTekst(ms) {
  * Alt kortet viser, uten HTML — liste og kart leser det samme. Ren.
  * @param o  en opplevelse fra opplevelserVed (med beskrivelse når Wikidata har den)
  */
-export function kortData(o, g, punkter = []) {
+export function kortData(o, g, punkter = [], berik = null) {
   const reise = g && g.reise, gang = (g && g.gang) || gangFraStopp(null, o.luft);
   return {
     navn: o.navn, hva: hvaTekst(o), innganger: innganger(o), aktiviteter: aktiviteter(o),
     // En beskrivelse som bare gjentar typen («park» under «park») sier ingenting.
     beskrivelse: o.beskrivelse && normNavn(o.beskrivelse.tekst) !== normNavn(hvaTekst(o)) ? o.beskrivelse : null,
+    hvorfor: hvorforTekst(o, berik),
+    bilde: (berik && berik.bilde) || null,
+    lesMer: (berik && berik.ingress && berik.ingress.url) || null,
     lat: o.lat, lon: o.lon,
     reise: reise ? { tekst: varighet(reise.min) + ' · ' + (reise.bytter === 0 ? 'uten bytte' : reise.bytter + (reise.bytter === 1 ? ' bytte' : ' bytter')), bestilling: reise.bestilling } : null,
     gang: gang.kilde === 'målt' ? { tekst: gang.min + ' min', type: 'målt' }
@@ -358,4 +364,53 @@ export function kortData(o, g, punkter = []) {
     kilder: [...new Set(o.kilder.map(c => ({ turrute: 'Kartverket', miljodir: 'Miljødirektoratet', wikidata: 'Wikidata' })[c.kilde] || c.kilde))],
     avvik: (g && g.avvik) || [],
   };
+}
+
+/* ── STEDET SELGES (v1.218.315) — bilde, ingress og kreditering ───────────
+ * Kilder: Wikipedia (ingress, CC BY-SA) og Wikimedia Commons (bilde, med
+ * fotograf og lisens). Utprøvd kortmønster: bilde først, navn og kategori,
+ * én setning om hvorfor, faktaknapper, én tydelig handling. Ingen bilde uten
+ * fotograf OG lisens — krediteringen er et krav, ikke pynt. */
+
+/** Første setning, høyst `maks` tegn (kuttet ved ord, med «…»). Ren. */
+export function førsteSetning(tekst, maks = 160) {
+  const t = String(tekst || '').replace(/\s+/g, ' ').trim();
+  if (!t) return '';
+  // Også punktum rett før stor bokstav (sett: «Lokal badeplass.Vesletjern og …» hos Miljødirektoratet).
+  const m = /^(.+?[.!?])(\s|$|(?=[A-ZÆØÅ]))/.exec(t);
+  let s = m ? m[1] : t;
+  if (s.length > maks) s = s.slice(0, maks).replace(/\s+\S*$/, '') + ' …';
+  return s;
+}
+const _side = j => j && j.query && j.query.pages && Object.values(j.query.pages)[0];
+/** Wikipedia (action=query, prop=extracts|info) → { tekst, url, tittel } eller null. Ren. */
+export function parseSammendrag(json) {
+  const p = _side(json);
+  if (!p || p.missing !== undefined || !p.extract) return null;
+  return { tekst: førsteSetning(p.extract), url: p.fullurl || ('https://no.wikipedia.org/wiki/' + encodeURIComponent((p.title || '').replace(/ /g, '_'))), tittel: p.title };
+}
+const _rentekst = h => String(h || '').replace(/<[^>]*>/g, ' ').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/\s+/g, ' ').trim();
+/** Commons (prop=imageinfo, extmetadata) → { url, side, fotograf, lisens, lisensUrl } eller null uten fotograf/lisens. Ren. */
+export function parseBildeinfo(json) {
+  const p = _side(json), ii = p && p.imageinfo && p.imageinfo[0];
+  if (!ii) return null;
+  const em = ii.extmetadata || {}, v = k => (em[k] && em[k].value) || '';
+  const fotograf = _rentekst(v('Artist')) || _rentekst(v('Credit')), lisens = _rentekst(v('LicenseShortName'));
+  const url = ii.thumburl || ii.url;
+  if (!url || !fotograf || !lisens) return null;
+  return { url, side: ii.descriptionurl || null, fotograf: fotograf.slice(0, 80), lisens, lisensUrl: v('LicenseUrl') || null };
+}
+/**
+ * Hvorfor dra hit — i fast rekkefølge: Wikipedia-ingress, Wikidata-beskrivelse
+ * (når den sier mer enn typen), kildenes fakta (turrute, Miljødirektoratet). Ren.
+ * @returns {{ tekst, kilde }|null}
+ */
+export function hvorforTekst(o, berik) {
+  if (berik && berik.ingress && berik.ingress.tekst) return { tekst: berik.ingress.tekst, kilde: 'Tekst: Wikipedia' };
+  if (o.beskrivelse && normNavn(o.beskrivelse.tekst) !== normNavn(hvaTekst(o))) return { tekst: o.beskrivelse.tekst, kilde: 'Wikidata' + (o.beskrivelse.språk === 'en' ? ' (engelsk)' : '') };
+  // Turrutebasens egen tekst om stedet, uten navnet foran (sett: «… - isbading om vinteren, …»).
+  if (o.info && normNavn(o.info) !== normNavn(o.navn)) return { tekst: førsteSetning(o.info.replace(/^[^-–.:]*[-–:]\s*/, '').replace(/^./, c => c.toUpperCase()), 200), kilde: 'Kartverket, turrutebasen' };
+  if (o.omraade) return { tekst: førsteSetning(o.omraade), kilde: 'Miljødirektoratet' };
+  if (o.verdi) return { tekst: o.verdi, kilde: 'Miljødirektoratet' };
+  return null;
 }

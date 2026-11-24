@@ -17,7 +17,7 @@ import { fetchWalkRoute } from './route.js';
 import { measurePath } from '../ui/path.js';
 import { SPEED_MPN } from '../walkSpeed.js';
 import { loadWalkSpeed } from '../geo.js';
-import { klassifiserTurrute, klassifiserTilrettelegging, klassifiserFriluft, klassifiserWikidata, opplevelserVed, avstandM } from '../opplevelser.js';
+import { parseSammendrag, parseBildeinfo, klassifiserTurrute, klassifiserTilrettelegging, klassifiserFriluft, klassifiserWikidata, opplevelserVed, avstandM } from '../opplevelser.js';
 
 export const OPPLEVELSE_CACHE_MS = 24 * 3600_000;
 const RADIUS_M = 800;
@@ -38,6 +38,10 @@ export function turruteUrl(s) {
  * (RuteInfoPunkt med tilretteleggingskode). Regex, ikke DOMParser: samme kode
  * i nettleseren og i testene. Ren.
  */
+/** Navnet i et `informasjon`-felt: teksten før « - », kolon eller første punktum, høyst 60 tegn. Ren. */
+export function infoNavn(info) {
+  return String(info || '').split(/\s[-–]\s|[.:](?:\s|$)/)[0].trim().slice(0, 60);
+}
 export function parseTurruter(xml, stopp) {
   const kandidater = [], punkter = [];
   for (const type of [...RUTETYPER, 'RuteInfoPunkt']) {
@@ -50,7 +54,10 @@ export function parseTurruter(xml, stopp) {
         const kode = v('tilrettelegging');
         punkter.push({ kode, lat: pkt[0].lat, lon: pkt[0].lon });
         const kat = klassifiserTilrettelegging(kode);
-        if (kat.length && v('informasjon')) kandidater.push({ kilde: 'turrute', sid: v('lokalId'), navn: v('informasjon'), lat: pkt[0].lat, lon: pkt[0].lon, kat });
+        // `informasjon` er ofte en hel setning (sett: «Angelskjæret badeplass - isbading om vinteren, …»):
+        // navnet er det før « - » eller første punktum, resten selger stedet (v1.218.315).
+        const info = v('informasjon');
+        if (kat.length && info) kandidater.push({ kilde: 'turrute', sid: v('lokalId'), navn: infoNavn(info), info: info.trim(), lat: pkt[0].lat, lon: pkt[0].lon, kat });
         continue;
       }
       const near = pkt.reduce((b, p) => (avstandM(stopp, p) < avstandM(stopp, b) ? p : b), pkt[0]);
@@ -64,7 +71,7 @@ export function parseTurruter(xml, stopp) {
 
 export function friluftUrl(s) {
   return MD + '?' + new URLSearchParams({ geometry: s.lon + ',' + s.lat, geometryType: 'esriGeometryPoint', inSR: '4326', distance: String(RADIUS_M), units: 'esriSRUnit_Meter',
-    spatialRel: 'esriSpatialRelIntersects', outFields: 'id,omraadenavn,omraadetype_beskrivelse,omraadeverdi_beskrivelse', returnGeometry: 'true', outSR: '4326', maxAllowableOffset: '0.0005', f: 'json' });
+    spatialRel: 'esriSpatialRelIntersects', outFields: 'id,omraadenavn,omraadetype_beskrivelse,omraadeverdi_beskrivelse,omraadebeskrivelse', returnGeometry: 'true', outSR: '4326', maxAllowableOffset: '0.0005', f: 'json' });
 }
 /** Områdene → kandidater med nærmeste punkt på kanten (ikke sentrum). Ren. */
 export function parseFriluft(json, stopp) {
@@ -72,16 +79,17 @@ export function parseFriluft(json, stopp) {
     const a = f.attributes || {}, ringer = (f.geometry && f.geometry.rings) || [];
     let best = null;
     for (const r of ringer) for (const [lon, lat] of r) { const m = avstandM(stopp, { lat, lon }); if (!best || m < best.m) best = { lat, lon, m }; }
-    return best && { kilde: 'miljodir', sid: a.id, navn: a.omraadenavn, lat: best.lat, lon: best.lon, kat: klassifiserFriluft(a.omraadetype_beskrivelse, a.omraadeverdi_beskrivelse), verdi: a.omraadeverdi_beskrivelse };
+    return best && { kilde: 'miljodir', sid: a.id, navn: a.omraadenavn, lat: best.lat, lon: best.lon, kat: klassifiserFriluft(a.omraadetype_beskrivelse, a.omraadeverdi_beskrivelse), verdi: a.omraadeverdi_beskrivelse, omraade: a.omraadebeskrivelse || null };
   }).filter(Boolean);
 }
 
 export function wikidataUrl(s) {
   // Beskrivelsen (schema:description) i samme kall (v1.218.314): norsk, ellers engelsk. Valgfri.
-  const q = `SELECT ?i ?iLabel (GROUP_CONCAT(DISTINCT ?tL; separator="|") AS ?typer) (MAX(?sl) AS ?sitelinks) (SAMPLE(?c) AS ?koord) (SAMPLE(?bnb) AS ?beskNb) (SAMPLE(?ben) AS ?beskEn) WHERE {
+  const q = `SELECT ?i ?iLabel (GROUP_CONCAT(DISTINCT ?tL; separator="|") AS ?typer) (MAX(?sl) AS ?sitelinks) (SAMPLE(?c) AS ?koord) (SAMPLE(?bnb) AS ?beskNb) (SAMPLE(?ben) AS ?beskEn) (SAMPLE(?p18) AS ?bilde) (SAMPLE(?art) AS ?wiki) WHERE {
    SERVICE wikibase:around { ?i wdt:P625 ?c . bd:serviceParam wikibase:center "Point(${s.lon} ${s.lat})"^^geo:wktLiteral . bd:serviceParam wikibase:radius "1.5" }
    ?i wdt:P31 ?t . ?i wikibase:sitelinks ?sl . ?t rdfs:label ?tL . FILTER(LANG(?tL) = "nb" || LANG(?tL) = "en")
    OPTIONAL { ?i schema:description ?bnb FILTER(LANG(?bnb) = "nb") } OPTIONAL { ?i schema:description ?ben FILTER(LANG(?ben) = "en") }
+   OPTIONAL { ?i wdt:P18 ?p18 } OPTIONAL { ?art schema:about ?i ; schema:isPartOf <https://no.wikipedia.org/> }
    SERVICE wikibase:label { bd:serviceParam wikibase:language "nb,nn,en". } } GROUP BY ?i ?iLabel LIMIT 200`;
   return WD + '?format=json&query=' + encodeURIComponent(q);
 }
@@ -92,7 +100,10 @@ export function parseWikidata(json) {
     const kat = klassifiserWikidata(b.typer && b.typer.value, +(b.sitelinks && b.sitelinks.value));
     if (!m || !kat.length || /^Q\d+$/.test(b.iLabel.value)) return null;
     const beskrivelse = b.beskNb ? { tekst: b.beskNb.value, språk: 'nb' } : b.beskEn ? { tekst: b.beskEn.value, språk: 'en' } : null;
-    return { kilde: 'wikidata', sid: b.i.value.split('/').pop(), navn: b.iLabel.value, lat: +m[2], lon: +m[1], kat, sitelinks: +b.sitelinks.value, beskrivelse };
+    // Bilde (P18) og norsk Wikipedia-artikkel (v1.218.315): navnene, ikke innholdet — det hentes bare for det som vises.
+    const bildeFil = b.bilde ? decodeURIComponent(b.bilde.value.split('/').pop()) : null;
+    const wikiTittel = b.wiki ? decodeURIComponent(b.wiki.value.split('/').pop()).replace(/_/g, ' ') : null;
+    return { kilde: 'wikidata', sid: b.i.value.split('/').pop(), navn: b.iLabel.value, lat: +m[2], lon: +m[1], kat, sitelinks: +b.sitelinks.value, beskrivelse, bildeFil, wikiTittel };
   }).filter(Boolean);
 }
 
@@ -146,4 +157,25 @@ export function parseGangHeleVeien(json) {
   const p = (((json && json.data && json.data.eb) || (json && json.data && json.data.trip) || {}).tripPatterns || [])[0];
   if (!p || !(p.legs || []).every(l => l.mode === 'foot') || !Number.isFinite(p.duration)) return null;
   return { m: Math.round(p.walkDistance), min: Math.round(p.duration / 60), kilde: 'entur' };
+}
+
+/* BERIKELSE (v1.218.315): ingress fra Wikipedia og bilde fra Commons — bare for
+   de opplevelsene som vises (høyst 2 per sted). Begge har åpen CORS (origin=*).
+   Cache per Wikidata-id (ellers navn) i et døgn. Feiler et kall, mangler bare den delen. */
+export function sammendragUrl(tittel) {
+  return 'https://no.wikipedia.org/w/api.php?action=query&format=json&origin=*&prop=extracts|info&inprop=url&exintro=1&explaintext=1&redirects=1&titles=' + encodeURIComponent(tittel);
+}
+export function bildeinfoUrl(fil) {
+  return 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=url|extmetadata&iiextmetadatafilter=Artist|LicenseShortName|LicenseUrl|Credit&iiurlwidth=640&titles=' + encodeURIComponent('File:' + fil);
+}
+const _berik = new Map();
+export function _tømBerikelse() { _berik.clear(); }
+export function hentBerikelse(o, { nå = Date.now(), hent = { json } } = {}) {
+  if (!o || (!o.wikiTittel && !o.bildeFil)) return Promise.resolve(null);
+  const k = o.qid || o.navn, c = _berik.get(k);
+  if (c && nå - c.tid < OPPLEVELSE_CACHE_MS) return c.løfte;
+  const løfte = Promise.allSettled([o.wikiTittel ? hent.json(sammendragUrl(o.wikiTittel)) : null, o.bildeFil ? hent.json(bildeinfoUrl(o.bildeFil)) : null])
+    .then(([a, b]) => ({ ingress: a.status === 'fulfilled' ? parseSammendrag(a.value) : null, bilde: b.status === 'fulfilled' ? parseBildeinfo(b.value) : null }));
+  _berik.set(k, { tid: nå, løfte });
+  return løfte;
 }

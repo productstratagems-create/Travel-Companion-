@@ -153,7 +153,10 @@ describe('på skjermen: kort, søketid, prikker og valgt opplevelse', () => {
     const html = ettBytteHtml(pos, { esc, hent, nå, rerender: () => {}, radHtml: () => '<div class="rad"></div>' });
     expect(html).toMatch(/reisetider gjelder søk \S+ \d\d\.\d\d\. kl\. \d\d\.\d\d fra der du står/);
     expect(html).toMatch(/class="eb-okort"/);
-    expect(html).toMatch(/gange fra stopp, målt/);
+    expect(html).toMatch(/\d+ min å gå fra stoppet/);
+    expect(html).toMatch(/class="eb-ved-tittel">Ved [^<]+ · \d+ ting å oppleve/);   // stedet i en egen del, skilt fra reisen
+    expect(html).toMatch(/Hele turen:/);
+    expect(html).not.toMatch(/reise til stoppet/);
     expect(html).not.toMatch(/utilgjengelig/);
     const prikker = opplevelsePrikker(nå);
     expect(prikker.length).toBeGreaterThan(0);

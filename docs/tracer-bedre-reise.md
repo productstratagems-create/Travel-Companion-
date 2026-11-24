@@ -95,6 +95,45 @@ høyeste verdi er +11 min (én gang).
   allerede å gå til et annet stopp. Å overstyre det gjør reisen tregere i tre
   av fem tilfeller.
 
+## Datagrunnlaget per sammenligning
+
+Er det lagret nok til å rekonstruere hver enkelt sammenligning? Kontrollert
+felt for felt i begge rådatafilene (352 sammenligninger hver):
+
+| det som trengs | kjøring 1 | kjøring 2 |
+|---|---|---|
+| utgangspunkt og alternativ | ja (`par`, `A`/`B`, `påA`/`påB`) | ja |
+| reisemål | navn og avstandsbånd. Ingen NSR-id, men navnene er entydige innen hvert par | samme |
+| avreisetidspunkt | **nei.** Bare merkelappen («tirsdag 08»). Datoene er utledet av ankomstdatoene (alle 24.11. og 28.11.) | ja (`avreiseMs`). 08 var 1.12. |
+| gangtid til alternativet | ja, per par (`gangMin`) | ja, per rad |
+| ankomst, begge reisemåter | ja | ja |
+| avgang (første etappe) | **nei** | **nei** |
+| antall bytter | ja | ja |
+| transportmiddel | **nei.** Bare linjekoder, der «3» kan være T-bane eller buss | ja (`moduser`) |
+| direkte, gange i søket, kollektivtid | nei | ja |
+| ingen reise funnet / feil | ja (`funnet` false eller null; ingen null forekom) | ja |
+| kjøring | filnavnet | filnavnet |
+| utvalg | utledet av radene (`mål` + `bånd`) | samme |
+
+**Hva konklusjonene bygger på:**
+- **Kategoriene og tidsforskjellene** (rapportens hovedtall) bruker bare
+  ankomst og bytter for begge reisemåter fra samme starttidspunkt. Det finnes
+  i begge kjøringene.
+- **Starttidspunktet** er felles for begge armene i en sammenligning: fra A
+  ved t, og via B ved t + gangtid. Derfor trengs ikke selve t for å
+  sammenligne ankomst.
+- **Transportmiddel, direkte reiser og konsentrasjonen** kommer **bare fra
+  kjøring 2** og er merket slik.
+- **Avgangstid** er ikke brukt i noen konklusjon. Den finnes ikke i noen av
+  kjøringene.
+
+**Hull, ikke rettet med nye data:**
+- kjøring 1 mangler avreisetidspunkt og transportmiddel;
+- ingen av kjøringene har mål-id eller avgangstid.
+
+Skriptet lagrer nå `målId`, `avgang`, `avreise` (ISO) og utvalget for
+senere kjøringer.
+
 ## Måleregler
 
 1. **Hele reisen fra samme starttidspunkt.**

@@ -69,6 +69,8 @@ async function reise(fra, destId, avreise) {
     const reis = best.legs.filter(l => l.mode !== 'foot');
     return {
       funnet: true, ankomst: ank(best), bytter: Math.max(0, reis.length - 1),
+      // Første reiseetappes avgang (ikke lagret i kjøring 1 og 2).
+      avgang: reis.length ? Date.parse(reis[0].expectedStartTime) : null,
       // Reelle alternativer: ulike mønstre fremme innen 30 min etter det beste (høyst 3 spurt).
       alternativer: new Set(mønstre.filter(p => ank(p) - ank(best) <= 30 * 60000).map(p => p.legs.filter(l => l.mode !== 'foot').map(l => l.serviceJourney && l.serviceJourney.line && l.serviceJourney.line.publicCode).join('>'))).size,
       linjer: reis.map(l => (l.serviceJourney && l.serviceJourney.line && l.serviceJourney.line.publicCode) || l.mode).join(' → '),
@@ -169,7 +171,7 @@ for (const p of PAR) {
     const tGang = new Date(+t + gang * 60000);
     const r = await iPuljer(mål.map(m => async () => {
       const [aNå, bNå, aEtter, bEtter] = await Promise.all([reise(p.A, m.id, t), reise(p.B, m.id, t), reise(p.A, m.id, tGang), reise(p.B, m.id, tGang)]);
-      return { tid: tidNavn, avreise: iso, mål: m.navn, bånd: m.bånd, avreiseMs: +t, gangTilAndreMin: gang,
+      return { tid: tidNavn, avreise: iso, mål: m.navn, målId: m.id, bånd: m.bånd, avreiseMs: +t, gangTilAndreMin: gang,
         // Står på A: fra A nå, eller gå til B og reise derfra. Står på B: omvendt.
         påA: { ...kategori(aNå, bEtter), her: aNå, via: bEtter },
         påB: { ...kategori(bNå, aEtter), her: bNå, via: aEtter } };

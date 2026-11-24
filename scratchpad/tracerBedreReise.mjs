@@ -9,7 +9,10 @@
  *                + reisesøk fra B, avreise t + gangtid
  * Begge retninger (står på A / står på B), samme mål, flere tidspunkt.
  * Mål: et REPRESENTATIVT utvalg, stratifisert på avstandsbånd fra midtpunktet,
- * trukket deterministisk fra det begge steder når (ikke bare «unike» mål).
+ * trukket deterministisk fra stedene MINST ETT av utgangspunktene når med høyst ett
+ * bytte ifølge utforskeren (union, ikke snitt — ikke bare «unike» mål). Arver
+ * utforskerens grenser (ett bytte, ordinært vindu). Samme mål på alle tidspunkt.
+ * Merk: reisesøket starter LOOKBACK_MINS (2 min) før oppgitt tid — gir B ≤ 2 min fordel.
  * Utfall per mål: B bedre / A bedre / ubetydelig / ingen reise fra noen / bare én.
  */
 import { utforsk, områdeFor, PARAMETRE } from '../src/nettverksutforsker.js';
@@ -54,6 +57,11 @@ async function reise(fra, destId, avreise) {
       // Reelle alternativer: ulike mønstre fremme innen 30 min etter det beste (høyst 3 spurt).
       alternativer: new Set(mønstre.filter(p => ank(p) - ank(best) <= 30 * 60000).map(p => p.legs.filter(l => l.mode !== 'foot').map(l => l.serviceJourney && l.serviceJourney.line && l.serviceJourney.line.publicCode).join('>'))).size,
       linjer: reis.map(l => (l.serviceJourney && l.serviceJourney.line && l.serviceJourney.line.publicCode) || l.mode).join(' → '),
+      moduser: reis.map(l => l.mode),
+      // Egne felt (tid ≠ kvalitet): gange i reisesøket og tid om bord/ventende fra første til siste reiseetappe.
+      gangMin: Math.round(best.legs.filter(l => l.mode === 'foot').reduce((n, l) => n + (Date.parse(l.expectedEndTime) - Date.parse(l.expectedStartTime)), 0) / 60000),
+      kollektivMin: reis.length ? Math.round((Date.parse(reis[reis.length - 1].expectedEndTime) - Date.parse(reis[0].expectedStartTime)) / 60000) : 0,
+      direkte: reis.length === 1,
     };
   } catch (e) { return { funnet: null, feil: String(e) }; }
 }
@@ -105,7 +113,7 @@ for (const p of PAR) {
     const tGang = new Date(+t + gang * 60000);
     const r = await iPuljer(mål.map(m => async () => {
       const [aNå, bNå, aEtter, bEtter] = await Promise.all([reise(p.A, m.id, t), reise(p.B, m.id, t), reise(p.A, m.id, tGang), reise(p.B, m.id, tGang)]);
-      return { tid: tidNavn, mål: m.navn, bånd: m.bånd,
+      return { tid: tidNavn, mål: m.navn, bånd: m.bånd, avreiseMs: +t, gangTilAndreMin: gang,
         // Står på A: fra A nå, eller gå til B og reise derfra. Står på B: omvendt.
         påA: { ...utfall(aNå, bEtter), her: aNå, via: bEtter },
         påB: { ...utfall(bNå, aEtter), her: bNå, via: aEtter } };

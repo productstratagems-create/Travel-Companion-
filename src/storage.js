@@ -40,6 +40,7 @@ const ALL_KEYS = [
   't.autoTavleIMeny',
   // Retningsvalget i Auto-tavle (v1.218.185). Nivå 1.
   't.autoTavleRetning',
+  't.rekkevidde',
   // Kartets fokus per kart, og Rutes linjefilter per rute (v1.218.187). Nivå 1.
   't.kartFokus',
   't.ruteLinjer',

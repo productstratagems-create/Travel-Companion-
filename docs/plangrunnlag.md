@@ -266,8 +266,8 @@ hva brukeren faktisk kan gjøre med kollektivtilbudet**.
 | 1 | Sentrum og hjemover som egne tjenester | **gjort (v1.218.287)** | før valg | Better | `src/reiseoppgaver.js`: én inngang hver (`motSentrum`, `hjemover`); felles beregning i `src/reiseberegning.js`; dagens oppførsel bundet av `tests/reiseoppgaver.test.js`. Hjemover mangler fortsatt reisesøk-basert påstigning (`beste: null`). |
 | 2 | Felles opsjonsmodell | **kontrakt etablert (steg 2, trinn 1)** | før valg | New | `src/opsjonsmodell.js` + `docs/opsjonsmodell.md`, bundet av `tests/opsjonsmodell.test.js`. Ikke koblet til skjermen. |
 | 3 | Lokal opsjonsoppdager | **demonstrert (steg 2, trinn 2–3)** | før valg | Better | `scratchpad/nettverksprobe.mjs`; resultater i `docs/nettverksdemonstrator.md`. Ingen produksjonsmodul ennå. |
-| 4 | Regionale muligheter | **demonstrert** | før valg | New | Ledd 2 via knutepunkter: 332 regionale destinasjoner fra Mortensrud [Målt]. |
-| 5 | Nasjonale muligheter | **delvis demonstrert** | før valg | New | Skillet finnes i kontrakten (oppdaget / bekreftet / nå–senere). Fjerntog fra Oslo S og fly mangler i to ledd. |
+| 4 | Regionale muligheter | **på skjermen (eksperiment, v1.218.308)** — «hvor langt» på Auto-tavla, før: demonstrert | før valg | New | Ledd 2 via knutepunkter: 332 regionale destinasjoner fra Mortensrud [Målt]. |
+| 5 | Nasjonale muligheter | **på skjermen (eksperiment, v1.218.308)** — «hvor langt», før: delvis demonstrert | før valg | New | Skillet finnes i kontrakten (oppdaget / bekreftet / nå–senere). Fjerntog fra Oslo S og fly mangler i to ledd. |
 | 6 | Koble til hurtigvalgene | nytt | før valg | Better | Må holde «Ro» og «alternativet på raden». |
 | — | Alle Enturs transportmidler | **finnes** | — | Proven | Bestillingstaxi i tavla og reisesøket (v279–280); tabell i `docs/auto-tavle-logikk.md`. |
 

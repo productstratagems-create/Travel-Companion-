@@ -10,10 +10,12 @@
  * «ETT BYTTE (eksperiment)» i src/views/auto.js.
  */
 import { utforsk } from '../nettverksutforsker.js';
-import { ettByttePer, kommunerI, oftest, reiseSammendrag, FASETTER, FASETT_NAVN, listerHolder } from '../ettBytte.js';
+import { ettByttePer, ettByttVeier, kommunerI, oftest, reiseSammendrag, FASETTER, FASETT_NAVN, listerHolder } from '../ettBytte.js';
 import { reisesøkGql } from '../reisebekreftelse.js';
 import { reiseRader } from '../reiseTil.js';
 import { enturFetch } from '../api/http.js';
+import { hentStedsinfo, hentHerInfo, KOMMUNE_BIT } from '../api/kommuner.js';
+import { rekkeviddeFor, tellRekkevidde } from '../rekkevidde.js';
 import { metresBetween } from '../haversine.js';
 import '../style/ettBytte.css';
 
@@ -29,24 +31,17 @@ const hentFraEntur = (_navn, req) => enturFetch(req.url, {
 
 let _tilstand = null; // { nøkkel, status: 'henter' | 'ok' | 'feil', svar, kommuner? }
 
-/* KOMMUNER (forslag 3): geocoderens place-oppslag i biter (målt: 50 treff per kall). */
-const GEO = 'https://api.entur.io/geocoder/v1';
-export const KOMMUNE_BIT = 50;
+/* KOMMUNER (forslag 3) og FYLKER (hvor langt, v1.218.308): src/api/kommuner.js. */
+export { KOMMUNE_BIT };
 /** Høyst så mange kommuner nevnes ved navn på kortet. */
 export const EKSEMPLER_KOMMUNER = 3;
 /** Kommuner vises i stedet for stopp først når retningen når så mange andre kommuner. */
 export const KOMMUNER_MIN = 2;
-const geoJson = url => enturFetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
-/** Stopp-id → kommune, og kommunen du står i. Feiler stille: da står stoppene som før. */
+/** Stopp-id → kommune og fylke, og der du står. Feiler stille: da står stoppene som før. */
 export async function hentKommunerFraEntur(ider, pos) {
-  const kommuneAv = new Map();
-  for (let i = 0; i < ider.length; i += KOMMUNE_BIT) {
-    const j = await geoJson(GEO + '/place?ids=' + ider.slice(i, i + KOMMUNE_BIT).map(encodeURIComponent).join(','));
-    for (const f of (j && j.features) || []) { const p = f.properties || {}; if (p.id && p.locality) kommuneAv.set(p.id, p.locality); }
-  }
-  const her = await geoJson(GEO + '/reverse?point.lat=' + pos.lat + '&point.lon=' + pos.lon + '&size=1&boundary.circle.radius=2');
-  const f = her && her.features && her.features[0];
-  return { kommuneAv, hjemme: (f && f.properties && f.properties.locality) || null };
+  const { kommuneAv, fylkeAv } = await hentStedsinfo(ider);
+  const her = await hentHerInfo(pos);
+  return { kommuneAv, fylkeAv, hjemme: her.kommune, hjemFylke: her.fylke };
 }
 /** Valgt retningskort ('NØ' …) eller null: kartet viser da den retningen. */
 let _valgt = null;
@@ -68,7 +63,42 @@ function aktuelle(t = _tilstand) {
   const f = _fasett === 'kommune' && !(t.kommuner && t.kommuner.kommuneAv) ? 'retning' : _fasett;
   const n = f + (f === 'kommune' ? '#k' : '');
   t.perFasett = t.perFasett || {};
-  return t.perFasett[n] || (t.perFasett[n] = ettByttePer(t.res, t.pos, f, { kommuneAv: t.kommuner && t.kommuner.kommuneAv }));
+  const nr = n + (_rekkevidde ? '@' + _rekkevidde + (t.kommuner ? '+k' : '') : '');
+  const dom = _rekkevidde ? _dommer(t) : null;
+  return t.perFasett[nr] || (t.perFasett[nr] = ettByttePer(t.res, t.pos, f, { kommuneAv: t.kommuner && t.kommuner.kommuneAv,
+    behold: _rekkevidde ? (id => (dom.get(_destAv(t).get(id)) || {}).r === _rekkevidde) : null }));
+}
+
+/* HVOR LANGT (v1.218.308): valgt rekkevidde, eller null (alt). Settes av Auto-tavla. */
+let _rekkevidde = null;
+export function settRekkevidde(r) { if (r === _rekkevidde) return; _rekkevidde = r; _valgt = null; _visAlle = false; }
+/** Opsjon-id → stedets id (samme id kommunene er hentet for). */
+function _destAv(t) {
+  if (!t._dest) t._dest = new Map(((t.res && t.res.opsjoner) || []).filter(o => o.destinations && o.destinations[0]).map(o => [o.id, o.destinations[0].id]));
+  return t._dest;
+}
+/** Steds-id → rekkevidde-dom, for stedene ett bytte når. Kommunene teller når de er kommet; før det luftlinje (anslått). */
+function _dommer(t) {
+  const k = t.kommuner || null;
+  const nøkkel = k ? 'k' : '-';
+  if (t._dom && t._dom.n === nøkkel) return t._dom.m;
+  const her = { lat: t.pos.lat, lon: t.pos.lon, kommune: k && k.hjemme, fylke: k && k.hjemFylke };
+  const m = new Map();
+  for (const o of (t.res && t.res.opsjoner) || []) {
+    const d = o.destinations && o.destinations[0];
+    if (!d) continue;
+    m.set(d.id, rekkeviddeFor(her, { lat: d.lat, lon: d.lon, kommune: k && k.kommuneAv && k.kommuneAv.get(d.id), fylke: k && k.fylkeAv && k.fylkeAv.get(d.id) }));
+  }
+  t._dom = { n: nøkkel, m };
+  return m;
+}
+/** Tallene for raden «hvor langt»: stedene ett bytte når, per rekkevidde. Null før svaret. */
+export function ettBytteRekkevidde() {
+  const t = _tilstand;
+  if (!t || t.status !== 'ok' || !t.res) return null;
+  const m = _dommer(t), dest = _destAv(t);
+  const ider = new Set(ettByttVeier(t.res).map(v => dest.get(v.opsjon)).filter(Boolean));
+  return tellRekkevidde([...ider].map(id => m.get(id)).filter(Boolean));
 }
 let _rerender = null;
 let _hent = null;
@@ -77,7 +107,7 @@ const _sjekk = new Map();
 export const SJEKK_GYLDIG_MS = 10 * 60_000;
 /** Høyst så mange steder står i lista under det valgte kortet. */
 export const SJEKK_STEDER = 8;
-export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _fasett = 'retning'; _visAlle = false; _rerender = null; _hent = null; _sjekk.clear(); }
+export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _fasett = 'retning'; _visAlle = false; _rerender = null; _hent = null; _sjekk.clear(); _rekkevidde = null; }
 export const sjekkStatus = id => _sjekk.get(id) || null;
 /** Tester: glem ett steds svar. */
 export const _nullstillSjekk = id => _sjekk.delete(id);
@@ -254,7 +284,8 @@ export function ettBytteHtml(pos, { esc, rerender, radHtml = null, nå = Date.no
         // Kommunene etterpå: kortene står med stopp til de kommer, og blir stående om de ikke kommer.
         if (t.status === 'ok' && !t.svar.ingen && hentKommuner) {
           // Alle stedene ett bytte når, ikke bare retningskortenes ene knutepunkt (fasetten «kommune» trenger dem).
-          const ider = [...new Set(ettByttePer(t.res, pos, 'knute').rader.flatMap(r => r.punkter.map(p => p.id)).filter(Boolean))];
+          // Alle stedene ett bytte når (også dem fasettene ikke viser): «hvor langt» teller dem alle (v1.218.308).
+          const ider = [...new Set(ettByttVeier(t.res).map(v => _destAv(t).get(v.opsjon)).filter(Boolean))];
           hentKommuner(ider, pos).then(k => { t.kommuner = k; if (_tilstand === t && _rerender) _rerender(); }).catch(() => {});
         }
       });
@@ -270,6 +301,7 @@ export function ettBytteHtml(pos, { esc, rerender, radHtml = null, nå = Date.no
     // SE ETTER: hva rutene skal ha til felles. Én fasett om gangen.
     + '<div class="eb-fasetter" role="group" aria-label="se etter"><span class="eb-fasett-tittel">se etter</span>'
     + fasetter.map(f => '<button type="button" class="eb-fasett" data-eb-fasett="' + f + '" aria-pressed="' + (sv.fasett === f) + '">' + esc(FASETT_NAVN[f]) + '</button>').join('') + '</div>'
+    + (!vist.length && _rekkevidde ? '<div class="at-filter">ingen steder i denne rekkevidden med ett bytte herfra nå</div>' : '')
     + '<div class="at-liste eb-liste">' + vist.map(r => ettBytteRadHtml(r, esc, s.kommuner) + (r.retning === _valgt ? sjekkListeHtml(r, esc, radHtml, nå) : '')).join('') + '</div>'
     + (vist.length < sv.rader.length ? '<button type="button" class="eb-vis-alle">vis alle ' + sv.rader.length + ' (de neste har færre steder)</button>' : '');
 }

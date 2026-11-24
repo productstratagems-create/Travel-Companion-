@@ -645,3 +645,37 @@ regnes ut ved innrammingen, ikke på nytt når du zoomer.
 `src/style/ettBytte.css` og de seks linjene merket «ETT BYTTE (eksperiment)» i
 `src/views/auto.js` (fem for lista, én for kartet). Testen
 `tests/ettBytte.test.js` binder at det er nøyaktig seks slike linjer.
+
+## Hvor langt: nært · regionalt · nasjonalt (v1.218.308)
+
+Bestilt: «Hvordan kan vi legge kategoriene lokalt, regionalt og nasjonalt
+utenpå de eksisterende kategoriene?» Valgt: en egen rad «hvor langt» under
+kategoriknappene, og grensen satt etter kommune og fylke.
+
+**Regelen** (`rekkeviddeFor`, `src/rekkevidde.js`), fra stedet du står:
+- **nært:** samme kommune, eller under 15 km. Avstanden står i for
+  «nabokommune», fordi appen ikke vet hvilke kommuner som grenser til
+  hverandre. Ski er 14 km fra Mortensrud;
+- **regionalt:** samme fylke, eller under 120 km;
+- **nasjonalt:** annet fylke og minst 120 km unna, også utlandet.
+
+Fylket alene gjorde Drammen og Moss nasjonale fra Oslo. Plangrunnlaget §3.2
+kaller dem regionale, og testen viste avviket. Derfor kom 120 km-grensen til
+(`SCOPE_GRENSER_M`). Den gjør et eget unntak for Oslo og Akershus overflødig.
+Følgen er at Hamar og Brumunddal (115 km) blir regionale fra Mortensrud, og
+Lillehammer (142 km) nasjonal.
+
+**Hvor den gjelder:** for «alle», målområdene og «ett bytte». Den gjelder ikke
+for reiseoppgavene «mot sentrum» og «hjemover».
+- **ett bytte:** stedene filtreres før kortene bygges.
+- **alle og mot X:** en avgang regnes etter endestoppet sitt, som er siste
+  kall på turen.
+
+Knappene viser antallet. En knapp med 0 er dempet. Er alt filtrert bort, sier
+lista det: «ingen avganger herfra går nasjonalt nå».
+
+**Kildene:** kommune og fylke kommer fra Enturs geocoder (`src/api/kommuner.js`,
+`locality` og `county`). Mangler de, avgjøres rekkevidden etter luftlinje, og
+raden sier «N anslått etter avstand».
+
+Valget huskes i `t.rekkevidde`. Et nytt trykk på samme knapp slår det av.

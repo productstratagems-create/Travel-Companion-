@@ -843,9 +843,9 @@ describe('ett bytte: klikkbare retningskort', () => {
 
 describe('ett bytte: isolert og lett å rulle tilbake', () => {
   const a = readFileSync('src/views/auto.js', 'utf8');
-  it('alle krokene i auto.js er merket, og det er bare seks (fem for lista, én for kartet)', () => {
+  it('alle krokene i auto.js er merket, og det er bare ni (fem for lista, én for kartet, tre for «hvor langt», v1.218.308)', () => {
     const linjer = a.split('\n').filter(l => /ETT_BYTTE|ettBytte/.test(l));
-    expect(linjer.length).toBe(6);
+    expect(linjer.length).toBe(9);
     expect(linjer.every(l => /ETT BYTTE \(eksperiment\)/.test(l))).toBe(true);
   });
   it('valget huskes ikke: etter omlasting står tavla på et kjent valg', () => {

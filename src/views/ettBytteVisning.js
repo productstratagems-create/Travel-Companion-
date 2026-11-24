@@ -10,7 +10,7 @@
  * «ETT BYTTE (eksperiment)» i src/views/auto.js.
  */
 import { utforsk } from '../nettverksutforsker.js';
-import { ettByttePerRetning, kommunerI, oftest, reiseSammendrag } from '../ettBytte.js';
+import { ettByttePer, kommunerI, oftest, reiseSammendrag, FASETTER, FASETT_NAVN } from '../ettBytte.js';
 import { reisesøkGql } from '../reisebekreftelse.js';
 import { enturFetch } from '../api/http.js';
 import { metresBetween } from '../haversine.js';
@@ -49,6 +49,26 @@ export async function hentKommunerFraEntur(ider, pos) {
 }
 /** Valgt retningskort ('NØ' …) eller null: kartet viser da den retningen. */
 let _valgt = null;
+/* SE ETTER: fasetten kortene grupperes etter (huskes ikke etter omlasting). */
+let _fasett = 'retning';
+let _visAlle = false;
+/** Høyst så mange grupper vises før «vis alle» (retning har høyst 8 og foldes aldri). */
+export const GRUPPER_VIST = 10;
+export const valgtFasett = () => _fasett;
+/** Bytt fasett: valgt kort og «vis alle» nullstilles, kartet går tilbake til oversikten. */
+export function velgFasett(f) {
+  if (!FASETTER.includes(f) || f === _fasett) return;
+  _fasett = f; _valgt = null; _visAlle = false;
+  if (_rerender) _rerender();
+}
+/** Kortene for gjeldende fasett, regnet én gang per svar og fasett (kommune: når kommunene er kommet). */
+function aktuelle(t = _tilstand) {
+  if (!t || !t.res) return t && t.svar;
+  const f = _fasett === 'kommune' && !(t.kommuner && t.kommuner.kommuneAv) ? 'retning' : _fasett;
+  const n = f + (f === 'kommune' ? '#k' : '');
+  t.perFasett = t.perFasett || {};
+  return t.perFasett[n] || (t.perFasett[n] = ettByttePer(t.res, t.pos, f, { kommuneAv: t.kommuner && t.kommuner.kommuneAv }));
+}
 let _rerender = null;
 let _hent = null;
 /* SJEKK DENNE (forslag 5): reisesøk per sted, bare på trykk. stedId → { status, tekst, tid }. */
@@ -56,7 +76,7 @@ const _sjekk = new Map();
 export const SJEKK_GYLDIG_MS = 10 * 60_000;
 /** Høyst så mange steder står i lista under det valgte kortet. */
 export const SJEKK_STEDER = 8;
-export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _rerender = null; _hent = null; _sjekk.clear(); }
+export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _fasett = 'retning'; _visAlle = false; _rerender = null; _hent = null; _sjekk.clear(); }
 export const sjekkStatus = id => _sjekk.get(id) || null;
 
 /**
@@ -66,15 +86,17 @@ export const sjekkStatus = id => _sjekk.get(id) || null;
 export function sjekkSted(stedId, { nå = Date.now() } = {}) {
   const t = _tilstand;
   if (!t || !t.svar || !_hent) return;
+  const sv = aktuelle(t);
   const gammel = _sjekk.get(stedId);
   if (gammel && (gammel.status === 'henter' || nå - gammel.tid < SJEKK_GYLDIG_MS)) return;
-  const rad = t.svar.rader.find(r => r.punkter.some(p => p.id === stedId));
+  // Knutepunktet å sammenligne med: det valgte kortets, ellers første kort med stedet.
+  const rad = (sv.rader.find(r => r.retning === _valgt && r.punkter.some(p => p.id === stedId)) || sv.rader.find(r => r.punkter.some(p => p.id === stedId)));
   const [lat, lon] = t.nøkkel.split(',').map(Number);
   const s = { status: 'henter', tid: nå };
   _sjekk.set(stedId, s);
   const q = '{' + reisesøkGql({ lat: t.pos ? t.pos.lat : lat, lon: t.pos ? t.pos.lon : lon }, stedId, new Date(nå).toISOString(), 'eb') + '}';
   _hent('ett bytte: sjekk', { url: 'https://api.entur.io/journey-planner/v3/graphql', method: 'POST', body: JSON.stringify({ query: q }) })
-    .then(j => { const sv = reiseSammendrag(j && j.data && j.data.eb && j.data.eb.tripPatterns, rad && rad.knuteNavn); s.status = 'ok'; s.tekst = sv.tekst; s.utfall = sv.utfall; })
+    .then(j => { const rs = reiseSammendrag(j && j.data && j.data.eb && j.data.eb.tripPatterns, rad && rad.knuteNavn, rad && rad.knuterDetalj && rad.knuterDetalj.map(k => k.navn)); s.status = 'ok'; s.tekst = rs.tekst; s.utfall = rs.utfall; })
     .catch(() => { s.status = 'feil'; s.tekst = 'fikk ikke svar — prøv igjen'; s.tid = 0; })
     .finally(() => { if (_rerender) _rerender(); });
   if (_rerender) _rerender();
@@ -111,6 +133,9 @@ function bindKort() {
   document.addEventListener('click', e => {
     const sj = e.target && e.target.closest && e.target.closest('#v-auto .eb-sjekk[data-eb-sted]');
     if (sj) { sjekkSted(sj.dataset.ebSted); return; }
+    const fa = e.target && e.target.closest && e.target.closest('#v-auto [data-eb-fasett]');
+    if (fa) { velgFasett(fa.dataset.ebFasett); return; }
+    if (e.target && e.target.closest && e.target.closest('#v-auto .eb-vis-alle')) { _visAlle = true; if (_rerender) _rerender(); return; }
     const k = e.target && e.target.closest && e.target.closest('#v-auto .eb-rad[data-eb-retning]');
     if (k) velgRetning(k.dataset.ebRetning);
   });
@@ -133,8 +158,9 @@ export function ettBytteRadHtml(r, esc, kommuner = null) {
   const kom0 = kommuner ? kommunerI(r.punkter, kommuner.kommuneAv, kommuner.hjemme) : null;
   const kom = kom0 && kom0.length >= KOMMUNER_MIN ? kom0 : null;
   return '<button type="button" class="eb-rad" data-eb-retning="' + esc(r.retning) + '" aria-pressed="' + (_valgt === r.retning) + '">'
-    + '<div class="eb-topp"><span class="eb-retning">' + esc(r.retningNavn) + '</span>'
-    + '<span class="eb-via">via ' + esc(r.knuteNavn) + '</span>'
+    // Stor forbokstav bare for himmelretninger: stedsnavn og linjer skrives som de er («Hauketo stasjon», «T-bane»).
+    + '<div class="eb-topp"><span class="eb-retning' + (r.fasett && r.fasett !== 'retning' ? ' eb-tittel' : '') + '">' + esc(r.retningNavn) + '</span>'
+    + '<span class="eb-via">' + esc(r.undertittel || 'via ' + r.knuteNavn) + '</span>'
     + (r.ytterpunkt ? '<span class="eb-lengst">helt til ' + esc(r.ytterpunkt.navn) + ' · ' + r.ytterpunkt.km + ' km</span>' : '') + '</div>'
     + '<div class="eb-linjer">' + esc(r.inn.join(' / ')) + ' → bytt til ' + esc(r.ut.slice(0, UT_VIST).join(', ') + (r.ut.length > UT_VIST ? ` +${r.ut.length - UT_VIST}` : '')) + '</div>'
     + frekvensLinje(r, esc)
@@ -168,7 +194,8 @@ export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hent
     const t = _tilstand;
     utforsk({ posisjon: { lat: pos.lat, lon: pos.lon }, tid: new Date(nå).toISOString() }, { hent })
       .then(res => {
-        t.svar = ettByttePerRetning(res, pos);
+        t.res = res;
+        t.svar = ettByttePer(res, pos, 'retning');
         // Utforskeren fanger nettfeil selv; «ingen bytter» og «fikk ikke svar» er ulike svar.
         const feilet = ((res && res.rapport && res.rapport.feiledeKall) || []).length > 0;
         t.status = feilet && t.svar.ingen ? 'feil' : 'ok';
@@ -176,11 +203,12 @@ export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hent
       .catch(() => { t.status = 'feil'; })
       .finally(() => {
         // Et valgt kort som ikke finnes i det nye svaret, slippes.
-        if (_tilstand === t && _valgt && !(t.svar && t.svar.rader.some(r => r.retning === _valgt))) _valgt = null;
+        if (_tilstand === t && _valgt && !(t.svar && aktuelle(t).rader.some(r => r.retning === _valgt))) _valgt = null;
         if (_tilstand === t && rerender) rerender();
         // Kommunene etterpå: kortene står med stopp til de kommer, og blir stående om de ikke kommer.
         if (t.status === 'ok' && !t.svar.ingen && hentKommuner) {
-          const ider = [...new Set(t.svar.rader.flatMap(r => r.punkter.map(p => p.id)).filter(Boolean))];
+          // Alle stedene ett bytte når, ikke bare retningskortenes ene knutepunkt (fasetten «kommune» trenger dem).
+          const ider = [...new Set(ettByttePer(t.res, pos, 'knute').rader.flatMap(r => r.punkter.map(p => p.id)).filter(Boolean))];
           hentKommuner(ider, pos).then(k => { t.kommuner = k; if (_tilstand === t && _rerender) _rerender(); }).catch(() => {});
         }
       });
@@ -189,8 +217,15 @@ export function ettBytteHtml(pos, { esc, rerender, nå = Date.now(), hent = hent
   if (s.status === 'henter') return '<div class="at-filter">ser etter hvor du kommer med ett bytte …</div>';
   if (s.status === 'feil') return '<div class="at-filter">fant ikke svar på bytter herfra nå — prøv igjen litt senere</div>';
   if (s.svar.ingen) return '<div class="at-filter">fant ingen bytter herfra nå — det betyr ikke at det ikke finnes</div>';
-  return '<div class="at-filter">' + esc(s.svar.grunnlag) + '</div>'
-    + '<div class="at-liste eb-liste">' + s.svar.rader.map(r => ettBytteRadHtml(r, esc, s.kommuner) + (r.retning === _valgt ? sjekkListeHtml(r, esc) : '')).join('') + '</div>';
+  const sv = aktuelle(s);
+  const fasetter = FASETTER.filter(f => f !== 'kommune' || (s.kommuner && s.kommuner.kommuneAv && s.kommuner.kommuneAv.size));
+  const vist = sv.fasett === 'retning' || _visAlle ? sv.rader : sv.rader.slice(0, GRUPPER_VIST);
+  return '<div class="at-filter">' + esc(sv.grunnlag) + '</div>'
+    // SE ETTER: hva rutene skal ha til felles. Én fasett om gangen.
+    + '<div class="eb-fasetter" role="group" aria-label="se etter"><span class="eb-fasett-tittel">se etter</span>'
+    + fasetter.map(f => '<button type="button" class="eb-fasett" data-eb-fasett="' + f + '" aria-pressed="' + (sv.fasett === f) + '">' + esc(FASETT_NAVN[f]) + '</button>').join('') + '</div>'
+    + '<div class="at-liste eb-liste">' + vist.map(r => ettBytteRadHtml(r, esc, s.kommuner) + (r.retning === _valgt ? sjekkListeHtml(r, esc) : '')).join('') + '</div>'
+    + (vist.length < sv.rader.length ? '<button type="button" class="eb-vis-alle">vis alle ' + sv.rader.length + ' (de neste har færre steder)</button>' : '');
 }
 
 /* ── KARTET (eksperiment) ────────────────────────────────────────────────
@@ -219,13 +254,15 @@ export const spredt = (xs, n) => (xs.length <= n ? xs.slice() : Array.from({ len
 export function ettBytteKartData(pos) {
   if (!pos || !_tilstand || _tilstand.status !== 'ok' || !_tilstand.svar || _tilstand.svar.ingen) return null;
   if (_tilstand.nøkkel !== pos.lat.toFixed(3) + ',' + pos.lon.toFixed(3)) return null;
-  const valgt = _tilstand.svar.rader.some(r => r.retning === _valgt) ? _valgt : null;
+  const sv = aktuelle();
+  const valgt = sv.rader.some(r => r.retning === _valgt) ? _valgt : null;
+  const rader = sv.fasett === 'retning' || _visAlle ? sv.rader : sv.rader.slice(0, GRUPPER_VIST);
   return {
-    nøkkel: _tilstand.nøkkel + '@' + _tilstand.tid + '#' + (valgt || ''),
-    valgt,
-    retninger: _tilstand.svar.rader.map(r => ({
+    nøkkel: _tilstand.nøkkel + '@' + _tilstand.tid + '#' + sv.fasett + (_visAlle ? '+' : '') + '#' + (valgt || ''),
+    valgt, fasett: sv.fasett,
+    retninger: rader.map(r => ({
       retning: r.retning, retningNavn: r.retningNavn, knuteNavn: r.knuteNavn, etikett: r.retningNavn + ' · via ' + r.knuteNavn,
-      knute: r.knuteLL, antall: r.antallSteder, ytterpunkt: r.ytterpunkt, steder: spredt(r.punkter, r.retning === valgt ? KART_STEDER_VALGT : KART_STEDER),
+      knute: r.knuteLL, antall: r.antallSteder, ytterpunkt: r.ytterpunkt, knuterDetalj: r.knuterDetalj || [], steder: spredt(r.punkter, r.retning === valgt ? KART_STEDER_VALGT : KART_STEDER),
       // Fremhev, ikke skjul: de andre retningene står, dempet.
       dempet: !!valgt && r.retning !== valgt,
     })),
@@ -330,13 +367,21 @@ export function ettBytteKart(map, L, { aktiv, pos, ferdig, ramme: rammeInn = (b,
   // stedene den betjener (summen over retningene den bærer). Ingen streker ut —
   // stedene vises bare for kortet du har valgt.
   const knuter = new Map(), valgteSteder = [];
+  // Ett knutepunkt kan høre til flere kort (og et kort til flere knutepunkt, i fasettene):
+  // boblen teller ULIKE steder via knutepunktet, så overlappende grupper ikke telles dobbelt.
+  const stederVed = new Map();
   for (const r of data.retninger) {
     if (data.valgt === r.retning) valgteSteder.push(...r.steder);
-    if (!r.knute) continue;
-    const fra = [r.knute.lat, r.knute.lon], k = fra.join(',');
-    const e = knuter.get(k) || knuter.set(k, { fra, navn: r.knuteNavn, retninger: [], antall: 0, dempet: true, retning: r.retning }).get(k);
-    e.retninger.push(r.retningNavn); e.antall += r.antall || 0;
-    if (!r.dempet) { e.dempet = false; e.retning = r.retning; }
+    for (const kd of r.knuterDetalj) {
+      if (!kd.ll) continue;
+      const fra = [kd.ll.lat, kd.ll.lon], k = fra.join(',');
+      const e = knuter.get(k) || knuter.set(k, { fra, navn: kd.navn, retninger: [], antall: 0, dempet: true, retning: r.retning }).get(k);
+      e.retninger.push(r.retningNavn);
+      const sett = stederVed.get(k) || stederVed.set(k, new Set()).get(k);
+      for (const id of kd.steder) sett.add(id);
+      e.antall = sett.size;
+      if (!r.dempet) { e.dempet = false; e.retning = r.retning; }
+    }
   }
   const maks = Math.max(0, ...[...knuter.values()].map(k => k.antall));
   for (const k of knuter.values()) {

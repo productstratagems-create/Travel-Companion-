@@ -49,3 +49,11 @@
 #v-auto .eb-sjekk-knapp{color:var(--accent);font-weight:600;white-space:nowrap}
 #v-auto .eb-sjekk-svar{color:var(--text);font-size:.8rem;text-align:right}
 #v-auto .eb-sjekk-svar.eb-annen{color:var(--text-muted)}
+
+/* Se etter (fasetter): hva rutene skal ha til felles. */
+#v-auto .eb-fasetter{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin:.35rem 0 .5rem}
+#v-auto .eb-fasett-tittel{color:var(--text-muted);font-size:.8rem;margin-right:.15rem}
+#v-auto button.eb-fasett{background:none;border:1px solid rgba(var(--border-rgb),.35);border-radius:999px;color:inherit;font:inherit;font-size:.8rem;padding:.2rem .65rem;cursor:pointer}
+#v-auto button.eb-fasett[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+#v-auto button.eb-vis-alle{background:none;border:0;color:var(--accent);font:inherit;font-size:.85rem;padding:.5rem .1rem;cursor:pointer}
+#v-auto .eb-retning.eb-tittel{text-transform:none}

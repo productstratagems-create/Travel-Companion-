@@ -4,9 +4,9 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ettByttePerRetning, RETNINGER, ytterpunkt, stedstypeTelling, velgStedstype, STEDSTYPE_REKKE, kommunerI, KOMMUNE_DEKNING, frekvensMin, frekvensTekst, SAMME_TUR_MIN, reiseSammendrag } from '../src/ettBytte.js';
+import { ettByttePerRetning, RETNINGER, ytterpunkt, stedstypeTelling, velgStedstype, STEDSTYPE_REKKE, kommunerI, KOMMUNE_DEKNING, frekvensMin, frekvensTekst, SAMME_TUR_MIN, reiseSammendrag, ettByttePer, ettByttVeier, FASETTER } from '../src/ettBytte.js';
 import { PARAMETRE } from '../src/nettverksutforsker.js';
-import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, plasserNavn, navnRekt, NAVN_NIVÅER, NAVN_PLASSER, velgRetning, valgtRetning, KART_STEDER_VALGT, sjekkSted, sjekkStatus, SJEKK_STEDER } from '../src/views/ettBytteVisning.js';
+import { ettBytteHtml, ettBytteRadHtml, _nullstillEttBytte, ETT_BYTTE_VALG, UT_VIST, ettBytteKart, ettBytteKartData, KART_STEDER, RAMME_NÆRMESTE, rammeGrense, RAMME_MIN_M, bobleRadius, BOBLE_MAKS, BOBLE_MIN, RAMME_VALG, plasserNavn, navnRekt, NAVN_NIVÅER, NAVN_PLASSER, velgRetning, valgtRetning, KART_STEDER_VALGT, sjekkSted, sjekkStatus, SJEKK_STEDER, velgFasett, valgtFasett, GRUPPER_VIST } from '../src/views/ettBytteVisning.js';
 import { utforsk, _tømCache } from '../src/nettverksutforsker.js';
 import { metresBetween } from '../src/haversine.js';
 import { AT_RETNINGER } from '../src/views/auto.js';
@@ -262,6 +262,8 @@ describe('ett bytte: sjekk denne (forslag 5)', () => {
       .toEqual({ utfall: 'funnet', fremme: '13.40', tekst: 'fremme 13.40 · bytt på Helsfyr' });
     expect(reiseSammendrag([{ legs: [leg('metro', 'Oslo S', T + '10:00+01:00'), leg('rail', 'Mål', T + '50:00+01:00')] }], 'Helsfyr'))
       .toEqual({ utfall: 'annen vei', fremme: '13.50', tekst: 'fremme 13.50 · Entur foreslår via Oslo S' });
+    // Et kort med flere knutepunkt (fasettene): bytter Entur på ett av dem, er det vår vei.
+    expect(reiseSammendrag([{ legs: [leg('metro', 'Oslo S', T + '10:00+01:00'), leg('rail', 'Mål', T + '50:00+01:00')] }], 'Helsfyr', ['Helsfyr', 'Oslo S']).utfall).toBe('funnet');
     // Det mønsteret som er fremme først, uansett rekkefølge.
     const sen = { legs: [leg('bus', 'Mål', T + '59:00+01:00')] }, tidlig = { legs: [leg('bus', 'Mål', T + '30:00+01:00')] };
     expect(reiseSammendrag([sen, tidlig], null).fremme).toBe('13.30');
@@ -303,6 +305,114 @@ describe('ett bytte: sjekk denne (forslag 5)', () => {
     sjekkSted(id2, { nå }); await new Promise(r => setTimeout(r, 10));
     expect(sjekkStatus(id2).tekst).toMatch(/^fremme /);
     expect(sjekker).toHaveLength(3);
+  });
+});
+
+describe('ett bytte: se etter — reiseruter med noe til felles', () => {
+  const pos = n => O[n].scenario.posisjon;
+  const navnAv = (r, v) => { const o = r.opsjoner.find(o => o.id === v.opsjon); return o.label || o.destinations[0].name; };
+  it('retning er uendret: ettByttePer(…, «retning») gir dagens retningskort', async () => {
+    for (const n of SCENARIOER) {
+      const r = await res(n);
+      expect(ettByttePer(r, pos(n), 'retning')).toEqual(ettByttePerRetning(r, pos(n)));
+    }
+  });
+  it('knutepunkt: hver vei i nøyaktig én gruppe; Helsfyr med buss 300 og 110; reiseruter telles distinkt', async () => {
+    const r = await res('mortensrud_dag');
+    const veier = ettByttVeier(r);
+    const { rader } = ettByttePer(r, pos('mortensrud_dag'), 'knute');
+    expect(new Set(rader.map(x => x.knute)).size).toBe(rader.length);
+    expect(new Set(veier.map(v => v.knute)).size).toBe(rader.length);
+    expect(rader.reduce((n, x) => n + x.antallSteder, 0)).toBe([...new Set(veier.map(v => v.knute))].reduce((n, k) => n + new Set(veier.filter(v => v.knute === k).map(v => v.opsjon)).size, 0));
+    const hf = rader.find(x => x.knute === 'NSR:StopPlace:59516');
+    expect(hf.retningNavn).toBe('Helsfyr');
+    expect(hf.ut).toEqual(expect.arrayContaining(['300', '110']));
+    // Reiserute = linje inn → knute → linje ut, telt distinkt (ikke per vei eller per sted).
+    const vh = veier.filter(v => v.knute === hf.knute);
+    const lt = d => { const g = r.grupper.linjeretning[d]; return (g.modus === 'metro' ? 'T-bane ' : g.modus === 'tram' ? 'trikk ' : g.modus === 'rail' ? 'tog ' : g.modus === 'water' ? 'båt ' : '') + g.kode; };
+    expect(hf.reiseruter).toBe(new Set(vh.map(v => lt(v.inn) + '→' + lt(v.directionId))).size);
+    expect(hf.reiseruter).toBeLessThan(vh.length);
+    // Flest steder først — regelen står på kortet (tallet).
+    expect(rader.map(x => x.antallSteder)).toEqual([...rader.map(x => x.antallSteder)].sort((a, b) => b - a));
+  });
+  it('linje: en vei hører til både inn- og ut-linjas gruppe', async () => {
+    const r = await res('mortensrud_dag');
+    const veier = ettByttVeier(r);
+    const { rader } = ettByttePer(r, pos('mortensrud_dag'), 'linje');
+    const lid = d => d.slice(0, d.indexOf('>'));
+    for (const v of veier.slice(0, 40)) {
+      const sted = navnAv(r, v);
+      for (const l of [lid(v.inn), lid(v.directionId)]) {
+        const g = rader.find(x => x.retning === 'linje:' + l);
+        expect(g, l).toBeTruthy();
+        expect(g.eksempler.concat(g.punkter.map(p => p.navn))).toContain(sted);
+      }
+    }
+    expect(rader.find(x => x.retning === 'linje:RUT:Line:3').retningNavn).toBe('T-bane 3');
+  });
+  it('transport: «tog» har bare steder nådd med tog ut fra byttet', async () => {
+    for (const n of ['mortensrud_dag', 'ranheim_dag']) {
+      const r = await res(n);
+      const tog = ettByttePer(r, pos(n), 'transport').rader.find(x => x.retning === 'transport:rail');
+      if (!tog) continue;
+      expect(tog.retningNavn).toBe('tog');
+      expect(tog.punkter.every(p => p.type === 'rail')).toBe(true);
+      expect(tog.ut.every(l => l.startsWith('tog '))).toBe(true);
+    }
+  });
+  it('kommune: bare med kommunedata; hvert sted i sin kommunes gruppe', async () => {
+    const r = await res('mortensrud_dag');
+    expect(ettByttePer(r, pos('mortensrud_dag'), 'kommune').rader).toEqual([]);
+    const ider = [...new Set(ettByttePer(r, pos('mortensrud_dag'), 'knute').rader.flatMap(x => x.punkter.map(p => p.id)))];
+    const kommuneAv = new Map(ider.map((id, i) => [id, i % 2 ? 'Oslo' : 'Lillestrøm']));
+    const { rader } = ettByttePer(r, pos('mortensrud_dag'), 'kommune', { kommuneAv });
+    expect(rader.map(x => x.retningNavn).sort()).toEqual(['Lillestrøm', 'Oslo']);
+    for (const x of rader) expect(x.punkter.every(p => kommuneAv.get(p.id) === x.retningNavn)).toBe(true);
+  });
+  it('visningen: «se etter»-knapper; bytte fasett gir nye kort og nullstiller valgt kort; mange grupper foldes', async () => {
+    const p = pos('mortensrud_dag'), hent = avspiller(O.mortensrud_dag).hent, nå = Date.parse(O.mortensrud_dag.scenario.tid);
+    ettBytteHtml(p, { esc, hent, nå, rerender: () => {} }); await new Promise(r => setTimeout(r, 50));
+    let html = ettBytteHtml(p, { esc, hent, nå, rerender: () => {} });
+    expect(html).toMatch(/data-eb-fasett="retning" aria-pressed="true"/);
+    for (const f of ['knute', 'linje', 'transport']) expect(html).toContain('data-eb-fasett="' + f + '"');
+    expect(html).not.toContain('data-eb-fasett="kommune"'); // ingen kommunedata ennå
+    velgRetning('NØ');
+    velgFasett('knute');
+    expect(valgtFasett()).toBe('knute');
+    expect(valgtRetning()).toBeNull();
+    html = ettBytteHtml(p, { esc, hent, nå, rerender: () => {} });
+    expect(html).toMatch(/data-eb-retning="knute:NSR:StopPlace:59516"/);
+    expect(html).toMatch(/\d+ reiseruter?</);
+    expect(html).toContain('<span class="eb-retning eb-tittel">Helsfyr</span>'); // navnet som det er, ikke «Helsfyr Stasjon»-stil
+    velgFasett('linje');
+    html = ettBytteHtml(p, { esc, hent, nå, rerender: () => {} });
+    const kort = (html.match(/class="eb-rad"/g) || []).length;
+    expect(kort).toBeLessThanOrEqual(GRUPPER_VIST);
+    expect(html).toMatch(/class="eb-vis-alle">vis alle \d+/);
+    // Et valgt gruppekort fremhever ALLE gruppens knutepunkter i kartet.
+    const r = ettByttePer(await res('mortensrud_dag'), p, 'linje').rader.find(x => x.knuterDetalj.filter(k => k.ll).length > 1);
+    velgRetning(r.retning);
+    const f = falskL();
+    ettBytteKart(f.map, f.L, { aktiv: true, pos: p, ramme: () => {} });
+    const fremhevet = f.lagt[0].ting.filter(t => t.o && /eb-kart-knute/.test(t.o.className || '') && !/dempet/.test(t.o.className));
+    expect(fremhevet.length).toBe(new Set(r.knuterDetalj.filter(k => k.ll).map(k => k.ll.lat + ',' + k.ll.lon)).size);
+    velgFasett('retning');
+  });
+  it('kartet: boblene teller ulike steder, også når grupper overlapper (linje)', async () => {
+    const p = pos('mortensrud_dag'), hent = avspiller(O.mortensrud_dag).hent, nå = Date.parse(O.mortensrud_dag.scenario.tid);
+    ettBytteHtml(p, { esc, hent, nå, rerender: () => {} }); await new Promise(r => setTimeout(r, 50));
+    const r = await res('mortensrud_dag');
+    const knute = ettByttePer(r, p, 'knute').rader;
+    const fasit = new Map(knute.map(x => [x.knuteLL.lat + ',' + x.knuteLL.lon, x.antallSteder]));
+    velgFasett('linje');
+    const ettBytteHtml2 = ettBytteHtml(p, { esc, hent, nå, rerender: () => {} });
+    expect(ettBytteHtml2).toMatch(/eb-vis-alle/);
+    // Overlappende grupper (en vei i både inn- og ut-linjas gruppe): ingen boble over knutepunktets ulike steder.
+    const g = falskL();
+    ettBytteKart(g.map, g.L, { aktiv: true, pos: p, ramme: () => {} });
+    const tall = g.lagt[0].ting.filter(t => t.o && t.o.icon && /eb-kart-tall/.test(t.o.icon.className));
+    for (const t of tall) expect(+t.o.icon.html.replace(/\D/g, '')).toBeLessThanOrEqual(fasit.get(t.ll.join(',')));
+    velgFasett('retning');
   });
 });
 
@@ -577,7 +687,7 @@ describe('ett bytte: klikkbare retningskort', () => {
     expect(valgtRetning()).toBe('NØ');
     expect(tegnet).toBe(1);
     expect(html()).toMatch(/data-eb-retning="NØ" aria-pressed="true"/);
-    expect((html().match(/aria-pressed="true"/g) || []).length).toBe(1);
+    expect((html().match(/class="eb-rad" data-eb-retning="[^"]+" aria-pressed="true"/g) || []).length).toBe(1); // ett kort (fasettknappen teller ikke)
     velgRetning('NØ');
     expect(valgtRetning()).toBeNull();
     velgRetning('V'); velgRetning('NØ');

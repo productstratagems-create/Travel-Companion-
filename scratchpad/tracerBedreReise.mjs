@@ -1,17 +1,28 @@
 #!/usr/bin/env node
 /**
  * TRACER 2 — GIR ET ANNET UTGANGSPUNKT EN BEDRE REISE? (ingen appendring)
- *   node scratchpad/tracerBedreReise.mjs [--json fil] [--mål N]
+ *   node scratchpad/tracerBedreReise.mjs --tirsdag ÅÅÅÅ-MM-DD [--json fil] [--utvalg fil] [--mål N]
+ *   node scratchpad/tracerBedreReise.mjs --analyse fil.json[.gz]   (ingen nettkall: tabellene i rapporten)
+ *
+ * Tidspunktene er FASTE: tirsdagen som oppgis, kl. 08, 12 og 22, og lørdagen fire
+ * dager etter, kl. 12 — norsk vintertid (+01:00). (Før: «neste tirsdag 08» regnet
+ * fra kjøretidspunktet, så en kjøring etter kl. 08 la 08-tidspunktet en uke senere
+ * enn de andre — skjedde i kjøring 2.) Hvert tidspunkt lagres som ISO på hver rad.
+ * Utvalget av mål lagres i utdata og kan gjenbrukes med --utvalg (en tidligere
+ * kjørings JSON), så to kjøringer bruker de SAMME målene.
  *
  * Spørsmålet: du står på A. Lønner det seg å gå til B først?
  *   «fra A»      reisesøk fra A, avreise t (Entur kan selv velge å gå via B)
  *   «via B»      gange A→B (luftlinje × 1,3 / 80 m/min — Valhalla nås ikke herfra)
  *                + reisesøk fra B, avreise t + gangtid
  * Begge retninger (står på A / står på B), samme mål, flere tidspunkt.
- * Mål: et REPRESENTATIVT utvalg, stratifisert på avstandsbånd fra midtpunktet,
- * trukket deterministisk fra stedene MINST ETT av utgangspunktene når med høyst ett
- * bytte ifølge utforskeren (union, ikke snitt — ikke bare «unike» mål). Arver
- * utforskerens grenser (ett bytte, ordinært vindu). Samme mål på alle tidspunkt.
+ * Mål: et STRATIFISERT, DETERMINISTISK utvalg — ikke et tilfeldig eller statistisk
+ * representativt. Kilde: stedene MINST ETT av utgangspunktene når med høyst ett bytte
+ * ifølge utforskeren (live, tirsdag kl. 12; union, ikke snitt). Per avstandsbånd fra
+ * midtpunktet sorteres stedene på NSR-id, og hvert k-te tas (k = antall / 3), høyst 3.
+ * NSR-id-rekkefølgen er administrativ, ikke geografisk: spredning i retning eller
+ * type er ikke sikret. Arver utforskerens grenser (ett bytte, ordinært vindu, ≤ 15
+ * knutepunkter). Samme mål på alle tidspunkt i en kjøring.
  * Merk: reisesøket starter LOOKBACK_MINS (2 min) før oppgitt tid — gir B ≤ 2 min fordel.
  * Utfall per mål: B bedre / A bedre / ubetydelig / ingen reise fra noen / bare én.
  */
@@ -33,11 +44,15 @@ const PAR = [
   { navn: 'Helsfyr ↔ Oslo S', A: { navn: 'Helsfyr', lat: 59.912673, lon: 10.801052 }, B: { navn: 'Oslo S', lat: 59.910357, lon: 10.753051 } },
   { navn: 'Nesttun ↔ Paradis', A: { navn: 'Nesttun', lat: 60.3197, lon: 5.3537 }, B: { navn: 'Paradis', lat: 60.3355, lon: 5.3399 } },
 ];
-/** Tidspunkt (norsk vintertid = UTC+1): neste tirsdag 08/12/22 og lørdag 12. */
-const TIDER = (() => {
-  const neste = (ukedag, timeNo) => { const d = new Date(); d.setUTCHours(timeNo - 1, 0, 0, 0); while (d.getUTCDay() !== ukedag || d < new Date()) d.setUTCDate(d.getUTCDate() + 1); return d; };
-  return [['tirsdag 08', neste(2, 8)], ['tirsdag 12', neste(2, 12)], ['tirsdag 22', neste(2, 22)], ['lørdag 12', neste(6, 12)]];
-})();
+/** Faste tidspunkt fra --tirsdag (norsk vintertid, +01:00). Ingen avhengighet av når skriptet kjøres. */
+function tider(tirsdag) {
+  if (!/^\d{4}-\d\d-\d\d$/.test(tirsdag || '')) throw new Error('oppgi --tirsdag ÅÅÅÅ-MM-DD');
+  const t = new Date(tirsdag + 'T00:00:00Z');
+  if (t.getUTCDay() !== 2) throw new Error(tirsdag + ' er ikke en tirsdag');
+  const lør = new Date(+t + 4 * 86400000).toISOString().slice(0, 10);
+  return [['tirsdag 08', tirsdag + 'T08:00:00+01:00'], ['tirsdag 12', tirsdag + 'T12:00:00+01:00'], ['tirsdag 22', tirsdag + 'T22:00:00+01:00'], ['lørdag 12', lør + 'T12:00:00+01:00']]
+    .map(([n, iso]) => [n, new Date(iso), iso]);
+}
 /** Ubetydelig: under så mange minutter, og samme antall bytter. */
 export const UBETYDELIG_MIN = 5;
 
@@ -66,24 +81,55 @@ async function reise(fra, destId, avreise) {
   } catch (e) { return { funnet: null, feil: String(e) }; }
 }
 
-/** Du står på X; alternativet er å gå til Y først. */
-function utfall(her, via) {
-  if (her.funnet === null || via.funnet === null) return { klasse: 'feil' };
-  if (!her.funnet && !via.funnet) return { klasse: 'ingen reise fra noen' };
-  if (!her.funnet) return { klasse: 'bare via alternativet' };
-  if (!via.funnet) return { klasse: 'bare herfra' };
+/**
+ * Du står på X; alternativet er å gå til Y først. RAPPORTENS kategorier
+ * (docs/tracer-bedre-reise.md), regnet bare fra ankomst og bytter:
+ *   raskere           Y minst UBETYDELIG_MIN min tidligere fremme
+ *   langsommere       Y minst UBETYDELIG_MIN min senere
+ *   samme, færre / like mange / flere bytter   innenfor ± UBETYDELIG_MIN
+ *   uavklart: ingen fra noen / bare herfra / bare via alternativet / feil
+ * «Samme tid, færre bytter» er en avveining, ikke «bedre». (Kjøring 1 og 2 lagret en
+ * eldre klassifisering i feltet `klasse`, der den var regnet som «alternativet bedre»;
+ * rapportens tall er regnet med denne funksjonen fra rådata — se --analyse.)
+ */
+export function kategori(her, via) {
+  if (her.funnet === null || via.funnet === null) return { kategori: 'uavklart: feil' };
+  if (!her.funnet && !via.funnet) return { kategori: 'uavklart: ingen fra noen' };
+  if (!her.funnet) return { kategori: 'uavklart: bare via alternativet' };
+  if (!via.funnet) return { kategori: 'uavklart: bare herfra' };
   const min = Math.round((her.ankomst - via.ankomst) / 60000); // > 0: alternativet er fremme tidligere
   const db = her.bytter - via.bytter;                           // > 0: alternativet har færre bytter
-  let klasse = 'ubetydelig';
-  if (min >= UBETYDELIG_MIN || (db > 0 && min > -UBETYDELIG_MIN)) klasse = 'alternativet bedre';
-  else if (min <= -UBETYDELIG_MIN || (db < 0 && min < UBETYDELIG_MIN)) klasse = 'herfra bedre';
-  return { klasse, minSpart: min, bytterSpart: db, alternativer: [her.alternativer, via.alternativer] };
+  const k = min >= UBETYDELIG_MIN ? 'raskere' : min <= -UBETYDELIG_MIN ? 'langsommere'
+    : db > 0 ? 'samme, færre bytter' : db < 0 ? 'samme, flere bytter' : 'samme, like mange bytter';
+  return { kategori: k, minSpart: min, bytterSpart: db };
+}
+
+/** Tabellene i rapporten fra lagret rådata (ingen nettkall). */
+function analyse(data) {
+  const c = new Map(), tid = new Map(), modus = new Map(), diff = [], færre = [];
+  const tell = (m, k, x) => { const t = m.get(k) || m.set(k, new Map()).get(k); t.set(x, (t.get(x) || 0) + 1); };
+  let n = 0;
+  for (const p of data) for (const r of p.rader) for (const [side, her] of [['påA', p.A], ['påB', p.B]]) {
+    const { kategori: k, minSpart } = kategori(r[side].her, r[side].via); n++;
+    c.set(k, (c.get(k) || 0) + 1); tell(tid, r.tid + (r.avreise ? ' (' + r.avreise + ')' : ''), k);
+    if (minSpart != null) diff.push(minSpart);
+    const ms = new Set(r[side].via.moduser || []);
+    if (r[side].via.funnet && ms.size) tell(modus, ms.has('rail') ? 'tog' : ms.has('metro') ? 'T-bane' : ms.has('tram') ? 'trikk/bybane' : 'buss/annet', k);
+    if (k === 'samme, færre bytter') færre.push(her + ' → ' + r.mål);
+  }
+  diff.sort((a, b) => a - b); const q = f => diff[Math.floor(f * (diff.length - 1))];
+  console.log('sammenligninger', n);
+  for (const [k, v] of [...c].sort()) console.log('  ' + k + ': ' + v + ' (' + Math.round(100 * v / n) + ' %)');
+  console.log('tidsforskjell (min, + = alternativet tidligere): p10', q(0.1), 'p25', q(0.25), 'median', q(0.5), 'p75', q(0.75), 'p90', q(0.9), 'maks', diff[diff.length - 1]);
+  for (const [t, m] of tid) console.log('  ' + t + ': ' + JSON.stringify(Object.fromEntries(m)));
+  for (const [t, m] of modus) console.log('  alternativet med ' + t + ': ' + JSON.stringify(Object.fromEntries(m)));
+  console.log('samme tid, færre bytter:', færre.length, 'tilfeller,', new Set(færre).size, 'ulike mål');
 }
 
 /** Representativt utvalg: per avstandsbånd fra midtpunktet, deterministisk (sortert på id). */
 async function utvalg(p) {
   const midt = { lat: (p.A.lat + p.B.lat) / 2, lon: (p.A.lon + p.B.lon) / 2 };
-  const tid = TIDER[1][1].toISOString();
+  const tid = TIDER[1][1].toISOString(); // oppdagelsen av mål: tirsdag kl. 12
   const steder = new Map();
   for (const o of [p.A, p.B]) {
     const r = await utforsk({ posisjon: o, tid }, { hent });
@@ -103,24 +149,34 @@ async function utvalg(p) {
 
 async function iPuljer(oppgaver, n = 4) { const ut = []; for (let i = 0; i < oppgaver.length; i += n) ut.push(...await Promise.all(oppgaver.slice(i, i + n).map(f => f()))); return ut; }
 
+if (process.argv.includes('--analyse')) {
+  const f = arg('--analyse');
+  const { readFileSync } = await import('node:fs'); const { gunzipSync } = await import('node:zlib');
+  const rå = readFileSync(f); analyse(JSON.parse((f.endsWith('.gz') ? gunzipSync(rå) : rå).toString()));
+  process.exit(0);
+}
+const TIDER = tider(arg('--tirsdag'));
+const tidligere = process.argv.includes('--utvalg') ? JSON.parse((await import('node:fs')).readFileSync(arg('--utvalg'), 'utf8')) : null;
 const resultat = [];
 for (const p of PAR) {
   kall = 0;
-  const mål = await utvalg(p);
+  // Samme mål som en tidligere kjøring når --utvalg er gitt (utforskeren er live og varierer mellom kjøringer).
+  const lagret = tidligere && (tidligere.find(x => x.par === p.navn) || {}).utvalg;
+  const mål = lagret || await utvalg(p);
   const gang = gangMin(p.A, p.B);
   const rader = [];
-  for (const [tidNavn, t] of TIDER) {
+  for (const [tidNavn, t, iso] of TIDER) {
     const tGang = new Date(+t + gang * 60000);
     const r = await iPuljer(mål.map(m => async () => {
       const [aNå, bNå, aEtter, bEtter] = await Promise.all([reise(p.A, m.id, t), reise(p.B, m.id, t), reise(p.A, m.id, tGang), reise(p.B, m.id, tGang)]);
-      return { tid: tidNavn, mål: m.navn, bånd: m.bånd, avreiseMs: +t, gangTilAndreMin: gang,
+      return { tid: tidNavn, avreise: iso, mål: m.navn, bånd: m.bånd, avreiseMs: +t, gangTilAndreMin: gang,
         // Står på A: fra A nå, eller gå til B og reise derfra. Står på B: omvendt.
-        påA: { ...utfall(aNå, bEtter), her: aNå, via: bEtter },
-        påB: { ...utfall(bNå, aEtter), her: bNå, via: aEtter } };
+        påA: { ...kategori(aNå, bEtter), her: aNå, via: bEtter },
+        påB: { ...kategori(bNå, aEtter), her: bNå, via: aEtter } };
     }));
     rader.push(...r);
   }
-  resultat.push({ par: p.navn, A: p.A.navn, B: p.B.navn, gangMin: gang, mål: mål.length, kall, rader });
+  resultat.push({ par: p.navn, A: p.A.navn, B: p.B.navn, gangMin: gang, mål: mål.length, utvalg: mål, tider: TIDER.map(x => x[2]), kall, rader });
   console.log(p.navn, 'mål', mål.length, 'kall', kall);
 }
 const i = process.argv.indexOf('--json'); if (i > 0) writeFileSync(process.argv[i + 1], JSON.stringify(resultat, null, 1));

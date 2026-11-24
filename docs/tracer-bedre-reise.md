@@ -3,7 +3,21 @@
 **Dato:** 2026-11-24. **Status:** undersøkelse. Ingen endring i `src/`.
 
 **Skript:** `scratchpad/tracerBedreReise.mjs`, mot ekte Entur. To
-kjøringer.
+kjøringer. Rådata ligger i `scratchpad/data/tracerBedreReise-kjoring{1,2}.json.gz`.
+
+**Slik er tallene produsert:** alle tabeller er regnet fra rådata (ankomst og
+bytter per reise) med rapportens kategorier. Reproduser dem uten nettkall:
+
+    node scratchpad/tracerBedreReise.mjs --analyse scratchpad/data/tracerBedreReise-kjoring2.json.gz
+
+Begge filene er kontrollert. Utdataene gir nøyaktig tallene under.
+
+**Merk om rådataene:** feltet `klasse` i JSON-filene er en **eldre
+klassifisering** fra skriptets `utfall()`. Der ble «færre bytter og inntil
+4 min senere» regnet som «alternativet bedre». Det strider mot rapportens
+regel, og **ingen tall i rapporten er hentet fra det feltet**. Funksjonen er
+erstattet av `kategori()`, som er rapportens definisjon, og `--analyse`
+bruker den.
 
 **Spørsmål:** hvor ofte gir et alternativt utgangspunkt en bedre
 reiseopplevelse, når vi regner med kostnaden ved å komme dit?
@@ -29,13 +43,38 @@ oftere enklere eller raskere reiser til de samme målene.*
 
 Hver kjøring har 352 sammenligninger.
 
-**Om de to kjøringene:** samme dag, samme utvalg og samme søkegrenser.
+**Om de to kjøringene.** Samme søkegrenser, men **ikke** samme dager og
+**ikke** samme utvalg fullt ut:
+
+| tidspunkt | kjøring 1 | kjøring 2 |
+|---|---|---|
+| tirsdag 08 | 24.11. kl. 08 | **1.12. kl. 08** (en uke senere, se under) |
+| tirsdag 12 | 24.11. kl. 12 | 24.11. kl. 12 |
+| tirsdag 22 | 24.11. kl. 22 | 24.11. kl. 22 |
+| lørdag 12 | 28.11. kl. 12 | 28.11. kl. 12 |
+
+- **Kjøring 1** er kontrollert mot ankomstdatoene i rådataene. Avreisetiden
+  ble ikke lagret i den kjøringen.
+- **Kjøring 2** har avreisetiden lagret, og 08-tidspunktet var 1.12.
+  Skriptet regnet «neste tirsdag 08» fra kjøretidspunktet. Kjøring 2 startet
+  etter kl. 08 norsk tid den 24.11., så 08-tidspunktet havnet en uke senere
+  enn de andre. Det var en **feil i skriptet**. Tidspunktene er nå faste og
+  må oppgis (`--tirsdag ÅÅÅÅ-MM-DD`).
+- **Utvalget** ble trukket på nytt fra en live oppdagelse i hver kjøring, og
+  det varierer:
+  - Mortensrud ↔ Hauketo: 3 av 15 mål ulike;
+  - Helsfyr ↔ Oslo S: 2 av 15 mål ulike;
+  - Nesttun ↔ Paradis: identisk.
+
+  Utvalget lagres nå og kan gjenbrukes (`--utvalg`).
 - **Hovedmønsteret er stabilt:** 1 raskere, 43 med ett bytte færre og 60–63 %
   langsommere.
 - **Enkelttallene varierer:** «omtrent samme tid» er 92 og 104, og «like mange
   bytter» 34 og 42.
-- Dette viser at **beregningen er reproduserbar**. Det er **ikke en
-  uavhengig validering** av at utvalget representerer kollektivtilbudet.
+- Med ulike dager for 08-tidspunktet og delvis ulike mål er kjøring 2 en
+  **gjentakelse med variasjon**, ikke en ren reproduksjon. At hovedmønsteret
+  står likevel, er et svakt tegn på robusthet. Det er **ikke en uavhengig
+  validering** av at utvalget representerer kollektivtilbudet.
 
 **Hvor stor forskjellen er** (kjøring 2, ankomst; positivt betyr at B er
 fremme tidligere): median **−30 min**. Persentil 10–90 går fra −60 til 0, og
@@ -81,10 +120,24 @@ høyeste verdi er +11 min (én gang).
      ett bytte ifølge nettverksutforskeren. Det er unionen, ikke snittet,
      fordi bare felles mål ville utelatt stedene der forskjellen kan være
      størst.
-   - Stedene stratifiseres på avstandsbånd fra midtpunktet (0–5, 5–15, 15–50,
-     50–150 og 150+ km), med 3 per bånd trukket deterministisk. Det gir 14–15
-     mål per par.
-   - **Samme mål på alle tidspunkt.**
+   - **Hvordan målene trekkes:**
+     - Stedene deles i avstandsbånd fra midtpunktet: 0–5, 5–15, 15–50, 50–150
+       og 150+ km.
+     - Innen hvert bånd sorteres de på NSR-id (stoppestedets id i Enturs
+       register).
+     - Hvert k-te tas, der k er antallet delt på 3, med høyst 3 per bånd. Det
+       gir 14–15 mål per par.
+   - **Hva utvalget er:** stratifisert på avstand og deterministisk gitt
+     oppdagelsens resultat.
+   - **Hva utvalget ikke er:** tilfeldig, eller statistisk eller geografisk
+     representativt.
+     - NSR-id-rekkefølgen er administrativ. Den gir ingen sikret spredning i
+       retning, transportmiddel eller stedstype.
+     - Tre mål per bånd er for få til å anslå andeler med noen presisjon. En
+       andel på 12 % bygger på 43 tilfeller, men bare 20 ulike mål.
+     - Oppdagelsen er live, så samme skript kan gi et annet utvalg en annen dag.
+   - **Samme mål på alle tidspunkt** innenfor en kjøring, men ikke mellom
+     kjøringene (se over).
    - **Kjent skjevhet:** utvalget arver utforskerens grenser (ett bytte,
      ordinært søkevindu, høyst 15 knutepunkter). Mål som bare nås med to
      bytter eller utenfor vinduet, er ikke med.
@@ -95,6 +148,9 @@ høyeste verdi er +11 min (én gang).
    - Ingen søk feilet med nettfeil.
 
 ## Mønstre (kjøring 2)
+
+Merk: «tirsdag 08» i kjøring 2 er **1.12.**. De andre tidspunktene er 24.11.
+og 28.11.
 
 **Per utgangspunkt** (du står på X, alternativet er Y):
 
@@ -113,7 +169,8 @@ Helsfyr → Oslo S har i tillegg én «raskere».
   sterkere (Mortensrud → Hauketo stasjon, Helsfyr → Oslo S, Paradis →
   Nesttun). Fra det sterkere lønner det seg aldri.
 - **Tid på døgnet:** omtrent like mange «samme tid, færre bytter» ved alle
-  fire tidspunkt (10–12). Kvelden har flere uavklarte (18 mot 6–7).
+  fire tidspunkt (10–12). I kjøring 1, der alle tidspunkt er de tilsiktede
+  dagene, var tallene 8–13. Kvelden har flere uavklarte (18 mot 6–7).
 - **Transportmiddel** (alternativets reise): gevinsten finnes nesten bare når
   alternativet starter med **tog** (28) eller **buss** (13), og aldri med
   T-bane.
@@ -171,8 +228,12 @@ som står for nesten hele gevinsten. Det er ikke 43 uavhengige muligheter.
 
 ## Avgrensninger
 
-- Seks utgangspunkter (to byer) og fire tidspunkt, med to kjøringer samme
-  dag. Ikke målt over flere uker.
+- Seks utgangspunkter (to byer) og fire tidspunkt. Kjøringene ble tatt
+  24.11., men gjelder reiser 24.11., 28.11. og (kjøring 2, kl. 08) 1.12. Ikke
+  målt over flere uker.
+- **Utvalget** er stratifisert og deterministisk, men ikke representativt
+  (se Måleregler 3). Andelene gjelder disse 14–15 målene per par, ikke
+  kollektivtilbudet generelt.
 - Bygd og ferge er ikke med. Der er avstanden mellom stoppesteder større, og
   avveiningen kan se annerledes ut.
 - Gangtiden er et anslag fra luftlinje. Faktisk gangvei kan være lengre.

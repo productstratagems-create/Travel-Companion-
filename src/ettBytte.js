@@ -97,7 +97,7 @@ export function frekvensTekst(minutter) {
  * @returns {{ utfall: 'funnet'|'annen vei'|'ingen', tekst: string, fremme?: string }}
  */
 const klokke = iso => new Date(iso).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Oslo' }).replace(':', '.');
-export function reiseSammendrag(mønstre, knuteNavn) {
+export function reiseSammendrag(mønstre, knuteNavn, knuteNavnene = null) {
   const m = (mønstre || []).filter(p => p && (p.legs || []).length)
     .sort((a, b) => Date.parse(a.legs[a.legs.length - 1].expectedEndTime) - Date.parse(b.legs[b.legs.length - 1].expectedEndTime))[0];
   if (!m) return { utfall: 'ingen', tekst: 'fant ingen reise nå' };
@@ -106,7 +106,9 @@ export function reiseSammendrag(mønstre, knuteNavn) {
   const bytter = reise.slice(0, -1).map(l => l.toPlace && l.toPlace.name).filter(Boolean);
   if (!reise.length) return { utfall: 'funnet', fremme, tekst: 'fremme ' + fremme + ' · til fots' };
   if (!bytter.length) return { utfall: 'funnet', fremme, tekst: 'fremme ' + fremme + ' · uten bytte' };
-  const vår = knuteNavn && bytter.includes(knuteNavn);
+  // Våre knutepunkt: kortets (i fasettene kan et kort ha flere).
+  const våre = new Set([knuteNavn, ...(knuteNavnene || [])].filter(Boolean));
+  const vår = bytter.some(b => våre.has(b));
   return vår
     ? { utfall: 'funnet', fremme, tekst: 'fremme ' + fremme + ' · bytt på ' + bytter.join(' og ') }
     : { utfall: 'annen vei', fremme, tekst: 'fremme ' + fremme + ' · Entur foreslår via ' + bytter.join(' og ') };
@@ -142,58 +144,138 @@ function frekvensVed(resultat, dirs, stopp) {
 const linjeTekst = l => `${l.modus === 'metro' ? 'T-bane ' : l.modus === 'tram' ? 'trikk ' : l.modus === 'rail' ? 'tog ' : l.modus === 'water' ? 'båt ' : ''}${l.kode}`;
 
 /**
- * Rader per himmelretning. Per retning velges ETT knutepunkt: det som når flest
- * ulike områder i den retningen (så flest destinasjoner, så id). Linjene inn og
- * ut slås sammen per linje, så plattform- og skiltvarianter blir ett valg.
- * @returns {{ rader: object[], ingen: boolean, grunnlag: string }}
+ * SE ETTER (fasetter): de samme oppdagede veiene, gruppert etter det de har
+ * til felles. Én gruppe = ett kort, i samme form som retningsradene, så kort,
+ * kart, frekvens, stedstyper, ytterpunkt og «sjekk denne» gjenbrukes.
+ *   retning    himmelretning (dagens oppførsel: ETT knutepunkt per retning)
+ *   knute      knutepunktet du bytter på
+ *   linje      linja inn ELLER ut (en vei hører til begge linjenes grupper)
+ *   transport  transportmiddelet ut fra byttet
+ *   kommune    stedets kommune (bare når kommunedata finnes, forslag 3)
+ * Distinkt enhet: REISERUTE = linje inn → knutepunkt → linje ut.
+ * Rekkefølgen er en synlig regel: retning med klokka; ellers flest steder først.
  */
-export function ettByttePerRetning(resultat, posisjon) {
-  const linjeId = dir => (typeof dir === 'string' ? dir.slice(0, dir.indexOf('>')) : null);
-  // Et bytte er å skifte linje: samme linje inn og ut (FB10 videre som FB10) er å bli sittende.
-  const veier = ((resultat && resultat.veier) || []).filter(v => v.ledd === 2 && v.vindu === 'ordinært' && v.knute && v.inn
-    && typeof v.område === 'string' && linjeId(v.inn) !== linjeId(v.directionId));
+export const FASETTER = Object.freeze(['retning', 'knute', 'linje', 'transport', 'kommune']);
+export const FASETT_NAVN = Object.freeze({ retning: 'retning', knute: 'knutepunkt', linje: 'linje', transport: 'transport', kommune: 'kommune' });
+const MODUS_NAVN = { rail: 'tog', water: 'båt', metro: 'T-bane', tram: 'trikk', coach: 'ekspressbuss', bus: 'buss' };
+const linjeNavn = l => (MODUS_NAVN[l.modus] || 'linje') + ' ' + l.kode;
+
+const linjeIdAv = dir => (typeof dir === 'string' ? dir.slice(0, dir.indexOf('>')) : null);
+/** Veiene «ett bytte» bygger på: to ledd, ordinært vindu, et reelt bytte (samme linje videre er å bli sittende). */
+export function ettByttVeier(resultat) {
+  return ((resultat && resultat.veier) || []).filter(v => v.ledd === 2 && v.vindu === 'ordinært' && v.knute && v.inn
+    && typeof v.område === 'string' && linjeIdAv(v.inn) !== linjeIdAv(v.directionId));
+}
+
+/** Ett kort av en mengde veier (kan spenne flere knutepunkt). `meta`: retning-nøkkel, tittel, undertittel. */
+function radAv(resultat, posisjon, veier, meta) {
   const opsjoner = new Map(((resultat && resultat.opsjoner) || []).map(o => [o.id, o]));
   const knNavn = new Map((((resultat && resultat.knutepunkter) || {}).vurdert || []).map(k => [k.id, k.navn]));
-  const per = new Map(); // sektor → knute → { områder, dest, inn, ut }
+  const dest = new Set(), moduser = new Map(), inn = new Map(), ut = new Map(), innDir = new Map(), utPar = new Map(), perKnute = new Map(), ruter = new Set();
   for (const v of veier) {
-    const sektor = v.område.split('|')[0];
-    if (!RETNINGER.includes(sektor)) continue; // sentrum («•») er ingen retning
-    const s = per.get(sektor) || per.set(sektor, new Map()).get(sektor);
-    const g = s.get(v.knute) || s.set(v.knute, { områder: new Set(), dest: new Set(), inn: new Map(), ut: new Map(), moduser: new Map(), innDir: new Map(), utDir: new Map() }).get(v.knute);
-    g.områder.add(v.område); g.dest.add(v.opsjon);
+    dest.add(v.opsjon);
     const li = linje(resultat, v.inn), lu = linje(resultat, v.directionId);
-    (g.moduser.get(v.opsjon) || g.moduser.set(v.opsjon, new Set()).get(v.opsjon)).add(lu.modus);
-    g.inn.set(li.kode + '|' + li.modus, li); g.ut.set(lu.kode + '|' + lu.modus, lu);
-    (g.innDir.get(linjeTekst(li)) || g.innDir.set(linjeTekst(li), new Set()).get(linjeTekst(li))).add(v.inn);
-    (g.utDir.get(linjeTekst(lu)) || g.utDir.set(linjeTekst(lu), new Set()).get(linjeTekst(lu))).add(v.directionId);
+    (moduser.get(v.opsjon) || moduser.set(v.opsjon, new Set()).get(v.opsjon)).add(lu.modus);
+    inn.set(li.kode + '|' + li.modus, li); ut.set(lu.kode + '|' + lu.modus, lu);
+    (innDir.get(linjeTekst(li)) || innDir.set(linjeTekst(li), new Set()).get(linjeTekst(li))).add(v.inn);
+    (utPar.get(linjeTekst(lu)) || utPar.set(linjeTekst(lu), []).get(linjeTekst(lu))).push([v.directionId, v.knute]);
+    (perKnute.get(v.knute) || perKnute.set(v.knute, new Set()).get(v.knute)).add(v.opsjon);
+    ruter.add(linjeTekst(li) + '→' + v.knute + '→' + linjeTekst(lu));
   }
+  const steder = [...dest].map(id => opsjoner.get(id)).filter(o => o && o.destinations && o.destinations[0])
+    .map(o => ({ id: o.destinations[0].id, type: velgStedstype(moduser.get(o.id) || new Set()), navn: o.label || o.destinations[0].name, lat: o.destinations[0].lat, lon: o.destinations[0].lon, m: posisjon ? metresBetween(posisjon, o.destinations[0]) : 0 }))
+    .sort((a, b) => b.m - a.m || (a.navn < b.navn ? -1 : 1));
+  const navn = []; for (const x of steder) if (navn.length < EKSEMPLER && !navn.includes(x.navn)) navn.push(x.navn);
+  // Knutepunktene, flest steder først. Hvert knutepunkt er selv et sted ledd 1 når; koordinatene står der.
+  const sted = o => o && o.destinations && o.destinations[0];
+  const knuterDetalj = [...perKnute.entries()].sort(([ka, a], [kb, b]) => b.size - a.size || (ka < kb ? -1 : 1)).map(([id, ops]) => {
+    const kd = sted(opsjoner.get('destination:' + id));
+    return { id, navn: knNavn.get(id) || id, ll: kd && Number.isFinite(kd.lat) ? { lat: kd.lat, lon: kd.lon } : null, steder: [...ops].map(o => sted(opsjoner.get(o))).filter(Boolean).map(d => d.id).sort() };
+  });
+  const knute = knuterDetalj[0].id;
+  const punkter = steder.filter(x => Number.isFinite(x.lat)).map(({ id, navn: n, lat, lon, type }) => ({ id, navn: n, lat, lon, type }));
+  return {
+    retning: meta.retning, retningNavn: meta.tittel, undertittel: meta.undertittel || null, fasett: meta.fasett,
+    knute, knuteNavn: knuterDetalj[0].navn, knuterDetalj, reiseruter: ruter.size,
+    inn: [...inn.values()].map(linjeTekst).sort(), ut: [...ut.values()].map(linjeTekst).sort(),
+    eksempler: navn, antallSteder: dest.size, sjekket: false,
+    // For kartet (src/views/ettBytteVisning.js): knutepunktet og stedene, lengst unna først.
+    knuteLL: knuterDetalj[0].ll,
+    punkter,
+    ytterpunkt: ytterpunkt(punkter, posisjon),
+    typer: stedstypeTelling(punkter),
+    // Hvor ofte (forslag 4): ut-linjene ved sitt knutepunkt, inn-linjene ved stoppet du går til.
+    frekvens: {
+      inn: Object.fromEntries([...innDir].map(([t, dirs]) => [t, frekvensVed(resultat, dirs, null)]).filter(([, f]) => f)),
+      ut: Object.fromEntries([...utPar].map(([t, par]) => [t, frekvensPar(resultat, par)]).filter(([, f]) => f)),
+    },
+  };
+}
+/** Ut-frekvens når linja kan gå fra flere knutepunkt i gruppen: hver (linjeretning, knute) for seg, oftest vinner. */
+function frekvensPar(resultat, par) {
+  const lr = (resultat.grupper && resultat.grupper.linjeretning) || {};
+  const m = par.map(([d, k]) => frekvensMin(((lr[d] && lr[d].avgangerVed) || {})[k] || [])).filter(x => x != null).sort((a, b) => a - b)[0];
+  return frekvensTekst(m == null ? null : m);
+}
+
+const GRUNNLAG = 'mulig med ett bytte — ikke sjekket mot reisesøket, og byttet er ikke tidskontrollert';
+
+/**
+ * Kortene for én fasett. `kommuneAv` (stopp-id → kommune) trengs for «kommune».
+ * @returns {{ rader: object[], ingen: boolean, grunnlag: string, fasett: string }}
+ */
+export function ettByttePer(resultat, posisjon, fasett = 'retning', { kommuneAv = null } = {}) {
+  const veier = ettByttVeier(resultat);
+  const opsjoner = new Map(((resultat && resultat.opsjoner) || []).map(o => [o.id, o]));
+  const knNavn = new Map((((resultat && resultat.knutepunkter) || {}).vurdert || []).map(k => [k.id, k.navn]));
   const rader = [];
-  for (const sektor of RETNINGER) {
-    const s = per.get(sektor);
-    if (!s) continue;
-    const [knute, g] = [...s.entries()].sort(([ka, a], [kb, b]) => b.områder.size - a.områder.size || b.dest.size - a.dest.size || (ka < kb ? -1 : 1))[0];
-    const steder = [...g.dest].map(id => opsjoner.get(id)).filter(o => o && o.destinations && o.destinations[0])
-      .map(o => ({ id: o.destinations[0].id, type: velgStedstype(g.moduser.get(o.id) || new Set()), navn: o.label || o.destinations[0].name, lat: o.destinations[0].lat, lon: o.destinations[0].lon, m: posisjon ? metresBetween(posisjon, o.destinations[0]) : 0 }))
-      .sort((a, b) => b.m - a.m || (a.navn < b.navn ? -1 : 1));
-    const navn = []; for (const x of steder) if (navn.length < EKSEMPLER && !navn.includes(x.navn)) navn.push(x.navn);
-    // Knutepunktet er selv et sted ledd 1 når; koordinatene står der. Mangler de, tegnes ingen knute.
-    const ko = opsjoner.get('destination:' + knute), kd = ko && ko.destinations && ko.destinations[0];
-    const punkter = steder.filter(x => Number.isFinite(x.lat)).map(({ id, navn: n, lat, lon, type }) => ({ id, navn: n, lat, lon, type }));
-    rader.push({
-      retning: sektor, retningNavn: RETNING_NAVN[sektor], knute, knuteNavn: knNavn.get(knute) || knute,
-      inn: [...g.inn.values()].map(linjeTekst).sort(), ut: [...g.ut.values()].map(linjeTekst).sort(),
-      eksempler: navn, antallSteder: g.dest.size, sjekket: false,
-      // For kartet (src/views/ettBytteVisning.js): knutepunktet og stedene, lengst unna først.
-      knuteLL: kd && Number.isFinite(kd.lat) ? { lat: kd.lat, lon: kd.lon } : null,
-      punkter,
-      ytterpunkt: ytterpunkt(punkter, posisjon),
-      typer: stedstypeTelling(punkter),
-      // Hvor ofte (forslag 4): ut-linjene ved knutepunktet, inn-linjene ved stoppet du går til.
-      frekvens: {
-        inn: Object.fromEntries([...g.innDir].map(([t, dirs]) => [t, frekvensVed(resultat, dirs, null)]).filter(([, f]) => f)),
-        ut: Object.fromEntries([...g.utDir].map(([t, dirs]) => [t, frekvensVed(resultat, dirs, knute)]).filter(([, f]) => f)),
-      },
-    });
+  if (fasett === 'retning') {
+    // Dagens oppførsel: per retning ETT knutepunkt — det som når flest ulike områder (så flest steder, så id).
+    const per = new Map();
+    for (const v of veier) {
+      const sektor = v.område.split('|')[0];
+      if (!RETNINGER.includes(sektor)) continue; // sentrum («•») er ingen retning
+      const s = per.get(sektor) || per.set(sektor, new Map()).get(sektor);
+      const g = s.get(v.knute) || s.set(v.knute, { områder: new Set(), dest: new Set(), veier: [] }).get(v.knute);
+      g.områder.add(v.område); g.dest.add(v.opsjon); g.veier.push(v);
+    }
+    for (const sektor of RETNINGER) {
+      const s = per.get(sektor);
+      if (!s) continue;
+      const [knute, g] = [...s.entries()].sort(([ka, a], [kb, b]) => b.områder.size - a.områder.size || b.dest.size - a.dest.size || (ka < kb ? -1 : 1))[0];
+      rader.push(radAv(resultat, posisjon, g.veier, { retning: sektor, tittel: RETNING_NAVN[sektor], fasett, undertittel: 'via ' + (knNavn.get(knute) || knute) }));
+    }
+    return { rader, ingen: rader.length === 0, grunnlag: GRUNNLAG, fasett };
   }
-  return { rader, ingen: rader.length === 0, grunnlag: 'mulig med ett bytte — ikke sjekket mot reisesøket, og byttet er ikke tidskontrollert' };
+  // Nøkkel(er) per vei for fasetten, med tittel.
+  const nøkler = v => {
+    if (fasett === 'knute') return [['knute:' + v.knute, knNavn.get(v.knute) || v.knute]];
+    if (fasett === 'linje') {
+      const li = linje(resultat, v.inn), lu = linje(resultat, v.directionId);
+      return [['linje:' + linjeIdAv(v.inn), linjeNavn(li)], ['linje:' + linjeIdAv(v.directionId), linjeNavn(lu)]];
+    }
+    if (fasett === 'transport') { const m = linje(resultat, v.directionId).modus; return [['transport:' + m, MODUS_NAVN[m] || 'annet']]; }
+    if (fasett === 'kommune') {
+      const o = opsjoner.get(v.opsjon), d = o && o.destinations && o.destinations[0], k = d && kommuneAv && kommuneAv.get(d.id);
+      return k ? [['kommune:' + k, k]] : [];
+    }
+    return [];
+  };
+  const grupper = new Map();
+  for (const v of veier) for (const [n, tittel] of nøkler(v)) (grupper.get(n) || grupper.set(n, { tittel, veier: [] }).get(n)).veier.push(v);
+  for (const [n, g] of grupper) {
+    const r = radAv(resultat, posisjon, g.veier, { retning: n, tittel: g.tittel, fasett });
+    const andre = r.knuterDetalj.slice(1).map(k => k.navn);
+    r.undertittel = fasett === 'knute'
+      ? r.reiseruter + (r.reiseruter === 1 ? ' reiserute' : ' reiseruter')
+      : 'via ' + r.knuteNavn + (andre.length ? (andre.length <= 2 ? ', ' + andre.join(', ') : ', ' + andre[0] + ' +' + (andre.length - 1)) : '') + ' · ' + r.reiseruter + (r.reiseruter === 1 ? ' reiserute' : ' reiseruter');
+    rader.push(r);
+  }
+  rader.sort((a, b) => b.antallSteder - a.antallSteder || (a.retningNavn < b.retningNavn ? -1 : 1));
+  return { rader, ingen: rader.length === 0, grunnlag: GRUNNLAG, fasett };
+}
+
+/** Rader per himmelretning (dagens kort). Uendret oppførsel: `ettByttePer(…, 'retning')`. */
+export function ettByttePerRetning(resultat, posisjon) {
+  return ettByttePer(resultat, posisjon, 'retning');
 }

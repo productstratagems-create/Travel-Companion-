@@ -31,6 +31,9 @@ holdeplasser og linjer, fargekoder per transportmiddel, avgangs- og
 ankomsttider, plattform. Dette er konvensjoner lesere forventer. Å finne dem
 opp på nytt er sløsing.
 
+Den fullstendige lista, med 24 funksjoner og status mot koden, står i
+`docs/proven-grunnlinje.md`.
+
 ### Better — nesten alt er bygget
 
 | vurderingens prioritet | status |

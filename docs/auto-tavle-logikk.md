@@ -313,6 +313,49 @@ Et nytt svar på samme sted flytter ikke kartet. Rører du kartet, er det ditt.
 Tavla regner kartet som «justert» mens laget vises, og får tilbake din egen
 tilstand når valget går av, så en justering du gjorde før, ikke slettes.
 
+### Se etter — reiseruter med noe til felles (v1.218.299)
+
+Over kortene står «se etter: retning · knutepunkt · linje · transport ·
+kommune». De samme oppdagede veiene grupperes etter det de har til felles
+(`ettByttePer` og `FASETTER` i `src/ettBytte.js`):
+
+| fasett | ett kort = | eksempel |
+|---|---|---|
+| retning | himmelretning, ett knutepunkt per retning (dagens kort, uendret) | «nordøst via Helsfyr» |
+| knutepunkt | alle ruter som bytter der | «Helsfyr · 22 reiseruter» |
+| linje | alle ruter med linja inn **eller** ut (en vei hører til begge) | «T-bane 3 · 92 reiseruter» |
+| transport | ut-linjas transportmiddel | «tog · via Nationaltheatret, Oslo lufthavn +2» |
+| kommune | stedets kommune. Vises når kommunedataene er kommet | «Bærum» |
+
+**De tre egenskapene:**
+- **Distinkt:** en **reiserute** er linje inn → knutepunkt → linje ut. Mange
+  stopp på samme reiserute er ett valg. Kortet teller reiseruter og steder.
+- **Forståelig:** én fasett om gangen, i kortenes vanlige språk. Rekkefølgen
+  følger en synlig regel: retning går med klokka, ellers flest steder først.
+  Ingen skjult score. Over 10 grupper (`GRUPPER_VIST`) foldes til «vis alle N
+  (de neste har færre steder)». De slettes ikke.
+- **Etterprøvbar:** grunnlagslinja står som før. «Sjekk denne» regner hvert av
+  kortets knutepunkter som «vår vei». Kortet sier hvilke knutepunkter og
+  hvor mange reiseruter det gjelder.
+
+**Gjenbruk:** gruppene har samme form som retningskortene. Kort, valg,
+kart, frekvens, stedstyper, ytterpunkt og «sjekk denne» er derfor uendret.
+`ettByttePer(…, 'retning')` er felt for felt lik de gamle retningskortene i
+alle fem opptakene. Testen binder det.
+
+**Kartet:**
+- Et valgt gruppekort fremhever **alle** gruppens knutepunkter.
+- Boblene teller ulike steder per knutepunkt, så overlappende grupper (linje)
+  ikke telles dobbelt.
+
+Fasetten huskes ikke etter omlasting. Bytter du fasett, nullstilles valgt
+kort.
+
+**Ikke med nå:**
+- ruter uten bytte (ledd 1);
+- kombinerte fasetter (tog **og** via Helsfyr);
+- ruter i det utvidede vinduet. «Ett bytte» bruker bare det ordinære.
+
 ### Sjekk denne (v1.218.298, forslag 5)
 
 Under det valgte kortet står en liste med opptil 8 steder (`SJEKK_STEDER`),

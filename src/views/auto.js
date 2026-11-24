@@ -6190,7 +6190,8 @@ function _tegnAutoTavle(body) {
     x.bytte = retningHjemDom(x.d, gang, nå, hjemListe).bytte;
     // Hele reisen (v1.218.303): hva du bytter til og når du er hjemme — når reisesøket hjem har akkurat denne avgangen.
     const hs = _stop && _hjemSøk.get(_stop.id);
-    x.byttTekst = byttTekst(x.bytte, hs && hjemReiseFor(hs.reiser, x.d.lines && x.d.lines[0] && x.d.lines[0].id, x.ms, x.bytte), _klokke);
+    x.hjemReise = hs && hjemReiseFor(hs.reiser, x.d.lines && x.d.lines[0] && x.d.lines[0].id, x.ms, x.bytte);
+    x.byttTekst = byttTekst(x.bytte, x.hjemReise, _klokke);
   });
   const rader = [...del.ikke, ...del.rekker];
   // Stoppet ditt står på radene som går derfra også (v1.218.225, fraMerke).
@@ -6274,6 +6275,10 @@ function _tegnAutoTavle(body) {
     // avgangen du trykket på. Nå: det kallet, med målet appen alt vet
     // (kjentMål), ellers spør avgangsdetaljene «hvor går du av?».
     // Rekkes den lenger ned, er det DER du går på (v1.218.185).
+    // HELE REISEN HJEM (v1.218.304): har raden sin reise hjem (bytt på … · hjemme …),
+    // åpnes reisen — alle etappene, byttet og ankomsten — som kombinasjonsradene.
+    const hel = x.hjemReise && x.hjemReise.tp ? kombiKall(x.hjemReise) : null;
+    if (hel && typeof window !== 'undefined' && window.tap) { window.tap(hel); return; }
     const c = x.rekk ? rekkKall(x.call, x.rekk) : x.call;
     if (c && typeof window !== 'undefined' && window.tap) {
       c._dir = tavleDetaljDir(c, _stop, medKoord, loadFreq('arr'), Date.now());

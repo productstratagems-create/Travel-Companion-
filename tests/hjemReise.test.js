@@ -6,6 +6,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { hjemReiser, hjemReiseFor, byttTekst, byttTillegg, HJEM_SAMME_AVGANG_MS } from '../src/hjemover.js';
+import { kombiKall } from '../src/reiseTil.js';
+import { lastOpptak } from './fixtures/entur/avspilling.js';
 
 const T = hm => '2026-11-24T' + hm + ':00+01:00';
 const etappe = (mode, id, kode, fra, til, start, slutt) => ({ mode, expectedStartTime: T(start), expectedEndTime: T(slutt), fromPlace: { name: fra }, toPlace: { name: til },
@@ -40,9 +42,26 @@ describe('hele reisen hjem', () => {
       etappe('metro', 'RUT:Line:3', '3', 'Brynseng T', 'Hellerud', '17:46', '17:48'), etappe('bus', 'RUT:Line:74', '74', 'Hellerud', 'Mortensrud', '17:50', '18:05')] };
     expect(hjemReiser([toBytter])).toEqual([]);
   });
+  it('raden åpner HELE reisen: kallet har begge etappene, byttet og ankomsten hjemme (v1.218.304)', () => {
+    expect(hjemReiseFor(reiser, 'RUT:Line:23', Date.parse(T('17:34')), 'Brynseng T').tp).toBeTruthy();
+    // En ekte reise med ett bytte fra opptakene (Mortensrud → Furuset skole: T-bane 3, bytt på Helsfyr, buss 300).
+    const tps = lastOpptak('mortensrud_dag.reisesok').opptak['reisesøk'].svar.data.t1.tripPatterns;
+    const ekte = hjemReiser(tps).find(e => e.bytte === 'Helsfyr');
+    expect(ekte.videre).toBe('300');
+    const c = kombiKall(ekte);
+    expect(c).toBeTruthy();
+    expect(c._legs.filter(l => l.mode !== 'foot')).toHaveLength(2);
+    expect(c._dir.to).toBe('Furuset skole');
+    const a = readFileSync('src/views/auto.js', 'utf8');
+    // Reisen går foran første avgang i klikket.
+    expect(a.indexOf('const hel = x.hjemReise && x.hjemReise.tp ? kombiKall(x.hjemReise) : null;'))
+      .toBeLessThan(a.indexOf('const c = x.rekk ? rekkKall(x.call, x.rekk) : x.call;'));
+    expect(a).toMatch(/if \(hel && typeof window !== 'undefined' && window\.tap\) \{ window\.tap\(hel\); return; \}/);
+  });
   it('tavla og Auto-reise bruker den samme teksten', () => {
     const a = readFileSync('src/views/auto.js', 'utf8'), t = readFileSync('src/ui/tavleRad.js', 'utf8');
-    expect(a).toMatch(/x\.byttTekst = byttTekst\(x\.bytte, hs && hjemReiseFor\(hs\.reiser/);
+    expect(a).toMatch(/x\.hjemReise = hs && hjemReiseFor\(hs\.reiser/);
+    expect(a).toMatch(/x\.byttTekst = byttTekst\(x\.bytte, x\.hjemReise, _klokke\)/);
     expect(a).toMatch(/esc\(byttTillegg\(\(hs => hs && hjemReiseFor\(hs\.reiser/);
     expect(t).toMatch(/esc\(x\.byttTekst \|\| 'bytt på ' \+ x\.bytte\)/);
     expect(a).toMatch(/post\.reiser = hjemReiser\(alle\)/);

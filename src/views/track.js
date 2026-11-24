@@ -32,7 +32,7 @@ import { makeVehicleIcon, VEHICLE_MARKER_OPTS, makeRouteStopIcon, mobilityCluste
 import { snapToCorridor } from '../ui/corridor.js';
 import { _trainPosition, SRC_LABEL } from './trainPosition.js';
 import { VEHICLE_NOUN, VEHICLE_WORD, MODE_PIN } from '../api/posSource.js';
-import { renderJourneyStrip, UNDERVEIS_KART_ALLTID } from './journeyStrip.js';
+import { renderJourneyStrip, renderReiseStrip, UNDERVEIS_KART_ALLTID } from './journeyStrip.js';
 import { sett as settVerktøy, leggTil as leggTilVerktøy, verktøyFlate, kartForm, settKartForm } from '../ui/kartVerktoy.js';
 import { nesteFokus, fokusRamme, fokusTekst, FOKUS_IKON, KART_FOKUS, KART_FOKUS_UNDERVEIS } from '../ui/kartFokus.js';
 import { stegNøkkel, stegRamme, fartMedRo, underveisFase } from '../kartSteg.js';
@@ -2548,9 +2548,11 @@ function _resolveTrainPos(now, cs, legs) {
 function _renderJourneyStrip(now, cs, legs) {
   const el = document.getElementById('j-strip');
   if (!el) return;
+  // HELE REISEN (v1.218.307): med bytte står alle etappene, også mens du venter på byttet.
+  if (legs.length > 1) { renderReiseStrip(el, legs.map(l => ({ ...l, calls: _legRouteStops(l) })), cs, now, cs.phase === 'riding' ? _resolveTrainPos(now, cs, legs) : null); return; }
   const leg = cs.phase === 'riding' ? legs[cs.i] : null;
   if (!leg) { el.style.display = 'none'; return; }
-  renderJourneyStrip(el, _legRouteStops(leg), now, _resolveTrainPos(now, cs, legs));
+  renderJourneyStrip(el, _legRouteStops(leg), now, _resolveTrainPos(now, cs, legs), { fra: leg.depTime && leg.depTime.clk, til: leg.arrTime && leg.arrTime.clk });
 }
 
 export function buildTrackBar() {

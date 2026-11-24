@@ -181,7 +181,7 @@ export function _labelStyle(pct) {
   return 'left:' + pct.toFixed(2) + '%;transform:translateX(-50%)';
 }
 
-export function renderJourneyStrip(el, calls, now, pos) {
+export function renderJourneyStrip(el, calls, now, pos, tider = null) {
   if (!el) return null;
   // The same resolved position the map marker uses, so the two pictures of
   // one train cannot disagree.
@@ -320,6 +320,8 @@ export function renderJourneyStrip(el, calls, now, pos) {
     + '<span class="js-end-from">' + esc(p.from || '') + '</span>'
     + '<span class="js-end-to">' + esc(p.to || '') + '</span>'
     + '</div>'
+    // Tidene ved start og mål (v1.218.307), som på stripen for hele reisen.
+    + (tider && (tider.fra || tider.til) ? '<div class="js-ends js-tider"><span class="js-end-from">' + esc(tider.fra || '') + '</span><span class="js-end-to">' + esc(tider.til || '') + '</span></div>' : '')
     + '</div>'
     + (UNDERVEIS_KART_ALLTID ? '' : '<span class="js-map-hint" aria-hidden="true">⤢ kart</span>');
 
@@ -342,3 +344,152 @@ export function _journeySummary(p, src) {
 
 /** Kartet på Underveis står alltid (v1.218.154); stripen åpner det ikke lenger. */
 export const UNDERVEIS_KART_ALLTID = true;
+
+/* ── HELE REISEN (v1.218.307) ────────────────────────────────────────────
+ * Bestilt med skjermbilde fra Underveis (74 → VY190): «Skal indikere hele
+ * reisen inkludert bytter. Kanskje indikere noen tidspunkter også?»
+ *
+ * Stripen viste bare etappen du sitter på. Nå får hver etappe sitt stykke,
+ * lengde etter hvor lang tid den tar (med et gulv, så en kort etappe kan
+ * leses), og byttet er en stiplet luke for ventetiden. Tidene står ved start,
+ * ved byttet («ank 19:52 · går 20:05») og ved målet. Lengden følger
+ * kvadratroten av tiden: fire timer buss skal være lengst, men ikke klemme
+ * etappen du sitter på til en flekk (sett i nettleseren: 74 ble 14 %). Prikken er den samme
+ * posisjonen som før (`_journeyProgress`) — på etappen du sitter på, eller i
+ * luka mens du venter på byttet. Mangler stoppene for en etappe, står den som
+ * et helt stykke uten prikker: ingen stopp appen ikke kjenner.
+ */
+export const REISE_MIN_ETAPPE = 20;   // % av skinna, minst, per etappe
+export const REISE_MIN_BYTTE = 5;     // % av skinna, minst, per bytte
+/** Flere bytter enn dette: bare neste bytte får navn og tider. */
+export const REISE_BYTTER_MED_TEKST = 2;
+/** Minste avstand mellom stopp-prikker, i % av skinna. */
+export const REISE_MIN_STOPP_AVSTAND = 1.5;
+const _INSET = 5, _SPENN = 90;
+
+/** Fordel `sum` på verdiene i forhold, men ingen under sitt gulv. Ren. */
+export function _fordel(verdier, gulv, sum) {
+  const n = verdier.length, ut = new Array(n).fill(null);
+  for (let runde = 0; runde <= n; runde++) {
+    const fri = verdier.map((v, i) => i).filter(i => ut[i] == null);
+    const låst = ut.reduce((s, x) => s + (x || 0), 0);
+    const vSum = fri.reduce((s, i) => s + Math.max(0, verdier[i]), 0);
+    const skala = vSum > 0 ? (sum - låst) / vSum : 0;
+    const under = fri.filter(i => Math.max(0, verdier[i]) * skala < gulv[i]);
+    if (!under.length) { fri.forEach(i => { ut[i] = vSum > 0 ? Math.max(0, verdier[i]) * skala : (sum - låst) / fri.length; }); break; }
+    under.forEach(i => { ut[i] = gulv[i]; });
+  }
+  return ut.map(x => x || 0);
+}
+
+const _ms = t => (t && t.time ? new Date(t.time).getTime() : NaN);
+
+/**
+ * Oppsettet for hele reisen. Ren, så tallene kan testes uten nettleser.
+ * @param legs  [{ calls, lineCode, lineBg, lineFg, fromStation, toStation, depTime, arrTime }]
+ * @param cs    { phase: 'riding'|'platform'|'arrived', i }
+ * @param pos   målt posisjon for etappen du sitter på, eller null
+ */
+export function _reiseOppsett(legs, cs, now, pos) {
+  if (!Array.isArray(legs) || legs.length < 2) return null;
+  const et = legs.map(l => {
+    const pts = _points(l.calls);
+    const dep = Number.isFinite(_ms(l.depTime)) ? _ms(l.depTime) : (pts ? pts[0].dep : NaN);
+    const arr = Number.isFinite(_ms(l.arrTime)) ? _ms(l.arrTime) : (pts ? pts[pts.length - 1].arr : NaN);
+    return { l, pts, dep, arr };
+  });
+  if (et.some(e => !Number.isFinite(e.dep) || !Number.isFinite(e.arr))) return null;
+  // Etappe, bytte, etappe, …: varighetene i rekkefølge, med gulv.
+  const verdier = [], gulv = [];
+  et.forEach((e, k) => {
+    verdier.push(Math.sqrt(Math.max(60_000, e.arr - e.dep))); gulv.push(REISE_MIN_ETAPPE);
+    if (k < et.length - 1) { verdier.push(Math.sqrt(Math.max(0, et[k + 1].dep - e.arr))); gulv.push(REISE_MIN_BYTTE); }
+  });
+  const bredder = _fordel(verdier, gulv, _SPENN);
+  let x = _INSET;
+  const deler = bredder.map(b => { const d = { a: x, b: x + b }; x += b; return d; });
+  const seg = et.map((e, k) => ({ ...deler[2 * k], e }));
+  const luker = et.slice(0, -1).map((e, k) => ({ ...deler[2 * k + 1], arr: e.arr, dep: et[k + 1].dep, sted: e.l.toStation || '' }));
+  const tid = (a, b, t0, t1, t) => a + (t1 > t0 ? Math.min(1, Math.max(0, (t - t0) / (t1 - t0))) : 0) * (b - a);
+
+  let pct, p = null;
+  const i = Math.min(Math.max(0, cs && Number.isFinite(cs.i) ? cs.i : 0), et.length - 1);
+  if (!cs || cs.phase === 'arrived') pct = _INSET + _SPENN;
+  else if (cs.phase === 'platform' && luker[i]) { const g = luker[i]; pct = tid(g.a, g.b, g.arr, g.dep, now); }
+  else {
+    const s = seg[i];
+    p = s.e.pts ? _journeyProgress(s.e.l.calls, now, pos) : null;
+    pct = p ? s.a + (p.frac / p.total) * (s.b - s.a) : tid(s.a, s.b, s.e.dep, s.e.arr, now);
+  }
+  return { seg, luker, pct, p, cs: cs || { phase: 'arrived', i }, i, framme: et[et.length - 1].l.arrTime || null };
+}
+
+/** Overskriften over stripen. Ren. */
+export function _reiseTekst(o, src) {
+  if (!o) return '';
+  const sist = o.seg.length - 1, kilde = ' · ' + SRC_LABEL[src || 'rutetid'];
+  const framme = o.framme && o.framme.clk ? ' · framme ' + o.framme.clk : '';
+  if (o.cs.phase === 'arrived' || (o.i === sist && o.p && o.p.framme)) return 'framme';
+  if (o.cs.phase === 'platform') {
+    const neste = o.seg[o.i + 1] && o.seg[o.i + 1].e.l;
+    return 'bytte på ' + (o.luker[o.i] ? o.luker[o.i].sted : '') + (neste && neste.depTime ? ' · går ' + neste.depTime.clk : '') + framme;
+  }
+  const stopp = o.p ? o.p.left + (o.i < sist ? ' stopp til bytte' : ' stopp igjen') : (o.i < sist ? 'til bytte på ' + o.luker[o.i].sted : 'siste etappe');
+  return stopp + framme + kilde;
+}
+
+export function renderReiseStrip(el, legs, cs, now, pos) {
+  if (!el) return null;
+  const src = (pos && pos.src) || 'rutetid';
+  const o = _reiseOppsett(legs, cs, now, pos && pos.src !== 'rutetid' ? pos : null);
+  if (!o) { el.style.display = 'none'; return null; }
+  el.style.display = '';
+  el.removeAttribute('tabindex'); el.onclick = null; el.onkeydown = null;
+  const f = n => n.toFixed(2) + '%';
+  const sist = o.seg.length - 1;
+  // Med mange bytter får bare det neste navn og tider; de andre er et merke.
+  const nesteBytte = o.cs.phase === 'platform' ? o.i : o.i;
+  const medTekst = k => o.luker.length <= REISE_BYTTER_MED_TEKST || k === nesteBytte;
+  let linjer = '', skinne = '', navn = '';
+  o.seg.forEach((s, k) => {
+    const l = s.e.l, midt = (s.a + s.b) / 2;
+    linjer += '<span class="js-linje" style="left:' + f(midt) + ';background:' + esc(l.lineBg || 'var(--accent)') + ';color:' + esc(l.lineFg || '#fff') + '">' + esc(l.lineCode || '') + '</span>';
+    skinne += '<span class="js-seg" style="left:' + f(s.a) + ';width:' + f(s.b - s.a) + ';background:' + esc(l.lineBg || 'var(--accent)') + '"></span>';
+    if (s.e.pts) {
+      const n = s.e.pts.length - 1;
+      // For tett til å skilles (under ~1,5 % per stopp): bare endene. Antallet står i teksten.
+      const tett = (s.b - s.a) / n < REISE_MIN_STOPP_AVSTAND;
+      for (let t = 0; t <= n; t++) {
+        if (tett && t !== 0 && t !== n) continue;
+        const x = s.a + (t / n) * (s.b - s.a);
+        skinne += '<span class="js-tick' + (x < o.pct - 0.3 ? ' js-past' : '') + (t === 0 || t === n ? ' js-end' : '') + '" style="left:' + f(x) + '"></span>';
+      }
+    }
+  });
+  o.luker.forEach((g, k) => {
+    skinne += '<span class="js-gap" style="left:' + f(g.a) + ';width:' + f(g.b - g.a) + '"></span>';
+    const midt = (g.a + g.b) / 2;
+    if (medTekst(k)) {
+      // Én rad per bytte, under endene: tre navn på én rad kolliderte (sett i nettleseren).
+      const ank = o.seg[k].e.l.arrTime, går = o.seg[k + 1].e.l.depTime;
+      // Tekst i flyt, mot den siden luka står: en absolutt plassert lapp stakk utenfor kanten.
+      const side = midt < 40 ? 'left' : midt > 60 ? 'right' : 'center';
+      navn += '<div class="js-bytte" style="text-align:' + side + '"><b>bytt ' + esc(g.sted) + '</b> '
+        + esc((ank ? 'ank ' + ank.clk : '') + (går ? ' · går ' + går.clk : '')) + '</div>';
+    } else skinne += '<span class="js-bytte-merke" style="left:' + f(midt) + '"></span>';
+  });
+  const første = o.seg[0].e.l, siste = o.seg[sist].e.l;
+  el.innerHTML = '<div class="js-body js-reise">'
+    + '<div class="js-caps"><span class="js-cap">' + esc(_reiseTekst(o, src)) + '</span></div>'
+    + '<div class="js-linjer">' + linjer + '</div>'
+    + '<div class="js-rail js-rail-reise">'
+    + '<span class="js-done" style="width:' + f(o.pct) + '"></span>' + skinne
+    + '<span class="js-train' + (src !== 'rutetid' && o.cs.phase === 'riding' ? ' js-live' : '') + '" style="left:' + f(o.pct) + '"></span>'
+    + '</div>'
+    + '<div class="js-ends js-ends-reise"><span class="js-end-from">' + esc(første.fromStation || '') + '</span><span class="js-end-to">' + esc(siste.toStation || '') + '</span></div>'
+    + '<div class="js-ends js-tider"><span class="js-end-from">' + esc(første.depTime ? første.depTime.clk : '') + '</span><span class="js-end-to">' + esc(siste.arrTime ? siste.arrTime.clk : '') + '</span></div>'
+    + navn
+    + '</div>';
+  el.setAttribute('aria-label', 'Hele reisen: ' + o.seg.map(s => (s.e.l.lineCode || '') + ' fra ' + (s.e.l.fromStation || '') + ' til ' + (s.e.l.toStation || '')).join(', bytte, ') + '. ' + _reiseTekst(o, src) + '.');
+  return o;
+}

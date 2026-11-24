@@ -64,6 +64,7 @@ import { canCatch, catchable } from '../reiseberegning.js';
 import { gårMotSentrum, hjemoverDom, iSnarvei, SNARVEIER, MOT_SENTRUM } from '../reiseoppgaver.js';
 import { andreRetninger, områderFor, iOmråde, erOmrådeValg } from '../mulighetsoppdagelse.js';
 import { ETT_BYTTE, ETT_BYTTE_VALG, ETT_BYTTE_TEKST, ettBytteHtml, ettBytteKart } from './ettBytteVisning.js'; // ETT BYTTE (eksperiment)
+import { GANG_ALTERNATIV, medGangAlternativ, lastGangTak } from '../gangAlternativ.js'; // GÅ LENGER (eksperiment)
 import { plattformTekst } from '../bytte.js';
 import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, stoppFram, vedOgNeste, stoppEtterId, rangerKandidater } from '../api/ombord.js';
 import { oppdaterLås } from '../api/ombordLaas.js';
@@ -6018,7 +6019,7 @@ function _kombiRadHtml(r, i) {
     + '<span class="hva-tall"><small>gå om</small><b>' + Math.max(0, r.gåOm) + '</b><small>min</small></span>'
     + '<span class="hva-info"><span class="hva-l1">' + merker + (r.via ? ' via ' + esc(r.via) : '') + '</span>'
     + fraMerke(r.fra, r.gangMin)
-    + '<span class="hva-l3">' + r.bytter + ' bytte' + r.fakta.filter(f => f !== 'ingen bytte').map(f => ' · ' + esc(f)).join('') + '</span></span>'
+    + '<span class="hva-l3">' + (r.bytter ? r.bytter + (r.bytter === 1 ? ' bytte' : ' bytter') : 'uten bytte') + r.fakta.filter(f => f !== 'ingen bytte').map(f => ' · ' + esc(f)).join('') + '</span></span>'
     // Samme høyre kolonne som radene (v1.218.286): framme stort, avgangen smått.
     + ((går => '<span class="at-klokke at-klokke-ank"><small class="at-klokke-ord">framme</small>' + _klokke(r.ank)
       + (går ? '<small class="at-klokke-gaar">går ' + _klokke(går) + '</small>' : '') + '</span>')(kombiAvgang(r)))
@@ -6201,7 +6202,7 @@ function _tegnAutoTavle(body) {
   const kv = _autoTavle ? _kombiFor(_atRetning, here, nå) : null;
   // Målestokken er lista selv (v1.218.285): tidligste ankomst blant direkte rader du rekker.
   const listaAnk = del.rekker.map(x => x.ank && x.ank.ms).filter(Number.isFinite);
-  const kombi = kv && Array.isArray(kv.tps) ? kombiRader(reiseRader(kv.tps, nå, null), { besteAnk: listaAnk.length ? Math.min(...listaAnk) : null }).filter(r => r.gåOm >= 0).sort((a, b) => a.gåOm - b.gåOm) : [];
+  const kombi = kv && Array.isArray(kv.tps) ? (GANG_ALTERNATIV ? r => medGangAlternativ(r, reiseRader(kv.tps, nå, null), lastGangTak()) : r => r)(kombiRader(reiseRader(kv.tps, nå, null), { besteAnk: listaAnk.length ? Math.min(...listaAnk) : null })) /* GÅ LENGER (eksperiment) */.filter(r => r.gåOm >= 0).sort((a, b) => a.gåOm - b.gåOm) : [];
   // Si hva du ikke vet: leter, feilet — ikke stillhet.
   const kombiMerk = !kv ? '' : kv.tps === 'henter' ? '<div class="at-filter">ser etter reiser med bytte …</div>'
     : kv.tps === 'feil' ? '<div class="at-filter">fant ikke reiser med bytte nå</div>' : '';

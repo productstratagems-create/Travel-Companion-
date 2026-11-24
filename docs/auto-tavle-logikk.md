@@ -250,6 +250,44 @@ valgt tidspunkt · kartets filter for transportmiddel og linje.
 | edderkoppbein | strekene ut fra stoppet på kartet |
 | kombirad | en rad for en reise med bytte |
 
+## «Gå lenger, færre bytter» (eksperiment, v1.218.302)
+
+**Bakgrunn:**
+- Tracer 2 (`docs/tracer-bedre-reise.md`) fant en avveining: gå til et annet
+  stopp og få færre bytter, med omtrent samme ankomst.
+- I brukertesten gikk grensen for gangtid ved 15–17 min.
+- Brukeren setter selv grensen i innstillinger: «gå lenger for færre bytter
+  · lengste gange», med valgene av, 10, 15 (standard), 20 og 25 min
+  (`t.gangAlternativ`).
+
+**Regelen** (`gangAlternativRader` og `medGangAlternativ` i
+`src/gangAlternativ.js`): reisesøket Auto-tavla alt gjør for et valgt område,
+uten nye kall. I tillegg til kombinasjonsradene vises en reise som
+- har **færre bytter** enn en kombinasjonsrad som **vises**;
+- starter fra et **annet stopp** enn den;
+- er fremme innenfor **± 5 min** (`SAMME_ANKOMST_MIN`);
+- har **gange til første stopp** innenfor brukerens grense.
+
+**Raden** har samme form som kombinasjonsradene og sier hva den sammenlignes
+med: «fra Helsfyr T · 1 min å gå · uten bytte · 3 min senere enn 3 → L1». Den
+sier aldri «bedre». Ett minutt regnes som «samme ankomst». Raden står bare én
+gang, selv om den også er en kombinasjonsrad. Kombinasjonsradene sier nå
+«2 bytter», ikke «2 bytte».
+
+**Hva ekte data viste** (2026-11-24, appens egne funksjoner mot Entur):
+- Tracerens tilfelle, 24 min gange til Hauketo og så L2, kom **ikke** i
+  reisesøket. Entur valgte buss 73X og så L2.
+- Over 33 søk (Mortensrud, Helsfyr, Nesttun; tre tidspunkt) ga 2 en
+  avveiningsrad, begge med kort gange: buss 100 direkte fra Helsfyr T mot
+  T-bane og tog til Lillestrøm.
+- Raden er altså **sjelden**, og avveiningen er oftere «direkte, litt senere»
+  enn «gå lenger». Den er ikke sett i tavla, fordi Helsfyr ikke tilbød
+  Lillestrøm som valg den dagen.
+
+**Tilbakerulling:** sett `GANG_ALTERNATIV = false`, eller fjern modulen, de
+to linjene merket «GÅ LENGER (eksperiment)» i `src/views/auto.js` og
+innstillingen. Testen binder at det er nøyaktig to linjer.
+
 ## «Ett bytte» (eksperiment, v1.218.289)
 
 Et ekstra hurtigvalg, **«ett bytte»**, står sist blant hurtigvalgene når tavla

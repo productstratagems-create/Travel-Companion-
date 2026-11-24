@@ -21,6 +21,7 @@ import { tokens } from '../ui/themeTokens.js';
 import { loadLeadPref, saveLeadPref, LEAD_AUTO } from '../api/ics.js';
 import { haver, walkMinsTo, loadWalkSpeed, saveWalkSpeed, loadWalkBuffer, saveWalkBuffer, loadWalkFrom, saveWalkFrom, clearWalkFrom, landingPref, saveLandingPref, focusParam } from '../geo.js';
 import { loadTheme, setTheme, loadPalette, setPalette } from '../theme.js';
+import { lastGangTak, lagreGangTak } from '../gangAlternativ.js';
 import { geocodePlace, geocodeDest, TRANSIT_CAT } from '../api/entur.js';
 import { hentTestPos, TEST_STEDER } from '../api/testPos.js';
 import { brukTestPos } from '../geo.js';
@@ -197,6 +198,9 @@ function _highlightPrefs() {
   document.querySelectorAll('#pref-palette .pref-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.val === palette);
   });
+  // Gå lenger for færre bytter (v1.218.302): brukerens grense for gangtid.
+  const gangTak = String(lastGangTak());
+  document.querySelectorAll('#pref-gangalt .pref-btn').forEach(b => { b.classList.toggle('active', b.dataset.val === gangTak); });
   const hånd = lastHånd();
   document.querySelectorAll('#pref-hånd .pref-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.val === hånd);
@@ -232,6 +236,9 @@ function initPrefs() {
   });
   document.querySelectorAll('#pref-palette .pref-btn').forEach(btn => {
     btn.addEventListener('click', () => { setPalette(btn.dataset.val); _highlightPrefs(); });
+  });
+  document.querySelectorAll('#pref-gangalt .pref-btn').forEach(btn => {
+    btn.addEventListener('click', () => { lagreGangTak(Number(btn.dataset.val)); _highlightPrefs(); });
   });
   // Høyre- eller venstrehendt (v1.218.73): kartknappenes hjørne, på alle kart.
   document.querySelectorAll('#pref-hånd .pref-btn').forEach(btn => {

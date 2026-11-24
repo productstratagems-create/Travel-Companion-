@@ -279,6 +279,18 @@ avgang: `hjemReiser` tar vare på reisemønsteret (`tp`), og klikket sender
 begge etappene, byttet og ankomst hjemme. En rad uten treff åpner som før.
 Auto-reise er uendret: raden der åpner stopplista, ikke avgangsdetaljer.
 
+**Avganger utenfor hjemsøket (v1.218.306).** Rapportert fra Tåsen: «5 Ringen
+via Majorstuen · bytt på Majorstuen» åpnet bare én etappe. Hjemsøket gir
+Enturs beste reiser, ikke hver avgang. Trykk på en rad med bytte uten treff
+henter reisen for akkurat den turen (`_hjemReiseVedTrykk`):
+- ett søk per hjemstopp, med bare radens linje og linjene du bytter til på
+  samme sted (`videreLinjer`) og de andre turene på linja i lista utelatt
+  (`tripMedLinjerGQL`). Uten utelatelsen svarte Entur med en raskere tur på
+  samme linje (sett live fra Nydalen);
+- reisen velges på turens id (`reiseForTur`). Byttet i avgangsdetaljene er
+  Enturs, og kan være et annet enn raden sa;
+- uten svar innen 4 s (`HJEM_TRYKK_MS`) eller uten treff åpnes raden som før.
+
 ## «Gå lenger, færre bytter» (eksperiment, v1.218.302)
 
 **Bakgrunn:**

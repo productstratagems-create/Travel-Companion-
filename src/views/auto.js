@@ -48,7 +48,7 @@ export { stopsAhead, arriveText };
 import config from '../config.js';
 import { state } from '../state.js';
 import { geocodePlace } from '../api/entur.js';
-import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra, fetchTripFraPos, fetchBoardPage, hentStoppAvganger } from '../api/entur.js';
+import { fetchNextDeparture, fetchBoard, fetchArrBoard, fetchTripFra, fetchTripFraPos, fetchTripMedLinjer, fetchBoardPage, hentStoppAvganger } from '../api/entur.js';
 import { annetStopp, gåHitMål, rådGjelder, startGåHitSøk, rådReiseTekst } from '../gaaHit.js';
 import { raskereHer } from '../raskere.js';
 import { rangerMål, foldetSide } from '../maalModell.js';
@@ -104,7 +104,7 @@ import { plattformer as _plattformer, hentPlattformer as _hentPlattformer, platt
 import { innganger as _innganger, hentInnganger as _hentInnganger, valgtInngang as _valgtInngang } from '../api/innganger.js';
 import { storage } from '../storage.js';
 import { fraTider, settFraTid, fraDatoer, settFraDatoTid, KLOKKESLETT_VALG } from '../fraTider.js';
-import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest, annetHjemStopp, hjemGange , hjemoverForslag, søkHjemStopp, lagreHjemoverFra, hjemReiser, hjemReiseFor, byttTekst, byttTillegg } from '../hjemover.js';
+import { hjemStopp, gårHjemover, hjemDom, hjemFørsteEtapper, hjemRaskest, annetHjemStopp, hjemGange , hjemoverForslag, søkHjemStopp, lagreHjemoverFra, hjemReiser, hjemReiseFor, byttTekst, byttTillegg, videreLinjer, reiseForTur } from '../hjemover.js';
 import { navTo } from '../ui/nav.js';
 import { lagreLås, hentLås } from '../api/ombordLagring.js';
 import { nesteReise, tilstand } from '../nesteReise.js';
@@ -5935,6 +5935,29 @@ export const HJEM_SØK_MÅL = 2;
 /** Gangtiden kan endre seg så mye før søket gjentas. */
 export const HJEM_GANG_SLAKK_MIN = 3;
 const _hjemSøk = new Map();   // stoppets id → { at, etapper, henter, feil }
+/** Ventetid på reisen ved trykk før raden åpnes som før (én etappe). */
+export const HJEM_TRYKK_MS = 4000;
+/**
+ * Hele reisen hjem for en avgang hjemsøket ikke dekket (v1.218.306): ett søk
+ * per hjemstopp fra avgangens tid, med bare radens linje og linjene du bytter
+ * til på samme sted. Svaret legges til søkets reiser, så raden får «hjemme».
+ * Gir null (ikke et løfte) når appen ikke har det den trenger.
+ */
+function _hjemReiseVedTrykk(x, rader) {
+  const hs = _stop && _hjemSøk.get(_stop.id);
+  const sjId = (c => c && c.serviceJourney && c.serviceJourney.id)(x.call);
+  const ln = x.call && x.call.serviceJourney && x.call.serviceJourney.line;
+  const linje = (ln && ln.id) || (x.d && x.d.lines && x.d.lines[0] && x.d.lines[0].id);
+  const videre = hs ? videreLinjer(hs.reiser, x.bytte) : [];
+  const fra = (x.call && x.call._fra && x.call._fra.id) || _stop.id;
+  const mål = hjemStopp().slice(0, HJEM_SØK_MÅL).filter(m => m.id !== fra);
+  if (!sjId || !linje || !videre.length || !mål.length || !Number.isFinite(x.ms)) return null;
+  // De andre turene på linja i lista, så Entur må bruke akkurat denne.
+  const uten = [...new Set((rader || []).map(y => y.call && y.call.serviceJourney).filter(s => s && s.id !== sjId && s.line && s.line.id === linje).map(s => s.id))];
+  const søk = Promise.all(mål.map(m => fetchTripMedLinjer(fra, m.id, x.ms - 60_000, 3, [linje, ...videre], uten).catch(() => [])))
+    .then(svar => reiseForTur(svar.flat(), sjId));
+  return Promise.race([søk, new Promise(r => setTimeout(() => r(null), HJEM_TRYKK_MS))]);
+}
 function _hjemSøkOppdater(nå) {
   const liste = hjemStopp();
   if (!_stop || !_stop.id || !liste.length) return;
@@ -6281,6 +6304,16 @@ function _tegnAutoTavle(body) {
     // åpnes reisen — alle etappene, byttet og ankomsten — som kombinasjonsradene.
     const hel = x.hjemReise && x.hjemReise.tp ? kombiKall(x.hjemReise) : null;
     if (hel && typeof window !== 'undefined' && window.tap) { window.tap(hel); return; }
+    // AVGANG UTENFOR HJEMSØKET (v1.218.306). Rapportert fra Tåsen: «5 Ringen via
+    // Majorstuen · bytt på Majorstuen» åpnet bare én etappe — søket gir de beste
+    // reisene, ikke hver avgang. Hent reisen for akkurat denne avgangen.
+    if (!x.rekk && x.bytte && typeof window !== 'undefined' && window.tap) {
+      const p = _hjemReiseVedTrykk(x, rader);
+      if (p) { p.then(r => { const k = r && kombiKall(r); if (k) window.tap(k); else _åpneRad(x); }); return; }
+    }
+    _åpneRad(x);
+  }));
+  function _åpneRad(x) {
     const c = x.rekk ? rekkKall(x.call, x.rekk) : x.call;
     if (c && typeof window !== 'undefined' && window.tap) {
       c._dir = tavleDetaljDir(c, _stop, medKoord, loadFreq('arr'), Date.now());
@@ -6289,7 +6322,7 @@ function _tegnAutoTavle(body) {
     }
     // Uten kallet (eller uten avgangsdetaljer): som før.
     _open = x.d; _atGangTil = (c && c._fra && medKoord(c._fra)) || null; _renderBody(); _renderMap();
-  }));
+  }
   // UENDELIG RULLING: når bunnen synes, en side til; tomt lokalt → hent neste.
   if (_atObs) { _atObs.disconnect(); _atObs = null; }
   const vakt = body.querySelector('.at-bunn');

@@ -236,6 +236,30 @@ export function hjemReiser(mønstre) {
 }
 /** Avgangen raden står for, i reisesøket hjem: samme linje, samme bytte og avgang innen HJEM_SAMME_AVGANG_MS. */
 export const HJEM_SAMME_AVGANG_MS = 60_000;
+/**
+ * Linjene du bytter TIL på `bytte`, fra reisene søket alt har (v1.218.306).
+ * Brukes til å hente hele reisen for en avgang søket ikke dekket. Ren.
+ */
+export function videreLinjer(reiser, bytte) {
+  const ut = new Set();
+  for (const e of reiser || []) {
+    if (stopKey(e.bytte) !== stopKey(bytte) || !e.tp) continue;
+    const kol = (e.tp.legs || []).filter(l => l && l.mode && l.mode !== 'foot');
+    const id = kol[1] && kol[1].serviceJourney && kol[1].serviceJourney.line && kol[1].serviceJourney.line.id;
+    if (id) ut.add(id);
+  }
+  return [...ut];
+}
+/**
+ * Reisen som starter med akkurat denne turen (v1.218.306): første
+ * kollektivetappe har turens serviceJourney-id. Byttet kan være et annet enn
+ * raden sa — da står Enturs bytte i avgangsdetaljene. Ren.
+ */
+export function reiseForTur(mønstre, sjId) {
+  if (!sjId) return null;
+  const tp = (mønstre || []).find(p => { const l = ((p && p.legs) || []).find(x => x && x.mode && x.mode !== 'foot'); return l && l.serviceJourney && l.serviceJourney.id === sjId; });
+  return tp ? { tp } : null;
+}
 export function hjemReiseFor(reiser, linjeId, avgangMs, bytte) {
   if (!Number.isFinite(avgangMs) || !linjeId || !bytte) return null;
   return (reiser || []).find(e => e.linjeId === linjeId && stopKey(e.bytte) === stopKey(bytte) && Math.abs(e.går - avgangMs) <= HJEM_SAMME_AVGANG_MS) || null;

@@ -1,0 +1,464 @@
+# Tracer: opplevelser ved «ett bytte»-stedene
+
+**Dato:** 2026-11-24
+**Status:** undersøkelse. Kategorimodellen er lagt i `src/opplevelser.js`
+(v1.218.311), men den er ikke koblet til noen skjerm, og «ett bytte»
+oppfører seg som før.
+**Skript:** `scratchpad/tracerOpplevelser.mjs`
+**Resultat:** `scratchpad/data/opplevelser-resultat.json`
+
+Merking i rapporten:
+- **[Fakta]**: lest i koden eller i et API-svar.
+- **[Målt]**: fra traceren.
+- **[Hypotese]**: ikke prøvd.
+- **[Anbefaling]**: mitt forslag.
+- **[Ubekreftet]**: kunne ikke sjekkes herfra.
+
+---
+
+## 1. Kort konklusjon
+
+**Ja, med forbehold.** Kategoriseringen avdekker reisemål som dagens «ett
+bytte» ikke viser [Målt]. **20 av 24** steder får minst én relevant opplevelse
+med gangvei, og **17** får flere.
+
+**170 av 172** opplevelser har et annet navn enn stoppet. Uten berikelse ville
+brukeren aldri sett dem. Noen eksempler (§8):
+- Lilleputthammer og Hafjell bak stoppet «Øyer sentrum»;
+- Emanuel Vigelands museum bak busstoppet «Stasjonsveien»;
+- Nøstvetmarka og Tussetjern ved Oppegård stasjon;
+- Ringve musikkmuseum og botaniske hage ved Leangen stasjon.
+
+**Forbeholdene:**
+- **Støy dominerer råmaterialet.** Av 792 unike navngitte kandidater er
+  **189 relevante (24 %)** etter relevansreglene, og 172 når gangfilteret er
+  med. Uten reglene ville listene vært fulle av skolegårder, infotavler,
+  holdeplasser og hauger [Målt].
+- **Boligstrøk og bygd gir få eller ingen treff.** 4 av 24 steder fikk 0:
+  Dorganeset, Mære skole, Skogstadrampa og Balberglia. Kategorien må derfor
+  **supplere** og ikke erstatte, slik oppdraget sier.
+- **Ingen kilde alene er nok.** Miljødirektoratet er best for friluftsliv,
+  Wikidata (antall språkversjoner) for kultur og severdigheter, og OSM for
+  attraksjoner, utsikt og bading. Kartverket bekrefter navn og type, men er
+  sjelden et selvstendig signal.
+
+---
+
+## 2. Dagens arkitektur og datamodell [Fakta]
+
+**Reisemålet i «ett bytte» er et Entur-StopPlace, aldri et sted (POI).**
+- `stoppVidere` (`src/nettverksutforsker.js:112-120`) leser stoppene videre
+  på turen fra `serviceJourney.estimatedCalls[].quay.stopPlace`. Mangler de,
+  brukes planlagte `quays`.
+- Stoppet løftes til samlestopp med `stopPlaces(ids){parent{…}}` (:305) og
+  `samleSted` (:314).
+- `destinations[0]` er bare `{id, name, lat, lon}`
+  (`nyOpsjon`, `src/opsjonsmodell.js:111-130`). Det finnes ingen kategori.
+
+**Identitet:**
+- `opsjonsId` gir `destination:<stopId>` (opsjonsmodell.js:48);
+- `samlestopp` (:38) og `stiId` (:82) gir opphav (proveniens);
+- en opsjon kan ha mange veier: `[tilgang, inn, knute, dir, sted.id]`
+  (nettverksutforsker.js:344).
+
+**`type` på kortet er transportmiddelet, ikke stedet.**
+`velgStedstype` (`src/ettBytte.js:21-30`) sier det rett ut: «Ikke hva stedet
+ER». Feltet må ikke gjenbrukes til opplevelser.
+
+**Dimensjonene** (`FASETTER`, ettBytte.js:171):
+- **retning:** himmelretning med ett knutepunkt;
+- **knute:** byttestedet;
+- **linje:** linje inn eller ut;
+- **transport:** modus på linja ut;
+- **kommune:** geocoderens `locality`, via `src/api/kommuner.js`.
+
+Alle svarer på *hvordan* og *hvor*, ingen på *hva som finnes der*.
+
+**Eksisterende steds-moduler:**
+- `src/api/places.js` (Geoapify og Overpass) spør bare om mat, butikk og
+  kultur (`PLACE_CATS` :135; `_OSM_TAGS` :162-188, med `catering.*`,
+  `commercial.*` og `entertainment.museum/cinema/theatre/arts_centre`). Den
+  brukes av ankomstpanelet (`views/track.js:2693`), fritid og innstillinger,
+  **ikke av «ett bytte»**.
+- `place.js`, `rankPlaces.js` og `stopCats.js` handler om stopp og
+  geokoding, ikke om opplevelser.
+- `innganger.js` henter bare stasjonsinnganger fra Overpass.
+
+**Ingen kobling fra stopp til steder i nærheten finnes i «ett bytte».**
+
+**Valg av begrep [Anbefaling]: `opplevelseskategori`.**
+- «Stedstype» er alt brukt i koden om transportmiddel (`velgStedstype`).
+- «Destinasjonstype» kan forveksles med `type: 'destination'` i
+  opsjonsmodellen.
+- «Opplevelse» beskriver det brukeren finner, ikke stoppet.
+
+---
+
+## 3. Datakildene i denne undersøkelsen
+
+**Hva som faktisk ble spurt** [Fakta]: for hvert av 24 stopp, de fire kildene
+under, i tillegg til Valhalla.
+
+| kilde | kall | svar |
+|---|---|---|
+| OpenStreetMap | `api.openstreetmap.org/api/0.6/map.json?bbox=` (± 600 m) | 379 257 objekter |
+| Wikidata | SPARQL `wikibase:around` 1,5 km, `P31` og `wikibase:sitelinks` | 1 468 |
+| Kartverket stedsnavn | `ws.geonorge.no/stedsnavn/v1/punkt` (1,5 km) | 2 845 |
+| Miljødirektoratet | `friluftsliv_kartlagt/MapServer/0/query` (800 m, med flater) | 230 områder |
+| Valhalla | `valhalla1.openstreetmap.de/route`, fotgjenger, stopp → stedets nærmeste punkt | ett kall per relevant sted |
+
+Alle 96 kildekall svarte (`kilder` i resultatfila).
+
+**Ikke prøvd, og hvorfor:**
+- **Geoapify:** nøkkelen finnes bare i CI (`VITE_GEOAPIFY_KEY`,
+  `src/config.js:41`) og sendes som URL-parameter. Den kan ikke legges inn
+  som nettverkshemmelighet [Fakta]. Hvilke kategorier som finnes og hva de
+  koster, er **[Ubekreftet]**.
+- **Overpass:** `overpass-api.de` er tillatt i miljøet, men tunnelen lukkes
+  (`ws_closed_mid_exchange`). Speilene `overpass.kumi.systems` og
+  `overpass.private.coffee` svarte ikke innen fristen. OSMs eget API ble brukt
+  i stedet, med samme data men uten filtrering på serveren. Det er ikke en
+  produksjonsvei (se §11).
+- **UT.no/DNT:** ikke undersøkt. Verten var ikke tillatt, og om det finnes et
+  åpent API er **[Ubekreftet]**.
+- **Kartverkets turruter** (`wfs.geonorge.no/skwms1/wfs.turogfriluftsruter`)
+  svarer, med typene `Fotrute`, `Sykkelrute`, `AnnenRute`, `RuteInfoPunkt`
+  og `Skil`. Eksempel: «Blåmerket sti Nordmarka», merket, vedlikeholdt av DNT
+  og Bymiljøetaten. Den er ikke tatt med i tellingen.
+
+---
+
+## 4. Sammenligning av kildene
+
+| | OSM | Wikidata | Kartverket stedsnavn | Miljødir. friluftsliv | Geoapify |
+|---|---|---|---|---|---|
+| typer | alt: turisme, natur, historikk, fritid | kjente steder, kultur, natur | navn og type (topp, vann, foss …) | kartlagte friluftsområder med verdi | OSM-avledet, kategorisert |
+| geometri | punkt, linje og flate; relasjoner mangler i `map` | punkt | punkt | **flater** | punkt |
+| relevanssignal | taggen; ellers svakt | **antall språkversjoner** | ingen | områdetype og verdi | ukjent |
+| identitet | `node/way/<id>` (stabil, men kan endres) | `Q-id` (stabil) | `stedsnummer` | `id` (FK…) | `place_id` og OSM-id i `datasource.raw` |
+| andel av relevante treff [Målt] | 52 | 110 | 7 | 32 | ikke prøvd |
+| i appen i dag | ja (Overpass, mat og butikk) | nei | ja (`stedNavn.js`) | nei | ja (mat og butikk) |
+| lisens | ODbL, kreditering | CC0 | CC BY 4.0 **[Ubekreftet]** | NLOD/CC BY 4.0 **[Ubekreftet]** | kommersielle vilkår **[Ubekreftet]** |
+| rolle [Anbefaling] | attraksjoner, utsikt, bading, naturtagger | kultur og severdigheter, og relevans | navn og bekreftelse | **friluftsliv og utfart** | mulig erstatning for OSM i nettleseren |
+
+Tallene for «andel av relevante treff» teller hver kilde som bidro til et
+relevant sted, så summen er over 172.
+
+**Kostnader og lisenser** kunne ikke leses fra kildene herfra, fordi
+nettsidene ikke var tillatt i nettverket. Alt merket **[Ubekreftet]** må
+sjekkes før noe bygges.
+
+---
+
+## 5. Kategorimodell [Anbefaling, prøvd i traceren]
+
+De sju hovedkategoriene fra oppdraget fungerer, og ett sted kan ha flere.
+Underkategorien (`u`) kommer fra kilden og vises aldri rått.
+
+| hovedkategori | eksempler på underkategori |
+|---|---|
+| Friluftsliv og utfart | friluftsområde, marka, hytte, rasteplass |
+| Natur og landskap | topp, vann, foss, utsiktspunkt, naturreservat |
+| Severdigheter og landemerker | attraksjon, borg/ruin, monument |
+| Attraksjoner og opplevelser | fornøyelsespark, dyrepark, skisenter |
+| Kultur og historie | museum, kulturhus, kirke, kulturminne |
+| Bading og vannaktiviteter | badeplass, strand, strandsone, brygge |
+| Parker og rekreasjon | park, hage |
+
+**Mapping** (`src/opplevelser.js`, én definisjon):
+- **OSM** (`OSM_MAP`), med sterke tagger:
+  - `tourism=viewpoint`, `attraction`, `museum`, `zoo` og `theme_park`;
+  - `leisure=nature_reserve` og `bathing_place`;
+  - `natural=peak`, `waterfall` og `beach`;
+  - `historic=castle`, `fort` og `ruins`.
+- **Støy fra OSM** (`OSM_STØY`): `tourism=information`, `leisure=picnic_table`,
+  `firepit`, `playground` og `pitch`, `historic=charcoal_pile` med flere.
+- **Wikidata** (`WD_MAP`): P31-etikett til kategori. Holdeplasser, skoler og
+  gater tas ut (`WD_UTELAT`). Kravet er 2 språkversjoner, og 3 for kirker og
+  kulturminner (`WD_SITELINKS`).
+- **Kartverket** (`KV_MAP`): Topp, Fjell, Vann, Foss, Utsiktspunkt, Strand og
+  Badeplass. Disse er aldri sterke alene.
+- **Miljødirektoratet:** sterkt bare for områdetyper man reiser **til**
+  (`MD_REISEMÅL`): utfartsområde, stort turområde, Marka, særlig
+  kvalitetsområde og strandsone. Lekeområder, grønnkorridorer og
+  nærturterreng er svake, selv med verdien «svært viktig».
+
+**Erfaringer fra traceren:**
+- «Kultur» blir stor av kirker. Kirker og kulturminner står for 37 av de 172.
+  Uten dem går 19 av 24 steder fortsatt ut med minst én opplevelse, og 15
+  med flere [Målt]. Det taler for en egen underkategori «kirke» med lavere
+  vekt.
+- «Severdigheter» og «Attraksjoner» overlapper i kildene. Det kan bli én
+  kategori i første versjon [Hypotese].
+
+---
+
+## 6. Koble reisemål til kollektivstopp
+
+Slik traceren gjør det [Fakta]:
+1. **Luftlinje som første filter.** Kandidater over 1,5 km fra stoppet tas
+   ut.
+2. **Nærmeste punkt, ikke sentrum.**
+   - For OSM-flater: nærmeste node på omrisset.
+   - For Miljødirektoratets flater: nærmeste punkt på kanten, fra polygonet
+     selv.
+   - Eksempel: «Grønliåsen» er 24 m fra Nebbejordet målt til kanten. Hvor
+     langt det er til sentrum er ikke målt, men området er et stort
+     turområde.
+3. **Gang med Valhalla** fra stoppet til det punktet. Gangbart betyr at ruta
+   er under 2 km og ikke lengre enn 3 × luftlinja (eller luftlinja + 600 m).
+   21 kandidater falt ut på avstand eller gang [Målt].
+
+**Forbehold:**
+- Valhalla svarte for alle 172. «Verifisert» betyr at det finnes en gangvei i
+  OSM-nettet, **ikke** at inngangen er kjent. For store områder er kanten en
+  tilnærming. Adkomstpunkter, som turstart fra Kartverkets `RuteInfoPunkt`
+  og parkering, er ikke brukt.
+- Ett sted kan nås fra flere stopp. «Grønliåsen» kommer for eksempel både
+  ved Nebbejordet og ved Hauketo stasjon. Modellen må derfor ha
+  `access: [{ stopp, gang }]` som en liste, ikke ett felt (§9).
+
+---
+
+## 7. Resultater [Målt]
+
+**Utvalget:** 4 utgangspunkter fra Entur-opptakene, 24 steder spredt etter
+avstand, og minst to stasjoner eller kaier per utgangspunkt.
+
+| | antall |
+|---|---|
+| transportdestinasjoner undersøkt | 24 (av 4 475 «ett bytte»-steder i opptakene) |
+| rå kandidater (taggede eller typede objekter) | 2 274, av dem 844 med navn |
+| unike steder (slått sammen på tvers av kilder) | 792 |
+| duplikater slått sammen | 52 |
+| relevante (selvstendige reisemål) | 189 |
+| tatt ut som ikke relevante | 477 (pluss støy-tagger) |
+| tatt ut på avstand eller gang | 21 |
+| tilgjengelige (gangbare) | **172** |
+| med gangvei funnet av Valhalla | 172 (se forbeholdet i §6) |
+| med flere kategorier | 25 |
+| bekreftet av flere kilder | 26 |
+| steder med minst én opplevelse | **20 / 24** |
+| steder med flere opplevelser | **17 / 24** |
+| opplevelser med annet navn enn stoppet | 170 / 172 |
+
+**Per kategori** (et sted kan telle i flere):
+kultur 95, park 41, friluftsliv 25, natur 15, bading 10, severdighet 10,
+attraksjon 2.
+
+**Per kilde** (bidro til et tilgjengelig sted): Wikidata 110, OSM 52,
+Miljødirektoratet 32, Kartverket 7.
+
+**Per stopp:**
+
+| stopp | fra | km | modus | rå | opplevelser |
+|---|---|---|---|---|---|
+| Nebbejordet | Mortensrud | 1,1 | buss | 67 | 3 |
+| Oppegård stasjon | Mortensrud | 9,3 | tog | 53 | 5 |
+| Stasjonsveien | Mortensrud | 13,7 | buss | 83 | 4 |
+| Asker stasjon | Mortensrud | 22,1 | tog | 95 | 4 |
+| Malmö Centralstation | Mortensrud | 489 | ekspressbuss | 364 | 27 |
+| Hauketo stasjon | Mortensrud | 1,5 | tog | 75 | 8 |
+| Sanddalskollen | Nesttun | 1,1 | buss | 75 | 4 |
+| Haakonsvern | Nesttun | 7,8 | buss | 40 | 1 |
+| Tømmervågen | Nesttun | 13,9 | buss | 47 | 6 |
+| Dorganeset | Nesttun | 21,8 | buss | 16 | 0 |
+| Stavanger lufthavn | Nesttun | 161 | ekspressbuss | 24 | 2 |
+| Mårdalen | Nesttun | 1,3 | trikk | 84 | 5 |
+| Strindfjordvegen | Ranheim | 1,2 | buss | 82 | 2 |
+| Furuhaugen | Ranheim | 10,9 | buss | 122 | 2 |
+| Krekabakken | Ranheim | 28,6 | buss | 13 | 1 |
+| Mære skole | Ranheim | 71,9 | buss | 16 | 0 |
+| Oslo S | Ranheim | 391 | tog | 703 | 82 |
+| Leangen stasjon | Ranheim | 3,3 | tog | 114 | 5 |
+| Skogstadrampa | Tretten | 1,2 | buss | 5 | 0 |
+| Balberglia nord | Tretten | 18,4 | buss | 42 | 0 |
+| Kinnlistua | Tretten | 26,2 | buss | 4 | 1 |
+| Klebervegen | Tretten | 78,5 | buss | 5 | 2 |
+| Torghopen Måløy kai | Tretten | 283 | ekspressbuss | 43 | 6 |
+| Øyer sentrum | Tretten | 10,9 | ekspressbuss | 102 | 2 |
+
+Bysentra (Oslo S, Malmö) gir mange treff, men der vet brukeren alt at det
+finnes mye. Verdien ligger i stedene der stoppnavnet ikke sier noe.
+
+---
+
+## 8. Eksempler
+
+**Positive** (stopp → opplevelse · kategori · kilder · luftlinje / gang):
+1. **Øyer sentrum**, ekspressbuss, 11 km fra Tretten: **Lilleputthammer**,
+   fornøyelsespark (attraksjon), OSM og Wikidata (6 språk), 158 m / 2 min.
+   Også **Hafjell**, skisenter, Wikidata (13 språk), 15 min gange. Kortet
+   viser i dag bare «Øyer sentrum».
+2. **Stasjonsveien**, buss, 14 km fra Mortensrud: **Emanuel Vigelands
+   museum**, kultur, OSM og Wikidata, 371 m / 8 min. Også **Holmendammen**
+   (vann, 8 min) og **Villa Stenersen** (kulturminne, 23 min). Et busstopp
+   uten kjent navn skjuler et kjent museum.
+3. **Leangen stasjon**, tog, 3 km fra Ranheim: **Ringve Musikkmuseum**
+   (museum, 12 språk, 19 min), **Ringve botaniske hage** (Kartverket og
+   Wikidata, 20 min) og **Leangen gård** (tre kilder, 7 min).
+4. **Oppegård stasjon**, tog, 9 km fra Mortensrud: **Nøstvetmarka**, stort
+   turområde med tilrettelegging (Miljødirektoratet, svært viktig), 9 min.
+   Også **Tussetjern**, særlig kvalitetsområde og vann, Miljødirektoratet og
+   Wikidata, 10 min.
+5. **Sanddalskollen**, buss, Bergen: **Rambjøra landskapsvernområde** (OSM,
+   17 min) og **Myravatnet** (tre kilder, 19 min). Et naturområde ingen ville
+   lett av stoppnavnet.
+6. **Tømmervågen**, buss, Bergen: **Sentrale Byfjell**, Marka
+   (Miljødirektoratet, svært viktig), 17 min.
+7. **Torghopen Måløy kai**, ekspressbuss, 283 km: **Moldøen** og
+   **Veten-Blåfjell-Stallbrekka**, særlig kvalitetsområde og stort turområde,
+   10–19 min.
+
+**Negative**, med det som ser relevant ut, men ikke bør vises:
+- **«Ljabru holdeplass» som «topp»:** Wikidata-typen «trikkestopp» traff
+  mønsteret for topp. Feil i min første mapping, nå rettet (`WD_UTELAT`).
+- **«Uteområde Prinsdal skole», «Gang- og sykkelvei langs Gjersrudbekken»:**
+  Miljødirektoratet sier «svært viktig friluftslivsområde». Det er riktig for
+  nærmiljøet, men det er ikke et reisemål. Første kjøring hadde 174
+  Miljødirektoratet-treff, og etter regelen om områdetype er det 32.
+- **«Fossholtet», «Delerudåsen»:** små åser. Kartverket og Wikidata ser ut
+  som to kilder, men Wikidata-posten er importert fra Kartverket (1
+  språkversjon). Det er ikke en uavhengig bekreftelse.
+- **«Sognsvann 0,3 NØ», «Engersbråten SØ»:** OSM `tourism=information`, altså
+  skilt og infotavler. Støy.
+- **«Ballbinge», bålplasser og benker:** `leisure=pitch`, `firepit` og
+  `picnic_table`. Nyttige på stedet, men ikke en grunn til å reise.
+- **Kirker overalt:** «Ris kirke», «Ljan kirke». De er ekte, men det finnes
+  en i hver bydel. De bør vises lavt, ikke som oppdagelse.
+- **Tvilsomt som fortsatt slipper gjennom:**
+  - «Måløy stadion» (lekeområde i Miljødirektoratet og OSM, to kilder);
+  - «Oslo Spektrum» som «teater».
+
+  Regelen om to kilder trenger en liste over typer som aldri kan bli
+  reisemål.
+
+---
+
+## 9. Teknisk datamodell [Anbefaling]
+
+Den skal være egen og ved siden av opsjonen. Den skal ikke ligge i
+`destinations[0]`, og ikke i `type`.
+
+```js
+// Opplevelse: et fysisk sted eller område. Aldri et stopp.
+{ id: 'opl:wikidata:Q…',                // stabil: Wikidata > OSM > kilde-id
+  navn: 'Ringve Musikkmuseum',
+  geometri: { type: 'Point' | 'Polygon', … },   // flater beholdes
+  kategorier: [{ k: 'kultur', u: 'museum' }],
+  kilder: [{ kilde: 'wikidata', sid: 'Q…', sitelinks: 12 }, { kilde: 'osm', sid: 'way/…' }],
+  reisemål: true,                         // erReisemål(kilder)
+}
+// Tilgang: én per (stopp, opplevelse), mange til mange.
+{ stopp: 'NSR:StopPlace:…', opplevelse: 'opl:…',
+  punkt: { lat, lon, art: 'kant' | 'node' | 'inngang' },
+  luftM: 1195, gang: { m: 1480, min: 19, kilde: 'valhalla' } | null,
+  gangVerifisert: true | false | null }   // null = ikke spurt; det sies på skjermen
+```
+
+- **Duplikater:** samme Wikidata-id (også via OSM-taggen `wikidata`), ellers
+  samme normaliserte navn innen 400 m.
+- **Kompatibilitet:** «ett bytte» endres ikke. Opplevelsene slås opp på
+  `destinations[0].id` (stopp-id-en som alt flyter gjennom).
+- **Caching:** områder og navn endrer seg sjelden. Lagres per stopp, i dager
+  eller uker, ikke 10 minutter som `fetchNearbyPlaces`.
+
+---
+
+## 10. Konsekvenser for «ett bytte» [Hypotese]
+
+- **Dimensjonen:** en sjette dimensjon ved siden av retning, knute, linje,
+  transport og kommune. Ett trykk gir kort per kategori, for eksempel
+  «Friluftsliv og utfart · 12 steder». Stedene står under kortet som i dag,
+  med opplevelsen i stedet for stoppnavnet.
+- **Filter i stedet for egen side:** kategorien legges som filter oppå
+  rekkevidden («hvor langt», v1.218.308). «Nasjonalt · natur» blir da et
+  naturlig spørsmål.
+- **Rad for valgt kort:** stedsrader (v1.218.305) får linjen «Ringve
+  Musikkmuseum · 19 min å gå». Det er alternativet på raden, i samme form som
+  før.
+- **Ingen opplevelse:** stedet står som i dag. Det forsvinner aldri, i tråd
+  med «ingenting kastes for å rydde».
+
+---
+
+## 11. Kostnad, begrensninger og risiko
+
+- **Antall kall:** «ett bytte» når 560–1 507 steder per utgangspunkt [Målt].
+  Fire kall per sted mot fire kilder på hvert trykk går ikke.
+  - På et valgt kort (8 steder, `SJEKK_STEDER`) blir det 32 kall. Det går på
+    trykk, slik «sjekk denne» gjør i dag [Anbefaling].
+  - Ellers: forhåndsberegning per stopp. Stoppene er de samme for alle
+    brukere, så resultatet kan caches eller lages som statisk fil.
+- **OSMs API** (`/api/0.6/map`) er laget for redigering, ikke uthenting.
+  Bruksvilkårene er **[Ubekreftet]** herfra. Det er ikke en vei for
+  produksjon: bruk Overpass, en egen uthenting fra OSM-data eller Geoapify.
+- **Valhallas offentlige server** brukes alt i appen, men om den tåler mange
+  slike kall er **[Ubekreftet]**.
+- **Geoapify:** pris, kvote og kategorier er **[Ubekreftet]**. De må leses i
+  kontoen og dokumentasjonen.
+- **Kvalitet:** den største risikoen er støy, ikke mangel på data. Uten
+  regelen om områdetype for Miljødirektoratet og kravet om språkversjoner i
+  Wikidata blir listene uleselige (§8).
+- **Personvern:** ingen nye personopplysninger. Kallene sender bare
+  koordinatene til stopp, ikke posisjonen din.
+
+---
+
+## 12. Anbefaling
+
+**Svar på spørsmålene:**
+1. **Gir kategorien en reell forbedring?** Ja, der stoppnavnet ikke sier noe:
+   by- og forstadsstopp, og regionale knutepunkter som Øyer og Leangen. Den
+   gir lite i rene boligstrøk og tynn bygd (4 av 24 uten treff).
+2. **Hvilke kilder gir best verdi?** Miljødirektoratet for friluftsliv,
+   Wikidata (med språkversjoner) for kultur og severdigheter, og OSM for
+   utsikt, bading og attraksjoner. Alle er åpne, men lisensene må
+   bekreftes.
+3. **Holder dagens Geoapify- og Overpass-integrasjoner?** Nei, ikke uten
+   endring. De spør bare om mat og butikk. OSM-delen kan utvides med taggene
+   i `OSM_MAP`. Geoapify er ikke prøvd.
+4. **Hvilke kilder bør prioriteres?** Miljødirektoratet og Wikidata. Deretter
+   Kartverkets turruter og `RuteInfoPunkt` for adkomst.
+5. **Hvilken kategorimodell?** De sju i `src/opplevelser.js`, med kirke som
+   egen lavvektet underkategori. Severdighet og attraksjon kan slås sammen i
+   første versjon.
+6. **Hvordan kobles reisemål til stopp?** Mange til mange. Avstand måles til
+   nærmeste punkt eller kant, gang med Valhalla, og «ikke verifisert» sies
+   høyt. Mål aldri til sentrum.
+7. **Minste endring som viser verdien?** Opplevelsen på stedsradene under et
+   valgt «ett bytte»-kort, hentet på trykk for høyst 8 steder.
+8. **Hva må avklares før implementering?**
+   - lisens og attribusjon for Miljødirektoratet og Kartverket;
+   - Geoapify-kvote, eller vei til OSM-data uten Overpass i nettleseren;
+   - om Wikidata-kall fra nettleseren er greit;
+   - om du vil ha 8 kall per kort.
+
+**Prioritet:**
+- **Nå:**
+  - kategorimodellen (gjort, `src/opplevelser.js`, med tester);
+  - et lite oppslag på trykk for et valgt kort, med Miljødirektoratet og
+    Wikidata (to åpne kilder uten nøkkel). Opplevelsen vises som linje på
+    stedsraden;
+  - mål på ekte bruk.
+- **Neste:**
+  - OSM-taggene gjennom eksisterende `places.js`, eller Geoapify med nye
+    kategorier;
+  - kategori som dimensjon og filter sammen med «hvor langt»;
+  - adkomst fra Kartverkets turruter.
+- **Senere:**
+  - forhåndsberegnet datasett per stopp for hele landet;
+  - UT.no/DNT, hvis vilkårene tillater det;
+  - sesong og åpningstider;
+  - en bildekilde.
+
+## Avgrensninger
+
+- **Utvalget:** 24 steder fra 4 utgangspunkter, én tid (Entur-opptakene). Det
+  er ikke representativt for ferge eller fleksible linjer.
+- **Relevansreglene** er mine og er stilt inn på dette utvalget. De
+  negative eksemplene viser hvor de bommer.
+- **Relasjoner i OSM** (store naturområder lagt inn som relasjoner) mangler i
+  `map`-kallet. Noen nasjonalparker og reservater kan derfor mangle.
+- **Navn** brukes som de kommer fra kilden, uten språkvask. Malmö har svenske
+  navn.

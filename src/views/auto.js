@@ -63,7 +63,7 @@ import { erInnstilt } from '../innstilt.js';
 import { canCatch, catchable } from '../reiseberegning.js';
 import { gårMotSentrum, hjemoverDom, iSnarvei, SNARVEIER, MOT_SENTRUM } from '../reiseoppgaver.js';
 import { andreRetninger, områderFor, iOmråde, erOmrådeValg } from '../mulighetsoppdagelse.js';
-import { ETT_BYTTE, ETT_BYTTE_VALG, ETT_BYTTE_TEKST, ettBytteHtml, ettBytteKart } from './ettBytteVisning.js'; // ETT BYTTE (eksperiment)
+import { ETT_BYTTE, ETT_BYTTE_VALG, ETT_BYTTE_TEKST, ettBytteHtml, ettBytteKart, sjekkReise } from './ettBytteVisning.js'; // ETT BYTTE (eksperiment)
 import { GANG_ALTERNATIV, medGangAlternativ, lastGangTak } from '../gangAlternativ.js'; // GÅ LENGER (eksperiment)
 import { plattformTekst } from '../bytte.js';
 import { ombord, reiseMeta, iFart, gangGjelder, I_FART_NOTIS, stoppPåLinja, stoppFram, vedOgNeste, stoppEtterId, rangerKandidater } from '../api/ombord.js';
@@ -6230,7 +6230,7 @@ function _tegnAutoTavle(body) {
       + del.ikke.map((x, i) => tavleRadHtml(x, nå, i, meld)).join('') + '</div></details>'
     : '';
   const bunn = '<div class="at-bunn">' + (_atSlutt ? 'ikke flere avganger herfra' : _atHenter ? 'henter flere …' : '') + '</div>';
-  body.innerHTML = retningKnapper + (_atRetning === ETT_BYTTE_VALG ? ettBytteHtml(here, { esc, rerender: () => _renderBody() }) /* ETT BYTTE (eksperiment) */ : rader.length
+  body.innerHTML = retningKnapper + (_atRetning === ETT_BYTTE_VALG ? ettBytteHtml(here, { esc, rerender: () => _renderBody(), radHtml: _kombiRadHtml }) /* ETT BYTTE (eksperiment) */ : rader.length
     // FØRSTE KORT OVER KANTEN (v1.218.245): ingen «neste avganger herfra» —
     // lista sier det selv. «N avganger du ikke rekker» står OVER kortene, lukket
     // (v1.218.301, bestilt): de er ofte innen rekkevidde likevel — du løper, bussen
@@ -6261,6 +6261,8 @@ function _tegnAutoTavle(body) {
   if (det) det.addEventListener('toggle', () => { _atIkkeÅpen = det.open; });
   // Trykk på en kombinasjon: kartet viser gangen til påstigningen.
   body.querySelectorAll('.at-kombi').forEach(b => b.addEventListener('click', () => {
+    // ETT BYTTE (v1.218.305): stedenes reiser er rader av samme slag, med «eb:<sted>».
+    if (b.dataset.kombi.startsWith('eb:')) { const e = kombiKall(sjekkReise(b.dataset.kombi.slice(3))); if (e && typeof window !== 'undefined' && window.tap) window.tap(e); return; }
     const r = kombi[Number(b.dataset.kombi)];
     if (r && r.fraLL) { _atGangTil = { id: 'kombi:' + r.fraLL.name, name: r.fraLL.name, lat: r.fraLL.lat, lon: r.fraLL.lon }; _aKey = ''; _renderMap(); }
     // ETT TRYKK → AVGANGSDETALJER, som de andre radene (v1.218.272).

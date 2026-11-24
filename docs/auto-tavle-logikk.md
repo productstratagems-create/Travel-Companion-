@@ -480,6 +480,20 @@ Dette er broen fra «mulig, ikke sjekket» til en reise. Raden sier ikke
 «rekker» og påstår ingen tidskontroll av byttet. Den gjengir det Entur
 svarte.
 
+**Reisene som rader (v1.218.305).** Bestilt: «Hver enkelt reise under
+seksjonen bør listes som de andre reiseforslagene under Auto-tavle.»
+- Velger du et kort, kjøres reisesøket for stedene med en gang (opptil 8 kall,
+  bare på trykk, cache 10 min). «sjekk» trengs ikke lenger på tavla.
+- Hvert sted står som overskrift med **første reise** som rad, tegnet med
+  Auto-tavlas egen kombinasjonsrad (`_kombiRadHtml`, sendt inn som `radHtml`):
+  gå om, linjemerker, «fra … · N min å gå», bytter, framme og går.
+- Raden sier når Entur går en annen vei enn kortet: «andre byttested enn
+  kortet» eller «andre linjer enn kortet». «minst gange» står ikke, fordi det
+  ville sammenlignet med reiser som ikke vises.
+- Trykk åpner hele reisen i avgangsdetaljer (`sjekkReise` → `kombiKall`).
+- Uten reise: «ingen reise funnet i søket». Feil: «fikk ikke svar — prøv
+  igjen», med trykk for nytt søk.
+
 ### Hvor ofte det går (v1.218.297, forslag 4)
 
 Kortet har én linje: «går inn ca. hvert 15. min · ut ca. hvert 7. min». Den

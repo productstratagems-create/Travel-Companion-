@@ -669,6 +669,9 @@ FKB, de mest detaljerte dataene, er ikke åpne.
 | utenfor Norge | **helt tomt** (Malmö: grått) | hele verden |
 | turrute-laget fra Kartverket oppå | passer pent sammen (Sognsvann) | går også |
 
+**Beslutning (produkteier 24.11):** dagens kart beholdes. Kartverkets kart
+kommer som et **valgfritt** tillegg når opplevelser og turer vises.
+
 **Vurdering [Anbefaling]:** ikke erstatt hele kartet nå. Tre grunner:
 1. **Mørk modus:** appen er bygget for begge modusene, og det finnes ingen
    mørk Kartverket-variant. Å invertere flisene med CSS gir feil farger på
@@ -693,6 +696,55 @@ FKB, de mest detaljerte dataene, er ikke åpne.
   OpenFreeMap eller Protomaps (ikke prøvd). OSMs egne fliser
   (`tile.openstreetmap.org`) er ikke ment for apper i drift. Det er en egen
   avgjørelse, og en egen tracer.
+
+## 16. Implementasjonsplan (avtalt 24.11, før PR)
+
+**Rammer:**
+- **Kilder:** bare åpne kilder uten nøkkel: Kartverkets turrutebase,
+  Miljødirektoratet og Wikidata. «© Kartverket» vises der dataene vises.
+- **Kart:** dagens kart beholdes. Kartverket er et valgfritt tillegg.
+- **Datamodell:** stopp og reisemål holdes fra hverandre. Opplevelsene slås
+  opp på stopp-id-en, og ingenting i dagens opsjoner eller kort endres. Et
+  sted uten opplevelser står som i dag.
+- **Én definisjon:** all mapping fra kilde til kategori skjer i
+  `src/opplevelser.js`.
+
+**Steg 1 – på stedsradene under et valgt «ett bytte»-kort:**
+- **Innhold:** høyst to opplevelser per sted, for eksempel
+  «Pilegrimsleden · nasjonal turrute · ved stoppet» og
+  «Ringve Musikkmuseum · museum · 19 min å gå». Faktamerker fra §14, som
+  gradering, lysløype, toalett og trinnfritt stopp. Gangtid bare når Valhalla
+  har svart.
+- **Ny kode:** `src/api/opplevelserKilder.js` med turrutebasen,
+  Miljødirektoratet og Wikidata, med frist og cache per stopp i 24 timer.
+- **Utvidet kode:** `src/opplevelser.js` får mapping for turrutebasen
+  (`rutebetydning`, `spesialFotrutetype`, `tilrettelegging`, `gradering`),
+  sammenslåing og `velgVisning`.
+- **Henting:** samme 8 steder som reisene hentes for i dag. Høyst 24 kall
+  per kortvalg.
+- **Kart:** når en opplevelse eller tur vises, kan turrute-laget fra
+  Kartverket (`wms.geonorge.no/skwms1/wms.friluftsruter2`) legges på dagens
+  kart. Det er **av som standard** og slås på med en knapp. Valget huskes.
+  Laget følger reglene i `docs/kartregler.md`.
+
+**Steg 2 – opplevelse som dimensjon** (hvis steg 1 viser verdi):
+- fasetten «se etter: opplevelse», kombinert med «hvor langt»
+  (`rutebetydning` 1/2/3);
+- valgfritt **turkart** i kartets lagvelger: `topograatone` fra
+  `cache.kartverket.no`, sammen med turrute-laget;
+- bare i lys modus og bare innenfor Norge. Ellers brukes dagens kart, og
+  knappen sier hvorfor.
+
+**Steg 3 – ferdig utregnet datasett:** turrutebasen for hele landet (GPX eller
+GML), Miljødirektoratets områder per fylke og Wikidata. Ukentlig bygg, én fil
+per fylke, slik at alle stedene i «ett bytte» får opplevelser uten nye kall.
+
+**Senere:**
+- parkering og turstart som adkomstpunkter;
+- OSM-tagger via Overpass;
+- sesong;
+- dekningskartet for turrutebasen;
+- kjeden for universell utforming (§14).
 
 ## Avgrensninger
 

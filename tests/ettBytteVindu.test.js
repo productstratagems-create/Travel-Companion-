@@ -28,7 +28,7 @@ describe('opptakene: overskriften har vinduet, og det følger PARAMETRE.horisont
       const g = ettByttePer(res, O.scenario.posisjon, 'retning').grunnlag;
       const lov = Object.values(PARAMETRE.horisontMin);
       expect(res.tilgangHorisontMin.every(m => lov.includes(m))).toBe(true);
-      expect(g).toMatch(/^mulig med ett bytte · avganger fra nå og .+ fram — ikke sjekket mot reisesøket/);
+      expect(g).toMatch(/^Steder du når med ett bytte · avganger fra nå og .+ fram\. Reisen sjekkes når du åpner et kort\.$/);
       const alle = [...res.tilgangHorisontMin, ...res.knutepunkter.vurdert.filter(k => k.status === 'spurt').map(k => k.horisontMin)];
       expect(g).toContain(Math.max(...alle) / 60 + (Math.max(...alle) === 60 ? ' time' : ' timer'));
     });

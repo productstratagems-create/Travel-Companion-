@@ -52,8 +52,7 @@ describe('ett bytte: rader per himmelretning (ren)', () => {
   });
   it('påstår ingen reisetid og ingen bekreftelse', async () => {
     const e = ettByttePerRetning(await res('ranheim_dag'), O.ranheim_dag.scenario.posisjon);
-    expect(e.grunnlag).toMatch(/ikke sjekket/);
-    expect(e.grunnlag).toMatch(/ikke tidskontrollert/);
+    expect(e.grunnlag).toMatch(/Reisen sjekkes når du åpner et kort/);
     for (const r of e.rader) { expect(r.sjekket).toBe(false); expect(Object.keys(r)).not.toEqual(expect.arrayContaining(['min', 'reisetid', 'avgang'])); }
   });
 });
@@ -514,7 +513,7 @@ describe('ett bytte: visningen', () => {
     expect(tegnet).toBe(1);
     const etter = ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} });
     expect(etter).toMatch(/class="eb-rad"/);
-    expect(etter).toMatch(/ikke sjekket/);
+    expect(etter).toMatch(/Reisen sjekkes når du åpner et kort/);
     expect(etter).toMatch(/via Helsfyr/);
   });
   it('feil gir en ærlig tekst, ikke en tom liste', async () => {
@@ -844,9 +843,9 @@ describe('ett bytte: klikkbare retningskort', () => {
 
 describe('ett bytte: isolert og lett å rulle tilbake', () => {
   const a = readFileSync('src/views/auto.js', 'utf8');
-  it('alle krokene i auto.js er merket, og det er bare elleve (fem for lista, én for kartet, to for «hvor langt», v1.218.308; «ett bytte unna» har ingen rekkevidderad, v1.218.320)', () => {
+  it('alle krokene i auto.js er merket, og det er bare tolv (fem for lista, én for kartet, to for «hvor langt», v1.218.308; «ett bytte unna» har ingen rekkevidderad, v1.218.320)', () => {
     const linjer = a.split('\n').filter(l => /ETT_BYTTE|ettBytte/.test(l));
-    expect(linjer.length).toBe(11);
+    expect(linjer.length).toBe(12);
     expect(linjer.every(l => /ETT BYTTE \(eksperiment\)/.test(l))).toBe(true);
   });
   it('valget huskes ikke: etter omlasting står tavla på et kjent valg', () => {

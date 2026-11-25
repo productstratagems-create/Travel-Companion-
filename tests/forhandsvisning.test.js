@@ -21,7 +21,12 @@ describe('beste opplevelse på kortet', () => {
     ettBytteHtml(pos, { esc, hent, nå, hentKommuner: null, rerender: () => {} }); await vent(120);
     ettBytteHtml(pos, { esc, hent, nå, hentKommuner: null, rerender: () => {} }); await vent(200);
     const html = ettBytteHtml(pos, { esc, hent, nå, hentKommuner: null, rerender: () => {} });
-    expect(html).toMatch(/class="eb-forh-merke">beste opplevelse her/);
+    expect(html).toMatch(/class="eb-forh-merke">beste opplevelse i [a-zæøå ]+</);
+    // Opplevelsen henger UNDER kortets overskrift (nærhet + felles ramme), og etiketten bærer kortets eget navn.
+    const rad = html.slice(html.indexOf('class="eb-rad"'), html.indexOf('</button>', html.indexOf('class="eb-rad"')));
+    expect(rad.indexOf('class="eb-topp"')).toBeGreaterThan(-1);
+    expect(rad.indexOf('class="eb-forh"')).toBeGreaterThan(rad.indexOf('class="eb-topp"'));
+    expect(rad).toMatch(/ett av \d steder kortet dekker/);
     expect(html).toMatch(/class="eb-forh-hva">[^<]+ · ved [^<]+ · /);
     expect(html).toMatch(/class="eb-steder"/);                    // stoppene står fortsatt, under
     expect((html.match(/class="eb-forh"/g) || []).length).toBeGreaterThan(1);   // flere kort har en

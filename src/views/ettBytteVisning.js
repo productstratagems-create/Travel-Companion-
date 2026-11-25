@@ -229,14 +229,15 @@ export function forhåndFor(r) {
 const _forhBerik = new Map();
 /** Beste opplevelse øverst på kortet. Ingen funn: ingenting (kortet står som før). */
 export function forhåndHtml(r, esc) {
+  const gruppe = r.retningNavn || r.knuteNavn || '';
   const b = besteForKort(r);
   if (!b) return '';
   const { o, sted } = b;
   if (!_forhBerik.has(o.navn)) { _forhBerik.set(o.navn, null); Promise.resolve(_hentBerik(o)).then(x => { _forhBerik.set(o.navn, x || null); if (_rerender) _rerender(); }).catch(() => {}); }
   const be = _forhBerik.get(o.navn), k = kortData(o, null, [], be), hvorfor = k.hvorfor;
-  return '<div class="eb-forh"><div class="eb-forh-tekst"><div class="eb-forh-merke">beste opplevelse her</div>'
+  return '<div class="eb-forh"><div class="eb-forh-tekst"><div class="eb-forh-merke">beste opplevelse i ' + esc(gruppe.toLowerCase()) + '</div>'
     + '<div class="eb-forh-navn">' + esc(o.navn) + '</div>'
-    + '<div class="eb-forh-hva">' + esc(k.hva) + ' · ved ' + esc(sted.navn) + ' · ' + esc(k.gang.tekst === 'ved stoppet' ? 'ved stoppet' : k.gang.tekst + ' fra stoppet') + '</div>'
+    + '<div class="eb-forh-hva">' + esc(k.hva) + ' · ved ' + esc(sted.navn) + ' · ' + esc(k.gang.tekst === 'ved stoppet' ? 'ved stoppet' : k.gang.tekst + ' fra stoppet') + ((r.punkter || []).length > 1 ? ' · ett av ' + Math.min(FORHÅND_STEDER, r.punkter.length) + ' steder kortet dekker' : '') + '</div>'
     + (hvorfor ? '<div class="eb-forh-besk">' + esc(hvorfor.tekst) + '</div>' : '') + '</div>'
     + (k.bilde ? '<img class="eb-forh-bilde" src="' + esc(k.bilde.url) + '" alt="" decoding="sync">' : '') + '</div>';
 }
@@ -425,7 +426,6 @@ export function ettBytteRadHtml(r, esc, kommuner = null) {
   const kom = kom0 && kom0.length >= KOMMUNER_MIN ? kom0 : null;
   return '<button type="button" class="eb-rad" data-eb-retning="' + esc(r.retning) + '" aria-pressed="' + (_valgt === r.retning) + '">'
     // Stor forbokstav bare for himmelretninger: stedsnavn og linjer skrives som de er («Hauketo stasjon», «T-bane»).
-    + forhåndHtml(r, esc)
     + '<div class="eb-topp"><span class="eb-retning' + (r.fasett && r.fasett !== 'retning' ? ' eb-tittel' : '') + '">' + esc(r.retningNavn) + '</span>'
     + '<span class="eb-via">' + esc(r.undertittel || 'via ' + r.knuteNavn) + '</span>'
     + (r.ytterpunkt ? '<span class="eb-lengst">helt til ' + esc(r.ytterpunkt.navn) + ' · ' + r.ytterpunkt.km + ' km</span>' : '') + '</div>'
@@ -443,6 +443,8 @@ export function ettBytteRadHtml(r, esc, kommuner = null) {
       return '<div class="eb-steder">' + esc(eks.join(', ')) + (r.antallSteder > vist ? (eks.length ? ' og ' : '') + (r.antallSteder - vist) + ' steder til' : '')
         + (r.typer ? ' <span class="eb-typer">· ' + esc(r.typer) + '</span>' : '') + '</div>';
     })()
+    // Opplevelsen HENGER UNDER kortet (v1.218.319): tittel først, så høydepunktet i samme ramme.
+    + forhåndHtml(r, esc)
     + '</button>';
 }
 

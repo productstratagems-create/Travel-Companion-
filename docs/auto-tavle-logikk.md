@@ -512,6 +512,17 @@ ferdselsvei · ved stoppet».
   Kartverkets WMS-tjeneste (`wms.friluftsruter2`) legges oppå dagens kart.
   Dagens kart beholdes (beslutning 24.11).
 
+### «Ett bytte unna» (v1.218.320)
+
+- Knappen heter **«ett bytte unna»**.
+- Raden «hvor langt» (nært, regionalt, nasjonalt) er tatt bort der.
+  **Alt rangeres fra nær til langt unna:** kortene etter det nærmeste stedet
+  de dekker (`nærmesteM`), og stedene inni et valgt kort nærmest først.
+  «Hvor langt» står fortsatt for «alle» og målområdene.
+- Bare **retning** og **kommune** er knapper (`FASETTER_VIST`). Knutepunkt,
+  linje og transport er fortsatt kode (tester og kommuneoppslaget), men ikke
+  valg.
+
 ### Opplevelsen hører til kortet (v1.218.319)
 
 Rapportert (skjermbilde): opplevelsesboksen lå over kortoverskriften og leste

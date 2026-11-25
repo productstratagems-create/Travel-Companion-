@@ -245,6 +245,25 @@ export const INNGANGER = Object.freeze({ natur: 'Natur og friluftsliv', severdig
 const INNGANG_AV = { natur: 'natur', friluftsliv: 'natur', severdighet: 'severdighet', kultur: 'kultur', bading: 'aktivitet', park: 'aktivitet', attraksjon: 'aktivitet' };
 export const innganger = o => [...new Set((o.hoved || []).map(k => INNGANG_AV[k]).filter(Boolean))];
 
+/** VALG AV KATEGORIER (v1.218.326): standard er alle på. Én definisjon av hva som vises. */
+export const KATEGORI_STANDARD = Object.freeze(Object.keys(INNGANGER));
+/** Vises når minst én av opplevelsens innganger er på. Uten kjent inngang: vises så lenge noe er på (ingenting kastes uten bevis). */
+export function erSynlig(o, valgte = KATEGORI_STANDARD) {
+  if (!valgte || !valgte.length) return false;
+  const i = innganger(o);
+  return !i.length || i.some(k => valgte.includes(k));
+}
+/** Lagret verdi (JSON-liste) → gyldige kategorier. Mangler eller ugyldig: alle på. Tom liste er et gyldig valg (alle av). */
+export function lesKategorier(rå) {
+  if (rå == null || rå === '') return [...KATEGORI_STANDARD];
+  try {
+    const l = JSON.parse(rå);
+    if (!Array.isArray(l)) return [...KATEGORI_STANDARD];
+    return KATEGORI_STANDARD.filter(k => l.includes(k));
+  } catch { return [...KATEGORI_STANDARD]; }
+}
+export const skrivKategorier = valgte => JSON.stringify(KATEGORI_STANDARD.filter(k => (valgte || []).includes(k)));
+
 /** Aktiviteter utledet fra kildene — aldri fritekst. Høyst tre. Ren. */
 export function aktiviteter(o) {
   const u = (o.under || []).join(' ').toLowerCase(), b = ((o.beskrivelse && o.beskrivelse.tekst) || '').toLowerCase(), ut = [];

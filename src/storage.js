@@ -42,6 +42,7 @@ const ALL_KEYS = [
   't.autoTavleRetning',
   't.rekkevidde',
   't.turruteLag',
+  't.opplevelseKategorier',
   // Kartets fokus per kart, og Rutes linjefilter per rute (v1.218.187). Nivå 1.
   't.kartFokus',
   't.ruteLinjer',

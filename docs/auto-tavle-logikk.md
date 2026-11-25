@@ -919,3 +919,18 @@ lista det: «ingen avganger herfra går nasjonalt nå».
 raden sier «N anslått etter avstand».
 
 Valget huskes i `t.rekkevidde`. Et nytt trykk på samme knapp slår det av.
+
+## Velg opplevelseskategorier (v1.218.326)
+
+I «ett bytte unna» velger brukeren hvilke av de fire inngangene (`INNGANGER`:
+natur og friluftsliv, severdigheter, kultur og historie, aktiviteter og
+rekreasjon) som vises. Standard er alle på. Valget lagres i
+`t.opplevelseKategorier` (JSON-liste; mangler/ugyldig = alle på; `[]` = alle av).
+
+- `erSynlig(o, valgte)` er den ene definisjonen: vises når minst én av
+  opplevelsens innganger er på. Uten kjent inngang vises den så lenge noe er på.
+- Filteret kjører **før** `velgVisning` i `kandidaterFor` (beste per kort),
+  `kortFor` og `fyllUt`; unikhet og score er uendret.
+- Oppslag, kø og cache er uendret — å slå en kategori på igjen trenger ingen nye kall.
+- Alle av: ingen opplevelsesbokser; raden sier «ingen kategorier valgt».
+- Bundet av `tests/opplevelseKategorier.test.js`.

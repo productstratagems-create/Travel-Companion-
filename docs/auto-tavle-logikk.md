@@ -512,6 +512,21 @@ ferdselsvei · ved stoppet».
   Kartverkets WMS-tjeneste (`wms.friluftsruter2`) legges oppå dagens kart.
   Dagens kart beholdes (beslutning 24.11).
 
+### Scoren på kortene (v1.218.325)
+
+`OPPLEVELSE_SCORE = true` (`src/views/ettBytteVisning.js`) kobler scoren til
+valget på tre steder; `false` gir nøyaktig dagens valg (tilbakerullingen).
+- **Forhåndsvisningen på hvert kort** (`unikeBeste`): lett kontekst uten reise
+  og målt gange, så scoren bruker kvalitet, popularitet og nærhet. Unikhet på
+  tvers av kort kjører oppå.
+- **Opplevelseskortene under et valgt kort** (`kortFor`): full kontekst per
+  opplevelse (`scoreKontekst`): målt gange (ellers luftlinje), tilgang fra den
+  kontrollerte reisen, og avvik fra `grunnlag`.
+- **Bilde, ingress og gange** hentes for de 4 beste etter lett score, så de 2
+  som vises er klare.
+- **Forklaringen** står som en liten linje på kortet («nasjonal turrute · mye
+  omtalt · enkel tilgang · 8 min å gå»). Tallet står ingen steder.
+
 ### Transparent score for «beste opplevelse» (v1.218.324)
 
 Valgfri og **av som standard**: `velgVisning(liste, n)` uten tredje argument er

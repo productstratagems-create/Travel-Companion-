@@ -22,7 +22,7 @@ import { hentStedsinfo, hentHerInfo, KOMMUNE_BIT } from '../api/kommuner.js';
 import { rekkeviddeFor, tellRekkevidde } from '../rekkevidde.js';
 import { metresBetween } from '../haversine.js';
 import { hentOpplevelser, hentGang, hentBerikelse, gangHeleVeienGql, parseGangHeleVeien } from '../api/opplevelserKilder.js';
-import { velgVisning, grunnlag, gangFraStopp, kortData, søkTekst, INNGANGER, unikeBeste } from '../opplevelser.js';
+import { velgVisning, grunnlag, gangFraStopp, kortData, søkTekst, INNGANGER, unikeBeste, tilgang } from '../opplevelser.js';
 import { storage } from '../storage.js';
 import '../style/ettBytte.css';
 
@@ -175,6 +175,17 @@ let _hentOppl = hentOpplevelser, _hentGang = hentGang, _hentBerik = hentBerikels
 /** Tester: bytt ut kildene. */
 export function _settOpplevelseKilder(o, g, b) { _hentOppl = o || hentOpplevelser; _hentGang = g || hentGang; _hentBerik = b || hentBerikelse; _oppl.clear(); }
 export const OPPLEVELSER_VIST = 2;
+/** Valget av «beste opplevelse» etter forklarbar score (v1.218.325). `false` gir nøyaktig dagens rekkefølge — tilbakerullingen. */
+export const OPPLEVELSE_SCORE = true;
+/** Kontekst for score på et valgt kort: målt gange (ellers luftlinje) og tilgang fra den kontrollerte reisen, per opplevelse. */
+function scoreKontekst(p, e, nå) {
+  if (!OPPLEVELSE_SCORE) return null;
+  const plan = sjekkReise(p.id, nå), gang = o => gangFraStopp(e.gang.get(o.navn), o.luft);
+  const g0 = grunnlag(_sjekk.get(p.id), { id: p.id, navn: p.navn }, plan, gangFraStopp(null, 0), nå);
+  return { reise: g0.reise, avvik: g0.avvik, gangFor: gang, tilgangFor: o => (g0.reise ? tilgang(g0.reise, gang(o)).ord : 'ukjent') };
+}
+/** Uten reise og målt gange (lett modus): scoren bruker det den har — kvalitet, popularitet, nærhet. */
+const LETT_KONTEKST = Object.freeze({ avvik: Object.freeze([]) });
 export const opplevelseStatus = id => _oppl.get(id) || null;
 /* FORHÅNDSVISNING PÅ KORTENE (v1.218.318): hvert kort viser sin beste opplevelse. Oppslagene går i en
    kø (3 samtidige) så Wikimedia, Entur og kildene ikke struper, og i «lett» modus uten gange og bilde. */
@@ -206,7 +217,8 @@ function hentOpplevelserFor(p, { lett = false } = {}) {
 }
 /** Bilde, ingress og gangtid for det som vises (høyst OPPLEVELSER_VIST per sted). */
 function fyllUt(p, e, gjelder = () => true) {
-  for (const o of velgVisning(e.data && e.data.liste, OPPLEVELSER_VIST)) {
+  // Berik og mål gangen for de 4 beste etter lett score (kortet viser 2, rangert med full kontekst): alle som kan vises er klare.
+  for (const o of velgVisning(e.data && e.data.liste, OPPLEVELSE_SCORE ? 2 * OPPLEVELSER_VIST : OPPLEVELSER_VIST, OPPLEVELSE_SCORE ? LETT_KONTEKST : null)) {
     Promise.resolve(_hentBerik(o)).then(b => { if (b) { e.berik.set(o.navn, b); if (gjelder() && _rerender) _rerender(); } }).catch(() => {});
     if (o.luft <= 100) continue;
     Promise.resolve(_hentGang({ id: p.id, lat: p.lat, lon: p.lon }, o)).then(g => { if (g) { e.gang.set(o.navn, g); if (gjelder() && _rerender) _rerender(); } }).catch(() => {});
@@ -232,12 +244,12 @@ function kandidaterFor(r) {
 /** Beste for ETT kort. Med `tildelt` (fra `tildelUnike`): det kortet fikk uten gjentak på tvers av kortene. */
 export function besteForKort(r, tildelt = null) {
   const alle = kandidaterFor(r);
-  const best = tildelt ? tildelt.get(r) : velgVisning(alle, 1)[0];
+  const best = tildelt ? tildelt.get(r) : velgVisning(alle, 1, OPPLEVELSE_SCORE ? LETT_KONTEKST : null)[0];
   return best ? { o: best, sted: best._sted, av: alle.length } : null;
 }
 let _tildelt = null;
 /** Kortene i visningsrekkefølge velger i tur og orden, uten gjentak (v1.218.323). */
-export function tildelUnike(rader) { return unikeBeste(rader, kandidaterFor); }
+export function tildelUnike(rader) { return unikeBeste(rader, kandidaterFor, OPPLEVELSE_SCORE ? LETT_KONTEKST : null); }
 export function forhåndFor(r) {
   for (const p of spredt((r.punkter || []).filter(x => x.id && Number.isFinite(x.lat)), FORHÅND_STEDER)) hentOpplevelserFor(p, { lett: true });
 }
@@ -277,7 +289,7 @@ export function kortFor(p, nå = Date.now()) {
   const e = _oppl.get(p.id);
   if (!e || e.status !== 'ok' || !e.data) return [];
   const plan = sjekkReise(p.id, nå);
-  return velgVisning(e.data.liste, OPPLEVELSER_VIST).map(o => {
+  return velgVisning(e.data.liste, OPPLEVELSER_VIST, scoreKontekst(p, e, nå)).map(o => {
     const g = grunnlag(_sjekk.get(p.id), { id: p.id, navn: p.navn }, plan, gangFraStopp(e.gang.get(o.navn), o.luft), nå);
     return { ...kortData(o, g, e.data.punkter, e.berik.get(o.navn) || null), stedId: p.id };
   });
@@ -303,6 +315,7 @@ export function opplevelseHtml(p, esc, nå = Date.now()) {
         + '<div class="eb-okort-topp"><span class="eb-okort-navn">' + esc(k.navn) + '</span>'
         + (kat ? '<span class="eb-okort-kat eb-kat-' + kat + '">' + esc(INNGANGER[kat]) + '</span>' : '') + '</div>'
         + '<div class="eb-okort-hva">' + esc(k.hva) + '</div>'
+        + (k.forklaring ? '<div class="eb-okort-forkl">' + esc(k.forklaring) + '</div>' : '')
         + (k.hvorfor ? '<div class="eb-okort-besk">' + esc(k.hvorfor.tekst) + ' <span class="eb-okort-kilde">· ' + esc(k.hvorfor.kilde) + '</span></div>' : '')
         + (fakta.length ? '<div class="eb-okort-fakta">' + fakta.map(f => '<span>' + esc(f) + '</span>').join('') + '</div>' : '')
         + '<div class="eb-okort-handling">' + (k.lesMer ? '<a href="' + esc(k.lesMer) + '" target="_blank" rel="noopener">Les mer</a>' : '')

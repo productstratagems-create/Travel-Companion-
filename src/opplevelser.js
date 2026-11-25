@@ -205,7 +205,8 @@ export function velgMedVariasjon(sortert, n, utvidet = false) {
 export function velgVisning(liste, n = 2, kontekst = null) {
   const kopi = (liste || []).slice();
   if (!kontekst) return velgMedVariasjon(kopi.sort(dagensRekkefølge), n, false);
-  const medScore = kopi.map(o => ({ ...o, score: scoreOpplevelse(o, { ...kontekst, gang: kontekst.gangFor ? kontekst.gangFor(o) : kontekst.gang }) }));
+  // gangFor/tilgangFor: per opplevelse (gangen og reisen er ikke lik for alle); ellers felles verdi.
+  const medScore = kopi.map(o => ({ ...o, score: scoreOpplevelse(o, { ...kontekst, gang: kontekst.gangFor ? kontekst.gangFor(o) : kontekst.gang, tilgang: kontekst.tilgangFor ? kontekst.tilgangFor(o) : kontekst.tilgang }) }));
   medScore.sort((a, b) => b.score.total - a.score.total || dagensRekkefølge(a, b));
   return velgMedVariasjon(medScore, n, true);
 }
@@ -383,6 +384,8 @@ export function kortData(o, g, punkter = [], berik = null) {
     fasiliteter: fasiliteterVed(o, punkter),
     kilder: [...new Set(o.kilder.map(c => ({ turrute: 'Kartverket', miljodir: 'Miljødirektoratet', wikidata: 'Wikidata' })[c.kilde] || c.kilde))],
     avvik: (g && g.avvik) || [],
+    // Forklaringen (aldri tallet) når valget er gjort etter score (v1.218.325).
+    forklaring: (o.score && o.score.forklaring) || null,
   };
 }
 
@@ -451,11 +454,11 @@ export function opplevelseNøkkel(o) {
  * @param kandidaterFor  r → [opplevelse] (alle kandidatene kortet har)
  * @returns Map<kort, opplevelse>
  */
-export function unikeBeste(rader, kandidaterFor) {
+export function unikeBeste(rader, kandidaterFor, kontekst = null) {
   const tatt = new Set(), ut = new Map();
   for (const r of rader || []) {
     const fri = (kandidaterFor(r) || []).filter(o => !tatt.has(opplevelseNøkkel(o)));
-    const best = velgVisning(fri, 1)[0];
+    const best = velgVisning(fri, 1, kontekst)[0];
     if (best) { tatt.add(opplevelseNøkkel(best)); ut.set(r, best); }
   }
   return ut;

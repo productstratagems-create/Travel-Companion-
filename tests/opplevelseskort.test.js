@@ -132,8 +132,8 @@ describe('tilgang (presisering 3)', () => {
 });
 
 describe('innganger og aktiviteter', () => {
-  it('fire innganger over de sju kategoriene; aktivitet utledet fra kilden', () => {
-    expect(Object.keys(INNGANGER)).toEqual(['natur', 'severdighet', 'kultur', 'aktivitet']);
+  it('fem innganger (fire over de sju kategoriene + mat fra smilefjes, v1.218.328); aktivitet utledet fra kilden', () => {
+    expect(Object.keys(INNGANGER)).toEqual(['natur', 'severdighet', 'kultur', 'aktivitet', 'mat']);
     expect(innganger({ hoved: ['friluftsliv', 'bading'] })).toEqual(['natur', 'aktivitet']);
     expect(aktiviteter({ under: ['turrute'], rute: { type: 'Fotrute' } })).toEqual(['gåtur']);
     expect(aktiviteter({ under: ['museum'] })).toEqual(['museumsbesøk']);

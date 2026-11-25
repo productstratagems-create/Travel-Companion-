@@ -13,10 +13,13 @@ export const SCORE_VEKTER = Object.freeze({ kvalitet: 0.45, popularitet: 0.20, t
 
 /** Kirker og kulturminner: finnes i hver bydel, og vises sist. */
 export const erKirke = o => (o.under || []).length > 0 && o.under.every(u => u === 'kirke' || u === 'kulturminne');
+/** Spisested fra Mattilsynets tilsynsdata. */
+export const erMat = o => (o.hoved || []).length > 0 && o.hoved.every(k => k === 'mat');
 /** Turrute som reisemål. Sykkelruter følger ofte bygater (sett: «Pilegrimsruta» ved tre bystopp), så de teller ikke øverst. */
 export const erTur = o => !!(o.rute && o.rute.type !== 'Sykkelrute');
-/** 0 nasjonal turrute · 1 regional turrute eller sterkt reisemål · 2 ruter og friluftsområder · 3 annet · 4 kirke/kulturminne. */
+/** 0 nasjonal turrute · 1 regional turrute eller sterkt reisemål · 2 ruter og friluftsområder · 3 annet · 4 kirke/kulturminne · 5 spisested. */
 export function trinnFor(o) {
+  if (erMat(o)) return 5;   // spisesteder løfter aldri foran opplevelser (v1.218.328)
   const sterk = (o.kat || []).some(t => t.sterk);
   if (erTur(o) && o.rute.betydning === '1') return 0;
   if ((erTur(o) && o.rute.betydning === '2') || (!erKirke(o) && sterk && !o.rute)) return 1;
@@ -25,8 +28,9 @@ export function trinnFor(o) {
 }
 
 /** Kvalitet per trinn (startverdier fra spesifikasjonen). */
-const KVALITET = { nasjonal: 100, regional: 85, sterk: 80, rute: 60, annet: 50, kirke: 25 };
+const KVALITET = { nasjonal: 100, regional: 85, sterk: 80, rute: 60, annet: 50, kirke: 25, mat: 20 };
 export function kvalitet(o) {
+  if (erMat(o)) return KVALITET.mat;
   if (erKirke(o)) return KVALITET.kirke;
   if (erTur(o) && o.rute.betydning === '1') return KVALITET.nasjonal;
   if (erTur(o) && o.rute.betydning === '2') return KVALITET.regional;

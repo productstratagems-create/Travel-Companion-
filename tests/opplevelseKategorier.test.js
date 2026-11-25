@@ -31,7 +31,7 @@ describe('kategorivalg', () => {
   it('knappene: fire, aria-pressed følger valget, «ingen kategorier valgt» når alle av', () => {
     storage.set(KATEGORI_KEY, skrivKategorier(['natur']));
     const h = katVelgerHtml(esc);
-    expect((h.match(/data-eb-kategori=/g) || []).length).toBe(4);
+    expect((h.match(/data-eb-kategori=/g) || []).length).toBe(5);
     expect(h).toContain('data-eb-kategori="natur" aria-pressed="true"');
     expect(h).toContain('data-eb-kategori="kultur" aria-pressed="false"');
     expect(h).not.toContain('ingen kategorier valgt');

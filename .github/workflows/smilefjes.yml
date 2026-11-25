@@ -1,0 +1,30 @@
+name: Oppdater smilefjes-datasettet
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'   # mandager
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bygg:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      # Første kjøring er også proben: skriptet kaster høyt hvis kolonnene ikke er de forventede.
+      - run: node scripts/bygg-smilefjes.mjs
+      - name: Pull request med datasettet (aldri direkte til main)
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          if [ -z "$(git status --porcelain public/data data)" ]; then echo "ingen endring"; exit 0; fi
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git checkout -B data/smilefjes
+          git add public/data/smilefjes data/smilefjes-geokode.json
+          git commit -m "Oppdater smilefjes-datasettet"
+          git push -f origin data/smilefjes
+          gh pr create --base main --head data/smilefjes --title "Oppdater smilefjes-datasettet" --body "Ukentlig bygg fra smilefjes.mattilsynet.no. Se docs/smilefjes.md." || echo "PR finnes alt"

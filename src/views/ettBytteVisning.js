@@ -23,6 +23,7 @@ import { rekkeviddeFor, tellRekkevidde } from '../rekkevidde.js';
 import { metresBetween } from '../haversine.js';
 import { hentOpplevelser, hentGang, hentBerikelse, gangHeleVeienGql, parseGangHeleVeien } from '../api/opplevelserKilder.js';
 import { velgVisning, grunnlag, gangFraStopp, kortData, søkTekst, INNGANGER, unikeBeste, tilgang, erSynlig, lesKategorier, skrivKategorier, KATEGORI_STANDARD } from '../opplevelser.js';
+import { smilefjesTekst } from '../api/smilefjesData.js';
 import { storage } from '../storage.js';
 import '../style/ettBytte.css';
 
@@ -322,7 +323,7 @@ export function opplevelseHtml(p, esc, nå = Date.now()) {
     + kort.map(k => {
       const valgt = !!(_valgtOppl && _valgtOppl.stedId === k.stedId && _valgtOppl.navn === k.navn);
       const kat = k.innganger[0];
-      const fakta = [...k.aktiviteter, k.gang.type === 'målt' ? k.gang.tekst + ' å gå fra stoppet' : k.gang.type === 'luftlinje' ? (k.gang.tekst === 'ved stoppet' ? 'ved stoppet' : k.gang.tekst + ' fra stoppet (luftlinje)') : null, ...k.fasiliteter.map(f => f + ' ved')].filter(Boolean);
+      const fakta = [...k.aktiviteter, k.gang.type === 'målt' ? k.gang.tekst + ' å gå fra stoppet' : k.gang.type === 'luftlinje' ? (k.gang.tekst === 'ved stoppet' ? 'ved stoppet' : k.gang.tekst + ' fra stoppet (luftlinje)') : null, ...(k.smilefjes ? [smilefjesTekst(k.smilefjes)] : []), ...k.fasiliteter.map(f => f + ' ved')].filter(Boolean);
       return '<div class="eb-okort' + (valgt ? ' eb-okort-valgt' : '') + '" role="button" tabindex="0" aria-pressed="' + valgt + '" data-oppl="' + esc(k.stedId + '|' + k.navn) + '">'
         + (k.bilde ? '<figure class="eb-okort-bilde"><img src="' + esc(k.bilde.url) + '" alt="' + esc(k.navn) + '" decoding="sync">'
           + '<figcaption>Foto: ' + esc(k.bilde.fotograf) + ' · ' + (k.bilde.lisensUrl ? '<a href="' + esc(k.bilde.lisensUrl) + '" target="_blank" rel="noopener">' + esc(k.bilde.lisens) + '</a>' : esc(k.bilde.lisens)) + ' · Wikimedia Commons</figcaption></figure>' : '')

@@ -97,7 +97,7 @@
 #v-auto .eb-okort-topp{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .5rem;margin-top:.55rem}
 #v-auto .eb-okort-topp .eb-okort-navn{font-size:1rem}
 #v-auto .eb-okort-kat{font-size:.66rem;font-weight:700;border-radius:999px;padding:.05rem .5rem;color:#fff}
-#v-auto .eb-kat-natur{background:#2e9e6e}#v-auto .eb-kat-severdighet{background:#b07a10}#v-auto .eb-kat-kultur{background:#8a5cd0}#v-auto .eb-kat-aktivitet{background:#2f78d8}
+#v-auto .eb-kat-natur{background:#2e9e6e}#v-auto .eb-kat-severdighet{background:#b07a10}#v-auto .eb-kat-kultur{background:#8a5cd0}#v-auto .eb-kat-aktivitet{background:#2f78d8}#v-auto .eb-kat-mat{background:#c4572a}
 #v-auto .eb-okort-fakta{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.4rem}
 #v-auto .eb-okort-fakta span{font-size:.7rem;border:1px solid rgba(var(--border-rgb),.3);border-radius:999px;padding:.05rem .5rem;color:var(--text)}
 #v-auto .eb-okort-handling{display:flex;gap:.8rem;align-items:center;margin-top:.45rem;font-size:.8rem}

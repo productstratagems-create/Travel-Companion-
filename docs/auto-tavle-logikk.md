@@ -512,6 +512,29 @@ ferdselsvei · ved stoppet».
   Kartverkets WMS-tjeneste (`wms.friluftsruter2`) legges oppå dagens kart.
   Dagens kart beholdes (beslutning 24.11).
 
+### Beste opplevelse øverst på kortet (v1.218.318)
+
+Bestilt: kortene under «ett bytte» pakker stopp inn etter en linse (retning,
+knutepunkt, linje, transport, kommune), men **opplevelsen** er hovedtingen:
+«Hvilke opplevelser er innen min rekkevidde, og hvordan kommer jeg dit?»
+
+- Hvert kort viser **sin beste opplevelse** øverst: «beste opplevelse her»,
+  navn, hva, ved hvilket stopp og avstand. Stoppene («via …», eksempler) står
+  under som før.
+- Valget er `besteForKort`: `velgVisning` over de forhåndshentede stedene
+  (regelen er uendret). Uten funn står kortet som før, uten tom boks.
+- Oppslagene går i en kø (`FORHÅND_SAMTIDIG` = 3) og gjelder bare
+  `FORHÅND_STEDER` = 3 steder per kort (de lengst unna først, `spredt`),
+  i «lett» modus uten gange og bilde. Velges kortet, fylles gange, bilde og
+  ingress ut for stedene som vises (`fyllUt`). Cache per stopp i et døgn.
+- Bilde av den beste hentes (`hentBerikelse`) og vises lite til høyre når det
+  finnes, med samme krav som ellers (aldri uten fotograf og lisens).
+- Reisen dit står som før når kortet velges: reiseraden, tilgangsordet med
+  verdiene og «framme ca.».
+- Ikke med ennå: en flat opplevelsesliste på tvers av kort, og et
+  forhåndsberegnet landsdatasett (steg 3), som gir opplevelser for alle
+  stedene uten kall.
+
 ### Stedet skilt fra reisen, og solgt (v1.218.315)
 
 Bestilt: «skille bedre på selve reisen til og severdigheten i nærheten av

@@ -105,3 +105,11 @@
 #v-auto .eb-okort-tur{font-size:.74rem;color:var(--text-muted);margin-top:.5rem;padding:.35rem 0 .1rem;border-top:1px dashed rgba(var(--border-rgb),.3)}
 #v-auto .eb-okort-tur-tittel{font-weight:700;color:var(--text)}
 #v-auto .eb-okort>.eb-okort-kilde:last-child{margin-bottom:.55rem}
+/* BESTE OPPLEVELSE ØVERST PÅ KORTET (v1.218.318) */
+#v-auto .eb-forh{display:flex;gap:.6rem;align-items:flex-start;margin:0 0 .5rem;padding:.45rem .55rem;border-radius:8px;background:rgba(var(--accent-rgb),.07);border:1px solid rgba(var(--accent-rgb),.25)}
+#v-auto .eb-forh-tekst{flex:1;min-width:0}
+#v-auto .eb-forh-merke{font-size:.62rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent)}
+#v-auto .eb-forh-navn{font-weight:700;font-size:.98rem;color:var(--text)}
+#v-auto .eb-forh-hva{font-size:.74rem;color:var(--text-muted)}
+#v-auto .eb-forh-besk{font-size:.8rem;color:var(--text);margin-top:.2rem}
+#v-auto .eb-forh-bilde{width:72px;height:54px;object-fit:cover;border-radius:6px;flex:none}

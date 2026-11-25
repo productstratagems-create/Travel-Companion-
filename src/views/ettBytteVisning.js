@@ -110,7 +110,7 @@ const _sjekk = new Map();
 export const SJEKK_GYLDIG_MS = 10 * 60_000;
 /** Høyst så mange steder står i lista under det valgte kortet. */
 export const SJEKK_STEDER = 8;
-export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _fasett = 'retning'; _visAlle = false; _rerender = null; _hent = null; _sjekk.clear(); _rekkevidde = null; _oppl.clear(); _valgtOppl = null; _bildeEl.clear(); }
+export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _fasett = 'retning'; _visAlle = false; _rerender = null; _hent = null; _sjekk.clear(); _rekkevidde = null; _oppl.clear(); _valgtOppl = null; _bildeEl.clear(); _kø.length = 0; _forhBerik.clear(); }
 export const sjekkStatus = id => _sjekk.get(id) || null;
 /** Tester: glem ett steds svar. */
 export const _nullstillSjekk = id => _sjekk.delete(id);
@@ -171,22 +171,74 @@ let _hentOppl = hentOpplevelser, _hentGang = hentGang, _hentBerik = hentBerikels
 export function _settOpplevelseKilder(o, g, b) { _hentOppl = o || hentOpplevelser; _hentGang = g || hentGang; _hentBerik = b || hentBerikelse; _oppl.clear(); }
 export const OPPLEVELSER_VIST = 2;
 export const opplevelseStatus = id => _oppl.get(id) || null;
-function hentOpplevelserFor(p) {
-  if (!p || !p.id || !Number.isFinite(p.lat) || _oppl.has(p.id)) return;
+/* FORHÅNDSVISNING PÅ KORTENE (v1.218.318): hvert kort viser sin beste opplevelse. Oppslagene går i en
+   kø (3 samtidige) så Wikimedia, Entur og kildene ikke struper, og i «lett» modus uten gange og bilde. */
+export const FORHÅND_STEDER = 3, FORHÅND_SAMTIDIG = 3;
+let _køAktiv = 0; const _kø = [];
+export const _køStatus = () => ({ aktiv: _køAktiv, venter: _kø.length });
+function køet(arbeid) {
+  _kø.push(arbeid); køKjør();
+}
+function køKjør() {
+  while (_køAktiv < FORHÅND_SAMTIDIG && _kø.length) {
+    const a = _kø.shift(); _køAktiv++;
+    Promise.resolve().then(a).catch(() => {}).finally(() => { _køAktiv--; køKjør(); });
+  }
+}
+function hentOpplevelserFor(p, { lett = false } = {}) {
+  if (!p || !p.id || !Number.isFinite(p.lat)) return;
+  const ek = _oppl.get(p.id);
+  if (ek) { if (ek.lett && !lett && ek.status === 'ok') { ek.lett = false; fyllUt(p, ek); } return; }
+  if (lett) return forhåndHent(p);
   const e = { status: 'henter', data: null, gang: new Map(), berik: new Map() };
   _oppl.set(p.id, e);
   // Et svar som kommer etter at tilstanden er nullstilt (nytt sted, nytt svar), tegner ingenting.
   const gjelder = () => _oppl.get(p.id) === e;
   Promise.resolve(_hentOppl({ id: p.id, lat: p.lat, lon: p.lon })).then(d => {
-    e.status = 'ok'; e.data = d;
-    // Gangtid bare for det som vises (høyst OPPLEVELSER_VIST per sted).
-    for (const o of velgVisning(d && d.liste, OPPLEVELSER_VIST)) {
-      // Bilde og ingress bare for det som vises (v1.218.315).
-      Promise.resolve(_hentBerik(o)).then(b => { if (b) { e.berik.set(o.navn, b); if (gjelder() && _rerender) _rerender(); } }).catch(() => {});
-      if (o.luft <= 100) continue;
-      Promise.resolve(_hentGang({ id: p.id, lat: p.lat, lon: p.lon }, o)).then(g => { if (g) { e.gang.set(o.navn, g); if (gjelder() && _rerender) _rerender(); } }).catch(() => {});
-    }
+    e.status = 'ok'; e.data = d; fyllUt(p, e, gjelder);
   }).catch(() => { e.status = 'feil'; }).finally(() => { if (gjelder() && _rerender) _rerender(); });
+}
+/** Bilde, ingress og gangtid for det som vises (høyst OPPLEVELSER_VIST per sted). */
+function fyllUt(p, e, gjelder = () => true) {
+  for (const o of velgVisning(e.data && e.data.liste, OPPLEVELSER_VIST)) {
+    Promise.resolve(_hentBerik(o)).then(b => { if (b) { e.berik.set(o.navn, b); if (gjelder() && _rerender) _rerender(); } }).catch(() => {});
+    if (o.luft <= 100) continue;
+    Promise.resolve(_hentGang({ id: p.id, lat: p.lat, lon: p.lon }, o)).then(g => { if (g) { e.gang.set(o.navn, g); if (gjelder() && _rerender) _rerender(); } }).catch(() => {});
+  }
+}
+function forhåndHent(p) {
+  const e = { status: 'henter', data: null, gang: new Map(), berik: new Map(), lett: true };
+  _oppl.set(p.id, e);
+  const gjelder = () => _oppl.get(p.id) === e;
+  køet(() => Promise.resolve(_hentOppl({ id: p.id, lat: p.lat, lon: p.lon })).then(d => { e.status = 'ok'; e.data = d; })
+    .catch(() => { e.status = 'feil'; }).finally(() => { if (gjelder() && _rerender) _rerender(); }));
+}
+/** Kortets beste opplevelse blant de forhåndsvalgte stedene: { o, sted } eller null. Ren mot tilstanden. */
+export function besteForKort(r) {
+  const alle = [];
+  for (const p of spredt((r.punkter || []).filter(x => x.id && Number.isFinite(x.lat)), FORHÅND_STEDER)) {
+    const e = _oppl.get(p.id);
+    if (e && e.status === 'ok' && e.data) for (const o of e.data.liste) alle.push({ ...o, _sted: p });
+  }
+  const best = velgVisning(alle, 1)[0];
+  return best ? { o: best, sted: best._sted, av: alle.length } : null;
+}
+export function forhåndFor(r) {
+  for (const p of spredt((r.punkter || []).filter(x => x.id && Number.isFinite(x.lat)), FORHÅND_STEDER)) hentOpplevelserFor(p, { lett: true });
+}
+const _forhBerik = new Map();
+/** Beste opplevelse øverst på kortet. Ingen funn: ingenting (kortet står som før). */
+export function forhåndHtml(r, esc) {
+  const b = besteForKort(r);
+  if (!b) return '';
+  const { o, sted } = b;
+  if (!_forhBerik.has(o.navn)) { _forhBerik.set(o.navn, null); Promise.resolve(_hentBerik(o)).then(x => { _forhBerik.set(o.navn, x || null); if (_rerender) _rerender(); }).catch(() => {}); }
+  const be = _forhBerik.get(o.navn), k = kortData(o, null, [], be), hvorfor = k.hvorfor;
+  return '<div class="eb-forh"><div class="eb-forh-tekst"><div class="eb-forh-merke">beste opplevelse her</div>'
+    + '<div class="eb-forh-navn">' + esc(o.navn) + '</div>'
+    + '<div class="eb-forh-hva">' + esc(k.hva) + ' · ved ' + esc(sted.navn) + ' · ' + esc(k.gang.tekst === 'ved stoppet' ? 'ved stoppet' : k.gang.tekst + ' fra stoppet') + '</div>'
+    + (hvorfor ? '<div class="eb-forh-besk">' + esc(hvorfor.tekst) + '</div>' : '') + '</div>'
+    + (k.bilde ? '<img class="eb-forh-bilde" src="' + esc(k.bilde.url) + '" alt="" decoding="sync">' : '') + '</div>';
 }
 /** «Ingen reise» sier hva søket var — aldri «utilgjengelig» (presisering, 25.11). */
 export function ingenReiseTekst(s) {
@@ -373,6 +425,7 @@ export function ettBytteRadHtml(r, esc, kommuner = null) {
   const kom = kom0 && kom0.length >= KOMMUNER_MIN ? kom0 : null;
   return '<button type="button" class="eb-rad" data-eb-retning="' + esc(r.retning) + '" aria-pressed="' + (_valgt === r.retning) + '">'
     // Stor forbokstav bare for himmelretninger: stedsnavn og linjer skrives som de er («Hauketo stasjon», «T-bane»).
+    + forhåndHtml(r, esc)
     + '<div class="eb-topp"><span class="eb-retning' + (r.fasett && r.fasett !== 'retning' ? ' eb-tittel' : '') + '">' + esc(r.retningNavn) + '</span>'
     + '<span class="eb-via">' + esc(r.undertittel || 'via ' + r.knuteNavn) + '</span>'
     + (r.ytterpunkt ? '<span class="eb-lengst">helt til ' + esc(r.ytterpunkt.navn) + ' · ' + r.ytterpunkt.km + ' km</span>' : '') + '</div>'
@@ -440,7 +493,7 @@ export function ettBytteHtml(pos, { esc, rerender, radHtml = null, nå = Date.no
     + '<div class="eb-fasetter" role="group" aria-label="se etter"><span class="eb-fasett-tittel">se etter</span>'
     + fasetter.map(f => '<button type="button" class="eb-fasett" data-eb-fasett="' + f + '" aria-pressed="' + (sv.fasett === f) + '">' + esc(FASETT_NAVN[f]) + '</button>').join('') + '</div>'
     + (!vist.length && _rekkevidde ? '<div class="at-filter">ingen steder i denne rekkevidden med ett bytte herfra nå</div>' : '')
-    + '<div class="at-liste eb-liste">' + vist.map(r => ettBytteRadHtml(r, esc, s.kommuner) + (r.retning === _valgt ? sjekkListeHtml(r, esc, radHtml, nå) : '')).join('') + '</div>'
+    + '<div class="at-liste eb-liste">' + vist.map(r => { forhåndFor(r); return ettBytteRadHtml(r, esc, s.kommuner) + (r.retning === _valgt ? sjekkListeHtml(r, esc, radHtml, nå) : ''); }).join('') + '</div>'
     + (vist.length < sv.rader.length ? '<button type="button" class="eb-vis-alle">vis alle ' + sv.rader.length + ' (de neste har færre steder)</button>' : '');
 }
 

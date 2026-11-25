@@ -65,7 +65,8 @@ describe('ryddet tekst og modus (v1.218.322)', () => {
     const src = fs.readFileSync('src/views/auto.js', 'utf8');
     expect(src).toContain("const retningKnapper = harBegge && _atRetning !== ETT_BYTTE_VALG");
     const eb = fs.readFileSync('src/ettBytte.js', 'utf8');
-    expect(eb).not.toMatch(/ikke sjekket mot reisesøket|tidskontrollert/);
+    const linjer = eb.split('\n').filter(l => /^const (GRUNNLAG|grunnlagFor)/.test(l)).join('\n');   // teksten brukeren ser, ikke kommentarene
+    expect(linjer).not.toMatch(/ikke sjekket mot reisesøket|tidskontrollert/);
     expect(eb).toContain('Steder du når med ett bytte');
   });
 });

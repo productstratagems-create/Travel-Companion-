@@ -934,3 +934,13 @@ rekreasjon) som vises. Standard er alle på. Valget lagres i
 - Oppslag, kø og cache er uendret — å slå en kategori på igjen trenger ingen nye kall.
 - Alle av: ingen opplevelsesbokser; raden sier «ingen kategorier valgt».
 - Bundet av `tests/opplevelseKategorier.test.js`.
+
+## Forhåndsboksen sier hvilket stopp og hvordan (v1.218.327)
+
+Boksen «beste opplevelse i …» på kortet navngir stoppet («nærmeste stopp:
+**X** · ca. N m i luftlinje» / «opplevelsen ligger ved stoppet» / «N min å gå»
+når gangen er målt). Luftlinje sies som luftlinje. Reisen står som én linje
+når stedets søk er hentet (`sjekkReise`: linjer, påstigning, gå om), ellers
+«trykk for å se reisen dit» — forhåndsvisningen gjør ingen egne reisekall.
+Trykk på boksen åpner kortet, sjekker stedet og velger opplevelsen (samme
+tilstand som «Vis på kart»). Bundet av `tests/forhandsvisning.test.js`.

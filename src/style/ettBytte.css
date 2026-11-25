@@ -115,6 +115,9 @@
 #v-auto .eb-forh-merke{font-size:.62rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent)}
 #v-auto .eb-forh-navn{font-weight:700;font-size:.98rem;color:var(--text)}
 #v-auto .eb-forh-hva{font-size:.74rem;color:var(--text-muted)}
+#v-auto .eb-forh{cursor:pointer}
+#v-auto .eb-forh-stopp{font-size:.78rem;color:var(--text);margin-top:.15rem}
+#v-auto .eb-forh-reise{font-size:.76rem;color:var(--text-muted)}
 #v-auto .eb-forh-besk{font-size:.8rem;color:var(--text);margin-top:.2rem}
 #v-auto .eb-forh-bilde{width:72px;height:54px;object-fit:cover;border-radius:6px;flex:none}
 #v-auto .eb-okort-forkl{font-size:.72rem;color:var(--accent);margin:.1rem 0 .2rem}

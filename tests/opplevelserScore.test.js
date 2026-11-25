@@ -50,8 +50,10 @@ describe('score', () => {
     expect(v.map(x => x.navn)).toContain('Museum');
   });
   it('8 høyst én kirke eller kulturminne når andre finnes', () => {
-    const v = velgVisning([kirke('K1', { sitelinks: 30 }), kirke('K2', { sitelinks: 30, lat: 60.5 }), o('Museum', { lat: 60.2 })], 2, kx());
+    // Begge kirkene scorer over parken, så uten regelen ville begge kommet med (mutant: regelen fjernet).
+    const v = velgVisning([kirke('K1', { sitelinks: 30, luft: 100 }), kirke('K2', { sitelinks: 30, lat: 60.5, luft: 100 }), o('Museum', { lat: 60.2 }), o('Park', { kat: svak, hoved: ['park'], under: ['park'], lat: 60.9, luft: 1500 })], 3, kx({ gangFor: x => (x.navn === 'Park' ? { kilde: 'målt', min: 24, m: 1900 } : { kilde: 'målt', min: 4, m: 300 }) }));
     expect(v.filter(x => x.under[0] === 'kirke')).toHaveLength(1);
+    expect(v.map(x => x.navn)).toContain('Park');
   });
   it('9 uten kontekst: nøyaktig som i dag (referanseimplementasjon på ekte fiksturer)', () => {
     const gammel = (liste, n = 2) => {

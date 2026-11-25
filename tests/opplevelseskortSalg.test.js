@@ -98,3 +98,18 @@ describe('bildene blinker ikke (v1.218.316)', () => {
     expect(tag).not.toContain('loading="lazy"');
   });
 });
+
+describe('bildene gjenbrukes mellom tegninger (v1.218.317)', () => {
+  it('samme src gir samme <img>-objekt etter ny tegning; ulike src holdes hver for seg', async () => {
+    const { gjenbrukBilder, _bildeEl } = await import('../src/views/ettBytteVisning.js');
+    _bildeEl.clear();
+    const rot = document.createElement('div');
+    const tegn = () => { rot.innerHTML = '<div class="eb-okort-bilde"><img src="a.jpg"></div><div class="eb-okort-bilde"><img src="b.jpg"></div>'; gjenbrukBilder(rot); return [...rot.querySelectorAll('img')]; };
+    const [a1, b1] = tegn();
+    Object.defineProperty(a1, 'complete', { value: true });   // første tegning er ferdig lastet
+    const [a2, b2] = tegn();
+    expect(a2).toBe(a1);                // gjenbrukt: ingen ny dekoding, ingen blinking
+    expect(b2).not.toBe(a1);
+    expect(b2.getAttribute('src')).toBe('b.jpg');
+  });
+});

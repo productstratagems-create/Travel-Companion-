@@ -22,7 +22,7 @@ import { hentStedsinfo, hentHerInfo, KOMMUNE_BIT } from '../api/kommuner.js';
 import { rekkeviddeFor, tellRekkevidde } from '../rekkevidde.js';
 import { metresBetween } from '../haversine.js';
 import { hentOpplevelser, hentGang, hentBerikelse, gangHeleVeienGql, parseGangHeleVeien } from '../api/opplevelserKilder.js';
-import { velgVisning, grunnlag, gangFraStopp, kortData, søkTekst, INNGANGER, unikeBeste, tilgang } from '../opplevelser.js';
+import { velgVisning, grunnlag, gangFraStopp, kortData, søkTekst, INNGANGER, unikeBeste, tilgang, erSynlig, lesKategorier, skrivKategorier, KATEGORI_STANDARD } from '../opplevelser.js';
 import { storage } from '../storage.js';
 import '../style/ettBytte.css';
 
@@ -218,7 +218,7 @@ function hentOpplevelserFor(p, { lett = false } = {}) {
 /** Bilde, ingress og gangtid for det som vises (høyst OPPLEVELSER_VIST per sted). */
 function fyllUt(p, e, gjelder = () => true) {
   // Berik og mål gangen for de 4 beste etter lett score (kortet viser 2, rangert med full kontekst): alle som kan vises er klare.
-  for (const o of velgVisning(e.data && e.data.liste, OPPLEVELSE_SCORE ? 2 * OPPLEVELSER_VIST : OPPLEVELSER_VIST, OPPLEVELSE_SCORE ? LETT_KONTEKST : null)) {
+  for (const o of velgVisning(synlige(e.data && e.data.liste), OPPLEVELSE_SCORE ? 2 * OPPLEVELSER_VIST : OPPLEVELSER_VIST, OPPLEVELSE_SCORE ? LETT_KONTEKST : null)) {
     Promise.resolve(_hentBerik(o)).then(b => { if (b) { e.berik.set(o.navn, b); if (gjelder() && _rerender) _rerender(); } }).catch(() => {});
     if (o.luft <= 100) continue;
     Promise.resolve(_hentGang({ id: p.id, lat: p.lat, lon: p.lon }, o)).then(g => { if (g) { e.gang.set(o.navn, g); if (gjelder() && _rerender) _rerender(); } }).catch(() => {});
@@ -237,7 +237,7 @@ function kandidaterFor(r) {
   const alle = [];
   for (const p of spredt((r.punkter || []).filter(x => x.id && Number.isFinite(x.lat)), FORHÅND_STEDER)) {
     const e = _oppl.get(p.id);
-    if (e && e.status === 'ok' && e.data) for (const o of e.data.liste) alle.push({ ...o, _sted: p });
+    if (e && e.status === 'ok' && e.data) for (const o of synlige(e.data.liste)) alle.push({ ...o, _sted: p });
   }
   return alle;
 }
@@ -268,6 +268,13 @@ export function forhåndHtml(r, esc) {
     + (hvorfor ? '<div class="eb-forh-besk">' + esc(hvorfor.tekst) + '</div>' : '') + '</div>'
     + (k.bilde ? '<img class="eb-forh-bilde" src="' + esc(k.bilde.url) + '" alt="" decoding="sync">' : '') + '</div>';
 }
+/** «Vis opplevelser»: fire av/på-knapper, alle på som standard. */
+export function katVelgerHtml(esc) {
+  const v = valgteKategorier();
+  return '<div class="eb-fasetter eb-kat-valg" role="group" aria-label="vis opplevelser"><span class="eb-fasett-tittel">vis opplevelser</span>'
+    + Object.entries(INNGANGER).map(([k, n]) => '<button type="button" class="eb-fasett" data-eb-kategori="' + k + '" aria-pressed="' + v.includes(k) + '">' + esc(n) + '</button>').join('')
+    + (v.length ? '' : '<span class="eb-fasett-tittel">ingen kategorier valgt</span>') + '</div>';
+}
 /** «Ingen reise» sier hva søket var — aldri «utilgjengelig» (presisering, 25.11). */
 export function ingenReiseTekst(s) {
   return 'ingen kollektivreise i søket ' + søkTekst(s.søkt) + ' — det betyr ikke at stedet ikke kan nås'
@@ -289,7 +296,7 @@ export function kortFor(p, nå = Date.now()) {
   const e = _oppl.get(p.id);
   if (!e || e.status !== 'ok' || !e.data) return [];
   const plan = sjekkReise(p.id, nå);
-  return velgVisning(e.data.liste, OPPLEVELSER_VIST, scoreKontekst(p, e, nå)).map(o => {
+  return velgVisning(synlige(e.data.liste), OPPLEVELSER_VIST, scoreKontekst(p, e, nå)).map(o => {
     const g = grunnlag(_sjekk.get(p.id), { id: p.id, navn: p.navn }, plan, gangFraStopp(e.gang.get(o.navn), o.luft), nå);
     return { ...kortData(o, g, e.data.punkter, e.berik.get(o.navn) || null), stedId: p.id };
   });
@@ -328,6 +335,9 @@ export function opplevelseHtml(p, esc, nå = Date.now()) {
     }).join('') + '</div>';
 }
 /* TURRUTER PÅ KARTET (valgfritt, av som standard — beslutning 24.11). Kartverkets WMS oppå dagens kart. */
+export const KATEGORI_KEY = 't.opplevelseKategorier';
+export const valgteKategorier = () => { try { return lesKategorier(storage.get(KATEGORI_KEY)); } catch { return [...KATEGORI_STANDARD]; } };
+const synlige = liste => { const v = valgteKategorier(); return (liste || []).filter(o => erSynlig(o, v)); };
 export const TURLAG_KEY = 't.turruteLag';
 export const turLagPå = () => { try { return storage.get(TURLAG_KEY) === '1'; } catch { return false; } };
 export const TURLAG_WMS = 'https://wms.geonorge.no/skwms1/wms.friluftsruter2';
@@ -413,6 +423,8 @@ function bindKort() {
     const ok = e.target && e.target.closest && e.target.closest('#v-auto .eb-okort[data-oppl]');
     if (ok) { const [sid, ...n] = ok.dataset.oppl.split('|'); velgOpplevelse(sid, n.join('|')); return; }
     if (e.target && e.target.closest && e.target.closest('#v-auto .eb-turlag')) { try { storage.set(TURLAG_KEY, turLagPå() ? '0' : '1'); } catch (_) {} if (_kart) oppdaterTurLag(_kart.map, _kartL, !!_valgt && turLagPå()); if (_rerender) _rerender(); return; }
+    const kv = e.target && e.target.closest && e.target.closest('#v-auto [data-eb-kategori]');
+    if (kv) { const k = kv.dataset.ebKategori, v = valgteKategorier(), ny = v.includes(k) ? v.filter(x => x !== k) : [...v, k]; try { storage.set(KATEGORI_KEY, skrivKategorier(ny)); } catch (_) {} if (_rerender) _rerender(); return; }
     const fa = e.target && e.target.closest && e.target.closest('#v-auto [data-eb-fasett]');
     if (fa) { velgFasett(fa.dataset.ebFasett); return; }
     if (e.target && e.target.closest && e.target.closest('#v-auto .eb-vis-alle')) { _visAlle = true; if (_rerender) _rerender(); return; }
@@ -523,6 +535,7 @@ export function ettBytteHtml(pos, { esc, rerender, radHtml = null, nå = Date.no
   const vist = sv.fasett === 'retning' || _visAlle ? rangert : rangert.slice(0, GRUPPER_VIST);
   _tildelt = tildelUnike(vist);   // unike beste på tvers av kortene, i visningsrekkefølge (v1.218.323)
   return '<div class="at-filter">' + esc(sv.grunnlag) + '</div>'
+    + katVelgerHtml(esc)
     // SE ETTER: hva rutene skal ha til felles. Én fasett om gangen.
     + '<div class="eb-fasetter" role="group" aria-label="grupper etter"><span class="eb-fasett-tittel">grupper etter</span>'
     + fasetter.map(f => '<button type="button" class="eb-fasett" data-eb-fasett="' + f + '" aria-pressed="' + (sv.fasett === f) + '">' + esc(FASETT_NAVN[f]) + '</button>').join('') + '</div>'

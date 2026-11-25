@@ -105,8 +105,12 @@
 #v-auto .eb-okort-tur{font-size:.74rem;color:var(--text-muted);margin-top:.5rem;padding:.35rem 0 .1rem;border-top:1px dashed rgba(var(--border-rgb),.3)}
 #v-auto .eb-okort-tur-tittel{font-weight:700;color:var(--text)}
 #v-auto .eb-okort>.eb-okort-kilde:last-child{margin-bottom:.55rem}
-/* BESTE OPPLEVELSE ØVERST PÅ KORTET (v1.218.318) */
-#v-auto .eb-forh{display:flex;gap:.6rem;align-items:flex-start;margin:0 0 .5rem;padding:.45rem .55rem;border-radius:8px;background:rgba(var(--accent-rgb),.07);border:1px solid rgba(var(--accent-rgb),.25)}
+/* OPPLEVELSEN HØRER TIL KORTET (v1.218.319): felles ramme per gruppe, tittel først, høydepunktet under,
+   mer luft mellom grupper enn inni dem (nærhet + felles område). */
+#v-auto .eb-liste{display:flex;flex-direction:column;gap:.8rem}
+#v-auto .eb-liste>button.eb-rad{border:1px solid rgba(var(--border-rgb),.28);border-left:3px solid rgba(var(--accent-rgb),.5);border-radius:10px;padding:.6rem .7rem .65rem .7rem;background:rgba(var(--accent-rgb),.03)}
+#v-auto .eb-liste>button.eb-rad[aria-pressed="true"]{border-left-color:var(--accent);background:rgba(var(--accent-rgb),.12)}
+#v-auto .eb-forh{display:flex;gap:.6rem;align-items:flex-start;margin:.55rem 0 0 .35rem;padding:.2rem 0 .2rem .65rem;border-left:3px solid var(--accent)}
 #v-auto .eb-forh-tekst{flex:1;min-width:0}
 #v-auto .eb-forh-merke{font-size:.62rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent)}
 #v-auto .eb-forh-navn{font-weight:700;font-size:.98rem;color:var(--text)}

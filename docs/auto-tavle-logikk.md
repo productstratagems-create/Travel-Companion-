@@ -512,6 +512,18 @@ ferdselsvei · ved stoppet».
   Kartverkets WMS-tjeneste (`wms.friluftsruter2`) legges oppå dagens kart.
   Dagens kart beholdes (beslutning 24.11).
 
+### Opplevelsen hører til kortet (v1.218.319)
+
+Rapportert (skjermbilde): opplevelsesboksen lå over kortoverskriften og leste
+som en del av kortet over. Utprøvd gruppering (nærhet, felles område,
+overskrift først, binding med ord):
+- hvert kort er **én ramme** med luft mellom kortene;
+- **tittelen kommer først**, og opplevelsen henger under som en innrykket del
+  med venstrekant;
+- etiketten er «beste opplevelse i **nord**» (kortets eget navn);
+- «ett av 3 steder kortet dekker» skiller opplevelsens stopp fra endestoppet
+  («helt til …»).
+
 ### Beste opplevelse øverst på kortet (v1.218.318)
 
 Bestilt: kortene under «ett bytte» pakker stopp inn etter en linse (retning,

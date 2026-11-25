@@ -59,3 +59,13 @@ describe('ett bytte unna er en modus i menylinjen (v1.218.321)', () => {
     expect(nav).toContain("id === 'v-autotavle' || id === 'v-auto' || id === 'v-bytte'");
   });
 });
+
+describe('ryddet tekst og modus (v1.218.322)', () => {
+  it('«ett bytte unna» viser ikke de andre hurtigvalgene; teksten er vanlig norsk', () => {
+    const src = fs.readFileSync('src/views/auto.js', 'utf8');
+    expect(src).toContain("const retningKnapper = harBegge && _atRetning !== ETT_BYTTE_VALG");
+    const eb = fs.readFileSync('src/ettBytte.js', 'utf8');
+    expect(eb).not.toMatch(/ikke sjekket mot reisesøket|tidskontrollert/);
+    expect(eb).toContain('Steder du når med ett bytte');
+  });
+});

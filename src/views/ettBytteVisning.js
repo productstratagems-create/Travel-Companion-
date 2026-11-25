@@ -500,7 +500,7 @@ export function ettBytteHtml(pos, { esc, rerender, radHtml = null, nå = Date.no
   const vist = sv.fasett === 'retning' || _visAlle ? rangert : rangert.slice(0, GRUPPER_VIST);
   return '<div class="at-filter">' + esc(sv.grunnlag) + '</div>'
     // SE ETTER: hva rutene skal ha til felles. Én fasett om gangen.
-    + '<div class="eb-fasetter" role="group" aria-label="se etter"><span class="eb-fasett-tittel">se etter</span>'
+    + '<div class="eb-fasetter" role="group" aria-label="grupper etter"><span class="eb-fasett-tittel">grupper etter</span>'
     + fasetter.map(f => '<button type="button" class="eb-fasett" data-eb-fasett="' + f + '" aria-pressed="' + (sv.fasett === f) + '">' + esc(FASETT_NAVN[f]) + '</button>').join('') + '</div>'
     + (!vist.length && _rekkevidde ? '<div class="at-filter">ingen steder i denne rekkevidden med ett bytte herfra nå</div>' : '')
     + '<div class="at-liste eb-liste">' + vist.map(r => { forhåndFor(r); return ettBytteRadHtml(r, esc, s.kommuner) + (r.retning === _valgt ? sjekkListeHtml(r, esc, radHtml, nå) : ''); }).join('') + '</div>'

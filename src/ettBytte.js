@@ -248,7 +248,8 @@ export function listerHolder(rad) {
   return rad.inn.every(i => rad.ut.every(u => u === i || obs.has(i + '|' + u)));
 }
 
-const GRUNNLAG = 'mulig med ett bytte — ikke sjekket mot reisesøket, og byttet er ikke tidskontrollert';
+/* Teksten over kortene (v1.218.322): hva lista viser og hva som er sjekket — i vanlig språk. */
+const GRUNNLAG = 'Steder du når med ett bytte. Reisen sjekkes når du åpner et kort.';
 /**
  * TIDSVINDUET (v1.218.310). Spurt: «Hva er tidsperspektivet for reisene i
  * "ett bytte"?» Avgangstavlene hentes fra NÅ, med et vindu per transportmiddel
@@ -267,7 +268,7 @@ export function vinduTekst(resultat) {
   if (lo === hi) return 'avganger fra nå og ' + t(hi) + (hi === 60 ? ' time' : ' timer') + ' fram';
   return 'avganger fra nå og ' + (lo < 60 ? lo + ' min' : t(lo)) + '–' + t(hi) + ' timer fram';
 }
-const grunnlagFor = resultat => (v => v ? 'mulig med ett bytte · ' + v + ' — ikke sjekket mot reisesøket, og byttet er ikke tidskontrollert' : GRUNNLAG)(vinduTekst(resultat));
+const grunnlagFor = resultat => (v => v ? 'Steder du når med ett bytte · ' + v + '. Reisen sjekkes når du åpner et kort.' : GRUNNLAG)(vinduTekst(resultat));
 
 /**
  * Kortene for én fasett. `kommuneAv` (stopp-id → kommune) trengs for «kommune».

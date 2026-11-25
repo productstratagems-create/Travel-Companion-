@@ -6242,7 +6242,8 @@ function _tegnAutoTavle(body) {
     _atRekke = del.rekker.map(nøkkel);
     if (tilFots && del.rekker[0]) del.rekker[0].best = true;
   }
-  const retningKnapper = harBegge ? '<div class="auto-fra at-retning" role="group" aria-label="retning">'
+  // «Ett bytte unna» er en modus (v1.218.322): de andre hurtigvalgene står ikke da, bare lista og kartet for modusen.
+  const retningKnapper = harBegge && _atRetning !== ETT_BYTTE_VALG /* ETT BYTTE (eksperiment) */ ? '<div class="auto-fra at-retning" role="group" aria-label="retning">'
     + knappValg.filter(k => k !== ETT_BYTTE_VALG /* ETT BYTTE (eksperiment) */).map(k => '<button type="button" class="auto-fra-knapp' + (k === _atRetning ? ' valgt' : '')
       + '" data-retning="' + k + '" aria-pressed="' + (k === _atRetning) + '"' + (k === 'hjem' ? ' title="hold for å velge stoppene"' : '') + '>' + esc(_retningTekst(k))
       + ((l => k !== 'alle' && l.length ? '<small class="omr-linjer">' + esc(knappLinjer(l)) + '</small>' : '')(k === ETT_BYTTE_VALG ? [] /* ETT BYTTE (eksperiment) */ : linjerI(k))) + '</button>').join('') + '</div>' : '';

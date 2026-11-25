@@ -98,7 +98,7 @@ describe('the fixed navigation menu', () => {
     // utforsk ligger under innstillinger (NAV_UNDER_INNSTILLINGER).
     // v1.218.118: underveis til høyre for auto-reise, bare med en reise.
     // v1.218.123: + auto-tavle helt til høyre, bare når valgt.
-    expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto', 'v-track', 'v-autotavle']);
+    expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto', 'v-track', 'v-autotavle', 'v-bytte']);
     // v1.218.107: testsiden Auto-tavle står her også.
     expect(NAV_UNDER_INNSTILLINGER.map(i => i.view)).toEqual(['v-saved', 'v-leisure', 'v-autotavle']);
     NAV_ITEMS.forEach(i => expect(i.label).toBeTruthy());
@@ -382,11 +382,11 @@ describe('menylinjen i innstillinger (v1.218.125)', () => {
     n.settAutoReiseIMeny(true); n.settAutoTavleIMeny(false);
   });
   it('rekkefølgen er fast', () => {
-    expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto', 'v-track', 'v-autotavle']);
+    expect(NAV_ITEMS.map(i => i.view)).toEqual(['v-board', 'v-auto', 'v-track', 'v-autotavle', 'v-bytte']);
   });
   it('bare Auto-tavle: auto-skjermen åpner som Auto-tavle', () => {
     const src = fs.readFileSync('src/ui/nav.js', 'utf8');
-    expect(src).toMatch(/const på = id === 'v-autotavle' \|\| bareAutoTavle\(\);/);
+    expect(src).toMatch(/const på = id === 'v-autotavle' \|\| bytte \|\| bareAutoTavle\(\);/);
     expect(src).toMatch(/if \(id === 'v-auto' && bareAutoTavle\(\) && window\._settAutoTavle/);
   });
 });

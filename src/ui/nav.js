@@ -205,6 +205,8 @@ export const NAV_ITEMS = [
   { view: 'v-track',   icon: '🚆', label: 'underveis' },
   // Helt til høyre, bare når valgt i innstillinger (v1.218.123).
   { view: 'v-autotavle', icon: '🧪', label: 'auto-tavle' },
+  // «Ett bytte unna» er en modus av Auto-tavla (v1.218.321), ved siden av den i menylinjen.
+  { view: 'v-bytte', icon: '🧭', label: 'ett bytte unna' },
 ];
 
 /** Valget i innstillinger: Auto-tavle i menylinjen (v1.218.123). */
@@ -233,7 +235,7 @@ export function settAutoTavleIMeny(på) { try { storage.set(AUTOTAVLE_MENY_KEY, 
  * er underveis, vises heller ikke menypunktet.» (v1.218.118)
  */
 export function navSynlig(id) {
-  if (id === 'v-autotavle') return autoTavleIMeny();
+  if (id === 'v-autotavle' || id === 'v-bytte') return autoTavleIMeny();
   if (id === 'v-auto') return autoReiseIMeny();
   return _reachable(id);
 }
@@ -328,7 +330,7 @@ export function tegnHjemover(el) {
 /** Which entry is lit for a given `state.view`, or null when none of them. */
 export function navActive(view) {
   // Auto-tavle er en modus av auto-reise: da lyser den, ikke auto-reise (v1.218.123).
-  if (view === 'auto' && typeof window !== 'undefined' && window._erAutoTavle && window._erAutoTavle() && autoTavleIMeny()) return 'v-autotavle';
+  if (view === 'auto' && typeof window !== 'undefined' && window._erAutoTavle && window._erAutoTavle() && autoTavleIMeny()) return window._erEttBytte && window._erEttBytte() ? 'v-bytte' : 'v-autotavle';
   const id = 'v-' + String(view || '');
   return NAV_ITEMS.some(i => i.view === id) ? id : null;
 }
@@ -371,13 +373,16 @@ export function navHidden(view) {
 /** Move to one of the four. Navigation only — no mode flag is written. */
 export function navTo(id) {
   // AUTO-TAVLE ER EN MODUS AV AUTO-REISE (v1.218.107), ikke en egen skjerm.
-  if (id === 'v-autotavle' || id === 'v-auto') {
-    const på = id === 'v-autotavle' || bareAutoTavle();
+  if (id === 'v-autotavle' || id === 'v-auto' || id === 'v-bytte') {
+    const bytte = id === 'v-bytte';
+    const på = id === 'v-autotavle' || bytte || bareAutoTavle();
     id = 'v-auto';
     if (window._settAutoTavle) {
       const var_ = window._erAutoTavle && window._erAutoTavle();
+      const varBytte = !!(window._erEttBytte && window._erEttBytte());
       window._settAutoTavle(på);
-      if ('v-' + state.view === id && var_ !== på) { window._renderAuto && window._renderAuto(); _renderNav(); return; }
+      if (window._settEttBytte) window._settEttBytte(bytte);   // modusen følger menypunktet
+      if ('v-' + state.view === id && (var_ !== på || varBytte !== bytte)) { window._renderAuto && window._renderAuto(); _renderNav(); return; }
     }
   }
   if (!id || 'v-' + state.view === id) return;

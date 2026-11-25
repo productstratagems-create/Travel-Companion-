@@ -300,7 +300,7 @@ describe('ett bytte: sjekk denne (forslag 5)', () => {
     expect(sjekkStatus(id).status).toBe('henter');
     await new Promise(r => setTimeout(r, 10));
     expect(sjekker).toHaveLength(knapper.length);
-    expect(JSON.parse(sjekker[0].body).query).toContain('to:{place:"' + id + '"}');
+    expect(sjekker.some(q => JSON.parse(q.body).query.includes('to:{place:"' + id + '"}'))).toBe(true); // rekkefølgen på forespørslene er ikke rekkefølgen på knappene (v1.218.320)
     expect(sjekkStatus(id).tekst).toMatch(/^fremme /);
     expect(ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} })).toContain(esc(sjekkStatus(id).tekst));
     sjekkSted(id, { nå: nå + 60_000 }); // innen 10 min: ingen nytt søk
@@ -397,7 +397,8 @@ describe('ett bytte: se etter — reiseruter med noe til felles', () => {
     ettBytteHtml(p, { esc, hent, nå, rerender: () => {} }); await new Promise(r => setTimeout(r, 50));
     let html = ettBytteHtml(p, { esc, hent, nå, rerender: () => {} });
     expect(html).toMatch(/data-eb-fasett="retning" aria-pressed="true"/);
-    for (const f of ['knute', 'linje', 'transport']) expect(html).toContain('data-eb-fasett="' + f + '"');
+    // v1.218.320: bare retning og kommune er knapper; knutepunkt, linje og transport er tatt bort.
+    for (const f of ['knute', 'linje', 'transport']) expect(html).not.toContain('data-eb-fasett="' + f + '"');
     expect(html).not.toContain('data-eb-fasett="kommune"'); // ingen kommunedata ennå
     velgRetning('NØ');
     velgFasett('knute');
@@ -843,9 +844,9 @@ describe('ett bytte: klikkbare retningskort', () => {
 
 describe('ett bytte: isolert og lett å rulle tilbake', () => {
   const a = readFileSync('src/views/auto.js', 'utf8');
-  it('alle krokene i auto.js er merket, og det er bare ni (fem for lista, én for kartet, tre for «hvor langt», v1.218.308)', () => {
+  it('alle krokene i auto.js er merket, og det er bare åtte (fem for lista, én for kartet, to for «hvor langt», v1.218.308; «ett bytte unna» har ingen rekkevidderad, v1.218.320)', () => {
     const linjer = a.split('\n').filter(l => /ETT_BYTTE|ettBytte/.test(l));
-    expect(linjer.length).toBe(9);
+    expect(linjer.length).toBe(8);
     expect(linjer.every(l => /ETT BYTTE \(eksperiment\)/.test(l))).toBe(true);
   });
   it('valget huskes ikke: etter omlasting står tavla på et kjent valg', () => {

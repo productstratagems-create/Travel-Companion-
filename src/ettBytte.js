@@ -211,7 +211,7 @@ function radAv(resultat, posisjon, veier, meta) {
   const kNavn = new Map(knuterDetalj.map(k => [k.id, k.navn]));
   const linjepar = [...par.values()].map(p => ({ inn: p.inn, knute: p.knute, knuteNavn: kNavn.get(p.knute) || p.knute, ut: p.ut, steder: p.steder.size }))
     .sort((a, b) => b.steder - a.steder || (a.inn + a.ut + a.knute < b.inn + b.ut + b.knute ? -1 : 1));
-  const punkter = steder.filter(x => Number.isFinite(x.lat)).map(({ id, navn: n, lat, lon, type }) => ({ id, navn: n, lat, lon, type }));
+  const punkter = steder.filter(x => Number.isFinite(x.lat)).map(({ id, navn: n, lat, lon, type, m }) => ({ id, navn: n, lat, lon, type, m }));   // m: avstand fra deg, så kort og steder kan rangeres fra nær til langt (v1.218.320)
   return {
     retning: meta.retning, retningNavn: meta.tittel, undertittel: meta.undertittel || null, fasett: meta.fasett,
     knute, knuteNavn: knuterDetalj[0].navn, knuterDetalj, linjepar, reiseruter: linjepar.length,

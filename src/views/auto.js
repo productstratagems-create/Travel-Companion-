@@ -5995,7 +5995,7 @@ export const REKKEVIDDE_KEY = 't.rekkevidde';
 export function lagretRekkevidde() { try { const v = storage.get(REKKEVIDDE_KEY); return REKKEVIDDER.includes(v) ? v : null; } catch { return null; } }
 let _rekkevidde = lagretRekkevidde();
 /** Kategoriene raden vises for. Ren. */
-export const harRekkevidde = valg => valg === 'alle' || valg === ETT_BYTTE_VALG || erOmrådeValg(valg); // ETT BYTTE (eksperiment)
+export const harRekkevidde = valg => valg === 'alle' || erOmrådeValg(valg); // «ett bytte unna» rangerer fra nær til langt i stedet (v1.218.320)
 const _stedsinfo = new Map();   // stopp-id → { kommune, fylke } (eller null: spurt, uten svar)
 let _herInfo = null, _herHenter = null;
 /** Kommune og fylke for endestoppene og der du står, hentet én gang og husket. */

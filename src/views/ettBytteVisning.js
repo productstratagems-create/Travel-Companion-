@@ -11,6 +11,10 @@
  */
 import { utforsk } from '../nettverksutforsker.js';
 import { ettByttePer, ettByttVeier, kommunerI, oftest, reiseSammendrag, FASETTER, FASETT_NAVN, listerHolder } from '../ettBytte.js';
+/** Knappene som vises (v1.218.320): bare retning og kommune. De andre fasettene er fortsatt kode, men ikke valg. */
+export const FASETTER_VIST = Object.freeze(['retning', 'kommune']);
+/** Nærmest først: minste avstand til et sted kortet dekker (punktene har `m` fra posisjonen). Ren. */
+export const nærmesteM = r => Math.min(Infinity, ...((r && r.punkter) || []).map(p => (Number.isFinite(p.m) ? p.m : Infinity)));
 import { reisesøkGql } from '../reisebekreftelse.js';
 import { reiseRader } from '../reiseTil.js';
 import { enturFetch } from '../api/http.js';
@@ -24,7 +28,7 @@ import '../style/ettBytte.css';
 
 export const ETT_BYTTE = true;
 export const ETT_BYTTE_VALG = 'bytte';
-export const ETT_BYTTE_TEKST = 'ett bytte';
+export const ETT_BYTTE_TEKST = 'ett bytte unna';
 /** Høyst så mange linjer ut vises per rad; resten telles. */
 export const UT_VIST = 4;
 
@@ -56,6 +60,7 @@ export const GRUPPER_VIST = 10;
 export const valgtFasett = () => _fasett;
 /** Bytt fasett: valgt kort og «vis alle» nullstilles, kartet går tilbake til oversikten. */
 export function velgFasett(f) {
+  // Alle fasetter er fortsatt kode (tester og kommuneoppslag); knappene viser bare FASETTER_VIST.
   if (!FASETTER.includes(f) || f === _fasett) return;
   _fasett = f; _valgt = null; _visAlle = false;
   if (_rerender) _rerender();
@@ -319,7 +324,8 @@ function oppdaterTurLag(map, L, vis) {
  * eller hva appen ikke vet ennå: «henter», «ingen reise funnet», «fikk ikke svar».
  */
 export function sjekkListeHtml(r, esc, radHtml = null, nå = Date.now()) {
-  const steder = spredt(r.punkter.filter(p => p.id), SJEKK_STEDER);
+  // De 8 velges spredt, men vises nærmest først (v1.218.320).
+  const steder = spredt(r.punkter.filter(p => p.id), SJEKK_STEDER).sort((a, b) => (a.m ?? Infinity) - (b.m ?? Infinity));
   if (!steder.length) return '';
   const søkt = steder.map(p => _sjekk.get(p.id)).filter(x => x && x.status === 'ok' && Number.isFinite(x.søkt)).map(x => x.søkt);
   return '<div class="eb-sjekkliste" data-eb-liste="' + esc(r.retning) + '">'
@@ -488,8 +494,10 @@ export function ettBytteHtml(pos, { esc, rerender, radHtml = null, nå = Date.no
   if (s.status === 'feil') return '<div class="at-filter">fant ikke svar på bytter herfra nå — prøv igjen litt senere</div>';
   if (s.svar.ingen) return '<div class="at-filter">fant ingen bytter herfra nå — det betyr ikke at det ikke finnes</div>';
   const sv = aktuelle(s);
-  const fasetter = FASETTER.filter(f => f !== 'kommune' || (s.kommuner && s.kommuner.kommuneAv && s.kommuner.kommuneAv.size));
-  const vist = sv.fasett === 'retning' || _visAlle ? sv.rader : sv.rader.slice(0, GRUPPER_VIST);
+  const fasetter = FASETTER_VIST.filter(f => f !== 'kommune' || (s.kommuner && s.kommuner.kommuneAv && s.kommuner.kommuneAv.size));
+  // Alt fra nær til langt unna (v1.218.320): kortene etter nærmeste sted.
+  const rangert = sv.rader.slice().sort((a, b) => nærmesteM(a) - nærmesteM(b));
+  const vist = sv.fasett === 'retning' || _visAlle ? rangert : rangert.slice(0, GRUPPER_VIST);
   return '<div class="at-filter">' + esc(sv.grunnlag) + '</div>'
     // SE ETTER: hva rutene skal ha til felles. Én fasett om gangen.
     + '<div class="eb-fasetter" role="group" aria-label="se etter"><span class="eb-fasett-tittel">se etter</span>'

@@ -45,7 +45,7 @@ describe('rekkeviddeFor — kommune og fylke', () => {
 describe('raden «hvor langt» på Auto-tavla', () => {
   it('bare for kategoriene som oppdager muligheter, ikke for reiseoppgavene', () => {
     expect(harRekkevidde('alle')).toBe(true);
-    expect(harRekkevidde('bytte')).toBe(true);
+    expect(harRekkevidde('bytte')).toBe(false);   // «ett bytte unna» rangerer fra nær til langt i stedet (v1.218.320)
     expect(harRekkevidde('omr:NØ')).toBe(true);
     expect(harRekkevidde('mot')).toBe(false);
     expect(harRekkevidde('hjem')).toBe(false);

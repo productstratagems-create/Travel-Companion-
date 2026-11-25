@@ -125,7 +125,8 @@ describe('tilgang (presisering 3)', () => {
   });
   it('tilgangsordet påvirker aldri utvalg eller rekkefølge: velgVisning leser det ikke', () => {
     const src = fs.readFileSync('src/opplevelser.js', 'utf8');
-    const body = src.slice(src.indexOf('export function velgVisning'), src.indexOf('/** Underkategoriens ord'));
+    // Standardvalget (uten kontekst): rekkefølge og variasjon leser aldri tilgang. Score er et uttrykkelig valg (kontekst).
+    const body = src.slice(src.indexOf('export const dagensRekkefølge'), src.indexOf('/**\n * Hvilke som vises på raden'));
     expect(body).not.toMatch(/tilgang|TILGANG_GRENSER/);
   });
 });

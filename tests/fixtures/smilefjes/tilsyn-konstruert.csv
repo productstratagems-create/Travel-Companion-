@@ -1,0 +1,7 @@
+tilsynsobjektid;orgnummer;navn;adrlinje1;postnr;poststed;tilsynid;dato;total_karakter
+A1;111;Kafé Nordlys;Storgata 1;0155;OSLO;t1;01032023;1
+A1;111;Kafé Nordlys;Storgata 1;0155;OSLO;t2;12032025;0
+B2;222;Pizzabaren;Kirkeveien 5;0368;OSLO;t3;05052024;3
+C3;333;"Fisk & ""Chips""";Havnegata 9;4006;STAVANGER;t4;2024-06-01;2
+D4;444;Uten dato;Veien 1;0001;OSLO;t5;;1
+E4;555;Ikke vurdert;Veien 2;0001;OSLO;t6;01012024;

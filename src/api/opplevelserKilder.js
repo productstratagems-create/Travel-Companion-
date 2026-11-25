@@ -18,6 +18,7 @@ import { measurePath } from '../ui/path.js';
 import { SPEED_MPN } from '../walkSpeed.js';
 import { loadWalkSpeed } from '../geo.js';
 import { parseSammendrag, parseBildeinfo, klassifiserTurrute, klassifiserTilrettelegging, klassifiserFriluft, klassifiserWikidata, opplevelserVed, avstandM } from '../opplevelser.js';
+import { naboRuter, kandidaterFraRuter } from './smilefjesData.js';
 
 export const OPPLEVELSE_CACHE_MS = 24 * 3600_000;
 const RADIUS_M = 800;
@@ -107,6 +108,14 @@ export function parseWikidata(json) {
   }).filter(Boolean);
 }
 
+/** Smilefjes-datasettet (public/data/smilefjes, bygget av scripts/bygg-smilefjes.mjs): rutene rundt stoppet.
+    Mangler en rutefil (404) er det ingen spisesteder der ELLER datasettet er ikke bygget — `mangler` sier ikke hvilket. */
+export async function hentSmilefjes(stopp, { hent = json } = {}) {
+  const rader = []; let mangler = false;
+  await Promise.all(naboRuter(stopp.lat, stopp.lon, 1500).map(k => hent('./data/smilefjes/' + k + '.json').then(r => rader.push(...r)).catch(() => { mangler = true; })));
+  return { rader, mangler: mangler && !rader.length };
+}
+
 /* ── Henting, med cache per stopp ─────────────────────────────────────── */
 const _cache = new Map();   // stopp-id → { tid, løfte }
 export function _tømOpplevelser() { _cache.clear(); }
@@ -117,16 +126,18 @@ const tekst = url => fetchMedFrist(url).then(r => { if (!r.ok) throw new Error('
  * Opplevelsene ved et stopp. → { liste, punkter, status: { turrute, miljodir, wikidata } }
  * der status er 'ok' eller 'feil'. `hent` kan injiseres (tester).
  */
-export function hentOpplevelser(stopp, { nå = Date.now(), hent = { json, tekst } } = {}) {
+export function hentOpplevelser(stopp, { nå = Date.now(), hent = { json, tekst, smil: hentSmilefjes } } = {}) {
   if (!stopp || !stopp.id || !Number.isFinite(stopp.lat)) return Promise.resolve(null);
   const c = _cache.get(stopp.id);
   if (c && nå - c.tid < OPPLEVELSE_CACHE_MS) return c.løfte;
-  const løfte = Promise.allSettled([hent.tekst(turruteUrl(stopp)), hent.json(friluftUrl(stopp)), hent.json(wikidataUrl(stopp))]).then(([t, f, w]) => {
+  const løfte = Promise.allSettled([hent.tekst(turruteUrl(stopp)), hent.json(friluftUrl(stopp)), hent.json(wikidataUrl(stopp)), hent.smil ? hent.smil(stopp) : Promise.resolve(null)]).then(([t, f, w, m]) => {
     const tr = t.status === 'fulfilled' ? parseTurruter(t.value, stopp) : { kandidater: [], punkter: [] };
-    const kandidater = [...tr.kandidater, ...(f.status === 'fulfilled' ? parseFriluft(f.value, stopp) : []), ...(w.status === 'fulfilled' ? parseWikidata(w.value) : [])];
+    const kandidater = [...tr.kandidater, ...(f.status === 'fulfilled' ? parseFriluft(f.value, stopp) : []), ...(w.status === 'fulfilled' ? parseWikidata(w.value) : []), ...(m.status === 'fulfilled' && m.value ? kandidaterFraRuter(m.value.rader) : [])];
     const status = { turrute: t.status === 'fulfilled' ? 'ok' : 'feil', miljodir: f.status === 'fulfilled' ? 'ok' : 'feil', wikidata: w.status === 'fulfilled' ? 'ok' : 'feil' };
+    // Smilefjes: bare når datasettet finnes (ellers «mangler», ikke «feil») — sagt, ikke stille.
+    if (m.status === 'fulfilled' && m.value) status.smilefjes = m.value.mangler ? 'mangler' : 'ok'; else if (m.status === 'rejected') status.smilefjes = 'feil';
     // Feilet alle tre, huskes det ikke: neste valg prøver igjen.
-    if (Object.values(status).every(x => x === 'feil')) _cache.delete(stopp.id);
+    if (['turrute', 'miljodir', 'wikidata'].every(k => status[k] === 'feil')) _cache.delete(stopp.id);
     return { liste: opplevelserVed(kandidater, stopp), punkter: tr.punkter, status };
   });
   _cache.set(stopp.id, { tid: nå, løfte });

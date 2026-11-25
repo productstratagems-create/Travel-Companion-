@@ -944,3 +944,10 @@ når stedets søk er hentet (`sjekkReise`: linjer, påstigning, gå om), ellers
 «trykk for å se reisen dit» — forhåndsvisningen gjør ingen egne reisekall.
 Trykk på boksen åpner kortet, sjekker stedet og velger opplevelsen (samme
 tilstand som «Vis på kart»). Bundet av `tests/forhandsvisning.test.js`.
+
+## Mat og drikke fra smilefjes-datasettet (v1.218.328)
+
+Femte inngang `mat` («Mat og drikke») i `INNGANGER`. Kandidatene kommer fra rutefiler bygget av
+`scripts/bygg-smilefjes.mjs` (`kilde: 'smilefjes'`). `trinnFor` gir spisesteder trinn 5 (etter kirker):
+de løfter aldri foran en opplevelse. Én kilde, ett navn for hver regel; detaljer og det uverifiserte
+i `docs/smilefjes.md`. Bundet av `tests/smilefjes.test.js`.

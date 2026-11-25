@@ -145,12 +145,12 @@ export function slåSammen(kandidater, stopp) {
       lik.wikidata = lik.wikidata || c.wikidata || null; lik.sitelinks = Math.max(lik.sitelinks, c.sitelinks || 0);
       lik.rute = slåSammenRute(lik.rute, c.rute); lik.verdi = lik.verdi || c.verdi || null;
       lik.beskrivelse = lik.beskrivelse || c.beskrivelse || null;
-      lik.bildeFil = lik.bildeFil || c.bildeFil || null; lik.wikiTittel = lik.wikiTittel || c.wikiTittel || null; lik.omraade = lik.omraade || c.omraade || null; lik.info = lik.info || c.info || null;
+      lik.bildeFil = lik.bildeFil || c.bildeFil || null; lik.wikiTittel = lik.wikiTittel || c.wikiTittel || null; lik.omraade = lik.omraade || c.omraade || null; lik.info = lik.info || c.info || null; lik.smilefjes = lik.smilefjes || c.smilefjes || null;
       if (c.kilde === 'wikidata' && !lik.qid) lik.qid = c.sid;
       continue;
     }
     unike.push({ navn: c.navn, lat: c.lat, lon: c.lon, luft, flate: !!c.flate, kat: [...c.kat], kilder: [c], wikidata: c.wikidata || null, sitelinks: c.sitelinks || 0, rute: c.rute || null, verdi: c.verdi || null, beskrivelse: c.beskrivelse || null,
-      bildeFil: c.bildeFil || null, wikiTittel: c.wikiTittel || null, omraade: c.omraade || null, info: c.info || null, qid: c.kilde === 'wikidata' ? c.sid : null });
+      bildeFil: c.bildeFil || null, wikiTittel: c.wikiTittel || null, omraade: c.omraade || null, info: c.info || null, qid: c.kilde === 'wikidata' ? c.sid : null, smilefjes: c.smilefjes || null });
   }
   return unike;
 }
@@ -241,8 +241,8 @@ export function fasiliteterVed(o, punkter, maksM = 300) {
  * kontrollerer det før det vises. Ingen egne søk, ingen gjetting. */
 
 /** Fire innganger over de sju kategoriene. Et sted kan høre til flere. */
-export const INNGANGER = Object.freeze({ natur: 'Natur og friluftsliv', severdighet: 'Severdigheter', kultur: 'Kultur og historie', aktivitet: 'Aktiviteter og rekreasjon' });
-const INNGANG_AV = { natur: 'natur', friluftsliv: 'natur', severdighet: 'severdighet', kultur: 'kultur', bading: 'aktivitet', park: 'aktivitet', attraksjon: 'aktivitet' };
+export const INNGANGER = Object.freeze({ natur: 'Natur og friluftsliv', severdighet: 'Severdigheter', kultur: 'Kultur og historie', aktivitet: 'Aktiviteter og rekreasjon', mat: 'Mat og drikke' });
+const INNGANG_AV = { natur: 'natur', friluftsliv: 'natur', severdighet: 'severdighet', kultur: 'kultur', bading: 'aktivitet', park: 'aktivitet', attraksjon: 'aktivitet', mat: 'mat' };
 export const innganger = o => [...new Set((o.hoved || []).map(k => INNGANG_AV[k]).filter(Boolean))];
 
 /** VALG AV KATEGORIER (v1.218.326): standard er alle på. Én definisjon av hva som vises. */
@@ -401,7 +401,8 @@ export function kortData(o, g, punkter = [], berik = null) {
     framme: (t => (t ? 'framme ca. ' + klokke(t.framme) : null))(samletTid(g)),
     tilgang: tilgang(reise, gang),
     fasiliteter: fasiliteterVed(o, punkter),
-    kilder: [...new Set(o.kilder.map(c => ({ turrute: 'Kartverket', miljodir: 'Miljødirektoratet', wikidata: 'Wikidata' })[c.kilde] || c.kilde))],
+    kilder: [...new Set(o.kilder.map(c => ({ turrute: 'Kartverket', miljodir: 'Miljødirektoratet', wikidata: 'Wikidata', smilefjes: 'Mattilsynet' })[c.kilde] || c.kilde))],
+    smilefjes: o.smilefjes || null,
     avvik: (g && g.avvik) || [],
     // Forklaringen (aldri tallet) når valget er gjort etter score (v1.218.325).
     forklaring: (o.score && o.score.forklaring) || null,

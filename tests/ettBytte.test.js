@@ -300,7 +300,7 @@ describe('ett bytte: sjekk denne (forslag 5)', () => {
     expect(sjekkStatus(id).status).toBe('henter');
     await new Promise(r => setTimeout(r, 10));
     expect(sjekker).toHaveLength(knapper.length);
-    expect(JSON.parse(sjekker[0].body).query).toContain('to:{place:"' + id + '"}');
+    expect(sjekker.some(q => JSON.parse(q.body).query.includes('to:{place:"' + id + '"}'))).toBe(true); // rekkefølgen på forespørslene er ikke rekkefølgen på knappene (v1.218.320)
     expect(sjekkStatus(id).tekst).toMatch(/^fremme /);
     expect(ettBytteHtml(pos, { esc, hent, nå, rerender: () => {} })).toContain(esc(sjekkStatus(id).tekst));
     sjekkSted(id, { nå: nå + 60_000 }); // innen 10 min: ingen nytt søk

@@ -20,9 +20,14 @@ describe('ett bytte unna', () => {
     ettBytteHtml(pos, { esc, hent, nå, hentKommuner: null, rerender: () => {} }); await vent(80);
     const html = ettBytteHtml(pos, { esc, hent, nå, hentKommuner: null, rerender: () => {} });
     expect([...html.matchAll(/data-eb-fasett="(\w+)"/g)].map(m => m[1])).toEqual(['retning']);
-    // Rekkefølgen: nærmeste ssted per kort stiger.
-    const navnRekke = [...html.matchAll(/class="eb-retning[^"]*">([^<]+)</g)].map(m => m[1]);
-    expect(navnRekke.length).toBeGreaterThan(3);
+    // Stedene bærer avstanden (m), og kortene står i stigende rekkefølge etter det nærmeste.
+    const { utforsk } = await import('../src/nettverksutforsker.js'), { ettByttePer } = await import('../src/ettBytte.js');
+    const res = await utforsk({ posisjon: pos, tid: O.scenario.tid }, { hent });
+    const rader = ettByttePer(res, pos, 'retning').rader;
+    expect(rader.every(r => Number.isFinite(nærmesteM(r)))).toBe(true);
+    const rangert = rader.slice().sort((a, b) => nærmesteM(a) - nærmesteM(b)).map(r => r.retningNavn);
+    const iHtml = [...html.matchAll(/class="eb-retning[^"]*">([^<]+)</g)].map(m => m[1]);
+    expect(iHtml).toEqual(rangert);
   });
   it('nærmesteM: minste avstand blant stedene kortet dekker; kort uten steder sist', () => {
     expect(nærmesteM({ punkter: [{ m: 9000 }, { m: 1200 }, { m: 4000 }] })).toBe(1200);

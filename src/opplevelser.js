@@ -414,3 +414,29 @@ export function hvorforTekst(o, berik) {
   if (o.verdi) return { tekst: o.verdi, kilde: 'Miljødirektoratet' };
   return null;
 }
+
+
+/* UNIKE BESTE PÅ TVERS AV KORTENE (v1.218.323): samme opplevelse skal ikke være «beste» på to kort. */
+/** Opplevelsens identitet: Wikidata-id, ellers normalisert navn. Ren. */
+export function opplevelseNøkkel(o) {
+  if (o && o.qid) return 'q:' + o.qid;
+  // Bare navnet: nærmeste punkt/kant på en flate er ulikt fra hvert stopp (sett: «Nøstvetmarka» på to kort).
+  return 'n:' + normNavn(o && o.navn);
+}
+/**
+ * Går gjennom kortene i visningsrekkefølge (nær → langt). Hvert kort velger sin beste
+ * (`velgVisning`) blant det en tidligere kort ikke alt har tatt; er alt tatt, står kortet uten boks.
+ * Samme tilstand gir samme valg. Ren.
+ * @param rader        kortene i visningsrekkefølge
+ * @param kandidaterFor  r → [opplevelse] (alle kandidatene kortet har)
+ * @returns Map<kort, opplevelse>
+ */
+export function unikeBeste(rader, kandidaterFor) {
+  const tatt = new Set(), ut = new Map();
+  for (const r of rader || []) {
+    const fri = (kandidaterFor(r) || []).filter(o => !tatt.has(opplevelseNøkkel(o)));
+    const best = velgVisning(fri, 1)[0];
+    if (best) { tatt.add(opplevelseNøkkel(best)); ut.set(r, best); }
+  }
+  return ut;
+}

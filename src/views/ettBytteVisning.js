@@ -22,7 +22,7 @@ import { hentStedsinfo, hentHerInfo, KOMMUNE_BIT } from '../api/kommuner.js';
 import { rekkeviddeFor, tellRekkevidde } from '../rekkevidde.js';
 import { metresBetween } from '../haversine.js';
 import { hentOpplevelser, hentGang, hentBerikelse, gangHeleVeienGql, parseGangHeleVeien } from '../api/opplevelserKilder.js';
-import { velgVisning, grunnlag, gangFraStopp, kortData, søkTekst, INNGANGER } from '../opplevelser.js';
+import { velgVisning, grunnlag, gangFraStopp, kortData, søkTekst, INNGANGER, unikeBeste } from '../opplevelser.js';
 import { storage } from '../storage.js';
 import '../style/ettBytte.css';
 
@@ -115,7 +115,7 @@ const _sjekk = new Map();
 export const SJEKK_GYLDIG_MS = 10 * 60_000;
 /** Høyst så mange steder står i lista under det valgte kortet. */
 export const SJEKK_STEDER = 8;
-export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _fasett = 'retning'; _visAlle = false; _rerender = null; _hent = null; _sjekk.clear(); _rekkevidde = null; _oppl.clear(); _valgtOppl = null; _bildeEl.clear(); _kø.length = 0; _forhBerik.clear(); }
+export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _fasett = 'retning'; _visAlle = false; _rerender = null; _hent = null; _sjekk.clear(); _rekkevidde = null; _oppl.clear(); _valgtOppl = null; _bildeEl.clear(); _kø.length = 0; _køAktiv = 0; _køGen++; _forhBerik.clear(); _tildelt = null; }
 export const sjekkStatus = id => _sjekk.get(id) || null;
 /** Tester: glem ett steds svar. */
 export const _nullstillSjekk = id => _sjekk.delete(id);
@@ -179,15 +179,16 @@ export const opplevelseStatus = id => _oppl.get(id) || null;
 /* FORHÅNDSVISNING PÅ KORTENE (v1.218.318): hvert kort viser sin beste opplevelse. Oppslagene går i en
    kø (3 samtidige) så Wikimedia, Entur og kildene ikke struper, og i «lett» modus uten gange og bilde. */
 export const FORHÅND_STEDER = 3, FORHÅND_SAMTIDIG = 3;
-let _køAktiv = 0; const _kø = [];
+let _køAktiv = 0, _køGen = 0; const _kø = [];
 export const _køStatus = () => ({ aktiv: _køAktiv, venter: _kø.length });
 function køet(arbeid) {
   _kø.push(arbeid); køKjør();
 }
 function køKjør() {
   while (_køAktiv < FORHÅND_SAMTIDIG && _kø.length) {
-    const a = _kø.shift(); _køAktiv++;
-    Promise.resolve().then(a).catch(() => {}).finally(() => { _køAktiv--; køKjør(); });
+    const a = _kø.shift(), gen = _køGen; _køAktiv++;
+    // Et oppslag fra før en nullstilling teller ikke lenger (nytt sted, nye tester).
+    Promise.resolve().then(a).catch(() => {}).finally(() => { if (gen === _køGen) { _køAktiv--; køKjør(); } });
   }
 }
 function hentOpplevelserFor(p, { lett = false } = {}) {
@@ -219,15 +220,24 @@ function forhåndHent(p) {
     .catch(() => { e.status = 'feil'; }).finally(() => { if (gjelder() && _rerender) _rerender(); }));
 }
 /** Kortets beste opplevelse blant de forhåndsvalgte stedene: { o, sted } eller null. Ren mot tilstanden. */
-export function besteForKort(r) {
+/** Alle kandidatene et kort har (de forhåndshentede stedene), hver med stedet den ligger ved. */
+function kandidaterFor(r) {
   const alle = [];
   for (const p of spredt((r.punkter || []).filter(x => x.id && Number.isFinite(x.lat)), FORHÅND_STEDER)) {
     const e = _oppl.get(p.id);
     if (e && e.status === 'ok' && e.data) for (const o of e.data.liste) alle.push({ ...o, _sted: p });
   }
-  const best = velgVisning(alle, 1)[0];
+  return alle;
+}
+/** Beste for ETT kort. Med `tildelt` (fra `tildelUnike`): det kortet fikk uten gjentak på tvers av kortene. */
+export function besteForKort(r, tildelt = null) {
+  const alle = kandidaterFor(r);
+  const best = tildelt ? tildelt.get(r) : velgVisning(alle, 1)[0];
   return best ? { o: best, sted: best._sted, av: alle.length } : null;
 }
+let _tildelt = null;
+/** Kortene i visningsrekkefølge velger i tur og orden, uten gjentak (v1.218.323). */
+export function tildelUnike(rader) { return unikeBeste(rader, kandidaterFor); }
 export function forhåndFor(r) {
   for (const p of spredt((r.punkter || []).filter(x => x.id && Number.isFinite(x.lat)), FORHÅND_STEDER)) hentOpplevelserFor(p, { lett: true });
 }
@@ -235,7 +245,7 @@ const _forhBerik = new Map();
 /** Beste opplevelse øverst på kortet. Ingen funn: ingenting (kortet står som før). */
 export function forhåndHtml(r, esc) {
   const gruppe = r.retningNavn || r.knuteNavn || '';
-  const b = besteForKort(r);
+  const b = besteForKort(r, _tildelt);
   if (!b) return '';
   const { o, sted } = b;
   if (!_forhBerik.has(o.navn)) { _forhBerik.set(o.navn, null); Promise.resolve(_hentBerik(o)).then(x => { _forhBerik.set(o.navn, x || null); if (_rerender) _rerender(); }).catch(() => {}); }
@@ -498,6 +508,7 @@ export function ettBytteHtml(pos, { esc, rerender, radHtml = null, nå = Date.no
   // Alt fra nær til langt unna (v1.218.320): kortene etter nærmeste sted.
   const rangert = sv.rader.slice().sort((a, b) => nærmesteM(a) - nærmesteM(b));
   const vist = sv.fasett === 'retning' || _visAlle ? rangert : rangert.slice(0, GRUPPER_VIST);
+  _tildelt = tildelUnike(vist);   // unike beste på tvers av kortene, i visningsrekkefølge (v1.218.323)
   return '<div class="at-filter">' + esc(sv.grunnlag) + '</div>'
     // SE ETTER: hva rutene skal ha til felles. Én fasett om gangen.
     + '<div class="eb-fasetter" role="group" aria-label="grupper etter"><span class="eb-fasett-tittel">grupper etter</span>'

@@ -70,3 +70,42 @@ describe('ryddet tekst og modus (v1.218.322)', () => {
     expect(eb).toContain('Steder du når med ett bytte');
   });
 });
+
+describe('unike beste på tvers av kortene (v1.218.323)', async () => {
+  const { unikeBeste, opplevelseNøkkel } = await import('../src/opplevelser.js');
+  const o = (navn, qid, sitelinks = 0) => ({ navn, qid, lat: 60, lon: 10, luft: 100, sitelinks, kat: [{ k: 'kultur', u: 'museum', sterk: true }], hoved: ['kultur'], under: ['museum'], rute: null });
+  const A = o('Ringve', 'Q1', 12), B = o('Hafjell', 'Q2', 9), C = o('Marka', 'Q3', 1);
+  it('to kort med samme beste: nærmeste (først) beholder den, neste får sin nest beste', () => {
+    const k1 = { n: 'nord' }, k2 = { n: 'nordøst' };
+    const ut = unikeBeste([k1, k2], r => (r === k1 ? [A, B] : [A, B, C]));
+    expect(ut.get(k1).navn).toBe('Ringve');
+    expect(ut.get(k2).navn).toBe('Hafjell');
+  });
+  it('bare én felles kandidat: ett kort får den, det andre står uten boks', () => {
+    const k1 = {}, k2 = {}, k3 = {};
+    const ut = unikeBeste([k1, k2, k3], () => [A]);
+    expect([...ut.values()].map(x => x.navn)).toEqual(['Ringve']);
+    expect(ut.has(k2)).toBe(false);
+  });
+  it('stabilt: samme tilstand gir samme valg; samme Wikidata-id fra to steder er samme opplevelse', () => {
+    const k1 = {}, k2 = {}, f = r => (r === k1 ? [A, B] : [{ ...A, lat: 60.0004 }, C]);
+    const a = unikeBeste([k1, k2], f), b = unikeBeste([k1, k2], f);
+    expect(a.get(k2).navn).toBe(b.get(k2).navn);
+    expect(opplevelseNøkkel(A)).toBe(opplevelseNøkkel({ ...A, lat: 61 }));   // qid slår posisjon
+    expect(a.get(k2).navn).toBe('Marka');                                    // «Ringve» fra stedet i nordøst er allerede tatt
+  });
+  it('på skjermen: ingen to kort viser samme opplevelse', async () => {
+    const { ettBytteHtml, _nullstillEttBytte, _settOpplevelseKilder } = await import('../src/views/ettBytteVisning.js');
+    const { opplevelserVed } = await import('../src/opplevelser.js'), { parseTurruter, parseFriluft, parseWikidata } = await import('../src/api/opplevelserKilder.js');
+    _nullstillEttBytte();
+    const F = JSON.parse(fs.readFileSync('tests/fixtures/opplevelser/oppegard.json', 'utf8')), tr = parseTurruter(F.turrute, F.stopp);
+    const data = { liste: opplevelserVed([...tr.kandidater, ...parseFriluft(F.friluft, F.stopp), ...parseWikidata(F.wikidata)], F.stopp), punkter: tr.punkter, status: {} };
+    _settOpplevelseKilder(async () => data, async () => null, async () => null);
+    ettBytteHtml(pos, { esc, hent, nå, hentKommuner: null, rerender: () => {} }); await vent(120);
+    ettBytteHtml(pos, { esc, hent, nå, hentKommuner: null, rerender: () => {} }); await vent(300);
+    const html = ettBytteHtml(pos, { esc, hent, nå, hentKommuner: null, rerender: () => {} });
+    const navn = [...html.matchAll(/class="eb-forh-navn">([^<]+)</g)].map(m => m[1]);
+    expect(navn.length).toBeGreaterThan(2);
+    expect(new Set(navn).size).toBe(navn.length);
+  });
+});

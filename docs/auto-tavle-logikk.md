@@ -512,6 +512,15 @@ ferdselsvei · ved stoppet».
   Kartverkets WMS-tjeneste (`wms.friluftsruter2`) legges oppå dagens kart.
   Dagens kart beholdes (beslutning 24.11).
 
+### Unike beste opplevelser på tvers av kortene (v1.218.323)
+
+Samme opplevelse skal ikke være «beste» på to kort. Kortene velger i
+visningsrekkefølge (nær → langt, `unikeBeste`), og en opplevelse et tidligere
+kort har tatt, er ikke tilgjengelig for de neste. Er alt tatt, står kortet
+uten boks. Identitet (`opplevelseNøkkel`): Wikidata-id, ellers navnet (ikke
+posisjon: kanten på en flate er ulik fra hvert stopp). Samme tilstand gir
+samme valg.
+
 ### «Ett bytte unna» er en modus i menylinjen (v1.218.321)
 
 Bestilt: «Ett bytte unna er en modus og knappen skal flyttes ned til menylinjen

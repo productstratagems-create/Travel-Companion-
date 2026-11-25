@@ -41,3 +41,21 @@ describe('ett bytte unna', () => {
     expect(src).toMatch(/spredt\(r\.punkter\.filter\(p => p\.id\), SJEKK_STEDER\)\.sort\(\(a, b\) => \(a\.m \?\? Infinity\) - \(b\.m \?\? Infinity\)\)/);
   });
 });
+
+describe('ett bytte unna er en modus i menylinjen (v1.218.321)', () => {
+  it('menypunktet står ved siden av Auto-tavla, og knappen er borte fra retningsknappene', async () => {
+    const { NAV_ITEMS, navSynlig } = await import('../src/ui/nav.js');
+    const v = NAV_ITEMS.map(i => i.view);
+    expect(v.indexOf('v-bytte')).toBe(v.indexOf('v-autotavle') + 1);
+    expect(NAV_ITEMS.find(i => i.view === 'v-bytte').label).toBe('ett bytte unna');
+    expect(navSynlig('v-bytte')).toBe(navSynlig('v-autotavle'));
+    const src = fs.readFileSync('src/views/auto.js', 'utf8');
+    expect(src).toContain("knappValg.filter(k => k !== ETT_BYTTE_VALG");
+    expect(src).toContain('window._settEttBytte = settEttBytte');
+  });
+  it('navTo setter modusen: v-bytte på, auto-tavle og auto-reise av', () => {
+    const nav = fs.readFileSync('src/ui/nav.js', 'utf8');
+    expect(nav).toContain("window._settEttBytte(bytte)");
+    expect(nav).toContain("id === 'v-autotavle' || id === 'v-auto' || id === 'v-bytte'");
+  });
+});

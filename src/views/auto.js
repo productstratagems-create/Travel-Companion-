@@ -6184,7 +6184,7 @@ function _tegnAutoTavle(body) {
   const linjerI = k => [...new Set((_iValg(synlige, k, nå) || []).map(d => d.lines && d.lines[0] && d.lines[0].code).filter(Boolean))];
   const knappValg = (_atOmr.length ? ['alle', 'mot', 'hjem', ..._atOmr.map(o => o.id)] : AT_RETNINGER)
     .filter(k => k === 'alle' || k === 'hjem' || linjerI(k).length > 0);
-  if (ETT_BYTTE && here) knappValg.push(ETT_BYTTE_VALG); // ETT BYTTE (eksperiment)
+  if (ETT_BYTTE && here) knappValg.push(ETT_BYTTE_VALG); // ETT BYTTE (eksperiment): modusen står i menylinjen (v1.218.321), ikke som knapp
   if (!knappValg.includes(_atRetning)) _atRetning = 'alle';
   if (hjemListe.length) _hjemSøkOppdater(nå);
   const iRetning = _iRetning(synlige, nå);
@@ -6243,7 +6243,7 @@ function _tegnAutoTavle(body) {
     if (tilFots && del.rekker[0]) del.rekker[0].best = true;
   }
   const retningKnapper = harBegge ? '<div class="auto-fra at-retning" role="group" aria-label="retning">'
-    + knappValg.map(k => '<button type="button" class="auto-fra-knapp' + (k === _atRetning ? ' valgt' : '')
+    + knappValg.filter(k => k !== ETT_BYTTE_VALG /* ETT BYTTE (eksperiment) */).map(k => '<button type="button" class="auto-fra-knapp' + (k === _atRetning ? ' valgt' : '')
       + '" data-retning="' + k + '" aria-pressed="' + (k === _atRetning) + '"' + (k === 'hjem' ? ' title="hold for å velge stoppene"' : '') + '>' + esc(_retningTekst(k))
       + ((l => k !== 'alle' && l.length ? '<small class="omr-linjer">' + esc(knappLinjer(l)) + '</small>' : '')(k === ETT_BYTTE_VALG ? [] /* ETT BYTTE (eksperiment) */ : linjerI(k))) + '</button>').join('') + '</div>' : '';
   // Avvikene per linje, samme kilde som retningskortene (v1.218.126).
@@ -6402,7 +6402,14 @@ function _tegnAutoTavle(body) {
   }, { rootMargin: '200px' });
   _atObs.observe(vakt);
 }
-if (typeof window !== 'undefined') { window._settAutoTavle = settAutoTavle; window._erAutoTavle = erAutoTavle; }
+/** «Ett bytte unna» er en modus av Auto-tavla (v1.218.321): menypunktet setter den, valget huskes ikke. */
+export function erEttBytte() { return _atRetning === ETT_BYTTE_VALG; } // ETT BYTTE (eksperiment)
+export function settEttBytte(på) {
+  if (!!på === erEttBytte()) return;
+  _atRetning = på ? ETT_BYTTE_VALG : lagretRetning(); // ETT BYTTE (eksperiment)
+  _atRull = { vist: -1, tomme: 0 };
+}
+if (typeof window !== 'undefined') { window._settAutoTavle = settAutoTavle; window._erAutoTavle = erAutoTavle; window._settEttBytte = settEttBytte; window._erEttBytte = erEttBytte; }
 
 function _renderBody() {
   _kortRute = null;

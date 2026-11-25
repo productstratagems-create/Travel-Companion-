@@ -512,6 +512,17 @@ ferdselsvei · ved stoppet».
   Kartverkets WMS-tjeneste (`wms.friluftsruter2`) legges oppå dagens kart.
   Dagens kart beholdes (beslutning 24.11).
 
+### «Ett bytte unna» er en modus i menylinjen (v1.218.321)
+
+Bestilt: «Ett bytte unna er en modus og knappen skal flyttes ned til menylinjen
+ved siden av Auto-tavla.»
+- Menypunktet `v-bytte` («ett bytte unna») står rett til høyre for
+  Auto-tavla og følger samme valg (`navSynlig`). Det er en modus av
+  Auto-tavla, ikke en egen skjerm: `navTo` setter modusen
+  (`window._settEttBytte`), og menyen lyser for den (`navActive`).
+- Knappen er tatt ut av retningsknappene på tavla. Valget huskes ikke, som før.
+- Auto-tavle og Auto-reise slår modusen av igjen.
+
 ### «Ett bytte unna» (v1.218.320)
 
 - Knappen heter **«ett bytte unna»**.

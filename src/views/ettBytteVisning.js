@@ -110,7 +110,7 @@ const _sjekk = new Map();
 export const SJEKK_GYLDIG_MS = 10 * 60_000;
 /** Høyst så mange steder står i lista under det valgte kortet. */
 export const SJEKK_STEDER = 8;
-export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _fasett = 'retning'; _visAlle = false; _rerender = null; _hent = null; _sjekk.clear(); _rekkevidde = null; _oppl.clear(); _valgtOppl = null; }
+export function _nullstillEttBytte() { _tilstand = null; _valgt = null; _fasett = 'retning'; _visAlle = false; _rerender = null; _hent = null; _sjekk.clear(); _rekkevidde = null; _oppl.clear(); _valgtOppl = null; _bildeEl.clear(); }
 export const sjekkStatus = id => _sjekk.get(id) || null;
 /** Tester: glem ett steds svar. */
 export const _nullstillSjekk = id => _sjekk.delete(id);
@@ -230,7 +230,7 @@ export function opplevelseHtml(p, esc, nå = Date.now()) {
       const kat = k.innganger[0];
       const fakta = [...k.aktiviteter, k.gang.type === 'målt' ? k.gang.tekst + ' å gå fra stoppet' : k.gang.type === 'luftlinje' ? (k.gang.tekst === 'ved stoppet' ? 'ved stoppet' : k.gang.tekst + ' fra stoppet (luftlinje)') : null, ...k.fasiliteter.map(f => f + ' ved')].filter(Boolean);
       return '<div class="eb-okort' + (valgt ? ' eb-okort-valgt' : '') + '" role="button" tabindex="0" aria-pressed="' + valgt + '" data-oppl="' + esc(k.stedId + '|' + k.navn) + '">'
-        + (k.bilde ? '<figure class="eb-okort-bilde"><img src="' + esc(k.bilde.url) + '" alt="' + esc(k.navn) + '" loading="lazy" decoding="async">'
+        + (k.bilde ? '<figure class="eb-okort-bilde"><img src="' + esc(k.bilde.url) + '" alt="' + esc(k.navn) + '" decoding="sync">'
           + '<figcaption>Foto: ' + esc(k.bilde.fotograf) + ' · ' + (k.bilde.lisensUrl ? '<a href="' + esc(k.bilde.lisensUrl) + '" target="_blank" rel="noopener">' + esc(k.bilde.lisens) + '</a>' : esc(k.bilde.lisens)) + ' · Wikimedia Commons</figcaption></figure>' : '')
         + '<div class="eb-okort-topp"><span class="eb-okort-navn">' + esc(k.navn) + '</span>'
         + (kat ? '<span class="eb-okort-kat eb-kat-' + kat + '">' + esc(INNGANGER[kat]) + '</span>' : '') + '</div>'
@@ -302,9 +302,26 @@ export function velgRetning(retning) {
 
 // Én delegert lytter for kortene, bundet første gang lista tegnes: ingen ny krok i auto.js.
 let _lytter = false;
+/* BILDENE BLINKER IKKE (v1.218.317). Tavla bytter ut hele innholdet hvert sekund, så hvert
+   bilde ble et nytt <img> som måtte dekodes på nytt. Observeren bytter det nye elementet mot
+   det ferdig lastede for samme src — flyttet, ikke lastet på nytt — før neste tegning. */
+export const _bildeEl = new Map();
+export const BILDE_MAKS = 32;
+export function gjenbrukBilder(rot) {
+  for (const img of rot.querySelectorAll('.eb-okort-bilde img')) {
+    const src = img.getAttribute('src'), gammel = _bildeEl.get(src);
+    if (gammel && gammel !== img) { if (gammel.complete) img.replaceWith(gammel); continue; }
+    if (!gammel) {
+      if (_bildeEl.size >= BILDE_MAKS) _bildeEl.delete(_bildeEl.keys().next().value);
+      _bildeEl.set(src, img);
+    }
+  }
+}
 function bindKort() {
   if (_lytter || typeof document === 'undefined') return;
   _lytter = true;
+  const rot = document.getElementById('v-auto');
+  if (rot && typeof MutationObserver !== 'undefined') new MutationObserver(() => gjenbrukBilder(rot)).observe(rot, { childList: true, subtree: true });
   document.addEventListener('click', e => {
     const sj = e.target && e.target.closest && e.target.closest('#v-auto .eb-sjekk[data-eb-sted]');
     if (sj) { sjekkSted(sj.dataset.ebSted); return; }

@@ -512,6 +512,33 @@ ferdselsvei · ved stoppet».
   Kartverkets WMS-tjeneste (`wms.friluftsruter2`) legges oppå dagens kart.
   Dagens kart beholdes (beslutning 24.11).
 
+### Transparent score for «beste opplevelse» (v1.218.324)
+
+Valgfri og **av som standard**: `velgVisning(liste, n)` uten tredje argument er
+nøyaktig som før (`dagensRekkefølge`). Med `kontekst` velges etter en forklarbar
+score (`scoreOpplevelse`, `src/opplevelserScore.js`, ren modul uten nettverk,
+DOM eller HTML).
+
+- **Vekter** (`SCORE_VEKTER`): kvalitet 0,45 · popularitet 0,20 · tilgang
+  0,20 · nærhet 0,10 · risiko −0,05. Hver delverdi er 0–100 før vekting.
+- **Kvalitet** følger trinnene (`trinnFor`, den ene definisjonen): nasjonal
+  rute 100 · regional 85 · sterkt reisemål 80 · rute/friluft 60 · annet 50 ·
+  kirke/kulturminne 25.
+- **Popularitet:** Wikipedia-språkversjoner (`log2`), rating bare når den
+  finnes (manglende = nøytral 50, ikke lav) og lokal betydning fra
+  Miljødirektoratet. En score er en indikasjon, ikke en fasit.
+- **Tilgang:** enkel 100 · mulig 65 · krevende 25 · ukjent 50 (nøytral).
+- **Nærhet:** målt gangtid overstyrer luftlinje.
+- **Risiko:** gange ikke målt 20, gammelt søk 30, bestilling 40, feil
+  målestopp/ugyldig transport 100, pluss svake tillegg. Reduserer prioritet,
+  fjerner aldri.
+- **Variasjon** etter score-sortering (`velgMedVariasjon`): høyst én rute,
+  høyst én kirke/kulturminne, ikke to nesten like steder (samme navn eller
+  innen 150 m) når andre finnes.
+- Brukeren ser aldri scoren, bare `forklaring` («nasjonal turrute · enkel
+  tilgang · 8 min å gå»). En rating vises aldri uten kilde. Ikke koblet til
+  skjermen ennå (`scoreKontekst` gjør det mulig).
+
 ### Unike beste opplevelser på tvers av kortene (v1.218.323)
 
 Samme opplevelse skal ikke være «beste» på to kort. Kortene velger i

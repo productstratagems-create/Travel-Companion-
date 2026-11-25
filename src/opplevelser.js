@@ -16,6 +16,7 @@
  * `opplevelse()` og rapportens §8.
  */
 import { metresBetween } from './haversine.js';
+import { scoreOpplevelse, trinnFor, erKirke } from './opplevelserScore.js';
 /** Hovedkategoriene (arbeidshypotesen fra oppdraget, prøvd i traceren). */
 export const KATEGORIER = { friluftsliv: 'Friluftsliv og utfart', natur: 'Natur og landskap', severdighet: 'Severdigheter og landemerker', attraksjon: 'Attraksjoner og opplevelser', kultur: 'Kultur og historie', bading: 'Bading og vannaktiviteter', park: 'Parker og rekreasjon' };
 // OSM: tagg=verdi → [kategori, underkategori, sterk]. Sterk = kan være et selvstendig reisemål.
@@ -169,30 +170,49 @@ export function opplevelserVed(kandidater, stopp) {
 }
 
 /**
- * Hvilke to som vises på raden. Rekkefølge, ingen poengsum:
- * nasjonal eller regional turrute, sterkt reisemål (ikke kirke), andre turruter
- * og friluftsområder, resten — kirker sist (én i hver bydel, se rapporten §8).
- * Innen samme trinn: nærmest først. Ren.
+ * Dagens rekkefølge (standard, uendret): trinn, så kjentest (Wikidata-språkversjoner), så nærmest. Ren.
+ * Kirker sist (én i hver bydel, se rapporten §8). Leser `trinnFor` fra src/opplevelserScore.js.
  */
-export function velgVisning(liste, n = 2) {
-  const kirke = o => o.under.every(u => u === 'kirke' || u === 'kulturminne');
-  // Sykkelruter følger ofte bygater (sett: «Pilegrimsruta · nasjonal sykkelrute» ved tre bystopp i Oslo):
-  // de står med de andre rutene, ikke øverst.
-  const tur = o => o.rute && o.rute.type !== 'Sykkelrute';
-  const trinn = o => (tur(o) && o.rute.betydning === '1') ? 0
-    : ((tur(o) && o.rute.betydning === '2') || (!kirke(o) && o.kat.some(t => t.sterk) && !o.rute)) ? 1
-    : (o.rute || o.hoved.includes('friluftsliv')) ? 2 : kirke(o) ? 4 : 3;
-  // Innen samme trinn: kjentest først (språkversjoner i Wikidata), så nærmest (sett: Leangen gård foran Ringve Musikkmuseum).
-  const sortert = (liste || []).slice().sort((a, b) => trinn(a) - trinn(b) || (b.sitelinks || 0) - (a.sitelinks || 0) || a.luft - b.luft);
-  // Høyst én rute når det finnes noe annet: to pilegrimsleder på rad sier mindre enn led + marka.
-  const ut = [];
+export const dagensRekkefølge = (a, b) => trinnFor(a) - trinnFor(b) || (b.sitelinks || 0) - (a.sitelinks || 0) || a.luft - b.luft;
+
+/**
+ * Velg `n` fra en allerede sortert liste. Alltid: høyst én rute når noe annet finnes (to pilegrimsleder på rad
+ * sier mindre enn led + marka). `utvidet` (bare med score): høyst én kirke/kulturminne, ikke to nesten like
+ * steder (samme navn eller innen 150 m) når andre finnes. Ren.
+ */
+export function velgMedVariasjon(sortert, n, utvidet = false) {
+  const ut = [], annet = x => sortert.some(y => y !== x && !ut.includes(y) && !y.rute && trinnFor(y) < 4);
+  const lik = (a, b) => normNavn(a.navn) === normNavn(b.navn) || (Number.isFinite(a.lat) && Number.isFinite(b.lat) && avstandM(a, b) < 150);
   for (const o of sortert) {
     if (ut.length >= n) break;
-    if (o.rute && ut.some(x => x.rute) && sortert.some(x => !x.rute && !ut.includes(x) && trinn(x) < 4)) continue;
+    if (o.rute && ut.some(x => x.rute) && sortert.some(x => !x.rute && !ut.includes(x) && trinnFor(x) < 4)) continue;
+    if (utvidet) {
+      if (erKirke(o) && ut.some(erKirke) && sortert.some(x => !erKirke(x) && !ut.includes(x))) continue;
+      if (ut.some(x => lik(x, o)) && sortert.some(x => !ut.includes(x) && !ut.some(y => lik(y, x)))) continue;
+    }
     ut.push(o);
   }
   for (const o of sortert) if (ut.length < n && !ut.includes(o)) ut.push(o);
   return ut;
+}
+
+/**
+ * Hvilke som vises på raden (høyst `n`). Uten `kontekst`: dagens rekkefølge, nøyaktig som før.
+ * Med `kontekst` (se `scoreOpplevelse`): sortert etter forklarbar score — kvalitet, popularitet, tilgang,
+ * nærhet og risiko — og velges deretter med variasjonsreglene. Score påvirker aldri HVILKE som finnes, bare
+ * rekkefølgen. Ren.
+ */
+export function velgVisning(liste, n = 2, kontekst = null) {
+  const kopi = (liste || []).slice();
+  if (!kontekst) return velgMedVariasjon(kopi.sort(dagensRekkefølge), n, false);
+  const medScore = kopi.map(o => ({ ...o, score: scoreOpplevelse(o, { ...kontekst, gang: kontekst.gangFor ? kontekst.gangFor(o) : kontekst.gang }) }));
+  medScore.sort((a, b) => b.score.total - a.score.total || dagensRekkefølge(a, b));
+  return velgMedVariasjon(medScore, n, true);
+}
+/** Kontekst for score fra datagrunnlaget kortet alt har kontrollert (`grunnlag`). Ren. */
+export function scoreKontekst(g, ekstra = {}) {
+  return { reise: g && g.reise ? { min: g.reise.min, bytter: g.reise.bytter, bestilling: g.reise.bestilling, ugyldig: g.reise.ugyldig } : null,
+    gang: g && g.gang, tilgang: g && g.reise && g.gang ? tilgang(g.reise, g.gang).ord : 'ukjent', avvik: (g && g.avvik) || [], ...ekstra };
 }
 
 /** Underkategoriens ord på raden: «nasjonal turrute», «historisk ferdselsvei», «museum». Ren. */

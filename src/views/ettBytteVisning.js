@@ -230,7 +230,7 @@ export function opplevelseHtml(p, esc, nå = Date.now()) {
       const kat = k.innganger[0];
       const fakta = [...k.aktiviteter, k.gang.type === 'målt' ? k.gang.tekst + ' å gå fra stoppet' : k.gang.type === 'luftlinje' ? (k.gang.tekst === 'ved stoppet' ? 'ved stoppet' : k.gang.tekst + ' fra stoppet (luftlinje)') : null, ...k.fasiliteter.map(f => f + ' ved')].filter(Boolean);
       return '<div class="eb-okort' + (valgt ? ' eb-okort-valgt' : '') + '" role="button" tabindex="0" aria-pressed="' + valgt + '" data-oppl="' + esc(k.stedId + '|' + k.navn) + '">'
-        + (k.bilde ? '<figure class="eb-okort-bilde"><img src="' + esc(k.bilde.url) + '" alt="' + esc(k.navn) + '" loading="lazy" decoding="async">'
+        + (k.bilde ? '<figure class="eb-okort-bilde"><img src="' + esc(k.bilde.url) + '" alt="' + esc(k.navn) + '" decoding="sync">'
           + '<figcaption>Foto: ' + esc(k.bilde.fotograf) + ' · ' + (k.bilde.lisensUrl ? '<a href="' + esc(k.bilde.lisensUrl) + '" target="_blank" rel="noopener">' + esc(k.bilde.lisens) + '</a>' : esc(k.bilde.lisens)) + ' · Wikimedia Commons</figcaption></figure>' : '')
         + '<div class="eb-okort-topp"><span class="eb-okort-navn">' + esc(k.navn) + '</span>'
         + (kat ? '<span class="eb-okort-kat eb-kat-' + kat + '">' + esc(INNGANGER[kat]) + '</span>' : '') + '</div>'

@@ -89,3 +89,12 @@ describe('turrutebasens informasjon (sett live ved Ranheim)', async () => {
     expect(h).toEqual({ tekst: 'Isbading om vinteren, med mulighet for varmestue hvis medlemskap.', kilde: 'Kartverket, turrutebasen' });
   });
 });
+
+describe('bildene blinker ikke (v1.218.316)', () => {
+  it('<img> har decoding="sync" og ikke loading="lazy": tavla tegner på nytt hvert sekund', () => {
+    const src = fs.readFileSync('src/views/ettBytteVisning.js', 'utf8');
+    const i = src.indexOf('<figure class="eb-okort-bilde"><img'), tag = src.slice(i, src.indexOf('>', i + 40));
+    expect(tag).toContain('decoding="sync"');
+    expect(tag).not.toContain('loading="lazy"');
+  });
+});

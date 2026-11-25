@@ -255,19 +255,26 @@ export function forhåndFor(r) {
 }
 const _forhBerik = new Map();
 /** Beste opplevelse øverst på kortet. Ingen funn: ingenting (kortet står som før). */
-export function forhåndHtml(r, esc) {
+export function forhåndHtml(r, esc, nå = Date.now()) {
   const gruppe = r.retningNavn || r.knuteNavn || '';
   const b = besteForKort(r, _tildelt);
   if (!b) return '';
   const { o, sted } = b;
   if (!_forhBerik.has(o.navn)) { _forhBerik.set(o.navn, null); Promise.resolve(_hentBerik(o)).then(x => { _forhBerik.set(o.navn, x || null); if (_rerender) _rerender(); }).catch(() => {}); }
   const be = _forhBerik.get(o.navn), k = kortData(o, null, [], be), hvorfor = k.hvorfor;
-  return '<div class="eb-forh"><div class="eb-forh-tekst"><div class="eb-forh-merke">beste opplevelse i ' + esc(gruppe.toLowerCase()) + '</div>'
+  const avst = k.gang.type === 'målt' ? k.gang.tekst + ' å gå' : k.gang.tekst === 'ved stoppet' ? 'opplevelsen ligger ved stoppet' : k.gang.tekst + ' i luftlinje';
+  const plan = sjekkReise(sted.id, nå);
+  const reise = plan ? plan.linjer.map(l => l.kode).join(' → ') + (plan.fra ? ' fra ' + plan.fra : '') + ' · ' + (plan.gåOm <= 0 ? 'går nå' : 'gå om ' + plan.gåOm + ' min') : 'trykk for å se reisen dit';
+  return '<div class="eb-forh" role="button" tabindex="0" data-eb-forh="' + esc(r.retning + '|' + sted.id + '|' + o.navn) + '"><div class="eb-forh-tekst"><div class="eb-forh-merke">beste opplevelse i ' + esc(gruppe.toLowerCase()) + '</div>'
     + '<div class="eb-forh-navn">' + esc(o.navn) + '</div>'
-    + '<div class="eb-forh-hva">' + esc(k.hva) + ' · ved ' + esc(sted.navn) + ' · ' + esc(k.gang.tekst === 'ved stoppet' ? 'ved stoppet' : k.gang.tekst + ' fra stoppet') + ((r.punkter || []).length > 1 ? ' · ett av ' + Math.min(FORHÅND_STEDER, r.punkter.length) + ' steder kortet dekker' : '') + '</div>'
+    + '<div class="eb-forh-hva">' + esc(k.hva) + '</div>'
+    // Hvilket stopp, og hvor langt (luftlinje sies som luftlinje): v1.218.327.
+    + '<div class="eb-forh-stopp">nærmeste stopp: <b>' + esc(sted.navn) + '</b> · ' + esc(avst) + ((r.punkter || []).length > 1 ? ' · ett av ' + Math.min(FORHÅND_STEDER, r.punkter.length) + ' steder kortet dekker' : '') + '</div>'
+    + '<div class="eb-forh-reise">' + esc(reise) + '</div>'
     + (hvorfor ? '<div class="eb-forh-besk">' + esc(hvorfor.tekst) + '</div>' : '') + '</div>'
     + (k.bilde ? '<img class="eb-forh-bilde" src="' + esc(k.bilde.url) + '" alt="" decoding="sync">' : '') + '</div>';
 }
+
 /** «Vis opplevelser»: fire av/på-knapper, alle på som standard. */
 export function katVelgerHtml(esc) {
   const v = valgteKategorier();
@@ -423,6 +430,8 @@ function bindKort() {
     const ok = e.target && e.target.closest && e.target.closest('#v-auto .eb-okort[data-oppl]');
     if (ok) { const [sid, ...n] = ok.dataset.oppl.split('|'); velgOpplevelse(sid, n.join('|')); return; }
     if (e.target && e.target.closest && e.target.closest('#v-auto .eb-turlag')) { try { storage.set(TURLAG_KEY, turLagPå() ? '0' : '1'); } catch (_) {} if (_kart) oppdaterTurLag(_kart.map, _kartL, !!_valgt && turLagPå()); if (_rerender) _rerender(); return; }
+    const fh = e.target && e.target.closest && e.target.closest('#v-auto .eb-forh[data-eb-forh]');
+    if (fh) { const [ret, sid, ...n] = fh.dataset.ebForh.split('|'), navn = n.join('|'); if (_valgt !== ret) velgRetning(ret); sjekkSted(sid); if (!(_valgtOppl && _valgtOppl.stedId === sid && _valgtOppl.navn === navn)) velgOpplevelse(sid, navn, { rull: true }); return; }
     const kv = e.target && e.target.closest && e.target.closest('#v-auto [data-eb-kategori]');
     if (kv) { const k = kv.dataset.ebKategori, v = valgteKategorier(), ny = v.includes(k) ? v.filter(x => x !== k) : [...v, k]; try { storage.set(KATEGORI_KEY, skrivKategorier(ny)); } catch (_) {} if (_rerender) _rerender(); return; }
     const fa = e.target && e.target.closest && e.target.closest('#v-auto [data-eb-fasett]');

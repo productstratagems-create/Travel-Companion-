@@ -27,7 +27,13 @@ describe('beste opplevelse på kortet', () => {
     expect(rad.indexOf('class="eb-topp"')).toBeGreaterThan(-1);
     expect(rad.indexOf('class="eb-forh"')).toBeGreaterThan(rad.indexOf('class="eb-topp"'));
     expect(rad).toMatch(/ett av \d steder kortet dekker/);
-    expect(html).toMatch(/class="eb-forh-hva">[^<]+ · ved [^<]+ · /);
+    // v1.218.327: stoppet nevnes ved navn og avstanden er sagt som luftlinje (ikke «ved X» / «fra stoppet»).
+    const stopp = [...html.matchAll(/class="eb-forh-stopp">([^<]*<b>[^<]*<\/b>[^<]*)/g)].map(m => m[1]);
+    expect(stopp.length).toBeGreaterThan(1);
+    for (const t of stopp) expect(t).toMatch(/^nærmeste stopp: <b>[^<]+<\/b> · (ca\. \d+ m i luftlinje|opplevelsen ligger ved stoppet|\d+ min å gå)/);   // hvert kort, ikke bare ett
+    expect(html).not.toMatch(/fra stoppet/);
+    expect(html).toMatch(/class="eb-forh" role="button" tabindex="0" data-eb-forh="[^"]+\|[^"]+\|[^"]+"/);   // trykk: åpner kortet, stedet og opplevelsen
+    expect(html).toMatch(/class="eb-forh-reise">(trykk for å se reisen dit|[^<]+ · (går nå|gå om \d+ min))</);
     expect(html).toMatch(/class="eb-steder"/);                    // stoppene står fortsatt, under
     expect((html.match(/class="eb-forh"/g) || []).length).toBeGreaterThan(1);   // flere kort har en
   });

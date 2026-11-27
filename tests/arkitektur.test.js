@@ -110,8 +110,12 @@ describe('arkitekturgrensen: snarveier og andre muligheter (steg 1b)', () => {
  * api/*, views/*, ui/* — og ingen av dem importerer den (ingen konsument ennå). */
 describe('arkitekturgrensen: userContext (#809 steg 2)', () => {
   const UC = fil('userContext.js');
-  it('når bare position.js og haversine.js — ingen state, geo, nettverk, visning', () => {
-    expect(navn(når(UC)).sort()).toEqual(['haversine.js', 'position.js']);
+  it('når bare position.js, bevegelse.js (steg 3), trail.js og haversine.js — ingen state, geo, nettverk, visning', () => {
+    expect(navn(når(UC)).sort()).toEqual(['bevegelse.js', 'haversine.js', 'position.js', 'trail.js']);
+  });
+  it('bevegelse.js (steg 3) når bare trail.js og haversine.js — og ingen andre enn userContext.js importerer den', () => {
+    const BV = fil('bevegelse.js');
+    expect(navn(når(BV)).sort()).toEqual(['haversine.js', 'trail.js']);
   });
   it('vakten fanger en innsmuglet import (mutasjon)', () => {
     const kilde = readFileSync(UC, 'utf8');

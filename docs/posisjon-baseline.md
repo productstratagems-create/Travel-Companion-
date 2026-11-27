@@ -32,3 +32,14 @@ Førstevalg (mer relevant stopp?) · topp tre (flere relevante med?) · gangtid 
 
 ## Mutasjonskontroll (steg 1)
 `CLOSE_M` 100→50, `PICK_MARGIN_M` 40→4000 og `STILL_MS` 0,4→0 feller hver sin del av baselinen (4, 1 og 2 tester).
+
+## Hypoteser for senere evaluering (fra gjennomgangen etter steg 1) — IKKE krav
+| hypotese | hva en senere endring skal dokumentere |
+|---|---|
+| Ombord-status bør påvirke holdeplassrangeringen | at passerende holdeplasser ikke behandles som om brukeren står ved dem |
+| Bevegelsesretning bør påvirke rangeringen | at stopp brukeren går bort fra mister relevans tidligere |
+| Reisemuligheter bør påvirke rangeringen | at nyttige avganger og realistisk gangtid kan veie tyngre enn luftlinje (nærmeste holdeplass er ikke gitt best) |
+
+## To varsler
+1. **Syntetiske forløp er ikke GPS-sannhet.** De dokumenterer deterministisk logikk, ikke støy, varierende målefrekvens, tunneler eller stillestående busser. Skillet mot senere opptak fra reelle reiser beholdes.
+2. **Baseline-forventningene er referanse, ikke produktkrav.** De beskriver hva appen gjør nå, også svakhetene S1–S3. Når rangeringen forbedres, skal de gamle forventningene ikke tvinge oss til å bevare feil oppførsel: baseline-testene beholdes som referanse, og ønsket oppførsel får egne tester ved siden av.

@@ -15,6 +15,7 @@ import { logEvent, recentEvents, describeEvent, clearEvents, MEMORY_DAYS } from 
 import { rangering, rangeringTekst, glemKnappebruk } from '../api/knappebruk.js';
 import { clearRecentDests } from '../api/recentDests.js';
 import { loadConsent, saveConsent } from '../api/consent.js';
+import { fikstaktRader, fikstaktStatistikk, slettFikstakt, oppdaterFikstaktSamtykke } from '../api/fikstakt.js';
 import L from 'leaflet';
 import { createMap } from '../ui/map.js';
 import { tokens } from '../ui/themeTokens.js';
@@ -925,6 +926,19 @@ function _renderTurer() {
   el.querySelectorAll('.tur-slett').forEach(b => b.addEventListener('click', () => { slettTur(b.dataset.id); _renderTurer(); }));
 }
 
+/** GPS-takt, diagnostisk måling (v1.218.333): ALT som lagres vises som en rad; kopier som JSON (uten posisjoner) og slett. */
+export function fikstaktHtml(rader) {
+  return rader.map(r => '<div class="mem-row"><span class="mem-when">' + esc(r.navn) + '</span><span class="mem-text">' + esc(r.verdi) + '</span></div>').join('');
+}
+function _renderFikstakt() {
+  const el = document.getElementById('mem-fikstakt');
+  if (!el) return;
+  el.innerHTML = fikstaktHtml(fikstaktRader(Date.now()));
+  const k = document.getElementById('fikstakt-kopier'), sl = document.getElementById('fikstakt-slett');
+  if (k) k.onclick = () => { try { navigator.clipboard.writeText(JSON.stringify(fikstaktStatistikk(Date.now()), null, 1)).then(() => { k.textContent = 'kopiert'; setTimeout(() => { k.textContent = 'kopier måling'; }, 1500); }, () => {}); } catch { /* ingen utklippstavle */ } };
+  if (sl) sl.onclick = () => { slettFikstakt(); _renderFikstakt(); };
+}
+
 /* Linjene du har bekreftet eller rettet i auto-reise (v1.218.19). Nivå 1, «det
  * du har sagt»: vises alltid, uavhengig av samtykkebryteren. */
 function _renderLinjeSvar() {
@@ -1018,6 +1032,8 @@ export function renderMemory() {
   const cb = document.getElementById('mem-consent');
   if (!box || !cb) return;
   const on = loadConsent();
+  // GPS-takt-målingen følger samme samtykke (v1.218.333): tilbaketrekking stopper den og sletter dataene (renderMemory kjøres ved hver endring).
+  oppdaterFikstaktSamtykke(); if (!on) slettFikstakt();
   cb.checked = on;
   box.hidden = !on;
   if (!on) { _destroyMemMap(); return; }
@@ -1046,6 +1062,7 @@ export function renderMemory() {
   // tegnet, 2 synlige». Deferring one frame lets the layout settle
   // whatever order the caller used, rather than depending on it.
   _renderTurer();
+  _renderFikstakt();
   _renderKnappebruk();
   const pts = events.filter(e => e.pos);
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => _renderMemMap(pts));
@@ -1133,7 +1150,7 @@ export function initMemory() {
     // Og linjene du har bekreftet (v1.218.19).
     glemLinjeSvar();
     glemNesteSvar();
-    glemProfil();
+    glemProfil(); slettFikstakt();
     // Og turopptakene (v1.218.20).
     glemTuropptak();
     renderMemory();

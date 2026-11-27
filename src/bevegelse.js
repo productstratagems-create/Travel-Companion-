@@ -8,7 +8,7 @@
  * ISOLERT: ingen konsument leser denne ennå (ikke `auto.js`, `geo.js`, `pickStop` eller rangering). Ren: ingen state, DOM, nett,
  * ingen lagring. Hysteresen får det FORRIGE RESULTATET inn som parameter (`forrige`) — modulen husker ingenting selv.
  *
- * EKTE GPS ER IKKE VALIDERT. Tersklene under er HYPOTESER kalibrert mot en seedet simulering (tests/bevegelseSimulering.test.js)
+ * EKTE GPS ER IKKE VALIDERT. Tersklene under er HYPOTESER kalibrert mot en seedet simulering (tests/bevegelse.test.js)
  * med konstruert støy, ikke mot opptak fra telefoner. Målefrekvens, støyfordeling i bykløfter, strupet bakgrunnsmodus,
  * tunneler og stillestående busser er ikke målt.
  *

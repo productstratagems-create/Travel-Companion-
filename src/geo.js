@@ -16,6 +16,7 @@ const WALK_BUF_KEY    = 't.walkBuf';
 const WALK_FROM_KEY   = 't.walkFrom';
 const HOME_LL_KEY     = 't.homeLL';
 import { hentTestPos, settTestPos, slettTestPos } from './api/testPos.js';
+import { registrerFiks } from './api/fikstakt.js';
 // Ganghastigheten bor i sin egen bladmodul (se walkSpeed.js) og
 // re-eksporteres her under navnet kallestedene alt kjenner.
 export { SPEED_MPN, SPEED_DEFAULT } from './walkSpeed.js';
@@ -840,6 +841,8 @@ function _handleFix(pos) {
   // posisjonen, og den siste gode fiksen før en tunnel er nøyaktig der de er
   // verdt mest — se kalman.js.
   const { latitude, longitude, accuracy, speed, heading } = pos.coords;
+  // DIAGNOSTISK MÅLING AV FIKSTAKT (#809): leser bare `pos.timestamp`, returnerer ingenting, aldri synkron lagring, svelger alle feil.
+  try { registrerFiks(pos, Date.now()); } catch { /* målingen må aldri påvirke GPS-behandlingen */ }
   state.gpsError = null;
   const at = pos.timestamp || Date.now();
   const here = { lat: latitude, lon: longitude, at, acc: accuracy, speed, heading };

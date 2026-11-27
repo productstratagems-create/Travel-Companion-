@@ -48,10 +48,13 @@ describe('bevegelse (steg 3): fra inferBevegelse når spor gis; ellers unknown. 
     const p = går[går.length - 1];
     expect(byggUserContext({ pos: p, posTilstand: { kind: 'ok', usable: true }, spor: går, nå: p.at + KONTEKST_UTLØP_MS }).movement.state).toBe('unknown');
   });
-  it('forrigeBevegelse sendes videre (hysterese): i dødsonen beholdes forrige', () => {
+  it('forrigeBevegelse sendes videre (hysterese med utløp): i dødsonen holdes en bekreftet forrige, ikke en gammel', () => {
     const dø = støyspor({ x: t => 0.125 * t, sigma: 0, accRap: 5, n: 60, seed: 2 }), p = dø[dø.length - 1];
     const m = f => byggUserContext({ pos: p, posTilstand: { kind: 'ok', usable: true }, spor: dø, nå: p.at + 500, forrigeBevegelse: f }).movement.state;
-    expect(m({ state: 'moving' })).toBe('moving'); expect(m(null)).toBe('unknown');
+    const nå = p.at + 500;
+    expect(m({ state: 'moving', bekreftetVed: nå - 5000 })).toBe('moving');          // bekreftet for 5 s siden: holdes
+    expect(m({ state: 'moving', bekreftetVed: nå - 60_000 })).toBe('unknown');     // bekreftelsen er for gammel (utløp)
+    expect(m({ state: 'moving' })).toBe('unknown'); expect(m(null)).toBe('unknown');
   });
 });
 

@@ -19,7 +19,7 @@
  *  4. z = |D|/σD. Fart vD = |D|/Δt (Δt = tid mellom halvdelenes tyngdepunkt). Rettlinjethet = |D| / banelengde.
  *  5. moving: z ≥ Z_OPP, vD ≥ V_OPP. stationary: z ≤ Z_NED, og gange ved V_OPP kan UTELUKKES ((|D| + Z_OPP·σD)/Δt ≤ V_OPP).
  *     Kalman-farten (`fartMS`) er IKKE bevis for ro: simuleringen viser at den ligger over 1 m/s for en som står stille i
- *     over halvparten av tiden. Den brukes bare som veto mot «moving» når den er nær null. Mellom (dødsone) beholdes `forrige`; uten forrige: unknown.
+ *     over halvparten av tiden. Den brukes bare som veto mot «moving» når den er nær null. Mellom (dødsone) videreføres `forrige` BARE hvis den er bekreftet (`bekreftetVed`) for høyst HOLD_MS siden (hypotese, 10 s) — og bekreftelsen fornyes ikke av å holde; ellers unknown.
  *     Ro krever STRENGERE evidens enn «ikke bevegelse» (gange må kunne utelukkes, noe som krever langt spenn og lav støy) — det er
  *     den asymmetrien, pluss dødsonen, som gir hysterese; en egen minste-spenn-regel for moving → stationary var overflødig og er fjernet. Motstridende (zigzag med stor
  *     median-steglengde og liten forflytning, eller Kalman mot forflytning) ⇒ unknown.
@@ -40,9 +40,10 @@ export const MIN_FIKSER = 4;                // brukbare fikser (≥ 2 per halvde
 export const MIN_SPENN_MS = 8_000;          // spennet de brukbare fiksene dekker
 export const VINDU_MAKS_MS = 60_000;        // eldre fikser teller ikke
 export const UTLØP_MS = 60_000;             // siste fiks eldre enn dette ⇒ unknown (samme tall som KONTEKST_UTLØP_MS, men uten import)
-export const Z_OPP = 3.5;                   // stasjonær → moving krever z ≥ dette
+export const Z_OPP = 4.5;                   // stasjonær → moving krever z ≥ dette (3,5 ga 1–2 % falsk moving med hysterese i 30-seed-simuleringen)
 export const Z_NED = 2;                     // moving → stationary krever z ≤ dette (dødsone mellom)
 export const V_OPP = 0.5;                   // m/s: lavere forflytningsfart regnes ikke som bevegelse
+export const HOLD_MS = 10_000;               // HYPOTESE (kalibrert mot simulering, ikke målt): dødsonen kan videreføre en BEKREFTET tilstand så lenge; deretter unknown
 export const MAKS_STEG_FAKTOR = 3;          // median-steg > faktor·σ OG lav rettlinjethet ⇒ urolig ⇒ unknown
 export const MIN_RETTLINJET = 0.5;
 export const FULL_FIKSER = 8;
@@ -50,7 +51,7 @@ export const FULL_SPENN_S = 20;
 
 const median = a => { const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 const rund05 = x => Math.round(x * 20) / 20;
-const unknown = (reason, ekstra = {}) => ({ state: 'unknown', speedMps: null, confidence: 0, windowSeconds: 0, evidenceCount: 0, reason, ...ekstra });
+const unknown = (reason, ekstra = {}) => ({ state: 'unknown', speedMps: null, confidence: 0, windowSeconds: 0, evidenceCount: 0, reason, bekreftetVed: null, ...ekstra });
 
 /** Rens og vindu. Ren. → fikser sortert på tid, uten duplikater, med brukbar nøyaktighet. */
 export function renset(spor, nå) {
@@ -67,7 +68,7 @@ export function renset(spor, nå) {
 }
 
 /**
- * @param {{spor:Array<{lat,lon,at,acc}>, fartMS?:number|null, nå?:number, forrige?:{state:string}|null}} o
+ * @param {{spor:Array<{lat,lon,at,acc}>, fartMS?:number|null, nå?:number, forrige?:{state:string, bekreftetVed?:number|null}|null}} o
  * @returns {{state, speedMps:number|null, confidence:number, windowSeconds:number, evidenceCount:number, reason:string}}
  */
 export function inferBevegelse(o) {
@@ -102,9 +103,9 @@ export function inferBevegelse(o) {
   let bane = 0; for (let i = 1; i < n; i++) bane += metresBetween(l[i - 1], l[i]);
   const steg = []; for (let i = 1; i < n; i++) steg.push(metresBetween(l[i - 1], l[i]));
   const rett = bane > 0 ? D / bane : 1, midtSteg = median(steg);   // MEDIAN-steg: ett løgnaktig hopp skal ikke velte et ellers rolig spor
-  const ut = (state, margin, reason) => {
+  const ut = (state, margin, reason, bekreftetVed = nå) => {
     const data = Math.min(1, n / FULL_FIKSER) * Math.min(1, spennMs / 1000 / FULL_SPENN_S);
-    return { state, speedMps, confidence: state === 'unknown' ? 0 : rund05(Math.max(0, Math.min(data, margin))), ...felles, reason };
+    return { state, speedMps, confidence: state === 'unknown' ? 0 : rund05(Math.max(0, Math.min(data, margin))), ...felles, reason, bekreftetVed };
   };
   if (midtSteg > MAKS_STEG_FAKTOR * sigma && rett < MIN_RETTLINJET) return unknown('urolig', { ...felles, speedMps });
 
@@ -119,7 +120,9 @@ export function inferBevegelse(o) {
   if (stillEv) {
     return ut('stationary', Math.min(1, (Z_NED - z) / Z_NED + 0.5), 'ro');
   }
-  // Dødsone/inkonklusivt: behold forrige (hysterese), ellers unknown.
-  if (forrige === 'moving' || forrige === 'stationary') return ut(forrige, 0.25, 'dødsone');
+  // Dødsone/inkonklusivt: viderefør en BEKREFTET forrige tilstand — men bare HOLD_MS etter siste positive evidens (`bekreftetVed`),
+  // og uten å fornye bekreftelsen. Hysterese er stabilitet, ikke permanent hukommelse: uten utløp låste en sjelden falsk «moving» seg (v1.218.331-feilen).
+  const bv = c.forrige && c.forrige.bekreftetVed;
+  if ((forrige === 'moving' || forrige === 'stationary') && Number.isFinite(bv) && nå - bv <= HOLD_MS) return ut(forrige, 0.25, 'dødsone', bv);
   return unknown('inkonklusiv', { ...felles, speedMps });
 }

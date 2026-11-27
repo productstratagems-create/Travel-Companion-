@@ -105,3 +105,17 @@ describe('arkitekturgrensen: snarveier og andre muligheter (steg 1b)', () => {
     expect(navn(når(MUL, { [MUL]: via + kilde, [fil('maalomrader.js')]: "import './reiseoppgaver.js';\n" + malKilde }))).toContain('reiseoppgaver.js');
   });
 });
+
+/* BRUKERKONTEKSTEN (#809 steg 2, v1.218.330): ren og selvstendig. Når bare posisjonsporten (position.js → haversine.js); ikke state, geo,
+ * api/*, views/*, ui/* — og ingen av dem importerer den (ingen konsument ennå). */
+describe('arkitekturgrensen: userContext (#809 steg 2)', () => {
+  const UC = fil('userContext.js');
+  it('når bare position.js og haversine.js — ingen state, geo, nettverk, visning', () => {
+    expect(navn(når(UC)).sort()).toEqual(['haversine.js', 'position.js']);
+  });
+  it('vakten fanger en innsmuglet import (mutasjon)', () => {
+    const kilde = readFileSync(UC, 'utf8');
+    expect(navn(når(UC, { [UC]: "import { state } from './state.js';\n" + kilde }))).toContain('state.js');
+    expect(navn(når(UC, { [UC]: "import { fartNå } from './geo.js';\n" + kilde }))).toContain('geo.js');
+  });
+});

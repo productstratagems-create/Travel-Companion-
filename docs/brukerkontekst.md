@@ -21,3 +21,23 @@ Ingen konsument ennå: ingen rangering, anbefaling eller visning leser den (test
 
 ## Ikke med i steg 2
 Bevegelsesinferens (steg 3), gange/annen bevegelse (steg 4), forholdet til stopp (steg 5), skyggemodus (6), rangering (7).
+
+## Steg 3 (v1.218.331): står stille / i bevegelse
+`src/bevegelse.js` (`inferBevegelse`) gir `movement.state` = `stationary` | `moving` | `unknown`; `byggUserContext` tar valgfritt `spor` og `forrigeBevegelse`.
+`moving` betyr bare «grunnlag for bevegelse», ikke «går». `unknown` (for få/gamle/dårlige/motstridende data) er et fullgodt svar.
+Fortsatt **ingen konsument** (ikke `auto.js`, `geo.js`, `pickStop` eller rangering), ingen lagring; hysteresen får forrige resultat inn som parameter.
+
+`movement` = `{ state, fartMS (observert Kalman, uendret), forflytningMps (observert forflytningsfart over vinduet), confidence, windowSeconds, evidenceCount, reason }`.
+
+**Metode:** rens sporet (tid, duplikater, `acc` ≤ 50 m) → robust forflytning D (median over par tidlig→sen halvdel) → støy σ (rms av `acc`, gulv 5 m) → z = D / σD → moving når z ≥ 3,5 og fart ≥ 0,5 m/s; stationary når z ≤ 2 **og** gange kan utelukkes; dødsone i mellom beholder forrige (hysterese). «Urolig» spor (median-steg > 3σ og lav rettlinjethet) og forflytning mot Kalman ≈ 0 ⇒ `unknown`.
+
+**`confidence` er IKKE en sannsynlighet:** `min(dataFaktor, margin)` avrundet til 0,05; `dataFaktor = min(1, n/8)·min(1, spenn/20 s)`, `margin` = avstand fra beslutningsterskelen (0 ved terskel, 1 ved 2×). `unknown` ⇒ 0.
+
+### Funn fra simuleringen (seedet, KONSTRUERT støy — ikke ekte GPS)
+- **Dagens `posTrail` (12 fikser ≈ 11 s ved 1 Hz) er for kort**: gir `unknown` nesten alltid. `pushFix` håndhever ikke minimumsavstand i tid (`TRAIL_MIN_MS` gjelder bare `closingRate`), så vinduet varierer med målefrekvensen.
+- Med **60 s vindu**: falsk «moving» < 1 % (σ 3–20 m, takt 1–3 s); gange 1,0–1,6 m/s gir «moving» ≥ 90 % (σ ≤ 10 m); stillstand gjenkjennes > 90 % ved σ ≤ 8 m, men ikke ved σ ≈ 20 m (da `unknown` — ikke feil svar).
+- **Kalman-farten (`fartNå`) er for urolig til å bevise ro**: den lå over 1 m/s for en som sto stille i over halvparten av tiden. Den brukes derfor bare som veto mot «moving» når den er nær null.
+- En senere konsument må mate funksjonen et lengre spor enn dagens `posTrail` (egen beslutning; ikke i steg 3).
+- `SIGMA_GULV_M` er i praksis overlappet av «urolig»-vakten og V_OPP-kravet (mutanten ble ikke felt av en egen test); gulvet beholdes som forsvar, og dette er sagt høyt.
+
+**Ikke validert:** målefrekvens, støyfordeling i bykløfter/innendørs, strupet bakgrunnsmodus, tunneler, stillestående busser. Alle terskler (`Z_OPP`, `Z_NED`, `V_OPP`, `MIN_FIKSER`, `MIN_SPENN_MS`, `BEVEGELSE_MAKS_ACC_M`, …) er **hypoteser** kalibrert mot simuleringen.

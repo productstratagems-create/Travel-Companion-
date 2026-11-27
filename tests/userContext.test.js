@@ -9,6 +9,7 @@ import { byggUserContext, userContextGyldig, KONTEKST_UTLØP_MS, TRANSIT_AV_OMBO
 import { posState, POS_STALE_MS } from '../src/position.js';
 import { ombord } from '../src/api/ombord.js';
 import { FORLØP, LAT } from './fixtures/posisjon/baseline.js';
+import { støyspor } from './fixtures/posisjon/bevegelse.js';
 
 const SISTE = f => f.spor[f.spor.length - 1];
 const posT = (f, ekstra = {}, nå = SISTE(f).at + 1000) => { const p = SISTE(f); return posState({ asked: true, homeLL: { lat: p.lat, lon: p.lon }, posAt: p.at, acc: p.acc, now: nå, ...ekstra }); };
@@ -30,12 +31,27 @@ describe('oversettelse av ombord-status', () => {
   });
 });
 
-describe('bevegelse og stopp: ingen inferens i steg 2', () => {
-  it('movement.state er alltid unknown; bare observert fart bæres med; stopRelation er unknown', () => {
-    for (const n of Object.keys(FORLØP)) { const c = bygg(n); expect(c.movement.state).toBe('unknown'); expect(c.movement.confidence).toBe(null); expect(c.stopRelation).toEqual({ state: 'unknown', stopId: null }); }
+describe('bevegelse (steg 3): fra inferBevegelse når spor gis; ellers unknown. Stopp: fortsatt unknown', () => {
+  it('uten spor: movement.state unknown, bare observert fart bæres med; stopRelation unknown', () => {
+    for (const n of Object.keys(FORLØP)) { const c = bygg(n); expect(c.movement).toMatchObject({ state: 'unknown', confidence: 0, windowSeconds: 0, evidenceCount: 0 }); expect(c.stopRelation).toEqual({ state: 'unknown', stopId: null }); }
     expect(bygg('sitter på buss (10 m/s østover)').movement.fartMS).toBe(10);
     expect(bygg('står stille ved et stopp', { fartMS: null }).movement.fartMS).toBe(null);
     expect(bygg('står stille ved et stopp', { fartMS: -1 }).movement.fartMS).toBe(null);
+  });
+  it('med langt nok spor: stationary/moving med confidence, vindu og antall; med ubrukbar/utløpt posisjon: tom kontekst (unknown, 0)', () => {
+    const still = støyspor({ x: () => 0, sigma: 3, n: 60, seed: 3 }), går = støyspor({ x: t => 1.4 * t, sigma: 3, n: 60, seed: 4 });
+    const ctx = (sp, ekstra = {}) => { const p = sp[sp.length - 1], nå = p.at + 500; return byggUserContext({ pos: p, posTilstand: { kind: 'ok', usable: true }, spor: sp, nå, ...ekstra }); };
+    expect(ctx(still).movement).toMatchObject({ state: 'stationary' });
+    expect(ctx(går).movement).toMatchObject({ state: 'moving' });
+    expect(ctx(går).movement.confidence).toBeGreaterThan(0); expect(ctx(går).movement.evidenceCount).toBeGreaterThan(50);
+    expect(ctx(går, { posTilstand: { kind: 'avslatt', usable: false } }).movement).toMatchObject({ state: 'unknown', confidence: 0, evidenceCount: 0 });
+    const p = går[går.length - 1];
+    expect(byggUserContext({ pos: p, posTilstand: { kind: 'ok', usable: true }, spor: går, nå: p.at + KONTEKST_UTLØP_MS }).movement.state).toBe('unknown');
+  });
+  it('forrigeBevegelse sendes videre (hysterese): i dødsonen beholdes forrige', () => {
+    const dø = støyspor({ x: t => 0.125 * t, sigma: 0, accRap: 5, n: 60, seed: 2 }), p = dø[dø.length - 1];
+    const m = f => byggUserContext({ pos: p, posTilstand: { kind: 'ok', usable: true }, spor: dø, nå: p.at + 500, forrigeBevegelse: f }).movement.state;
+    expect(m({ state: 'moving' })).toBe('moving'); expect(m(null)).toBe('unknown');
   });
 });
 
@@ -54,7 +70,7 @@ describe('posisjonskvalitet: holdt adskilt, tom kontekst når ubrukelig', () => 
       ['leter', { homeLL: null }], ['ukjent-alder', { posAt: null }], ['gammel', {}, gammel], ['borte', { posAt: p.at - 400_000 }, { ...p, at: p.at - 400_000 }]]) {
       const c = med(ekstra, pos || p);
       expect(c.position.available, navn).toBe(false); expect(c.position.usable).toBe(false);
-      expect(c.transit.state).toBe('unknown'); expect(c.movement.fartMS).toBe(null); expect(c.expiresAt).toBe(null);
+      expect(c.transit.state).toBe('unknown'); expect(c.movement.fartMS).toBe(null); expect(c.movement.state).toBe('unknown'); expect(c.expiresAt).toBe(null);
       kinds[navn] = c.position.kind;
     }
     expect(kinds).toEqual({ avslatt: 'avslatt', utilgjengelig: 'utilgjengelig', tidsavbrudd: 'tidsavbrudd', leter: 'leter', 'ukjent-alder': 'ukjent-alder', gammel: 'gammel', borte: 'borte' });   // alle forskjellige, ingen slått sammen
@@ -86,7 +102,7 @@ describe('utløp: grenseverdiene rundt KONTEKST_UTLØP_MS (foreløpig 60 s, umå
   });
 });
 
-describe('isolert: ingen konsument, og baselinen er uendret', () => {
+describe('isolert: ingen konsument (userContext og bevegelse), og baselinen er uendret', () => {
   it('auto.js, geo.js, ombord.js og trail.js importerer ikke userContext (ingen anbefaling, rangering eller visning leser den)', () => {
     for (const fil of ['src/views/auto.js', 'src/geo.js', 'src/api/ombord.js', 'src/trail.js', 'src/position.js']) expect(fs.readFileSync(fil, 'utf8')).not.toMatch(/userContext/);
     const ALLE = fs.readdirSync('src', { recursive: true }).filter(f => String(f).endsWith('.js')).map(f => 'src/' + f);

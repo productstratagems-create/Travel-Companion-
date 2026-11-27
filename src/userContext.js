@@ -11,13 +11,17 @@
  *  - Posisjonskvalitetene holdes adskilt: `position.kind` er `posState().kind` uendret (avslatt, utilgjengelig, tidsavbrudd,
  *    leter, ikke-spurt, unoyaktig, gammel …) — de slås ikke sammen til én generell status. `available` følger `posState().usable`
  *    (også `unoyaktig` er brukbar i posState: posisjonen holdes mens nye fikser forkastes) og utløpet under.
- *  - `movement.state` er ALLTID 'unknown' i steg 2: bare den OBSERVERTE farten bæres med. Bevegelsesinferens kommer i steg 3.
+ *  - `movement` (steg 3): `state` = `stationary` | `moving` | `unknown` fra `inferBevegelse` (src/bevegelse.js) når kalleren gir `spor`;
+ *    uten spor, med ubrukbar/utløpt posisjon eller for svakt grunnlag er den `unknown`. `moving` betyr bare «grunnlag for bevegelse» —
+ *    ikke «går». `fartMS` er den OBSERVERTE Kalman-farten (uendret fra steg 2), `forflytningMps` er forflytningsfarten over vinduet,
+ *    `confidence` er styrken på datagrunnlaget (ikke en sannsynlighet; se bevegelse.js), `windowSeconds`/`evidenceCount` sier hva vurderingen bygger på.
  *  - `stopRelation` er 'unknown' til steg 5.
  *
  * UTLØP: `KONTEKST_UTLØP_MS` = 60 s er en FORELØPIG, UMÅLT grense (samme tall som POS_STALE_MS, posisjonsporten) — ikke en
  * empirisk validert verdi. Den er en navngitt konstant slik at den kan justeres når ekte turer er målt (#395).
  */
 import { POS_STALE_MS } from './position.js';
+import { inferBevegelse } from './bevegelse.js';
 
 export const KONTEKST_UTLØP_MS = POS_STALE_MS;   // FORELØPIG, ikke målt
 /** `ombord().kind` → transit.state. `vet-ikke` er `unknown`, ikke «ikke ombord». */
@@ -26,14 +30,14 @@ export const TRANSIT_AV_OMBORD = Object.freeze({ ombord: 'onboard', 'ombord-tvil
 const posisjonTom = kind => ({ available: false, lat: null, lon: null, accuracyM: null, observedAt: null, ageMs: null, kind, usable: false });
 const bunn = (position, nå, expiresAt = null) => ({
   position,
-  movement: { state: 'unknown', fartMS: null, confidence: null },
+  movement: { state: 'unknown', fartMS: null, forflytningMps: null, confidence: 0, windowSeconds: 0, evidenceCount: 0, reason: 'ingen-grunnlag' },
   transit: { state: 'unknown', confidence: null },
   stopRelation: { state: 'unknown', stopId: null },
   updatedAt: nå, expiresAt,
 });
 
 /**
- * @param {{pos?:{lat,lon,at,acc}|null, posTilstand?:{kind,usable}|null, fartMS?:number|null,
+ * @param {{pos?:{lat,lon,at,acc}|null, posTilstand?:{kind,usable}|null, fartMS?:number|null, spor?:Array, forrigeBevegelse?:{state}|null,
  *          ombord?:{kind:string}|null, nå?:number, utløpMs?:number}} o
  *   `posTilstand` er svaret fra `posState()` (kalleren kjører den) — kvaliteten avgjøres der, ikke her.
  * @returns userContext (se toppen). Aldri null.
@@ -56,6 +60,10 @@ export function byggUserContext(o) {
     observedAt: p.at, ageMs, kind, usable: true,
   }, nå, expiresAt);
   ctx.movement.fartMS = Number.isFinite(c.fartMS) && c.fartMS >= 0 ? c.fartMS : null;   // OBSERVERT fart, ingen tolkning
+  if (Array.isArray(c.spor)) {
+    const b = inferBevegelse({ spor: c.spor, fartMS: ctx.movement.fartMS, nå, forrige: c.forrigeBevegelse });
+    Object.assign(ctx.movement, { state: b.state, forflytningMps: b.speedMps, confidence: b.confidence, windowSeconds: b.windowSeconds, evidenceCount: b.evidenceCount, reason: b.reason });
+  }
   ctx.transit.state = TRANSIT_AV_OMBORD[c.ombord && c.ombord.kind] || 'unknown';
   return ctx;
 }

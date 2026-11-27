@@ -43,6 +43,8 @@ const ALL_KEYS = [
   't.rekkevidde',
   't.turruteLag',
   't.opplevelseKategorier',
+  // GPS-fikstakt, diagnostisk måling (v1.218.333): tellere per døgn, 7 døgn, bak samtykket. Nivå 3.
+  't.fikstakt',
   // Kartets fokus per kart, og Rutes linjefilter per rute (v1.218.187). Nivå 1.
   't.kartFokus',
   't.ruteLinjer',
